@@ -8,20 +8,37 @@ import "common/Pagination.proto";
 import "topology/TopologyDTO.proto";
 import "CloudCostDTO.proto";
 
+// NB All messages in this set of declarations are serialized in rdbms.
+// They are not modifiable, only extendable.
+
+// Action explanation.
 message Explanation {
-   oneof action_explanation_type {
-       MoveExplanation move = 1;
-       ResizeExplanation resize = 2;
-       ActivateExplanation activate = 3;
-       DeactivateExplanation deactivate = 4;
-       ReconfigureExplanation reconfigure = 5;
-       ProvisionExplanation provision = 6;
-       DeleteExplanation delete = 7;
-   }
-   // A list of explanations for move action.
+    oneof action_explanation_type {
+        MoveExplanation move = 1;
+        ResizeExplanation resize = 2;
+        ActivateExplanation activate = 3;
+        DeactivateExplanation deactivate = 4;
+        ReconfigureExplanation reconfigure = 5;
+        ProvisionExplanation provision = 6;
+        DeleteExplanation delete = 7;
+        BuyRIExplanation buyRI = 8;
+        ScaleExplanation scale = 9;
+        AllocateExplanation allocate = 10;
+        AtomicResizeExplanation atomicResize = 11;
+    }
+
+    // A list of explanations for move action.
     message MoveExplanation {
         repeated ChangeProviderExplanation change_provider_explanation = 1;
+        optional string scaling_group_id = 2;
     }
+
+    // An explanation for Scale action.
+    message ScaleExplanation {
+        repeated ChangeProviderExplanation change_provider_explanation = 1;
+        optional string scaling_group_id = 2;
+    }
+
     message ChangeProviderExplanation {
 
         oneof change_provider_explanation_type {
@@ -42,29 +59,47 @@ message Explanation {
 
         // A move explanation suggesting unavailability of commodities.
         message Compliance {
+            // Deprecated - use missing_commodities.
+            repeated topology.CommodityType __deprecated_missing_commodities = 1 [deprecated = true];
+
             // A list of commodities' base type which are missing in current supplier.
-            repeated topology.CommodityType missing_commodities = 1;
+            repeated ReasonCommodity missing_commodities = 2;
+
+            // A list of setting policy oids which caused this compliance action.
+            // For ex. compliance actions that can be caused by template exclusion settings
+            repeated int64 reason_settings = 3;
         }
 
         // A move explanation suggesting commodity congestion.
         message Congestion {
+            // Deprecated - use congested_commodities.
+            repeated topology.CommodityType __deprecated_congested_commodities = 1 [deprecated = true];
+
+            // Deprecated - use under_utilized_commodities.
+            repeated topology.CommodityType __deprecated_under_utilized_commodities = 2 [deprecated = true];
+
+            // For the cloud, true if increasing RI coverage is the main reason for the move
+            optional bool __deprecated_is_ri_coverage_increased = 3 [deprecated = true];
+
             // A list of commodities' base type which are cheaper at the destination.
             // For the cloud, these are the commodities sold by the target entity which are
             // congested / over-utilized
-            repeated topology.CommodityType congested_commodities = 1;
+            repeated ReasonCommodity congested_commodities = 4;
 
             // For the cloud, these are the commodities sold by the target entity which are
             // under-utilized
-            repeated topology.CommodityType under_utilized_commodities = 2;
-
-            // For the cloud, true if increasing RI coverage is the main reason for the move
-            optional bool is_ri_coverage_increased = 3;
+            // Congested commodity is the driver of congestion action. So we are deprecating
+            // under_utilized_commodities which is part of Effciency.
+            repeated ReasonCommodity __deprecated_under_utilized_reason_commodities = 5 [deprecated = true];
         }
 
         // A move explanation suggesting evacuation of buyers.
         message Evacuation {
             // A trader which was suspended so buyers of it should move out.
             required int64 suspended_entity = 1;
+
+            // False if original supplier is in MAINTENANCE or FAILOVER state.
+            optional bool is_available = 2 [default = true];
         }
 
         // A move explanation suggesting initial placement of buyer.
@@ -76,23 +111,66 @@ message Explanation {
         // Efficiency messages are currently generated for the cloud.
         // We generate an efficiency message when we move the on-demand cost is cheaper at destination.
         message Efficiency {
-            // These are the commodities sold by the target entity which are
-            // congested / over-utilized
-            repeated topology.CommodityType congested_commodities = 1;
+            // Deprecated - use congested_commodities.
+            repeated topology.CommodityType __deprecated_congested_commodities = 1 [deprecated = true];
 
-            // These are the commodities sold by the target entity which are
-            // under-utilized
-            repeated topology.CommodityType under_utilized_commodities = 2;
+            // Deprecated - use under_utilized_commodities.
+            repeated topology.CommodityType __deprecated_under_utilized_commodities = 2 [deprecated = true];
 
             // True if increasing RI coverage is the main reason for the move
             optional bool is_ri_coverage_increased = 3;
+
+            // These are the commodities sold by the target entity which are
+            // congested / over-utilized
+            // Efficiency category is only if all the commodities are under-utilized.
+            // Under-utilized commodities are the drivers of efficiency action. So we are
+            // deprecating congested_commodities which is part of Effciency.
+            repeated ReasonCommodity __deprecated_congested_reason_commodities = 4 [deprecated = true];
+
+            // These are the commodities sold by the target entity which are
+            // under-utilized
+            repeated ReasonCommodity under_utilized_commodities = 5;
+
+            // If the action was purely because destination was cheaper
+            optional bool is_wasted_cost = 6;
         }
     }
 
     // A resize explanation contains start and end utilization of the resize commodity.
     message ResizeExplanation {
-        required float start_utilization = 1;
-        required float end_utilization = 2;
+        required float _deprecated_start_utilization = 1 [deprecated=true];
+        required float _deprecated_end_utilization = 2 [deprecated=true];
+        optional string scaling_group_id = 3;
+    }
+
+    // Explanation for the atomic resize action
+    message AtomicResizeExplanation {
+        // entity which executes the merged actions
+        required string merge_group_id = 1;
+
+        //target entities of each of the merged resize info object
+        repeated int64 entity_ids = 2;
+
+        // explanation for the individual resize info objects in the atomic resize
+        repeated ResizeExplanationPerEntity per_entity_explanation = 3;
+
+        message ResizeExplanationPerEntity {
+            // target entity for the resize,
+            // typically the entity that will de-duplicate the actions for a set of entities
+            // or the original entity itself
+            required string entity_id = 1;
+
+            // original resize entities - multiple if the resize actions of all these entities
+            // are de-duplicated and reduced to one resize
+            repeated int64 resize_entity_ids = 2;
+
+            // explanation for each commodity resize
+            optional ResizeExplanationPerCommodity per_commodity_explanation = 3;
+
+            message ResizeExplanationPerCommodity {
+                 required topology.CommodityType commodity_type = 1;
+            }
+        }
     }
 
     // An activate explanation contains the base type of the most expensive commodity.
@@ -103,15 +181,24 @@ message Explanation {
     // Deactivate explanation will always be improve overall efficiency.
     message DeactivateExplanation {}
 
-   // Delete - right now used for wasted files only
-   message DeleteExplanation {
-       // The size of the file to delete (needed for ON_PREM only)
-       optional int64 size_kb = 1;
-   }
+    // Delete - right now used for wasted files only
+    message DeleteExplanation {
+        // The size of the file to delete (needed for ON_PREM only)
+        optional int64 size_kb = 1;
+    }
 
     // Reconfigure explanation contains the base type of the reconfigure commodity.
     message ReconfigureExplanation {
-        repeated topology.CommodityType reconfigure_commodity = 1;
+        // Deprecated - use reconfigure_commodity.
+        repeated topology.CommodityType __deprecated_reconfigure_commodity = 1 [deprecated = true];
+
+        repeated ReasonCommodity reconfigure_commodity = 2;
+
+        // A list of setting policy oids which caused this reconfigure action.
+        // For ex. reconfigure actions that can be caused by template exclusion settings.
+        repeated int64 reason_settings = 3;
+
+        optional string scaling_group_id = 4;
     }
 
     message ProvisionExplanation {
@@ -121,8 +208,8 @@ message Explanation {
         }
         // Provision by supply explanation contains the base type of the most expensive commodity.
         message ProvisionBySupplyExplanation {
-            // TODO: Change this to topology.CommodityType when M2 provides sufficient information to do so.
-            required int32 most_expensive_commodity = 1;
+            optional int32 most_expensive_commodity = 1 [deprecated=true];
+            required ReasonCommodity most_expensive_commodity_info = 2;
         }
 
         // Provision by demand explanation
@@ -159,6 +246,96 @@ message Explanation {
         }
     }
 
+    message BuyRIExplanation {
+        // How much demand of a particular context we have in terms of coupons.
+        optional float totalAverageDemand = 1;
+
+        // How much demand out of totalAverageDemand is covered in terms of coupons.
+        optional float coveredAverageDemand = 2;
+
+        // Estimated on demand cost of RI for the term of the RI
+        optional float estimatedOnDemandCost = 3;
+    }
+
+    message AllocateExplanation {
+        // Instance size family of the workload that is relocated to RI
+        optional string instanceSizeFamily = 1;
+        // TODO: Consider adding some details here, e.g. other scaling actions that freed up RI.
+    }
+
+    // Reference to a commodity causing the action, with extended per-commodity information.
+    message ReasonCommodity {
+        required topology.CommodityType commodity_type = 1;
+        oneof reason_information {
+            TimeSlotReasonInformation time_slot = 2;
+        }
+        // Slot info when action is caused by a time-slot analysis
+        message TimeSlotReasonInformation {
+            // the slot within a day
+            required int32 slot = 1;
+            // total number of slots in a day
+            required int32 totalSlotNumber = 2;
+        }
+    }
+}
+
+// Merge a set of resize actions and generate one action.
+// Market does not generate AtomicResizes.
+// Action Orchestrator will receive resize actions from market and convert to AtomicResize actions
+// based on the AtomicActionSpec received from the topology processor.
+message AtomicResize {
+    // Target entity that will execute all the resizes.
+    // This entity corresponds to the aggregate entity in the AtomicActionSpec
+    //
+    // As an example, if a set of containers or VMs that are controlled by workload controllers,
+    // then that workload controller is the execution target entity.
+    // 1. VMs VM1, VM2, VM3 --> aggregated by -> VMSpecs VMS1 --> controlled by --> WorkloadController W1
+    // Workload Controller W1 will execute the merged resize on the VMSpec VMS1 for VM1, VM2, VM3
+    // 2. VMs VM4, VM5, VM6 --> controlled by -->  WorkloadController W2
+    // Workload Controller W1 will execute the merged resize for VM4, VM5, VM6
+    // 3. For a basic case of merging commodity resizes on an entity,
+    // the entity itself is also the execution target
+    //
+    required ActionEntity execution_target = 1;
+
+    // List of individual resizes
+    // The original or de-duplicated resizes that will be executed by this action
+    repeated ResizeInfo resizes = 2;
+}
+
+// Resize object that is created when one or more resize actions are to be merged..
+message ResizeInfo {
+    // the original resize entities
+    repeated ActionEntity source_entities = 1;
+
+    // Entity where the resize should take place
+    // typically the entity that will de-duplicate the resize for a set of entities
+    // or the original entity itself
+    //
+    // In the example of Container -> ContainerSpec -> WorkloadController,
+    // actions of containers belonging to the container spec will be de-duplicated to a single action
+    // and the resize will be performed on the container spec.
+    // WorkloadController W1 --> owns -> ContainerSpecs CS1 --> aggregates --> Containers C1, C2, C3
+    // Then the actions of C1,C2,C3 will be de-duplicated by CS1 and created as one action item
+    // and the resize target is CS1.
+    // In the basic case of merging commodity resizes on an entity,
+    // where there is no de-duplication entity, the original resize entity is the target
+    optional ActionEntity target = 2;
+
+    // The commodity that is being resized.
+    optional topology.CommodityType commodity_type = 3;
+
+    // This may be old capacity/reservation/limit/etc, depending on commodity_attribute.
+    optional float old_capacity = 4;
+
+    // This may be new capacity/reservation/limit/etc, depending on commodity_attribute.
+    optional float new_capacity = 5;
+
+    // which specific attribute of the commodity should be resized? defaults to "capacity".
+    optional topology.CommodityAttribute commodity_attribute = 6 [default = CAPACITY];
+
+    // scaling group ID that the source entities belong to
+    optional string scaling_group_id = 7;
 }
 
 // Change one or more providers of an entity.
@@ -167,6 +344,20 @@ message Move {
     required ActionEntity target = 1;
 
     // Details of the providers changes
+    repeated ChangeProvider changes = 2;
+
+    // scaling group ID
+    optional string scaling_group_id = 3;
+}
+
+// Scale an entity. Currently this action type is used to represent Cloud Move actions for
+// workloads when they are moved from one template to another. Market doesn't generate Scale
+// actions but Action Orchestrator translates Cloud Moves to Scale actions.
+message Scale {
+    // Entity that is scaled.
+    required ActionEntity target = 1;
+
+    // Details of each provider change.
     repeated ChangeProvider changes = 2;
 }
 
@@ -206,10 +397,10 @@ message Resize {
     // The commodity that's being resized.
     optional topology.CommodityType commodityType = 2;
 
-    // The expected old capacity.
+    // This may be old capacity/reservation/limit/etc, depending on commodity_attribute.
     optional float old_capacity = 3;
 
-    // The recommended capacity.
+    // This may be new capacity/reservation/limit/etc, depending on commodity_attribute.
     optional float new_capacity = 4;
 
     // which specific attribute of the commodity should be resized? defaults to "capacity".
@@ -220,6 +411,13 @@ message Resize {
 
     // whether or not this commodity supports hot remove
     optional bool hot_remove_supported = 7 [default = false];
+
+    // scaling group ID
+    optional string scaling_group_id = 8;
+
+    // The supplier who triggers the resize
+    // This field is not used now. Should be removed if the tests show that diags for 7.22.3-7.22.5 are loaded correctly.
+    optional ActionEntity resize_trigger_trader = 9;
 }
 
 // Activate an existing deactivated entity.
@@ -245,12 +443,16 @@ message Deactivate {
 }
 
 message Delete {
-    // The oid of the Storage or Storage Tier that the virtual volume that is wasted (for cloud)
-    // or the virtual volume which contains the wasted file (for on prem) is connected to.
+    // The oid of the entity going be deleted in the Action.
+    // In case of storage, it is the Storage or Virtual Volume that the virtual volume that is wasted (for cloud)
+    //   or the virtual volume which contains the wasted file (for on prem) is connected to.
     optional ActionEntity target = 1;
 
     // The path to the wasted file (on prem) or volume (cloud)
     optional string file_path = 2;
+
+    // The oid of the Storage Tier which the wasted virtual volume belongs to (for cloud)
+    optional ActionEntity source = 3;
 }
 
 // Represents an action to reconfigure an entity shopping list of a trader that contains a mix of
@@ -273,6 +475,9 @@ message Reconfigure {
     optional ActionEntity source = 2;
 
     // TODO (davidblinn, July 2016): We also need to record the shopping list that caused the change.
+
+    // scaling group ID
+    optional string scaling_group_id = 3;
 }
 
 // An action to provision an entity that matches another entity already existing in the system.
@@ -285,6 +490,39 @@ message Provision {
     // Since this is a special case, we will just use the EntityId. The entity
     // type will be the same as the entity_to_clone.
     optional sint64 provisioned_seller = 2;
+}
+
+// An action to Buy a reserved instance
+message BuyRI {
+    // The id of the buy ri. The id refers to the primary key in buy_reserved_instance table of
+    // the cost database. The cost-component generates Buy RI recommendations and stores these
+    // recommendations in the database.
+    optional int64 buy_ri_id = 1;
+
+    // The tier of the buy ri. For ex. for a Buy RI action like "Buy 2 t2.small RIs", the
+    // compute_tier will be the t2.small entity
+    optional ActionEntity compute_tier = 2;
+
+    // The number of RI's recommended.
+    optional int32 count = 3;
+
+    // The master account for which we are buying this RI.
+    optional ActionEntity masterAccount = 4;
+
+    // The region in which we are buying this RI.
+    optional ActionEntity region = 5;
+}
+
+// Reserved instance reallocation action (aka Accounting action). These actions are generated
+// for VMs that are moved to reserved instances that became available because some other VMs were
+// moved to different templates.
+message Allocate {
+    // Workload entity that benefits from RI reallocation.
+    required ActionEntity target = 1;
+
+    // Workload tier that workload belongs to. It can be Compute Tier, Database Tier or Database
+    // Server Tier.
+    required ActionEntity workloadTier = 2;
 }
 
 // Contains the information describing the recommendation for what
@@ -300,6 +538,10 @@ message ActionInfo {
         Activate activate = 5;
         Deactivate deactivate = 6;
         Delete delete = 7;
+        BuyRI buyRi = 8;
+        Scale scale = 9;
+        Allocate allocate = 10;
+        AtomicResize atomicResize = 11;
     }
 }
 
@@ -309,9 +551,10 @@ message Action {
 
     required ActionInfo info = 2;
 
+    // This field is deprecated - No longer used.
     // The importance signifies a relative weight of the action. The one with the higher
     // importance should be taken first.
-    required double importance = 3;
+    required double __deprecated__importance = 3 [deprecated=true];
 
     // The explanation for the action
     required Explanation explanation = 4;
@@ -344,6 +587,45 @@ message Action {
 
         // Shouldn't be shown, cannot be executed
         UNSUPPORTED = 3;
+    }
+
+    // A list of pre-requisites.
+    // Pre-requisites of an action means that some pre-requisites need to be satisfied
+    // in order to execute an action.
+    repeated Prerequisite prerequisite = 8;
+
+    message Prerequisite {
+        // The type of pre-requisite
+        optional PrerequisiteType prerequisite_type = 1;
+
+        // The region in which a quota increase is requested, only apply to CORE_QUOTAS
+        optional int64 region_id = 2;
+
+        // The quota name for which a quota increase is requested, only apply to CORE_QUOTAS
+        optional string quota_name = 3;
+
+        // Read-only locks related message preventing (Azure) VM writes.
+        optional string locks = 4;
+    }
+
+    // The pre-requisite types supported
+    enum PrerequisiteType {
+        // AWS execution pre-requisites
+        // ENA (Elastic Network Adapter) driver is necessary for access to
+        // Enhanced Networking on AWS EC2 instances.
+        ENA = 1;
+        // NVMMe (non-volatile memory express) driver is necessary for access to
+        // NVMMe block device such as EBS volumes and instance store volumes.
+        NVME = 2;
+        // Architecture can be 32-bit, 64-bit or arm64.
+        ARCHITECTURE = 3;
+        // Virtualization type can be HVM or PVM.
+        VIRTUALIZATION_TYPE = 4;
+        // Azure execution pre-requisites
+        CORE_QUOTAS = 5;
+
+        // Azure read-only locks preventing writes.
+        LOCKS = 6;
     }
 }
 
@@ -441,6 +723,13 @@ enum ActionMode {
     // by the system.
     RECOMMEND = 1;
 
+    // Indicates that the actions that have this mode must be approved in an external system before
+    // we will execute it (in addition to an execution windows required).
+    // EXTERNAL_APPROVAL is more conservative than MANUAL, as a result, this enum value must come
+    // before MANUAL so that the default enum comparison considers EXTERNAL_APPROVAL to be smaller.
+    // The number 4 is because protobuf requires a new integer for new enum values.
+    EXTERNAL_APPROVAL = 4;
+
     // The recommendation will be shown to the user in the UI and can be optionally
     // executed or dismissed. The user credited with accepting or rejecting the action
     // is the user that made the decision, not the user that set the policy.
@@ -483,16 +772,34 @@ enum ActionType {
 
     // Delete a wasted file associated with a Storage or StorageTier
     DELETE = 9;
+
+    // Buy a reserved instance of the specification.
+    BUY_RI = 10;
+
+    // Scale a service entity. Currently this action type is used to represent Cloud Move actions
+    // for workloads when they are moved from one template to another. Market doesn't generate
+    // Scale actions but Action Orchestrator translates Cloud Moves to Scale actions.
+    SCALE = 11;
+
+    // Reserved instance reallocation action (aka Accounting action). These actions are generated
+    // for VMs that are moved to reserved instances that became available because some other VMs were
+    // moved to different templates.
+    ALLOCATE = 12;
 }
 
 // The ActionState describes the current state of an action.
 // The possible state transitions are:
 //
 // READY
-//   |-> CLEARED
-//   |-> QUEUED ---------> IN_PROGRESS
-//                             |-------> SUCCEEDED
-//                             |-------> FAILED
+//   ^
+//   |-------->  CLEARED
+//   |          ^   ^     ^
+//   |          |   |     |
+//   |--> REJECTED  |     |
+//   |-----> ACCEPTED <-> QUEUED ---> PRE_IN_PROGRESS ---> IN_PROGRESS ---> POST_IN_PROGRESS
+//                                           |                                      |
+//                                           |                                      | ---> SUCCEEDED
+//                                           |--------------------------------------| ---> FAILED
 enum ActionState {
     // An action that is READY is one that has not yet been decided by the system.
     // Changes in policy or capability that affect actions in the READY state will be applied to
@@ -504,9 +811,18 @@ enum ActionState {
     // stay in the READY state but are not shown in the UI or executed.
     CLEARED = 1;
 
-    // Actions in the QUEUED state have been accepted (ie by a user or policy), but cannot be
-    // executed because, for instance, the target associated with the action is busy processing
+    // An action that has been rejected.
+    REJECTED = 8;
+
+    // An action that has been accepted. An action can be accepted by turbo (manually by user or
+    // policy - AUTOMATIC mode) or by third-party orchestrator platform.
+    ACCEPTED = 9;
+
+    // An accepted action that waits start of executing. Action can stays in queue because of,
+    // for example, the target associated with the action is busy processing
     // many other actions and would be overwhelmed by sending additional requests.
+    // Action with execution window can be rolled back from QUEUED state if it wasn't executed during
+    // active period of execution window.
     QUEUED = 2;
 
     // An action that is currently being executed.
@@ -532,6 +848,13 @@ enum ActionPhase {
     // Actions may have Action Scripts that are attached through policy. These scripts execute in
     // phases relative to the primary action itself.
 
+    // Action has been generated by market, and action orchestration decided it does not need to
+    // be filtered.
+    ON_GENERATION = 3;
+
+    // How an action should be approved.
+    APPROVAL = 4;
+
     // A PRE phase script executes before primary action execution
     PRE = 0;
 
@@ -540,6 +863,27 @@ enum ActionPhase {
 
     // A POST phase script executes after the primary action execution
     POST = 2;
+
+    // When an action reaches SUCCEEDED or FAILED. For instance, auditing failed and succeeded
+    // action in an external system. This is separate from POST because POST only deals with the
+    // transition from a succeeded action.
+    AFTER_EXECUTION = 5;
+
+}
+
+enum ActionCostType {
+    // Actions will have a cost type based on whether they provide savings or if they require
+    // an investment.
+
+    // A cost type whose savings and investments are both 0
+    // 'NONE' must have a prefix as there is a sibling enum with 'NONE' already defined
+    ACTION_COST_TYPE_NONE = 0;
+
+    // A cost type where the action provides savings.
+    SAVINGS = 1;
+
+    // A cost type where the action requires investment.
+    INVESTMENT = 2;
 }
 
 // The ActionDecision provides information about why OperationsManager
@@ -601,7 +945,7 @@ message ActionDecision {
 enum Severity {
     NORMAL = 1;     // Indicates a normal state. An entity in a normal state is considered healthy.
     MINOR = 2;      // The action will improve the situation in the user's environment,
-                    // but if not addressed, unlikely to have serious consequences.
+    // but if not addressed, unlikely to have serious consequences.
     MAJOR = 3;      // The action has some urgency.
     CRITICAL = 4;   // The most critical category, these actions should be addressed immediately.
 }
@@ -686,6 +1030,11 @@ message ActionSpec {
     // The recommended steps to take in the environment.
     optional Action recommendation = 1;
 
+    // ID of the recommendation. This is the "stable" id shared by all action instances that
+    // represent the same logical action. For example, all moves of VM 1 from Host 2 to Host 3 will
+    // have the same recommendation ID.
+    optional int64 recommendation_id = 15;
+
     // The execution step associated with an action that is being executed.
     // If the action has not begun to be executed, will be empty.
     //
@@ -727,6 +1076,42 @@ message ActionSpec {
     // The category of the action. It is consumed by UI to indicate if the effect of the action is
     // assure performance, improve efficiency, prevention or compliance.
     optional ActionCategory category = 10 [default = UNKNOWN];
+
+    // The action description that will be set by AO and returned to the API.
+    optional string description = 11;
+
+    // A list of prerequisite descriptions.
+    repeated string prerequisite_description = 12;
+
+    // The severity of the action
+    optional Severity severity = 13 [default = NORMAL];
+
+    optional ActionSchedule actionSchedule = 14;
+
+    // The message which keeps information for the execution window
+    message ActionSchedule {
+        // The start timestamp for the next occurrence of schedule
+        optional int64 start_timestamp = 1;
+
+        // The end timestamp of current if the schedule is active or next occurrence if the
+        // schedule is not active
+        optional int64 end_timestamp = 2;
+
+        // The timezone for the associated schedule
+        optional string schedule_timezone_id = 3;
+
+        // The id for the schedule associated to the action
+        optional int64 schedule_id = 4;
+
+        // The display name for the schedule associated to the action
+        optional string schedule_display_name = 5;
+
+        // Action mode in execution window
+        optional ActionMode execution_window_action_mode = 6;
+
+        // The user that has accepted the action for execution window.
+        optional string accepting_user = 7;
+    }
 }
 
 // A filter to be supplied with action queries.
@@ -742,14 +1127,23 @@ message ActionQueryFilter {
     repeated ActionState states = 2;
 
     // Include only actions that involve any of these entities.
-    optional InvolvedEntities involvedEntities = 3;
+    //
+    // Involved entities are any entities the action affects, and not just the primary entity.
+    // For example, the involved entities in a VM move are the VM, and the hosts.
+    //
+    // If not set, include any actions.
+    optional InvolvedEntities involved_entities = 3;
+
+    // Include only actions that involve entities of the specific type.
+    repeated int32 entity_type = 12;
 
     message InvolvedEntities {
         // The oids of the involved entities.
+        // If empty, will return no actions.
         repeated int64 oids = 11;
     }
 
-    // date range for the request; dates are epoch longs, e.g. Unix Timestamp
+    // date range for the request; dates are epoch longs, e.g. Unix TimestampLiveAction
     // We currently require both start_date and end_date to be not null.
     // Todo: will work on provide default values.
     optional int64 start_date = 4;
@@ -767,6 +1161,16 @@ message ActionQueryFilter {
 
     // Include only actions in a particular environment.
     optional .common.EnvironmentType environment_type = 9;
+
+    // If non-empty, include only actions of the given severities
+    repeated Severity severities = 13;
+
+    // If non-empty, include only actions of given cost type
+    optional ActionCostType cost_type = 14;
+
+    // If present, include actions which have associated schedule with this id.
+    // If not present, the field is not used to filter.
+    optional int64 associatedScheduleId = 15;
 }
 
 // The number of actions of a specific type that match the criteria in
@@ -825,19 +1229,29 @@ message FilteredActionRequest {
     optional ActionQueryFilter filter = 2;
 
     // The pagination parameters for the request.
-    // If not set, the service will use the default sort order and limit.
+    // if enforce_limit in the pagination_params is true (default), it will stream actions in
+    // next page in chunks to client, with the first response to be pagination info. (if no fields
+    // in pagination_params are set, the service will use the default sort order and limit.)
+    // if enforce_limit is set to false, it will stream all actions to client in chunks.
     optional common.PaginationParameters pagination_params = 3;
 }
 
 message FilteredActionResponse {
-    // The list of actions.
-    // The length of this list will not exceed the limit set in the request pagination
-    // parameters.
-    // The actions will be ordered according to the order in the request pagination parameters.
-    repeated ActionOrchestratorAction actions = 1;
+    oneof type {
+        // A chunk of actions.
+        // The length of this list will not exceed the limit set in the request pagination
+        // parameters or the max limit for the service
+        // The actions will be ordered according to the order in the request pagination parameters.
+        ActionChunk action_chunk = 1;
 
-    // The response message containing pagination-related response parameters.
-    optional common.PaginationResponse pagination_response = 2;
+        // The response message containing pagination-related response parameters.
+        // this is only set if pagination_params is set in request
+        common.PaginationResponse pagination_response = 2;
+    }
+
+    message ActionChunk {
+        repeated ActionOrchestratorAction actions = 1;
+    }
 }
 
 // The response to an AcceptAction request.
@@ -1036,6 +1450,11 @@ message CurrentActionStatsQuery {
         // Match action groups with any of these action states.
         // An empty list means match all action states.
         repeated ActionState action_state = 4;
+
+        // If true, include only externally visible actions in the response.
+        // If false, include only non-externally visible actions.
+        // If not present, the field is not used to filter.
+        optional bool visible = 5;
     }
 
     // The entities involved in an action must match this filter in order for the action to be
@@ -1113,6 +1532,25 @@ message CurrentActionStatsQuery {
 
         // Id of the target entity for the action.
         TARGET_ENTITY_ID = 7;
+
+        // The ID of the business account associated with the action.
+        // All actions with no associated business account will go into a single group with
+        // an explicitly set "0" value for the business account ID.
+        BUSINESS_ACCOUNT_ID = 9;
+
+        // The ID of the resource group associated with the action.
+        // All actions with no associated resource group will go into a single group with
+        // an explicitly set "0" value for the resource group ID.
+        RESOURCE_GROUP_ID = 10;
+
+        // Group by the cost type of the action to bucket SAVINGS/INVESTMENT actions.
+        COST_TYPE = 11;
+
+        // Group by the risk severity of actions.
+        SEVERITY = 12;
+
+        // Group by the CSP
+        CSP = 13;
     }
 }
 
@@ -1203,6 +1641,12 @@ message HistoricalActionStatsQuery {
         // compliance, the returned action count will be 2 for the "performance" category and
         // 1 for the "compliance" category.
         ACTION_CATEGORY = 2;
+
+        // The ID of the business account associated with the action.
+        // Only actions that have associated business accounts will be returned. Unlike the
+        // "live" action stats query, we will NOT return a "0"-valued business account group for
+        // actions without a business account.
+        BUSINESS_ACCOUNT_ID = 9;
     }
 
     // The time range for the query.
@@ -1294,8 +1738,31 @@ message CurrentActionStat {
         // for example: "(^_^)~Mem Provisioned congestion", we should compose it fully in AO
         optional string action_explanation = 6;
 
-        // Id of the target entity for the action.
+        // Id of the target entity for the action. Only present if the "group_by" in the query
+        // contained "TARGET_ENTITY_ID".
         optional int64 target_entity_id = 7;
+
+        // ID of the business account associated with the action. Only present if the "group_by" in
+        // the query contained "BUSINESS_ACCOUNT_ID".
+        // May be explicitly set to "0" for a stat group representing actions that are not
+        // associated with any business accounts.
+        optional int64 business_account_id = 8;
+
+        // ID of the resource group associated with the action. Only present if the "group_by" in
+        // the query contained "RESOURCE_GROUP_ID".
+        // May be explicitly set to "0" for a stat group representing actions that are not
+        // associated with any resource groups.
+        optional int64 resource_group_id = 9;
+
+        // Cost Type of the action, only present if the "group_by" in the query contains
+        // "COST_TYPE".
+        optional ActionCostType cost_type = 10;
+
+        // Assigned Severity level of the Action used for the "group_by" "severity" query
+        optional Severity severity = 11;
+
+        // Cloud service provider of the Action target entity used for the "group_by" "csp" query
+        optional string csp = 12;
     }
 
     // The stat group this action stat is in.
@@ -1326,13 +1793,25 @@ message ActionStat {
         optional double total = 4;
     }
 
-    // The state for this action stat, only present if the "group_by" in the query was
-    // "ACTION_STATE."
-    optional ActionState action_state = 1;
+    // If the "group_by" in the query was non-empty, this message contains the values of the
+    // grouping criteria that a particular "ActionStat" aggregated across.
+    message StatGroup {
+        // The state for this action stat, only present if the "group_by" in the query was
+        // "ACTION_STATE."
+        optional ActionState action_state = 1;
 
-    // The category for this action stat, only present if the "group_by" in the query was
-    // "ACTION_CATEGORY."
-    optional ActionCategory action_category = 2;
+        // The category for this action stat, only present if the "group_by" in the query was
+        // "ACTION_CATEGORY."
+        optional ActionCategory action_category = 2;
+
+        // The business account for this action stat. Only present if the "group_by" in the query was
+        // "BUSINESS_ACCOUNT_ID".
+        optional int64 business_account_id = 3;
+    }
+
+    // The stat group for this particular stat. Only set if the group_by in the request was
+    // set to something other than NONE.
+    optional StatGroup stat_group = 1;
 
     // The number of actions affecting the mgmt unit subgroups that matched the query.
     optional Value action_count = 20;
@@ -1422,6 +1901,15 @@ message GetCurrentActionStatsResponse {
     repeated SingleResponse responses = 1;
 }
 
+message RemoveActionsAcceptancesAndRejectionsRequest {
+    // The ID of the policy.
+    // Acceptance and rejection will be removed for all actions associated with this policy.
+    optional int64 policy_id = 1;
+}
+
+message RemoveActionsAcceptancesAndRejectionsResponse {
+}
+
 // A service responsible for getting information about accepting actions and getting action information.
 service ActionsService {
     // Accepts an action, queueing it for execution.
@@ -1437,7 +1925,11 @@ service ActionsService {
     rpc GetAction(SingleActionRequest) returns (ActionOrchestratorAction);
 
     // Get information about all actions the Action Orchestrator knows about for an a given context.
-    rpc GetAllActions(FilteredActionRequest) returns (FilteredActionResponse);
+    // if enforce_limit in the pagination_params is true (default), it will stream actions in
+    // next page in chunks to client, with the first response to be pagination info. (if no fields
+    // in pagination_params are set, the service will use the default sort order and limit.)
+    // if enforce_limit is set to false, it will stream all actions to client in chunks.
+    rpc GetAllActions(FilteredActionRequest) returns (stream FilteredActionResponse);
 
     // Get information about multiple actions in a topology context.
     // If an ID present in the IDs in the MultiActionRequest
@@ -1478,11 +1970,13 @@ service ActionsService {
     // cancel such actions.
     rpc CancelQueuedActions(CancelQueuedActionsRequest) returns (CancelQueuedActionsResponse);
 
-
     // Get historical action stats. Current action stats supports more filtering and grouping options.
     rpc GetHistoricalActionStats(GetHistoricalActionStatsRequest) returns (GetHistoricalActionStatsResponse);
 
     // Get current action stats. This call is separate from the historical action stats call
     // because it supports additional filtering/grouping options, and may return more data.
-    rpc GetCurrentActionStats(GetCurrentActionStatsRequest) returns (GetCurrentActionStatsResponse);
+    rpc GetCurrentActionStats (GetCurrentActionStatsRequest) returns (GetCurrentActionStatsResponse);
+
+    // Removes acceptance and rejection for all actions which associated with certain policy.
+    rpc RemoveActionsAcceptancesAndRejections (RemoveActionsAcceptancesAndRejectionsRequest) returns (RemoveActionsAcceptancesAndRejectionsResponse);
 }

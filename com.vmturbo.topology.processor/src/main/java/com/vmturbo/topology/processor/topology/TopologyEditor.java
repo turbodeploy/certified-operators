@@ -14,9 +14,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -24,15 +21,19 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyRemoval;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -49,6 +50,9 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
@@ -93,7 +97,7 @@ public class TopologyEditor {
     public void editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
                              @Nonnull final List<ScenarioChange> changes,
                              @Nonnull final TopologyInfo topologyInfo,
-                             @Nonnull final GroupResolver groupResolver) {
+                             @Nonnull final GroupResolver groupResolver) throws GroupResolutionException {
 
         // Set shopTogether to false for all entities if it's not a alleviate pressure plan,
         // so SNM is not performed by default.
@@ -118,58 +122,107 @@ public class TopologyEditor {
             entity.getEntityBuilder().getAnalysisSettingsBuilder()
                 .setShopTogether(isAlleviatePressurePlan));
 
-        final Map<Long, Long> entityAdditions = new HashMap<>();
-        final Set<Long> entitiesToRemove = new HashSet<>();
-        final Set<Long> entitiesToReplace = new HashSet<>();
+        Map<Long, Long> entityAdditions = new HashMap<>();
+        Set<Long> entitiesToRemove = new HashSet<>();
+        Set<Long> entitiesToReplace = new HashSet<>();
         final Map<Long, Long> templateToAdd = new HashMap<>();
         // Map key is template id, and value is the replaced topologyEntity.
         final Multimap<Long, Long> templateToReplacedEntity =
             ArrayListMultimap.create();
-        final Map<Long, Group> groupIdToGroupMap = getGroups(changes);
-        final TopologyGraph topologyGraph =
-            TopologyGraph.newGraph(topology);
+        final Map<Long, Grouping> groupIdToGroupMap = getGroups(changes);
+        final TopologyGraph<TopologyEntity> topologyGraph =
+            TopologyEntityTopologyGraphCreator.newGraph(topology);
 
-        changes.forEach(change -> {
+        for (ScenarioChange change : changes) {
             if (change.hasTopologyAddition()) {
                 final TopologyAddition addition = change.getTopologyAddition();
+                int targetType = addition.getTargetEntityType();
+                long additionCount = addition.hasAdditionCount() ? addition.getAdditionCount() : 1L;
+                // user can choose a group whose member may not directly match with the addition type,
+                // in such cases, we need to traverse up/down supply chain to find the real entities they
+                // want to add
                 if (addition.hasEntityId()) {
-                    addTopologyAdditionCount(entityAdditions, addition, addition.getEntityId());
+                    TopologyEntity.Builder entityToAdd = topology.get(addition.getEntityId());
+                    if (addition.hasTargetEntityType() && entityToAdd.getEntityType() != targetType) {
+                        // for instance: user can add VM from a pm cluster
+                        addEntitiesToMap(targetType, additionCount, entityToAdd,
+                                topologyGraph, entityAdditions)
+                                .entrySet()
+                                .forEach(entry -> entityAdditions.put(entry.getKey(), entry.getValue()));
+                    } else {
+                        addTopologyAdditionCount(entityAdditions, addition, addition.getEntityId());
+                    }
                 } else if (addition.hasTemplateId()) {
                     addTopologyAdditionCount(templateToAdd, addition, addition.getTemplateId());
                 } else if (addition.hasGroupId()) {
-                    groupResolver.resolve(groupIdToGroupMap.get(addition.getGroupId()), topologyGraph)
-                        .forEach(entityId -> addTopologyAdditionCount(
-                                entityAdditions, addition, entityId));
+                    Set<Long> entityToAddId = groupResolver.resolve(groupIdToGroupMap.get(addition.getGroupId()),
+                            topologyGraph).getAllEntities();
+                    for (long id : entityToAddId) {
+                        TopologyEntity.Builder entity = topology.get(id);
+                        if (addition.hasTargetEntityType() && entity.getEntityType() != targetType) {
+                            // remove host from storage cluster group that user selected
+                            addEntitiesToMap(targetType, additionCount, entity, topologyGraph, entityAdditions)
+                                    .entrySet()
+                                    .forEach(entry -> entityAdditions.put(entry.getKey(), entry.getValue()));
+                        } else {
+                            addTopologyAdditionCount(entityAdditions, addition, id);
+                        }
+                    }
                 } else {
                     logger.warn("Unimplemented handling for topology addition with {}",
                             addition.getAdditionTypeCase());
                 }
             } else if (change.hasTopologyRemoval()) {
                 final TopologyRemoval removal = change.getTopologyRemoval();
+                int targetType = removal.getTargetEntityType();
                 Set<Long> entities = removal.hasEntityId()
                     ? Collections.singleton(removal.getEntityId())
                     : groupResolver.resolve(
                         groupIdToGroupMap.get(removal.getGroupId()),
-                        topologyGraph);
+                        topologyGraph).getAllEntities();
                 entities.forEach(id -> {
-                    if (!topology.containsKey(id)) {
+                    TopologyEntity.Builder entity = topology.get(id);
+                    if (entity == null) {
                         throwEntityNotFoundException(id);
                     }
-                    entitiesToRemove.add(id);
+                    // user can choose a group whose member may not directly match with the removal type,
+                    // in such cases, we need to traverse up/down supply chain to find the real entities they
+                    // want to remove
+                    if (removal.hasTargetEntityType() && entity.getEntityType() != targetType) {
+                        entitiesToRemove.addAll(getTargetEntities(targetType, entity, topologyGraph)
+                                .stream().map(TopologyEntity.Builder::getOid).collect(Collectors.toSet()));
+                    } else if (removal.hasTargetEntityType() && entity.getEntityType() == targetType) {
+                        entitiesToRemove.add(entity.getOid());
+                    }
+
                 });
             } else if (change.hasTopologyReplace()) {
                 final TopologyReplace replace = change.getTopologyReplace();
+                int targetType = replace.getTargetEntityType();
                 Set<Long> entities = replace.hasRemoveEntityId()
                     ? Collections.singleton(replace.getRemoveEntityId())
                     : groupResolver.resolve(
                         groupIdToGroupMap.get(replace.getRemoveGroupId()),
-                        topologyGraph);
+                        topologyGraph).getAllEntities();
                 entities.forEach(id -> {
-                    if (!topology.containsKey(id)) {
+                    TopologyEntity.Builder entity = topology.get(id);
+                    if (entity == null) {
                         throwEntityNotFoundException(id);
                     }
-                    entitiesToReplace.add(id);
-                    templateToReplacedEntity.put(replace.getAddTemplateId(), id);
+                    // user can choose a group whose member may not directly match with the replace entity
+                    // type,in  such cases, we need to traverse up/down supply chain to find the real entities they
+                    // want to replace
+                    if (replace.hasTargetEntityType() && entity.getEntityType() != targetType) {
+                        Set<Long> removalSet = getTargetEntities(targetType, entity, topologyGraph)
+                            .stream().map(TopologyEntity.Builder::getOid).collect(Collectors.toSet());
+                        for (long oid : removalSet) {
+                            entitiesToReplace.add(oid);
+                            templateToReplacedEntity.put(replace.getAddTemplateId(), oid);
+                        }
+                    } else {
+                        entitiesToReplace.add(id);
+                        templateToReplacedEntity.put(replace.getAddTemplateId(), id);
+                    }
                 });
             // only change utilization when plan changes have utilization level message.
             } else if (change.hasPlanChanges() && change.getPlanChanges().hasUtilizationLevel()) {
@@ -180,7 +233,7 @@ public class TopologyEditor {
             } else {
                 logger.warn("Unimplemented handling for change of type {}", change.getDetailsCase());
             }
-        });
+        }
 
         // entities added in this stage will have a plan origin pointed to the context id of this topology
         Origin entityOrigin = Origin.newBuilder()
@@ -197,7 +250,18 @@ public class TopologyEditor {
                     TopologyEntityDTO.Builder clone =
                         clone(entity.getEntityBuilder(), identityProvider, i, topology)
                             .setOrigin(entityOrigin);
-                    topology.put(clone.getOid(), TopologyEntity.newBuilder(clone));
+                    // Set shop together true for added VMs
+                    if (clone.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                        clone.getAnalysisSettingsBuilder().setShopTogether(true);
+                    } else if (clone.getEntityType() == EntityType.CONTAINER_VALUE ||
+                            clone.getEntityType() == EntityType.CONTAINER_POD_VALUE) {
+                        // If we are adding containers or container pods, then do not immediately
+                        // suspend them.  They were added to the plan via config and need to remain.
+                        clone.getAnalysisSettingsBuilder().setSuspendable(false);
+                    }
+                    topology.put(clone.getOid(),
+                        TopologyEntity.newBuilder(clone)
+                            .setClonedFromEntity(entity.getEntityBuilder()));
                 }
             }
         });
@@ -230,6 +294,88 @@ public class TopologyEditor {
                         entity.setOrigin(entityOrigin);
                         topology.put(entity.getOid(), TopologyEntity.newBuilder(entity));
                     });
+    }
+
+    /**
+     * Add entities into a map with entity oid as key and the number of copied to be clones as value
+     *
+     * @param targetType the target entity type
+     * @param additionCount the number of clones to be added
+     * @param entity the entity to be cloned
+     * @param topologyGraph the topology graph
+     * @param entityAdditions the mapping of entity oid to the number of clones to be added
+     * @return an oid to entity addition count mapping
+     */
+    private Map<Long, Long> addEntitiesToMap(final int targetType,
+                                             final long additionCount,
+                                             final @Nonnull TopologyEntity.Builder entity,
+                                             final @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
+                                             final @Nonnull Map<Long, Long> entityAdditions) {
+        for (final Builder targetEntity : getTargetEntities(targetType, entity, topologyGraph)) {
+            entityAdditions.put(targetEntity.getOid(), additionCount);
+        }
+        return entityAdditions;
+    }
+
+    /**
+     * Obtain the associated entity of a given type starting from a given entity.
+     *
+     * @param targetType the type of entity to be found
+     * @param entity the given entity candidate
+     * @param topologyGraph the topology graph
+     * @return a set of TopologyEntity.Builder
+     */
+    private Set<TopologyEntity.Builder> getTargetEntities(final int targetType,
+                                                          final @Nonnull TopologyEntity.Builder entity,
+                                                          final @Nonnull TopologyGraph<TopologyEntity> topologyGraph) {
+        // traver supply chain up to find target entities based on consumer relation, if none exists,
+        // traverse down supply chain to find target entities based on provider relation
+        Set<TopologyEntity.Builder> topologyentities = traverseSupplyChain(targetType, entity, topologyGraph, true);
+        if (topologyentities.isEmpty()) {
+            topologyentities = traverseSupplyChain(targetType, entity, topologyGraph, false);
+        }
+        return topologyentities;
+    }
+
+    /**
+     * Recursively looking for the consumers or providers of a type from the given entity.
+     *
+     * @param targetType the type of entity to be found
+     * @param entity the given entity candidate
+     * @param topologyGraph the topology graph
+     * @param traverseUp traverse up or down the supply chain to find related entities
+     * @return a set of TopologyEntity.Builder
+     */
+    private Set<TopologyEntity.Builder> traverseSupplyChain(final int targetType,
+                                                            final @Nonnull TopologyEntity.Builder entity,
+                                                            final @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
+                                                            final boolean traverseUp) {
+        Set<TopologyEntity.Builder> targetEntities = new HashSet<>();
+        Set<TopologyEntity> directRelatedEntities = new HashSet<>();
+        if (traverseUp) {
+            directRelatedEntities = topologyGraph.getEntity(entity.getOid())
+                .get().getConsumers().stream()
+                .collect(Collectors.toSet());
+        } else {
+            directRelatedEntities = topologyGraph.getEntity(entity.getOid())
+                .get().getProviders().stream()
+                .collect(Collectors.toSet());
+        }
+        if (directRelatedEntities.isEmpty()) {
+            return targetEntities;
+        }
+        targetEntities = directRelatedEntities.stream()
+                .filter(e -> targetType == e.getEntityType())
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .map(TopologyEntity::newBuilder)
+                .collect(Collectors.toSet());
+        if (targetEntities.isEmpty()) {
+            for (TopologyEntity c : directRelatedEntities) {
+                targetEntities.addAll(traverseSupplyChain(targetType,
+                        TopologyEntity.newBuilder(c.getTopologyEntityDtoBuilder()), topologyGraph, traverseUp));
+            }
+        }
+        return targetEntities;
     }
 
     /**
@@ -289,12 +435,13 @@ public class TopologyEditor {
             final int commodityType = commodity.getCommodityType().getType();
             if (UTILIZATION_LEVEL_TYPES.contains(commodityType)) {
                 final double changedUtilization = increaseByPercent(commodity.getUsed(), percentage);
+                final double changedAmount = changedUtilization - commodity.getUsed();
                 changedCommodities.add(CommodityBoughtDTO.newBuilder(commodity)
                         .setUsed(changedUtilization).build());
                 // increase provider's commodity sold utilization only when it has provider
                 if (providerCommodities.hasProviderId()) {
                     increaseCommoditySoldByProvider(topology, providerCommodities.getProviderId(),
-                            vm.getOid(), commodityType, percentage);
+                            vm.getOid(), commodityType, changedAmount);
                 }
             } else {
                 changedCommodities.add(commodity);
@@ -304,7 +451,7 @@ public class TopologyEditor {
     }
 
     private void increaseCommoditySoldByProvider(@Nonnull Map<Long, TopologyEntity.Builder> topology,
-            long providerId, long consumerId, int commodityType, int percentage) {
+            long providerId, long consumerId, int commodityType, double adjustmentAmount) {
         final ImmutableList.Builder<CommoditySoldDTO> changedSoldCommodities =
                 ImmutableList.builder();
         final TopologyEntity.Builder provider = topology.get(providerId);
@@ -312,10 +459,11 @@ public class TopologyEditor {
             throw new IllegalArgumentException("Topology doesn't contain entity with id " + providerId);
         }
         for (CommoditySoldDTO sold : provider.getEntityBuilder().getCommoditySoldListList()) {
-            if (sold.getAccesses() == consumerId
+            if (((sold.getAccesses() == 0 ) || (sold.getAccesses() == consumerId))
                     && sold.getCommodityType().getType() == commodityType) {
+                // increase the commodity by the adjustment amount
                 final CommoditySoldDTO increasedCommodity = CommoditySoldDTO.newBuilder(sold)
-                        .setUsed(increaseByPercent(sold.getUsed(), percentage))
+                        .setUsed(adjustmentAmount + sold.getUsed())
                         .build();
                 changedSoldCommodities.add(increasedCommodity);
             } else {
@@ -366,18 +514,16 @@ public class TopologyEditor {
                     clonedProvider.addCommodityBought(commodityBought);
                 }
             });
-            cloneBuilder.addCommoditiesBoughtFromProviders(clonedProvider.build());
-            oldProvidersMap.put(noProvider, oldProvider);
+            // Create the Comm bought grouping if it will have at least one commodity bought
+            if (!clonedProvider.getCommodityBoughtList().isEmpty()) {
+                cloneBuilder.addCommoditiesBoughtFromProviders(clonedProvider.build());
+                oldProvidersMap.put(noProvider, oldProvider);
+            }
         }
 
         long cloneId = identityProvider.getCloneId(entity);
         cloneBuilder.getCommoditySoldListBuilderList().stream()
-             // for each commodity sold for clone, update utilization to 0
-            .map(commSold -> {
-                commSold.setUsed(0d);
-                commSold.setPeak(0d);
-                return commSold;
-            })
+            // Do not set the utilization to 0. The usage of clone should exactly be like the original.
             .filter(commSold -> AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType()))
             .forEach(bicliqueCommSold -> {
                 // Set commodity sold for storage/host in case of a DSPM/DATASTORE commodity.
@@ -468,18 +614,20 @@ public class TopologyEditor {
         final long additionCount =
                 addition.hasAdditionCount() ? addition.getAdditionCount() : 1L;
         additionMap.put(key, additionMap.getOrDefault(key, 0L) + additionCount);
+
     }
 
 
-    private Map<Long, Group> getGroups(List<ScenarioChange> changes) {
+    private Map<Long, Grouping> getGroups(List<ScenarioChange> changes) {
         final Set<Long> groupIds = PlanDTOUtil.getInvolvedGroups(changes);
-        final Map<Long, Group> groupIdToGroupMap = new HashMap<>();
+        final Map<Long, Grouping> groupIdToGroupMap = new HashMap<>();
 
         if (!groupIds.isEmpty()) {
             final GetGroupsRequest request =
-                    GetGroupsRequest.newBuilder()
-                            .addAllId(groupIds)
-                            .setResolveClusterSearchFilters(true)
+                            GetGroupsRequest.newBuilder()
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                            .addAllId(groupIds))
+                            .setReplaceGroupPropertyWithGroupMembershipFilter(true)
                             .build();
 
             groupServiceClient.getGroups(request)

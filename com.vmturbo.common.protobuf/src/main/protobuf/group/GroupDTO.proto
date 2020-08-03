@@ -7,225 +7,228 @@ import "common/EnvironmentTypeEnum.proto";
 import "search/Search.proto";
 import "setting/Setting.proto";
 import "tag/Tag.proto";
+import "CommonDTO.proto";
 
+// The information about a group in the system
 // A group is a set of entities that can be treated collectively for the
 // purpose of settings, policies, statistics, and other operations.
-message Group {
-    // The origin represents how the group came to be in the system.
-    enum Origin {
-        // A user group was explicitly created by the user, and is owned by
-        // the turbonomic system.
-        USER = 1;
-
-        // A discovered group exists in the user's topology, and was imported and interpreted
-        // as part of a discovery.
-        // Users cannot mutate or delete discovered groups.
-        DISCOVERED = 2;
-    }
-
-    // The type of the group. Protobuf doesn't have inheritance, so we use a Type to
-    // differentiate between sufficiently different kinds of groups.
-    enum Type {
-        // A group is a set of entities that can be treated collectively for the
-        // purpose of settings, policies, statistics, and other operations.
-        GROUP = 1;
-
-        // A cluster is closely related to a group, and is most relevant when working with on-prem
-        // environments - especially vSphere. It's essentially the unit of management for large
-        // vSphere environments.
-        //
-        // Since clusters cannot be created by the user, all clusters have Origin == DISCOVERED.
-        //
-        // TODO (roman, July 27 2017): In the future we will likely want to rearchitect the model
-        // away from "cluster" terminology to "management unit" terminology, where groups of entities
-        // that act as the units of management for an environment - e.g. Clusters for vSphere, Business
-        // Units for cloud environments - can be represented in a common fashion.
-        CLUSTER = 2;
-
-        // A temporary group is a GROUP that can only have static scope, is not persisted to
-        // the database, and gets removed after a certain time.
-        //
-        // Temporary groups are not valid targets for policies or setting policies, and are
-        // only used for query purposes.
-        TEMP_GROUP = 3;
-
-        // A nested group is a group that contains other groups. The most common use case for
-        // nested groups is to create a group of several clusters (e.g. all clusters in a
-        // datacenter).
-        //
-        // Temporary groups are not valid targets for policies or setting policies, and are only
-        // used for query/visibility purposes.
-        NESTED_GROUP = 4;
-    }
+message Grouping {
 
     // The unique numeric identifier of the group.
     // This field will always be set.
     optional int64 id = 1;
 
-    // The type of the group.
-    // This field will always be set.
-    optional Type type = 7 [default = GROUP];
+    // This is a derived field based on the group definition which tell which types
+    // are allowed in the group.  This enables policies to be set on heterogeneous
+    // groups based on possible members.
+    repeated MemberType expected_types = 2;
 
-    // The origin of this group.
-    // This field will always be set.
-    optional Origin origin = 6 [default = USER];
+    // If true, this group can be looked up by the members
+    optional bool supports_member_reverse_lookup = 3;
 
-    oneof info {
-        // The properties describing the group.
-        // This field is only set for groups where Type == GROUP.
-        GroupInfo group = 2;
+    // Describes how this group came to be in the system.
+    optional Origin origin = 5;
 
-        // The properties describing the cluster.
-        // This field is only set for groups where Type == CLUSTER.
-        ClusterInfo cluster = 4;
-
-        // The properties describing a temporary group.
-        // This field is only set for groups where Type == TEMP_GROUP.
-        TempGroupInfo temp_group = 5;
-
-        // The properties describing the nested group.
-        // This field is only set for groups where Type == NESTED_GROUP.
-        NestedGroupInfo nested_group = 10;
-    }
-
-    // The ID of the target that discovered the group.
-    // This field is only set for groups where Origin == DISCOVERED.
-    optional int64 target_id = 3;
+    // This type encapsulates the group definition.  This is supplied by the client to create
+    // or update the group
+    optional GroupDefinition definition = 4;
 }
 
-// The customizeable properties of a group.
-message GroupInfo {
-    // The name of the group.
-    optional string name = 1;
+// The group definition
+message GroupDefinition {
 
-    // The type of entity in the group. A group can only have entities of
-    // a single type.
-    optional int32 entity_type = 2;
+    // The type of group such as CLUSTER, RESOURCE GROUP, ...
+    optional common_dto.GroupDTO.GroupType type = 1 [default = REGULAR];
 
-    // Groups may be either static or dynamic.
-    // Whether it is static or dynamic determines when its members are resolved and updated.
+    // The user-friendly name of the group.
+    optional string display_name = 2;
+
+    // If true, this group will be deleted on restart or after a while
+    optional bool is_temporary = 3 [default = false];
+
+    // If true, this group will not be displayed to users.
+    optional bool is_hidden = 4 [default = false];
+
+    // If there is an entity in the topology that "owns" this group, this is the ID of that
+    // entity. The main use case (Sept 5 2019) is Business Accounts that own Resource Groups.
+    optional int64 owner = 6;
+
+    // This is additional information that is used for optimizing information retrieval about group
+    optional OptimizationMetadata optimization_metadata = 7;
+
+    // The information that is used for selecting members of group
     oneof selection_criteria {
         // A static group's members are fixed at the time they are created and that membership
         // may only be updated by an explicit call to update the group.
-        StaticGroupMembers static_group_members = 3;
+        StaticMembers static_group_members = 8;
+        // The criteria to select members when the group is dynamic group of groups
 
-        // A wrapper layer to respent a list of search parameters
-        SearchParametersCollection search_parameters_collection = 5;
+        GroupFilters group_filters = 9;
+
+        // The criteria to select members when the group is dynamic group of entities
+        EntityFilters entity_filters = 10;
     }
 
-    // Is the group a hidden group
-    // We use this field for the groups automatically created for merge data centers policy, since
-    // data center is not a group, but we need the groups for the merge operation.
-    optional bool is_hidden = 6 [default = false];
+    // Tags on this group.
+    // (roman Sept 5, 2019): Currently we only have discovered tags, but in the future we may
+    // support user tags as well.
+    optional .tag.Tags tags = 11;
 
-    // User friendly name. Typically used for discovered groups.
-    optional string display_name = 7;
+    // Represent a list of group-specific search parameters, for groups that contain other groups.
+    message GroupFilters {
+        // a group is a member of this group if it satisfies any of the filters specified here.
+        repeated GroupFilter group_filter = 1;
 
-    // Tags. Used for discovered groups.
-    optional .tag.Tags tags = 8;
+        // Specifies how to combine the search parameters.
+        optional .search.LogicalOperator logical_operator = 3 [default = AND];
+    }
+
+    // Represent a list of entity-specific search parameters, for groups that contain other entities.
+    message EntityFilters {
+        // an entity is a member of this group if it satisfies any of the filters specified here (OR)
+        repeated EntityFilter entity_filter = 1;
+
+        // A wrapper layer to represent a list of search parameters
+        message EntityFilter {
+            // the entity types that this filter apply to which means this filter can only be true for
+            // entities with the type specified here.
+            optional int32 entity_type = 1;
+
+            // A dynamic group's members are defined by a set of search criteria, and its members may
+            // change as the entities in the topology change so that members enter and leave the group
+            // based on their properties and relationships.
+            optional SearchParametersCollection search_parameters_collection = 2;
+
+            // Specifies how to combine the search parameters.
+            optional .search.LogicalOperator logical_operator = 3 [default = AND];
+        }
+    }
+
+    message OptimizationMetadata {
+        //Is this group is all entities of specific type in a global scope
+        optional bool is_global_scope = 1 [default = false];
+
+        // The environment for which this group is group of all entities
+        optional .common.EnvironmentType environment_type = 2;
+    }
 }
 
-message TempGroupInfo {
-    // The name of the group.
-    optional string name = 1;
 
-    // The type of entity in the group. A group can only have entities of
-    // a single type.
-    optional int32 entity_type = 2;
-
-    // A static group's members are fixed at the time they are created and that membership
-    // may only be updated by an explicit call to update the group.
-    optional StaticGroupMembers members = 3;
-
-    // If true, means the temp group contains all entities with same entity type in global scope.
-    // This field will speed up stats query for global scope.
-    optional bool is_global_scope_group = 4;
-
-    // If set, the environment type of entities in the group.
-    // This field should be combined with entity_type and is_global_scope_group to optimize
-    // stats queries for all entity types in an environment when navigating the supply chain.
-    optional .common.EnvironmentType environment_type = 5;
-}
-
-// The properties of a cluster.
-message ClusterInfo {
-
+// This encapsulates both the origin type and the information appropriate to that origin type
+message Origin {
     enum Type {
-        // A compute cluster is comprised of physical machines.
-        COMPUTE = 1;
-        // A storage cluster is comprised of storages.
-        STORAGE = 2;
+        USER = 1;
+        DISCOVERED = 2;
+        SYSTEM = 3;
     }
 
-    // The name of the cluster.
-    optional string name = 1;
-
-    optional Type cluster_type = 2;
-
-    // The entities belonging to the cluster.
-    optional StaticGroupMembers members = 3;
-
-    // The template ID that the headroom plan will use.
-    // If it is empty, the default plan will be used.
-    optional int64 cluster_headroom_template_id = 4;
-
-    // User friendly name. Typically used for discovered clusters.
-    optional string display_name = 7;
-
-    // Tags. Used for discovered clusters.
-    optional .tag.Tags tags = 8;
-}
-
-// The properties of a nested group.
-message NestedGroupInfo {
-    // The name of the group.
-    optional string name = 1;
-
-    // The type of nested group. All members of the group will be of the same type.
-    oneof type {
-        // If set, this is a group of clusters of this type.
-        ClusterInfo.Type cluster = 2;
-
-        // In the future, we may want to support nested groups of other nested groups (e.g. when
-        // parsing VC folders). However, for now we don't do this - and will try to avoid it for
-        // as long as possible!
+    oneof creation_origin {
+        User user = 1;
+        Discovered discovered = 2;
+        System system = 3;
     }
 
-    // Describes how groups are selected to be in the group.
-    // The selection criteria only applies to groups that match the type (defined above).
-    // For example, if the type is compute cluster, we will only consider compute clusters
-    // as candidates for selection.
-    oneof selection_criteria {
-        // If set, this is a static nested group. The members are configured at creation time
-        // and do not change.
-        StaticGroupMembers static_group_members = 10;
+    // The group was created by a user via. an external API request.
+    message User {
+        // The username of the user who created this group.
+        optional string username = 1;
+    }
 
-        // If set, this is a dynamic nested group. The members will be the subset of groups in
-        // the system that match the property filters.
-        GroupPropertyFilterList property_filter_list = 11;
+    // The group was discovered by the platform in one of the targets
+    // added by the users.
+    message Discovered {
+        // The set of targets that discovered this group.
+        repeated int64 discovering_target_id = 1;
+
+        // The UUID of this group across all targets that discovered it.
+        // This is sometimes required when referencing this group in actions that go to the probes.
+        // This is also used to join together groups across targets, and to distinguish between
+        // re-discovered groups and newly discovered groups.
+        optional string source_identifier = 2;
+    }
+
+    // The group was created internally by the system.
+    message System {
+        // A description of the purpose of this system group - mainly for clarity/debugging/logging
+        // purposes.
+        optional string description = 1;
     }
 }
 
-// A property filter list that can be used to dynamically select a set of groups.
-// This is loosely equivalent to "SearchParameters" in Search.proto, but without
-// traversal filters.<p/>
-// Currently (2019/4/29), there are exactly two properties that can be used to
-// filter groups: display names and tags. For display names, we use a regex string
-// filter. For tags, we use a MapFilter, as is the case for service entity tags.
-// Other property filter types, e.g., numeric filters, list filters, and object
-// filters are not used.
-message GroupPropertyFilterList {
+
+message StaticMembers {
+    message StaticMembersByType {
+      // The type of the member.
+      optional MemberType type = 1;
+
+      // A non-repeating list of the ids of the members.
+      repeated int64 members = 2;
+    }
+
+    // One entry for each group member type.
+    // This allows easy access to members of specific types in multi-type groups.
+    // There will only be one entry for every distinct "StaticMembersByType.type" value.
+    repeated StaticMembersByType members_by_type = 1;
+}
+
+// The filter for a group. A group matches this filter if it has all set conditions (AND)
+// (i.e. if you provide a list of ids, and a group_type, a group will only match if it
+// has one of the provided IDS AND the provided group type).
+//
+// Note - the property_filters are combined using the logical_operator.
+message GroupFilter {
+    // Return only groups with these IDs.
+    repeated int64 id = 1;
+
+    // Group type to retrieve. Groups of another types (if specified) will be ignored
+    optional common_dto.GroupDTO.GroupType group_type = 2;
+
     // Property filters to match group against. Currently (2019/4/29) used only for:
     // (a) display name (property of type string) regex matching and
     // (b) tags (property of type multimap).
-    repeated .search.PropertyFilter property_filters = 1;
+    repeated .search.PropertyFilter property_filters = 3;
+
+    // The logical operator to use when combining the property filters.
+    optional .search.LogicalOperator logical_operator = 10 [default = AND];
+
+    // The groups with following direct member type
+    repeated MemberType direct_member_types = 4;
+
+    // The groups with following indirect member types
+    // This is only can be different for nested groups
+    repeated MemberType indirect_member_types = 5;
+
+    // if true temporary groups will returned in addition to regular groups
+    // if false only permanent groups will return
+    optional bool include_temporary = 6 [default = false];
+
+    // if true hidden groups will returned in addition to regular groups
+    // if false only unhidden groups will return
+    optional bool include_hidden = 7 [default = false];
+
+    // Return only groups with the specific origin.
+    optional OriginFilter origin_filter = 9;
 }
 
+message MemberType {
+    oneof type {
+        // The type of entity (matches TopologyEntityDTO.entity_type).
+        int32 entity = 1;
+
+        // The type of a group nested inside this group.
+        common_dto.GroupDTO.GroupType group = 2;
+    }
+}
+
+// This message keeps information for filtering a group based on the origin
+message OriginFilter {
+    // the origins to include. if empty all origins are included
+    repeated Origin.Type origin = 1;
+}
 
 // Info for creating discovered policies.
 // These are uploaded to group component together with discovered groups.
 message DiscoveredPolicyInfo {
-
     // Name of constraint which was used for creating of Policy info
     required string policy_name = 1;
 
@@ -249,10 +252,12 @@ message DiscoveredPolicyInfo {
 // Info for creating discovered setting policies.
 // These are uploaded to group component together with discovered groups.
 message DiscoveredSettingPolicyInfo {
-
     // Name of the setting policy.
     // The name should be unique.
     required string name = 1;
+
+    // Display name of the setting policy
+    optional string display_name = 5;
 
     // The settings that should be applied to the entities in the scope.
     //
@@ -286,23 +291,23 @@ message StaticGroupMembers {
     repeated int64 static_member_oids = 1;
 }
 
+message CreateGroupResponse {
+    optional Grouping group = 1;
+}
+
 message UpdateGroupRequest {
     optional int64 id = 1;
-    optional GroupInfo new_info = 2;
+    optional GroupDefinition new_definition = 2;
 }
 
 message UpdateGroupResponse {
-    optional Group updated_group = 1;
-}
-
-message CreateGroupResponse {
-    optional Group group = 1;
+    optional Grouping updated_group = 1;
 }
 
 message GetGroupResponse {
     // If present, the group associated with the input ID.
     // If not present, the requested group does not exist.
-    optional Group group = 1;
+    optional Grouping group = 1;
 }
 
 message GroupID {
@@ -313,45 +318,19 @@ message DeleteGroupResponse {
     optional bool deleted = 1;
 }
 
-// Specify the criteria for the groups to return.
-// All filters/conditions are AND-ed together. If no filters/conditions
-// are set, the call will return all groups.
 message GetGroupsRequest {
-
-    // Return only groups with these IDs.
-    repeated int64 id = 1;
-
-    // Return only groups where these filters are matched
-    optional GroupPropertyFilterList property_filters = 2;
-
-    // Return only groups with the specific origin.
-    optional Group.Origin origin_filter = 3;
-
-    // Return only groups of particular types.
-    //
-    // Note: GetGroupsRequest does not
-    // return temporary groups unless explicitly specified here.
-    repeated Group.Type type_filter = 4;
-
-    // Apply this filter to any groups returned where Group.Type is CLUSTER.
-    optional ClusterFilter cluster_filter = 5;
-
-    // "Resolve" any Cluster Membership search filters contained in the resulting Groups.
-    // Cluster Membership filters are expected to return the set of PM's belonging to all clusters
-    // matching the filter criteria. So "resolving" a cluster membership means replacing the
-    // ClusterMembershipFilter with an equivalent regex-based String matching filter that identifies
-    // all of the PM entity id's belonging to the set of clusters matched by the cluster filter.
-    //
-    // Since the group component is the primary source of truth for cluster membership, this option
-    // exists as a way to have the group component pre-calculate the cluster members and inject them
-    // into the search parameters, avoiding further calls back to the group service that would have
-    // requested these cluster members anyways.
-    optional bool resolve_cluster_search_filters = 6 [default = false];
+    optional GroupFilter group_filter = 1;
+    optional bool replaceGroupPropertyWithGroupMembershipFilter = 2 [default = false];
+    // list of scopes used to filter the groups, all returned groups will be within the given list
+    // of scopes, in other words, all members of a group in the response will be within the range
+    // of entities which are accessible through supply chain traversal starting from these scopes
+    // for example: limit the Clusters to be in a DataCenter scope.
+    repeated int64 scopes = 3;
 }
 
 message GetMembersRequest {
     // The group ID to get members for.
-    optional int64 id = 1;
+    repeated int64 id = 1;
 
     // If true, return an error if the ID does not refer to a group.
     // If false, the ID may or may not refer to a group.
@@ -365,16 +344,20 @@ message GetMembersRequest {
     // way because some of the plan requests don't have enough information in them to selectively
     // set this flag. This should be addressed as part of OM-44360.
     optional bool enforce_user_scope = 3 [default = false];
+
+    // if true, then any groups contained within the requested group will be also expanded, and it's
+    // members returned as part of the response. If true, no groups will appear in the result of
+    // the call as they are substituted with their entity members.
+    optional bool expand_nested_groups = 4 [default = false];
 }
 
 message GetMembersResponse {
-    optional Members members = 1;
-
-    message Members {
-        repeated int64 ids = 1;
-    }
+    required int64 group_id = 1;
+    repeated int64 member_id = 2;
 }
 
+// Information about the target. If the message for a target is not present, this means that
+// target has been deleted.
 message DiscoveredGroupsPoliciesSettings {
 
     // The ID of the target that discovered the groups/policies/settings.
@@ -387,132 +370,144 @@ message DiscoveredGroupsPoliciesSettings {
     // with the name of an existing discovered GroupInfo will update the group.
     optional int64 target_id = 1;
 
-    // The most recent groups discovered by the target.
-    repeated GroupInfo discovered_group = 2;
+    // probe type of the target which discovered the groups/policies/settings
+    optional string probe_type = 2;
 
-    // The most recent clusters discovered by the target.
-    repeated ClusterInfo discovered_cluster = 3;
+    // The most recent discovered groups by probes and after interpretation in TP
+    // The groups can be regular groups, clusters, or resource groups
+    repeated UploadedGroup uploaded_groups = 3;
 
     // Discovered policies associated with this target.
     // The new set of policies will completely replace the old, even if the new set is empty.
-    // Groups referenced in these discovered policies must be contained in the discovered_group field
-    // in this message.
+    // Groups referenced in these discovered policies must be contained in the uploaded_groups
+    // field in this message.
     repeated DiscoveredPolicyInfo discovered_policy_infos = 4;
 
     // Discovered setting policies associated with this target.
     // The new set of setting policies will completely replace the old, even if the new set is empty.
-    // Groups referenced in these discovered setting policies must be contained in the discovered_group field
-    // in this message.
+    // Groups referenced in these discovered setting policies must be contained in the
+    // uploaded_groups field in this message.
     repeated DiscoveredSettingPolicyInfo discovered_setting_policies = 5;
+
+    // Indicates that data is available from the target. If this field is set to false, it means
+    // that target exists in the system, but it has not been discovered yet. As a result, groups,
+    // policies and settings should not be cleared. If this field is set to true and no
+    // uploaded groups, policies and settings then groups, policies and settings must be cleaned
+    // up for this target.
+    optional bool data_available = 6 [default = true];
+
+    // the interpreted group to be uploaded to group component
+    message UploadedGroup {
+        // the source identifier coming from the probe
+        optional string source_identifier = 1;
+        // the definition of the group after interpretation in TP
+        optional GroupDefinition definition = 2;
+    }
 }
 
 message StoreDiscoveredGroupsPoliciesSettingsResponse {}
 
-// Specify the criteria for the clusters to return.
-// All filters/conditions are AND-ed together. If no filters/conditions
-// are set, the call will return all clusters.
-message ClusterFilter {
-    // If set, return only clusters of the provided type.
-    optional ClusterInfo.Type type_filter = 1;
+message CreateGroupRequest {
+    optional GroupDefinition group_definition = 1;
+    optional Origin origin = 2;
 }
 
-message CreateTempGroupRequest {
-    optional TempGroupInfo group_info = 1;
+message GetGroupsForEntitiesRequest {
+    // Entity OIDs to request groups for. If empty, an empty response will be returned.
+    repeated int64 entity_id = 1;
+
+    // Group types to retrieve. If empty all the group types will be queried.
+    repeated common_dto.GroupDTO.GroupType group_type = 2;
+
+    // Whether to load groups objects. If this parameter is set to false (default), then
+    // GetGroupForEntityResponse.groups will not be filled.
+    // Be aware that setting this flag to true will cause additional queries to be executed
+    // at the service's side and additional data to be transferred over the network
+    optional bool load_group_objects = 3 [default = false];
 }
 
-message CreateTempGroupResponse {
-    optional Group group = 1;
+// A collection of groups
+message Groupings {
+    repeated int64 group_id = 1;
 }
 
-message CreateNestedGroupRequest {
-    optional NestedGroupInfo group_info = 1;
+// Response of groups for entity request
+message GetGroupsForEntitiesResponse {
+    // Map of entity Oid -> group OIDs
+    map<int64, Groupings> entity_group = 1;
+
+    // A collection of groups that are mentioned in entity_group map. Only filled if
+    // GetGroupForEntityRequest.load_group_objects is true
+    repeated Grouping groups = 2;
 }
 
-message CreateNestedGroupResponse {
-    optional Group group = 1;
+// Request contains requested groups.
+message GetTagsRequest {
+    //If collection of requested groups is empty
+    //then return tags for all existed groups in group component
+    repeated int64 group_id = 1;
 }
-
-message UpdateNestedGroupRequest {
-    optional int64 group_id = 1;
-    optional NestedGroupInfo new_group_info = 2;
-}
-
-message UpdateNestedGroupResponse {
-    optional Group updated_group = 1;
-}
-
-// Request for udpating the cluster headroom template ID of a cluster.
-// The group_id must reference a group that is a cluster.
-message UpdateClusterHeadroomTemplateRequest {
-    optional int64 group_id = 1;
-    optional int64 cluster_headroom_template_id = 2;
-}
-
-message UpdateClusterHeadroomTemplateResponse {
-    // The group with with udpated cluster headroom template ID
-    optional Group updated_group = 1;
-}
-
-message GetClusterForEntityRequest {
-    optional int64 entity_id = 1;
-}
-
-message GetClusterForEntityResponse {
-    optional Group cluster = 1;
-}
-
-message GetTagsRequest {}
 
 message GetTagsResponse {
-    optional .tag.Tags tags = 1;
+    map<int64, .tag.Tags> tags = 1;
+}
+
+// Request owners for groups
+message GetOwnersRequest {
+    // The groupType to get owners for. If not specified, query will not distinguish between group types.
+    optional common_dto.GroupDTO.GroupType group_type = 1;
+
+    // The group IDs to get owners for
+    repeated int64 group_id = 2;
+}
+
+// Response contains list of owners for owners request
+message GetOwnersResponse {
+    // Collection of owners ids
+    repeated int64 owner_id = 1;
+}
+
+message CountGroupsResponse {
+    optional int32 count = 1;
 }
 
 // A service responsible for group operations.
 service GroupService {
-    // Create a group
-    rpc CreateGroup(GroupInfo) returns (CreateGroupResponse);
 
-    rpc CreateTempGroup(CreateTempGroupRequest) returns (CreateTempGroupResponse);
-
-    rpc CreateNestedGroup(CreateNestedGroupRequest) returns (CreateNestedGroupResponse);
+    rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
 
     // Get a group
     rpc GetGroup(GroupID) returns (GetGroupResponse);
 
-    // Get all user groups
-    rpc GetGroups(GetGroupsRequest) returns (stream Group);
+    // Get groups based on the query
+    rpc GetGroups(GetGroupsRequest) returns (stream Grouping);
 
-    // Update a group
-    //
-    // Returns INVALID_ARGUMENT if the group is a discovered group (origin == DISCOVERED), since
-    // users cannot modify discovered groups.
-    rpc UpdateGroup(UpdateGroupRequest) returns (UpdateGroupResponse);
+    // Count groups matching a particular request.
+    rpc CountGroups (GetGroupsRequest) returns (CountGroupsResponse);
 
-    // Update a nested group.
-    //
-    // Returns INVALID_ARGUMENT if the group is a discovered group (origin == DISCOVERED), since
-    // users cannot modify discovered groups.
-    rpc UpdateNestedGroup(UpdateNestedGroupRequest) returns (UpdateNestedGroupResponse);
-
-    // Update the cluster headroom template ID of a cluster.
-    rpc UpdateClusterHeadroomTemplate(UpdateClusterHeadroomTemplateRequest)
-    returns (UpdateClusterHeadroomTemplateResponse);
+    rpc UpdateGroup (UpdateGroupRequest) returns (UpdateGroupResponse);
 
     // Delete a group
     //
     // Returns INVALID_ARGUMENT if the group is a discovered group.
-    rpc DeleteGroup(GroupID) returns (DeleteGroupResponse);
+    rpc DeleteGroup (GroupID) returns (DeleteGroupResponse);
 
-    // Get the members of a group
-    rpc GetMembers(GetMembersRequest) returns (GetMembersResponse);
+    // Get the members of a collection of group.
+    //
+    // There will be a response for every group ID in the request that does not have an error.
+    // If the members of a group are not resolved due to errors, the response will not contain
+    // an entry for that group.
+    rpc GetMembers (GetMembersRequest) returns (stream GetMembersResponse);
 
-    // Get the cluster the entity belongs to.
-    rpc GetClusterForEntity(GetClusterForEntityRequest) returns (GetClusterForEntityResponse);
+    // Get the group the entity belongs to.
+    rpc GetGroupsForEntities (GetGroupsForEntitiesRequest) returns (GetGroupsForEntitiesResponse);
 
     // Stores groups, clusters, settings and policies discovered in the customer's topology.
-    rpc StoreDiscoveredGroupsPoliciesSettings(stream DiscoveredGroupsPoliciesSettings) returns (StoreDiscoveredGroupsPoliciesSettingsResponse);
+    rpc StoreDiscoveredGroupsPoliciesSettings (stream DiscoveredGroupsPoliciesSettings) returns (StoreDiscoveredGroupsPoliciesSettingsResponse);
 
-    // Returns all tags of groups
-    rpc GetTags(GetTagsRequest) returns (GetTagsResponse);
+    // Returns tags of groups
+    rpc GetTags (GetTagsRequest) returns (GetTagsResponse);
+
+    // Returns owners of requested groups
+    rpc GetOwnersOfGroups (GetOwnersRequest) returns (GetOwnersResponse);
 }
-

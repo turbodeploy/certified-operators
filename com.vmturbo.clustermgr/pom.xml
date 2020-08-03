@@ -3,7 +3,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>Turbonomic-XL</artifactId>
-        <version>7.17.0-SNAPSHOT</version>
+        <version>7.22.6-SNAPSHOT</version>
         <relativePath>../build</relativePath>
     </parent>
 
@@ -14,7 +14,15 @@
         <swagger.basepath>/</swagger.basepath>
         <base.generated.docs.dir>${project.build.directory}/generated-docs/</base.generated.docs.dir>
         <swagger.conf.directory>${base.generated.docs.dir}/swagger</swagger.conf.directory>
-        <amazon.s3>1.11.131</amazon.s3>
+        <amazon.s3>1.11.647</amazon.s3>
+
+        <!-- TODO: user and password configuration should NOT be checked into source control -->
+        <db.url>jdbc:mysql://localhost:3306</db.url>
+        <db.username>root</db.username>
+        <db.password>vmturbo</db.password>
+        <db.schema>clustermgr_build_${maven.build.timestamp}</db.schema>
+        <db.outputSchema>clustermgr</db.outputSchema>
+        <db.driver>org.mariadb.jdbc.Driver</db.driver>
     </properties>
 
     <build>
@@ -83,10 +91,123 @@
                         <phase>prepare-package</phase>
                         <configuration>
                             <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <includeScope>runtime</includeScope>
                             <useBaseVersion>false</useBaseVersion>
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>migrate</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>migrate</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>clean-db</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <url>${db.url}</url>
+                    <user>${db.username}</user>
+                    <password>${db.password}</password>
+                    <locations>
+                        <!-- Configure to the same location as configured in Spring Boot..-->
+                        <location>filesystem:${basedir}/src/main/resources/db/migration</location>
+                    </locations>
+                    <schemas>
+                        <schema>${db.schema}</schema>
+                    </schemas>
+                </configuration>
+            </plugin>
+            <!-- See comment from michael-simons at https://github.com/spring-projects/spring-boot/issues/6975
+                 on recommended configuration for a Spring Boot + Flyway + jOOQ setup-->
+            <plugin>
+                <!-- Specify the maven code generator plugin -->
+                <groupId>org.jooq</groupId>
+                <artifactId>jooq-codegen-maven</artifactId>
+
+                <!-- The plugin should hook into the generate goal -->
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+
+                <configuration>
+
+                    <!-- JDBC connection parameters -->
+                    <jdbc>
+                        <driver>${db.driver}</driver>
+                        <url>${db.url}/${db.schema}</url>
+                        <user>${db.username}</user>
+                        <password>${db.password}</password>
+                    </jdbc>
+
+                    <!-- Generator parameters -->
+                    <generator>
+                        <database>
+                            <name>org.jooq.meta.mysql.MySQLDatabase</name>
+                            <!-- Retrieve schema version from Flyway info table -->
+                            <schemaVersionProvider>SELECT CONCAT_WS('_', '${db.outputSchema}', MAX(version)) from schema_version</schemaVersionProvider>
+                            <includes>.*</includes>
+                            <excludes>schema_version</excludes>
+                            <schemata>
+                                <schema>
+                                    <inputSchema>${db.schema}</inputSchema>
+                                    <outputSchema>${db.outputSchema}</outputSchema>
+                                </schema>
+                            </schemata>
+                            <!-- Automatically convert timestamps to LocalDateTime using custom data bindings (see http://www.jooq.org/doc/3.6/manual/code-generation/custom-data-type-bindings/) -->
+                            <customTypes>
+                                <customType>
+                                    <!-- Specify the fully-qualified class name of your custom type -->
+                                    <name>java.time.LocalDateTime</name>
+                                    <!-- Associate that custom type with your converter. Note, a
+                                         custom type can only have one converter in jOOQ -->
+                                    <converter>com.vmturbo.sql.utils.LocalDateTimeConverter</converter>
+                                </customType>
+                            </customTypes>
+
+                            <!-- Then, associate custom types with database columns -->
+                            <forcedTypes>
+                                <!-- Automatically convert timestamp fields to Java LocalDateTime-->
+                                <forcedType>
+                                    <!-- Specify again he fully-qualified class name of your custom type -->
+                                    <name>java.time.LocalDateTime</name>
+                                    <!-- Add a list of comma-separated regular expressions matching columns -->
+                                    <expression>.*\..*_time</expression>
+                                </forcedType>
+                            </forcedTypes>
+                        </database>
+                        <generate>
+                            <pojos>true</pojos>
+                        </generate>
+                        <target>
+                            <packageName>com.vmturbo.clustermgr.db</packageName>
+                            <directory>target/generated-sources/jooq</directory>
+                        </target>
+                    </generator>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                </configuration>
             </plugin>
         </plugins>
     </build>
@@ -96,6 +217,10 @@
             <id>docker</id>
             <build>
                 <plugins>
+                    <plugin>
+                        <groupId>pl.project13.maven</groupId>
+                        <artifactId>git-commit-id-plugin</artifactId>
+                    </plugin>
                     <plugin>
                         <groupId>com.spotify</groupId>
                         <artifactId>docker-maven-plugin</artifactId>
@@ -110,9 +235,6 @@
                             <serverId>docker-registry</serverId>
                             <baseImage>${docker.image.prefix}/vmt-component-base:${project.version}</baseImage>
                             <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
-                            <volumes>
-                                <volume>/home/turbonomic/data</volume>
-                            </volumes>
                             <exposes>
                                 <port>8889</port>
                             </exposes>
@@ -129,6 +251,11 @@
                                 <resource>
                                     <targetPath>/swagger</targetPath>
                                     <directory>${project.build.directory}/generated-docs/swagger</directory>
+                                </resource>
+                                <resource>
+                                    <targetPath>/config</targetPath>
+                                    <directory>${project.build.directory}/classes</directory>
+                                    <include>kafka-config.yml</include>
                                 </resource>
                             </resources>
                         </configuration>
@@ -213,6 +340,12 @@
                 </exclusion>
             </exclusions>
         </dependency>
+
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sql-utils</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.proactivesupport</artifactId>
@@ -327,7 +460,7 @@
         <dependency>
             <groupId>com.pszymczyk.consul</groupId>
             <artifactId>embedded-consul</artifactId>
-            <version>0.2.2</version>
+            <version>2.1.4</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -343,6 +476,15 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.components.common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>components-api-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sql-test-utils</artifactId>
         </dependency>
     </dependencies>
 </project>

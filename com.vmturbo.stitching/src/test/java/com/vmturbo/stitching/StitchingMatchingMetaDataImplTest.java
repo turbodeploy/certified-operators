@@ -1,14 +1,16 @@
 package com.vmturbo.stitching;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.junit.Test;
+import javax.annotation.Nonnull;
 
-import jersey.repackaged.com.google.common.collect.Lists;
+import com.google.common.collect.Lists;
+
+import org.junit.Test;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
@@ -16,7 +18,6 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityFi
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityPropertyName;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 
 public class StitchingMatchingMetaDataImplTest {
     private final static String STORAGE_ID = "StorageId";
@@ -55,9 +56,9 @@ public class StitchingMatchingMetaDataImplTest {
                 .setMatchingField(storageUuid)
                 .build();
         MatchingMetadata storageMatchingMetadata = MatchingMetadata.newBuilder()
-                .addMatchingData(storageMatchingData).setReturnType(ReturnType.STRING)
+                .addMatchingData(storageMatchingData)
                 .addExternalEntityMatchingProperty(storageUuidMatchingData)
-                .setExternalEntityReturnType(ReturnType.STRING).build();
+                .build();
         final MergedEntityMetadata storageMergeEntityMetadata =
                 MergedEntityMetadata.newBuilder().mergeMatchingMetadata(storageMatchingMetadata)
                         .addPatchedFields(files)
@@ -72,11 +73,13 @@ public class StitchingMatchingMetaDataImplTest {
     public void testEntityFieldsAndProperties() {
         final StitchingMatchingMetaData<String, String> matchingMetaData =
                 new StitchingMatchingMetaDataImpl(EntityType.STORAGE, createMatchingMetadata()) {
+            @Nonnull
             @Override
-            public List<MatchingPropertyOrField> getInternalMatchingData() {
+            public List<MatchingPropertyOrField<Collection<String>>> getInternalMatchingData() {
                 return null;
             }
 
+            @Nonnull
             @Override
             public List<MatchingPropertyOrField> getExternalMatchingData() {
                 return null;
@@ -94,7 +97,7 @@ public class StitchingMatchingMetaDataImplTest {
                 .stream()
                 .map(DTOFieldSpec::getMessagePath)
                 .filter(list -> !list.isEmpty())
-                .flatMap(List::stream)
+                .flatMap(Collection::stream)
                 .collect(Collectors.toList()));
     }
 

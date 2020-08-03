@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
@@ -70,6 +71,7 @@ public class TargetRESTApi {
          * so that it's nullable.
          */
         private final Long targetId;
+        private final String displayName;
         private final TargetSpec spec;
         private final Boolean probeConnected;
         private final List<String> errors;
@@ -78,6 +80,7 @@ public class TargetRESTApi {
 
         protected TargetInfo() {
             targetId = null;
+            displayName = null;
             spec = null;
             probeConnected = null;
             errors = null;
@@ -85,9 +88,10 @@ public class TargetRESTApi {
             lastValidationTime = null;
         }
 
-        public TargetInfo(final Long id, final List<String> errors, final TargetSpec spec,
+        public TargetInfo(final Long id, String displayName, final List<String> errors, final TargetSpec spec,
                         final Boolean probeConnected, String status, LocalDateTime lastValidationTime) {
             this.targetId = id;
+            this.displayName = displayName;
             this.spec = spec;
             this.probeConnected = probeConnected;
             this.errors = errors;
@@ -98,6 +102,11 @@ public class TargetRESTApi {
         @ApiModelProperty(value = "If non-null, the id of the target. If null, errors should be non-null.")
         public Long getTargetId() {
             return targetId;
+        }
+
+        @ApiModelProperty(value = "The display name of the target.")
+        public String getDisplayName() {
+            return displayName;
         }
 
         @ApiModelProperty(value = "If non-null, the spec for this target. If null, errors should be non-null.")
@@ -141,13 +150,17 @@ public class TargetRESTApi {
         }
 
         @Override
-        public Optional<Long> getParentId() {
-            return spec.getParentId();
+        public boolean isHidden() {
+            return spec.getIsHidden();
+        }
+        @Override
+        public boolean isReadOnly() {
+            return spec.getReadOnly();
         }
 
         @Override
-        public boolean isHidden() {
-            return spec.getIsHidden();
+        public List<Long> getDerivedTargetIds() {
+            return spec.getDerivedTargetIds();
         }
     }
 
@@ -163,24 +176,27 @@ public class TargetRESTApi {
 
         @ApiModelProperty(value = "Probe to which the target belongs.")
         private final Long probeId;
-        @ApiModelProperty(value = "Parent target id of the target.")
-        private final Optional<Long> parentId;
         @ApiModelProperty(value = "Is the target hidden from users.")
         private final boolean isHidden;
-
+        @ApiModelProperty(value = "Whether the target cannot be changed through public APIs")
+        private final boolean readOnly;
+        @ApiModelProperty(value = "The derived target IDs associated with this target")
+        private final List<Long> derivedTargetIds;
 
         protected TargetSpec() {
             probeId = null;
-            parentId = Optional.empty();
             isHidden = false;
+            readOnly = false;
+            derivedTargetIds = Lists.newArrayList();
         }
 
         public TargetSpec(@Nonnull final Long probeId,
                         @Nonnull final List<InputField> accountFields) {
             super(accountFields);
             this.probeId = Objects.requireNonNull(probeId);
-            this.parentId = Optional.empty();
             this.isHidden = false;
+            this.readOnly = false;
+            this.derivedTargetIds = Lists.newArrayList();
         }
 
         public TargetSpec(@Nonnull final TopologyProcessorDTO.TargetSpec targetSpec) {
@@ -188,21 +204,25 @@ public class TargetRESTApi {
                             .map(accountValue -> new InputField(accountValue))
                             .collect(Collectors.toList()));
             this.probeId = targetSpec.getProbeId();
-            this.parentId = targetSpec.hasParentId() ? Optional.of(targetSpec.getParentId())
-                    : Optional.empty();
             this.isHidden = targetSpec.getIsHidden();
+            this.readOnly = targetSpec.getReadOnly();
+            this.derivedTargetIds = targetSpec.getDerivedTargetIdsList();
         }
 
         public Long getProbeId() {
             return probeId;
         }
 
-        public Optional<Long> getParentId() {
-            return parentId;
-        }
-
         public boolean getIsHidden() {
             return isHidden;
+        }
+
+        public boolean getReadOnly() {
+            return readOnly;
+        }
+
+        public List<Long> getDerivedTargetIds() {
+            return derivedTargetIds;
         }
 
         /**

@@ -13,11 +13,10 @@ import jdk.nashorn.internal.ir.annotations.Immutable;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.stats.StatsAccumulator;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.history.stats.StatsAccumulator;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -31,17 +30,17 @@ class EntityCountInfo {
     /**
      * (entity type) -> (number of active entities of the type in the topology).
      */
-    private final Map<Integer, Long> activeEntityCounts;
+    private final Map<Integer, Long> entityCountsByType;
 
     /**
      * This constructor should only be used for testing. Otherwise, use
      * {@link EntityCountInfo#newBuilder()}.
      *
-     * @param activeEntityCounts The map of entity counts.
+     * @param entityCountsByType The map of entity counts.
      */
     @VisibleForTesting
-    EntityCountInfo(@Nonnull final Map<Integer, Long> activeEntityCounts) {
-        this.activeEntityCounts = Collections.unmodifiableMap(activeEntityCounts);
+    EntityCountInfo(@Nonnull final Map<Integer, Long> entityCountsByType) {
+        this.entityCountsByType = Collections.unmodifiableMap(entityCountsByType);
     }
 
     public static Builder newBuilder() {
@@ -71,7 +70,7 @@ class EntityCountInfo {
 
     @VisibleForTesting
     long entityCount(@Nonnull final EntityType entityType) {
-        return activeEntityCounts.getOrDefault(entityType.getNumber(), 0L);
+        return entityCountsByType.getOrDefault(entityType.getNumber(), 0L);
     }
 
     @Nonnull
@@ -125,23 +124,20 @@ class EntityCountInfo {
      * Builder class to construct an immutable {@link EntityCountInfo}.
      */
     static class Builder {
-        private final Map<Integer, Long> activeEntityCounts = new HashMap<>();
+        private final Map<Integer, Long> entityCountsByType = new HashMap<>();
 
         private Builder() {}
 
         @Nonnull
         Builder addEntity(@Nonnull final TopologyEntityDTO entity) {
-            if (entity.getEntityState().equals(EntityState.POWERED_ON)) {
-                final long entityTypeCount = activeEntityCounts.computeIfAbsent(
-                        entity.getEntityType(), k -> 0L);
-                activeEntityCounts.put(entity.getEntityType(), entityTypeCount + 1);
-            }
+            entityCountsByType.put(entity.getEntityType(),
+                    entityCountsByType.getOrDefault(entity.getEntityType(), 0L) + 1);
             return this;
         }
 
         @Nonnull
         EntityCountInfo build() {
-            return new EntityCountInfo(activeEntityCounts);
+            return new EntityCountInfo(entityCountsByType);
         }
     }
 }

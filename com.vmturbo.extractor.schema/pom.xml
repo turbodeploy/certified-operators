@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <artifactId>Turbonomic-XL</artifactId>
+        <groupId>com.vmturbo</groupId>
+        <version>7.22.6-SNAPSHOT</version>
+        <relativePath>../build/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>extractor-schema</artifactId>
+
+    <properties>
+        <swagger.component.name>Extractor</swagger.component.name>
+        <postgresHost>localhost</postgresHost>
+        <!--This doesn't work here since it has to not be set in the case that we launch a
+            postgres container instead of relying on a separate postgres service being available.
+            See the no-run-postgres-container profile below
+        <postgresPort>5432</postgresPort>
+        -->
+        <postgresUserName>postgres</postgresUserName>
+        <postgresPassword>vmturbo</postgresPassword>
+        <targetSchemaName>extractor</targetSchemaName>
+        <postgresSchemaName>${targetSchemaName}_{maven.build.timestamp}</postgresSchemaName>
+        <postgresDriver>org.postgresql.Driver</postgresDriver>
+        <dockerHost>unix:///var/run/docker.sock</dockerHost>
+    </properties>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>migrate</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>migrate</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>clean-db</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <url>jdbc:postgresql://${postgresHost}:${postgresPort}/</url>
+                    <user>${postgresUserName}</user>
+                    <password>${postgresPassword}</password>
+                    <locations>
+                        <location>filesystem:${basedir}/src/main/resources/db/migration</location>
+                    </locations>
+                    <schemas>
+                        <schema>${postgresSchemaName}</schema>
+                    </schemas>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jooq</groupId>
+                <artifactId>jooq-codegen-maven</artifactId>
+
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+
+                <configuration>
+                    <jdbc>
+                        <driver>${postgresDriver}</driver>
+                        <url>jdbc:postgresql://${postgresHost}:${postgresPort}/</url>
+                        <user>${postgresUserName}</user>
+                        <password>${postgresPassword}</password>
+                    </jdbc>
+
+                    <generator>
+                        <database>
+                            <name>org.jooq.meta.postgres.PostgresDatabase</name>
+                            <schemaVersionProvider>SELECT CONCAT_WS('_', '${targetSchemaName}',
+                                MAX(version)) from "${postgresSchemaName}".schema_version
+                            </schemaVersionProvider>
+                            <includes>.*</includes>
+                            <excludes>schema_version</excludes>
+                            <schemata>
+                                <schema>
+                                    <inputSchema>${postgresSchemaName}</inputSchema>
+                                    <outputSchema>${targetSchemaName}</outputSchema>
+                                </schema>
+                            </schemata>
+                        </database>
+                        <generate>
+                            <pojos>true</pojos>
+                        </generate>
+                        <target>
+                            <packageName>com.vmturbo.extractor.schema</packageName>
+                            <directory>${project.build.directory}/generated-sources/jooq</directory>
+                        </target>
+                    </generator>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <dbHost>${postgresHost}</dbHost>
+                        <dbPort>${postgresPort}</dbPort>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+    <profiles>
+        <profile>
+            <id>windows-docker-host</id>
+            <activation>
+                <os>
+                    <family>windows</family>
+                </os>
+            </activation>
+            <properties>
+                <!-- On Docker for Windows this will require exposing the Daemon with TLS disabled . -->
+                <dockerHost>tcp://localhost:2375</dockerHost>
+            </properties>
+        </profile>
+        <profile>
+            <id>no-run-postgres-container</id>
+            <!-- set default for postgres port only if we're not going to spin up a postgres container -->
+            <activation>
+                <property>
+                    <name>postgresContainer.skip</name>
+                </property>
+            </activation>
+            <properties>
+                <postgresPort>5432</postgresPort>
+            </properties>
+        </profile>
+        <profile>
+            <id>run-postgres-container</id>
+            <!--
+                If you don't want a postgres container to be spun up during the build in order to
+                perform live DB tests, specify -DpostgresContainer.skip` on maven command line. In
+                that case you will need to have a postgres server available in your environment,
+                and the postgresHost and postgresPort properties can be used to configure access
+                if they're differnet from lcoalhost and 5432, respectively.
+            -->
+            <activation>
+                <property>
+                    <name>!postgresContainer.skip</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>io.fabric8</groupId>
+                        <artifactId>docker-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>start-tsdb-for</id>
+                                <phase>initialize</phase>
+                                <goals>
+                                    <goal>start</goal>
+                                </goals>
+                                <configuration>
+                                    <dockerHost>${dockerHost}</dockerHost>
+                                    <showLogs>true</showLogs>
+                                    <images>
+                                        <image>
+                                            <alias>tsdb</alias>
+                                            <name>timescale/timescaledb:latest-pg12</name>
+                                            <run>
+                                                <!--
+                                                pattern needs to start with "maven-" so jenkins builds
+                                                will properly clean up leaked containers
+                                                -->
+                                                <containerNamePattern>maven-%a-%i
+                                                </containerNamePattern>
+                                                <ports>
+                                                    <port>postgresPort:5432</port>
+                                                </ports>
+                                                <env>
+                                                    <POSTGRES_USER>${postgresUserName}</POSTGRES_USER>
+                                                    <POSTGRES_PASSWORD>${postgresPassword}</POSTGRES_PASSWORD>
+                                                </env>
+                                                <wait>
+                                                    <log>
+                                                        <!--
+                                                        CDATA prevents intellij from wrapping the search
+                                                        string, which would break things.
+                                                        We wait for a message that shows that timescale
+                                                        is ready, and we wait to see it twice, since the
+                                                        container's entry-point script includes an internal
+                                                        restart.
+                                                        -->
+                                                        <![CDATA[(?s)TimescaleDB background worker launcher connected to shared catalogs.*TimescaleDB background worker launcher connected to shared catalogs]]>
+                                                    </log>
+                                                    <time>30000</time>
+                                                </wait>
+                                            </run>
+                                        </image>
+                                    </images>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>stop-tsdb</id>
+                                <phase>test</phase>
+                                <goals>
+                                    <goal>stop</goal>
+                                </goals>
+                                <configuration>
+                                    <dockerHost>${dockerHost}</dockerHost>
+                                    <images>
+                                        <image>
+                                            <name>timescale/timescaledb:latest-pg12</name>
+                                        </image>
+                                    </images>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jooq</groupId>
+            <artifactId>jooq</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sql-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sql-test-utils</artifactId>
+        </dependency>
+    </dependencies>
+</project>

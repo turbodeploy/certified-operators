@@ -9,27 +9,34 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.service.GroupsService;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class MagicScopeGatewayTest {
 
-    private GroupsService groupsService = mock(GroupsService.class);
+    private GroupMapper groupsMapper = mock(GroupMapper.class);
 
     private GroupServiceMole groupBackendMole = spy(new GroupServiceMole());
 
@@ -38,36 +45,59 @@ public class MagicScopeGatewayTest {
 
     private static final long REALTIME_CONTEXT = 124521;
 
-    private static final String TEMP_GROUP_UUID = "1";
+    private static final long TEMP_GROUP_ID = 1;
+    private static final String TEMP_GROUP_UUID = Long.toString(TEMP_GROUP_ID);
 
     private MagicScopeGateway gateway;
 
-    private GroupApiDTO tempGroup;
-
     @Before
-    public void setup() {
-        gateway = new MagicScopeGateway(groupsService,
+    public void setup() throws InvalidOperationException, OperationFailedException {
+        gateway = new MagicScopeGateway(groupsMapper,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 REALTIME_CONTEXT);
 
-        tempGroup = new GroupApiDTO();
-        tempGroup.setUuid(TEMP_GROUP_UUID);
+    }
+
+    private void setupMapperAndBackend(long oid) throws Exception {
+        GroupDefinition groupDefinition  = GroupDefinition
+                        .newBuilder()
+                        .setDisplayName(Long.toString(oid))
+                        .setIsTemporary(true)
+                        .build();
+
+        when(groupsMapper.toGroupDefinition(any())).thenReturn(groupDefinition);
+
+        doReturn(CreateGroupResponse.newBuilder()
+            .setGroup(Grouping.newBuilder()
+                .setId(oid))
+            .build()).when(groupBackendMole).createGroup(CreateGroupRequest.newBuilder()
+                .setGroupDefinition(groupDefinition)
+                .setOrigin(Origin.newBuilder()
+                                .setSystem(Origin
+                                        .System
+                                        .newBuilder()
+                                        .setDescription("Magic Group: " + MagicScopeGateway.ALL_ON_PREM_HOSTS)
+                                        )
+                                )
+                .build());
     }
 
     @Test
     public void testMapOnPremHost() throws Exception {
+        setupMapperAndBackend(TEMP_GROUP_ID);
+
         final ArgumentCaptor<GroupApiDTO> groupCreateRequestCaptor =
                 ArgumentCaptor.forClass(GroupApiDTO.class);
 
-        doReturn(tempGroup).when(groupsService).createGroup(any());
         final String mappedUuid = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
+
+        verify(groupsMapper).toGroupDefinition(groupCreateRequestCaptor.capture());
 
         assertThat(mappedUuid, is(TEMP_GROUP_UUID));
 
-        verify(groupsService).createGroup(groupCreateRequestCaptor.capture());
         final GroupApiDTO groupRequest = groupCreateRequestCaptor.getValue();
         assertThat(groupRequest.getTemporary(), is(true));
-        assertThat(groupRequest.getGroupType(), is(UIEntityType.PHYSICAL_MACHINE.getValue()));
+        assertThat(groupRequest.getGroupType(), is(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
         assertThat(groupRequest.getScope(), contains(UuidMapper.UI_REAL_TIME_MARKET_STR));
         assertThat(groupRequest.getEnvironmentType(), is(EnvironmentType.ONPREM));
     }
@@ -75,24 +105,22 @@ public class MagicScopeGatewayTest {
     @Test
     public void testMapOnPremHostGroupExpiredTriggersRefresh() throws Exception {
         // Create the group (this assumes the "normal" test works")
-        doReturn(tempGroup).when(groupsService).createGroup(any());
+        setupMapperAndBackend(TEMP_GROUP_ID);
         final String mappedUuid = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
         assertThat(mappedUuid, is(TEMP_GROUP_UUID));
 
         // Next time the "createGroup" method gets called we return a different group.
-        final String newTempGroupId = "1029";
-        final GroupApiDTO newTempGroup = new GroupApiDTO();
-        newTempGroup.setUuid(newTempGroupId);
-        doReturn(newTempGroup).when(groupsService).createGroup(any());
+        final long newTempGroupId = 1029;
+        setupMapperAndBackend(newTempGroupId);
 
         // This request should trigger a RPC to the group service to make sure the temp group
         // still exists.
         final GroupID tempGroupId = GroupID.newBuilder()
-                .setId(Long.parseLong(TEMP_GROUP_UUID))
+                .setId(TEMP_GROUP_ID)
                 .build();
         // Return a group
         doReturn(GetGroupResponse.newBuilder()
-            .setGroup(Group.getDefaultInstance())
+            .setGroup(Grouping.getDefaultInstance())
             .build()).when(groupBackendMole).getGroup(tempGroupId);
 
         final String mappedUuid2 = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
@@ -106,48 +134,44 @@ public class MagicScopeGatewayTest {
 
         final String mappedUuid3 = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
         verify(groupBackendMole, times(2)).getGroup(tempGroupId);
-        assertThat(mappedUuid3, is(newTempGroupId));
+        assertThat(mappedUuid3, is(Long.toString(newTempGroupId)));
     }
 
     @Test
     public void testMapOnPremHostNewTopologyTriggersRefresh() throws Exception {
         // Create the group (this assumes the "normal" test works")
-        doReturn(tempGroup).when(groupsService).createGroup(any());
+        setupMapperAndBackend(TEMP_GROUP_ID);
         final String mappedUuid = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
         assertThat(mappedUuid, is(TEMP_GROUP_UUID));
 
         // Next call to create a group will return a different group.
-        final String newTempGroupId = "1029";
-        final GroupApiDTO newTempGroup = new GroupApiDTO();
-        newTempGroup.setUuid(newTempGroupId);
-        doReturn(newTempGroup).when(groupsService).createGroup(any());
+        final long newTempGroupId = 1029;
+        setupMapperAndBackend(newTempGroupId);
 
         // This should "clear" the cached temp group.
         gateway.onSourceTopologyAvailable(1L, REALTIME_CONTEXT);
 
         final String mappedUuid2 = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
-        assertThat(mappedUuid2, is(newTempGroupId));
+        assertThat(mappedUuid2, is(Long.toString(newTempGroupId)));
     }
 
     @Test
     public void testMapOnPremHostNonRealtimeTopologyIgnored() throws Exception {
         // Create the group (this assumes the "normal" test works")
-        doReturn(tempGroup).when(groupsService).createGroup(any());
+        setupMapperAndBackend(TEMP_GROUP_ID);
         final String mappedUuid = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
         assertThat(mappedUuid, is(TEMP_GROUP_UUID));
 
         // Next call to create a group will return a different group.
-        final String newTempGroupId = "1029";
-        final GroupApiDTO newTempGroup = new GroupApiDTO();
-        newTempGroup.setUuid(newTempGroupId);
-        doReturn(newTempGroup).when(groupsService).createGroup(any());
+        final long newTempGroupId = 1029;
+        setupMapperAndBackend(newTempGroupId);
 
         // Return a group for the cache check.
         doReturn(GetGroupResponse.newBuilder()
-                .setGroup(Group.getDefaultInstance())
+                .setGroup(Grouping.getDefaultInstance())
                 .build())
             .when(groupBackendMole).getGroup(GroupID.newBuilder()
-                .setId(Long.parseLong(TEMP_GROUP_UUID))
+                .setId(TEMP_GROUP_ID)
                 .build());
 
         // This should NOT "clear" the cached temp group, because the context is not realtime.

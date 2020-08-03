@@ -1,19 +1,53 @@
 package com.vmturbo.cost.component.rpc;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.cloud.commitment.analysis.CloudCommitmentAnalysisManager;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.ClassifiedDemandScope;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisInfo;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.ReservedInstancePurchaseProfile;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification.ClassifiedDemandSelection;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.DemandSegment;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandType;
+import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
+import com.vmturbo.common.protobuf.cost.CostDebug;
 import com.vmturbo.common.protobuf.cost.CostDebug.DisableCostRecordingRequest;
 import com.vmturbo.common.protobuf.cost.CostDebug.DisableCostRecordingResponse;
 import com.vmturbo.common.protobuf.cost.CostDebug.EnableCostRecordingRequest;
 import com.vmturbo.common.protobuf.cost.CostDebug.EnableCostRecordingResponse;
+import com.vmturbo.common.protobuf.cost.CostDebug.GetBuyRIImpactCsvRequest;
+import com.vmturbo.common.protobuf.cost.CostDebug.GetBuyRIImpactCsvResponse;
 import com.vmturbo.common.protobuf.cost.CostDebug.GetRecordedCostsRequest;
 import com.vmturbo.common.protobuf.cost.CostDebug.RecordedCost;
+import com.vmturbo.common.protobuf.cost.CostDebug.StartFullAllocatedRIBuyRequest;
+import com.vmturbo.common.protobuf.cost.CostDebug.StartFullAllocatedRIBuyResponse;
+import com.vmturbo.common.protobuf.cost.CostDebug.TriggerBuyRIAlgorithmRequest;
+import com.vmturbo.common.protobuf.cost.CostDebug.TriggerBuyRIAlgorithmResponse;
 import com.vmturbo.common.protobuf.cost.CostDebugServiceGrpc.CostDebugServiceImplBase;
+import com.vmturbo.cost.component.reserved.instance.BuyRIImpactReportGenerator;
+import com.vmturbo.cost.component.reserved.instance.EntityReservedInstanceMappingStore;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 import com.vmturbo.cost.component.topology.CostJournalRecorder;
 
 /**
@@ -21,10 +55,67 @@ import com.vmturbo.cost.component.topology.CostJournalRecorder;
  */
 public class CostDebugRpcService extends CostDebugServiceImplBase {
 
+    private final Logger logger = LogManager.getLogger();
+
     private final CostJournalRecorder costJournalRecording;
 
-    public CostDebugRpcService(@Nonnull final CostJournalRecorder costJournalRecording) {
+    private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
+
+    private final ReservedInstanceAnalysisInvoker invoker;
+
+    private final BuyRIImpactReportGenerator buyRIImpactReportGenerator;
+
+    private final CloudCommitmentAnalysisManager ccaManager;
+
+    public CostDebugRpcService(@Nonnull final CostJournalRecorder costJournalRecording,
+                               @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
+                               @Nonnull final ReservedInstanceAnalysisInvoker invoker,
+                               @Nonnull BuyRIImpactReportGenerator buyRIImpactReportGenerator,
+                               @Nonnull CloudCommitmentAnalysisManager ccaManager) {
         this.costJournalRecording = costJournalRecording;
+        this.entityReservedInstanceMappingStore = entityReservedInstanceMappingStore;
+        this.invoker = invoker;
+        this.buyRIImpactReportGenerator = Objects.requireNonNull(buyRIImpactReportGenerator);
+        this.ccaManager = Objects.requireNonNull(ccaManager);
+    }
+
+    @Override
+    public void startFullAllocatedRIBuyAnalysis(final StartFullAllocatedRIBuyRequest request, final StreamObserver<StartFullAllocatedRIBuyResponse> responseObserver) {
+        try {
+            final CloudCommitmentAnalysisConfig analysisConfig = CloudCommitmentAnalysisConfig.newBuilder()
+                    .setAnalysisTag("Test Analysis")
+                    .setDemandSelection(HistoricalDemandSelection.newBuilder()
+                            .setCloudTierType(CloudTierType.COMPUTE_TIER)
+                            .addDemandSegment(DemandSegment.newBuilder()
+                                    .setScope(DemandScope.newBuilder())
+                                    .setDemandType(HistoricalDemandType.ALLOCATION)
+                                    .build())
+                            .setLookBackStartTime(Instant.now().minus(30, ChronoUnit.DAYS).toEpochMilli())
+                            .setLogDetailedSummary(true))
+                    .setDemandClassification(DemandClassification.newBuilder()
+                            .setDemandSelection(ClassifiedDemandSelection.newBuilder()
+                                    .addScope(ClassifiedDemandScope.newBuilder()
+                                            .setScope(DemandScope.newBuilder())
+                                            .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED))))
+                    .setCloudCommitmentInventory(CloudCommitmentInventory.newBuilder())
+                    .setPurchaseProfile(CommitmentPurchaseProfile.newBuilder()
+                            .addScope(ClassifiedDemandScope.newBuilder()
+                                    .setScope(DemandScope.newBuilder())
+                                    .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED))
+                            .setRecommendationSettings(RecommendationSettings.newBuilder())
+                            .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder()))
+                    .build();
+
+            final CloudCommitmentAnalysisInfo analysisInfo = ccaManager.startAnalysis(analysisConfig);
+
+            responseObserver.onNext(StartFullAllocatedRIBuyResponse.newBuilder()
+                    .setCloudCommitmentAnalysisInfo(analysisInfo)
+                    .build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            logger.error("Error during CCA:", e);
+            throw e;
+        }
     }
 
     @Override
@@ -57,6 +148,61 @@ public class CostDebugRpcService extends CostDebugServiceImplBase {
                         .setCostJournalDescription(cost)
                         .build())
                 .forEach(responseObserver::onNext);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void logEntityRIMapping(CostDebug.LogEntityRIMappingRequest request, StreamObserver<CostDebug.LogEntityRIMappingResponse> responseObserver) {
+        final List<Long> entityIdList = request.getEntityIdList();
+        entityReservedInstanceMappingStore.logEntityCoverage(entityIdList);
+        responseObserver.onNext(CostDebug.LogEntityRIMappingResponse.getDefaultInstance());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void logRIEntityMapping(CostDebug.LogRIEntityMappingRequest request, StreamObserver<CostDebug.LogRIEntityMappingResponse> responseObserver) {
+        final List<Long> riIdList = request.getRiIdList();
+        entityReservedInstanceMappingStore.logRICoverage(riIdList);
+        responseObserver.onNext(CostDebug.LogRIEntityMappingResponse.getDefaultInstance());
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @param request {@inheritDoc}
+     * @param responseObserver {@inheritDoc}
+     */
+    @Override
+    public void triggerBuyRIAlgorithm(TriggerBuyRIAlgorithmRequest request,
+                                      StreamObserver<TriggerBuyRIAlgorithmResponse> responseObserver) {
+        final StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = invoker.getStartBuyRIAnalysisRequest();
+        if (startBuyRIAnalysisRequest.getAccountsList().isEmpty()) {
+            logger.info("No BA's found. RI Buy analysis will not be triggered.");
+            return;
+        }
+        invoker.invokeBuyRIAnalysis(startBuyRIAnalysisRequest);
+        responseObserver.onNext(TriggerBuyRIAlgorithmResponse.getDefaultInstance());
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * Provides a report (formatted as CSV) mapping entity -> buy RI coverage and the cost impact from
+     * buy RI actions. This report is useful in debugging the projected on-demand compute cost, providing
+     * the mappings generated by BuyRIImpactAnalysis in the market component.
+     * <p>
+     * This response can be converted to a csv file taking the curl command generated by swagger and piping
+     * it to jq to extract the csv report string and send it to a file.
+     * <p>
+     * Ex: curl [...] | jq -r '.response.csvString' > [output_csv_file]
+     * @param request {@inheritDoc}
+     * @param responseObserver {@inheritDoc}
+     */
+    @Override
+    public void getBuyRIImpactCsv(final GetBuyRIImpactCsvRequest request, final StreamObserver<GetBuyRIImpactCsvResponse> responseObserver) {
+        responseObserver.onNext(GetBuyRIImpactCsvResponse.newBuilder()
+                .setCsvString(buyRIImpactReportGenerator.generateCsvReportAsString(request))
+                .build());
         responseObserver.onCompleted();
     }
 }

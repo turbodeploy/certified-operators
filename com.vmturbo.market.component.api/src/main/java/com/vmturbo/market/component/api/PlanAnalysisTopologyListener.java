@@ -2,6 +2,7 @@ package com.vmturbo.market.component.api;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -20,6 +21,6 @@ public interface PlanAnalysisTopologyListener {
      * @param topologyDTOs A remote iterator for receiving the plan analysis topology entities.
      */
     void onPlanAnalysisTopology(TopologyInfo topologyInfo,
-                                @Nonnull RemoteIterator<TopologyEntityDTO> topologyDTOs);
+                                @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs);
 
 }

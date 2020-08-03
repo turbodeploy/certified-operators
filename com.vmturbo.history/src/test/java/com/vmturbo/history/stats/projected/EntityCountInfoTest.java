@@ -6,33 +6,38 @@ import static org.junit.Assert.assertFalse;
 
 import java.util.Collections;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableMap;
+
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.stats.StatsAccumulator;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.history.stats.StatsAccumulator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class EntityCountInfoTest {
 
+    /**
+     * Test that entity of all states are considered in the projected stats.
+     */
     @Test
-    public void testEntityCountBuilderOnlyPoweredOn() {
-        final TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
-                .setOid(1)
-                .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
-                .build();
+    public void testEntityCountBuilderIncludingAllStates() {
         EntityCountInfo.Builder builder = EntityCountInfo.newBuilder();
         for (EntityState state : EntityState.values()) {
-            builder.addEntity(TopologyEntityDTO.newBuilder(entity).setEntityState(state).build());
+            // add a new entity for each EntityState
+            builder.addEntity(TopologyEntityDTO.newBuilder()
+                    // the oid doesn't really matter here, just use the state integer value as oid
+                    .setOid(state.getNumber())
+                    .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setEntityState(state)
+                    .build());
         }
         EntityCountInfo countInfo = builder.build();
-        assertEquals(1L, countInfo.entityCount(EntityType.PHYSICAL_MACHINE));
+        assertEquals(EntityState.values().length, countInfo.entityCount(EntityType.PHYSICAL_MACHINE));
     }
 
     @Test

@@ -10,27 +10,30 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
-
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Scenario;
 import com.vmturbo.plan.orchestrator.db.tables.records.ScenarioRecord;
 
 /**
  * This class provides access to the scenario db.
  */
-public class ScenarioDao implements Diagnosable {
+public class ScenarioDao implements DiagsRestorable {
 
     @VisibleForTesting
     static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
@@ -58,7 +61,7 @@ public class ScenarioDao implements Diagnosable {
      * @param scenarioId ID of the scenario to fetch.
      * @return Return the Scenario DTO object.
      */
-    public Optional<PlanDTO.Scenario> getScenario(final long scenarioId) {
+    public Optional<ScenarioOuterClass.Scenario> getScenario(final long scenarioId) {
         Optional<ScenarioRecord> loadedScenario = Optional.ofNullable(
                 dsl.selectFrom(SCENARIO)
                         .where(SCENARIO.ID.eq(scenarioId))
@@ -114,8 +117,8 @@ public class ScenarioDao implements Diagnosable {
      * @param scenario Scenario pojo object.
      * @return return converted Plan.Scenario DTO.
      */
-    public static PlanDTO.Scenario toScenarioDTO(@Nonnull final Scenario scenario) {
-        return PlanDTO.Scenario.newBuilder()
+    public static ScenarioOuterClass.Scenario toScenarioDTO(@Nonnull final Scenario scenario) {
+        return ScenarioOuterClass.Scenario.newBuilder()
             .setId(scenario.getId())
             .setScenarioInfo(scenario.getScenarioInfo())
             .build();
@@ -126,17 +129,16 @@ public class ScenarioDao implements Diagnosable {
      *
      * This method retrieves all scenarios and serializes them as JSON strings.
      *
-     * @return
-     * @throws DiagnosticsException
+     * @throws DiagnosticsException on exception during diagostics
      */
-    @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         final List<Scenario> scenarios = getScenarios();
 
         logger.info("Collecting diagnostics for {} scenarios", scenarios.size());
-        return scenarios.stream().map(scenario -> GSON.toJson(scenario, Scenario.class))
-            .collect(Collectors.toList());
+        for (Scenario scenario: scenarios) {
+            appender.appendString(GSON.toJson(scenario, Scenario.class));
+        }
     }
 
     /**
@@ -146,7 +148,7 @@ public class ScenarioDao implements Diagnosable {
      * scenarios from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     *      {@link StringDiagnosable#collectDiags(DiagnosticsAppender)} ()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains scenarios, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              scenario.
@@ -197,6 +199,12 @@ public class ScenarioDao implements Diagnosable {
         if (!errors.isEmpty()) {
             throw new DiagnosticsException(errors);
         }
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return "Scenarios";
     }
 
     /**

@@ -4,8 +4,6 @@ set -eo pipefail
 
 DEFAULT_ARANGO_CONF=/etc/arangodb3/arangod.conf
 ARANGO_CONF=/var/lib/arangodb3/arangod.conf
-# Disable glibc++ memory pooling. jemalloc already does memory pooling.
-export GLIBCXX_FORCE_NEW=1
 
 # rsyslog
 rm -f /tmp/rsyslog.pid; /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
@@ -24,6 +22,8 @@ else
   export LOGGER_COMMAND="eval tee >(logger --tag arangodb -u /tmp/log.sock)"
 fi
 
+echo "Starting Arango using custom entrypoint script..." | $LOGGER_COMMAND
+
 # Remove the lock. We will not be running multiple instances on the same Docker host
 if [[ -f "/var/lib/arangodb3/LOCK" ]]; then
     echo "Warning: Removing the lock" 2>&1 | $LOGGER_COMMAND
@@ -31,58 +31,46 @@ if [[ -f "/var/lib/arangodb3/LOCK" ]]; then
 fi
 
 if [ "$1" = 'arangod' ]; then
-	if [ -f /tmp/init_007 ]; then
-	    rm -f /tmp/init_007
-        echo "Initializing database...Hang on..." 2>&1 | $LOGGER_COMMAND
-        arangod --server.endpoint unix:///tmp/arangodb-tmp.sock \
-                --server.authentication false \
-                --log.file /tmp/init-log \
-                --log.foreground-tty false &
-		pid="$!"
+	# Test if arangoDB config file is missing and needs to be placed
+	 if [[ ! -f $ARANGO_CONF ]] ; then
+	    echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF (initial setup)" | $LOGGER_COMMAND
+	    cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | $LOGGER_COMMAND
+	 fi
 
-		counter=0
-		ARANGO_UP=0
-		while [ "$ARANGO_UP" = "0" ];do
-		    if [ $counter -gt 0 ];then
-			    sleep 1
-		    fi
-
-		    if [ "$counter" -gt 100 ];then
-			    echo "ArangoDB didn't start correctly during init" 2>&1 | $LOGGER_COMMAND
-			    cat /tmp/init-log | $LOGGER_COMMAND
-			    exit 1
-		    fi
-		        let counter=counter+1
-		    ARANGO_UP=1
-            echo "db._version()" | arangosh --server.endpoint=unix:///tmp/arangodb-tmp.sock 2>&1 > /dev/null || ARANGO_UP=0
-		done
-
-		if ! kill -s TERM "$pid" || ! wait "$pid"; then
-            echo 'ArangoDB Init failed.' 2>&1 | $LOGGER_COMMAND
-            exit 1
-		fi
-
-        echo "Database initialized...Starting System..." 2>&1 | $LOGGER_COMMAND
-	fi
+	    # Test arangoDB version for a mismatch (search for old 3.3.22 version from previous image)
+	  echo "Testing if a database upgrade is needed." | $LOGGER_COMMAND
+    if [[ `grep  '30323' -r  /var/lib/arangodb3/databases/**/VERSION 2>/dev/null | wc -l` -gt 0 ]] ; then
+        echo "Database upgrade needed!" | $LOGGER_COMMAND
+        UPGRADE_FLAGS="--database.auto-upgrade true"
+        # Replace config file on upgrade
+        echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF as part of the upgrade" | $LOGGER_COMMAND
+        cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | $LOGGER_COMMAND
+        echo "ArangoDB will upgrade itself from version 3.3.23 to version 3.6.1." | $LOGGER_COMMAND
+        echo "This may take a long time, depending on the amount of existing data." | $LOGGER_COMMAND
+        /wait-during-start.sh "the upgrade is still in progress. Please be patient, this may take some time." "the  upgrade is complete!" &
+    # Test if an existing mmfiles database needs to be replaced with rocksDB
+    elif [[ `grep 'mmfiles'  /var/lib/arangodb3/ENGINE 2>/dev/null | wc -l` -gt 0 ]] ; then
+        # Location for the mmfiles ArangoDB database backup
+        MMFILES_DUMP_LOCATION=/var/lib/arangodb3/mmfiles-dump
+        if [[ ! -d  "$MMFILES_DUMP_LOCATION" ]] ; then
+            # Run mmfiles-dump in background waiting for ArangoDB to start
+            /mmfiles-dump.sh &
+        else
+            echo "Database backup was successfully stored at $MMFILES_DUMP_LOCATION. Deleting the obsolete mmfiles data files..." | $LOGGER_COMMAND
+            rm -rf /var/lib/arangodb3/journals | $LOGGER_COMMAND
+            rm -rf /var/lib/arangodb3/databases | $LOGGER_COMMAND
+            rm -rf /var/lib/arangodb3/ENGINE | $LOGGER_COMMAND
+            # Run mmfiles-restore in background waiting for ArangoDB to start
+            /mmfiles-restore.sh &
+        fi
+    fi
 
 	# if we really want to start arangod and not bash or any other thing
 	# prepend --authentication as the FIRST argument
 	# (so it is overridable via command line as well)
 	shift
-	set -- arangod --server.authentication="true" --configuration $ARANGO_CONF "$@"
+	set -- arangod --server.authentication="true" $UPGRADE_FLAGS --configuration $ARANGO_CONF "$@"
 fi
 
-if [ ! -f $ARANGO_CONF ]; then
-    echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF" | $LOGGER_COMMAND
-    cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | $LOGGER_COMMAND
-fi
-
-# enable query cache
-# See https://www.arangodb.com/docs/3.3/aql/execution-and-performance-query-cache.html
-grep -q cache-mode $ARANGO_CONF
-if [ "$?" != 0 ]; then
-    echo "Enabling arangodb query cache" | $LOGGER_COMMAND
-    sed  -i  '$a\\n\[query]\ncache-mode = on\n' $ARANGO_CONF
-fi
-
+echo "Starting arango with these arguments: $@" | $LOGGER_COMMAND
 exec "$@" > >($LOGGER_COMMAND) 2>&1

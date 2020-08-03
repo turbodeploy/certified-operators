@@ -7,15 +7,15 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.topology.ProbeREST.ProbeActionCapabilitiesServiceController;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
-import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Spring configuration for the Probe package.
  */
 @Configuration
-@Import({IdentityProviderConfig.class, StitchingConfig.class, KeyValueStoreConfig.class})
+@Import({IdentityProviderConfig.class, StitchingConfig.class, KeyValueStoreConfig.class, ActionMergeSpecsConfig.class})
 public class ProbeConfig {
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -26,6 +26,9 @@ public class ProbeConfig {
     @Autowired
     private KeyValueStoreConfig keyValueStoreConfig;
 
+    @Autowired
+    private ActionMergeSpecsConfig actionMergeSpecsConfig;
+
     @Bean
     public ProbeInfoCompatibilityChecker compatibilityChecker() {
         return new ProbeInfoCompatibilityChecker();
@@ -35,7 +38,8 @@ public class ProbeConfig {
     public ProbeStore probeStore() {
         return new RemoteProbeStore(keyValueStoreConfig.keyValueStore(),
                 identityProviderConfig.identityProvider(),
-                stitchingConfig.stitchingOperationStore());
+                stitchingConfig.stitchingOperationStore(),
+                actionMergeSpecsConfig.actionMergeSpecsRepository());
     }
 
     @Bean

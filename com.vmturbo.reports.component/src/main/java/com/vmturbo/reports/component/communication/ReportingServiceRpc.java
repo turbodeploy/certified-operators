@@ -33,7 +33,6 @@ import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceImplBase;
-import com.vmturbo.reports.component.ReportingConfig;
 import com.vmturbo.reports.component.ReportingException;
 import com.vmturbo.reports.component.db.tables.pojos.ReportInstance;
 import com.vmturbo.reports.component.instances.ReportInstanceConverter;
@@ -59,9 +58,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
     private final ReportsGenerator reportsGenerator;
     private final File outputDirectory;
     private final Scheduler scheduler;
-
-    private static final Set<Integer> enabledReports = getReportMap().keySet().stream()
-        .map(x -> x.intValue()).collect(Collectors.toSet());
+    private final Set<Integer> enabledReports;
 
     /**
      * Creates reporting GRPC service.
@@ -79,6 +76,8 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
         this.outputDirectory = Objects.requireNonNull(outputDirectory);
         this.reportsGenerator = Objects.requireNonNull(reportsGenerator);
         this.scheduler = Objects.requireNonNull(scheduler);
+        this.enabledReports = reportsGenerator.getSupportedReport().keySet().stream()
+            .map(longId -> longId.intValue()).collect(Collectors.toSet());;
     }
 
     /**

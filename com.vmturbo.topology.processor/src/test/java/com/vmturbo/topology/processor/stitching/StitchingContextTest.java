@@ -10,6 +10,8 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Map;
@@ -21,16 +23,21 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 public class StitchingContextTest {
-    private final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8)
-            .setTargetStore(Mockito.mock(TargetStore.class))
+    private final TargetStore targetStore = mock(TargetStore.class);
+
+    private final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8, targetStore)
             .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
     private StitchingContext stitchingContext;
 
@@ -48,6 +55,8 @@ public class StitchingContextTest {
 
     @Before
     public void setup() {
+        when(targetStore.getAll()).thenReturn(Collections.emptyList());
+
         //  2     4
         //  |     |
         //  1     3
@@ -87,6 +96,19 @@ public class StitchingContextTest {
                 .collect(Collectors.toList()),
             containsInAnyOrder(e3_2.getEntityDtoBuilder(), e4_2.getEntityDtoBuilder()));
         assertThat(stitchingContext.internalEntities(3L)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
+            is(empty()));
+    }
+
+    @Test
+    public void testInternalEntitiesForTargetSet() {
+        assertThat(stitchingContext.internalEntities(ImmutableSet.of(1L, 2L))
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
+            containsInAnyOrder(e1_1.getEntityDtoBuilder(), e2_1.getEntityDtoBuilder(),
+                e3_2.getEntityDtoBuilder(), e4_2.getEntityDtoBuilder()));
+        assertThat(stitchingContext.internalEntities(ImmutableSet.of(3L))
                 .map(TopologyStitchingEntity::getEntityBuilder)
                 .collect(Collectors.toList()),
             is(empty()));
@@ -146,14 +168,15 @@ public class StitchingContextTest {
 
     @Test
     public void testConstructTopology() {
-        final TopologyGraph topology = TopologyGraph.newGraph(stitchingContext.constructTopology());
+        final TopologyGraph<TopologyEntity> topology = TopologyEntityTopologyGraphCreator.newGraph(stitchingContext.constructTopology());
         assertEquals(4, topology.size());
 
         assertEquals(e1_1.getOid(), topology.getEntity(e1_1.getOid()).get().getOid());
-        assertEquals(e1_1.getLastUpdatedTime(),
-            topology.getEntity(e1_1.getOid()).get().getDiscoveryOrigin().get().getLastUpdatedTime());
+        DiscoveryOrigin origin = topology.getEntity(e1_1.getOid()).get().getDiscoveryOrigin().get();
+        assertEquals(e1_1.getLastUpdatedTime(), origin.getLastUpdatedTime());
+        assertEquals(1, origin.getDiscoveredTargetDataMap().size());
         assertEquals(e1_1.getTargetId(),
-            topology.getEntity(e1_1.getOid()).get().getDiscoveryOrigin().get().getDiscoveringTargetIds(0));
+                     origin.getDiscoveredTargetDataMap().keySet().iterator().next().longValue());
         assertEquals(1, topology.getConsumers(e1_1.getOid()).count());
         assertEquals(0, topology.getProviders(e1_1.getOid()).count());
 
@@ -170,8 +193,7 @@ public class StitchingContextTest {
     // TODO: Remove this test after adding shared storage support and eliminating collision resolution.
     @Test
     public void testConstructTopologyDuplicateOids() {
-        final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8)
-            .setTargetStore(Mockito.mock(TargetStore.class))
+        final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8, targetStore)
             .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
 
         stitchingContextBuilder.addEntity(e1_1, target1Graph);

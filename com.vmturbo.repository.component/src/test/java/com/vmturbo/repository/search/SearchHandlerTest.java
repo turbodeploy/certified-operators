@@ -195,8 +195,8 @@ public class SearchHandlerTest {
 
     @Test
     public void testGetEntitiesByOids() {
-        final Optional<TopologyID> topologyID =
-                Optional.of(new TopologyID(123L, 456L, TopologyType.SOURCE));
+        final TopologyID topologyID =
+            new TopologyID(123L, 456L, TopologyType.SOURCE);
         final Set<Long> entityOids = Sets.newHashSet(1L, 2L);
         final GraphDefinition graphDefinition = Mockito.mock(GraphDefinition.class);
         final String serviceEntityVertex = "serviceEntityVertex";

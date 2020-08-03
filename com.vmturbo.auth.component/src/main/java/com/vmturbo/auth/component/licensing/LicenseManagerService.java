@@ -1,28 +1,30 @@
 package com.vmturbo.auth.component.licensing;
 
-import static com.vmturbo.auth.component.licensing.LicenseDTOUtils.licenseDTOtoLicense;
-
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.protobuf.Empty;
 
+import io.grpc.stub.StreamObserver;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.grpc.stub.StreamObserver;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.ErrorReason;
 import com.vmturbo.auth.component.licensing.store.ILicenseStore;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceImplBase;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesResponse;
@@ -35,7 +37,11 @@ import com.vmturbo.common.protobuf.licensing.Licensing.RemoveLicenseResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.ValidateLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.ValidateLicensesResponse;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.licensing.utils.LicenseUtil;
+import com.vmturbo.notification.api.NotificationSender;
+import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
+import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Category;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -81,6 +87,7 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
             .withLabelNames("method")
             .build()
             .register();
+    private final NotificationSender notificationSender;
 
     // reference to the storage system used to persist the licenses.
     private ILicenseStore licenseStore;
@@ -90,14 +97,21 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
     private Flux<LicenseManagementEvent> eventFlux;
     private FluxSink<LicenseManagementEvent> eventFluxSink;
 
-    public LicenseManagerService(@Nonnull ILicenseStore licenseStore) {
+    /**
+     * Constructor.
+     *
+     * @param licenseStore          license store.
+     * @param notificationSender    notification sender.
+     */
+    public LicenseManagerService(@Nonnull ILicenseStore licenseStore,
+            @Nonnull final NotificationSender notificationSender) {
         this.licenseStore = licenseStore;
         // create the event flux
         eventFlux = Flux.create(emitter -> eventFluxSink = emitter);
         // start publishing immediately w/o waiting for a consumer to signal demand.
         // Future subscribers will pick up on future statuses
         eventFlux.publish().connect();
-
+        this.notificationSender = Objects.requireNonNull(notificationSender);
     }
 
     /**
@@ -180,23 +194,26 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
         logger.info("Validating licenses.");
         try(DataMetricTimer timer = RPC_PROCESSING_MS.labels("validateLicenses").startTimer()) {
             // create LicenseApiDTO objects and use them to validate all licenses
-            ValidateLicensesResponse.Builder responseBuilder = ValidateLicensesResponse.newBuilder();
-            for (LicenseDTO licenseDTO : request.getLicenseDTOList()) {
-                try {
-                    // convert to a License object and validate.
-                    ILicense license = validateLicense(licenseDTOtoLicense(licenseDTO));
-                    // add the resulting license to the response.
-                    responseBuilder.addLicenseDTO(LicenseDTOUtils.iLicenseToLicenseDTO(license));
+            List<ILicense> licenses = request.getLicenseDTOList().stream()
+                    .map(LicenseDTOUtils::licenseDTOtoLicense)
+                    .collect(Collectors.toList());
 
-                } catch (IOException ioe) {
-                    // IO exception may occur when trying to load licenses to detect duplicates
-                    // Error out of the call if we get this exception.
-                    logger.error("IOException while validating license {}", licenseDTO.getFilename());
-                    responseObserver.onError(ioe);
-                    RPC_ERROR_COUNT.labels("validateLicenses").increment();
-                    return;
-                }
+            ValidateLicensesResponse.Builder responseBuilder = ValidateLicensesResponse.newBuilder();
+            try {
+                // validate the licenses and add them back to the response.
+                List<LicenseDTO> validatedLicenses = validateMultipleLicenses(licenses).stream()
+                        .map(LicenseDTOUtils::iLicenseToLicenseDTO)
+                        .collect(Collectors.toList());
+                responseBuilder.addAllLicenseDTO(validatedLicenses);
+            } catch (IOException ioe) {
+                // IO exception may occur when trying to load licenses to detect duplicates
+                // Error out of the call if we get this exception.
+                logger.error("IOException while validating {} licenses", licenses.size());
+                responseObserver.onError(ioe);
+                RPC_ERROR_COUNT.labels("validateLicenses").increment();
+                return;
             }
+
             responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
         }
@@ -218,31 +235,32 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
         RPC_RECEIVED_COUNT.labels("addLicenses").increment();
         logger.info("Adding {} license(s).", request.getLicenseDTOCount());
         try(DataMetricTimer timer = RPC_PROCESSING_MS.labels("addLicenses").startTimer()) {
-            // first validate the licenses and put the validated licenses into the response.
-            boolean allAreValid = true;
-            // collect the validated licenses in case we have to return them with errors.
-            List<ILicense> validatedLicenses = new ArrayList();
-            for (LicenseDTO licenseDTO : request.getLicenseDTOList()) {
-                try {
-                    // convert to a LicenseApi object, validate, and add to the responses
-                    ILicense license = validateLicense(licenseDTOtoLicense(licenseDTO));
-                    allAreValid = allAreValid && license.isValid();
-                    validatedLicenses.add(license);
-                } catch (IOException ioe) {
-                    // IO exception may occur when trying to load licenses to detect duplicates
-                    // Error out of the call if we get this exception.
-                    logger.error("IOException while validating license {}", licenseDTO.getFilename());
-                    responseObserver.onError(ioe);
-                    RPC_ERROR_COUNT.labels("addLicenses").increment();
-                    return;
-                }
+
+            // create LicenseApiDTO objects and use them to validate all licenses
+            List<ILicense> newLicenses = request.getLicenseDTOList().stream()
+                    .map(LicenseDTOUtils::licenseDTOtoLicense)
+                    .collect(Collectors.toList());
+
+            try {
+                // validate the licenses
+                validateMultipleLicenses(newLicenses);
+            } catch (IOException ioe) {
+                // IO exception may occur when trying to load licenses to detect duplicates
+                // Error out of the call if we get this exception.
+                logger.error("IOException while validating {} licenses", newLicenses.size());
+                responseObserver.onError(ioe);
+                RPC_ERROR_COUNT.labels("addLicenses").increment();
+                return;
             }
+
+            // check if all are valid.
+            boolean allAreValid = newLicenses.stream().allMatch(ILicense::isValid);
 
             AddLicensesResponse.Builder responseBuilder = AddLicensesResponse.newBuilder();
             // if not all valid, return the validated licenses.
-            if ((! allAreValid) || validatedLicenses.size() == 0) {
+            if ((!allAreValid) || newLicenses.size() == 0) {
                 logger.info("Invalid license or no licenses found, skipping save.");
-                responseBuilder.addAllLicenseDTO(validatedLicenses.stream()
+                responseBuilder.addAllLicenseDTO(newLicenses.stream()
                             .map(LicenseDTOUtils::iLicenseToLicenseDTO)
                             .collect(Collectors.toList()));
                 responseObserver.onNext(responseBuilder.build());
@@ -274,8 +292,70 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
             // if any were store, fire a "license added" event.
             if (numStored > 0) {
                 publishEvent(LicenseManagementEventType.LICENSE_ADDED);
+                systemLicenseNotification("Added new license.", "Successfully added new license");
             }
         }
+    }
+
+    /**
+     * Validate a collection of license objects. This may modify the incoming licenses by populating
+     * their internal error structures with any validation errors found on each.
+     *
+     * @param licenses the collection of {@link ILicense} objects to validate.
+     * @return the same collection of license objects w/validation errors populated.
+     * @throws IOException if there is a problem loading existing licenses during validation.
+     */
+    protected Collection<ILicense> validateMultipleLicenses(Collection<ILicense> licenses) throws IOException {
+        // we're filtering out expired licenses for the purposes of validating new licenses.
+        Collection<ILicense> allNonexpiredLicenses = licenseStore.getLicenses().stream()
+                .filter(license -> LicenseUtil.isNotExpired(license.getExpirationDate()))
+                .map(LicenseDTOUtils::licenseDTOtoLicense)
+                .collect(Collectors.toList());
+        // we'll also validate the incoming licenses against each other, so add them to the list too
+        allNonexpiredLicenses.addAll(licenses);
+        // get a combined feature set across all licenses. We'll use this to validate that all feature
+        // sets are the same (and thus, compatible -- XL does not support licenses with mismatched
+        // feature sets).
+        Set<String> combinedFeatures = allNonexpiredLicenses.stream()
+                .map(ILicense::getFeatures)
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet());
+
+        for (ILicense license : licenses) {
+            // run the standard validations and set the error reasons on the licenseApiDTO object we
+            // are going to be returning. This how the caller gets per-license validation errors.
+            LicenseDTOUtils.validateXLLicense(license).forEach(license::addErrorReason);
+
+            // if we have multiple potential licenses, run some other checks to make sure the incoming
+            // license is compatible with the other licenses either already in the system or being
+            // added.
+            if (allNonexpiredLicenses.size() > 0) {
+                // check for duplicate license keys. There should be exactly one of this type in the
+                // collection.
+                long numMatchingKeys = allNonexpiredLicenses.stream()
+                        .filter(otherLicense -> otherLicense.getLicenseKey().equals(license.getLicenseKey()))
+                        .count();
+                if (numMatchingKeys > 1) {
+                    // duplicate license error
+                    license.addErrorReason(ErrorReason.DUPLICATE_LICENSE);
+                }
+
+                // verify that the CWOM/Workload license type matches that of the other licenses.
+                boolean isExternalLicense = StringUtils.isNotBlank(license.getExternalLicenseKey());
+                boolean incompatibleLicenseType = allNonexpiredLicenses.stream()
+                        .anyMatch(otherLicense -> StringUtils.isNotBlank(otherLicense.getExternalLicenseKey())
+                                != isExternalLicense);
+                if (incompatibleLicenseType) {
+                    license.addErrorReason(ErrorReason.INVALID_LICENSE_TYPE_CWOM_ONLY);
+                }
+
+                // verify that the feature set for this license is compatible with the other licenses
+                if (!LicenseUtil.equalFeatures(license.getFeatures(), combinedFeatures)) {
+                    license.addErrorReason(ErrorReason.INVALID_FEATURE_SET);
+                }
+            }
+        }
+        return licenses;
     }
 
     /**
@@ -285,51 +365,8 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
      * @return the license w/validation errors populated.
      */
     protected ILicense validateLicense(ILicense licenseApiDTO) throws IOException {
-        // run the standard validations and set the error reasons on the licenseApiDTO object we
-        // are going to be returning. This how the caller gets per-license validation errors.
-        LicenseDTOUtils.validateXLLicense(licenseApiDTO)
-                .forEach(licenseApiDTO::addErrorReason); // add all error reasons to the license
-
-        // check for duplicate license keys and compatibility
-        String newLicenseKey = licenseApiDTO.getLicenseKey();
-        // we're filtering out expired licenses for the purposes of validating new licenses.
-        Collection<LicenseDTO> activeLicenses = licenseStore.getLicenses().stream()
-                .filter(license -> LicenseUtil.isNotExpired(license.getExpirationDate()))
-                .collect(Collectors.toList());
-        boolean alreadyExists = activeLicenses.stream()
-                .anyMatch(license -> license.getLicenseKey().equals(newLicenseKey));
-        if (alreadyExists) {
-            // duplicate license error
-            licenseApiDTO.addErrorReason(ErrorReason.DUPLICATE_LICENSE);
-        }
-
-        // if we have existing licenses, run some other checks to make sure the incoming license is
-        // compatible with the other licenses in the system.
-        if (activeLicenses.size() > 0) {
-            // verify that CWOM/Workload license type matches our existing licenses.
-            boolean isExternalLicense = StringUtils.isNotBlank(licenseApiDTO.getExternalLicenseKey());
-            boolean sameLicenseType = activeLicenses.stream()
-                    .anyMatch(license -> (license.hasExternalLicenseKey() == isExternalLicense));
-            if (!sameLicenseType) {
-                licenseApiDTO.addErrorReason(ErrorReason.INVALID_LICENSE_TYPE_CWOM_ONLY);
-            }
-
-            // validate that the feature set in the new license matches the features in the
-            // existing licenses.
-            // we are merging all existing license features here, but technically this shouldn't be
-            // necessary, since we are marking licenses with non-matching feature sets as invalid.
-            // So all added licenses should have the same feature sets.
-            List<String> existingFeatures = activeLicenses.stream()
-                    .map(LicenseDTO::getFeaturesList)
-                    .flatMap(List::stream)
-                    .distinct()
-                    .collect(Collectors.toList());
-            if (!LicenseUtil.equalFeatures(licenseApiDTO.getFeatures(), existingFeatures)) {
-                licenseApiDTO.addErrorReason(ErrorReason.INVALID_FEATURE_SET);
-            }
-        }
-
-        return licenseApiDTO;
+        // we're going to re-use the validateMultipleLicenses method for simplicity.
+        return validateMultipleLicenses(Collections.singletonList(licenseApiDTO)).iterator().next();
     }
 
     /**
@@ -390,6 +427,7 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
                 RPC_ERROR_COUNT.labels("removeLicense").increment();
             }
             logger.info("Successfully removed license {}", uuid);
+            systemLicenseNotification("Removed license.", "Successfully removed license");
         }
     }
 
@@ -418,4 +456,20 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
             return eventType;
         }
     }
+
+    // Send notification
+    private void systemLicenseNotification(@Nonnull final String longDescription,
+            @Nonnull final String shortDescription) {
+        try {
+            notificationSender.sendNotification(
+                    Category.newBuilder().setLicense(SystemNotification.License.newBuilder().build())
+                            .build(),
+                    longDescription,
+                    shortDescription,
+                    Severity.CRITICAL);
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("Error publishing license notification", e);
+        }
+    }
+
 }

@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.rpc;
 
+import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 
 import io.grpc.stub.StreamObserver;
@@ -9,6 +11,7 @@ import com.vmturbo.common.protobuf.topology.DiscoveredGroup.GetDiscoveredGroupsR
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.TargetDiscoveredGroups;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroupServiceGrpc.DiscoveredGroupServiceImplBase;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
+import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 
 public class DiscoveredGroupRpcService extends DiscoveredGroupServiceImplBase {
 
@@ -25,11 +28,13 @@ public class DiscoveredGroupRpcService extends DiscoveredGroupServiceImplBase {
                             StreamObserver<GetDiscoveredGroupsResponse> responseObserver) {
         final GetDiscoveredGroupsResponse.Builder responseBuilder =
                 GetDiscoveredGroupsResponse.newBuilder();
-        discoveredGroupUploader.getDiscoveredGroupInfoByTarget().forEach((targetId, groupInfo) -> {
+        discoveredGroupUploader.getDataByTarget().forEach((targetId, discoveredData) -> {
             if (!request.hasTargetId() || request.getTargetId() == targetId) {
                 responseBuilder.putGroupsByTargetId(targetId,
                         TargetDiscoveredGroups.newBuilder()
-                                .addAllGroup(groupInfo)
+                                .addAllGroup(discoveredData.getDiscoveredGroups()
+                                    .map(InterpretedGroup::createDiscoveredGroupInfo)
+                                    .collect(Collectors.toList()))
                                 .build());
             }
         });

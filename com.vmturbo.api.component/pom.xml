@@ -7,7 +7,7 @@
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
-        <version>7.17.0-SNAPSHOT</version>
+        <version>7.22.6-SNAPSHOT</version>
     </parent>
 
     <artifactId>com.vmturbo.api.component</artifactId>
@@ -51,7 +51,7 @@
         </base.generated.docs.dir>
         <swagger.conf.directory>${base.generated.docs.dir}/swagger</swagger.conf.directory>
         <env.svn.revision>${env.SVN_REVISION}</env.svn.revision>
-        <api.version>v2</api.version>
+        <api.version>v3</api.version>
         <branding.key.default>vmturbo</branding.key.default>
         <rebrand>${branding.key.default}</rebrand>
         <branding.key>${rebrand}</branding.key>
@@ -121,7 +121,7 @@
                                     <schemes>
                                         <scheme>https</scheme>
                                     </schemes>
-                                    <basePath>/api/v2</basePath>
+                                    <basePath>/api/v3</basePath>
                                     <locations>
                                         <location>com.vmturbo.api.controller</location>
                                         <location>com.vmturbo.api.external.controller</location>
@@ -234,7 +234,7 @@
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.api</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <version>${com.vmturbo.api.version}</version>
                                     <type>jar</type>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                     <includes>apidoc/**/*</includes>
@@ -268,12 +268,12 @@
                         <resource>
                             <targetPath>/swagger</targetPath>
                             <directory>${project.build.directory}/apidoc</directory>
-                            <excludes>swagger.*</excludes>
+                            <excludes><exclude>swagger.*</exclude></excludes>
                         </resource>
                         <resource>
                             <targetPath>/swagger/external</targetPath>
                             <directory>${project.build.directory}/apidoc</directory>
-                            <excludes>swagger.*</excludes>
+                            <excludes><exclude>swagger.*</exclude></excludes>
                         </resource>
                         <resource>
                             <targetPath>/swagger</targetPath>
@@ -287,7 +287,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <argLine>-Duser.language=en -Duser.region=US ${argLine}</argLine>
+                    <argLine>-Duser.language=en -Duser.region=US ${jacoco.agent.argLine} -Dfile.encoding=UTF-8</argLine>
                 </configuration>
             </plugin>
             <plugin>
@@ -312,6 +312,13 @@
                     <nonFilteredFileExtensions>
                         <nonFilteredFileExtension>jks</nonFilteredFileExtension>
                     </nonFilteredFileExtensions>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
                 </configuration>
             </plugin>
         </plugins>
@@ -414,8 +421,24 @@
             <artifactId>system-notification-receiver</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.turbonomic</groupId>
-            <artifactId>com.turbonomic.cpucapacity</artifactId>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>extractor-schema</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>search-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>common-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentracing</groupId>
+            <artifactId>opentracing-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jaegertracing</groupId>
+            <artifactId>jaeger-client</artifactId>
         </dependency>
 
         <!-- return XML from REST endpoints if requested -->
@@ -426,19 +449,32 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-web</artifactId>
+            <version>${spring.security.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-core</artifactId>
+            <version>${spring.security.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-config</artifactId>
+            <version>${spring.security.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.springframework.security.extensions</groupId>
-            <artifactId>spring-security-saml2-core</artifactId>
-            <version>1.0.3.RELEASE</version>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-saml2-service-provider</artifactId>
+            <version>${spring.security.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-client</artifactId>
+            <version>${spring.security.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-jose</artifactId>
+            <version>${spring.security.version}</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
@@ -447,6 +483,30 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-collections4</artifactId>
+        </dependency>
+        <!-- Excluding commons-collections 3.2.1 which is transitively introduced by
+          org.springframework.security:spring-security-saml2-service-provider:jar:5.3.0.RELEASE.
+          This library has security vulnerabilities.
+          See https://www.cvedetails.com/vulnerability-list/vendor_id-45/product_id-32731/version_id-187982/Apache-Commons-Collections-3.2.1.html
+          Note: We have verified basic SAML functions still works after removing this library.
+          Although further investigation might be needed.
+        -->
+        <dependency>
+            <groupId>commons-collections</groupId>
+            <artifactId>commons-collections</artifactId>
+            <version>3.2.1</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <!-- ical4j library is used for its support of recurring events.
+            In particular, we define recurring event as a string using recurring rule format
+            parseable by ical4j.
+            See https://tools.ietf.org/html/rfc2445#section-4.3.10 for more details.
+            -->
+            <groupId>org.mnode.ical4j</groupId>
+            <artifactId>ical4j</artifactId>
+            <version>3.0.10</version>
+            <scope>compile</scope>
         </dependency>
 
         <!-- test dependencies -->
@@ -476,11 +536,17 @@
         </dependency>
         <dependency>
             <groupId>org.eclipse.jetty.websocket</groupId>
-            <artifactId>websocket-client</artifactId>
+            <artifactId>javax-websocket-server-impl</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.eclipse.jetty.websocket</groupId>
-            <artifactId>javax-websocket-server-impl</artifactId>
+            <groupId>com.github.stefanbirkner</groupId>
+            <artifactId>system-rules</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.skyscreamer</groupId>
+            <artifactId>jsonassert</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

@@ -7,7 +7,6 @@ import java.util.Map;
 
 import org.junit.Assert;
 import org.junit.Test;
-import org.springframework.security.access.AccessDeniedException;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.components.common.identity.ArrayOidSet;
@@ -72,4 +71,14 @@ public class UserScopeUtilsTest {
         UserScopeUtils.filterEntityRequest(scope, Arrays.asList(1L,2L));
     }
 
+    @Test
+    public void testContainsSharedRole() {
+        Assert.assertFalse(UserScopeUtils.containsSharedRole(null));
+        Assert.assertFalse(UserScopeUtils.containsSharedRole(Collections.emptyList()));
+        Assert.assertFalse(UserScopeUtils.containsSharedRole(Arrays.asList("SHARED_J/K")));
+        Assert.assertTrue(UserScopeUtils.containsSharedRole(Arrays.asList("SHARED_OBSERVER")));
+        Assert.assertTrue(UserScopeUtils.containsSharedRole(Arrays.asList("shared_observer")));
+        Assert.assertFalse(UserScopeUtils.containsSharedRole(Arrays.asList("ADMIN", "SCHMADMIN")));
+        Assert.assertTrue(UserScopeUtils.containsSharedRole(Arrays.asList("ADMIN", "SHARED_ADVISOR")));
+    }
 }

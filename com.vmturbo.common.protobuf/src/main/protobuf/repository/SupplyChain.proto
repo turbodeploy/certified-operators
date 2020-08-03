@@ -6,6 +6,8 @@ option java_package = "com.vmturbo.common.protobuf.repository";
 option java_outer_classname = "SupplyChainProto";
 
 import "common/EnvironmentTypeEnum.proto";
+import "topology/TopologyDTO.proto";
+import "action/ActionDTO.proto";
 
 // The response to a supply chain request consists of a series of supply chain nodes
 // that express graph of connections in the supply chain.
@@ -33,11 +35,6 @@ message SupplyChainNode {
 
     // A map from entity state -> members of that state.
     map<int32, MemberList> members_by_state = 6;
-
-    // The OIDs of entities belonging to this node.
-    // This field is deprecated - you can get the member OIDs from the
-    // members by state map.
-    repeated int64 __member_oids = 5 [deprecated = true];
 }
 
 // A description of a supply chain returned by the service.
@@ -58,23 +55,13 @@ message GetSupplyChainRequest {
     // If no context is supplied, returns the supply chain for the current live context.
     optional int64 context_id = 1;
 
-    // The OIDs of the vertices to start from when constructing the supply chain.
-    // The supply chains from each individual OID are merged into a single result.
-    // If no starting vertex is specified, the global supply chain is retrieved.
-    repeated int64 starting_entity_oid = 2;
+    optional SupplyChainScope scope = 2;
 
-    // The list of entity types to include in the resultant supplychain. If this
-    // list is empty, then no filtering is done and SupplyChainNodes pertaining
-    // to any entity type are included.
-    repeated string entity_types_to_include = 3;
-
-    // Only include entities in a particular environment type in the supply chain.
-    // If not set, return all entities regardless of environment type.
-    optional .common.EnvironmentType environment_type = 4;
-
-    // If true, the user's scoping restrictions will be enforced, and the resulting supply chain
-    // be filtered according to the user's entity access scope.
-    optional bool enforce_user_scope = 5 [default = true];
+    // If true, exclude entities that are technically in the supply chain but that are normally filtered
+    // out of the response because they are considered visually distracting in the supply chain UI.
+    // We'll use this flag to make sure we can find all qualifying entities in the user scope accessibility
+    // calculation, which uses the supply chain calculation, but doesn't directly display the results.
+    optional bool filter_for_display = 5 [default = true];
 }
 
 // The response to a "GetSupplyChain" request.
@@ -92,19 +79,7 @@ message SupplyChainSeed {
     // Use this number to identify which response corresponds to which seed.
     optional int64 seed_oid = 1;
 
-    // The OIDs of the vertices to start from when constructing the supply chain.
-    // The supply chains from each individual OID are merged into a single result.
-    // If no starting vertex is specified, the global supply chain is retrieved.
-    repeated int64 starting_entity_oid = 2;
-
-    // The list of entity types to include in the resultant supplychain. If this
-    // list is empty, then no filtering is done and SupplyChainNodes pertaining
-    // to any entity type are included.
-    repeated string entity_types_to_include = 3;
-
-    // Only include entities in a particular environment type in the supply chain.
-    // If not set, return all entities regardless of environment type.
-    optional .common.EnvironmentType environment_type = 4;
+    optional SupplyChainScope scope = 2;
 }
 
 message GetMultiSupplyChainsRequest {
@@ -136,11 +111,159 @@ message GetMultiSupplyChainsResponse {
     optional string error = 10;
 }
 
+// The scope for a supply chain query.
+// This will affect how we calculate the supply chain.
+message SupplyChainScope {
+    // The OIDs of the vertices to start from when constructing the supply chain.
+    // The supply chains from each individual OID are merged into a single result.
+    // If no starting vertex is specified, the global supply chain is retrieved.
+    repeated int64 starting_entity_oid = 1;
+
+    // The list of entity types to include in the resultant supplychain. If this
+    // list is empty, then default filtering is done and SupplyChainNodes pertaining
+    // to entity types normally displayed in the supply chain are included.
+    repeated string entity_types_to_include = 3;
+
+
+    // Only include entities in a particular environment type in the supply chain.
+    // If not set, return all entities regardless of environment type.
+    optional .common.EnvironmentType environment_type = 4;
+
+    // Only include entities with the particular state.
+    // If not set, return entities with any state.
+    repeated .topology.EntityState entity_states_to_include = 5;
+}
+
+// Group By criteria for supply chain stats.
+enum SupplyChainGroupBy {
+    // Group by the type of entity.
+    ENTITY_TYPE = 1;
+
+    // Group by the state of entity.
+    ENTITY_STATE = 2;
+
+    // Group by the entity severity.
+    // This will require a call to the action orchestrator to get the severities of entities.
+    SEVERITY = 3;
+
+    // Group by the action categories of actions associated with each entity.
+    // This will require a call to the action orchestrator to get the categories of entities.
+    ACTION_CATEGORY = 4;
+
+    // Group by the display name of template of the entity
+    TEMPLATE = 5;
+
+    // Group by the IDs of targets that discovered the entity.
+    TARGET = 6;
+
+    // Group by the ID of the business account that owns the entity.
+    BUSINESS_ACCOUNT_ID = 8;
+
+    // Group by the ID of the resource group contains the entity.
+    RESOURCE_GROUP = 9;
+}
+
+// A single supply chain statistic describing the number of entities
+// in a particular "StatGroup" in the supply chain.
+message SupplyChainStat {
+
+    // Describes a unique combination of values that all the entities counted by this
+    // SupplyChainStat have in common. The values that are relevant in the group depend on the
+    // group_by parameter in the request.
+    //
+    // For example, if the topology has one powered off VM, two powered on VMs, and one host,
+    // and the group_by criteria in the request is
+    // [SupplyChainGroupBy.ENTITY_TYPE, SupplyChainGroupBy.ENTITY_STATE], then the
+    // response would have three stat groups:
+    //
+    // { "entity_type" : VirtualMachine, "entity_state" : "POWERED_ON" } with 2 entities
+    // { "entity_type" : VirtualMachine, "entity_state" : "POWERED_OFF" } with 1 entity
+    // { "entity_type" : PhysicalMachine, "entity_state" : "POWERED_ON" } with 1 entity
+    message StatGroup {
+        // The entity type of the entities in this group. Set IFF the request group_by criteria
+        // contains SupplyChainGroupBy.ENTITY_TYPE.
+        optional int32 entity_type = 1;
+
+        // The entity state of the entities in this group. Set IFF the request group_by criteria
+        // contains SupplyChainGroupBy.ENTITY_STATE.
+        optional .topology.EntityState entity_state = 2;
+
+        // The severity of the entities in this group. Set IFF the request group_by criteria
+        // contains SupplyChainGroupBy.SEVERITY.
+        //
+        // Note - an entity with no associated actions is considered to have "NORMAL" severity.
+        optional .action.Severity severity = 3;
+
+        // If the request group_by criteria contains SupplyChainGroupBy.ACTION_CATEGORY:
+        //   If set, the entities in this group all have at least one associated action in this
+        //   category. If unset, the entities in this group have no associated actions.
+        //   Note: "associated actions" are actions that directly target the entity, NOT actions
+        //   the entity is involved in. e.g. a MOVE is associated only with the VM being moved.
+        //
+        // Otherwise, this is unset.
+        optional .action.ActionCategory action_category = 4;
+
+        // If the request group_by criteria contains SupplyChainGroupBy.TEMPLATE:
+        //   If set, the entities in this group all have template with the display name in
+        //   this value.
+        //
+        // Otherwise, this is unset.
+        optional string template = 5;
+
+        // If the request group_by criteria contains SupplyChainGroupBy.TARGET:
+        //   If set, the OID of the target that discovered the entities in this group.
+        //   If unset, the entities in this group have no discovering target (shouldn't happen).
+        //
+        // Otherwise, this is unset.
+        optional int64 target_id = 6;
+
+        // If the request group_by criteria contains SupplyChainGroupBy.BUSINESS_ACCOUNT_ID:
+        //   If set, the OID of the business account that owns the entities in this group.
+        //   If unset, the entities in this group have no business account owner.
+        //
+        // Otherwise, this is unset.
+        optional int64 account_id = 8;
+
+        // If the request group_by criteria contains SuppluChainGroupBy.ResourceGroup:
+        // If set, the resource group oids for this entities
+        // If unset, the entities in this group don't belong to resource groups
+        optional int64 resource_group_id = 9;
+    }
+
+    // The "group" of a particular stat. See "StatGroup" documentation.
+    optional StatGroup stat_group = 1;
+
+    // The entities in the group.
+    optional int64 num_entities = 10;
+}
+
+// Request for supply chain statistics.
+message GetSupplyChainStatsRequest {
+
+    // The scope to use to calculate the supply chain.
+    optional SupplyChainScope scope = 1;
+
+    // The grouping criteria to use to aggregate the supply chain entities into
+    // stat groups. The number of group_by criteria affects the number of returned
+    // SupplyChainStat messages in the response.
+    repeated SupplyChainGroupBy group_by = 10;
+}
+
+// Response for supply chain statistics.
+message GetSupplyChainStatsResponse {
+
+    // One SupplyChainStat for every unique combination of the request's group_by criteria values
+    // in the entities in the supply chain.
+    repeated SupplyChainStat stats = 1;
+}
+
 // A service for fetching information about supply chains.
 // The supply chain is a concept that expresses the links between entities in a topology.
 service SupplyChainService {
     // Retrieve the supply chain.
     rpc GetSupplyChain(GetSupplyChainRequest) returns (GetSupplyChainResponse);
+
+    rpc GetSupplyChainStats(GetSupplyChainStatsRequest) returns (GetSupplyChainStatsResponse);
 
     // Retrieve multiple supply chains in one call.
     // This is equivalent to calling GetSupplyChain multiple times, but it provides an easier way

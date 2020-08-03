@@ -1,4 +1,4 @@
-tag = "7.17.0-SNAPSHOT"
+tag = "7.22.0"
 externalIP = "10.0.2.15"
 
 # Mediation
@@ -7,6 +7,7 @@ appdynamics = true
 hpe3par = true
 hyperv = true
 netapp = true
+nutanix = true
 pure = true
 ucs = true
 vcenter = true

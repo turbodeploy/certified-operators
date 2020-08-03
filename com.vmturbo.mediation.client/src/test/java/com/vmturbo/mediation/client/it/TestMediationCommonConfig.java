@@ -7,14 +7,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.communication.WebsocketServerTransportManager;
 import com.vmturbo.communication.WebsocketServerTransportManager.TransportHandler;
@@ -24,6 +24,7 @@ import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
 import com.vmturbo.sdk.server.common.SdkWebsocketServerTransportHandler;
 import com.vmturbo.stitching.StitchingOperationLibrary;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
@@ -35,7 +36,9 @@ import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
+import com.vmturbo.topology.processor.targets.KvTargetDao;
+import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -85,12 +88,22 @@ public class TestMediationCommonConfig {
     @Bean
     public ProbeStore probeStore() {
         return new RemoteProbeStore(keyValueStore(), identityProvider(),
-            stitchingOperationStore());
+            stitchingOperationStore(), new ActionMergeSpecsRepository());
     }
 
     @Bean
+    public TargetDao targetDao() {
+        return new KvTargetDao(keyValueStore(), probeStore());
+    }
+
+    /**
+     * {@link TargetStore}.
+     *
+     * @return {@link TargetStore}.
+     */
+    @Bean
     public TargetStore targetStore() {
-        return new KVBackedTargetStore(keyValueStore(), probeStore(),
+        return new CachingTargetStore(targetDao(), probeStore(),
                 Mockito.mock(IdentityStore.class));
     }
 

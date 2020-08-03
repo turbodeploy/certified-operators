@@ -14,36 +14,34 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RolledUpActionGroupStat;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    loader = AnnotationConfigContextLoader.class,
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class BaseActionStatTableWriterTest {
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
 
-    private Flyway flyway;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private BaseActionStatTableWriter<ActionStatsLatestRecord, ActionSnapshotLatestRecord> writer;
 
@@ -51,13 +49,6 @@ public class BaseActionStatTableWriterTest {
 
     @Before
     public void setup() {
-        // Clean the database and bring it up to the production configuration before running test
-        flyway = dbConfig.flyway();
-        flyway.clean();
-        flyway.migrate();
-
-        // Grab a handle for JOOQ DB operations
-        dsl = dbConfig.dsl();
 
         writer = spy(
             new BaseActionStatTableWriter<ActionStatsLatestRecord, ActionSnapshotLatestRecord>(
@@ -96,6 +87,8 @@ public class BaseActionStatTableWriterTest {
         rollupTestUtils.insertActionGroup(ACTION_GROUP);
 
         final RolledUpActionGroupStat groupStat = ImmutableRolledUpActionGroupStat.builder()
+            .priorActionCount(10)
+            .newActionCount(5)
             .avgEntityCount(1)
             .avgActionCount(1)
             .avgInvestment(1.0)

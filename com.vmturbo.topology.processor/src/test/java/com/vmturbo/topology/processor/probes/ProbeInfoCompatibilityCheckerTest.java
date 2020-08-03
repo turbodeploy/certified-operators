@@ -34,15 +34,37 @@ public class ProbeInfoCompatibilityCheckerTest {
             .setIsSecret(true))
         .build();
 
+    private final AccountDefEntry thirdEntry = AccountDefEntry.newBuilder()
+        .setMandatory(true)
+        .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+            .setName("name")
+            .setVerificationRegex("^$|(^([0-9]|[1-8][0-9]|9[0-9]|[1-8][0-9]")
+            .setDisplayName("displayName")
+            .setDescription("description")
+            .setIsSecret(true))
+        .build();
+
+    private final AccountDefEntry fourthEntry = AccountDefEntry.newBuilder()
+        .setMandatory(true)
+        .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+            .setName("name")
+            .setVerificationRegex(".*")
+            .setDisplayName("displayName")
+            .setDescription("description")
+            .setIsSecret(true))
+        .build();
+
     @Test
     public void testAreCompatibleProbeType() {
         final ProbeInfo foo = ProbeInfo.newBuilder()
             .setProbeType("foo")
             .setProbeCategory("category")
+            .setUiProbeCategory("uiProbeCat")
             .build();
         final ProbeInfo bar = ProbeInfo.newBuilder()
             .setProbeType("bar")
             .setProbeCategory("category")
+            .setUiProbeCategory("uiProbeCat")
             .build();
 
         assertFalse(checker.areCompatible(foo, bar));
@@ -54,28 +76,28 @@ public class ProbeInfoCompatibilityCheckerTest {
         final ProbeInfo hypervisor = ProbeInfo.newBuilder()
             .setProbeType("foo")
             .setProbeCategory("hypervisor")
+            .setUiProbeCategory("hypervisor")
             .build();
         final ProbeInfo storage = ProbeInfo.newBuilder()
             .setProbeType("foo")
             .setProbeCategory("storage")
+            .setUiProbeCategory("storage")
             .build();
 
         assertFalse(checker.areCompatible(hypervisor, storage));
         assertTrue(checker.areCompatible(storage, storage));
     }
 
+    // Verify AccountDefinition is not checked anymore.
     @Test
     public void testAreCompatibleAccountDefinitions() {
         final ProbeInfo a = probeInfoBuilder()
-            .addAccountDefinition(firstEntry)
-            .addAccountDefinition(secondEntry)
+            .addAccountDefinition(thirdEntry)
             .build();
         final ProbeInfo b = probeInfoBuilder()
-            .addAccountDefinition(secondEntry) // Add account definitions in reverse order
-            .addAccountDefinition(firstEntry)
+            .addAccountDefinition(fourthEntry)
             .build();
 
-        // Order of account definitions should not be considered
         assertTrue(checker.areCompatible(a, b));
         assertTrue(checker.areCompatible(a, a));
     }
@@ -158,12 +180,13 @@ public class ProbeInfoCompatibilityCheckerTest {
                 .addNonVolatileProperties(PropertyMetadata.newBuilder()
                     .setName("id")))
             .build();
-        assertFalse(checker.areCompatible(existingInfo, newInfo));
+        assertTrue(checker.areCompatible(existingInfo, newInfo));
     }
 
     private static ProbeInfo.Builder probeInfoBuilder() {
         return ProbeInfo.newBuilder()
             .setProbeType("foo")
-            .setProbeCategory("hypervisor");
+            .setProbeCategory("hypervisor")
+            .setUiProbeCategory("hypervisor");
     }
 }

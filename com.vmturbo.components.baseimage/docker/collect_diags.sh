@@ -1,9 +1,10 @@
 #!/bin/bash
 #
+# This is for Eclipse OpenJ9 JVM.
 # Populate a temporary directory with diagnostic text files.
 # The directory to use is passed as the first argument.
 #
-diag_directory="/tmp/diags"
+diag_directory="/tmp/diags/system-data"
 rm -rf "${diag_directory}" >/dev/null 2>&1
 mkdir -p "${diag_directory}"
 
@@ -23,11 +24,9 @@ function column() {
 
 # Determine the process id of the VMT Component
 COMPONENT_PID=`ps -e -o pid,args | grep "[j]ava" | awk '{print $1}'`
-DUMP_REQUEST_TIME=0
 if [[ ! -z "$COMPONENT_PID" ]]; then
     # trigger a stack dump
     # Do this first, as the results may take a while to get collected
-    DUMP_REQUEST_TIME=`date +%s%3N`
     kill -3 ${COMPONENT_PID}
 
     echo "Java threads with non-0 PCPU" >>${diag_directory}/top.txt
@@ -116,15 +115,9 @@ df -ih >>${diag_directory}/df.txt
 # Check disk space
 df -k > ${diag_directory}/diskspace.txt
 
-if [ ${DUMP_REQUEST_TIME} -ne 0 ]; then
-    # Wait for the full GC to complete before collecting GC logs because the object histogram will be
-    # present in the GC logs only AFTER the full GC has completed.
-    sh wait_for_full_gc.sh ${DUMP_REQUEST_TIME}
-fi
-
 # Check server configured Memory and CPU
-echo "XL Instance VMem Capacity: $(free -m | grep Mem | awk '{print $2 " MB"}')" > /tmp/diags/server_mem_cpu_capacity.txt
-echo "XL Instance Number VCPUs: $(nproc)" >> /tmp/diags/server_mem_cpu_capacity.txt
+echo "XL Instance VMem Capacity: $(free -m | grep Mem | awk '{print $2 " MB"}')" > ${diag_directory}/server_mem_cpu_capacity.txt
+echo "XL Instance Number VCPUs: $(nproc)" >> ${diag_directory}/server_mem_cpu_capacity.txt
 
 # Done
 echo "1" > /tmp/diags_done

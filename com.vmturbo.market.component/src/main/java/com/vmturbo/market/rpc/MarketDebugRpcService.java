@@ -5,11 +5,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.market.MarketDebug.AnalysisInput;
 import com.vmturbo.common.protobuf.market.MarketDebug.AnalysisOutput;
@@ -18,8 +18,8 @@ import com.vmturbo.common.protobuf.market.MarketDebug.ControlAnalysisCollectionR
 import com.vmturbo.common.protobuf.market.MarketDebug.GetAnalysisInfoRequest;
 import com.vmturbo.common.protobuf.market.MarketDebug.GetAnalysisInfoResponse;
 import com.vmturbo.common.protobuf.market.MarketDebugServiceGrpc.MarketDebugServiceImplBase;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.market.runner.Analysis;
-import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 
 public class MarketDebugRpcService extends MarketDebugServiceImplBase {
@@ -93,6 +93,8 @@ public class MarketDebugRpcService extends MarketDebugServiceImplBase {
                     .setTopologyInfo(analysis.getTopologyInfo())
                     .addAllEntities(analysis.getOriginalInputTopology().values())
                     .setIncludeVdc(analysisConfig.getIncludeVdc())
+                    .setUseQuoteCacheDuringSnm(analysisConfig.getUseQuoteCacheDuringSNM())
+                    .setReplayProvisionsForRealTime(analysisConfig.getReplayProvisionsForRealTime())
                     .setRightSizeLowerWatermark(analysisConfig.getRightsizeLowerWatermark())
                     .setRightSizeUpperWatermark(analysisConfig.getRightsizeUpperWatermark())
                     .setQuoteFactor(analysisConfig.getQuoteFactor())

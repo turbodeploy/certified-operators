@@ -1,185 +1,283 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import javax.annotation.Nonnull;
-import javax.annotation.concurrent.GuardedBy;
+import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Matchers;
 import org.mockito.Mockito;
-import org.mockito.internal.matchers.Any;
-import org.springframework.beans.factory.BeanCreationException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.MediaType;
-import org.springframework.http.converter.HttpMessageConverter;
-import org.springframework.http.converter.json.GsonHttpMessageConverter;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.annotation.DirtiesContext.ClassMode;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.web.AnnotationConfigWebContextLoader;
-import org.springframework.test.context.web.WebAppConfiguration;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
-import org.springframework.web.servlet.config.annotation.EnableWebMvc;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
-
-import com.google.gson.Gson;
-
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
-import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
-import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
-import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
-import com.vmturbo.api.component.external.api.mapper.StatsMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedPlanInfo;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
-import com.vmturbo.api.component.external.api.util.TemplatesUtils;
+import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
-import com.vmturbo.api.controller.MarketsController;
-import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
-import com.vmturbo.api.handler.GlobalExceptionHandler;
+import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.MergePolicyType;
+import com.vmturbo.api.enums.PolicyType;
+import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.EntityOrderBy;
+import com.vmturbo.api.pagination.EntityPaginationRequest;
+import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
-import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
-import com.vmturbo.api.serviceinterfaces.IGroupsService;
-import com.vmturbo.api.serviceinterfaces.ISettingsPoliciesService;
-import com.vmturbo.api.serviceinterfaces.IStatsService;
-import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
-import com.vmturbo.api.serviceinterfaces.ITemplatesService;
-import com.vmturbo.api.serviceinterfaces.IUsersService;
-import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.api.validators.InputDTOValidator;
-import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
+import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyDeleteResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyEditResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTO.SinglePolicyRequest;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
-import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
-import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
+import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
-import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
+import com.vmturbo.common.protobuf.plan.ScenarioMoles.ScenarioServiceMole;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
-import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.EntityInfoMoles.EntityServiceMole;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.components.api.test.SenderReceiverPair;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Unit test for {@link MarketsService}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@WebAppConfiguration
-@ContextConfiguration(loader = AnnotationConfigWebContextLoader.class)
-@DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 public class MarketsServiceTest {
+
+    private static final Logger logger = LogManager.getLogger();
 
     private static final long REALTIME_CONTEXT_ID = 777777;
 
     private static final long REALTIME_PLAN_ID = 0;
     private static final long TEST_PLAN_OVER_PLAN_ID = REALTIME_PLAN_ID + 1;
     private static final long TEST_SCENARIO_ID = 12;
+    private static final List<Long> MERGE_GROUP_IDS = Arrays.asList(1L, 2L, 3L);
+    private static final Map<MergePolicyType, EntityType> MERGE_PROVIDER_ENTITY_TYPE =
+            ImmutableMap.of(MergePolicyType.DesktopPool, EntityType.DESKTOP_POOL,
+                    MergePolicyType.DataCenter, EntityType.DATACENTER);
+    private static final long POLICY_ID = 5;
+    private static final long MERGE_GROUP_ID = 4;
+    private static final String MARKET_UUID = "Market";
 
-    @Autowired
-    private TestConfig testConfig;
-    @Autowired
-    private WebApplicationContext wac;
-
-    private GrpcTestServer testServer;
-
-    private MockMvc mockMvc;
-    private static final Gson GSON = new Gson();
-    private final PlanInstance planDefault;
-
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
-
-    public MarketsServiceTest() {
-        planDefault = PlanInstance.newBuilder()
-                .setPlanId(111)
+    private final PlanInstance planDefault = PlanInstance.newBuilder()
+        .setPlanId(111)
                 .addActionPlanId(222)
                 .setStartTime(System.currentTimeMillis() - 10000)
-                .setEndTime(System.currentTimeMillis() - 10)
-                .setStatus(PlanStatus.QUEUED)
+        .setEndTime(System.currentTimeMillis() - 10)
+        .setStatus(PlanStatus.QUEUED)
                 .setScenario(Scenario.newBuilder()
                         .setId(555)
                         .setScenarioInfo(ScenarioInfo.newBuilder().setName("Some scenario")))
-                .build();
-    }
+        .build();
 
+    /**
+     * JUnit rule to help represent expected exceptions in tests.
+     */
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
+    private ActionSpecMapper actionSpecMapper = mock(ActionSpecMapper.class);
+    private UuidMapper uuidMapper = mock(UuidMapper.class);
+    private PolicyMapper policyMapper = mock(PolicyMapper.class);
+    private MarketMapper marketMapper = mock(MarketMapper.class);
+    private PaginationMapper paginationMapper = mock(PaginationMapper.class);
+
+    private PoliciesService policiesService = mock(PoliciesService.class);
+
+    private UINotificationChannel uiNotificationChannel = mock(UINotificationChannel.class);
+
+    private ActionStatsQueryExecutor actionStatsQueryExecutor = mock(ActionStatsQueryExecutor.class);
+
+    private ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
+
+    private StatsService statsService = mock(StatsService.class);
+
+    private RepositoryApi repositoryApi = mock(RepositoryApi.class);
+
+    private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
+
+    private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
+    private PriceIndexPopulator priceIndexPopulator = mock(PriceIndexPopulator.class);
+    private PlanEntityStatsFetcher planEntityStatsFetcher = mock(PlanEntityStatsFetcher.class);
+
+
+    private ActionsServiceMole actionsBackend = spy(ActionsServiceMole.class);
+    private PolicyServiceMole policiesBackend = spy(PolicyServiceMole.class);
+    private PlanServiceMole planBackend = spy(PlanServiceMole.class);
+    private ScenarioServiceMole scenarioBackend = spy(ScenarioServiceMole.class);
+    private RepositoryServiceMole repositoryBackend = spy(RepositoryServiceMole.class);
+
+    private EntitySeverityServiceMole entitySeverityBackend = spy(EntitySeverityServiceMole.class);
+
+    private GroupServiceMole groupBackend = spy(GroupServiceMole.class);
+
+    private SearchServiceMole searchBackend = spy(SearchServiceMole.class);
+
+    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
+
+    private EntitySettingQueryExecutor entitySettingQueryExecutor = mock(EntitySettingQueryExecutor.class);
+
+    private SenderReceiverPair<LicenseSummary> licenseSummaryReceiver = new SenderReceiverPair<>();
+    private ExecutorService executorService = mock(ExecutorService.class);
+    private LicenseCheckClient licenseCheckClient = new LicenseCheckClient(licenseSummaryReceiver, executorService, null, 0L);
+
+    /**
+     * Test gRPC server to mock out gRPC dependencies.
+     */
+    @Rule
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionsBackend, policiesBackend,
+        planBackend, scenarioBackend, repositoryBackend, entitySeverityBackend,
+        groupBackend, searchBackend);
+
+    private MarketsService marketsService;
+
+    /**
+     * Startup method to run before every test.
+     */
     @Before
     public void startup() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
+        final ActionsServiceBlockingStub actionsRpcService = ActionsServiceGrpc.newBlockingStub(
+                grpcTestServer.getChannel());
+        // the planning feature will be enabled by default in the license
+        licenseSummaryReceiver.sendMessage(LicenseSummary.newBuilder()
+                .addFeature(ProbeLicense.PLANNER.getKey())
+                .build());
+
+        marketsService = new MarketsService(actionSpecMapper, uuidMapper,
+            ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            policiesService,
+            PolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            PlanServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            ScenarioServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            policyMapper,
+            marketMapper,
+            paginationMapper,
+            GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            RepositoryServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            uiNotificationChannel,
+            actionStatsQueryExecutor,
+            thinTargetCache,
+            statsService,
+            repositoryApi,
+            serviceEntityMapper,
+            severityPopulator,
+            priceIndexPopulator,
+            actionsRpcService,
+            planEntityStatsFetcher,
+            SearchServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            new ActionSearchUtil(actionsRpcService, actionSpecMapper, paginationMapper,
+                                 Mockito.mock(SupplyChainFetcherFactory.class),
+                                 Mockito.mock(GroupExpander.class),
+                                 serviceProviderExpander,
+                                 REALTIME_CONTEXT_ID),
+            entitySettingQueryExecutor,
+            licenseCheckClient,
+            REALTIME_CONTEXT_ID
+        );
+
     }
 
     /**
@@ -191,22 +289,37 @@ public class MarketsServiceTest {
     public void testGetAllMarkets() throws Exception {
         final PlanInstance plan1 = PlanInstance.newBuilder(planDefault).setPlanId(1).build();
         final PlanInstance plan2 = PlanInstance.newBuilder(planDefault).setPlanId(2).build();
-        testConfig.planService().addInstance(plan1);
-        testConfig.planService().addInstance(plan2);
 
-        final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.get("/markets")
-                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-                .andExpect(MockMvcResultMatchers.status().isOk())
-                .andReturn();
-        final Collection<MarketApiDTO> resp = Arrays.asList(
-                GSON.fromJson(result.getResponse().getContentAsString(), MarketApiDTO[].class));
-        assertEquals(2, resp.size());
-        final MarketApiDTO market1 =
-                resp.stream().filter(market -> market.getUuid().equals("1")).findFirst().get();
-        final MarketApiDTO market2 =
-                resp.stream().filter(market -> market.getUuid().equals("2")).findFirst().get();
-        comparePlanAndMarket(plan1, market1);
-        comparePlanAndMarket(plan2, market2);
+        final MarketApiDTO mappedPlan1 = new MarketApiDTO();
+        final MarketApiDTO mappedPlan2 = new MarketApiDTO();
+        when(marketMapper.dtoFromPlanInstance(plan1)).thenReturn(mappedPlan1);
+        when(marketMapper.dtoFromPlanInstance(plan2)).thenReturn(mappedPlan2);
+
+        doReturn(Arrays.asList(plan1, plan2)).when(planBackend).getAllPlans(any());
+
+        final List<MarketApiDTO> resp = marketsService.getMarkets(null);
+
+        // Three markets are expected because the results include the realtime market
+        assertEquals(3, resp.size());
+        assertTrue(resp.contains(mappedPlan1));
+        assertTrue(resp.contains(mappedPlan2));
+        // Also check that the realtime market was returned.
+        final MarketApiDTO realtimeMarket =
+                resp.stream().filter(market -> market.getUuid().equals("777777")).findFirst().get();
+        assertNotNull(realtimeMarket);
+    }
+
+    /**
+     * Trying to get all markets without the planner feature enabled will trigger an exception.
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetAllMarketsUnlicensed() throws Exception {
+        // clear the license summary so no features are enabled, then try to access the market list.
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getMarkets(null);
     }
 
     /**
@@ -218,16 +331,14 @@ public class MarketsServiceTest {
     @Test
     public void testMarketDeleteNotification() throws Exception {
         final PlanInstance plan1 = PlanInstance.newBuilder(planDefault).setPlanId(1).build();
-        testConfig.planService().addInstance(plan1);
 
-        final MarketsService service = testConfig.marketsService();
-        final UINotificationChannel channel = testConfig.uiNotificationChannel();
+        doReturn(plan1).when(planBackend).deletePlan(any());
 
-        service.deleteMarketByUuid("1");
+        marketsService.deleteMarketByUuid("1");
 
         final ArgumentCaptor<MarketNotification> notificationCaptor =
                 ArgumentCaptor.forClass(MarketNotification.class);
-        Mockito.verify(channel).broadcastMarketNotification(notificationCaptor.capture());
+        Mockito.verify(uiNotificationChannel).broadcastMarketNotification(notificationCaptor.capture());
 
         final MarketNotification notification = notificationCaptor.getValue();
         assertEquals("1", notification.getMarketId());
@@ -242,146 +353,327 @@ public class MarketsServiceTest {
      */
     @Test
     public void testGetMarketById() throws Exception {
-        final PlanInstance plan1 = PlanInstance.newBuilder(planDefault).setPlanId(1).build();
         final PlanInstance plan2 = PlanInstance.newBuilder(planDefault).setPlanId(2).build();
-        ApiTestUtils.mockPlanId("1", testConfig.uuidMapper());
-        ApiTestUtils.mockPlanId("2", testConfig.uuidMapper());
-        testConfig.planService().addInstance(plan1);
-        testConfig.planService().addInstance(plan2);
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        ApiTestUtils.mockPlanId("2", uuidMapper);
+        doReturn(OptionalPlanInstance.newBuilder()
+            .setPlanInstance(plan2)
+            .build()).when(planBackend).getPlan(PlanId.newBuilder()
+            .setPlanId(2)
+            .build());
 
-        final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.get("/markets/" + 2)
-                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-                .andExpect(MockMvcResultMatchers.status().isOk())
-                .andReturn();
-        final MarketApiDTO resp =
-                GSON.fromJson(result.getResponse().getContentAsString(), MarketApiDTO.class);
-        comparePlanAndMarket(plan2, resp);
+        final MarketApiDTO mappedDto = new MarketApiDTO();
+        when(marketMapper.dtoFromPlanInstance(plan2)).thenReturn(mappedDto);
+        MarketApiDTO response = marketsService.getMarketByUuid("2");
+        assertThat(response, is(mappedDto));
     }
 
-    private void comparePlanAndMarket(@Nonnull PlanInstance expected, @Nonnull MarketApiDTO market) {
-        assertEquals(Long.toString(expected.getPlanId()), market.getUuid());
-        assertEquals(expected.getScenario().getId(),
-                Long.parseLong(market.getScenario().getUuid()));
+    /**
+     * Trying to get a plan without the planner feature enabled will trigger an exception.
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetMarketByIdUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getMarketByUuid("1");
     }
 
+    /**
+     * Test that running plan over main topology makes the appropriate RPC calls.
+     *
+     * @throws Exception To satisfy compiler.
+     */
     @Test
     public void testRunPlanOnMainMarket() throws Exception {
+        ApiTestUtils.mockRealtimeId(MARKET_UUID, REALTIME_PLAN_ID, uuidMapper);
 
-        // the uuid "Market" is what the UI uses to distinguish the live market
-        String runPlanUri = "/markets/Market/scenarios/1";
+        final PlanInstance newPlan = PlanInstance.newBuilder(planDefault)
+            .build();
 
-        ApiTestUtils.mockRealtimeId("Market", REALTIME_PLAN_ID, testConfig.uuidMapper());
+        doReturn(newPlan).when(planBackend).runPlan(any());
 
-        final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post(runPlanUri)
-                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-                .andExpect(MockMvcResultMatchers.status().isOk())
-                .andReturn();
+        MarketApiDTO mappedNewPlan = new MarketApiDTO();
+        when(marketMapper.dtoFromPlanInstance(newPlan)).thenReturn(mappedNewPlan);
 
-        final MarketApiDTO resp =
-                GSON.fromJson(result.getResponse().getContentAsString(), MarketApiDTO.class);
-        assertThat(resp.getUuid(), is(Long.toString(REALTIME_PLAN_ID)));
+        final MarketApiDTO resp = marketsService.applyAndRunScenario(
+            MARKET_UUID, 1L, false, null);
+
+        assertThat(resp, is(mappedNewPlan));
     }
 
+    /**
+     * Test that running plan over plan makes the appropriate RPC calls.
+     *
+     * @throws Exception To satisfy compiler.
+     */
     @Test
     public void testRunPlanOnPlan() throws Exception {
 
         final PlanInstance plan1 = PlanInstance.newBuilder(planDefault)
+            .setPlanId(TEST_PLAN_OVER_PLAN_ID)
+            .setStatus(PlanStatus.SUCCEEDED)
+            .build();
+        final PlanInstance newPlan = PlanInstance.newBuilder(planDefault)
+            .build();
+        ApiTestUtils.mockPlanId(Long.toString(TEST_PLAN_OVER_PLAN_ID), uuidMapper);
+
+        doReturn(OptionalPlanInstance.newBuilder()
+            .setPlanInstance(plan1)
+            .build()).when(planBackend).getPlan(PlanId.newBuilder()
                 .setPlanId(TEST_PLAN_OVER_PLAN_ID)
-                .setStatus(PlanStatus.SUCCEEDED)
-                .build();
-        ApiTestUtils.mockPlanId(Long.toString(TEST_PLAN_OVER_PLAN_ID), testConfig.uuidMapper());
-        testConfig.planService().addInstance(plan1);
+                .build());
+        doReturn(newPlan).when(planBackend).runPlan(any());
+
+        MarketApiDTO mappedNewPlan = new MarketApiDTO();
+        when(marketMapper.dtoFromPlanInstance(newPlan)).thenReturn(mappedNewPlan);
 
         // the market UUID is the ID of the Plan Spec to start from
         String runPlanUri = "/markets/" + TEST_PLAN_OVER_PLAN_ID + "/scenarios/"
                 + TEST_SCENARIO_ID;
 
-        final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post(runPlanUri)
-                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-                .andExpect(MockMvcResultMatchers.status().isOk())
-                .andReturn();
+        final MarketApiDTO resp = marketsService.applyAndRunScenario(
+            Long.toString(TEST_PLAN_OVER_PLAN_ID), TEST_SCENARIO_ID, true, null);
 
-        final MarketApiDTO resp =
-                GSON.fromJson(result.getResponse().getContentAsString(), MarketApiDTO.class);
-        assertThat(resp.getUuid(), is(Long.toString(TEST_PLAN_OVER_PLAN_ID)));
-        assertEquals(TEST_SCENARIO_ID, Long.parseLong(resp.getScenario().getUuid()));
-        // note that the market status comes from the StatusNotification enum
-        assertThat(resp.getState(), is(StatusNotification.Status.CREATED.name()));
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetActionsByMarketUuidShouldFailGivenFutureStartTime() throws Exception {
-        final MarketsService service = testConfig.marketsService();
-        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
-        Long currentDateTime = DateTimeUtil.parseTime(DateTimeUtil.getNow());
-        String futureDate = DateTimeUtil.addDays(currentDateTime,2);
-        actionDTO.setStartTime(futureDate);
-        service.getActionsByMarketUuid("Market",actionDTO,null);
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetActionsByMarketUuidShouldFailGivenStartTimeAfterEndTime() throws Exception {
-        final MarketsService service = testConfig.marketsService();
-        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
-        String currentDateTime = DateTimeUtil.getNow();
-        String futureDate = DateTimeUtil.addDays(DateTimeUtil.parseTime(currentDateTime),2);
-        actionDTO.setStartTime(futureDate);
-        actionDTO.setEndTime(currentDateTime);
-        service.getActionsByMarketUuid("Market",actionDTO,null);
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetActionsByMarketUuidShouldFailGivenEndTimeOnly() throws Exception {
-        final MarketsService service = testConfig.marketsService();
-        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
-        actionDTO.setEndTime(DateTimeUtil.getNow());
-        service.getActionsByMarketUuid("Market",actionDTO,null);
+        assertThat(resp, is(mappedNewPlan));
     }
 
     /**
-     * Test that getting entities by real market Id causes a retrieveTopologyEntities call
-     * to the repository rpc service.
+     * Trying to run a plan without the planner feature should fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testRunPlanUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.applyAndRunScenario("1", 1L, true, null);
+    }
+
+    /**
+     * Requesting plan actions without the planner feature should fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetCurrentActionsByMarketUuidUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getCurrentActionsByMarketUuid("1", EnvironmentType.ONPREM, ActionDetailLevel.EXECUTION, null);
+    }
+
+    /**
+     * Requesting plan actions without the planner feature should fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetActionsByMarketUuidUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getActionsByMarketUuid("1", null, null);
+    }
+
+    /**
+     * Requesting plan actions without the planner feature should fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetActionByMarketUuidUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getActionByMarketUuid("1", "1", ActionDetailLevel.EXECUTION);
+    }
+
+    /**
+     * Test that getting entities by real market Id causes a searchEntities call
+     * to the search rpc service.
      *
      * @throws Exception If anything goes wrong.
      */
     @Test
     public void testRetrieveTopologyEntities() throws Exception {
+        ApiTestUtils.mockRealtimeId(MARKET_UUID, REALTIME_PLAN_ID, uuidMapper);
 
-        final MarketsService marketService = testConfig.marketsService();
+        ServiceEntityApiDTO se1 = new ServiceEntityApiDTO();
+        se1.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        se1.setUuid("1");
+        ApiPartialEntity entity = ApiPartialEntity.newBuilder()
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setOid(1)
+            .build();
+        doReturn(SearchEntitiesResponse.newBuilder()
+            .addEntities(PartialEntity.newBuilder()
+                .setApi(entity))
+            .build()).when(searchBackend).searchEntities(any());
+        when(serviceEntityMapper.toServiceEntityApiDTO(Collections.singletonList(entity)))
+            .thenReturn(Collections.singletonList(se1));
 
-        ApiTestUtils.mockRealtimeId("Market", REALTIME_PLAN_ID, testConfig.uuidMapper());
+        when(paginationMapper.toProtoParams(any())).thenReturn(PaginationParameters.getDefaultInstance());
+        // act
+        EntityPaginationResponse response = marketsService.getEntitiesByMarketUuid(MARKET_UUID,
+            new EntityPaginationRequest(null, null, true, null));
 
-        marketService.getEntitiesByMarketUuid("Market");
-
-        Mockito.verify(testConfig.repositoryService()).retrieveTopologyEntities(any());
-
+        // verify
+        assertThat(response.getRawResults(), containsInAnyOrder(se1));
+        verify(searchBackend).searchEntities(any());
+        verify(priceIndexPopulator).populateRealTimeEntities(Collections.singletonList(se1));
+        verify(severityPopulator).populate(REALTIME_CONTEXT_ID, Collections.singletonList(se1));
     }
 
     /**
-     * Test that getting entities by real market Id causes a retrieveTopologyEntities call
-     * to the repository rpc service.
+     * Test that getting entities by plan market Id causes a retrieveTopologyEntities call
+     * to the repository rpc service and then properly paginates that response.
      *
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testRetrieveTopology() throws Exception {
+    public void testRetrievePaginatedPlanEntities() throws Exception {
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final long projectedPlanTopologyId = 56;
+        ApiTestUtils.mockPlanId(planUuid, uuidMapper);
 
-        final MarketsService marketService = testConfig.marketsService();
+        ServiceEntityApiDTO se1 = new ServiceEntityApiDTO();
+        se1.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        se1.setDisplayName("SE1");
+        se1.setUuid("1");
+        ServiceEntityApiDTO se2 = new ServiceEntityApiDTO();
+        se2.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        se2.setDisplayName("SE2");
+        se2.setUuid("2");
+        ServiceEntityApiDTO se3 = new ServiceEntityApiDTO();
+        se3.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        se3.setDisplayName("SE3");
+        se3.setUuid("3");
+        ServiceEntityApiDTO se4 = new ServiceEntityApiDTO();
+        se4.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        se4.setDisplayName("SE4");
+        se4.setUuid("4");
+        final List<PartialEntity> partialEntities = Stream.of(1, 2, 3, 4)
+            .map(id -> PartialEntity.newBuilder()
+                .setApi(ApiPartialEntity.newBuilder()
+                    .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .setOid(id))
+                .build())
+            .collect(Collectors.toList());
+        doReturn(OptionalPlanInstance.newBuilder()
+            .setPlanInstance(PlanInstance.newBuilder()
+                .setPlanId(123)
+                .setProjectedTopologyId(projectedPlanTopologyId)
+                .setStatus(PlanStatus.SUCCEEDED))
+            .build())
+            .when(planBackend).getPlan(any());
+        doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
+            .addAllEntities(partialEntities)
+            .build())).when(repositoryBackend).retrieveTopologyEntities(any());
+        when(serviceEntityMapper.toServiceEntityApiDTO(any(TopologyEntityDTO.class)))
+            .thenReturn(se1).thenReturn(se2).thenReturn(se3).thenReturn(se4);
 
-        final PlanInstance plan1 = PlanInstance.newBuilder(planDefault).setPlanId(1).build();
-        ApiTestUtils.mockPlanId("1", testConfig.uuidMapper());
-        testConfig.planService().addInstance(plan1);
+        when(paginationMapper.toProtoParams(any())).thenReturn(PaginationParameters.getDefaultInstance());
 
-        marketService.getEntitiesByMarketUuid("1");
+        // Pagination parameters - asks for records 2-3
+        final String cursor = "1";
+        final Integer limit = 2;
+        // act
+        EntityPaginationResponse response = marketsService.getEntitiesByMarketUuid(
+            planUuid,
+            new EntityPaginationRequest(cursor, limit, true, null));
 
-        Mockito.verify(testConfig.repositoryService()).retrieveTopology(any());
+        // verify
+        assertThat(response.getRawResults(), containsInAnyOrder(se2, se3));
+        Assert.assertEquals("3", response.getRestResponse().getHeaders().get("X-Next-Cursor").get(0));
+        Assert.assertEquals("4", response.getRestResponse().getHeaders().get("X-Total-Record-Count").get(0));
+        verify(planBackend).getPlan(any());
+        verify(repositoryBackend).retrieveTopologyEntities(any());
+        verify(priceIndexPopulator)
+            .populatePlanEntities(projectedPlanTopologyId, Arrays.asList(se2, se3));
+        verify(severityPopulator).populate(REALTIME_PLAN_ID, Arrays.asList(se2, se3));
+    }
+
+    /**
+     * Requesting plan entities without the planner feature should fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetEntitiesByMarketUuidUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getEntitiesByMarketUuid("1",
+                new EntityPaginationRequest(null, null, true, EntityOrderBy.NAME.name()));
+    }
+
+    /**
+     * plan action stat requests without the planner feature should fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetActionCountStatsByUuidUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getActionCountStatsByUuid("1", null);
+    }
+
+    /**
+     * verify that getStatsByEntitiesInMarketQuery without the planner feature will fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetStatsByEntitiesInMarketQueryUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getStatsByEntitiesInMarketQuery("1", null, null);
 
     }
 
     /**
-     * call the MarketsService group stats API and check the results
-     *
+     * verify that getStatsByEntitiesInGroupInMarketQuery without the planner feature will fail
      * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetStatsByEntitiesInGroupInMarketQueryUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // create a plan id
+        ApiTestUtils.mockPlanId("1", uuidMapper);
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getStatsByEntitiesInGroupInMarketQuery("1", "1", null, null);
+    }
+
+
+    /**
+     * verify that getUnplacedEntitiesByMarketUuid without the planner feature will fail
+     * @throws Exception
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetUnplacedEntitiesByMarketUuidUnlicensed() throws Exception {
+        // clear the license summary so the planner feature is unavailable
+        licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
+        // this should trigger a LicenseFeaturesRequiredException
+        marketsService.getUnplacedEntitiesByMarketUuid("1");
+    }
+
+    /**
+     * call the MarketsService group stats API and check the results.
+     *
+     * @throws Exception To satisfy compiler.
      */
     @Test
     public void testGetStatsByMarketAndGroup() throws Exception {
@@ -393,50 +685,50 @@ public class MarketsServiceTest {
 
         // Mock expected members response
         GetMembersResponse membersResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(expandedUids).build())
+                .setGroupId(1L)
+                .addAllMemberId(expandedUids)
                 .build();
-        when(testConfig.groupService().getMembers(any())).thenReturn(membersResponse);
+        Mockito.when(groupBackend.getMembers(Mockito.any()))
+                .thenReturn(Collections.singletonList(membersResponse));
 
         // Mock call to stats service which is called from MarketService
         final EntityStatsPaginationRequest paginationRequest = new EntityStatsPaginationRequest(null, 100, true, null);
 
         ArgumentCaptor<StatScopesApiInputDTO> scopeApiArgument = ArgumentCaptor.forClass(StatScopesApiInputDTO.class);
 
-        final MarketsService service = testConfig.marketsService();
-
-        ApiTestUtils.mockRealtimeId(StatsService.MARKET, REALTIME_PLAN_ID, testConfig.uuidMapper());
+        ApiTestUtils.mockRealtimeId(StatsService.MARKET, REALTIME_PLAN_ID, uuidMapper);
 
         // Now execute the test
         // Test the most basic case where a group uuid is specified and no other data in the input
         StatScopesApiInputDTO inputDTO = new StatScopesApiInputDTO();
         // Invoke the service and verify that it results in calling getStatsByUuidsQuery with a scope size of 3
-        service.getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", inputDTO, paginationRequest);
-        Mockito.verify(testConfig.statsService()).getStatsByUuidsQuery(scopeApiArgument.capture(), any());
+        marketsService.getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", inputDTO, paginationRequest);
+        Mockito.verify(statsService).getStatsByUuidsQuery(scopeApiArgument.capture(), any());
         assertEquals(3, scopeApiArgument.getValue().getScopes().size());
 
         // Set the input scope to a subset of entities in the group membership
-        StatScopesApiInputDTO statScopesApiInputDTO = new StatScopesApiInputDTO();
+        final StatScopesApiInputDTO statScopesApiInputDTO = new StatScopesApiInputDTO();
         List<String> scopes = new ArrayList<>();
         scopes.add("1");
         scopes.add("2");
         scopes.add("4");
         statScopesApiInputDTO.setScopes(scopes);
         // Setting relatedType to VirtualMachine should have no impact on the results
-        statScopesApiInputDTO.setRelatedType(UIEntityType.VIRTUAL_MACHINE.getValue());
+        statScopesApiInputDTO.setRelatedType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         scopeApiArgument = ArgumentCaptor.forClass(StatScopesApiInputDTO.class);
         // Invoke the service and then verify that the service calls getStatsByUuidsQuery with a scope size of 2, since this is the overlap of the
         // group and the scope.
-        service.getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", statScopesApiInputDTO, paginationRequest);
-        Mockito.verify(testConfig.statsService(), Mockito.times(2)).getStatsByUuidsQuery(scopeApiArgument.capture(), any());
+        marketsService.getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", statScopesApiInputDTO, paginationRequest);
+        Mockito.verify(statsService, Mockito.times(2)).getStatsByUuidsQuery(scopeApiArgument.capture(), any());
         assertEquals(2, scopeApiArgument.getValue().getScopes().size());
 
         // Set the input related entity type to PhysicalMachine
         // This should be the same as the first test, but just verifying that the addition of the related entity
         // type does not change the scope sent to the getStatsByUuidsQuery
         inputDTO = new StatScopesApiInputDTO();
-        inputDTO.setRelatedType(UIEntityType.PHYSICAL_MACHINE.getValue());
-        service.getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", inputDTO, paginationRequest);
-        Mockito.verify(testConfig.statsService(), Mockito.times(3)).getStatsByUuidsQuery(scopeApiArgument.capture(), any());
+        inputDTO.setRelatedType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
+        marketsService.getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", inputDTO, paginationRequest);
+        Mockito.verify(statsService, Mockito.times(3)).getStatsByUuidsQuery(scopeApiArgument.capture(), any());
         assertEquals(3, scopeApiArgument.getValue().getScopes().size());
     }
 
@@ -444,8 +736,9 @@ public class MarketsServiceTest {
      * call the MarketsService group stats API with a group uuid
      * and a scope, such that the scope does not overlap the group
      * members.  So, the scope is effectively invalid.  This will
-     * throw an illegal argument exception
-     * @throws Exception
+     * throw an illegal argument exception.
+     *
+     * @throws Exception To satisfy compiler.
      */
     @Test
     public void testGetStatsByMarketAndGroupError() throws Exception {
@@ -459,15 +752,17 @@ public class MarketsServiceTest {
 
         // Mock expected members response
         GetMembersResponse membersResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(expandedUids).build())
+                .setGroupId(1L)
+                .addAllMemberId(expandedUids)
                 .build();
-        when(testConfig.groupService().getMembers(any())).thenReturn(membersResponse);
+        Mockito.when(groupBackend.getMembers(Mockito.any()))
+                .thenReturn(Collections.singletonList(membersResponse));
 
-        ApiTestUtils.mockRealtimeId(StatsService.MARKET, REALTIME_PLAN_ID, testConfig.uuidMapper());
+        ApiTestUtils.mockRealtimeId(StatsService.MARKET, REALTIME_PLAN_ID, uuidMapper);
 
         // Set the input scope to a subset of entities in the group membership
-        StatScopesApiInputDTO inputDTO = new StatScopesApiInputDTO();
-        EntityStatsPaginationRequest paginationRequest = new EntityStatsPaginationRequest(null, 100, true, null);
+        final StatScopesApiInputDTO inputDTO = new StatScopesApiInputDTO();
+        final EntityStatsPaginationRequest paginationRequest = new EntityStatsPaginationRequest(null, 100, true, null);
 
         // Set the input scope to a set of uuids, none of the uuids overlap with the group uuids
         List<String> testUuids = new ArrayList<>();
@@ -475,376 +770,284 @@ public class MarketsServiceTest {
         testUuids.add("7");
         inputDTO.setScopes(testUuids);
         // This should throw an exception since there are no members in the overlap of the group and the input scope
-        testConfig.marketsService().getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", inputDTO, paginationRequest);
-    }
-
-
-    /**
-     * Spring configuration to startup all the beans, necessary for test execution.
-     */
-    @Configuration
-    @EnableWebMvc
-    public static class TestConfig extends WebMvcConfigurerAdapter {
-
-        @Bean
-        public TopologyProcessor topologyProcessor() {
-            return Mockito.mock(TopologyProcessor.class);
-        }
-
-        @Bean
-        public MarketsService marketsService() {
-            return new MarketsService(actionSpecMapper(), uuidMapper(), actionRpcService(),
-                    policiesService(), policyCpcService(), planRpcService(), scenarioServiceClient(),
-                    policyMapper(), marketMapper(), statsMapper(), paginationMapper(),
-                    groupRpcService(), repositoryRpcService(), new UserSessionContext(),
-                    uiNotificationChannel(), actionStatsQueryExecutor(), topologyProcessor(),
-                    entitySeverityRpcService(), statsHistoryRpcService(),
-                    statsService(), REALTIME_CONTEXT_ID);
-        }
-
-        @Bean
-        public UINotificationChannel uiNotificationChannel() {
-            return Mockito.mock(UINotificationChannel.class);
-        }
-
-        @Bean
-        public ActionStatsQueryExecutor actionStatsQueryExecutor() {
-            return Mockito.mock(ActionStatsQueryExecutor.class);
-        }
-
-        @Bean
-        public StatsMapper statsMapper() {
-            return Mockito.mock(StatsMapper.class);
-        }
-
-        @Bean
-        public PaginationMapper paginationMapper() {
-            return Mockito.mock(PaginationMapper.class);
-        }
-
-        @Bean
-        public UuidMapper uuidMapper() {
-            return Mockito.mock(UuidMapper.class);
-        }
-
-        @Bean
-        public ActionSpecMapper actionSpecMapper() {
-            return Mockito.mock(ActionSpecMapper.class);
-        }
-
-        @Bean
-        public MarketMapper marketMapper() {
-            return new MarketMapper(scenarioMapper());
-        }
-
-        @Bean
-        public GroupMapper groupMapper() {
-            return Mockito.mock(GroupMapper.class);
-        }
-
-        @Bean
-        public ScenarioMapper scenarioMapper() {
-            return new ScenarioMapper(repositoryApi(), templatesUtils(),
-                    Mockito.mock(SettingsManagerMapping.class),
-                    Mockito.mock(SettingsMapper.class),
-                    policiesService(),
-                    groupRpcService(), groupMapper());
-        }
-
-        @Bean
-        public RepositoryApi repositoryApi() {
-            return Mockito.mock(RepositoryApi.class);
-        }
-
-        @Bean
-        public TemplatesUtils templatesUtils() {
-            return Mockito.mock(TemplatesUtils.class);
-        }
-
-        @Bean
-        public PlanServiceMock planService() {
-            return new PlanServiceMock();
-        }
-
-        @Bean
-        public SettingServiceMole settingServiceMole() {
-            return spy(new SettingServiceMole());
-        }
-
-        @Bean
-        public GroupServiceMole groupService() {
-            return spy(new GroupServiceMole());
-        }
-
-        @Bean
-        public RepositoryServiceMole repositoryService() {
-            return spy(new RepositoryServiceMole());
-        }
-
-        @Bean
-        public EntitySeverityServiceMole entitySeverityService() {
-            return spy(new EntitySeverityServiceMole());
-        }
-
-        @Bean
-        public GrpcTestServer grpcTestServer() {
-            try {
-                final GrpcTestServer testServer = GrpcTestServer.newServer(planService(), entitySeverityService(),
-                        groupService(), settingServiceMole(), repositoryService());
-                testServer.start();
-                return testServer;
-            } catch (IOException e) {
-                throw new BeanCreationException("Failed to create test channel", e);
-            }
-        }
-
-        @Bean
-        public ActionsServiceBlockingStub actionRpcService() {
-            return ActionsServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public PolicyServiceBlockingStub policyCpcService() {
-            return PolicyServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public PlanServiceBlockingStub planRpcService() {
-            return PlanServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public ScenarioServiceBlockingStub scenarioServiceClient() {
-            return ScenarioServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public GroupServiceBlockingStub groupRpcService() {
-            return GroupServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public RepositoryServiceBlockingStub repositoryRpcService() {
-            return RepositoryServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public EntitySeverityServiceBlockingStub entitySeverityRpcService() {
-            return EntitySeverityServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public StatsHistoryServiceBlockingStub statsHistoryRpcService() {
-            return StatsHistoryServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public PolicyMapper policyMapper() {
-            return Mockito.mock(PolicyMapper.class);
-        }
-
-        @Bean
-        public MarketsController targetController() {
-            return new MarketsController();
-        }
-
-        @Bean
-        public GlobalExceptionHandler exceptionHandler() {
-            return new GlobalExceptionHandler();
-        }
-
-        @Bean
-        public InputDTOValidator inputDtoValidator() {
-            return Mockito.mock(InputDTOValidator.class);
-        }
-
-        @Bean
-        public PoliciesService policiesService() {
-            return Mockito.mock(PoliciesService.class);
-        }
-
-        @Bean
-        public ScenariosService scenarioService() {
-            return Mockito.mock(ScenariosService.class);
-        }
-
-        @Bean
-        public ITemplatesService templatesService() {
-            return Mockito.mock(ITemplatesService.class);
-        }
-
-        @Bean
-        public StatsService statsService() {
-            return Mockito.mock(StatsService.class);
-        }
-
-        @Bean
-        public IBusinessUnitsService businessUnitsService() {
-            return Mockito.mock(IBusinessUnitsService.class);
-        }
-
-        @Bean
-        public ISupplyChainsService supplyChainsService() {
-            return Mockito.mock(ISupplyChainsService.class);
-        }
-
-        @Bean
-        public IGroupsService groupsService() {
-            return Mockito.mock(IGroupsService.class);
-        }
-
-        @Bean
-        public IUsersService usersService() {
-            return Mockito.mock(IUsersService.class);
-        }
-
-        @Bean
-        ISettingsPoliciesService settingsPoliciesService() {
-            return Mockito.mock(ISettingsPoliciesService.class);
-        }
-
-        @Bean
-        public GlobalExceptionHandler globalExceptionHandler() {
-            return new GlobalExceptionHandler();
-        }
-
-        @Override
-        public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
-            GsonHttpMessageConverter msgConverter = new GsonHttpMessageConverter();
-            msgConverter.setGson(ComponentGsonFactory.createGson());
-            converters.add(msgConverter);
-        }
+        marketsService.getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", inputDTO, paginationRequest);
     }
 
     /**
-     * Fake Plan service, just holding some pre-defined plan instances.
+     * Test for {@link MarketsService#addPolicy(String, PolicyApiInputDTO)}.
+     * When merge policy required hidden group.
+     *
+     * @throws Exception on exceptions occurred
      */
-    public static class PlanServiceMock extends PlanServiceImplBase {
-
-        @GuardedBy("lock")
-        private Map<Long, PlanInstance> planInstances = new HashMap<>();
-
-        /**
-         * Using an explicit lock to synchronize access to planInstances because we
-         * have methods that iterate over the values.
-         */
-        private final Object lock = new Object();
-
-        public void addInstance(@Nonnull final PlanInstance planInstance) {
-            synchronized (lock) {
-                planInstances.put(planInstance.getPlanId(), planInstance);
-            }
-        }
-
-        @Override
-        public void getAllPlans(GetPlansOptions request,
-                StreamObserver<PlanInstance> responseObserver) {
-            synchronized (lock) {
-                planInstances.values().forEach(responseObserver::onNext);
-            }
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void getPlan(PlanId request, StreamObserver<OptionalPlanInstance> responseObserver) {
-            final OptionalPlanInstance.Builder result = OptionalPlanInstance.newBuilder();
-            synchronized (lock) {
-                final Optional<PlanInstance> plan =
-                        Optional.ofNullable(planInstances.get(request.getPlanId()));
-                plan.ifPresent(result::setPlanInstance);
-            }
-
-            responseObserver.onNext(result.build());
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void createPlan(CreatePlanRequest request, StreamObserver<PlanInstance> responseObserver) {
-            // set one or the other plan ID based on the topology ID - REALTIME vs plan
-            long planId = request.getTopologyId() == REALTIME_PLAN_ID ? REALTIME_PLAN_ID :
-                    TEST_PLAN_OVER_PLAN_ID;
-            PlanInstance planResponse = PlanInstance.newBuilder()
-                    .setPlanId(planId)
-                    .setTopologyId(request.getTopologyId())
-                    .setStatus(PlanStatus.QUEUED)
+    @Test
+    public void testAddMergePolicyWhenNeedCreateHiddenGroup() throws Exception {
+        testMergePolicyRequiredHiddenGroupAddOrEdit((policyApiInputDTO, groupDefinition) -> {
+            final CreateGroupRequest createGroupRequest = CreateGroupRequest.newBuilder()
+                    .setGroupDefinition(groupDefinition)
+                    .setOrigin(Origin.newBuilder()
+                            .setSystem(Origin.System.newBuilder()
+                                    .setDescription(String.format(
+                                            "Hidden group to support merge with type %s.",
+                                            policyApiInputDTO.getMergeType()))))
                     .build();
-            synchronized (lock) {
-                planInstances.put(planId, planResponse);
+            final CreateGroupResponse createGroupResponse = CreateGroupResponse.newBuilder()
+                    .setGroup(Grouping.newBuilder().setId(MERGE_GROUP_ID))
+                    .build();
+            doReturn(createGroupResponse).when(groupBackend).createGroup(createGroupRequest);
+            // Act
+            try {
+                marketsService.addPolicy(MARKET_UUID, policyApiInputDTO);
+            } catch (UnknownObjectException e) {
+                // this should never happen
+                logger.error("UnknownObjectException caught while creating policy", e);
+                fail("Policy creation failed");
             }
-            responseObserver.onNext(planResponse);
-            responseObserver.onCompleted();
-        }
+        });
+    }
 
-        @Override
-        public void updatePlanScenario(PlanScenario request, StreamObserver<PlanInstance> responseObserver) {
+    /**
+     * Validate that {@link MarketsService#editPolicy(String, String, PolicyApiInputDTO)} returns a
+     * dto with values populated when editing a policy.
+     *
+     * @throws InterruptedException on exceptions occurred
+     * @throws ConversionException on exceptions occurred
+     * @throws OperationFailedException on exceptions occurred
+     */
+    @Test
+    public void validateExistenceOfBasicFieldsInEditPolicyResponse()
+            throws InterruptedException, ConversionException, OperationFailedException {
+        PolicyApiInputDTO policyApiInputDTO = new PolicyApiInputDTO();
+        policyApiInputDTO.setPolicyName("Policy1");
+        policyApiInputDTO.setType(PolicyType.AT_MOST_N);
+        policyApiInputDTO.setSellerUuid("5");
+        policyApiInputDTO.setBuyerUuid("8");
+        policyApiInputDTO.setCapacity(50);
+        policyApiInputDTO.setEnabled(true);
+        PolicyApiDTO responsePolicyApiDTO = new PolicyApiDTO();
+        responsePolicyApiDTO.setUuid("1");
+        responsePolicyApiDTO.setName("Policy1");
+        responsePolicyApiDTO.setDisplayName("Policy1");
+        responsePolicyApiDTO.setType(PolicyType.AT_MOST_N);
+        BaseApiDTO provider = new BaseApiDTO();
+        provider.setUuid("5");
+        responsePolicyApiDTO.setProviderGroup(provider);
+        BaseApiDTO consumer = new BaseApiDTO();
+        consumer.setUuid("8");
+        responsePolicyApiDTO.setConsumerGroup(consumer);
+        responsePolicyApiDTO.setCapacity(52); //changed value
+        responsePolicyApiDTO.setEnabled(true);
 
-            final PlanInstance  planResponse;
-            synchronized (lock) {
-                final PlanInstance plan = planInstances.get(request.getPlanId());
+        when(policyMapper.policyApiInputDtoToProto(policyApiInputDTO)).thenReturn(
+                PolicyInfo.newBuilder().build());
+        when(policiesBackend.editPolicy(any())).thenReturn(
+                PolicyEditResponse.newBuilder().setPolicy(Policy.newBuilder()
+                        .setId(1)
+                        .setPolicyInfo(PolicyInfo.newBuilder()
+                                .setName("Policy1")
+                                .setAtMostN(AtMostNPolicy.newBuilder()
+                                        .setCapacity((float)52)
+                                        .setConsumerGroupId(8)
+                                        .setProviderGroupId(5))
+                        )
+                ).build()
+        );
+        when(policiesService.toPolicyApiDTO(any())).thenReturn(responsePolicyApiDTO);
 
-                Assert.assertNotNull("Plan " + request.getPlanId() + " not found!", plan);
+        PolicyApiDTO result = marketsService.editPolicy("Market", "1", policyApiInputDTO);
 
-                Scenario newScenario = Scenario.newBuilder()
-                        .setId(request.getScenarioId())
-                        .build();
-                // implement the "replace scenario" scheme - currently under discussion
-                planResponse = PlanInstance.newBuilder()
-                        .setPlanId(request.getPlanId())
-                        .setTopologyId(plan.getTopologyId())
-                        .setScenario(newScenario)
-                        .setStatus(PlanStatus.READY)
-                        .build();
+        assertEquals("1", result.getUuid());
+        assertEquals("Policy1", result.getName());
+        assertEquals("Policy1", result.getDisplayName());
+        assertEquals(PolicyType.AT_MOST_N, result.getType());
+        assertTrue(result.isEnabled());
+        assertEquals(52, result.getCapacity().intValue());
+        assertEquals("5", result.getProviderGroup().getUuid());
+        assertEquals("8", result.getConsumerGroup().getUuid());
+    }
 
-                planInstances.put(request.getPlanId(), planResponse);
+    /**
+     * Test for {@link MarketsService#editPolicy(String, String, PolicyApiInputDTO)}.
+     * When merge policy required hidden group.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testEditMergePolicyWhenNeedUpdateHiddenGroup() throws Exception {
+        testMergePolicyRequiredHiddenGroupAddOrEdit((policyApiInputDTO, groupDefinition) -> {
+            doReturn(PolicyResponse.newBuilder()
+                .setPolicy(Policy.newBuilder()
+                    .setId(POLICY_ID)
+                    .setPolicyInfo(PolicyInfo.newBuilder()
+                        .setMerge(MergePolicy.newBuilder()
+                            .setMergeType(
+                                PolicyMapper.MERGE_TYPE_API_TO_PROTO.get(
+                                    policyApiInputDTO.getMergeType()))
+                            .addMergeGroupIds(MERGE_GROUP_ID))))
+                .build()).when(policiesBackend).getPolicy(SinglePolicyRequest.newBuilder()
+                    .setPolicyId(POLICY_ID)
+                    .build());
+            final UpdateGroupRequest updateGroupRequest = UpdateGroupRequest.newBuilder()
+                    .setId(MERGE_GROUP_ID)
+                    .setNewDefinition(groupDefinition)
+                    .build();
+            final UpdateGroupResponse updateGroupResponse = UpdateGroupResponse.newBuilder()
+                    .setUpdatedGroup(Grouping.newBuilder().setId(MERGE_GROUP_ID))
+                    .build();
+            doReturn(updateGroupResponse).when(groupBackend).updateGroup(updateGroupRequest);
+            final PolicyEditResponse policyEditResponse = PolicyEditResponse.newBuilder()
+                    .setPolicy(Policy.newBuilder()
+                            .setId(POLICY_ID)
+                            .setPolicyInfo(PolicyInfo.newBuilder()
+                                    .setMerge(MergePolicy.newBuilder()
+                                            .setMergeType(PolicyMapper.MERGE_TYPE_API_TO_PROTO.get(
+                                                            policyApiInputDTO.getMergeType()))
+                                            .addMergeGroupIds(MERGE_GROUP_ID)
+                                            .build())
+                                    .build())
+                            .build())
+                    .build();
+            doReturn(policyEditResponse).when(policiesBackend).editPolicy(any());
+
+            // Act
+            try {
+                marketsService.editPolicy(MARKET_UUID, Long.toString(POLICY_ID), policyApiInputDTO);
+            } catch (OperationFailedException e) {
+                // this should never happen
+                logger.error("OperationFailedException caught while editing policy", e);
+                fail("Editing policy failed");
             }
-            responseObserver.onNext(planResponse);
-            responseObserver.onCompleted();
-        }
+        });
+    }
 
-        @Override
-        public void runPlan(PlanId request, StreamObserver<PlanInstance> responseObserver) {
-            synchronized (lock) {
-                planInstances.values().forEach(responseObserver::onNext);
-            }
-            responseObserver.onCompleted();
-        }
+    private void testMergePolicyRequiredHiddenGroupAddOrEdit(final EditOrCreateOperation addOrEdit)
+            throws ConversionException, InterruptedException {
+        for (MergePolicyType mergePolicyType : Arrays.asList(MergePolicyType.DesktopPool,
+                MergePolicyType.DataCenter)) {
+                    final PolicyApiInputDTO policyApiInputDTO = new PolicyApiInputDTO();
+                    policyApiInputDTO.setType(PolicyType.MERGE);
+                    policyApiInputDTO.setMergeType(mergePolicyType);
+                    policyApiInputDTO.setMergeUuids(MERGE_GROUP_IDS.stream()
+                            .map(String::valueOf)
+                            .collect(Collectors.toList()));
+                    Mockito.when(policyMapper.policyApiInputDtoToProto(policyApiInputDTO))
+                            .thenReturn(PolicyInfo.newBuilder().build());
+                    final EntityType entityType =
+                            MERGE_PROVIDER_ENTITY_TYPE.get(policyApiInputDTO.getMergeType());
+                    final List<MinimalEntity> entities = MERGE_GROUP_IDS.stream()
+                            .map(oid -> MinimalEntity.newBuilder()
+                                    .setOid(oid)
+                                    .setEntityType(entityType.getNumber())
+                                    .setDisplayName(String.format("%s %d", entityType, oid))
+                                    .build())
+                            .collect(Collectors.toList());
+                    final MultiEntityRequest multiEntityRequest =
+                            ApiTestUtils.mockMultiMinEntityReq(entities);
+                    Mockito.when(repositoryApi
+                            .entitiesRequest(new HashSet<>(MERGE_GROUP_IDS)))
+                            .thenReturn(multiEntityRequest);
+                    final GroupDefinition.Builder groupDefinition = GroupDefinition.newBuilder()
+                            .setDisplayName(entities.stream()
+                                    .map(MinimalEntity::getDisplayName)
+                                    .collect(Collectors.joining(",", "Merge: ", "")))
+                            .setIsHidden(true)
+                            .setStaticGroupMembers(StaticMembers.newBuilder()
+                                    .addMembersByType(StaticMembersByType.newBuilder()
+                                            .setType(MemberType.newBuilder()
+                                                    .setEntity(entityType.getNumber()))
+                                            .addAllMembers(MERGE_GROUP_IDS)));
+                    addOrEdit.createOrEdit(policyApiInputDTO, groupDefinition);
+                    // Assert
+                    Assert.assertEquals(1, policyApiInputDTO.getMergeUuids().size());
+                    Assert.assertEquals(String.valueOf(MERGE_GROUP_ID),
+                            policyApiInputDTO.getMergeUuids().iterator().next());
+                }
+    }
 
-        @Override
-        public void deletePlan(PlanId request, StreamObserver<PlanInstance> responseObserver) {
-            final PlanInstance instance;
-            synchronized (lock) {
-                instance = planInstances.remove(request.getPlanId());
-            }
-            if (instance == null) {
-                responseObserver.onError(Status.NOT_FOUND.asException());
-            } else {
-                responseObserver.onNext(instance);
-            }
-            responseObserver.onCompleted();
-        }
+    /**
+     * Test for {@link MarketsService#deletePolicy(String, String)}.
+     * When merge policy required hidden group.
+     */
+    @Test
+    public void testDeleteMergePolicyWhenNeedDeleteHiddenGroup() {
+        Stream.of(MergeType.DESKTOP_POOL, MergeType.DATACENTER).forEach(mergeType -> {
+            Mockito.reset(groupBackend);
+            doReturn(PolicyDeleteResponse.newBuilder()
+                .setPolicy(Policy.newBuilder()
+                    .setId(POLICY_ID)
+                    .setPolicyInfo(PolicyInfo.newBuilder()
+                        .setMerge(MergePolicy.newBuilder()
+                            .setMergeType(mergeType)
+                            .addAllMergeGroupIds(MERGE_GROUP_IDS))))
+                .build())
+                .when(policiesBackend).deletePolicy(PolicyDTO.PolicyDeleteRequest.newBuilder()
+                    .setPolicyId(POLICY_ID)
+                    .build());
+            // Act
+            marketsService.deletePolicy(MARKET_UUID, Long.toString(POLICY_ID));
+            // Assert
+            final ArgumentCaptor<GroupID> captor = ArgumentCaptor.forClass(GroupID.class);
+            Mockito.verify(groupBackend, Mockito.times(MERGE_GROUP_IDS.size()))
+                    .deleteGroup(captor.capture());
+            MERGE_GROUP_IDS.forEach(groupId -> Assert.assertTrue(
+                    captor.getAllValues().contains(GroupID.newBuilder().setId(groupId).build())));
+        });
+    }
 
-        @Override
-        public void createPlanOverPlan(PlanScenario request,
-                                       StreamObserver<PlanInstance> responseObserver) {
-            final PlanInstance newPlan;
-            synchronized (lock) {
-                PlanInstance previousPlan = planInstances.get(request.getPlanId());
-                Assert.assertNotNull("Plan " + request.getPlanId() + " not found!",
-                        previousPlan);
-                planInstances.clear();
-                newPlan = PlanInstance.newBuilder()
-                        .setStatus(PlanStatus.READY)
-                        .setPlanId(request.getPlanId())
-                        .setTopologyId(previousPlan.getProjectedTopologyId())
-                        .setProjectedTopologyId(0)
-                        .setScenario(Scenario.newBuilder()
-                                .setId(request.getScenarioId())
-                                .build())
-                        .build();
-                planInstances.put(request.getPlanId(), newPlan);
-            }
-            responseObserver.onNext(newPlan);
-            responseObserver.onCompleted();
-        }
+    /**
+     * Tests expected behavior when renaming plan.
+     *
+     * @throws Exception thrown if no plan matches marketUuid or user does not have plan access
+     */
+    @Test
+    public void testRenamePlan() throws Exception {
+        //GIVEN
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final ApiId mockApi = ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+        final PlanInstance plan = PlanInstance.newBuilder(planDefault)
+                .setPlanId(REALTIME_PLAN_ID)
+                .build();
+        final CachedPlanInfo planInfo = mock(CachedPlanInfo.class);
+        doReturn(plan).when(planInfo).getPlanInstance();
+        doReturn(Optional.of(planInfo)).when(mockApi).getCachedPlanInfo();
+
+        final ArgumentCaptor<UpdatePlanRequest> argument = ArgumentCaptor.forClass(UpdatePlanRequest.class);
+        doReturn(planDefault).when(planBackend).updatePlan(argument.capture());
+        final String displayName = "newPlanName";
+
+        //WHEN
+        marketsService.renameMarket(planUuid, displayName);
+
+        //THEN
+        assertEquals(argument.getValue().getName(), displayName);
+        assertEquals(argument.getValue().getPlanId(), REALTIME_PLAN_ID);
+        final ArgumentCaptor<PlanInstance> updatedPlanArgument = ArgumentCaptor.forClass(PlanInstance.class);
+        verify(marketMapper).dtoFromPlanInstance(updatedPlanArgument.capture());
+        assertEquals(updatedPlanArgument.getValue(), planDefault);
+    }
+
+    /**
+     * Test Exception thrown when no plan matches marketUuid.
+     *
+     * @throws Exception thrown if no plan matches marketUuid
+     */
+    @Test (expected = InvalidOperationException.class)
+    public void testRenamePlanInvalidMarketUuid() throws Exception {
+        //GIVEN
+        final String planUuid = Long.toString(REALTIME_PLAN_ID);
+        final ApiId mockApi = ApiTestUtils.mockPlanId(planUuid, uuidMapper);
+        doReturn(Optional.empty()).when(mockApi).getCachedPlanInfo();
+
+        //WHEN
+        marketsService.renameMarket(planUuid, "");
+    }
+
+
+    /**
+     * Function to trigger creation or update of a policy.
+     */
+    @FunctionalInterface
+    private interface EditOrCreateOperation {
+        void createOrEdit(PolicyApiInputDTO policy, GroupDefinition.Builder groupBuilder)
+                throws ConversionException, InterruptedException;
     }
 }

@@ -1,6 +1,6 @@
 package com.vmturbo.api.component.external.api.util.action;
 
-import java.util.Collection;
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -10,15 +10,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.base.Preconditions;
-
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ActionTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -27,7 +27,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.A
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.TimeRange;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * Responsible for mapping an {@link ActionApiInputDTO} to the matching queries to use in XL.
@@ -37,25 +38,36 @@ class HistoricalQueryMapper {
     private static final Logger logger = LogManager.getLogger();
 
     private final ActionSpecMapper actionSpecMapper;
+    private final BuyRiScopeHandler buyRiScopeHandler;
+    private final Clock clock;
 
-    HistoricalQueryMapper(@Nonnull final ActionSpecMapper actionSpecMapper) {
+    HistoricalQueryMapper(@Nonnull final ActionSpecMapper actionSpecMapper,
+                          @Nonnull final BuyRiScopeHandler buyRiScopeHandler,
+                          @Nonnull final Clock clock) {
         this.actionSpecMapper = actionSpecMapper;
+        this.buyRiScopeHandler = buyRiScopeHandler;
+        this.clock = clock;
     }
 
     @Nonnull
     Map<ApiId, HistoricalActionStatsQuery> mapToHistoricalQueries(@Nonnull final ActionStatsQuery query) {
-        // A historical query must have a start and end time.
-        // If a start and end time is not set, we should be looking at live stats.
+        // A historical query must have a start time.
         Preconditions.checkArgument(query.actionInput().getStartTime() != null);
-        Preconditions.checkArgument(query.actionInput().getEndTime() != null);
+
+        final long startTime = DateTimeUtil.parseTime(query.actionInput().getStartTime());
+        final long endTime;
+        if (query.actionInput().getEndTime() != null) {
+            endTime = DateTimeUtil.parseTime(query.actionInput().getEndTime());
+        } else {
+            // If the end time is unset, we will check for stats from the start time until now.
+            endTime = clock.millis();
+        }
 
         final TimeRange timeRange = TimeRange.newBuilder()
-            .setStartTime(DateTimeUtil.parseTime(query.actionInput().getStartTime()))
-            .setEndTime(DateTimeUtil.parseTime(query.actionInput().getEndTime()))
+            .setStartTime(startTime)
+            .setEndTime(endTime)
             .build();
-        final ActionGroupFilter actionGroupFilter = extractActionGroupFilter(query);
-        final Optional<GroupBy> groupByOps =
-            extractGroupByCriteria(query);
+        final Optional<GroupBy> groupByOps = extractGroupByCriteria(query);
         final Map<ApiId, MgmtUnitSubgroupFilter> filtersByScope =
             extractMgmtUnitSubgroupFilter(query);
 
@@ -63,7 +75,7 @@ class HistoricalQueryMapper {
             .collect(Collectors.toMap(Entry::getKey, entry -> {
                 final HistoricalActionStatsQuery.Builder grpcQueryBuilder =
                     HistoricalActionStatsQuery.newBuilder()
-                        .setActionGroupFilter(actionGroupFilter)
+                        .setActionGroupFilter(extractActionGroupFilter(query, entry.getKey()))
                         .setMgmtUnitSubgroupFilter(entry.getValue())
                         .setTimeRange(timeRange);
 
@@ -73,7 +85,7 @@ class HistoricalQueryMapper {
     }
 
     @Nonnull
-    Optional<GroupBy> extractGroupByCriteria(@Nonnull final ActionStatsQuery query) {
+    private Optional<GroupBy> extractGroupByCriteria(@Nonnull final ActionStatsQuery query) {
         final List<String> groupByFields = query.actionInput().getGroupBy();
         if (!CollectionUtils.isEmpty(groupByFields)) {
             if (groupByFields.size() > 1) {
@@ -88,6 +100,8 @@ class HistoricalQueryMapper {
                     return Optional.of(GroupBy.ACTION_CATEGORY);
                 case StringConstants.ACTION_STATES:
                     return Optional.of(GroupBy.ACTION_STATE);
+                case StringConstants.BUSINESS_UNIT:
+                    return Optional.of(GroupBy.BUSINESS_ACCOUNT_ID);
                 default:
                     logger.error("Unhandled action stats group-by criteria: {}", groupBy);
                     return Optional.empty();
@@ -98,31 +112,31 @@ class HistoricalQueryMapper {
     }
 
     @Nonnull
-    ActionGroupFilter extractActionGroupFilter(@Nonnull final ActionStatsQuery query) {
+    private ActionGroupFilter extractActionGroupFilter(
+            @Nonnull final ActionStatsQuery query,
+            @Nonnull final ApiId scope) {
         final ActionGroupFilter.Builder agFilterBldr = ActionGroupFilter.newBuilder();
 
         CollectionUtils.emptyIfNull(query.actionInput().getActionModeList()).stream()
-            .map(actionSpecMapper::mapApiModeToXl)
+            .map(ActionSpecMapper::mapApiModeToXl)
             .filter(Optional::isPresent)
             .map(Optional::get)
             .forEach(agFilterBldr::addActionMode);
 
         CollectionUtils.emptyIfNull(query.actionInput().getActionStateList()).stream()
-            .map(actionSpecMapper::mapApiStateToXl)
+            .map(ActionSpecMapper::mapApiStateToXl)
             .filter(Optional::isPresent)
             .map(Optional::get)
             .forEach(agFilterBldr::addActionState);
 
         CollectionUtils.emptyIfNull(query.actionInput().getRiskSubCategoryList()).stream()
-            .map(actionSpecMapper::mapApiActionCategoryToXl)
+            .map(ActionSpecMapper::mapApiActionCategoryToXl)
             .filter(Optional::isPresent)
             .map(Optional::get)
             .forEach(agFilterBldr::addActionCategory);
 
-        CollectionUtils.emptyIfNull(query.actionInput().getActionTypeList()).stream()
-            .map(ActionTypeMapper::fromApi)
-            .flatMap(Collection::stream)
-            .forEach(agFilterBldr::addActionType);
+        agFilterBldr.addAllActionType(buyRiScopeHandler.extractActionTypes(
+                query.actionInput(), scope));
 
         return agFilterBldr.build();
     }
@@ -136,6 +150,23 @@ class HistoricalQueryMapper {
                     MgmtUnitSubgroupFilter.newBuilder();
                 if (scope.isRealtimeMarket()) {
                     mgmtSubgroupFilterBldr.setMarket(true);
+                } else if (scope.isGlobalTempGroup()) {
+                    // If it's a global-scope temporary group, we treat it as a case of the market.
+                    mgmtSubgroupFilterBldr.setMarket(true);
+                    // If the query doesn't specify explicit related entity types, use the type
+                    // of the group as the entity type.
+                    //
+                    // If the query DOES specify explicit related entity types, ignore the group
+                    // entity types. i.e. saying "get me stats for all PMs related to all VMs in
+                    // the system" is pretty much the same - or close enough - to "get me stats for
+                    // all PMs in the system".
+                    if (query.getRelatedEntityTypes().isEmpty()) {
+                        // The .get() is safe because we know it's a group (or else we wouldn't be
+                        // in this block.
+                        scope.getScopeTypes().get().stream()
+                            .map(ApiEntityType::typeNumber)
+                            .forEach(mgmtSubgroupFilterBldr::addEntityType);
+                    }
                 } else {
                     mgmtSubgroupFilterBldr.setMgmtUnitId(scope.oid());
                 }

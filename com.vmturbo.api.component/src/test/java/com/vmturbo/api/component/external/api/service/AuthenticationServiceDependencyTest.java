@@ -46,6 +46,7 @@ public class AuthenticationServiceDependencyTest {
         testAuthenticationService = new AuthenticationService(
                 AUTH_HOST,
                 AUTH_PORT,
+                "",
                 mockVerifier,
                 mockRestTemplate,
                 componentJwtStore,

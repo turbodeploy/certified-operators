@@ -1,21 +1,25 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static junit.framework.TestCase.assertEquals;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableMap;
 
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceRemovalEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AfterFailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AfterSuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
@@ -26,9 +30,12 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionRemovalEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
-import com.vmturbo.action.orchestrator.store.EntitiesCache;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision.Reason;
@@ -37,25 +44,25 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Integration tests for the {@link ActionStateMachine} interaction with {@link Action}s.
  */
 public class ActionStateMachineTest {
 
-    private final EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
+    private EntitiesAndSettingsSnapshot entitySettingsCache;
 
-    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
-
-    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
     private final ActionDTO.Action move = ActionDTO.Action.newBuilder()
         .setId(0)
-        .setImportance(0)
+        .setDeprecatedImportance(0)
         .setSupportingLevel(SupportLevel.SUPPORTED)
         .setInfo(TestActionBuilder.makeMoveInfo(1, 2, 1, 2, 1))
         .setExplanation(Explanation.newBuilder().build())
@@ -67,36 +74,64 @@ public class ActionStateMachineTest {
     private final long probeId = 7;
     private final long targetId = 8;
 
+    /**
+     * Common setup before all tests.
+     */
+    @Before
+    public void setup() {
+        entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
+        when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+    }
+
+    private void setEntitiesOIDs() {
+        when(entitySettingsCache.getEntityFromOid(eq(1L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(1L,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
+        when(entitySettingsCache.getEntityFromOid(eq(2L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(2L,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
+    }
     @Test
-    public void testManuallyAccept() {
+    public void testManuallyAccept() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
             .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
-
-        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
         action.getActionTranslation().setPassthroughTranslationSuccess();
-        assertEquals(ActionState.QUEUED, action.receive(new ManualAcceptanceEvent(userUuid, targetId)).getAfterState());
+        action.refreshAction(entitySettingsCache);
+        assertEquals(ActionState.ACCEPTED,
+                action.receive(new ManualAcceptanceEvent(userUuid, targetId)).getAfterState());
 
-        Assert.assertEquals(ActionState.QUEUED, action.getState());
+        Assert.assertEquals(ActionState.ACCEPTED, action.getState());
         verifyQueuedExecutionStep(action.getCurrentExecutableStep().get());
     }
 
     @Test
-    public void testAutomaticallyAccept() {
+    public void testAutomaticallyAccept() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.AUTOMATIC));
-        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
-        assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userUuid, targetId)).getAfterState());
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        assertEquals(ActionState.ACCEPTED, action.receive(new AutomaticAcceptanceEvent(userUuid,
+                targetId)).getAfterState());
 
-        assertEquals(ActionState.QUEUED, action.getState());
+        assertEquals(ActionState.ACCEPTED, action.getState());
         verifyQueuedExecutionStep(action.getCurrentExecutableStep().get());
     }
 
     @Test
-    public void testBeginExecutionAutomaticAction() {
+    public void testBeginExecutionAutomaticAction() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.AUTOMATIC));
-        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
-        assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userUuid, targetId)).getAfterState());
+        setEntitiesOIDs();
+        Action action = new Action(move,  actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        assertEquals(ActionState.ACCEPTED,
+                action.receive(new AutomaticAcceptanceEvent(userUuid, targetId)).getAfterState());
+        assertEquals(ActionState.QUEUED, action.receive(new QueuedEvent()).getAfterState());
         assertEquals(ActionState.PRE_IN_PROGRESS, action.receive(new PrepareExecutionEvent()).getAfterState());
         assertEquals(ActionState.IN_PROGRESS, action.receive(new BeginExecutionEvent()).getAfterState());
         assertEquals(
@@ -111,11 +146,17 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testBeginExecutionManualAction() {
+    public void testBeginExecutionManualAction() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
-        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
-        assertEquals(ActionState.QUEUED, action.receive(new ManualAcceptanceEvent(userUuid, targetId)).getAfterState());
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        assertEquals(ActionState.ACCEPTED,
+                action.receive(new ManualAcceptanceEvent(userUuid, targetId)).getAfterState());
+        assertEquals(ActionState.QUEUED,
+                action.receive(new QueuedEvent()).getAfterState());
         assertEquals(ActionState.PRE_IN_PROGRESS, action.receive(new PrepareExecutionEvent()).getAfterState());
         assertEquals(ActionState.IN_PROGRESS, action.receive(new BeginExecutionEvent()).getAfterState());
         assertEquals(
@@ -131,7 +172,7 @@ public class ActionStateMachineTest {
 
     @Test
     public void testNotRecommended() {
-        Action action = new Action(move, actionPlanId, actionModeCalculator);
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
         assertEquals(ActionState.CLEARED, action.receive(new NotRecommendedEvent(clearingPlanId)).getAfterState());
 
         Assert.assertEquals(ActionState.CLEARED, action.getState());
@@ -145,20 +186,162 @@ public class ActionStateMachineTest {
         );
     }
 
-
     @Test
-    public void testQueuedToClearedActionStateChange() {
+    public void testQueuedToClearedActionStateChange() throws UnsupportedActionException {
         // Test the state transition from QUEUED to CLEARED state.
-        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
         action.receive(new AutomaticAcceptanceEvent(userUuid, targetId));
+        assertEquals(ActionState.ACCEPTED, action.getState());
+        action.receive(new QueuedEvent());
         assertEquals(ActionState.QUEUED, action.getState());
         assertEquals(ActionState.CLEARED,
                 action.receive(new NotRecommendedEvent(clearingPlanId)).getAfterState());
     }
 
+    /**
+     * Test case when we removing action from queue because of non active status of execution
+     * window.
+     *
+     * @throws UnsupportedActionException if action is not supported
+     */
+    @Test
+    public void testQueuedToAcceptedActionStateChange() throws UnsupportedActionException {
+        setEntitiesOIDs();
+        final Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new QueuedEvent());
+        assertEquals(ActionState.QUEUED, action.getState());
+        assertEquals(ActionState.ACCEPTED,
+                action.receive(new RollBackToAcceptedEvent()).getAfterState());
+    }
+
+    /**
+     * Test case when we removing action from queue because of non active status of execution
+     * window and then this action again sends to queue when execution window becomes active.
+     *
+     * @throws UnsupportedActionException if action is not supported
+     */
+    @Test
+    public void testQueuedToAcceptedToQueuedActionStateChanges() throws UnsupportedActionException {
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new QueuedEvent());
+        action.receive(new RollBackToAcceptedEvent());
+        assertEquals(ActionState.QUEUED, action.receive(new QueuedEvent()).getAfterState());
+    }
+
+    /**
+     * Test the state transition from ACCEPTED to QUEUED. For instance, when action was manually
+     * accepted and execution window is active.
+     *
+     * @throws UnsupportedActionException if action is not supported
+     */
+    @Test
+    public void testAcceptedToQueuedActionStateChange() throws UnsupportedActionException {
+        setEntitiesOIDs();
+        final Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        Assert.assertEquals(ActionState.QUEUED, action.receive(new QueuedEvent()).getAfterState());
+    }
+
+    /**
+     * Test the state transition from READY to REJECTED. For instance, when action was rejected
+     * by third-party orchestrator.
+     *
+     * @throws UnsupportedActionException if action is not supported
+     */
+    @Test
+    public void testReadyToRejectedActionStateChange() throws UnsupportedActionException {
+        setEntitiesOIDs();
+        final Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        Assert.assertEquals(ActionState.READY, action.getState());
+        Assert.assertEquals(ActionState.REJECTED,
+                action.receive(new RejectionEvent()).getAfterState());
+    }
+
+    /**
+     * Test the state transition from REJECTED to READY. For instance, when initially action was
+     * rejected by third-party orchestrator, but after it orchestrator policy was deleted.
+     *
+     * @throws UnsupportedActionException if action is not supported
+     */
+    @Test
+    public void testRejectedToReadyActionStateChange() throws UnsupportedActionException {
+        setEntitiesOIDs();
+        final Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        action.receive(new RejectionEvent());
+        Assert.assertEquals(ActionState.READY,
+                action.receive(new RejectionRemovalEvent()).getAfterState());
+    }
+
+    /**
+     * Test the state transition from ACCEPTED to READY. For instance, when initially action was
+     * accepted by third-party orchestrator, but after it orchestrator policy was deleted.
+     *
+     * @throws UnsupportedActionException if action is not supported
+     */
+    @Test
+    public void testAcceptedToReadyActionStateChange() throws UnsupportedActionException {
+        setEntitiesOIDs();
+        final Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        Assert.assertEquals(ActionState.READY,
+                action.receive(new AcceptanceRemovalEvent()).getAfterState());
+    }
+
+    /**
+     * Test the state transition from ACCEPTED to CLEARED. For instance, when initially action was
+     * accepted by third-party orchestrator, but after it action wasn't recommended.
+     *
+     * @throws UnsupportedActionException if action is not supported
+     */
+    @Test
+    public void testAcceptedToClearedActionStateChange() throws UnsupportedActionException {
+        setEntitiesOIDs();
+        final Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        Assert.assertEquals(ActionState.CLEARED,
+                action.receive(new NotRecommendedEvent(clearingPlanId)).getAfterState());
+    }
+
+    /**
+     * Test the state transition from REJECTED to CLEARED. For instance, when initially action was
+     * rejected by third-party orchestrator, but after it action wasn't recommended.
+     *
+     * @throws UnsupportedActionException if action is not supported
+     */
+    @Test
+    public void testRejectedToClearedActionStateChange() throws UnsupportedActionException {
+        setEntitiesOIDs();
+        final Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        action.receive(new RejectionEvent());
+        Assert.assertEquals(ActionState.CLEARED,
+                action.receive(new NotRecommendedEvent(clearingPlanId)).getAfterState());
+    }
+
     @Test
     public void testCannotExecute() {
-        Action action = new Action(move, actionPlanId, actionModeCalculator);
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
         assertEquals(ActionState.CLEARED, action.receive(new CannotExecuteEvent(probeId)).getAfterState());
 
         Assert.assertEquals(ActionState.CLEARED, action.getState());
@@ -173,12 +356,16 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testExecutionCreatesExecutionStep() {
+    public void testExecutionCreatesExecutionStep() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
-        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
 
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new QueuedEvent());
         Assert.assertEquals(Status.QUEUED, action.getCurrentExecutableStep().get().getStatus());
 
         action.receive(new PrepareExecutionEvent());
@@ -195,11 +382,15 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testProgressUpdates() {
+    public void testProgressUpdates() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
-        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new QueuedEvent());
         action.receive(new PrepareExecutionEvent());
         action.receive(new BeginExecutionEvent());
 
@@ -219,11 +410,15 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testActionSuccess() {
+    public void testActionSuccess() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
-        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new QueuedEvent());
         action.receive(new PrepareExecutionEvent());
         action.receive(new BeginExecutionEvent());
 
@@ -241,11 +436,16 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testActionFailure() {
+    public void testActionFailure() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
-        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.setDescription("Move VM 1 from PM 1 to PM 2");
+        action.refreshAction(entitySettingsCache);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new QueuedEvent());
         action.receive(new PrepareExecutionEvent());
         action.receive(new BeginExecutionEvent());
 
@@ -265,12 +465,16 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testPostAfterActionSuccess() {
+    public void testPostAfterActionSuccess() throws UnsupportedActionException {
         // Define a workflow to be executed in the POST phase
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
             .thenReturn(makePostMoveWorkflowSetting(ActionMode.MANUAL, "postMove.sh"));
-        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new QueuedEvent());
         action.receive(new PrepareExecutionEvent());
         action.receive(new BeginExecutionEvent());
 
@@ -292,12 +496,16 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testPostAfterActionFailure() {
+    public void testPostAfterActionFailure() throws UnsupportedActionException {
         // Define a workflow to be executed in the POST phase
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
             .thenReturn(makePostMoveWorkflowSetting(ActionMode.MANUAL, "postMove.sh"));
-        Action action = new Action(move, entitySettingsCache, actionPlanId, actionModeCalculator);
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
         action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new QueuedEvent());
         action.receive(new PrepareExecutionEvent());
         action.receive(new BeginExecutionEvent());
 
@@ -331,7 +539,6 @@ public class ActionStateMachineTest {
         Assert.assertEquals(postFailureDescription, postExecutableStep.getErrors().get(0));
         Assert.assertEquals(Status.FAILED, postExecutableStep.getStatus());
         Assert.assertTrue(postExecutableStep.getCompletionTime().isPresent());
-
     }
 
     private static Map<String, Setting> makePostMoveWorkflowSetting(ActionMode mode, String workflowName) {

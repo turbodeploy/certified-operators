@@ -63,6 +63,8 @@ message ActionTypeWhitelist {
         MOVE = 4;
         RESIZE = 5;
         RECONFIGURE = 6;
+        DELETE = 7;
+        SUSPEND = 8;
     }
 
     repeated ActionType action_types = 1;

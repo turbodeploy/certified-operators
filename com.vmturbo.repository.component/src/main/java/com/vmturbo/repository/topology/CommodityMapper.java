@@ -11,15 +11,19 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.repository.constant.RepoObjectType;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Convert between CommodityBoughtRepoDTO and CommodityBoughtDTO.
  **/
-class CommodityMapper {
+    class CommodityMapper {
+
+    private static final Logger LOGGER = LogManager.getLogger();
 
     /**
      * Convert from {@link CommodityBoughtDTO} protobuf to {@link CommodityBoughtRepoDTO}.
@@ -38,7 +42,7 @@ class CommodityMapper {
         commRepo.setUuid(UUID.randomUUID().toString());
         commRepo.setProviderOid(providerOid);
         commRepo.setOwnerOid(ownerOid);
-        commRepo.setType(mapCommodityType(comm.getCommodityType().getType()));
+        commRepo.setType(UICommodityType.fromType(comm.getCommodityType().getType()).apiStr());
 
         commRepo.setKey(comm.getCommodityType().getKey());
         commRepo.setUsed(comm.getUsed());
@@ -62,7 +66,7 @@ class CommodityMapper {
         commodityBoughtBuilder.setPeak(commodityBoughtRepoDTO.getPeak());
         CommodityType.Builder commodityTypeBuilder = CommodityType.newBuilder();
         if (commodityBoughtRepoDTO.getType() != null) {
-            commodityTypeBuilder.setType(mapCommodityType(commodityBoughtRepoDTO.getType()));
+            commodityTypeBuilder.setType(UICommodityType.fromString(commodityBoughtRepoDTO.getType()).typeNumber());
         }
         if (commodityBoughtRepoDTO.getKey() != null) {
             commodityTypeBuilder.setKey(commodityBoughtRepoDTO.getKey());
@@ -96,7 +100,7 @@ class CommodityMapper {
         commRepo.setUuid(UUID.randomUUID().toString());
         commRepo.setProviderOid(ownerOid);
         commRepo.setOwnerOid(ownerOid);
-        commRepo.setType(mapCommodityType(comm.getCommodityType().getType()));
+        commRepo.setType(UICommodityType.fromType(comm.getCommodityType().getType()).apiStr());
 
         commRepo.setKey(comm.getCommodityType().getKey());
         commRepo.setUsed(comm.getUsed());
@@ -108,7 +112,11 @@ class CommodityMapper {
         commRepo.setResizeable(comm.getIsResizeable());
         commRepo.setThin(comm.getIsThin());
         commRepo.setCapacityIncrement(comm.getCapacityIncrement());
-        commRepo.setMaxQuantity(comm.getMaxQuantity());
+        // TODO should repo DTO contain all kinds of historical values? or any?
+        // histUtilization is already not in there
+        if (comm.hasHistoricalUsed() && comm.getHistoricalUsed().hasMaxQuantity()) {
+            commRepo.setMaxQuantity(comm.getHistoricalUsed().getMaxQuantity());
+        }
         commRepo.setScalingFactor(comm.getScalingFactor());
 
         if (comm.hasHotResizeInfo()) {
@@ -151,7 +159,7 @@ class CommodityMapper {
         CommodityType.Builder commodityTypeBuilder = CommodityType.newBuilder();
 
         if (commoditySoldRepoDTO.getType() != null) {
-            commodityTypeBuilder.setType(mapCommodityType(commoditySoldRepoDTO.getType()));
+            commodityTypeBuilder.setType(UICommodityType.fromString(commoditySoldRepoDTO.getType()).typeNumber());
         }
         if (commoditySoldRepoDTO.getKey() != null) {
             commodityTypeBuilder.setKey(commoditySoldRepoDTO.getKey());
@@ -174,14 +182,6 @@ class CommodityMapper {
         }
 
         return commoditySoldDTOBuilder.build();
-    }
-
-    private static String mapCommodityType(int type) {
-        return RepoObjectType.mapCommodityType(type);
-    }
-
-    private static int mapCommodityType(String type) {
-        return RepoObjectType.mapCommodityType(type);
     }
 
     public static CommoditiesBoughtRepoFromProviderDTO convertToRepoBoughtFromProviderDTO(
@@ -208,10 +208,15 @@ class CommodityMapper {
             CommoditiesBoughtRepoFromProviderDTO commoditiesBoughtRepoFromProviderDTO) {
         CommoditiesBoughtFromProvider.Builder commodityBoughtFromProviderBuilder =
                 CommoditiesBoughtFromProvider.newBuilder();
-        commodityBoughtFromProviderBuilder.addAllCommodityBought(
-                commoditiesBoughtRepoFromProviderDTO.getCommodityBoughtRepoDTOs().stream()
-                        .map(CommodityMapper::convertToCommodityBoughtDTO)
-                        .collect(Collectors.toList()));
+        if (commoditiesBoughtRepoFromProviderDTO.getCommodityBoughtRepoDTOs() != null) {
+            commodityBoughtFromProviderBuilder.addAllCommodityBought(
+                    commoditiesBoughtRepoFromProviderDTO.getCommodityBoughtRepoDTOs().stream()
+                            .map(CommodityMapper::convertToCommodityBoughtDTO)
+                            .collect(Collectors.toList()));
+        } else {
+            LOGGER.info("{}'s CommodityBoughtRepoDTOs is null, it means it's buying from another entity, " +
+                    "but not declaring which commodity buying from it. This should not happen.", commoditiesBoughtRepoFromProviderDTO);
+        }
         if (commoditiesBoughtRepoFromProviderDTO.getProviderId() != null) {
             commodityBoughtFromProviderBuilder.setProviderId(
                     commoditiesBoughtRepoFromProviderDTO.getProviderId());

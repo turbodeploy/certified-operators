@@ -1,0 +1,38 @@
+{
+  "entityType": "BusinessApplication",
+  "displayName": "BA_Combined",
+  "entityDefinitionData": {
+    "manualConnectionData": {
+      "Service": {
+        "staticConnections": [
+          "74412384495333",
+          "74412384495332"
+        ]
+      },
+      "Container": {
+        "connectedGroupId": "123434550"
+      },
+      "CONTAINERPOD": {
+        "connectedGroupId": ""
+      },
+      "virtualmachine": {
+        "dynamicConnectionCriteria": [
+          {
+            "expVal": "*-vm",
+            "expType": "RXEQ",
+            "caseSensitive": false,
+            "filterType": "vmsByName",
+            "singleLine": false
+          },
+          {
+            "expVal": "vm-*",
+            "expType": "RXNEQ",
+            "filterType": "vmsByName",
+            "caseSensitive": true,
+            "singleLine": false
+          }
+        ]
+      }
+    }
+  }
+}

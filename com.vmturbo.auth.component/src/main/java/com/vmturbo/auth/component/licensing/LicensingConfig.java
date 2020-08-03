@@ -18,7 +18,7 @@ import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
+import com.vmturbo.components.common.health.MessageProducerHealthMonitor;
 import com.vmturbo.components.common.mail.MailManager;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.notification.api.NotificationApiConfig;
@@ -47,7 +47,7 @@ public class LicensingConfig {
     private GroupClientConfig groupClientConfig;
 
     /**
-     * The number of days before sending license expiration warning
+     * The number of days before sending license expiration warning.
      */
     @Value("${numBeforeLicenseExpirationDays:2}")
     private int numBeforeLicenseExpirationDays;
@@ -58,8 +58,8 @@ public class LicensingConfig {
     }
 
     @Bean
-    public KafkaProducerHealthMonitor kafkaProducerHealthMonitor() {
-        return new KafkaProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
+    public MessageProducerHealthMonitor kafkaProducerHealthMonitor() {
+        return new MessageProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
     }
 
     @Bean
@@ -69,16 +69,13 @@ public class LicensingConfig {
                         LicenseSummaryPublisher::generateMessageKey);
     }
 
-/*
-    @Bean
-    public LicenseController licenseController() {
-        return new LicenseController(licenseStore());
-    }
-    */
-
+    /**
+     * License manager.
+     * @return License manager bean.
+     */
     @Bean
     public LicenseManagerService licenseManager() {
-        return new LicenseManagerService(licenseStore());
+        return new LicenseManagerService(licenseStore(), notificationApiConfig.notificationMessageSender());
     }
 
     @Bean
@@ -90,7 +87,8 @@ public class LicensingConfig {
                 notificationApiConfig.notificationMessageSender(),
                 mailManager(),
                 Clock.systemUTC(),
-                numBeforeLicenseExpirationDays);
+                numBeforeLicenseExpirationDays,
+                true);
     }
 
     @Bean

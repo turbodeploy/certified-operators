@@ -17,6 +17,7 @@ import com.arangodb.ArangoCollection;
 import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.entity.CollectionEntity;
+import com.arangodb.model.CollectionCreateOptions;
 
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 
@@ -30,6 +31,7 @@ public class TopologyProtobufWriterTest {
     ArangoDB db;
     ArangoDatabase database;
     private ArangoCollection collection; // writer
+    private CollectionCreateOptions defaultCollectionOptions;
 
     @Before
     public void setup() {
@@ -37,9 +39,9 @@ public class TopologyProtobufWriterTest {
         factory = mock(ArangoDatabaseFactory.class);
         database = mock(ArangoDatabase.class);
         collection = mock(ArangoCollection.class);
+        defaultCollectionOptions = mock(CollectionCreateOptions.class);
         when(factory.getArangoDriver()).thenReturn(db);
         when(db.getDatabases()).thenReturn(Lists.newArrayList());
-        when(db.createDatabase(Mockito.any())).thenReturn(true);
         when(db.db(Mockito.any())).thenReturn(database);
         when(database.collection(Mockito.eq("topology-dtos-2222"))).thenReturn(collection);
         CollectionEntity info = mock(CollectionEntity.class);
@@ -48,11 +50,11 @@ public class TopologyProtobufWriterTest {
 
     @Test
     public void testWriter() {
-        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory);
-        final TopologyProtobufWriter writer = tpm.createTopologyProtobufWriter(2222);
-        verify(db).createDatabase(Mockito.eq("topology-protobufs"));
+        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory, "Tturbonomic",
+                defaultCollectionOptions);
+        final TopologyProtobufWriter writer = tpm.createProjectedTopologyProtobufWriter(2222);
         verify(database).collection(Mockito.eq("topology-dtos-2222"));
-        verify(database).createCollection(Mockito.eq("topology-dtos-2222"));
+        verify(database).createCollection(Mockito.eq("topology-dtos-2222"), Mockito.eq(defaultCollectionOptions));
         assertSame(writer.topologyCollection, collection);
 
         assertEquals(0, writer.sequenceNumber);

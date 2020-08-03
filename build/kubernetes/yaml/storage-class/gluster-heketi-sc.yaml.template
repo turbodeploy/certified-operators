@@ -7,9 +7,9 @@ parameters:
   gidMax: "50000"
   gidMin: "2000"
   resturl: HEKETI_CLI_SERVER
-  restuser: "null"
-  restuserkey: "null"
+  restuser: "admin"
+  restuserkey: "ADMIN_KEY"
   volumetype: "GLUSTER_REPLICA"
-  volumeoptions: cluster.post-op-delay-secs 0, performance.client-io-threads off, performance.open-behind off, performance.readdir-ahead off, performance.read-ahead off, performance.stat-prefetch off, performance.write-behind off, performance.io-cache off, cluster.consistent-metadata on, performance.quick-read off, performance.strict-o-direct on
+  volumeoptions: cluster.post-op-delay-secs 0, performance.client-io-threads off, performance.open-behind off, performance.readdir-ahead off, performance.read-ahead off, performance.stat-prefetch off, performance.write-behind off, performance.io-cache off, cluster.consistent-metadata on, performance.quick-read off, performance.strict-o-direct on, storage.health-check-interval 0
 provisioner: kubernetes.io/glusterfs
 reclaimPolicy: Delete

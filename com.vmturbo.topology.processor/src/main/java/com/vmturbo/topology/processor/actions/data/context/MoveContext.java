@@ -1,20 +1,16 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
-import java.util.Collections;
+import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import jersey.repackaged.com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -24,31 +20,36 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionPolicyElement;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  *  A class for collecting data needed for Move action execution
  */
-public class MoveContext extends AbstractActionExecutionContext {
+public class MoveContext extends ChangeProviderContext {
 
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * Used for determining the target type of a given target
+     * Used for determining the target type of a given target.
      */
     private final TargetStore targetStore;
+
+    /**
+     * Used for determining the action policy of a given target.
+     */
+    private final ProbeStore probeStore;
 
     /**
      * If true, this move action represents a cross-target move, which means the entity is being
@@ -63,24 +64,29 @@ public class MoveContext extends AbstractActionExecutionContext {
                        @Nonnull final ActionDataManager dataManager,
                        @Nonnull final EntityStore entityStore,
                        @Nonnull final EntityRetriever entityRetriever,
-                       @Nonnull final TargetStore targetStore) {
+                       @Nonnull final TargetStore targetStore,
+                       @Nonnull final ProbeStore probeStore) {
         super(request, dataManager, entityStore, entityRetriever);
         this.targetStore = Objects.requireNonNull(targetStore);
+        this.probeStore = Objects.requireNonNull(probeStore);
     }
 
-    /**
-     * Get the SDK (probe-facing) type of the over-arching action being executed
-     *
-     * @return the SDK (probe-facing) type of the over-arching action being executed
-     */
     @Override
-    public ActionType getSDKActionType() {
-        // Check for workflows first, because that would eliminate the possibility of any other
-        // special cases applying.
-        if (hasWorkflow()) {
-            // Workflow moves are treated as regular moves that have an associated workflow
-            return ActionType.MOVE;
+    protected ActionItemDTO.ActionType calculateSDKActionType(@Nonnull final ActionDTO.ActionType actionType) {
+        // This switch takes care of the moves that were converted to other types. The conversion
+        // could have happened in ActionExecutor.execute().
+        switch (actionType) {
+            case RESIZE:
+                return ActionType.RIGHT_SIZE;
+            case ACTIVATE:
+                return ActionType.START;
         }
+
+        // The probes expect CHANGE when the action is moving a VM across Storage.
+        if (isMoveVmToStorage()) {
+            return ActionType.CHANGE;
+        }
+
         // If it's not a workflow, but the target is changing, then it is a cross target move.
         if (isCrossTargetMove()) {
             return ActionType.CROSS_TARGET_MOVE;
@@ -90,37 +96,8 @@ public class MoveContext extends AbstractActionExecutionContext {
         if (isMoveTogether()) {
             return ActionType.MOVE_TOGETHER;
         }
-        // This is not a move together, so only a single provider is being placed
-        // This could be either a MOVE or a CHANGE depending on whether the provider is storage
-        // The appropriate type will have already been set in the ActionItemDTO when it was created
-        // Lookup the actual type from the (only) ActionItemDTO
-        return getActionItems().stream()
-                .map(ActionItemDTO::getActionType)
-                .findFirst()
-                .orElse(ActionType.MOVE);
-    }
 
-    /**
-     * Get the type of the over-arching action being executed
-     *
-     * @return the type of the over-arching action being executed
-     */
-    @Override
-    public ActionDTO.ActionType getActionType() {
-        return ActionDTO.ActionType.MOVE;
-    }
-
-    /**
-     * Return a Set of entities to that are directly involved in the action.
-     *
-     * The implementation for move includes the primary entity (the entity being acted upon), as
-     * well as all providers includes in the list of changes.
-     *
-     * @return a Set of entities involved in the action
-     */
-    @Override
-    public Set<Long> getAffectedEntities() {
-        return getProviderEntityIdsFromMoveAction(getMoveInfo());
+        return ActionType.MOVE;
     }
 
     /**
@@ -135,7 +112,7 @@ public class MoveContext extends AbstractActionExecutionContext {
      */
     @Nullable
     @Override
-    public Long getSecondaryTargetId() throws TargetNotFoundException {
+    public Long getSecondaryTargetId() throws ContextCreationException {
         // Search for a secondary target only if the move is cross-target
         if (isCrossTargetMove()) {
             // Determine the target ID for the destination entity
@@ -159,50 +136,24 @@ public class MoveContext extends AbstractActionExecutionContext {
 
             // First try to find a destination target with the same target type as the primary
             // target
-            SDKProbeType primaryTargetType = getTargetType(getTargetId());
-            final Optional<Long> matchingSecondaryTargetId = destinationTargetIds.stream()
-                    .filter(targetId -> targetMatchesType(targetId, primaryTargetType))
-                    .findFirst();
-            if (matchingSecondaryTargetId.isPresent()) {
-                return matchingSecondaryTargetId.get();
+            final SDKProbeType primaryTargetType;
+            try {
+                primaryTargetType = getTargetType(getTargetId());
+            } catch (TargetNotFoundException e) {
+                throw new ContextCreationException(
+                        "Could not determine main target type by id " + getTargetId(), e);
             }
-
+            for (Long targetId: destinationTargetIds) {
+                if (targetMatchesType(targetId, primaryTargetType)) {
+                    return targetId;
+                }
+            }
             // If no target of the same type is found, just return the first secondary target found
             return destinationTargetIds.stream()
                     .findFirst()
                     .get();
         }
         return null;
-    }
-
-    /**
-     * Create builders for the actionItemDTOs needed to execute this action and populate them with
-     * data. A builder is returned so that further modifications can be made by subclasses, before
-     * the final build is done.
-     *
-     * This implementation creates one {@link ActionItemDTO.Builder} for each change in the move
-     * action.
-     * TODO: Move together is currently supported, but cross target move is not since the required
-     * additional action items for cross target move are not (yet) being added.
-     *
-     * @return a list of {@link ActionItemDTO.Builder ActionItemDTO builders}
-     */
-    @Override
-    protected List<ActionItemDTO.Builder> initActionItemBuilders() {
-        Move move = getMoveInfo();
-        List<ActionItemDTO.Builder> builders = Lists.newArrayList();
-        // TODO: Assess whether the performance benefits warrant aggregating all the entities
-        // involved in the move and making a bulk call to lookup the TopologyEntityDTOs.
-        EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
-        for (ChangeProvider change : move.getChangesList()) {
-            builders.add(actionItemDtoBuilder(change, getActionId(), fullEntityDTO));
-        }
-        // Cross-target moves require adding storage changes, even when storage is staying the same
-        if (isCrossTargetMove()) {
-            builders.addAll(getActionItemsForUnchangedStorageProviders(fullEntityDTO,
-                move.getChangesList()));
-        }
-        return builders;
     }
 
     /**
@@ -217,7 +168,7 @@ public class MoveContext extends AbstractActionExecutionContext {
      */
     @Override
     protected long getPrimaryEntityId() {
-        return getMoveInfo().getTarget().getId();
+        return ActionDTOUtil.getMoveActionTarget(getActionInfo()).getId();
     }
 
     /**
@@ -229,96 +180,7 @@ public class MoveContext extends AbstractActionExecutionContext {
         return getActionInfo().getMove();
     }
 
-    /**
-     * Get an list of action items describing the unchanged storage providers which are associated
-     * with the entity being moved. If the storage is in the ChangeProvider list, then it is not
-     * included in the result, since there is already an ActionItemDTO created for it.
-     *
-     * Cross-target moves require adding storage changes, even when storage is staying the same.
-     * In order to provide this, we first retrieve the storage(s) for the entity being moved, using
-     * the provided EntityDTO. Then, we construct an action item representing a "change" where the
-     * same storage entity is set as both the source and destination of the move.
-     *
-     * @param fullEntityDTO the entity being moved
-     * @return list of action items for unchanged storage providers associated with the entity being moved
-     */
-    private List<ActionItemDTO.Builder> getActionItemsForUnchangedStorageProviders(
-            final EntityDTO fullEntityDTO, final List<ChangeProvider> changeList) {
-        TopologyEntityDTO topologyEntityDTO;
-        final long primaryEntityId = getPrimaryEntityId();
-        topologyEntityDTO = entityRetriever.retrieveTopologyEntity(primaryEntityId)
-                .orElseThrow(() ->
-                        new ContextCreationException("No entity found for id " + primaryEntityId));
-        // Get a set containing all of the storage associated with this entity
-        final Set<Long> storageEntityIds = getAllStorageProviderIds(topologyEntityDTO);
-        if (storageEntityIds.isEmpty()) {
-            throw new ContextCreationException("Could not retrieve "
-                    + "storage provider ID, which is required for a cross-target move. "
-                    + "Offending action: " + getActionId());
-        }
-        // find storage ids which are already included in the changeProvider list, and remove
-        // from the storageEntityIds which we will create action item for
-        final Set<Long> alreadyProcessedStorageIds = changeList.stream()
-            .map(ChangeProvider::getSource)
-            .filter(source -> source.getType() == EntityType.STORAGE_VALUE)
-            .map(ActionEntity::getId)
-            .collect(Collectors.toSet());
-        storageEntityIds.removeAll(alreadyProcessedStorageIds);
-
-        // For each related storage entity, create a change where the source and destination are
-        // both the same. This is a convention used to pass the storage information to the probe.
-        return storageEntityIds.stream()
-                .map(MoveContext::createStorageChange)
-                // Convert the change into an ActionItemDTO, which the probe expects to receive
-                .map(storageChange ->
-                        actionItemDtoBuilder(storageChange, getActionId(), fullEntityDTO))
-                .collect(Collectors.toList());
-    }
-
-    private static ChangeProvider createStorageChange(long storageEntityId) {
-        // We know the source and destination entity types are going to be "STORAGE", because
-        // we filter for the "storage" providers when getting the storage entity IDs.
-        return ChangeProvider.newBuilder()
-                .setSource(ActionEntity.newBuilder()
-                        .setId(storageEntityId)
-                        .setType(EntityType.STORAGE_VALUE))
-                .setDestination(ActionEntity.newBuilder()
-                        .setId(storageEntityId)
-                        .setType(EntityType.STORAGE_VALUE))
-                .build();
-    }
-
-    private ActionItemDTO.Builder actionItemDtoBuilder(final ChangeProvider change,
-                                                       final long actionId,
-                                                       final EntityDTO primaryEntity) {
-        EntityDTO sourceEntity = getFullEntityDTO(change.getSource().getId());
-        EntityDTO destinationEntity = getFullEntityDTO(change.getDestination().getId());
-
-        // Check that the source and destination are the same type
-        final EntityType srcEntityType = sourceEntity.getEntityType();
-        final EntityType destinationEntityType = destinationEntity.getEntityType();
-        if (srcEntityType != destinationEntityType) {
-            throw new ContextCreationException("Mismatched source and destination entity types! " +
-                    " Source: " + srcEntityType +
-                    " Destination: " + destinationEntityType);
-        }
-
-        final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder()
-                // Storage moves are reproesented as CHANGE in the SDK, but are MOVES in the market
-                .setActionType(srcEntityType == EntityType.STORAGE
-                        ? ActionType.CHANGE
-                        : ActionType.MOVE)
-                .setUuid(Long.toString(actionId))
-                .setTargetSE(primaryEntity)
-                .setCurrentSE(sourceEntity)
-                .setNewSE(destinationEntity)
-                .addAllContextData(getContextData());
-
-        getHost(primaryEntity).ifPresent(actionBuilder::setHostedBySE);
-        return actionBuilder;
-    }
-
-    private long getDestinationEntityId() {
+    private long getDestinationEntityId() throws ContextCreationException {
         return getPrimaryChange().getDestination().getId();
     }
 
@@ -327,8 +189,9 @@ public class MoveContext extends AbstractActionExecutionContext {
      * is a cross-target move.
      *
      * @return the first ChangeProvider in the list for this move action
+     * @throws ContextCreationException if changes not found
      */
-    private ChangeProvider getPrimaryChange() {
+    private ChangeProvider getPrimaryChange() throws ContextCreationException {
         return getMoveInfo().getChangesList().stream()
                 .findFirst()
                 .orElseThrow(() -> new ContextCreationException("No changes found. "
@@ -344,8 +207,36 @@ public class MoveContext extends AbstractActionExecutionContext {
         return getMoveInfo().getChangesCount() > 1;
     }
 
-    private boolean isCrossTargetMove() {
+    @Override
+    protected ActionType getActionItemType(final EntityType srcEntityType) {
+        return srcEntityType == EntityType.STORAGE
+                ? ActionType.CHANGE
+                : ActionType.MOVE;
+    }
+
+    @Override
+    protected boolean isCrossTargetMove() {
         if (crossTargetMove == null) {
+            final long probeId = targetStore.getTarget(getTargetId()).get().getProbeId();
+            final Optional<Entity> entity = getEntityStore().getEntity(getPrimaryEntityId());
+            if (!entity.isPresent()) {
+                logger.warn("Cannot find the primary entity with ID " + getPrimaryEntityId());
+                return false;
+            }
+            final EntityType entityType = entity.get().getEntityType();
+            boolean crossTargetSupported = probeStore.getProbe(probeId).get().getActionPolicyList()
+                .stream()
+                .filter(ActionPolicyDTO::hasEntityType)
+                .filter(actionPolicyDTO -> actionPolicyDTO.getEntityType().equals(entityType))
+                .map(ActionPolicyDTO::getPolicyElementList)
+                .flatMap(Collection::stream)
+                .filter(ActionPolicyElement::hasActionType)
+                .map(ActionPolicyElement::getActionType)
+                .anyMatch(actionType -> ActionType.CROSS_TARGET_MOVE == actionType);
+
+            if (!crossTargetSupported) {
+                return false;
+            }
             try {
                 // Determine if the destination entity for this move action was discovered by the same
                 // target that is being used to execute this action. If not, this is considered a cross-
@@ -364,12 +255,30 @@ public class MoveContext extends AbstractActionExecutionContext {
         return  crossTargetMove;
     }
 
+    /**
+     * Checks if the action is MOVE a VM across Storage.
+     *
+     * @return true if the action is MOVE VM across Storage, false otherwise.
+     */
+    private boolean isMoveVmToStorage() {
+        if (getMoveInfo().hasTarget() &&
+            getMoveInfo().getTarget().hasType() &&
+            getMoveInfo().getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            return getMoveInfo().getChangesList().stream()
+                .map(ChangeProvider::getDestination)
+                .map(ActionEntity::getType)
+                .allMatch(type -> type == EntityType.STORAGE_VALUE);
+        }
+        return false;
+    }
+
     private SDKProbeType getTargetType(long targetId) throws TargetNotFoundException {
         return targetStore.getProbeTypeForTarget(targetId)
                 .orElseThrow(() -> new TargetNotFoundException(targetId));
     }
 
-    private boolean targetMatchesType(long targetId, SDKProbeType targetTypeToMatch) {
+    private boolean targetMatchesType(long targetId, SDKProbeType targetTypeToMatch)
+            throws ContextCreationException {
         try {
             return targetTypeToMatch.equals(getTargetType(targetId));
         } catch (TargetNotFoundException e) {
@@ -378,47 +287,4 @@ public class MoveContext extends AbstractActionExecutionContext {
         }
     }
 
-    /**
-     * Get a set of provider entity ids for the input Move action.
-     *
-     * @param moveAction a {@link Move} action.
-     * @return a set of provider entity ids.
-     */
-    private static Set<Long> getProviderEntityIdsFromMoveAction(@Nonnull final Move moveAction) {
-        // right now, only support controllable flag for VM move actions.
-        if (moveAction.getTarget().hasType()
-                && moveAction.getTarget().getType() != EntityType.VIRTUAL_MACHINE_VALUE) {
-            logger.warn("Ignore controllable logic for Move action with type: " +
-                    moveAction.getTarget().getType());
-            return Collections.emptySet();
-        }
-        final Set<Long> entityIds = new HashSet<>();
-        // Include the primary entity id
-        entityIds.add(moveAction.getTarget().getId());
-        // Include all providers affected by the move
-        for (ChangeProvider changeProvider : moveAction.getChangesList()) {
-            if (changeProvider.hasSource()) {
-                entityIds.add(changeProvider.getSource().getId());
-            }
-            if (changeProvider.hasDestination()) {
-                entityIds.add(changeProvider.getDestination().getId());
-            }
-        }
-        return entityIds;
-    }
-
-    /**
-     * Get the {@link EntityType}.STORAGE storage provider OIDs for the given entity
-     *
-     * @param topologyEntityDTO an entity for which to retrieve the storage providers
-     * @return a set containing the storage provider OIDs for the given entity
-     */
-    private static Set<Long> getAllStorageProviderIds(TopologyEntityDTO topologyEntityDTO) {
-        return topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
-                .filter(CommoditiesBoughtFromProvider::hasProviderId)
-                .filter(commoditiesBoughtFromProvider -> EntityType.STORAGE.equals(
-                        EntityType.forNumber(commoditiesBoughtFromProvider.getProviderEntityType())))
-                .map(CommoditiesBoughtFromProvider::getProviderId)
-                .collect(Collectors.toSet());
-    }
 }

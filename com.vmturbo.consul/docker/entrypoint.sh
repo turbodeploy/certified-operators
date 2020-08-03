@@ -1,4 +1,21 @@
 #!/bin/bash
+
+# Wait until rsyslog container is up.
+# It it is not, we can loose some valuable logs information related to the component startup
+if [ -z "$LOG_TO_STDOUT" ]; then
+    try_number=0
+    while ! (echo ""> /dev/tcp/rsyslog/2514) ; do
+        sleep 10;
+        try_number=`expr $try_number + 1`
+        echo "Waiting for rsyslog to accept connections";
+        if [ "$try_number" -ge 360 ]; then
+             echo "Failed to access rsyslog daemon after one hour. Exiting..."
+            exit 1;
+        fi
+    done;
+    echo "Successfully reached rsyslog. Starting the Consul component..."
+fi
+
 set -e
 
 # rsyslog

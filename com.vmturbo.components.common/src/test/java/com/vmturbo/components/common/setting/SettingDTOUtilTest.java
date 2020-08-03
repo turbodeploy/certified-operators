@@ -16,31 +16,115 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
-import org.junit.Test;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
+import org.junit.Test;
+
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup.SettingPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 
 /**
  * Unit tests for {@link SettingDTOUtil}.
  */
 public class SettingDTOUtilTest {
+
+    @Test
+    public void testIndexSettingsByEntity() {
+        final Setting setting1 = Setting.newBuilder()
+            .setSettingSpecName("name1")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+        final Setting setting2 = Setting.newBuilder()
+            .setSettingSpecName("name2")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+        final Setting setting3 = Setting.newBuilder()
+            .setSettingSpecName("name3")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+
+        EntitySettingGroup group1 = EntitySettingGroup.newBuilder()
+            .addEntityOids(1L)
+            .addEntityOids(2L)
+            .setSetting(setting1)
+            .build();
+
+        EntitySettingGroup group2 = EntitySettingGroup.newBuilder()
+            .addEntityOids(3L)
+            .setSetting(setting2)
+            .addPolicyId(SettingPolicyId.newBuilder()
+                .setDisplayName("foo")
+                .setPolicyId(123))
+            .build();
+
+        EntitySettingGroup group3 = EntitySettingGroup.newBuilder()
+            .addEntityOids(4L)
+            .setSetting(setting3)
+            .addPolicyId(SettingPolicyId.newBuilder()
+                .setDisplayName("bar")
+                .setPolicyId(456))
+            .build();
+
+        final Map<Long, Map<String, SettingAndPolicies>> result =
+            SettingDTOUtil.indexSettingsByEntity(Stream.of(group1, group2, group3));
+        assertThat(result.keySet(), containsInAnyOrder(1L, 2L, 3L, 4L));
+        assertThat(result.get(1L).keySet(), containsInAnyOrder("name1"));
+        assertThat(result.get(1L).get("name1").getSetting(), is(setting1));
+        assertThat(result.get(2L).keySet(), containsInAnyOrder("name1"));
+        assertThat(result.get(2L).get("name1").getSetting(), is(setting1));
+        assertThat(result.get(3L).keySet(), containsInAnyOrder("name2"));
+        assertThat(result.get(3L).get("name2").getSetting(), is(setting2));
+        assertThat(result.get(4L).keySet(), containsInAnyOrder("name3"));
+        assertThat(result.get(4L).get("name3").getSetting(), is(setting3));
+
+    }
+
+    @Test
+    public void testFlattenIterator() {
+        EntitySettingGroup group1 = EntitySettingGroup.newBuilder()
+            .addEntityOids(1L)
+            .build();
+
+        EntitySettingGroup group2 = EntitySettingGroup.newBuilder()
+            .addEntityOids(2L)
+            .build();
+        GetEntitySettingsResponse response1 = GetEntitySettingsResponse.newBuilder()
+            .addSettingGroup(group1)
+            .build();
+        GetEntitySettingsResponse response2 = GetEntitySettingsResponse.newBuilder()
+            .addSettingGroup(group2)
+            .build();
+
+        List<EntitySettingGroup> flattened = SettingDTOUtil.flattenEntitySettings(
+            ImmutableList.of(response1, response2).iterator())
+                .collect(Collectors.toList());
+
+        assertThat(flattened, containsInAnyOrder(group1, group2));
+    }
 
     @Test
     public void testInvolvedGroups() {
@@ -261,10 +345,188 @@ public class SettingDTOUtilTest {
         SettingCategoryPath categoryPath = SettingDTOUtil.createSettingCategoryPath(CATEGORY_PATHS);
         // assert
         assertThat(categoryPath, equalTo(expectedCategoryPath));
-
     }
 
-    private EnumSettingValue createEnumSettingValue(String value) {
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 equal boolean values.
+     */
+    @Test
+    public void testAreValuesEqualForEqualBooleans() {
+        final Setting setting1 = Setting.newBuilder()
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
+                .build();
+
+        assertTrue(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 not equal boolean values.
+     */
+    @Test
+    public void testAreValuesEqualForNonEqualBooleans() {
+        final Setting setting1 = Setting.newBuilder()
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false))
+                .build();
+
+        assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 equal numeric values.
+     */
+    @Test
+    public void testAreValuesEqualForEqualNumbers() {
+        final Setting setting1 = Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1))
+                .build();
+
+        assertTrue(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 not equal numeric values.
+     */
+    @Test
+    public void testAreValuesEqualForNonEqualNumbers() {
+        final Setting setting1 = Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(2))
+                .build();
+
+        assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 equal string values.
+     */
+    @Test
+    public void testAreValuesEqualForEqualStrings() {
+        final Setting setting1 = Setting.newBuilder()
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("1"))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("1"))
+                .build();
+
+        assertTrue(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 not equal string values.
+     */
+    @Test
+    public void testAreValuesEqualForNonEqualStrings() {
+        final Setting setting1 = Setting.newBuilder()
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("1"))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("2"))
+                .build();
+
+        assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 equal enum values.
+     */
+    @Test
+    public void testAreValuesEqualForEqualEnums() {
+        final Setting setting1 = Setting.newBuilder()
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("1"))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("1"))
+                .build();
+
+        assertTrue(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 not equal enum values.
+     */
+    @Test
+    public void testAreValuesEqualForNonEqualEnums() {
+        final Setting setting1 = Setting.newBuilder()
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("1"))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("2"))
+                .build();
+
+        assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 equal
+     * {@code SortedSetOfOidSetting} values.
+     */
+    @Test
+    public void testAreValuesEqualForEqualSortedSetOfOids() {
+        final Setting setting1 = Setting.newBuilder()
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue
+                        .newBuilder()
+                        .addOids(1)
+                        .addOids(2))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue
+                        .newBuilder()
+                        .addOids(1)
+                        .addOids(2))
+                .build();
+
+        assertTrue(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 not equal
+     * {@code SortedSetOfOidSetting} values.
+     */
+    @Test
+    public void testAreValuesEqualForNonEqualSortedSetOfOids() {
+        final Setting setting1 = Setting.newBuilder()
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue
+                        .newBuilder()
+                        .addOids(1)
+                        .addOids(2))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue
+                        .newBuilder()
+                        .addOids(2)
+                        .addOids(1))
+                .build();
+
+        assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 different value types.
+     */
+    @Test
+    public void testAreValuesEqualForDifferentValueTypes() {
+        final Setting setting1 = Setting.newBuilder()
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("1"))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("1"))
+                .build();
+
+        assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    private static EnumSettingValue createEnumSettingValue(String value) {
         return EnumSettingValue.newBuilder()
                 .setValue(value)
                 .build();

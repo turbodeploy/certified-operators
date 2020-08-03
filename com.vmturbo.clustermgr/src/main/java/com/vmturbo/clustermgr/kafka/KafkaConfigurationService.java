@@ -3,6 +3,8 @@ package com.vmturbo.clustermgr.kafka;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,6 +56,8 @@ public class KafkaConfigurationService {
 
     private final String kafkaBootstrapServers;
 
+    private final String namespacePrefix;
+
     /**
      * Create a KafkaConfigurationService that will apply a topic configuration to the kafka
      * cluster at bootstrap servers, and use custom timeout/retry settings you provide.
@@ -62,6 +66,22 @@ public class KafkaConfigurationService {
      * @param configRetryDelayMs the number of milliseconds to wait between retry attempts
      */
     public KafkaConfigurationService(@Nonnull String bootstrapServers, int kafkaConfigMaxRetryTimeSecs, int configRetryDelayMs) {
+        this(bootstrapServers, kafkaConfigMaxRetryTimeSecs, configRetryDelayMs, "");
+    }
+
+    /**
+     * Create a KafkaConfigurationService that will apply a topic configuration to the kafka
+     * cluster at bootstrap servers, and use custom timeout/retry settings you provide.
+     * @param bootstrapServers one or more kafka broker addresses to connect to.
+     * @param kafkaConfigMaxRetryTimeSecs the amount of time the config service can start a retry within
+     * @param configRetryDelayMs the number of milliseconds to wait between retry attempts
+     * @param namespacePrefix namespace of this XL deployment
+     */
+    public KafkaConfigurationService(@Nonnull String bootstrapServers,
+                                     int kafkaConfigMaxRetryTimeSecs, int configRetryDelayMs,
+                                     @Nonnull String namespacePrefix) {
+        this.namespacePrefix = Objects.requireNonNull(namespacePrefix);
+
         if (StringUtils.isEmpty(bootstrapServers)) {
             throw new IllegalArgumentException("bootstrapServers must have a value.");
         }
@@ -157,7 +177,7 @@ public class KafkaConfigurationService {
     KafkaConfiguration readKafkaConfiguration(@Nonnull String configFileRelativePath) {
         final KafkaConfiguration kafkaConfiguration;
         log.info("Loading kafka configuration from {}", configFileRelativePath);
-        try (InputStream inputStream = getClass().getResourceAsStream(configFileRelativePath)){
+        try (InputStream inputStream = Files.newInputStream(Paths.get(configFileRelativePath))) {
             if (inputStream == null) {
                 throw new RuntimeException("Couldn't open input stream for " + configFileRelativePath);
             }
@@ -168,6 +188,10 @@ public class KafkaConfigurationService {
         } catch (IOException e) {
             throw new RuntimeException("General I/O Exception reading " + configFileRelativePath, e);
         }
+        // apply the namespace prefix, if there is one
+        kafkaConfiguration.getTopics().stream().forEach(topicConfig ->
+                topicConfig.setTopic(namespacePrefix + topicConfig.getTopic()));
+
         return kafkaConfiguration;
     }
 
@@ -179,7 +203,6 @@ public class KafkaConfigurationService {
      */
     public void applyKafkaConfiguration(@Nonnull KafkaConfiguration configuration)
             throws InterruptedException, ExecutionException {
-        Objects.requireNonNull(configuration);
 
         // create an admin client
         try (AdminClient adminClient = createKafkaAdminClient(kafkaBootstrapServers)) {
@@ -191,19 +214,21 @@ public class KafkaConfigurationService {
             Set<NewTopic> newTopics = configuration.getTopics().stream()
                     .filter(topicConfig -> !topicNames.contains(topicConfig.getTopic())) // only topics that don't exist
                     .map(topicConfig -> new NewTopic(topicConfig.getTopic(),
-                            DEFAULT_TOPIC_PARTITION_COUNT,
-                            DEFAULT_TOPIC_REPLICATION_FACTOR))
+                            topicConfig.getPartitions(),
+                            topicConfig.getReplicationFactor()))
                     .collect(Collectors.toSet());
 
-            // create the topics
-            log.debug("Will create new topics for {}", newTopics);
             long startTime = System.currentTimeMillis();
-            CreateTopicsResult createTopicsResult = adminClient.createTopics(newTopics);
+            // create the topics
+            if (newTopics.size() > 0) {
+                log.info("Will create new topics for: {}", newTopics);
+                CreateTopicsResult createTopicsResult = adminClient.createTopics(newTopics);
 
-            // wait until all topics completed.
-            createTopicsResult.all().get();
-            long topicsCreatedTime = System.currentTimeMillis();
-            log.info("Topics created successfully in {} ms.", topicsCreatedTime - startTime);
+                // wait until all topics completed.
+                createTopicsResult.all().get();
+                long topicsCreatedTime = System.currentTimeMillis();
+                log.info("Topics created successfully in {} ms.", topicsCreatedTime - startTime);
+            }
 
             // now set any custom properties on topics
             // first create a set of config updates for each topic that needs them.
@@ -220,7 +245,7 @@ public class KafkaConfigurationService {
             // block until complete
             adminClient.alterConfigs(kafkaConfigs).all().get();
             log.info("Kafka configurations applied successfully in {} ms.",
-                    System.currentTimeMillis() - topicsCreatedTime);
+                    System.currentTimeMillis() - startTime);
         }
     }
 
@@ -246,24 +271,29 @@ public class KafkaConfigurationService {
      */
     static public class TopicConfiguration {
         private String topic;
+        private short replicationFactor = DEFAULT_TOPIC_REPLICATION_FACTOR;
+        private short partitions = DEFAULT_TOPIC_PARTITION_COUNT;
         private Map<String, Object> properties;
 
         public void setTopic(String name) {
             this.topic = name;
         }
-
         public String getTopic() {
             return topic;
         }
 
+        public void setReplicationFactor(short replicationFactor) { this.replicationFactor = replicationFactor; }
+        public short getReplicationFactor() { return replicationFactor; }
+
+        public void setPartitions(short partitions) { this.partitions = partitions; }
+        public short getPartitions() { return partitions; }
+
         boolean hasProperties() {
             return this.properties != null;
         }
-
         public void setProperties(Map<String,Object> newProperties) {
             this.properties = newProperties;
         }
-
         public Map<String,Object> getProperties() {
             return properties;
         }

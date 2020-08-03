@@ -7,15 +7,20 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.components.common.mapping.UIEntityState;
-import com.vmturbo.components.common.mapping.UIEnvironmentType;
-import com.vmturbo.repository.constant.RepoObjectType;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
 import com.vmturbo.repository.dto.ConnectedEntityRepoDTO;
@@ -28,6 +33,7 @@ import com.vmturbo.repository.dto.TypeSpecificInfoRepoDTO;
  * {@link TopologyEntityDTO} will also contains partial fields.
  */
 public class ServiceEntityRepoDTOConverter {
+    private static final Logger logger = LogManager.getLogger();
 
     public static Set<TopologyEntityDTO> convertToTopologyEntityDTOs(
         Collection<ServiceEntityRepoDTO> serviceEntities) {
@@ -41,13 +47,9 @@ public class ServiceEntityRepoDTOConverter {
         TopologyEntityDTO.Builder topologyEntityBuilder = TopologyEntityDTO.newBuilder();
         topologyEntityBuilder.setOid(Long.valueOf(serviceEntityRepoDTO.getOid()));
         topologyEntityBuilder.setDisplayName(serviceEntityRepoDTO.getDisplayName());
-        topologyEntityBuilder.setEntityType(RepoObjectType.toTopologyEntityType(
-                serviceEntityRepoDTO.getEntityType()));
+        topologyEntityBuilder.setEntityType(ApiEntityType.fromString(serviceEntityRepoDTO.getEntityType()).typeNumber());
         topologyEntityBuilder.setEnvironmentType(
-            UIEnvironmentType.fromString(serviceEntityRepoDTO.getEnvironmentType())
-                .toEnvType()
-                // We don't expect to have a HYBRID topology entity, so if we get a hybrid
-                // environment type, assume something's wrong and put it as "UNKNOWN".
+            EnvironmentTypeUtil.fromApiString(serviceEntityRepoDTO.getEnvironmentType())
                 .orElse(EnvironmentType.UNKNOWN_ENV));
         if (serviceEntityRepoDTO.getState() != null) {
             topologyEntityBuilder.setEntityState(
@@ -116,6 +118,12 @@ public class ServiceEntityRepoDTOConverter {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getVirtualVolumeInfoRepoDTO();
         } else if (serviceEntityRepoDTO.getBusinessAccountInfoRepoDTO() != null) {
             typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getBusinessAccountInfoRepoDTO();
+        } else if (serviceEntityRepoDTO.getBusinessUserInfoRepoDTO() != null) {
+            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getBusinessUserInfoRepoDTO();
+        } else if (serviceEntityRepoDTO.getDesktopPoolInfoRepoDTO() != null) {
+            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getDesktopPoolInfoRepoDTO();
+        } else if (serviceEntityRepoDTO.getWorkloadControllerInfoRepoDTO() != null) {
+            typeSpecificInfoRepoDTO = serviceEntityRepoDTO.getWorkloadControllerInfoRepoDTO();
         }
 
         // if present, convert this RepoDTO type specific info into Topology TypeSpecificInfo oneof
@@ -126,18 +134,28 @@ public class ServiceEntityRepoDTOConverter {
         }
 
         // set DiscoveryOrigin if any
-        Optional.ofNullable(serviceEntityRepoDTO.getTargetIds()).ifPresent(targetIds ->
+        try {
+            Optional.ofNullable(serviceEntityRepoDTO.getTargetVendorIds()).ifPresent(targetIds ->
             topologyEntityBuilder.setOrigin(Origin.newBuilder()
                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                    .addAllDiscoveringTargetIds(
-                        serviceEntityRepoDTO.getTargetIds().stream()
-                            .map(Long::valueOf)
-                            .collect(Collectors.toList()))
+                    .putAllDiscoveredTargetData(
+                        serviceEntityRepoDTO.getTargetVendorIds().entrySet().stream()
+                            .collect(Collectors.toMap(target2id -> Long.valueOf(target2id.getKey()),
+                                                      target2id -> createPerTargetInfo(target2id.getValue()))))
                     .build())
-                .build())
-        );
+                .build()));
+        } catch (NumberFormatException e) {
+            logger.error("Failed to convert discovery origin from " + serviceEntityRepoDTO, e);
+        }
 
         return topologyEntityBuilder.build();
     }
 
+    private static PerTargetEntityInformation createPerTargetInfo(String vendorId) {
+        PerTargetEntityInformation.Builder info = PerTargetEntityInformation.newBuilder();
+        if (!StringUtils.isEmpty(vendorId)) {
+            info.setVendorId(vendorId);
+        }
+        return info.build();
+    }
 }

@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.stitching;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -11,34 +12,31 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
-
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.stitching.ListStringToListStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.ListStringToListStringStitchingMatchingMetaDataImpl;
-import com.vmturbo.stitching.ListStringToStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.ListStringToStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary.StitchingUnknownProbeException;
-import com.vmturbo.stitching.StringToListStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.StringToListStringStitchingMatchingMetaDataImpl;
-import com.vmturbo.stitching.StringToStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.StringToStringStitchingMatchingMetaDataImpl;
+import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
+import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
 import com.vmturbo.stitching.journal.JournalableOperation;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeOrdering;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 
 /**
  * A store of stitching operations for use during stitching.
@@ -111,9 +109,15 @@ public class StitchingOperationStore {
             List<StitchingOperation<?, ?>> operations =
                     createStitchingOperationsFromProbeInfo(probeInfo,
                             probeScope.isEmpty() ? ImmutableSet.of(category) : probeScope);
-            if (operations.isEmpty()) {
-                operations = stitchingOperationLibrary.stitchingOperationsFor(
-                        probeInfo.getProbeType(), category);
+            List<StitchingOperation<?, ?>> customOperations = stitchingOperationLibrary.stitchingOperationsFor(
+                    probeInfo.getProbeType(), category);
+
+            if (isCustomStitchingOperationsApplicable(operations, customOperations)) {
+                operations.addAll(customOperations);
+            } else {
+                logger.warn("Skipping {} custom stitching operations for {} since there are data" +
+                                " driven stitch operations for a subset of the custom stitching" +
+                                " operations' entity types.", customOperations, probeInfo);
             }
             setOperationsForProbe(probeId, operations);
 
@@ -129,40 +133,61 @@ public class StitchingOperationStore {
         }
     }
 
-    private List<StitchingOperation<?, ?>> createStitchingOperationsFromProbeInfo(
-            @Nonnull final ProbeInfo probeInfo, @Nonnull final Set<ProbeCategory> probeScope) {
-        return probeInfo.getSupplyChainDefinitionSetList().stream()
-                .filter(TemplateDTO::hasMergedEntityMetaData)
-                .map(tDTO -> createStitchingOperation(tDTO, probeScope))
-                .collect(Collectors.toList());
+    /**
+     * Determines if both the probe data driven and  custom stitching operations can be run.
+     * This will be allowed only if there is no clash between internal and external entity types
+     * in their respective stitching operations.
+     *
+     * @param dataDrivenOperations - Operations defined in probe's supply chain definition.
+     * @param customOperations - Custom operations set up for the probe
+     * @return True if both the probe data driven and  custom stitching operations can be run.
+     */
+    private boolean isCustomStitchingOperationsApplicable(final List<StitchingOperation<?, ?>> dataDrivenOperations,
+                                                          final List<StitchingOperation<?, ?>> customOperations) {
+        if (dataDrivenOperations.isEmpty() || customOperations.isEmpty()) {
+            return true;
+        }
+        final Set<EntityType> probeDrivenEntityTypes = getAllEntityTypes(dataDrivenOperations);
+        final Set<EntityType> customOpEntityTypes = getAllEntityTypes(customOperations);
+        return (Sets.intersection(probeDrivenEntityTypes, customOpEntityTypes).isEmpty());
     }
 
-    private StitchingOperation<?, ?> createStitchingOperation(
-            @Nonnull final TemplateDTO templateDTO, @Nonnull final Set<ProbeCategory> probeScope) {
-        MergedEntityMetadata memd = templateDTO.getMergedEntityMetaData();
-        if (memd.getMatchingMetadata().getReturnType() == ReturnType.STRING) {
-            if (memd.getMatchingMetadata().getExternalEntityReturnType() == ReturnType.STRING) {
-                return new StringToStringDataDrivenStitchingOperation(
-                        new StringToStringStitchingMatchingMetaDataImpl(
-                                templateDTO.getTemplateClass(), memd), probeScope);
-            } else {
-                return new StringToListStringDataDrivenStitchingOperation(
-                        new StringToListStringStitchingMatchingMetaDataImpl(
-                                templateDTO.getTemplateClass(), memd), probeScope);
+    /**
+     * Returns a set of internal and external entity types referenced by the passed set of
+     * stitching operations.
+     *
+     * @param operations Set of stitching operations
+     * @return Set of entity types
+     */
+    private static Set<EntityType> getAllEntityTypes(final List<StitchingOperation<?, ?>> operations) {
+        Set<EntityType> entityTypes = new HashSet<>();
+        operations
+                .forEach(o -> {
+                    entityTypes.add(o.getInternalEntityType());
+                    if (o.getExternalEntityType().isPresent()) {
+                        entityTypes.add(o.getExternalEntityType().get());
+                    }
+                });
+        return entityTypes;
+    }
 
-            }
-        } else {
-            if (memd.getMatchingMetadata().getExternalEntityReturnType() == ReturnType.STRING) {
-                return new ListStringToStringDataDrivenStitchingOperation(
-                        new ListStringToStringStitchingMatchingMetaDataImpl(
-                                templateDTO.getTemplateClass(), memd), probeScope);
-            } else {
-                return new ListStringToListStringDataDrivenStitchingOperation(
-                        new ListStringToListStringStitchingMatchingMetaDataImpl(
-                                templateDTO.getTemplateClass(), memd), probeScope);
-            }
+    private static List<StitchingOperation<?, ?>> createStitchingOperationsFromProbeInfo(
+                    @Nonnull final ProbeInfo probeInfo,
+                    @Nonnull final Set<ProbeCategory> probeScope) {
+        return probeInfo.getSupplyChainDefinitionSetList().stream()
+                    .filter(TemplateDTO::hasMergedEntityMetaData)
+                    .map(tDTO -> createStitchingOperation(tDTO, probeScope))
+                    .filter(Objects::nonNull).collect(Collectors.toList());
+    }
 
-        }
+    @Nullable
+    private static StitchingOperation<?, ?> createStitchingOperation(
+                    @Nonnull final TemplateDTO templateDTO,
+                    @Nonnull final Set<ProbeCategory> probeScope) {
+        final MergedEntityMetadata memd = templateDTO.getMergedEntityMetaData();
+        return new StringsToStringsDataDrivenStitchingOperation(
+                        new StringsToStringsStitchingMatchingMetaData(
+                                        templateDTO.getTemplateClass(), memd), probeScope);
     }
 
     @VisibleForTesting
@@ -249,6 +274,12 @@ public class StitchingOperationStore {
                                        @Nonnull final StitchingOperation<?, ?> stitchingOperation) {
             this.probeId = probeId;
             this.stitchingOperation = stitchingOperation;
+        }
+
+        public String toString(@Nonnull final ProbeStore probeStore) {
+            return stitchingOperation.getOperationName() + "[" +
+                probeStore.getProbe(probeId).map(ProbeInfo::getProbeCategory).orElse("") + "/" +
+                probeStore.getProbe(probeId).map(ProbeInfo::getProbeType).orElse("") + "]";
         }
     }
 }

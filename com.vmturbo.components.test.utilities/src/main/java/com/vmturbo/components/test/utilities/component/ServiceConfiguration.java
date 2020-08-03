@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.palantir.docker.compose.connection.Container;
@@ -63,15 +64,17 @@ public class ServiceConfiguration {
      * @param clusterManagerContainer The container for the clustermgr. Clustermgr is used to set configurations.
      * @throws ServiceConfigurationException If at least one configuration fails to be applied.
      */
-    public void apply(final Container clusterManagerContainer)
+    public void apply(@Nullable final Container clusterManagerContainer)
         throws ServiceConfigurationException {
-        DockerPort dockerPort = clusterManagerContainer.port(ComponentUtils.GLOBAL_HTTP_PORT);
-        final ClusterMgrRestClient clusterMgrClient = ClusterMgrClient.createClient(
-                ComponentApiConnectionConfig.newBuilder()
-                        .setHostAndPort(dockerPort.getIp(), dockerPort.getExternalPort())
-                        .build());
+        if (clusterManagerContainer != null) {
+            DockerPort dockerPort = clusterManagerContainer.port(ComponentUtils.GLOBAL_HTTP_PORT);
+            final ClusterMgrRestClient clusterMgrClient = ClusterMgrClient.createClient(
+                    ComponentApiConnectionConfig.newBuilder()
+                            .setHostAndPort(dockerPort.getIp(), dockerPort.getExternalPort(), "")
+                            .build());
 
-        apply(clusterMgrClient);
+            apply(clusterMgrClient);
+        }
     }
 
     /**
@@ -107,7 +110,7 @@ public class ServiceConfiguration {
                              @Nonnull final String key, @Nonnull final String value)
         throws ServiceConfigurationException {
         try {
-            clustermgr.setPropertyForComponentInstance(serviceName, instanceName, key, value);
+            clustermgr.setComponentLocalProperty(serviceName, key, value);
         } catch (RuntimeException e) {
             final String message = String.format("Unexpected exception occurred while setting key \"%s\" to " +
                 "value \"%s\" for service %s (%s)", key, value, serviceName, instanceName);

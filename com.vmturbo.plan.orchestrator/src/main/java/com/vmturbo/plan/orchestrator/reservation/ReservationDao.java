@@ -7,13 +7,13 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 
 /**
  * Data access object for creating, updating, searching, deleting reservations.
  */
-public interface ReservationDao extends Diagnosable {
+public interface ReservationDao extends DiagsRestorable {
 
     /**
      * Get all reservations which are stored in reservation table.
@@ -22,6 +22,16 @@ public interface ReservationDao extends Diagnosable {
      */
     @Nonnull
     Set<Reservation> getAllReservations();
+
+    /**
+     * Get one reservation which Reservation's ID is equal to parameter id.
+     *
+     * @param id id of reservation.
+     * @param apiCallBlock whether to block the api call until reservation is finished.
+     * @return Optional reservation, if not found, it will be Optional.empty().
+     */
+    @Nonnull
+    Optional<Reservation> getReservationById(@Nonnull long id, @Nonnull boolean apiCallBlock);
 
     /**
      * Get one reservation which Reservation's ID is equal to parameter id.
@@ -92,4 +102,11 @@ public interface ReservationDao extends Diagnosable {
      * @return a set of {@link Reservation}.
      */
     public Set<Reservation> getReservationsByTemplates(@Nonnull final Set<Long> templateIds);
+
+    /**
+     * Add a reservation status listener.
+     * @param listener the listener to be added.
+     */
+    void addListener(@Nonnull ReservationDeletedListener listener);
+
 }

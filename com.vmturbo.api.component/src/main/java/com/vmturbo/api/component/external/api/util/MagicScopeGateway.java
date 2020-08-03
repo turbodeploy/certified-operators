@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
@@ -13,23 +12,26 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-import com.google.common.util.concurrent.Monitor;
-
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.service.GroupsService;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.repository.api.RepositoryListener;
 
@@ -54,7 +56,7 @@ public class MagicScopeGateway implements RepositoryListener  {
 
     private final GroupServiceBlockingStub groupRpcService;
 
-    private final GroupsService groupsService;
+    private final GroupMapper groupMapper;
 
     private final long realtimeTopologyContextId;
 
@@ -63,10 +65,10 @@ public class MagicScopeGateway implements RepositoryListener  {
 
     private final ReadWriteLock cacheLock = new ReentrantReadWriteLock();
 
-    public MagicScopeGateway(@Nonnull final GroupsService groupsService,
+    public MagicScopeGateway(@Nonnull final GroupMapper groupMapper,
                              @Nonnull final GroupServiceBlockingStub groupRpcService,
                              final long realtimeTopologyContextId) {
-        this.groupsService = Objects.requireNonNull(groupsService);
+        this.groupMapper = Objects.requireNonNull(groupMapper);
         this.groupRpcService = Objects.requireNonNull(groupRpcService);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
@@ -187,16 +189,28 @@ public class MagicScopeGateway implements RepositoryListener  {
             final GroupApiDTO allOnPremHostGroup = new GroupApiDTO();
             allOnPremHostGroup.setScope(Collections.singletonList(UuidMapper.UI_REAL_TIME_MARKET_STR));
             allOnPremHostGroup.setEnvironmentType(EnvironmentType.ONPREM);
-            allOnPremHostGroup.setGroupType(UIEntityType.PHYSICAL_MACHINE.getValue());
+            allOnPremHostGroup.setGroupType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
             allOnPremHostGroup.setTemporary(true);
             allOnPremHostGroup.setDisplayName("Magic Group: " + ALL_ON_PREM_HOSTS);
             try {
                 logger.debug("Creating temp group for magic \"all on-prem hosts\" scope");
-                final GroupApiDTO tempGroup = groupsService.createGroup(allOnPremHostGroup);
-                final long groupOid = Long.parseLong(tempGroup.getUuid());
+                final GroupDefinition tempGroup = groupMapper.toGroupDefinition(allOnPremHostGroup);
+
+                final CreateGroupResponse resp = groupRpcService.createGroup(
+                    CreateGroupRequest.newBuilder()
+                        .setGroupDefinition(tempGroup)
+                        .setOrigin(Origin.newBuilder()
+                            .setSystem(Origin
+                                    .System
+                                    .newBuilder()
+                                    .setDescription("Magic Group: " + ALL_ON_PREM_HOSTS)
+                                    )
+                            )
+                        .build());
+                final long groupOid = resp.getGroup().getId();
                 logger.info("Created temp group {} for magic \"all on-prem hosts\" UUID", groupOid);
                 return Optional.of(ImmutableMagicScopeMapping.builder()
-                        .realId(tempGroup.getUuid())
+                        .realId(Long.toString(groupOid))
                         // Note - right now this will make an RPC to the group component every time,
                         // even if there are concurrent validity checks. We don't want to cache
                         // the validity results because a temporary group can expire at any time,

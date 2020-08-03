@@ -8,10 +8,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.junit.Assert;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
@@ -19,18 +19,25 @@ import org.mockito.Mockito;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionUpdateStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
+import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
-import com.vmturbo.topology.processor.operation.Operation;
-import com.vmturbo.topology.processor.operation.OperationMessageHandler;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
+import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -43,7 +50,10 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  */
 public class FakeRemoteMediation implements RemoteMediation {
 
-    public static final String TGT_ID = "targetIdentifier";
+    /**
+     * Target id.
+     */
+    public static final String TGT_ID = "targetId";
 
     private final Map<String, ValidationResponse> validationResponses = new HashMap<>();
 
@@ -63,23 +73,22 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
-    public void sendDiscoveryRequest(long probeId, DiscoveryRequest discoveryRequest,
+    public int sendDiscoveryRequest(Target target,
+                                     DiscoveryRequest discoveryRequest,
             IOperationMessageHandler<Discovery> responseHandler)
             throws ProbeException, CommunicationException, InterruptedException {
-        final String targetId = discoveryRequest.getAccountValueList().stream()
-                        .filter(av -> av.getKey().equals(TGT_ID)).findFirst().get()
-                        .getStringValue();
-        final DiscoveryResponse response = discoveryResponses.get(targetId);
+        final DiscoveryResponse response = discoveryResponses.get(String.valueOf(target.getId()));
         Assert.assertNotNull(response);
         responseHandler.onReceive(
                         MediationClientMessage.newBuilder().setDiscoveryResponse(response).build());
         responseHandler.onReceive(MediationClientMessage.newBuilder()
                 .setDiscoveryResponse(DiscoveryResponse.getDefaultInstance())
                 .build());
+        return 0;
     }
 
     @Override
-    public void sendValidationRequest(long probeId, ValidationRequest validationRequest,
+    public void sendValidationRequest(Target target, ValidationRequest validationRequest,
             IOperationMessageHandler<Validation> validationMessageHandler)
                     throws InterruptedException, ProbeException, CommunicationException {
         final String targetId = validationRequest.getAccountValueList().stream()
@@ -92,11 +101,43 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
-    public void sendActionRequest(long probeId,
+    public void sendActionRequest(@Nonnull Target target,
                                   @Nonnull ActionRequest actionRequest,
                                   @Nonnull IOperationMessageHandler<Action> actionMessageHandler)
             throws InterruptedException, ProbeException, CommunicationException {
         this.actionMessageHandler = (ActionMessageHandler)actionMessageHandler;
+    }
+
+    @Override
+    public void sendActionApprovalsRequest(@Nonnull Target target,
+            @Nonnull ActionApprovalRequest actionApprovalRequest,
+            @Nonnull IOperationMessageHandler<ActionApproval> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        throw new NotImplementedException("Not implemented yet");
+    }
+
+    @Override
+    public void sendActionUpdateStateRequest(@Nonnull Target target,
+            @Nonnull ActionUpdateStateRequest actionUpdateStateRequest,
+            @Nonnull IOperationMessageHandler<ActionUpdateState> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        throw new NotImplementedException("Not implemented yet");
+    }
+
+    @Override
+    public void sendGetActionStatesRequest(@Nonnull Target target,
+            @Nonnull GetActionStateRequest getActionStateRequest,
+            @Nonnull IOperationMessageHandler<GetActionState> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        throw new NotImplementedException("Not implemented yet");
+    }
+
+    @Override
+    public void sendActionAuditRequest(@Nonnull Target target,
+            @Nonnull ActionAuditRequest actionAuditRequest,
+            @Nonnull IOperationMessageHandler<ActionAudit> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        throw new NotImplementedException("Not implemented yet");
     }
 
     @Override
@@ -105,17 +146,12 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
-    public void removeMessageHandlers(@Nonnull final Predicate<Operation> shouldRemoveFilter) {
-        // Only the actionMessageHandler is kept beyond the request.
-        if (actionMessageHandler != null && shouldRemoveFilter.test(actionMessageHandler.getOperation())) {
-            this.actionMessageHandler = null;
-        }
+    public void handleTargetRemoval(long probeId, long targetId, TargetUpdateRequest request)
+                    throws CommunicationException, InterruptedException, ProbeException {
     }
 
     @Override
-    public int checkForExpiredHandlers() {
-        return 0;
-    }
+    public void checkForExpiredHandlers() {}
 
     @Override
     public Clock getMessageHandlerExpirationClock() {
@@ -123,7 +159,7 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     public void addDiscoveryResponse(long targetId, DiscoveryResponse response) {
-        discoveryResponses.put(getAvId(targetId), response);
+        discoveryResponses.put(String.valueOf(targetId), response);
     }
 
     public void addValidationResponse(long targetId, ValidationResponse response) {
@@ -137,8 +173,8 @@ public class FakeRemoteMediation implements RemoteMediation {
 
     private String getAvId(long targetId) {
         final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
-                .then(AdditionalAnswers.returnsFirstArg());
+        Mockito.when(groupScopeResolver.processGroupScope(any(), any(), any()))
+                .then(AdditionalAnswers.returnsSecondArg());
         final Target target = targetStore.getTarget(targetId).get();
         final String tgtId = target.getMediationAccountVals(groupScopeResolver).stream()
                         .filter(av -> av.getKey().equals(TGT_ID)).findFirst().get()

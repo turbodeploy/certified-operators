@@ -1,12 +1,11 @@
 package com.vmturbo.identity.store;
 
-
 import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 
@@ -15,7 +14,7 @@ import com.vmturbo.identity.exceptions.IdentityStoreException;
  * corresponding OID.
  * Intended to be used as a backing store for the IdentityStore class.
  */
-public interface PersistentIdentityStore extends Diagnosable {
+public interface PersistentIdentityStore extends DiagsRestorable {
 
     /**
      * Fetches all the mappings from ItemAttributes -> OID. This is used by IdentityStore

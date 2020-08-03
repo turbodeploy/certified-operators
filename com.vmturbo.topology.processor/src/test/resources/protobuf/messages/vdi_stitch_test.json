@@ -1,0 +1,484 @@
+[
+  {
+    "entityType": "BUSINESS_USER",
+    "id": "S-1-5-21-3110049146-4222751627-3786824931-7966",
+    "displayName": "horizon-user-81",
+    "business_user_data": {
+      "sessionData": [
+        {
+          "virtualMachine": "a80721619b6fbb99ea5e7b61f6956976d1c22e67",
+          "sessionDuration": 488932125
+        }
+      ]
+    },
+    "commoditiesBought": [
+      {
+        "providerId": "f31dfba7b0c24783cdb240889f5ca293bc7f8c0c",
+        "bought": [
+          {
+            "commodityType": "POOL_CPU",
+            "used": 310.1666666666667,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "IMAGE_CPU",
+            "used": 310.1666666666667,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "IMAGE_MEM",
+            "used": 454380.5333333333,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "ACTIVE_SESSIONS",
+            "key": "DesktopPool::f31dfba7b0c24783cdb240889f5ca293bc7f8c0c",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "IMAGE_STORAGE",
+            "used": 12939.408096313477,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "POOL_STORAGE",
+            "used": 12939.408096313477,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "POOL_MEM",
+            "used": 2095104.0,
+            "active": true,
+            "resizable": false
+          }
+        ],
+        "providerType": "DESKTOP_POOL"
+      },
+      {
+        "providerId": "a80721619b6fbb99ea5e7b61f6956976d1c22e67",
+        "bought": [
+          {
+            "commodityType": "ACTIVE_SESSIONS",
+            "key": "ActiveSession::S-1-5-21-3110049146-4222751627-3786824931-7966-vm-285",
+            "used": 1.0,
+            "active": false,
+            "resizable": false
+          }
+        ],
+        "providerType": "VIRTUAL_MACHINE"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "S-1-5-21-3110049146-4222751627-3786824931-7966"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "distinguishedName",
+        "value": "CN=horizon-user-81,OU=VMware Horizon,OU=Testing,OU=Users,OU=Domain,DC=corp,DC=vmturbo,DC=com"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "vmStitchingKey",
+        "value": "a31e8aaeda60c9aa9dff175693f1a17baac023e3"
+      }
+    ]
+  },
+  {
+    "entityType": "VIRTUAL_MACHINE",
+    "id": "a80721619b6fbb99ea5e7b61f6956976d1c22e67",
+    "displayName": "S02-P01-P04-05",
+    "commoditiesSold": [
+      {
+        "commodityType": "ACTIVE_SESSIONS",
+        "key": "ActiveSession::S-1-5-21-3110049146-4222751627-3786824931-7966-vm-285",
+        "used": 1.0,
+        "capacity": 1.0,
+        "active": false,
+        "resizable": false
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "e4385f03169a6a1d6573afcb6b45bf2ffd74084c",
+        "bought": [
+          {
+            "commodityType": "STORAGE_CLUSTER",
+            "key": "Storage::e4385f03169a6a1d6573afcb6b45bf2ffd74084c",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          }
+        ],
+        "providerType": "STORAGE"
+      },
+      {
+        "providerId": "6521b6717ffed86e9e7a3d541f0537b9bc52b548",
+        "bought": [
+          {
+            "commodityType": "CLUSTER",
+            "key": "PhysicalMachine::6521b6717ffed86e9e7a3d541f0537b9bc52b548",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          }
+        ],
+        "providerType": "PHYSICAL_MACHINE"
+      },
+      {
+        "providerId": "f31dfba7b0c24783cdb240889f5ca293bc7f8c0c",
+        "bought": [
+          {
+            "commodityType": "MEM_ALLOCATION",
+            "key": "DesktopPool::f31dfba7b0c24783cdb240889f5ca293bc7f8c0c",
+            "used": 2095104.0,
+            "peak": 2095104.0,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "CPU_ALLOCATION",
+            "key": "DesktopPool::f31dfba7b0c24783cdb240889f5ca293bc7f8c0c",
+            "used": 310.1666666666667,
+            "peak": 523.0,
+            "active": true,
+            "resizable": false
+          }
+        ],
+        "providerType": "DESKTOP_POOL"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "vsphere-dc25.corp.vmturbo.com/vm-285"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "VcTgtIdAndInternalName",
+        "value": "a31e8aaeda60c9aa9dff175693f1a17baac023e3"
+      }
+    ],
+    "virtual_machine_data": {
+      "vmState": {
+      }
+    },
+    "virtual_machine_related_data": {
+    }
+  },
+  {
+    "entityType": "STORAGE",
+    "id": "e4385f03169a6a1d6573afcb6b45bf2ffd74084c",
+    "displayName": "QS4:ESXDC25DS1",
+    "commoditiesSold": [
+      {
+        "commodityType": "STORAGE_CLUSTER",
+        "key": "DesktopPool::d3061c7fd29a3fbee355856859e2a44aba3a5670",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_CLUSTER",
+        "key": "DesktopPool::2396e4cc2d3588611d28e3af3a367ea239afbcae",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_CLUSTER",
+        "key": "Storage::e4385f03169a6a1d6573afcb6b45bf2ffd74084c",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_CLUSTER",
+        "key": "DesktopPool::30137c008aac7a639c67eec1eec83be28e579855",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_CLUSTER",
+        "key": "DesktopPool::da593e7c92e5bd19329663fe36d112e23f6da20d",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_CLUSTER",
+        "key": "DesktopPool::90d8fa0ea479561108fcb6343fcb9f2e1d3744f5",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_CLUSTER",
+        "key": "DesktopPool::6a7708a3c267d3c4197b7100f7956119689537b3",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_CLUSTER",
+        "key": "DesktopPool::b29c7664c9a592a9951325c8261c13295cab7e4d",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_CLUSTER",
+        "key": "DesktopPool::f31dfba7b0c24783cdb240889f5ca293bc7f8c0c",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "vsphere-dc25.corp.vmturbo.com/datastore-38"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "VcTgtIdAndInternalName",
+        "value": "17e8d16cae670ced45345dc629581d5af43fe082"
+      }
+    ],
+    "storage_data": {
+    }
+  },
+  {
+    "entityType": "DESKTOP_POOL",
+    "id": "f31dfba7b0c24783cdb240889f5ca293bc7f8c0c",
+    "displayName": "SITE02-POD01-POOL04-LINKED-SMALL-1VCPU-2GB",
+    "commoditiesSold": [
+      {
+        "commodityType": "POOL_CPU",
+        "used": 5507.733333333333,
+        "capacity": 30160.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "IMAGE_CPU",
+        "used": 0.0,
+        "capacity": 2600.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "IMAGE_MEM",
+        "used": 0.0,
+        "capacity": 2097152.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "ACTIVE_SESSIONS",
+        "key": "DesktopPool::f31dfba7b0c24783cdb240889f5ca293bc7f8c0c",
+        "used": 3.0,
+        "capacity": 5.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "IMAGE_STORAGE",
+        "used": 0.0,
+        "capacity": 45455.55650806427,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "DesktopPool::f31dfba7b0c24783cdb240889f5ca293bc7f8c0c",
+        "used": 1.0477179733333334E7,
+        "capacity": 1.79446784E8,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "POOL_STORAGE",
+        "used": 78198.53555297852,
+        "capacity": 2831732.375,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "POOL_MEM",
+        "used": 1.0477179733333334E7,
+        "capacity": 1.79446784E8,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "DesktopPool::f31dfba7b0c24783cdb240889f5ca293bc7f8c0c",
+        "used": 5507.733333333333,
+        "capacity": 30160.0,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "edbc617d-c04e-473f-a32d-832f46aa5bdc",
+        "bought": [
+          {
+            "commodityType": "ACTIVE_SESSIONS",
+            "used": 3.0,
+            "active": true,
+            "resizable": false
+          }
+        ],
+        "providerType": "VIEW_POD"
+      },
+      {
+        "providerId": "8833d761da6388c04d61168e5d0dd04a12efe34d",
+        "bought": [
+          {
+            "commodityType": "MEM_ALLOCATION",
+            "key": "VirtualDataCenter::4c55cc8b83be02357bcc4a496b5278a22e136677",
+            "used": 1.0477179733333334E7,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "CPU_ALLOCATION",
+            "key": "VirtualDataCenter::4c55cc8b83be02357bcc4a496b5278a22e136677",
+            "used": 5507.733333333333,
+            "active": true,
+            "resizable": false
+          }
+        ],
+        "providerType": "VIRTUAL_DATACENTER"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "Desktop/NGExMzBiZjgtMTE4OS00MmZhLWI4M2QtNDQ5YTMzMmE5NGY5/c2l0ZTAyLXBvZDAxLXBvb2wwNC1saW5rZWQtc21hbGwtMXZjcHUtMmdi"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "VdcStitchingExternalProperty",
+        "value": "4c55cc8b83be02357bcc4a496b5278a22e136677"
+      }
+    ],
+    "virtual_datacenter_data": {
+      "desktopPoolData": {
+        "provisionType": "UPFRONT",
+        "cloneType": "LINKED",
+        "assignmentType": "DYNAMIC",
+        "masterImage": "4233fb65-8d8e-31fe-90c8-8a89369d5072",
+        "snapshot": "/Clone Snapshot"
+      }
+    }
+  },
+  {
+    "entityType": "VIRTUAL_DATACENTER",
+    "id": "8833d761da6388c04d61168e5d0dd04a12efe34d",
+    "displayName": "SITE02-POD01-POOL04",
+    "commoditiesSold": [
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "VirtualDataCenter::4c55cc8b83be02357bcc4a496b5278a22e136677",
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "VirtualDataCenter::4c55cc8b83be02357bcc4a496b5278a22e136677",
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "vsphere-dc25.corp.vmturbo.com/resgroup-48"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "VcTgtIdAndInternalName",
+        "value": "4c55cc8b83be02357bcc4a496b5278a22e136677"
+      }
+    ],
+    "virtual_datacenter_data": {
+    }
+  },
+  {
+    "entityType": "VIEW_POD",
+    "id": "edbc617d-c04e-473f-a32d-832f46aa5bdc",
+    "displayName": "Cluster-V005056B82DEB",
+    "commoditiesSold": [
+      {
+        "commodityType": "ACTIVE_SESSIONS",
+        "used": 15.0,
+        "capacity": 10000.0,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "Pod/YTYxMDUzYmYtMDI3Mi00ZTNiLWFjN2MtOTA0N2U3NTk5ZDQ1/ZWRiYzYxN2QtYzA0ZS00NzNmLWEzMmQtODMyZjQ2YWE1YmRj"
+      }
+    ]
+  },
+  {
+    "entityType": "PHYSICAL_MACHINE",
+    "id": "6521b6717ffed86e9e7a3d541f0537b9bc52b548",
+    "displayName": "hp-esx113.eng.vmturbo.com",
+    "commoditiesSold": [
+      {
+        "commodityType": "CLUSTER",
+        "key": "PhysicalMachine::6521b6717ffed86e9e7a3d541f0537b9bc52b548",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "VcTgtIdAndInternalName",
+        "value": "297f76e80ad4b746924080ad473e5a0b177d425e"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "host-123"
+      }
+    ],
+    "powerState": "POWERED_ON"
+  }
+]

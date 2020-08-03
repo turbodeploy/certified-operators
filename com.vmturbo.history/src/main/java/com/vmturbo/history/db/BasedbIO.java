@@ -2,6 +2,9 @@ package com.vmturbo.history.db;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.vmturbo.sql.utils.JooqQueryTrimmer.trimJooqErrorMessage;
+import static com.vmturbo.sql.utils.JooqQueryTrimmer.trimJooqQuery;
+import static com.vmturbo.sql.utils.JooqQueryTrimmer.trimJooqQueryString;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -13,11 +16,20 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import org.apache.commons.io.FileUtils;
+import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.tomcat.jdbc.pool.PoolProperties;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Insert;
@@ -39,21 +51,18 @@ import org.jooq.exception.InvalidResultException;
 import org.jooq.exception.MappingException;
 import org.jooq.impl.DSL;
 import org.jooq.types.ULong;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import org.springframework.beans.factory.annotation.Value;
 
 import com.vmturbo.api.enums.DayOfWeek;
 import com.vmturbo.api.enums.Period;
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.commons.Units;
-import com.vmturbo.history.db.DBConnectionPool;
-import com.vmturbo.history.db.SchemaUtil;
+import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.OptScope;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
-import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
@@ -79,7 +88,7 @@ public abstract class BasedbIO {
         /**
          * Immediate execution; the caller will handle failures.  A call with
          * this style will attempt to wait no more than
-         * {@link #RETRY_TIME_LIMIT_IMMEDIATE_MS} milliseconds before either
+         * {@link #retryTimeLimitImmediateMsec} milliseconds before either
          * succeeding or throwing an exception indicating failure.  (Because
          * of possible delays further down the stack, the maximum delay cannot
          * always be enforced.)  The {@code IMMEDIATE} style is intended to be
@@ -94,7 +103,7 @@ public abstract class BasedbIO {
         /**
          * Patient execution; the caller will handle failures.
          * A call with this style will attempt to wait no more than
-         * {@link #RETRY_TIME_LIMIT_PATIENT_MS} milliseconds before either
+         * {@link #retryTimeLimitPatientMsec} milliseconds before either
          * succeeding or throwing an exception indicating failure.  (Because
          * of possible delays further down the stack, the maximum delay cannot
          * always be enforced.)  This style of execution gives the operation
@@ -110,7 +119,7 @@ public abstract class BasedbIO {
         /**
          * Forced execution.  A call with this style will be repeated,
          * nominally indefinitely - but actually with a time limit of
-         * {@link #RETRY_TIME_LIMIT_MS}
+         * {@link #retryTimeLimitForcedMsec}
          * milliseconds before giving up and throwing an exception, which
          * should be considered fatal for the particular query.
          */
@@ -277,21 +286,24 @@ public abstract class BasedbIO {
      * try to write a row (or a group of related rows) until we decide the
      * writes will never succeed and we give up.
      */
-    protected static final double RETRY_TIME_LIMIT_MS = 6. * Units.HOUR_MS;
+    @Value("${executeTimeoutMsec.FORCED:120000}") // two minutes
+    protected long retryTimeLimitForcedMsec;
 
     /**
      * The maximum time, in milliseconds, we allow to elapse between the first
      * try to write a row (or a group of related rows) until we decide the
      * writes will never succeed and we give up for the IMMEDIATE style.
      */
-    protected static final double RETRY_TIME_LIMIT_IMMEDIATE_MS = 20. * Units.SECOND_MS;
+    @Value("${executeTimeoutMsec.IMMEDIATE:20000}") // 20 seconds
+    protected long retryTimeLimitImmediateMsec;
 
     /**
      * The maximum time, in milliseconds, we allow to elapse between the first
      * try to write a row (or a group of releted rows) until we decide the
      * writes will never succeed and we give up for the PATIENT style.
      */
-    protected static final double RETRY_TIME_LIMIT_PATIENT_MS = RETRY_TIME_LIMIT_IMMEDIATE_MS * 6.;
+    @Value("${executeTimeoutMsec.PATIENT:60000}") // one minute
+    protected long retryTimeLimitPatientMsec;
 
     /**
      * Cache for computed value of whether there is a read-only user.  Used only
@@ -301,7 +313,7 @@ public abstract class BasedbIO {
     protected static Boolean haveRoUser = null;
 
     /** Lock controlling access to {@link #haveRoUser}. */
-    protected static Object haveRoUserLock = new Object();
+    protected static final Object haveRoUserLock = new Object();
 
 
     /**
@@ -331,7 +343,7 @@ public abstract class BasedbIO {
 
     public synchronized void setSchemaForTests(String testSchemaName) {
         mappedSchemaForTests = testSchemaName;
-        initContextSettings();
+        getDialect();
     }
 
     /**
@@ -347,10 +359,54 @@ public abstract class BasedbIO {
         return sharedInstance;
     }
 
+    /**
+     * All dbIO instances share an underlying static singleton connection pool to the database.
+     *
+     * Set the internal connection pool timeout to the given value.
+     *
+     * @param timeoutSeconds The timeout to set on the internal connection pool in seconds.
+     *
+     * @throws IllegalStateException if called when the connection pool is not initialized
+     */
+    protected synchronized static void setInternalConnectionPoolTimeoutSeconds(final int timeoutSeconds) {
+        if (DBConnectionPool.instance == null) {
+            throw new IllegalStateException("DBConnectionPool not initialized");
+        }
+
+        DBConnectionPool.instance.getInternalPool().setRemoveAbandonedTimeout(timeoutSeconds);
+    }
+
+
+    /**
+     * All dbIO instances share an underlying static singleton connection pool to the database.
+     *
+     * Set the internal connection pool timeout to the given value.
+     *
+     * @return The query timeout for the internal connection pool. See
+     *         https://tomcat.apache.org/tomcat-7.0-doc/api/org/apache/tomcat/jdbc/pool/PoolConfiguration.html#getRemoveAbandonedTimeout()
+     *         for more details.
+     * @throws IllegalStateException if called when the connection pool is not initialized
+     */
+    static int getInternalConnectionPoolTimeoutSeconds() throws IllegalStateException {
+        if (DBConnectionPool.instance == null) {
+            throw new IllegalStateException("DBConnectionPool not initialized");
+        }
+
+        return DBConnectionPool.instance.getInternalPool().getRemoveAbandonedTimeout();
+    }
+
+    /**
+     * Check whether the internal connection pool has been initialized.
+     *
+     * @return whether the internal connection pool has been initialized.
+     */
+    static boolean isInternalConnectionPoolInitialized() {
+        return DBConnectionPool.instance != null;
+    }
 
     /** Cached JOOQ query builder instance. */
-    private DSLContext builder = null;
-    private Settings settings = null;
+    private final SetOnce<DSLContext> builder = new SetOnce<>();
+    private final SetOnce<Settings> settings = new SetOnce<>();
 
     /**
      * Return a new auto-committing database connection.  The connection is set
@@ -396,7 +452,57 @@ public abstract class BasedbIO {
         }
         catch (SQLException ex) {
             logger.error("Can't make DB connection transactional! " + ex);
-            throw new RuntimeException(ex);
+            safeClose(conn);
+            throw new VmtDbException(ex.getErrorCode(), ex);
+        }
+        return conn;
+    }
+
+    /**
+     * Get a new database connection, with autocommit enabled, from outside the connection pool.
+     *
+     * <p>This is primarily useful for operations that are expected to take a very long time to
+     * execute, since pooled connections are subject to the pool's internal timeout after which
+     * it abandons the connection and throws an exception to the caller.
+     * The {@link #setInternalConnectionPoolTimeoutSeconds(int)} is an option in this case, but
+     * it affects all pooled connections. This has one bad and one worse potential consequence:
+     * </p>
+     * <ul>
+     * <li><b>Bad</b>:An operation that is not expected to take very long happens while the
+     * timeout has been extended, and it gets stuck and takes much longer than it should to
+     * hit that timeout.
+     * </li>
+     * <li><b>Worse</b>:An operation that is expected to take a very long time ends up
+     * starting after the timeout has been set to its normal value (by another thread that
+     * just happens to be performing a long operation at the same time), and it times out
+     * before it has had a chance to complete.
+     * </li>
+     * </ul>
+     *
+     * @return the connection
+     * @throws SQLException if the connection cannot be allocated
+     */
+    public Connection unpooledConnection() throws SQLException {
+        return DriverManager.getConnection(getMySQLConnectionUrl(), getUserName(), getPassword());
+    }
+
+    /**
+     * Get a new database connection, with autocommit disabled, from outside the conneciton pool.
+     *
+     * @return the connection
+     * @throws SQLException if the connection cannot be allocated or autocommit cannot be disabled
+     * @see #unpooledConnection() unpooledConnection() for more details
+     */
+    public Connection unpooledTransConnection() throws SQLException {
+        final Connection conn = unpooledConnection();
+        try {
+            if (conn != null) {
+                conn.setAutoCommit(false);
+            }
+        } catch (SQLException ex) {
+            logger.error("Can't make DB connection transactional! " + ex);
+            safeClose(conn);
+            throw ex;
         }
         return conn;
     }
@@ -404,31 +510,48 @@ public abstract class BasedbIO {
     /**
      * Return a new auto-committing database connection.  The connection is set
      * to execute each statement in its own implicit transaction.
-     * <p>
-     * <emph>Caution:</emph>  "Each statement in its own transaction" is an
+     *
+     * <p>Caution: "Each statement in its own transaction" is an
      * informal statement.  The actual rules applicable for read-only
      * connections, as documented for JDBC (on which JOOQ is built) are as
-     * follows:<br>
-     * When autocommit is true the commit occurs when the statement completes.
+     * follows:</p>
+     *
+     * <p>When autocommit is true the commit occurs when the statement completes.
      * The time when the statement completes depends on the type of SQL
-     * Statement.
+     * Statement.</p>
+     *
      * <ul>
      * <li> For Select statements, the statement is complete when the associated
-     * result set is closed.
+     * result set is closed.</li>
      * <li> For CallableStatement objects or for statements that return
      * multiple results, the statement is complete when all of the associated
      * result sets have been closed, and all output parameters have been
-     * retrieved.
+     * retrieved.</li>
      * </ul>
      *
      * @return A new read-only database connection.
      * @throws VmtDbException if a read-only connection cannot be allocated.
      */
     protected Connection readOnlyConnection() throws VmtDbException {
-        initPool();
+        initPool(getPoolPropertiesBase());
         return DBConnectionPool.instance
                 .getConnection(getReadOnlyUserName(), getReadOnlyPassword());
 
+    }
+
+    /**
+     * Close a DB connection, and swallow any exception that may occur.
+     *
+     * <p>This is intended to be used when a connection-returning method fails after allocating
+     * its connection, and will throw an exception related to the actual failure.</p>
+     *
+     * @param conn connection to close
+     */
+    private void safeClose(Connection conn) {
+        try {
+            conn.close();
+        } catch (SQLException e) {
+        }
     }
 
     /**
@@ -468,24 +591,39 @@ public abstract class BasedbIO {
      */
     public synchronized DSLContext JooqBuilder() {
         // Test and set later is safe here because we're synchronized.
-        if (builder == null) {
-            SQLDialect dialect = initContextSettings();
-
-            builder = DSL.using(dialect, settings);
-        }
-        return builder;
+        return builder.ensureSet(() -> {
+            SQLDialect dialect = getDialect();
+            return DSL.using(dialect, getSettings());
+        });
     }
 
-    private SQLDialect initContextSettings() {
-        SQLDialect dialect = SchemaUtil.SUPPORTED_ADAPTERS.get(getAdapter());
-        if (dialect == null)
-            throw new UnsupportedOperationException("Invalid SQL dialect");
-        settings = new Settings().withRenderFormatted(true);
+    @Nonnull
+    private Settings getSettings() {
+        // ensureSet will not return a null, because the nested supplier does not return null.
+        return settings.ensureSet(() -> {
+            Settings settings = new Settings()
+                    .withRenderFormatted(true)
+                    // Set withRenderSchema to false to avoid rendering schema name in Jooq generated SQL
+                    // statement. For example, with false withRenderSchema, statement
+                    // "SELECT * FROM vmtdb.entities" will be changed to "SELECT * FROM entities".
+                    // And dynamically set schema name in the constructed JDBC connection URL to support
+                    // multi-tenant database.
+                    .withRenderSchema(false);
 
-        // set a schema mapping in order to support Unit tests:
-        if (mappedSchemaForTests != null) {
-            settings.withRenderMapping(new RenderMapping().withSchemata(new MappedSchema()
-                    .withInput("vmtdb").withOutput(mappedSchemaForTests)));
+            // set a schema mapping in order to support Unit tests:
+            if (mappedSchemaForTests != null) {
+                settings.withRenderMapping(new RenderMapping().withSchemata(new MappedSchema()
+                        .withInput("vmtdb").withOutput(mappedSchemaForTests)));
+            }
+
+            return settings;
+        });
+    }
+
+    private SQLDialect getDialect() {
+        SQLDialect dialect = SchemaUtil.SUPPORTED_ADAPTERS.get(getAdapter());
+        if (dialect == null) {
+            throw new UnsupportedOperationException("Invalid SQL dialect");
         }
         return dialect;
     }
@@ -508,7 +646,7 @@ public abstract class BasedbIO {
      * @return
      */
     public DSLContext using(Connection conn) {
-        return DSL.using(conn, settings);
+        return DSL.using(conn, getSettings());
     }
 
     /**
@@ -787,7 +925,9 @@ public abstract class BasedbIO {
             return execute(query, conn);
         }
         catch (DataAccessException e) {
-            print(query);
+            logger.error("Exception during query execution : " +
+                query.getSQL(false) +  " with cause : "+
+                e.getCause());
             throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
         }
         finally {
@@ -1041,28 +1181,24 @@ public abstract class BasedbIO {
         java.util.Date startTime = new java.util.Date();
 
         // The time limit imposed for the overall operation
-        double timeLimit_ms;
+        long timeLimit_ms;
 
         // If non-null, the time limit imposed for the execution of an
         // individual query.  We use a (weak) approximation; we could compute
         // this limit dynamically based on the time already used.  But there
         // seems little point.  At worst, we'll end up using a total of twice
         // the time we should have.
-        Integer queryLimit_sec;
         switch (style) {
             case IMMEDIATE:
-                timeLimit_ms = RETRY_TIME_LIMIT_IMMEDIATE_MS;
-                queryLimit_sec = (int)Math.ceil(timeLimit_ms * Units.MILLI);
+                timeLimit_ms = retryTimeLimitImmediateMsec;
                 break;
 
             case PATIENT:
-                timeLimit_ms = RETRY_TIME_LIMIT_PATIENT_MS;
-                queryLimit_sec = (int)Math.ceil(timeLimit_ms * Units.MILLI);
+                timeLimit_ms = retryTimeLimitPatientMsec;
                 break;
 
             case FORCED:
-                timeLimit_ms = RETRY_TIME_LIMIT_MS;
-                queryLimit_sec = null;
+                timeLimit_ms = retryTimeLimitForcedMsec;
                 break;
 
             default:
@@ -1071,11 +1207,10 @@ public abstract class BasedbIO {
                 // compiler from complaining that the variables might not have
                 // be initialized.
                 timeLimit_ms = 0;
-                queryLimit_sec = null;
                 checkArgument(false, "Unsupported style value " + style);
         }
-
-        long deadline = (long)(System.currentTimeMillis() + timeLimit_ms);
+        Integer queryLimit_sec = (int)Math.max(1, TimeUnit.MILLISECONDS.toSeconds(timeLimit_ms));
+        long deadline = System.currentTimeMillis() + timeLimit_ms;
         int tries;
         Connection conn = null;
         Exception lastException = null;
@@ -1110,7 +1245,9 @@ public abstract class BasedbIO {
                                 ? "no time limit"
                                 : "time limit " + queryLimit_sec + " seconds", query);
                     }
-                    try (DataMetricTimer timer = Metrics.QUERY_EXECUTE_DURATION.startTimer()) {
+                    try (DataMetricTimer timer = Metrics.QUERY_EXECUTE_DURATION.startTimer();
+                         OptScope scope = Tracing.addOpToTrace("query")) {
+                        Tracing.log(query.getSQL());
                         if (query instanceof ResultQuery<?>) {
                             ResultQuery<? extends Record> resQuery = (ResultQuery<?>) query;
                             results.add(using(conn).fetch(resQuery));
@@ -1142,25 +1279,26 @@ public abstract class BasedbIO {
                          */
                     case SOFT:
                         if (logger.isDebugEnabled() && ((tries % 10) == 0)) {
-                            logger.debug(String.format("Try %d to execute queries" + "failed: %s%n"
-                                    + "Last known query was:%n"
-                                    + "%s%n------%n", tries, ex, lastQuery), ex);
+                            logger.debug(String.format("Try %d to execute queries failed: %s%n"
+                                            + "Last known query was:%n"
+                                            + "%s%n------%n",
+                                    tries, trimJooqErrorMessage(ex), trimJooqQuery(lastQuery)), ex);
                         } else {
-                            logger.warn("Query failed with soft error (try: {})." +
-                                " Exception message: {}", tries, ex.getMessage());
+                            logSoftError("Query failed with soft error (try: {})." +
+                                " Exception message: {}", tries, ex);
                         }
                         continue;
                     case SERVER:
                         logger.error(String.format("Server error accessing database; " +
                                 "Last known query was:%n"
-                                + "%s%n------%n", lastQuery), ex);
-                        internalNotifyUser("Server internal error", ex.toString());
+                                + "%s%n------%n", trimJooqQuery(lastQuery)), ex);
+                        internalNotifyUser("Server internal error", trimJooqErrorMessage(ex));
                         continue;
 
                     case HARD:
                         logger.error(String.format("Hard error accessing database; "
                                 + "Last known query was:%n"
-                                + "%s%n------%n", lastQuery), ex);
+                                + "%s%n------%n", trimJooqQuery(lastQuery)), ex);
                         throw new HardFailureException(ex);
                 }
             }
@@ -1177,12 +1315,12 @@ public abstract class BasedbIO {
                                 + "%d tries.  Query list was:%n",
                         startTime, style, tries);
         for (Query query : queries) {
-            message = String.format("%s%s%n------%n", message, query);
+            message = String.format("%s%s%n------%n", message, trimJooqQuery(query));
         }
         if (style == Style.FORCED) {
             internalNotifyUser("Database write failures",
                     "Couldn't write some data to the database in " +
-                            formatElapsed((long)RETRY_TIME_LIMIT_MS)
+                            formatElapsed(retryTimeLimitForcedMsec)
                             + "; giving up on it");
             logger.fatal(message);
             throw new UnsupportedOperationException(message, lastException);
@@ -1192,8 +1330,25 @@ public abstract class BasedbIO {
         }
     }
 
-
-
+    /**
+     * Log a soft error encountered when performing a db operation, taking care to deal with JOOQ's
+     * large and often largely useless messages.
+     * <p>If we're logging at debug level or above, we'll log the complete exception message, in which
+     * JOOQ will often copy the entire SQL statement that was being executed, formatted on multiple
+     * lines and often including hundreds of lists of question-mark placeholders, where values
+     * were bound for batch execution.</p>
+     *
+     * <p>At lower log levels, we include only the first line of the exception message, to avoid
+     * the cruft mentioned above.</p>
+     *
+     * @param s Log message, including "{}" placeholders for tries count and exception message
+     * @param tries tries count for this operation
+     * @param e exception returned for operation
+     */
+    private void logSoftError(@Nonnull final String s, final int tries, @Nonnull final Throwable e) {
+        logger.log(logger.isDebugEnabled() ? Level.DEBUG : Level.WARN,
+                s, tries, trimJooqQueryString(e.getMessage()));
+    }
 
     /**
      * Convenience override to execute a query.  This method
@@ -1240,12 +1395,15 @@ public abstract class BasedbIO {
         if (ex instanceof SQLException) {
             String sqlState = ((SQLException)ex).getSQLState();
 
-            // SQLSTATE values are always 5 characters long, per standard.
-            if (sqlState.length() != 5) {
+            // SQLSTATE values are always 5 characters long, per standard, but
+            // we sometime see 2-character versions, which we assume provide
+            // initial two-character class code of the full sqlState.
+            if (sqlState.length() != 5 && sqlState.length() != 2) {
                 logger.error("Strange sqlState value: " + sqlState, originalEx);
                 return DBFailureType.SOFT;
             }
 
+            // try the full code first, then its class code
             DBFailureType ret = STATE_TO_DBFAILURE.get(sqlState);
             if (ret == null) {
                 ret = STATE_TO_DBFAILURE.get(sqlState.substring(0, 2));
@@ -1266,90 +1424,102 @@ public abstract class BasedbIO {
      *
      * @param clearOldDb should the old db be cleared
      * @param version what version of schema is "current" - i.e. what should we
-     * @throws SQLException if there is an SQL exception
-     * @throws VmtDbException
+     * @param dbName The name of the database (e.g. "vmtdb".
+     * @param migrationLocationOverride If set, overrides the location in the classpath we scan
+     *                                  for flyway migrations.
+     * @throws VmtDbException If there is a database error.
      */
     @VisibleForTesting
     public void init(boolean clearOldDb, Double version, String dbName,
-                     String... additionalLocations) throws VmtDbException {
-        // Attempt to retrieve root connection:
-        Connection rootConn = null;
+            Optional<String> migrationLocationOverride)
+            throws VmtDbException {
         try {
-            rootConn = getRootConnection();
+            // Test DB connection first to the schema under given user credentials.
+            DBConnectionPool.setConnectionPoolInstance(null);
+            connection().close();
+            logger.info("DB connection is available to schema '{}' from user '{}'.",
+                    dbName, getUserName());
+        } catch (VmtDbException | SQLException e) {
+            // VmtDbException or SQLException will be thrown if given db schema name or db user does
+            // not exist or password has been changed. This is a valid case.
+            initUsingRoot(clearOldDb, dbName);
         }
-        catch (SQLException sqle) {
+
+        // Initialize the tables at the latest schema:
+        logger.info("Initialize tables...\n");
+        SchemaUtil.initDb(version, clearOldDb, migrationLocationOverride);
+    }
+
+    protected abstract PoolProperties getPoolPropertiesBase();
+
+    /**
+     * Initialize using root credentials to create database schema and user.
+     *
+     * @param clearOldDb True if old db be cleared, otherwise false.
+     * @param dbName     The name of the database (e.g. "vmtdb").
+     * @throws VmtDbException If there is a database error.
+     */
+    private void initUsingRoot(boolean clearOldDb, String dbName) throws VmtDbException {
+        logger.info("Database schema '{}' or user '{}' does not exist or password has been changed. " +
+            "Initializing schema and user under root credentials...", dbName, getUserName());
+        // Attempt to retrieve root connection:
+        try (Connection rootConn = getRootConnection()) {
+            // if desired, remove the previous database
+            if (clearOldDb) {
+                SchemaUtil.dropDb(dbName, rootConn);
+            }
+
+            // Create the database
+            logger.info("Initializing database '" + dbName + "'...");
+            SchemaUtil.createDb(dbName, rootConn);
+            execute("use `" + dbName + "`;", rootConn);
+
+            createDBUser(rootConn, dbName, getRequestHost());
+            // Create user on localhost for testing.
+            createDBUser(rootConn, dbName, "localhost");
+        } catch (SQLException sqle) {
             logger.error("=======================================================");
             logger.error("=  Unable to retrieve connection! Make sure MySQL is  =");
             logger.error("=  running and the root password is correct.          =");
             logger.error("=======================================================", sqle);
             throw new VmtDbException(VmtDbException.CONN_POOL_STARTUP,
-                    "Cannot retrieve root db connection", sqle);
+                "Cannot retrieve root db connection", sqle);
         }
+    }
 
-        // if desired, remove the previous database
-        if (clearOldDb) {
-            SchemaUtil.dropDb(dbName, rootConn);
-        }
-
-        // Create the database
-        logger.info("Initializing database '" + dbName + "'...");
-        SchemaUtil.createDb(dbName, rootConn);
-        execute("use " + dbName + ";", rootConn);
-
-        // Allow 'vmtplatform' to access the database (= grants.sql):
-        final String requestUser = "'vmtplatform'@'" + getRequestHost() + "'";
-        logger.info("Initialize permissions for '" + requestUser + "' on '" + dbName + "'...");
-        execute("GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, PROCESS, REFERENCES, INDEX, ALTER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER " +
-                        "ON *.* TO " + requestUser + " " +
-                        "IDENTIFIED BY '" + getPassword() + "';",
-                rootConn);
-        execute("GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, PROCESS, REFERENCES, INDEX, ALTER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER " +
-                        "ON *.* TO " + "'vmtplatform'@'localhost'" + " " +
-                        "IDENTIFIED BY '" + getPassword() + "';",
-                rootConn);
-        execute("FLUSH PRIVILEGES;", rootConn);
-
+    private void createDBUser(Connection rootConn, String dbName, String hostName) throws SQLException {
+        // Allow given user to access the database (= grants.sql):
+        final String requestUser = String.format("'%s'@'%s'", getUserName(), hostName);
+        logger.info("Initialize permissions for {} on `{}`...", requestUser, dbName);
+        logger.info("Removing {} db user if it exists.", requestUser);
         try {
-            rootConn.close();
+            rootConn.createStatement().execute(
+                    // DROP USER IF EXISTS does not appear until MySQL 5.7, and breaks Jenkins build
+                    String.format("DROP USER %s", requestUser));
+        } catch (SQLException e) {
+            // did not prevoiusly exist
         }
-        catch (SQLException e) {
-            logger.error(e);
-        }
-
-        // Initialize connection pool using 'vmtplatform' by creating a connection.
+        logger.info("Creating {} db user.", requestUser);
+        rootConn.createStatement().execute(
+                String.format("CREATE USER %s IDENTIFIED BY '%s'", requestUser, getPassword()));
+        logger.info("Granting ALL vmtdb privileges to user {}.", requestUser);
+        rootConn.createStatement().execute(
+                String.format("GRANT ALL PRIVILEGES ON `%s`.* TO %s", dbName, requestUser));
+        logger.info("Granting global PROCESS privileges to user {}.", requestUser);
         try {
-            DBConnectionPool.instance = null;
-            connection().close();
+            rootConn.createStatement().execute(
+                    String.format("GRANT PROCESS ON *.* TO %s", requestUser));
+        } catch (SQLException e) {
+            logger.warn("Failed to grant PROCESS privilege; DbMonitor will only see history threads", e);
         }
-        catch (SQLException e) {
-            logger.error("Migrate failed! Unable to initialize connection pool!", e);
-            return;
-        }
-
-        // Initialize the tables at the latest schema:
-        logger.info("Initialize tables...\n");
-        SchemaUtil.initDb(version, clearOldDb, additionalLocations);
+        rootConn.createStatement().execute("FLUSH PRIVILEGES");
     }
 
     /**
      * @return The connection URL String to be used to connect to a MySQL instance.
      * The host, port and database name are properties of this manager.
      */
-    public String getMySQLConnectionUrl() {
-        return "jdbc:" + getAdapter()
-                + "://"
-                + getHostName()
-                + ":"
-                + getPortNumber()
-                + "/"
-                + getDatabaseName()
-                + "?useUnicode=true"
-                + "&tcpRcvBuf=8192"
-                + "&tcpSndBuf=8192"
-                + "&characterEncoding=UTF-8"
-                + "&characterSetResults=UTF-8"
-                + "&connectionCollation=utf8_unicode_ci";
-    }
+    abstract String getMySQLConnectionUrl();
 
     /**
      * Notify the user of a critical problem with the database.  Notifications
@@ -1375,9 +1545,11 @@ public abstract class BasedbIO {
     /**
      * Initializes the JDBC connection pool based on the credentials specified
      * in this manager.
-     * @throws VmtDbException
+     *
+     * @param poolParametersBase configurable pool parameters
+     * @throws VmtDbException if there's a connection error
      */
-    private void initPool() throws VmtDbException {
+    private void initPool(PoolProperties poolParametersBase) throws VmtDbException {
         synchronized (this) {
             if (DBConnectionPool.instance == null) {
                 String driverName = null, url = null;
@@ -1390,11 +1562,12 @@ public abstract class BasedbIO {
                     throw new UnsupportedOperationException("Unsupported SQL dialect");
                 }
 
-                DBConnectionPool.instance = new DBConnectionPool(url,
+                DBConnectionPool.setConnectionPoolInstance(new DBConnectionPool(url,
                         driverName,
                         getUserName(),
                         getPassword(),
-                        getQueryTimeoutSeconds());
+                        getQueryTimeoutSeconds(),
+                        poolParametersBase));
             }
         }
     }
@@ -1426,7 +1599,7 @@ public abstract class BasedbIO {
      * @throws VmtDbException if a connection cannot be allocated.
      */
     public Connection connection() throws VmtDbException {
-        initPool();
+        initPool(getPoolPropertiesBase());
         Connection conn = DBConnectionPool.instance.getConnection();
         // As connections are reused, set autocommit to true every time
         // as it could be set to false during previous calls by other
@@ -1450,7 +1623,7 @@ public abstract class BasedbIO {
      * @throws VmtDbException
      */
     public Connection getReadOnlyConnection() throws VmtDbException {
-        initPool();
+        initPool(getPoolPropertiesBase());
         return DBConnectionPool.instance
                 .getConnection(getReadOnlyUserName(), getReadOnlyPassword());
     }
@@ -1469,38 +1642,30 @@ public abstract class BasedbIO {
         Driver myDriver = new org.mariadb.jdbc.Driver();
         DriverManager.registerDriver(myDriver);
 
-        return DriverManager.getConnection(getRootConnectionUrl(), "root", getRootPassword());
+        return DriverManager.getConnection(getRootConnectionUrl(), getRootUsername(), getRootPassword());
     }
 
     /**
      * @return The connection URL String to be used to connect to a MySQL instance.
      * The host, port and database name are properties of this manager.
      */
-    public String getRootConnectionUrl() {
-        return "jdbc:" + getAdapter()
-                + "://"
-                + getHostName()
-                + ":"
-                + getPortNumber();
-    }
-
-
+    abstract String getRootConnectionUrl();
 
     public void shutdown() {
         if (DBConnectionPool.instance != null)
             DBConnectionPool.instance.shutdown();
     }
 
-
     // Accessors for connection parameters
     public abstract String getUserName();
     public abstract String getPassword();
+    public abstract String getRootUsername();
     public abstract String getRootPassword();
     public abstract String getRequestHost();
     public abstract String getAdapter();
     public abstract String getHostName();
     public abstract String getPortNumber();
-    public abstract String getDatabaseName();
+    public abstract String getDbSchemaName();
     public abstract String getReadOnlyUserName();
     public abstract String getReadOnlyPassword();
     public abstract int getQueryTimeoutSeconds();

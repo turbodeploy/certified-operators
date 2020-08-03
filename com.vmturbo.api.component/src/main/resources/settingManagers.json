@@ -8,12 +8,14 @@
 {
   "managersByUuid": {
     // temporary hack since UI requires at least one 'actionscriptmanager to process any
-    // controlmanager entries, i.e. workflows - fix is OM-38669
+    // controlmanager entries, i.e. workflows.
+    // TODO: fix is OM-38669
     "actionscriptmanager": {
       "displayName": "Action Script Settings",
       "defaultCategory": "Automation",
       "settings": [
-        "provisionActionScript"
+        "provisionActionScript",
+        "moveActionScript"
       ]
     },
     "automationmanager": {
@@ -21,43 +23,59 @@
       "defaultCategory": "Automation",
       "settings": [
         "move",
+        "businessUserMove",
+        "storageMove",
+        "cloudComputeScale",
         "suspend",
+        "suspendIsDisabled",
         "delete",
         "resize",
         "provision",
+        "provisionIsDisabled",
         "activate",
         "reconfigure",
-        "storageMove",
-        "resizeVcpuAboveMaxThreshold",
-        "resizeVcpuBelowMinThreshold",
         "resizeVcpuUpInBetweenThresholds",
         "resizeVcpuDownInBetweenThresholds",
-        "resizeVmemAboveMaxThreshold",
-        "resizeVmemBelowMinThreshold",
+        "resizeVcpuAboveMaxThreshold",
+        "resizeVcpuBelowMinThreshold",
         "resizeVmemUpInBetweenThresholds",
         "resizeVmemDownInBetweenThresholds",
+        "resizeVmemAboveMaxThreshold",
+        "resizeVmemBelowMinThreshold",
         "enforceNonDisruptive",
-        "disableAllActions"
+        "useHypervisorMetricsForResizing",
+        "disableAllActions",
+        "shopTogether",
+        "resizeUpHeap",
+        "resizeDownHeap",
+        "scalingPolicy",
+        "resizeUpDBMem",
+        "resizeDownDBMem"
       ],
       // Automation settings are pretty specific in the API/UI,
       // and the design is not finalized. So we put them in
       // a different place :)
       "planSettingInfo": {
-        "uiToXlValueConversion" : {
-          "true" : "AUTOMATIC",
-          "false" : "DISABLED"
-        },
         "supportedSettingDefaults" : {
           "VirtualMachine" : {
-            "resize": "true"
+            "resize": "AUTOMATIC",
+            "provision": "AUTOMATIC",
+            "suspend": "AUTOMATIC"
           },
           "PhysicalMachine" : {
-            "provision" : "true",
-            "suspend": "true"
+            "provision" : "AUTOMATIC",
+            "suspend": "AUTOMATIC"
           },
           "Storage" : {
-            "provision" : "true",
-            "suspend" : "false"
+            "provision" : "AUTOMATIC",
+            "suspend" : "DISABLED"
+          },
+          "ContainerPod" : {
+            "provision" : "AUTOMATIC",
+            "suspend" : "DISABLED"
+          },
+          "Container" : {
+            "resize": "AUTOMATIC"
           }
         }
       }
@@ -68,6 +86,7 @@
       "settings": [
         "activateActionWorkflow",
         "moveActionWorkflow",
+        "moveActionWorkflowWithNativeAsDefault",
         "provisionActionWorkflow",
         "resizeActionWorkflow",
         "suspendActionWorkflow",
@@ -89,9 +108,13 @@
     "marketsettingsmanager": {
       "displayName": "Operational Constraints",
       "defaultCategory": "Analysis",
+      // The following market setting is removed from the settings list below,
+      // as it is an internal setting that should not be exposed by API:
+      // "vcpuRequestUtilization" OM-51575
       "settings": [
         "cpuUtilization",
         "memoryUtilization",
+        "dbmemUtilization",
         "ioThroughput",
         "netThroughput",
         "swappingUtilization",
@@ -103,24 +126,54 @@
         "memoryOverprovisionedPercentage",
         "utilTarget",
         "targetBand",
-        "ignoreHa",
         "usedIncrement_VCPU",
         "usedIncrement_VMEM",
+        "usedIncrement_Container_VCPU",
+        "usedIncrement_Container_VMEM",
         "usedIncrement_VStorage",
         "usedIncrement_StAmt",
-        "responseTimeCapacity",
+        "excludedTemplatesOids",
         "slaCapacity",
-        "transactionsCapacity",
-        "autoSetTransactionsCapacity",
+        "responseTimeSLO",
+        "responseTimeSLOEnabled",
+        "transactionSLO",
+        "transactionSLOEnabled",
         "heapUtilization",
         "collectionTimeUtilization",
         "RATE_OF_RESIZE",
+        "containerRateOfResize",
+        "percentileAggressivenessBusinessUser",
+        "percentileAggressivenessContainerSpec",
+        "percentileAggressivenessVirtualMachine",
+        "minObservationPeriodVirtualMachine",
+        "minObservationPeriodContainerSpec",
+        "maxObservationPeriodBusinessUser",
+        "maxObservationPeriodContainerSpec",
+        "maxObservationPeriodVirtualMachine",
+        "maxObservationPeriodDesktopPool",
+        "maxVMGrowthObservationPeriod",
+        "resizeTargetUtilizationNetThroughput",
+        "resizeTargetUtilizationIoThroughput",
+        "resizeTargetUtilizationImageCPU",
+        "resizeTargetUtilizationImageMem",
+        "resizeTargetUtilizationImageStorage",
         "resizeTargetUtilizationVcpu",
         "resizeTargetUtilizationVmem",
         "resizeVcpuMinThreshold",
         "resizeVcpuMaxThreshold",
         "resizeVmemMinThreshold",
-        "resizeVmemMaxThreshold"
+        "resizeVmemMaxThreshold",
+        "consistentResizing",
+        "ignoreNvmePreRequisite",
+        "instanceStoreAwareScaling",
+        "poolCpuUtilizationThreshold",
+        "poolMemoryUtilizationThreshold",
+        "poolStorageUtilizationThreshold",
+        "viewPodActiveSessionCapacity",
+        "dailyObservationWindowDesktopPool",
+        "appHeapScalingIncrement",
+        "dbMemScalingIncrement",
+        "resizeVStorage"
       ]
     },
     "storagesettingsmanager": {
@@ -137,6 +190,17 @@
         "diskCapacityVSeries",
         "ignoreDirectories",
         "ignoreFiles"
+      ]
+    },
+    "hcisettingsmanager": {
+      "displayName": "Hypercongerged Infrastructure Settings",
+      "defaultCategory": "Analysis",
+      "settings": [
+        "hciCompressionRatio",
+        "hciUseCompression",
+        "hciSlackSpacePercentage",
+        "hciHostCapacityReservation",
+        "hciHostIopsCapacity"
       ]
     },
     "persistencemanager" : {
@@ -184,13 +248,43 @@
       "displayName": "",
       "defaultCategory": "RI Purchase Profile",
       "settings": [
-        "preferredOfferingClass",
-        "preferredTerm",
-        "preferredPaymentOption",
+        "ri.purchase",
+        "ri.aws.preferredOfferingClass",
+        "ri.aws.preferredTerm",
+        "ri.aws.preferredPaymentOption",
+        "ri.azure.preferredOfferingClass",
+        "ri.azure.preferredTerm",
+        "ri.azure.preferredPaymentOption",
         "recurrencePattern",
         "preferredCurrentWeight",
         "preferredCoverage",
-        "riCoverageOverride"
+        "riCoverageOverride",
+        "ri.demandType"
+      ]
+    },
+    "osmigrationmanager": {
+      "displayName": "OS Migration Manager",
+      "settings": [
+        "selectedMigrationProfileOption",
+        "matchToSource",
+        "showMatchSourceToTargetOsOption",
+        "showByolOption",
+        "showCustomOsOption",
+        "linuxTargetOs",
+        "rhelTargetOs",
+        "slesTargetOs",
+        "windowsTargetOs",
+        "linuxByol",
+        "rhelByol",
+        "slesByol",
+        "windowsByol"
+      ]
+    },
+    "telemetrymanager": {
+      "displayName": "Telemetry Manager",
+      "settings": [
+        "telemetryEnabled",
+        "telemetryTermsAccepted"
       ]
     }
   }

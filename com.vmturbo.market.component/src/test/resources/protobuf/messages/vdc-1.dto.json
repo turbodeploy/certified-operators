@@ -15,8 +15,12 @@
       "effectiveCapacityPercentage": 80.0,
       "reservedCapacity": 0.0,
       "isThin": true,
-      "historicalUsed": 5000.0,
-      "historicalPeak": 8000.0
+      "historicalUsed": {
+        "histUtilization": 5000.0
+      },
+      "historicalPeak": {
+        "histUtilization": 8000.0
+      }
     }
   ],
   "entityState": "POWERED_ON",

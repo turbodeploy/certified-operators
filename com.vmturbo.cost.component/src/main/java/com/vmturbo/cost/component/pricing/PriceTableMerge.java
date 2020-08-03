@@ -6,6 +6,8 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Stopwatch;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -55,6 +57,7 @@ public class PriceTableMerge {
      */
     @Nonnull
     public ReservedInstancePriceTable mergeRi(@Nonnull final Collection<ReservedInstancePriceTable> riPriceTables) {
+        Stopwatch stopwatch = Stopwatch.createStarted();
         if (riPriceTables.isEmpty()) {
             return ReservedInstancePriceTable.getDefaultInstance();
         } else if (riPriceTables.size() == 1) {
@@ -64,20 +67,9 @@ public class PriceTableMerge {
             final ReservedInstancePriceTable.Builder mergeBuilder = riPriceTableIterator.next().toBuilder();
             while (riPriceTableIterator.hasNext()) {
                 final ReservedInstancePriceTable nextPriceTable = riPriceTableIterator.next();
-                nextPriceTable.getRiPricesBySpecIdMap().forEach((specId, riPrice) -> {
-                    if (mergeBuilder.containsRiPricesBySpecId(specId)) {
-                        // This shouldn't happen, because different price tables should be coming from
-                        // different probe categories (e.g. AWS and Azure) and shouldn't have overlapping
-                        // RI spec IDs.
-                        logger.error("RI Spec {} exists in two separate RI price tables! This means" +
-                            " RI spec ID assignment isn't working as expected. Ignoring one of them.",
-                            specId);
-                    } else {
-                        mergeBuilder.putRiPricesBySpecId(specId, riPrice);
-                    }
-                });
                 mergeBuilder.putAllRiPricesBySpecId(nextPriceTable.getRiPricesBySpecIdMap());
             }
+            logger.info("Merge RI price tables took {} ", stopwatch);
             return mergeBuilder.build();
         }
     }
@@ -106,10 +98,10 @@ public class PriceTableMerge {
                 final Map<Long, OnDemandPriceTable> srcOnDemandPriceTables = nextPriceTable.getOnDemandPriceByRegionIdMap();
                 srcOnDemandPriceTables.forEach((regionId, priceTable) -> {
                     if (mergeBuilder.containsOnDemandPriceByRegionId(regionId)) {
-                        // This shouldn't happen, because different price tables should be coming from
-                        // different probe categories (e.g. AWS and Azure) and shouldn't have overlapping
-                        // region IDs.
-                        logger.error("Region {} exists in two separate price tables (for on " +
+                        // This can happen if Azure EA is added and there are multiple price tables
+                        // containing overlapping region ids.
+                        //TODO Fix this when Azure Buy RI support is added
+                        logger.warn("Region {} exists in two separate price tables (for on " +
                             "demand instances)! This means region ID assignment isn't working as " +
                             "expected. Ignoring one of them.", regionId);
                     } else {
@@ -117,17 +109,18 @@ public class PriceTableMerge {
                     }
                 });
 
-                final Map<Long, SpotInstancePriceTable> srcSpotPriceTables = nextPriceTable.getSpotPriceByRegionIdMap();
-                srcSpotPriceTables.forEach((regionId, priceTable) -> {
-                    if (mergeBuilder.containsSpotPriceByRegionId(regionId)) {
-                        // This shouldn't happen, because different price tables should be coming from
-                        // different probe categories (e.g. AWS and Azure) and shouldn't have overlapping
-                        // region IDs.
-                        logger.error("Region {} exists in two separate price tables (for " +
+                final Map<Long, SpotInstancePriceTable> srcSpotPriceTables = nextPriceTable
+                        .getSpotPriceByZoneOrRegionIdMap();
+                srcSpotPriceTables.forEach((zoneOrRegionId, priceTable) -> {
+                    if (mergeBuilder.containsSpotPriceByZoneOrRegionId(zoneOrRegionId)) {
+                        // This can happen if Azure EA is added and there are multiple price tables
+                        // containing the overlapping region ids
+                        // TODO Fix this when Azure Buy RI support is added
+                        logger.warn("Zone/Region {} exists in two separate price tables (for " +
                             "spot instances)! This means region ID assignment isn't working as " +
-                            "expected. Ignoring one of them.", regionId);
+                            "expected. Ignoring one of them.", zoneOrRegionId);
                     } else {
-                        mergeBuilder.putSpotPriceByRegionId(regionId, priceTable);
+                        mergeBuilder.putSpotPriceByZoneOrRegionId(zoneOrRegionId, priceTable);
                     }
                 });
 

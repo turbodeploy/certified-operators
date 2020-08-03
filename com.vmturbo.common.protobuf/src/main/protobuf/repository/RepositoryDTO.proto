@@ -9,11 +9,20 @@ import "CommonDTO.proto";
 import "topology/TopologyDTO.proto";
 import "stats/Stats.proto";
 
+enum TopologyType {
+    // Means source topology.
+    SOURCE = 1;
+    // Means projected topology.
+    PROJECTED = 2;
+}
+
 message DeleteTopologyRequest {
     // the id of the topology to delete
     optional int64 topology_id = 1;
     // For plan topology, the topologyContextId=planId.
     optional int64 topology_context_id = 2;
+    // The type of topology to delete, either SOURCE or PROJECTED
+    optional TopologyType topology_type = 3;
 }
 
 message RepositoryOperationResponse {
@@ -29,45 +38,46 @@ message RetrieveTopologyRequest {
     // A filter to restrict the entities that are returned.
     // If not set, use the default instance (which should match all entities).
     optional TopologyEntityFilter entity_filter = 2;
+
+    // The type of entity to return. This allows the client to specify a detail
+    // level, to reduce memory and CPU overhead.
+    optional .topology.PartialEntity.Type return_type = 3;
 }
 
 message TopologyEntityFilter {
     // If set, return only entities that are unplaced. An entity is considered unplaced
     // if it has any CommoditiesBoughtFromProvider where the provider is not set.
     optional bool unplaced_only = 1 [default = false];
+
+    // List of entity types which we need to retrieve.
+    // If it is empty, all entities are considered valid.
+    repeated int32 entity_types = 2;
 }
 
 message RetrieveTopologyResponse {
-    repeated topology.TopologyEntityDTO entities = 1;
+    repeated topology.PartialEntity entities = 1;
 }
 
 // Request for retrieving topology entities.
 message RetrieveTopologyEntitiesRequest {
     // Id of topology.
     optional int64 topology_id = 1;
+
     // Context id of topology.
     optional int64 topology_context_id = 2;
+
     // List of id which need to retrieve.
     repeated int64 entity_oids = 3;
+
     // Type of topology means source topology or projected topology need to retrieve from.
     optional TopologyType topology_type = 4;
-	// The type of entity to fetch
-	repeated common_dto.EntityDTO.EntityType entity_type = 5;
 
-    enum TopologyType {
-        // Means source topology.
-        SOURCE = 1;
-        // Means projected topology.
-        PROJECTED = 2;
-    }
-}
+    // The type of entity to fetch
+    repeated int32 entity_type = 6;
 
-// a batch of entities. The max number of entities in the batch is expected to be controlled by the
-// repositoryMaxEntitiesPerChunk property.
-message EntityBatch {
-    // Returned topology entity dto which only contains partial fields. Even though it missing all
-    // Market setting fields but we do not need them.
-    repeated topology.TopologyEntityDTO entities = 1;
+    // The type of entity to return. This allows the client to specify a detail
+    // level, to reduce memory and CPU overhead.
+    optional .topology.PartialEntity.Type return_type = 7;
 }
 
 enum RepositoryOperationResponseCode {
@@ -89,14 +99,69 @@ message PlanTopologyStatsRequest {
     // the ID of the plan topology to fetch stats from
     optional int64 topology_id = 1;
 
+    // A set of filters and pagination parameters controlling the response
+    optional RequestDetails request_details = 6;
+}
+
+message PlanTopologyStatsResponse {
+    // Stats for the retrieved entities.
+    // The stats are arranged in the order requested in the pagination parameters in
+    // the request.
+    oneof type {
+        // A chunk of entity stats to stream
+        PlanEntityStatsChunk entity_stats_wrapper = 1;
+
+        // The response containing the cursor to retrieve the next page of results.
+        common.PaginationResponse pagination_response = 10;
+    }
+}
+
+// A wrapper around the PlanEntityStats, since a 'oneof' can't contain a repeated field
+message PlanEntityStatsChunk {
+    // The collection of entity stats
+    repeated PlanEntityStats entity_stats = 1;
+}
+
+// Return the plan stats for an entity. Includes the {@link TopologyEntityDTO}.
+// The stats returned will be from either plan source or plan projected topologies, depending
+// on the topology_id in the {@link PlanTopologyStatsRequest}.
+message PlanEntityStats {
+    // the Entity definition, derived from the relevant plan topology
+    optional topology.PartialEntity plan_entity = 1;
+
+    // the StatsSnapshot from the selected plan source, either plan source or plan projected,
+    // for the given entity
+    optional stats.EntityStats plan_entity_stats = 2;
+}
+
+// A request to return combined per-entity stats from a plan including both source and projected data
+message PlanCombinedStatsRequest {
+    // the ID of the plan topology context id to fetch stats from
+    // For plan topology, the topologyContextId=planId.
+    optional int64 topology_context_id = 1;
+
+    // Used in combination with the pagination_params, this determines the topology type to be used
+    // when sorting and paginating the response.
+    optional TopologyType topology_to_sort_on = 2;
+
+    // A set of filters and pagination parameters controlling the response
+    optional RequestDetails request_details = 6;
+}
+
+// A set of filters and pagination parameters controlling the response to a stats request
+message RequestDetails {
     // The filter to apply to the stats. If not set, retrieve all stats.
-    optional stats.StatsFilter filter = 2;
+    optional stats.StatsFilter filter = 1;
 
     // The filter to apply to the entities in the topology. If not set, retrieve all entities.
-    optional EntityFilter entity_filter = 3;
+    optional EntityFilter entity_filter = 2;
 
     // If present, limit the ServiceEntities processed to the given type.
-    optional string related_entity_type = 4;
+    optional string related_entity_type = 3;
+
+    // The type of entity to return. This allows the client to specify a detail
+    // level, to reduce memory and CPU overhead.
+    optional .topology.PartialEntity.Type return_type = 7;
 
     // The pagination parameters outlying the sort order, and previous cursor (if any).
     // If not set, use the default instance of PaginationParameters. The backend
@@ -104,26 +169,36 @@ message PlanTopologyStatsRequest {
     optional common.PaginationParameters pagination_params = 10;
 }
 
-message PlanTopologyStatsResponse {
-    // Stats for the retrieved entities.
+message PlanCombinedStatsResponse {
+    // Plan entities and their combined (source and projected) stats.
     // The stats are arranged in the order requested in the pagination parameters in
     // the request.
-    repeated PlanEntityStats entity_stats = 1;
+    oneof type {
+        // A chunk of entity stats to stream
+        PlanEntityAndCombinedStatsChunk entity_combined_stats_wrapper = 1;
 
-    // The response containing the cursor to retrieve the next page of results.
-    optional common.PaginationResponse paginationResponse = 10;
+        // The response containing the cursor to retrieve the next page of results.
+        common.PaginationResponse pagination_response = 10;
+    }
 }
 
-// Return the plan stats for an entity. Includes the {@link TopologyEntityDTO} if requested.
-// The stats returned will be from either plan source or plan projected topologies, depending
-// on the topology_id in the {@link PlanTopologyStatsRequest}.
-message PlanEntityStats {
-    // Stats per entity including the Entity definition, if requested
-    optional topology.TopologyEntityDTO plan_entity = 1;
+// A wrapper around the PlanEntityAndCombinedStats, since a 'oneof' can't contain a repeated field
+message PlanEntityAndCombinedStatsChunk {
+    // The collection of entity stats
+    repeated PlanEntityAndCombinedStats entity_and_combined_stats = 1;
+}
 
-    // the StatsSnapshots from the selected plan source, either plan source or plan projected,
-    // for the given entity
-    optional stats.EntityStats plan_entity_stats = 2;
+// Return the combined plan stats for an entity. Includes the {@link TopologyEntityDTO} if requested.
+// The stats returned will be from both the source and the projected topologies of the plan.
+message PlanEntityAndCombinedStats {
+    // the Entity definition, derived from the source plan topology
+    optional topology.PartialEntity plan_source_entity = 1;
+
+    // the Entity definition, derived from the projected plan topology
+    optional topology.PartialEntity plan_projected_entity = 2;
+
+    // the StatsSnapshots from both the plan source and plan projected topologies, for the given entity
+    optional stats.EntityStats plan_combined_stats = 3;
 }
 
 
@@ -133,17 +208,19 @@ service RepositoryService {
 
     // Try to get topology entities from Repository, and note that the returned TopologyEntityDTO contains
     // only partial fields, because some fields not stored at ServiceEntityRepoDTO.
-    rpc RetrieveTopologyEntities(RetrieveTopologyEntitiesRequest) returns (stream EntityBatch);
+    //
+    // The max number of entities in the batch is expected to be controlled by the
+    // repositoryMaxEntitiesPerChunk property.
+    rpc RetrieveTopologyEntities(RetrieveTopologyEntitiesRequest) returns (stream .topology.PartialEntityBatch);
 
-    // Fetch the stats related to a given plan execution. The request includes a StatsFilter specifying
-    // a startDate and endDate. If the startDate is in the past, then this call will include a
-    // StatsSnapshot containing the stats from the Plan Source topology.
+    // Fetch the stats related to a given plan execution.
     //
-    // TODO: fetching from the plan source topology is not yet implemented; the plan source topology
-    // is not yet persisted and so cannot be retrieved.
+    // The request includes a StatsFilter. While most fields in the StatsFilter will be respected
+    // by the query, the startDate and endDate fields are ignored.
     //
-    // If the endDate is in the future, then the responses will include a StatSnapshot with
-    // the stats from the Plan Projected topology.
+    // Instead, the stats related to the requested topologyId will be returned. Since source and
+    // projected topologies will have different IDs (even for the same plan), there is no ambiguity
+    // about which data to return (source or projected).
     //
     // The stats in each StatSnapshot returned will be restricted to commodities in the commodity_name
     // list in the StatsFilter parameter, if any. Otherwise, all stats will be returned.
@@ -152,9 +229,27 @@ service RepositoryService {
     // in the StatsFilter related_entity_type, if any. Otherwise, stats from entities of all types
     // will be returned.
     //
-    // @param PlanStatsRequest the specification of the plan ID and StatsFilter for this query
-    // @returns a sequence of StatSnapshot, including the Plan Topology
-    rpc GetPlanTopologyStats(PlanTopologyStatsRequest) returns (PlanTopologyStatsResponse);
+    // @param PlanTopologyStatsRequest the specification of the plan topology ID and StatsFilter for this query
+    // @returns a sequence of PlanEntityStats, containing entities and their associated stats
+    rpc GetPlanTopologyStats(PlanTopologyStatsRequest) returns (stream PlanTopologyStatsResponse);
+
+    // Fetch the combined stats (both source and projected) related to a given plan execution
+    //
+    // The response will contain a paginated list containing both the entities and their associated
+    // stats, representing both the source and projected plan topologies.
+    //
+    // The request includes a field indicating which (source or projected) plan topology to sort on.
+    //
+    // The stats in each StatSnapshot returned will be restricted to commodities in the commodity_name
+    // list in the StatsFilter parameter, if any. Otherwise, all stats will be returned.
+    //
+    // The stats in each StatSnapshot returned will be restricted to the entity type specified
+    // in the StatsFilter related_entity_type, if any. Otherwise, stats from entities of all types
+    // will be returned.
+    //
+    // @param PlanCombinedStatsRequest the specification of the plan ID and StatsFilter for this query
+    // @returns a sequence of PlanEntityStats, containing entities and their associated stats
+    rpc GetPlanCombinedStats(PlanCombinedStatsRequest) returns (stream PlanCombinedStatsResponse);
 }
 
 

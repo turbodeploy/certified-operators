@@ -11,7 +11,6 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.components.common.health.SimpleHealthStatus;
-import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 
 /**
  * Test the SQLDBHealthMonitor class.

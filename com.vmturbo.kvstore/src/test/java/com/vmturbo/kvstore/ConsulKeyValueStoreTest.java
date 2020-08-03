@@ -1,6 +1,12 @@
 package com.vmturbo.kvstore;
 
+import static com.vmturbo.kvstore.ConsulKeyValueStore.emptyResponse;
+import static org.mockito.Matchers.any;
+
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -11,6 +17,12 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
+import com.ecwid.consul.ConsulException;
+import com.ecwid.consul.v1.Response;
+import com.ecwid.consul.v1.kv.KeyValueClient;
+import com.ecwid.consul.v1.kv.model.GetValue;
+
+import org.apache.http.conn.ConnectTimeoutException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -19,11 +31,6 @@ import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import com.ecwid.consul.ConsulException;
-import com.ecwid.consul.v1.Response;
-import com.ecwid.consul.v1.kv.KeyValueClient;
-import com.ecwid.consul.v1.kv.model.GetValue;
-
 /**
  * Tests for consul key value store.
  */
@@ -31,17 +38,19 @@ public class ConsulKeyValueStoreTest {
 
     @Rule
     public final ExpectedException exception = ExpectedException.none();
-
+    private final long timeout = 1000L;
     private KeyValueClient keyValueClient;
-
     private ConsulKeyValueStore consulKeyValueStore;
-
-    private final long retryIntervalMillis = 10;
+    private static final String USER_IN_CHINESE = "用户";
 
     @Before
     public void setup() {
         keyValueClient = Mockito.mock(KeyValueClient.class);
-        consulKeyValueStore = new ConsulKeyValueStore(keyValueClient, "test", retryIntervalMillis, TimeUnit.MILLISECONDS);
+        consulKeyValueStore =
+                new ConsulKeyValueStore(keyValueClient, "test", timeout, TimeUnit.MILLISECONDS);
+        Mockito.when(keyValueClient.setKVValue(any(), any())).thenReturn(emptyResponse);
+        Mockito.when(keyValueClient.deleteKVValues(any())).thenReturn(emptyResponse);
+        Mockito.when(keyValueClient.deleteKVValue(any())).thenReturn(emptyResponse);
     }
 
     /**
@@ -50,7 +59,18 @@ public class ConsulKeyValueStoreTest {
     @Test
     public void testDecodeBase64() {
         byte[] base64String = Base64.getEncoder().encode("hello world".getBytes());
-        Assert.assertEquals("hello world", ConsulKeyValueStore.decodeBase64(new String(base64String)));
+        Assert.assertEquals("hello world",
+                ConsulKeyValueStore.decodeBase64(new String(base64String)));
+    }
+
+    /**
+     * Test that the decode function works with non-ASCII characters.
+     */
+    @Test
+    public void testDecodeBase64Globalization() {
+       byte[] base64String = Base64.getEncoder().encode(USER_IN_CHINESE.getBytes());
+        Assert.assertEquals(USER_IN_CHINESE, ConsulKeyValueStore.decodeBase64(new String(base64String,
+                StandardCharsets.UTF_8)));
     }
 
     /**
@@ -74,7 +94,8 @@ public class ConsulKeyValueStoreTest {
         GetValue respVal = new GetValue();
         respVal.setKey("test/test");
         respVal.setValue(new String(Base64.getEncoder().encode("val".getBytes())));
-        Mockito.when(keyValueClient.getKVValue(Mockito.eq("test/test"))).thenReturn(new Response<>(respVal, 0L, false, 0L));
+        Mockito.when(keyValueClient.getKVValue(Mockito.eq("test/test")))
+                .thenReturn(new Response<>(respVal, 0L, false, 0L));
         Optional<String> ret = consulKeyValueStore.get("test");
         Assert.assertEquals("val", ret.get());
     }
@@ -88,7 +109,7 @@ public class ConsulKeyValueStoreTest {
     public void testWhitespace() throws Exception {
         consulKeyValueStore.put("test/test test", "val");
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
-        Mockito.verify(keyValueClient).setKVValue(keyCaptor.capture(), Mockito.any());
+        Mockito.verify(keyValueClient).setKVValue(keyCaptor.capture(), any());
         // Check that the key maps to a URI successfully.
         // If no exception gets thrown we're good!
         URI.create(keyCaptor.getValue());
@@ -101,7 +122,8 @@ public class ConsulKeyValueStoreTest {
      */
     @Test
     public void testGetNotExisting() throws Exception {
-        Mockito.when(keyValueClient.getKVValue(Mockito.eq("test/test"))).thenReturn(new Response<>(null, 0L, false, 0L));
+        Mockito.when(keyValueClient.getKVValue(Mockito.eq("test/test")))
+                .thenReturn(new Response<>(null, 0L, false, 0L));
         Optional<String> ret = consulKeyValueStore.get("test");
         Assert.assertFalse(ret.isPresent());
     }
@@ -114,7 +136,7 @@ public class ConsulKeyValueStoreTest {
     @Test
     public void testContainsKeyWithKey() throws Exception {
         Mockito.when(keyValueClient.getKVKeysOnly(Mockito.eq("test/test")))
-            .thenReturn(new Response<>(Arrays.asList("foo", "bar"), 0L, false, 0L));
+                .thenReturn(new Response<>(Arrays.asList("foo", "bar"), 0L, false, 0L));
 
         Assert.assertTrue(consulKeyValueStore.containsKey("test"));
     }
@@ -127,7 +149,7 @@ public class ConsulKeyValueStoreTest {
     @Test
     public void testContainsKeyWithoutKey() throws Exception {
         Mockito.when(keyValueClient.getKVKeysOnly(Mockito.eq("test/test")))
-            .thenReturn(new Response<>(Collections.emptyList(), 0L, false, 0L));
+                .thenReturn(new Response<>(Collections.emptyList(), 0L, false, 0L));
 
         Assert.assertFalse(consulKeyValueStore.containsKey("test"));
     }
@@ -140,7 +162,7 @@ public class ConsulKeyValueStoreTest {
     @Test
     public void testContainsKeyWhenNull() throws Exception {
         Mockito.when(keyValueClient.getKVKeysOnly(Mockito.eq("test/test")))
-            .thenReturn(new Response<>(null, 0L, false, 0L));
+                .thenReturn(new Response<>(null, 0L, false, 0L));
 
         Assert.assertFalse(consulKeyValueStore.containsKey("test"));
     }
@@ -152,8 +174,19 @@ public class ConsulKeyValueStoreTest {
      */
     @Test
     public void testRemove() throws Exception {
-        consulKeyValueStore.remove("test");
+        consulKeyValueStore.removeKeysWithPrefix("test");
         Mockito.verify(keyValueClient).deleteKVValues("test/test");
+    }
+
+    /**
+     * Test that removeKey calls the right underlying function.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testRemoveKey() throws Exception {
+        consulKeyValueStore.removeKey("test");
+        Mockito.verify(keyValueClient).deleteKVValue("test/test");
     }
 
     /**
@@ -171,7 +204,7 @@ public class ConsulKeyValueStoreTest {
             respVals.add(val);
         });
         Mockito.when(keyValueClient.getKVValues(Mockito.eq("test/test")))
-               .thenReturn(new Response<>(respVals, 0L, false, 0L));
+                .thenReturn(new Response<>(respVals, 0L, false, 0L));
         Map<String, String> ret = consulKeyValueStore.getByPrefix("test");
         IntStream.range(0, 5).forEach(num -> {
             String key = "test" + num;
@@ -181,8 +214,7 @@ public class ConsulKeyValueStoreTest {
     }
 
     /**
-     * Test that when an exception occurs the key value store retries until
-     * success.
+     * Test that when an exception occurs the key value store retries until success.
      *
      * @throws Exception If anything goes wrong.
      */
@@ -192,24 +224,25 @@ public class ConsulKeyValueStoreTest {
         respVal.setKey("test/test");
         respVal.setValue(new String(Base64.getEncoder().encode("val".getBytes())));
 
-        Mockito.when(keyValueClient.getKVValue(Mockito.any()))
-            .thenThrow(new ConsulException("down"))
-            .thenReturn(new Response<>(respVal, 0L, false, 0L));
+        Mockito.when(keyValueClient.getKVValue(any()))
+                .thenThrow(new ConsulException(new ConnectException()))
+                .thenReturn(new Response<>(respVal, 0L, false, 0L));
         Assert.assertEquals("val", consulKeyValueStore.get("test").get());
     }
 
     /**
-     * Test that when an exception occurs the key value store retries until
-     * success.
+     * Test that when an exception occurs the key value store retries until timeout which is wrapped
+     * in {@link KeyValueStoreOperationException}.
      *
      * @throws Exception If anything goes wrong.
      */
-    @Test
+    @Test(expected = KeyValueStoreOperationException.class)
     public void testPutServiceDown() throws Exception {
-        Mockito.when(keyValueClient.setKVValue(Mockito.any(), Mockito.any()))
-            .thenThrow(new ConsulException("down"))
-            .thenThrow(new ConsulException("down again"))
-            .thenReturn(new Response<>(true, 0L, false, 0L));
+        Mockito.when(keyValueClient.setKVValue(any(), any()))
+                .thenThrow(new ConsulException(new ConnectException()))
+                .thenThrow(new ConsulException(new SocketTimeoutException()))
+                .thenThrow(new ConsulException(new ConnectTimeoutException()))
+                .thenReturn(new Response<>(true, 0L, false, 0L));
         consulKeyValueStore.put("test", "val");
     }
 
@@ -239,27 +272,14 @@ public class ConsulKeyValueStoreTest {
 
     @Test
     public void testInterruptPutExitsThread() throws Exception {
-        Mockito.when(keyValueClient.setKVValue(Mockito.any(), Mockito.any()))
-            .thenThrow(new ConsulException("down"));
+        Mockito.when(keyValueClient.setKVValue(any(), any()))
+                .thenThrow(new ConsulException(new ConnectException()));
 
         Thread putThread = new Thread(() -> consulKeyValueStore.put("test", "val"));
         putThread.start();
 
-        Thread.sleep(retryIntervalMillis);
+        Thread.sleep(timeout);
         putThread.interrupt();
         putThread.join(TimeUnit.MILLISECONDS.convert(10, TimeUnit.SECONDS));
-    }
-
-    @Test
-    public void testInterruptRemoveExitsThread() throws Exception {
-        Mockito.when(keyValueClient.deleteKVValue(Mockito.any()))
-            .thenThrow(new ConsulException("down"));
-
-        Thread removeThread = new Thread(() -> consulKeyValueStore.remove("test"));
-        removeThread.start();
-
-        Thread.sleep(retryIntervalMillis);
-        removeThread.interrupt();
-        removeThread.join(TimeUnit.MILLISECONDS.convert(10, TimeUnit.SECONDS));
     }
 }

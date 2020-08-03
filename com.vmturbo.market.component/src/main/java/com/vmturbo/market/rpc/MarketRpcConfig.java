@@ -6,7 +6,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.common.protobuf.market.InitialPlacementREST.InitialPlacementServiceController;
 import com.vmturbo.common.protobuf.market.MarketDebugREST.MarketDebugServiceController;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
 
 @Configuration
 public class MarketRpcConfig {
@@ -23,6 +25,32 @@ public class MarketRpcConfig {
     @Bean
     public MarketDebugServiceController marketDebugServiceController() {
         return marketDebugRpcService().map(MarketDebugServiceController::new).orElse(null);
+    }
+
+    /**
+     * Create the InitialPlacementRpcService. This service is used for reservation call from
+     * plan orchestrator to market.
+     *
+     * @return A {@link InitialPlacementRpcService} instance.
+     */
+    @Bean
+    public InitialPlacementRpcService initialPlacementRpcService() {
+        return new InitialPlacementRpcService(getInitialPlacementFinder());
+    }
+
+    @Bean
+    public InitialPlacementFinder getInitialPlacementFinder() {
+        return new InitialPlacementFinder();
+    }
+
+    /**
+     * Create the InitialPlacementServiceController.
+     *
+     * @return A {@link InitialPlacementServiceController} instance.
+     */
+    @Bean
+    public InitialPlacementServiceController initialPlacementServiceController() {
+        return new InitialPlacementServiceController(initialPlacementRpcService());
     }
 
     private boolean grpcDebugServicesEnabled() {

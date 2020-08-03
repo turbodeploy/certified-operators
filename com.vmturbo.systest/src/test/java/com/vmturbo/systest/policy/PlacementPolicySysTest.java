@@ -35,6 +35,9 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import io.grpc.stub.StreamObserver;
+import io.swagger.annotations.ApiOperation;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -60,13 +63,12 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import io.grpc.stub.StreamObserver;
-import io.swagger.annotations.ApiOperation;
-
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -77,6 +79,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToComplementar
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
@@ -86,6 +89,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
@@ -152,6 +157,8 @@ public class PlacementPolicySysTest {
     private IMessageReceiver<Topology> tpTopologyReceiver;
     private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
     private IMessageReceiver<ProjectedEntityCosts> projectedEntityCostReceiver;
+    private IMessageReceiver<AnalysisSummary> analysisSummaryReceiver;
+    private IMessageReceiver<AnalysisStatusNotification> analysisStatusReceiver;
     private IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver;
     private IMessageReceiver<ActionPlan> actionsReceiver;
 
@@ -181,67 +188,86 @@ public class PlacementPolicySysTest {
     public TestName testName = new TestName();
 
     // All hosts with the number two in their display name.
-    private final GroupInfo hostsWithTwo = GroupInfo.newBuilder()
-        .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
-        .setSearchParametersCollection(
-            SearchParametersCollection.newBuilder()
-                .addSearchParameters(
-                    SearchParameters.newBuilder()
-                        .setStartingFilter(Search.PropertyFilter.newBuilder()
-                                .setPropertyName("entityType")
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                    .setComparisonOperator(ComparisonOperator.EQ)
-                                    .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))
-                        ).addSearchFilter(SearchFilter.newBuilder()
-                        .setPropertyFilter(Search.PropertyFilter.newBuilder()
-                            .setPropertyName("displayName")
-                            .setStringFilter(StringFilter.newBuilder()
-                                    .setStringPropertyRegex(".*2.*")
-                            )))))
-        .build();
+    private final GroupDefinition hostsWithTwo = GroupDefinition.newBuilder()
+            .setEntityFilters(EntityFilters.newBuilder()
+                    .addEntityFilter(EntityFilter.newBuilder()
+                            .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
+                            .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                    .addSearchParameters(SearchParameters.newBuilder()
+                                            .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                                    .setPropertyName("entityType")
+                                                    .setNumericFilter(NumericFilter.newBuilder()
+                                                            .setComparisonOperator(
+                                                                    ComparisonOperator.EQ)
+                                                            .setValue(
+                                                                    EntityType.PHYSICAL_MACHINE.getNumber())))
+                                            .addSearchFilter(SearchFilter.newBuilder()
+                                                    .setPropertyFilter(
+                                                            Search.PropertyFilter.newBuilder()
+                                                                    .setPropertyName("displayName")
+                                                                    .setStringFilter(
+                                                                            StringFilter.newBuilder()
+                                                                                    .setStringPropertyRegex(
+                                                                                            ".*2.*"))))))))
+            .build();
 
     // All hosts with the phrase "in-group" in their display name.
-    private final GroupInfo hostsWithInGroup = GroupInfo.newBuilder()
-        .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
-        .setSearchParametersCollection(
-            SearchParametersCollection.newBuilder()
-                .addSearchParameters(
-                    SearchParameters.newBuilder()
-                        .setStartingFilter(Search.PropertyFilter.newBuilder()
-                                .setPropertyName("entityType")
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                    .setComparisonOperator(ComparisonOperator.EQ)
-                                    .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))
-                        ).addSearchFilter(SearchFilter.newBuilder()
-                        .setPropertyFilter(Search.PropertyFilter.newBuilder()
-                            .setPropertyName("displayName")
-                            .setStringFilter(StringFilter.newBuilder()
-                                    .setStringPropertyRegex("in-group")
-                            )))))
-        .build();
+    private final GroupDefinition hostsWithInGroup = GroupDefinition.newBuilder()
+            .setEntityFilters(EntityFilters.newBuilder()
+                    .addEntityFilter(EntityFilter.newBuilder()
+                            .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
+                            .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                    .addSearchParameters(SearchParameters.newBuilder()
+                                            .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                                    .setPropertyName("entityType")
+                                                    .setNumericFilter(NumericFilter.newBuilder()
+                                                            .setComparisonOperator(
+                                                                    ComparisonOperator.EQ)
+                                                            .setValue(
+                                                                    EntityType.PHYSICAL_MACHINE.getNumber())))
+                                            .addSearchFilter(SearchFilter.newBuilder()
+                                                    .setPropertyFilter(
+                                                            Search.PropertyFilter.newBuilder()
+                                                                    .setPropertyName("displayName")
+                                                                    .setStringFilter(
+                                                                            StringFilter.newBuilder()
+                                                                                    .setStringPropertyRegex(
+                                                                                            "in-group"))))))))
+            .build();
 
     // All virtual machines consuming from physical machines.
-    private final GroupInfo vmsOnHosts = GroupInfo.newBuilder()
-        .setSearchParametersCollection(
-            SearchParametersCollection.newBuilder()
-                .addSearchParameters(
-                    SearchParameters.newBuilder()
-                        .setStartingFilter(Search.PropertyFilter.newBuilder()
-                                .setPropertyName("entityType")
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                    .setComparisonOperator(ComparisonOperator.EQ)
-                                    .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))
-                        ).addSearchFilter(SearchFilter.newBuilder()
-                        .setTraversalFilter(TraversalFilter.newBuilder()
-                            .setTraversalDirection(TraversalDirection.PRODUCES)
-                            .setStoppingCondition(StoppingCondition.newBuilder()
-                                .setStoppingPropertyFilter(Search.PropertyFilter.newBuilder()
-                                        .setPropertyName("entityType")
-                                        .setNumericFilter(NumericFilter.newBuilder()
-                                            .setComparisonOperator(ComparisonOperator.EQ)
-                                            .setValue(EntityType.VIRTUAL_MACHINE.getNumber()))
-                                ))))))
-        .build();
+    private final GroupDefinition vmsOnHosts = GroupDefinition.newBuilder()
+            .setEntityFilters(EntityFilters.newBuilder()
+                    .addEntityFilter(EntityFilter.newBuilder()
+                            .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                    .addSearchParameters(SearchParameters.newBuilder()
+                                            .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                                    .setPropertyName("entityType")
+                                                    .setNumericFilter(NumericFilter.newBuilder()
+                                                            .setComparisonOperator(
+                                                                    ComparisonOperator.EQ)
+                                                            .setValue(
+                                                                    EntityType.PHYSICAL_MACHINE.getNumber())))
+                                            .addSearchFilter(SearchFilter.newBuilder()
+                                                    .setTraversalFilter(TraversalFilter.newBuilder()
+                                                            .setTraversalDirection(
+                                                                    TraversalDirection.PRODUCES)
+                                                            .setStoppingCondition(
+                                                                    StoppingCondition.newBuilder()
+                                                                            .setStoppingPropertyFilter(
+                                                                                    Search.PropertyFilter
+                                                                                            .newBuilder()
+                                                                                            .setPropertyName(
+                                                                                                    "entityType")
+                                                                                            .setNumericFilter(
+                                                                                                    NumericFilter
+                                                                                                            .newBuilder()
+                                                                                                            .setComparisonOperator(
+                                                                                                                    ComparisonOperator.EQ)
+                                                                                                            .setValue(
+                                                                                                                    EntityType.VIRTUAL_MACHINE
+                                                                                                                            .getNumber()))))))))))
+            .build();
 
     @Before
     public void setup() throws Exception {
@@ -262,7 +288,7 @@ public class PlacementPolicySysTest {
         ;
         topologyProcessor = TopologyProcessorClient.rpcAndNotification(
             componentTestRule.getCluster().getConnectionConfig("topology-processor"),
-            threadPool, tpMessageReceiver, tpTopologyReceiver, null, null);
+            threadPool, tpMessageReceiver, tpTopologyReceiver, null, null, null);
 
         projectedTopologyReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.PROJECTED_TOPOLOGIES_TOPIC,
@@ -275,9 +301,16 @@ public class PlacementPolicySysTest {
                 ProjectedEntityReservedInstanceCoverage::parseFrom);
         actionsReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC, ActionPlan::parseFrom);
+        analysisSummaryReceiver = kafkaMessageConsumer.messageReceiver(
+            MarketComponentNotificationReceiver.ANALYSIS_SUMMARY_TOPIC,
+            TopologyDTO.AnalysisSummary::parseFrom);
+        analysisStatusReceiver = kafkaMessageConsumer.messageReceiver(
+                         MarketComponentNotificationReceiver.ANALYSIS_STATUS_NOTIFICATION_TOPIC,
+                              AnalysisStatusNotification::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(
                 projectedTopologyReceiver, projectedEntityCostReceiver, projectedEntityRiCoverageReceiver,
-                actionsReceiver, tpTopologyReceiver, threadPool);
+                actionsReceiver, tpTopologyReceiver, analysisSummaryReceiver, analysisStatusReceiver,
+                threadPool, 0);
         kafkaMessageConsumer.start();
     }
 
@@ -892,12 +925,12 @@ public class PlacementPolicySysTest {
 
         @Override
         public void onTopologyNotification(TopologyInfo topologyInfo,
-                                           @Nonnull RemoteIterator<TopologyEntityDTO> topologyDTOs) {
+                                           @Nonnull RemoteIterator<Topology.DataSegment> topologyDTOs) {
             while (topologyDTOs.hasNext()) {
                 try {
-                    for (TopologyEntityDTO entityDTO : topologyDTOs.nextChunk()) {
-                        topologyResult.getIdMap().put(entityDTO.getDisplayName(), entityDTO.getOid());
-                        topologyResult.getEntities().add(entityDTO);
+                    for (Topology.DataSegment entityDTO : topologyDTOs.nextChunk()) {
+                        topologyResult.getIdMap().put(entityDTO.getEntity().getDisplayName(), entityDTO.getEntity().getOid());
+                        topologyResult.getEntities().add(entityDTO.getEntity());
                     }
                 } catch (Exception e) {
                     logger.error("Error during topology broadcast reading: ", e);
@@ -948,7 +981,7 @@ public class PlacementPolicySysTest {
         private Policy policy = null;
 
         @Override
-        public void getAllPolicies(final PolicyDTO.PolicyRequest request,
+        public void getPolicies(final PolicyDTO.PolicyRequest request,
                                    final StreamObserver<PolicyResponse> responseObserver) {
             if (getPolicy() != null) {
                 responseObserver.onNext(

@@ -19,8 +19,10 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +32,12 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterators;
+
+import io.grpc.Status.Code;
+
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -37,11 +45,8 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableMap;
-
-import io.grpc.Status.Code;
-
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator;
@@ -49,16 +54,17 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFac
 import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.execution.ActionExecutor;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
+import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -71,6 +77,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.ActionCountsByDateEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityRequest;
@@ -108,13 +115,10 @@ public class ActionQueryRpcTest {
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
-    private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
-    private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
-    private final WorkflowStore workflowStore = mock(WorkflowStore.class);
     private final HistoricalActionStatReader historicalStatReader = mock(HistoricalActionStatReader.class);
     private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
-    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
     private final ActionTranslator actionTranslatorWithFailedTranslation =
         ActionOrchestratorTestUtils.passthroughTranslator();
@@ -125,36 +129,60 @@ public class ActionQueryRpcTest {
     private final long actionPlanId = 2;
     private final long topologyContextId = 3;
 
+    private final UserSessionContext userSessionContext = Mockito.mock(UserSessionContext.class);
+
     private final Clock clock = new MutableFixedClock(1_000_000);
+    private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
+    private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
 
-    private ActionsRpcService actionsRpcService = new ActionsRpcService(clock,
-            actionStorehouse, actionExecutor, actionTargetSelector,
-            actionTranslator, paginatorFactory,
-            workflowStore, historicalStatReader, liveStatReader);
 
-    private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(clock,
-            actionStorehouse, actionExecutor, actionTargetSelector,
-            actionTranslatorWithFailedTranslation, paginatorFactory,
-            workflowStore, historicalStatReader, liveStatReader);
+    private ActionsRpcService actionsRpcService;
+    private ActionsRpcService actionsRpcServiceWithFailedTranslator;
+    private ActionApprovalManager approvalManager;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
+    private GrpcTestServer grpcServer;
+    private GrpcTestServer grpcServerForFailedTranslation;
 
-    @Rule
-    public GrpcTestServer grpcServerForFailedTranslation = GrpcTestServer.newServer(actionsRpcServiceWithFailedTranslator);
-
+    /**
+     * Initializes the tests.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Before
     public void setup() throws Exception {
+        approvalManager = Mockito.mock(ActionApprovalManager.class);
+        actionsRpcService =
+                new ActionsRpcService(clock, actionStorehouse, approvalManager, actionTranslator,
+                        paginatorFactory, historicalStatReader, liveStatReader, userSessionContext,
+                        acceptedActionsStore, rejectedActionsStore, 500);
+        grpcServer = GrpcTestServer.newServer(actionsRpcService);
+        grpcServer.start();
+
+        actionsRpcServiceWithFailedTranslator =
+                new ActionsRpcService(clock, actionStorehouse, approvalManager,
+                        actionTranslatorWithFailedTranslation, paginatorFactory,
+                        historicalStatReader, liveStatReader, userSessionContext,
+                        acceptedActionsStore, rejectedActionsStore, 500);
         IdentityGenerator.initPrefix(0);
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
-
+        grpcServerForFailedTranslation = GrpcTestServer.newServer(actionsRpcServiceWithFailedTranslator);
+        grpcServerForFailedTranslation.start();
         actionOrchestratorServiceClientForFailedTranslation =
                 ActionsServiceGrpc.newBlockingStub(grpcServerForFailedTranslation.getChannel());
 
         when(actionStorehouse.getStore(topologyContextId)).thenReturn(Optional.of(actionStore));
+    }
+
+    /**
+     * Cleans up the tests.
+     */
+    @After
+    public void cleanup() {
+        grpcServer.close();
+        grpcServerForFailedTranslation.close();
     }
 
     /**
@@ -164,7 +192,8 @@ public class ActionQueryRpcTest {
      */
     @Test
     public void testGetAction() throws Exception {
-        final ActionView actionView = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action actionView = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        actionView.setDescription("Move VM1 from Host1 to Host2");
         when(actionStore.getActionView(1)).thenReturn(Optional.of(actionView));
 
         SingleActionRequest actionRequest = SingleActionRequest.newBuilder()
@@ -223,23 +252,22 @@ public class ActionQueryRpcTest {
 
     @Test
     public void testGetAllActions() throws Exception {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        visibleAction.setDescription("Move VM1 from Host1 to Host2");
+        disabledAction.setDescription("Move VM2 from HostA to HostB");
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
-            disabledAction.getId(), disabledAction);
+            disabledAction.getId(), disabledAction), PlanActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
-        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
 
         FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
             .setTopologyContextId(topologyContextId)
             .build();
 
-        final List<ActionSpec> actionSpecs = actionOrchestratorServiceClient.getAllActions(actionRequest)
-                .getActionsList().stream()
-                .map(ActionOrchestratorAction::getActionSpec)
-                .collect(Collectors.toList());
+        final List<ActionSpec> actionSpecs = fetchSpecList(
+                actionOrchestratorServiceClient.getAllActions(actionRequest));
         assertThat(actionSpecs, containsInAnyOrder(spec(visibleAction), spec(disabledAction)));
     }
 
@@ -250,9 +278,10 @@ public class ActionQueryRpcTest {
     @Test
     public void testGetAllActionWithResizeActionWithTranslation() throws Exception {
         final long id = 11l;
-        ActionView resizeAction = new Action(ActionOrchestratorTestUtils
+        Action resizeAction = new Action(ActionOrchestratorTestUtils
                 .createResizeRecommendation(1, id, CommodityType.VCPU, 5000,
-                        2500), actionPlanId, actionModeCalculator);
+                        2500), actionPlanId, actionModeCalculator, 123L);
+        resizeAction.setDescription("Resize down vcpu for VM1 from 5 to 2.5");
         final Resize newResize = ActionDTO.Resize.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU.getNumber()))
                 .setOldCapacity((float)5)
@@ -263,8 +292,8 @@ public class ActionQueryRpcTest {
                         ActionInfo.newBuilder(resizeAction.getRecommendation().getInfo())
                                 .setResize(newResize).build())
                         .build());
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
-                resizeAction.getId(), resizeAction               );
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
+                resizeAction.getId(), resizeAction), PlanActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
         when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
 
@@ -272,18 +301,17 @@ public class ActionQueryRpcTest {
                 .setTopologyContextId(topologyContextId)
                 .build();
 
-        final List<ActionSpec> actionSpecs = actionOrchestratorServiceClient.getAllActions(actionRequest)
-                .getActionsList().stream()
-                .map(ActionOrchestratorAction::getActionSpec)
-                .collect(Collectors.toList());
+        final List<ActionSpec> actionSpecs = fetchSpecList(
+                actionOrchestratorServiceClient.getAllActions(actionRequest));
         assertEquals(1, actionSpecs.size());
     }
 
     @Test
     public void testGetAllActionsPaginationParamsSetWithCursor() {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
-                visibleAction.getId(), visibleAction);
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        visibleAction.setDescription("Move VM1 from HostA to HostB");
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
+                visibleAction.getId(), visibleAction), PlanActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
         when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
 
@@ -306,16 +334,17 @@ public class ActionQueryRpcTest {
                 .setPaginationParams(paginationParameters)
                 .build();
 
-        final FilteredActionResponse response = actionOrchestratorServiceClient.getAllActions(actionRequest);
+        final FilteredActionResponse response = actionOrchestratorServiceClient.getAllActions(actionRequest).next();
         assertTrue(response.hasPaginationResponse());
         assertThat(response.getPaginationResponse().getNextCursor(), is(cursor));
     }
 
     @Test
     public void testGetAllActionsPaginationParamsSetNoCursor() {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
-                visibleAction.getId(), visibleAction);
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        visibleAction.setDescription("Move VM1 from Host1 to Host2");
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
+                visibleAction.getId(), visibleAction), PlanActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
         when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
 
@@ -337,33 +366,32 @@ public class ActionQueryRpcTest {
                 .setPaginationParams(paginationParameters)
                 .build();
 
-        final FilteredActionResponse response = actionOrchestratorServiceClient.getAllActions(actionRequest);
+        final FilteredActionResponse response = actionOrchestratorServiceClient.getAllActions(actionRequest).next();
         assertTrue(response.hasPaginationResponse());
         assertFalse(response.getPaginationResponse().hasNextCursor());
     }
 
     @Test
     public void testGetFilteredActionsForRealTime() throws Exception {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        visibleAction.setDescription("Move VM1 from Host1 to Host2");
+        disabledAction.setDescription("Move VM2 from Host1 to Host2");
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
-            disabledAction.getId(), disabledAction);
+            disabledAction.getId(), disabledAction), LiveActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
-        when(actionStore.getVisibilityPredicate()).thenReturn(LiveActionStore.VISIBILITY_PREDICATE);
 
         final FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
             .setTopologyContextId(topologyContextId)
             .setFilter(ActionQueryFilter.newBuilder().setVisible(true))
             .build();
 
-        final FilteredActionResponse response =
-                actionOrchestratorServiceClient.getAllActions(actionRequest);
-        final List<ActionSpec> resultSpecs = response.getActionsList().stream()
-            .map(ActionOrchestratorAction::getActionSpec)
-            .collect(Collectors.toList());
+        Iterators.advance(actionOrchestratorServiceClient.getAllActions(actionRequest), 1);
 
+        final List<ActionSpec> resultSpecs = fetchSpecList(
+                actionOrchestratorServiceClient.getAllActions(actionRequest));
         assertThat(resultSpecs, contains(spec(visibleAction)));
         assertThat(resultSpecs, not(contains(spec(disabledAction))));
     }
@@ -371,12 +399,14 @@ public class ActionQueryRpcTest {
     // All plan actions should be visible.
     @Test
     public void testGetFilteredActionsForPlan() throws Exception {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        visibleAction.setDescription("Move VM1 from Host1 to Host2");
+        disabledAction.setDescription("Move VM2 from Host1 to Host2");
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
-            disabledAction.getId(), disabledAction);
+            disabledAction.getId(), disabledAction), PlanActionStore.VISIBILITY_PREDICATE);
         when(actionStore.getActionViews()).thenReturn(actionViews);
         when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
 
@@ -385,11 +415,8 @@ public class ActionQueryRpcTest {
             .setFilter(ActionQueryFilter.newBuilder().setVisible(true))
             .build();
 
-        final List<ActionSpec> actionSpecs = actionOrchestratorServiceClient.getAllActions(actionRequest)
-                .getActionsList().stream()
-                .map(ActionOrchestratorAction::getActionSpec)
-                .collect(Collectors.toList());
-
+        final List<ActionSpec> actionSpecs = fetchSpecList(
+                actionOrchestratorServiceClient.getAllActions(actionRequest));
         assertThat(actionSpecs, containsInAnyOrder(spec(visibleAction), spec(disabledAction)));
     }
 
@@ -403,7 +430,7 @@ public class ActionQueryRpcTest {
 
         // Because getAllActions returns a lazily-evaluated stream, we have to force the evaluation somehow
         // to get the desired exception.
-        actionOrchestratorServiceClient.getAllActions(actionRequest);
+        actionOrchestratorServiceClient.getAllActions(actionRequest).next();
     }
 
     @Test
@@ -418,19 +445,23 @@ public class ActionQueryRpcTest {
 
         // Because getAllActions returns a lazily-evaluated stream, we have to force the evaluation somehow
         // to get the desired exception.
-        actionOrchestratorServiceClient.getAllActions(actionRequest);
+        actionOrchestratorServiceClient.getAllActions(actionRequest).next();
     }
 
     @Test
     public void testGetMultiAction() throws Exception {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
-        final ActionView notRetrievedAction = ActionOrchestratorTestUtils.createMoveAction(3, actionPlanId);
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        final Action notRetrievedAction = ActionOrchestratorTestUtils.createMoveAction(3, actionPlanId);
+        visibleAction.setDescription("Move VM1 from Host1 to Host2");
+        disabledAction.setDescription("Move VM2 from Host1 to Host2");
+        notRetrievedAction.setDescription("Move VM3 from Host1 to Host2");
+
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
             disabledAction.getId(), disabledAction,
-            notRetrievedAction.getId(), notRetrievedAction);
+            notRetrievedAction.getId(), notRetrievedAction));
         when(actionStore.getActionViews()).thenReturn(actionViews);
 
         MultiActionRequest actionRequest = MultiActionRequest.newBuilder()
@@ -452,12 +483,14 @@ public class ActionQueryRpcTest {
      */
     @Test
     public void testGetMultiActionSomeMissing() throws Exception {
-        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
-        final ActionView disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        final Action visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Action disabledAction = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        visibleAction.setDescription("Move VM1 from Host1 to Host2");
+        disabledAction.setDescription("Move VM2 from Host1 to Host2");
         doReturn(ActionMode.DISABLED).when(disabledAction).getMode();
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             visibleAction.getId(), visibleAction,
-            disabledAction.getId(), disabledAction);
+            disabledAction.getId(), disabledAction));
         when(actionStore.getActionViews()).thenReturn(actionViews);
 
         MultiActionRequest actionRequest = MultiActionRequest.newBuilder()
@@ -548,23 +581,24 @@ public class ActionQueryRpcTest {
     public void testGetAllActionCounts() throws Exception {
         final int moveActions = 3;
         final int resizeActions = 4;
-        final Map<Long, ActionView> actionViews = new HashMap<>();
+        final Map<Long, ActionView> actionViewMap = new HashMap<>();
 
         LongStream.range(0, moveActions).forEach(i -> {
             final ActionView actionView = ActionOrchestratorTestUtils.createMoveAction(i, actionPlanId);
-            actionViews.put(actionView.getId(), actionView);
+            actionViewMap.put(actionView.getId(), actionView);
         });
 
         // Need to add "moveActions" to the ID to avoid having ovelapping IDs.
         LongStream.range(0, resizeActions).map(actionNum -> moveActions + actionNum).forEach(i -> {
             final ActionView actionView = new Action(
-                ActionOrchestratorTestUtils.createResizeRecommendation(i, CommodityType.VMEM), actionPlanId, actionModeCalculator);
-            actionViews.put(actionView.getId(), actionView);
+                    ActionOrchestratorTestUtils.createResizeRecommendation(i, CommodityType.VMEM),
+                    actionPlanId, actionModeCalculator, 124L);
+            actionViewMap.put(actionView.getId(), actionView);
         });
 
 
         final ActionStore store = Mockito.mock(ActionStore.class);
-        when(store.getActionViews()).thenReturn(actionViews);
+        when(store.getActionViews()).thenReturn(new MapBackedActionViews(actionViewMap));
 
         when(actionStorehouse.getStore(eq(topologyContextId)))
             .thenReturn(Optional.of(store));
@@ -593,9 +627,9 @@ public class ActionQueryRpcTest {
         final ActionView firstAction = spy(ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId));
         when(firstAction.getState()).thenReturn(ActionState.QUEUED);
         final ActionView secondAction = ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId);
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             firstAction.getId(), firstAction,
-            secondAction.getId(), secondAction);
+            secondAction.getId(), secondAction));
         when(actionStore.getActionViews()).thenReturn(actionViews);
 
         final ActionStore store = Mockito.mock(ActionStore.class);
@@ -640,13 +674,14 @@ public class ActionQueryRpcTest {
     @Test
     public void testGetActionCountsByEntity() throws Exception {
         final long actionPlanId = 10;
-        final ActionView visibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                1, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator));
+        final ActionView visibleAction = spy(new Action(
+                ActionOrchestratorTestUtils.createMoveRecommendation(1, 7, 77, 1, 777, 1),
+                actionPlanId, actionModeCalculator, 234L));
         final ActionView invisibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator));
-        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+                2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator, 234L));
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
                 visibleAction.getId(), visibleAction,
-                invisibleAction.getId(), invisibleAction);
+                invisibleAction.getId(), invisibleAction));
         when(actionStore.getActionViews()).thenReturn(actionViews);
         when(actionStore.getVisibilityPredicate()).thenReturn(view -> view.getId() == visibleAction.getId());
 
@@ -703,24 +738,24 @@ public class ActionQueryRpcTest {
         final LocalDateTime date = LocalDateTime.now();
         final LocalDateTime startOfDay = date.toLocalDate().atStartOfDay();
         final ActionView visibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                1, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator));
+                1, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator, 222L));
         when(visibleAction.getRecommendationTime())
                .thenReturn(date);
         final ActionView visibleQueuedAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                3, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator));
+                3, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator, 223L));
         when(visibleQueuedAction.getRecommendationTime())
                 .thenReturn(date);
         when(visibleQueuedAction.getState())
                 .thenReturn(ActionState.QUEUED);
         final ActionView invisibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator));
+                2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator, 224L));
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
                 visibleAction.getId(), visibleAction,
                 visibleQueuedAction.getId(), visibleQueuedAction,
                 invisibleAction.getId(), invisibleAction);
 
-        when(actionStore.getActionViewsByDate(any(), any())).thenReturn(actionViews);
-        when(actionStore.getVisibilityPredicate()).thenReturn(view -> view.getId() != invisibleAction.getId());
+        when(actionStore.getActionViews()).thenReturn(new MapBackedActionViews(actionViews,
+            view -> view.getId() != invisibleAction.getId()));
 
         final GetActionCountsByDateResponse response =
                 actionOrchestratorServiceClient.getActionCountsByDate(
@@ -740,12 +775,12 @@ public class ActionQueryRpcTest {
         assertThat(countsByDate.get(TimeUtil.localDateTimeToMilli(startOfDay, clock)), containsInAnyOrder(
             StateAndModeCount.newBuilder()
                 .setState(ActionState.QUEUED)
-                .setMode(ActionMode.MANUAL)
+                .setMode(ActionMode.RECOMMEND)
                 .setCount(1)
                 .build(),
             StateAndModeCount.newBuilder()
                 .setState(ActionState.READY)
-                .setMode(ActionMode.MANUAL)
+                .setMode(ActionMode.RECOMMEND)
                 .setCount(1)
                 .build()));
     }
@@ -808,6 +843,19 @@ public class ActionQueryRpcTest {
         return StreamSupport.stream(rpcIter.spliterator(), false)
             .map(ActionOrchestratorAction::getActionSpec)
             .collect(Collectors.toList());
+    }
+
+    private List<ActionSpec> fetchSpecList(Iterator<FilteredActionResponse> responseIterator) {
+        // check that first is pagination response
+        assertThat(responseIterator.next().getTypeCase(), is(TypeCase.PAGINATION_RESPONSE));
+        // collect all actions
+        final List<ActionSpec> actionSpecs = new ArrayList<>();
+        while (responseIterator.hasNext()) {
+            actionSpecs.addAll(responseIterator.next().getActionChunk().getActionsList().stream()
+                    .map(ActionOrchestratorAction::getActionSpec)
+                    .collect(Collectors.toList()));
+        }
+        return actionSpecs;
     }
 
     @Nonnull

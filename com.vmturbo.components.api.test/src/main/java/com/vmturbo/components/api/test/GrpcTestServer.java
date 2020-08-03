@@ -64,7 +64,7 @@ public class GrpcTestServer extends ExternalResource implements AutoCloseable {
      * @return The channel. All calls to this method return the same channel.
      */
     @Nonnull
-    public Channel getChannel() {
+    public ManagedChannel getChannel() {
         return channel;
     }
 

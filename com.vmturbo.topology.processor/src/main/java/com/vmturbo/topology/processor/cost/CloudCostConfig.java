@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
+import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
@@ -39,6 +40,12 @@ public class CloudCostConfig {
     @Value("${riSpecPriceChunkSize:10000}")
     private int riSpecPriceChunkSize;
 
+    @Value("${fullAzureEARIDiscovery:false}")
+    private boolean fullAzureEARIDiscovery;
+
+    @Value("${riSupportInPartialCloudEnvironment:false}")
+    private boolean riSupportInPartialCloudEnvironment;
+
     @Bean
     public RIAndExpenseUploadServiceBlockingStub costServiceClient() {
         return RIAndExpenseUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel());
@@ -51,13 +58,14 @@ public class CloudCostConfig {
 
     @Bean
     public PriceTableUploader priceTableUploader() {
-        return new PriceTableUploader(priceServiceClient(), clockConfig.clock(), riSpecPriceChunkSize);
+        return new PriceTableUploader(priceServiceClient(), clockConfig.clock(), riSpecPriceChunkSize,
+                targetConfig.targetStore(), spotPriceTableConverter());
     }
 
     @Bean
     public RICostDataUploader riDataUploader() {
         return new RICostDataUploader(costServiceClient(), minimumRIDataUploadIntervalMins,
-                clockConfig.clock());
+                clockConfig.clock(), fullAzureEARIDiscovery, riSupportInPartialCloudEnvironment);
     }
 
     @Bean
@@ -69,6 +77,20 @@ public class CloudCostConfig {
     @Bean
     public DiscoveredCloudCostUploader discoveredCloudCostUploader() {
         return new DiscoveredCloudCostUploader(riDataUploader(), accountExpensesUploader(), priceTableUploader(),
+                businessAccountPriceTableKeyUploader()
+        );
+    }
+
+    @Bean
+    public BusinessAccountPriceTableKeyUploader businessAccountPriceTableKeyUploader() {
+        PricingServiceBlockingStub pricingServiceBlockingStub = PricingServiceGrpc
+                .newBlockingStub(costClientConfig.costChannel());
+        return new BusinessAccountPriceTableKeyUploader(pricingServiceBlockingStub,
                 targetConfig.targetStore());
+    }
+
+    @Bean
+    public SpotPriceTableConverter spotPriceTableConverter() {
+        return new SpotPriceTableConverter();
     }
 }

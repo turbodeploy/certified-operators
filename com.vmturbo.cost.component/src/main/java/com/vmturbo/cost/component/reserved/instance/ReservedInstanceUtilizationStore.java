@@ -5,25 +5,37 @@ import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Table;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.tables.records.ReservedInstanceUtilizationByDayRecord;
+import com.vmturbo.cost.component.db.tables.records.ReservedInstanceUtilizationByHourRecord;
+import com.vmturbo.cost.component.db.tables.records.ReservedInstanceUtilizationByMonthRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceUtilizationLatestRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
@@ -34,9 +46,9 @@ import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtili
  * reserved instance, and also used the {@link ReservedInstanceBoughtStore} which has the latest
  * reserved instance information. And it will combine these data and store into database.
  */
-public class ReservedInstanceUtilizationStore {
+public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
 
-    private final static Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     private final DSLContext dsl;
 
@@ -45,6 +57,14 @@ public class ReservedInstanceUtilizationStore {
     private final ReservedInstanceSpecStore reservedInstanceSpecStore;
 
     private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
+
+    private final ReservedInstanceUtilizationByHourDiagsHelper reservedInstanceUtilizationByHourDiagsHelper;
+
+    private final ReservedInstanceUtilizationByMonthDiagsHelper reservedInstanceUtilizationByMonthDiagsHelper;
+
+    private final ReservedInstanceUtilizationByDayDiagsHelper reservedInstanceUtilizationByDayDiagsHelper;
+
+    private final LatestReservedInstanceUtilizationDiagsHelper latestReservedInstanceUtilizationDiagsHelper;
 
     public ReservedInstanceUtilizationStore(
             @Nonnull final DSLContext dsl,
@@ -55,6 +75,10 @@ public class ReservedInstanceUtilizationStore {
         this.reservedInstanceBoughtStore = reservedInstanceBoughtStore;
         this.reservedInstanceSpecStore = reservedInstanceSpecStore;
         this.entityReservedInstanceMappingStore = entityReservedInstanceMappingStore;
+        this.reservedInstanceUtilizationByHourDiagsHelper = new ReservedInstanceUtilizationByHourDiagsHelper(dsl);
+        this.reservedInstanceUtilizationByDayDiagsHelper = new ReservedInstanceUtilizationByDayDiagsHelper(dsl);
+        this.reservedInstanceUtilizationByMonthDiagsHelper = new ReservedInstanceUtilizationByMonthDiagsHelper(dsl);
+        this.latestReservedInstanceUtilizationDiagsHelper = new LatestReservedInstanceUtilizationDiagsHelper(dsl);
     }
 
     /**
@@ -83,9 +107,25 @@ public class ReservedInstanceUtilizationStore {
                         .map(ri -> createReservedInstanceUtilizationRecord(context, ri, currentTime,
                                 riSpecIdToRegionMap, riUsedCouponsMap))
                         .collect(Collectors.toList());
-        context.batchInsert(riUtilizationRecords).execute();
+
+        final Query[] insertsWithDuplicates = riUtilizationRecords.stream().map(
+                                       record -> DSL.using(context.configuration())
+                                           .insertInto(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST)
+                                           .set(record)
+                                           .onDuplicateKeyUpdate()
+                                           .set(record))
+                               .toArray(Query[]::new);
+        context.batch(insertsWithDuplicates).execute();
     }
 
+    public List<ReservedInstanceStatsRecord> getReservedInstanceUtilizationStatsRecordsForExport() {
+        final Result<Record> records =
+                dsl.select(createSelectFieldsForRIUtilizationCoverage(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST))
+                        .from(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST).fetch();
+        return records.stream()
+                .map(ReservedInstanceUtil::convertRIUtilizationCoverageRecordToRIStatsRecord)
+                .collect(Collectors.toList());
+    }
     /**
      * Get the list of {@link ReservedInstanceStatsRecord} which aggregates data from reserved instance
      * utilization table.
@@ -98,7 +138,7 @@ public class ReservedInstanceUtilizationStore {
         final Table<?> table = filter.getTableName();
         final Result<Record> records = dsl.select(createSelectFieldsForRIUtilizationCoverage(table))
                 .from(table)
-                .where(filter.getConditions())
+                .where(filter.generateConditions(dsl))
                 .groupBy(table.field(SNAPSHOT_TIME))
                 .fetch();
         return records.stream()
@@ -116,7 +156,7 @@ public class ReservedInstanceUtilizationStore {
      * @param riUsedCouponsMap a map which key is the reserved instance id, the value is the used coupons.
      * @return a {@link ReservedInstanceUtilizationLatestRecord}.
      */
-    private ReservedInstanceUtilizationLatestRecord createReservedInstanceUtilizationRecord (
+    private ReservedInstanceUtilizationLatestRecord createReservedInstanceUtilizationRecord(
             @Nonnull final DSLContext context,
             @Nonnull final ReservedInstanceBought reservedInstanceBought,
             @Nonnull final LocalDateTime curTime,
@@ -129,6 +169,178 @@ public class ReservedInstanceUtilizationStore {
         return context.newRecord(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST,
                 new ReservedInstanceUtilizationLatestRecord(curTime, riId, riSpecIdToRegionMap.get(riSpecId),
                         riBoughtInfo.getAvailabilityZoneId(), riBoughtInfo.getBusinessAccountId(),
-                        riTotalCoupons, riUsedCouponsMap.getOrDefault(riId, 0.0),null,null,null));
+                        riTotalCoupons, riUsedCouponsMap.getOrDefault(riId, 0.0), null,null,null));
+    }
+
+    @Override
+    public Set<Diagnosable> getDiagnosables(final boolean collectHistoricalStats) {
+        HashSet<Diagnosable> storesToSave = new HashSet<>();
+        storesToSave.add(latestReservedInstanceUtilizationDiagsHelper);
+        if (collectHistoricalStats) {
+            storesToSave.add(reservedInstanceUtilizationByMonthDiagsHelper);
+            storesToSave.add(reservedInstanceUtilizationByDayDiagsHelper);
+            storesToSave.add(reservedInstanceUtilizationByHourDiagsHelper);
+        }
+        return storesToSave;
+    }
+
+    /**
+     * Helper class for dumping monthly RI utilization db records to exported topology.
+     */
+    private static final class ReservedInstanceUtilizationByMonthDiagsHelper implements DiagsRestorable {
+        private static final String reservedInstanceUtilizationByMonthDumpFile = "reservedInstanceUtilizationByMonth_dump";
+
+        private final DSLContext dsl;
+
+        ReservedInstanceUtilizationByMonthDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+            // TODO to be implemented as part of OM-58627
+        }
+
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+            dsl.transaction(transactionContext -> {
+                final DSLContext transaction = DSL.using(transactionContext);
+                Stream<ReservedInstanceUtilizationByMonthRecord> monthlyRecords = transaction.selectFrom(Tables.RESERVED_INSTANCE_UTILIZATION_BY_MONTH).stream();
+                monthlyRecords.forEach(s -> {
+                    try {
+                        appender.appendString(s.formatJSON());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Exception encountered while appending RI utilization by month records" +
+                                " to the diags dump", e);
+                    }
+                });
+            });
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return reservedInstanceUtilizationByMonthDumpFile;
+        }
+    }
+
+    /**
+     * Helper class for dumping daily RI utilization db records to exported topology.
+     */
+    private static final class ReservedInstanceUtilizationByDayDiagsHelper implements DiagsRestorable {
+        private static final String reservedInstanceCoverageByDayDumpFile = "reservedInstanceUtilizationByDay_dump";
+
+        private final DSLContext dsl;
+
+        ReservedInstanceUtilizationByDayDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+            // TODO to be implemented as part of OM-58627
+        }
+
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+            dsl.transaction(transactionContext -> {
+                final DSLContext transaction = DSL.using(transactionContext);
+                Stream<ReservedInstanceUtilizationByDayRecord> dailyRecords = transaction.selectFrom(Tables.RESERVED_INSTANCE_UTILIZATION_BY_DAY).stream();
+                dailyRecords.forEach(s -> {
+                    try {
+                        appender.appendString(s.formatJSON());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Exception encountered while appending RI utilization by day records" +
+                                " to the diags dump", e);
+                    }
+                });
+            });
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return reservedInstanceCoverageByDayDumpFile;
+        }
+    }
+
+    /**
+     * Helper class for dumping hourly RI utilization db records to exported topology.
+     */
+    private static final class ReservedInstanceUtilizationByHourDiagsHelper implements DiagsRestorable {
+        private static final String reservedInstanceCoverageByHourDumpFile = "reservedInstanceUtilizationByHour_dump";
+
+        private final DSLContext dsl;
+
+        ReservedInstanceUtilizationByHourDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+            // TODO to be implemented as part of OM-58627
+        }
+
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+            dsl.transaction(transactionContext -> {
+                final DSLContext transaction = DSL.using(transactionContext);
+                Stream<ReservedInstanceUtilizationByHourRecord> hourlyRecords = transaction.selectFrom(Tables.RESERVED_INSTANCE_UTILIZATION_BY_HOUR).stream();
+                hourlyRecords.forEach(s -> {
+                    try {
+                        appender.appendString(s.formatJSON());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Exception encountered while appending RI utilization records by hour" +
+                                " to the diags dump", e);
+                    }
+                });
+            });
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return reservedInstanceCoverageByHourDumpFile;
+        }
+    }
+
+    /**
+     * Helper class for dumping latest RI utilization db records to exported topology.
+     */
+    private static final class LatestReservedInstanceUtilizationDiagsHelper implements DiagsRestorable {
+        private static final String latestReservedInstanceUtilizationDumpFile = "latestReservedInstanceUtilization_dump";
+
+        private final DSLContext dsl;
+
+        LatestReservedInstanceUtilizationDiagsHelper(@Nonnull final DSLContext dsl) {
+            this.dsl = dsl;
+        }
+
+        @Override
+        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+            // TODO to be implemented as part of OM-58627
+        }
+
+        @Override
+        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
+            dsl.transaction(transactionContext -> {
+                final DSLContext transaction = DSL.using(transactionContext);
+                Stream<ReservedInstanceUtilizationLatestRecord> latestRecords = transaction.selectFrom(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST).stream();
+                latestRecords.forEach(s -> {
+                    try {
+                        appender.appendString(s.formatJSON());
+                    } catch (DiagnosticsException e) {
+                        logger.error("Exception encountered while appending latest RI utilization records" +
+                                " to the diags dump", e);
+                    }
+                });
+            });
+        }
+
+        @Nonnull
+        @Override
+        public String getFileName() {
+            return latestReservedInstanceUtilizationDumpFile;
+        }
     }
 }

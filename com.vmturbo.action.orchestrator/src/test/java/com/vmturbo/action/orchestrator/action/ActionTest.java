@@ -7,26 +7,32 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
-
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
-import com.vmturbo.action.orchestrator.store.EntitiesCache;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -35,6 +41,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -49,8 +56,10 @@ public class ActionTest {
     private final long actionPlanId = 1;
     private ActionDTO.Action moveRecommendation;
     private Action moveAction;
-    private ActionDTO.Action resizeRecommendation;
-    private Action resizeAction;
+    private ActionDTO.Action vmResizeRecommendation;
+    private ActionDTO.Action storageResizeRecommendation;
+    private Action resizeStorageAction;
+    private Action resizeVmAction;
     private ActionDTO.Action deactivateRecommendation;
     private Action deactivateAction;
     private ActionDTO.Action activateRecommendation;
@@ -59,20 +68,20 @@ public class ActionTest {
     private Action storageMoveAction;
     private ActionDTO.Action reconfigureRecommendation;
     private Action reconfigureAction;
-    private EntitiesCache entitySettingsCache = mock(EntitiesCache.class);
+    private EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
 
-    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
-
-    private ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private ActionModeCalculator actionModeCalculator = spy(new ActionModeCalculator());
 
     @Before
-    public void setup() {
+    public void setup() throws UnsupportedActionException {
         IdentityGenerator.initPrefix(0);
 
         moveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 22L/*srcId*/, 1/*srcType*/, 33L/*destId*/, 1/*destType*/),
                             SupportLevel.SUPPORTED).build();
-        resizeRecommendation = makeRec(makeResizeInfo(11L), SupportLevel.SUPPORTED).build();
+        vmResizeRecommendation = makeRec(makeVmResizeInfo(11L), SupportLevel.SUPPORTED).build();
+        storageResizeRecommendation =
+            makeRec(makeStorageResizeInfo(11L), SupportLevel.SUPPORTED).build();
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.SUPPORTED).build();
         activateRecommendation = makeRec(makeActivateInfo(11L), SupportLevel.SUPPORTED).build();
@@ -82,49 +91,82 @@ public class ActionTest {
                     SupportLevel.SUPPORTED).build();
         reconfigureRecommendation = makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.SUPPORTED).build();
 
-        when(entitySettingsCache.getSettingsForEntity(anyLong()))
-            .thenReturn(Collections.emptyMap());
 
+        when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
-        moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
-        resizeAction = new Action(resizeRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
-        deactivateAction = new Action(deactivateRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
-        activateAction = new Action(activateRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        setEntitiesOIDs();
+        moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
+        moveAction.getActionTranslation().setPassthroughTranslationSuccess();
+        moveAction.refreshAction(entitySettingsCache);
+        resizeStorageAction = new Action(storageResizeRecommendation, actionPlanId,
+            actionModeCalculator, 2244L);
+        resizeStorageAction.getActionTranslation().setPassthroughTranslationSuccess();
+        resizeStorageAction.refreshAction(entitySettingsCache);
+        resizeVmAction = new Action(vmResizeRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
+        resizeVmAction.refreshAction(entitySettingsCache);
+        deactivateAction = new Action(deactivateRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
+        deactivateAction.getActionTranslation().setPassthroughTranslationSuccess();
+        deactivateAction.refreshAction(entitySettingsCache);
+        activateAction = new Action(activateRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
+        activateAction.getActionTranslation().setPassthroughTranslationSuccess();
+        activateAction.refreshAction(entitySettingsCache);
         storageMoveAction =
-                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+                new Action(storageMoveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
+        storageMoveAction.getActionTranslation().setPassthroughTranslationSuccess();
+        storageMoveAction.refreshAction(entitySettingsCache);
         reconfigureAction =
-                new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+                new Action(reconfigureRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
+        reconfigureAction.refreshAction(entitySettingsCache);
+        reconfigureAction.getActionTranslation().setPassthroughTranslationSuccess();
+    }
+
+    private void setEntitiesOIDs() {
+        when(entitySettingsCache.getEntityFromOid(eq(11L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(11L,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
+        when(entitySettingsCache.getEntityFromOid(eq(22L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(22L,
+                EntityType.PHYSICAL_MACHINE.getNumber()));
+        when(entitySettingsCache.getEntityFromOid(eq(33L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(33L,
+                EntityType.PHYSICAL_MACHINE.getNumber()));
+        when(entitySettingsCache.getEntityFromOid(eq(44L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(44L,
+                EntityType.STORAGE.getNumber()));
+        when(entitySettingsCache.getEntityFromOid(eq(55L)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(55L,
+                EntityType.STORAGE.getNumber()));
     }
 
     @Test
-    public void testGetRecommendation() throws Exception {
+    public void testGetRecommendation() {
         assertEquals(moveRecommendation, moveAction.getRecommendation());
     }
 
     @Test
-    public void testGetActionPlanId() throws Exception {
+    public void testGetActionPlanId() {
         assertEquals(actionPlanId, moveAction.getActionPlanId());
     }
 
     @Test
-    public void testInitialState() throws Exception {
+    public void testInitialState() {
         assertEquals(ActionState.READY, moveAction.getState());
     }
 
     @Test
-    public void testIsReady() throws Exception {
+    public void testIsReady() {
         assertTrue(moveAction.isReady());
         moveAction.receive(new ActionEvent.NotRecommendedEvent(5));
         assertFalse(moveAction.isReady());
     }
 
     @Test
-    public void testGetId() throws Exception {
+    public void testGetId() {
         assertEquals(moveRecommendation.getId(), moveAction.getId());
     }
 
     @Test
-    public void testExecutionCreatesExecutionStep() throws Exception {
+    public void testExecutionCreatesExecutionStep() {
         final long targetId = 7;
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
             .thenReturn(ImmutableMap.of("move", makeSetting("move", ActionMode.MANUAL)));
@@ -134,12 +176,13 @@ public class ActionTest {
     }
 
     @Test
-    public void testBeginExecutionEventStartsExecute() throws Exception {
+    public void testBeginExecutionEventStartsExecute() {
         final long targetId = 7;
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
                 .thenReturn(ImmutableMap.of("move", makeSetting("move", ActionMode.MANUAL)));
 
         moveAction.receive(new ManualAcceptanceEvent("0", targetId));
+        moveAction.receive(new QueuedEvent());
         moveAction.receive(new PrepareExecutionEvent());
         moveAction.receive(new BeginExecutionEvent());
     }
@@ -155,6 +198,9 @@ public class ActionTest {
                 .thenReturn(ImmutableMap.of("move", makeSetting("move", ActionMode.MANUAL)));
 
         moveAction.receive(new ManualAcceptanceEvent("0", 24L));
+        moveAction.receive(new QueuedEvent());
+        moveAction.receive(new PrepareExecutionEvent());
+        moveAction.receive(new BeginExecutionEvent());
 
         assertFalse(moveAction.determineExecutability());
     }
@@ -163,21 +209,61 @@ public class ActionTest {
     public void testDetermineExecutabilityNotExecutable() {
         final ActionDTO.Action recommendation = moveAction.getRecommendation().toBuilder()
             .setExecutable(false).build();
-        final Action notExecutable = new Action(recommendation, 1, actionModeCalculator);
+        final Action notExecutable = new Action(recommendation, 1, actionModeCalculator, 2244L);
 
         assertFalse(notExecutable.determineExecutability());
+    }
+
+    /**
+     * Test that action is executable if it has ACCEPTED state.
+     */
+    @Test
+    public void testDetermineExecutabilityForAcceptedAction() {
+        final Action executableAction =
+                new Action(moveRecommendation, 1, actionModeCalculator, 2244L);
+        executableAction.receive(new ManualAcceptanceEvent("admin", 12L));
+
+        Assert.assertTrue(executableAction.determineExecutability());
+    }
+
+    @Test
+    public void testInvalidateAction() throws UnsupportedActionException {
+        doReturn(ActionModeCalculator.ModeAndSchedule.of(ActionMode.MANUAL)).when(actionModeCalculator)
+            .calculateActionModeAndExecutionSchedule(moveAction, entitySettingsCache);
+
+        assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
+
+        // Action mode calculator should have been called the first call to getMode()
+        verify(actionModeCalculator, times(1))
+            .calculateActionModeAndExecutionSchedule(moveAction, entitySettingsCache);
+
+        // Subsequent calls to getMode shouldn't fall through to the action mode calculator.
+        assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
+        assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
+        verify(actionModeCalculator, times(1))
+            .calculateActionModeAndExecutionSchedule(moveAction, entitySettingsCache);
+
+        // Invalidate
+        moveAction.refreshAction(entitySettingsCache);
+
+        // The next call to getMode() should result in another call to actionModeCalculator
+        assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
+        verify(actionModeCalculator, times(2))
+            .calculateActionModeAndExecutionSchedule(moveAction, entitySettingsCache);
     }
 
     @Test
     public void testGetModeDefault() {
         //default is MANUAL
         assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
-        assertThat(resizeAction.getMode(), is(ActionMode.MANUAL));
         assertThat(activateAction.getMode(), is(ActionMode.MANUAL));
         assertThat(deactivateAction.getMode(), is(ActionMode.MANUAL));
         assertThat(reconfigureAction.getMode(), is(ActionMode.RECOMMEND));
+        assertThat(resizeStorageAction.getMode(), is(ActionMode.MANUAL));
         //default is RECOMMEND for stMove
         assertThat(storageMoveAction.getMode(), is(ActionMode.RECOMMEND));
+        // For vms and commodity types that are not vmem, mem, cpu or vcpu the default is RECOMMEND
+        assertThat(resizeVmAction.getMode(), is(ActionMode.RECOMMEND));
     }
 
     @Test
@@ -186,24 +272,24 @@ public class ActionTest {
         moveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
                         SupportLevel.SHOW_ONLY).build();
-        moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, 2244L);
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.SHOW_ONLY).build();
-        deactivateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        deactivateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, 2245L);
         activateRecommendation =
                 makeRec(makeActivateInfo(11L), SupportLevel.SHOW_ONLY).build();
-        activateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
-        resizeRecommendation =
-                makeRec(makeResizeInfo(11L), SupportLevel.SHOW_ONLY).build();
-        resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        activateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, 2246L);
+        storageResizeRecommendation =
+                makeRec(makeStorageResizeInfo(11L), SupportLevel.SHOW_ONLY).build();
+        resizeStorageAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, 2247L);
         storageMoveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 44L, 2, 55L, 2),
                         SupportLevel.SHOW_ONLY).build();
         storageMoveAction =
-                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+                new Action(storageMoveRecommendation, actionPlanId, actionModeCalculator, 2248L);
         reconfigureRecommendation =
                 makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.SHOW_ONLY).build();
-        reconfigureAction = new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        reconfigureAction = new Action(reconfigureRecommendation, actionPlanId, actionModeCalculator, 2248L);
 
         Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
                 .put("resize", makeSetting("resize", ActionMode.AUTOMATIC))
@@ -217,7 +303,7 @@ public class ActionTest {
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
                 .thenReturn(settings);
         assertEquals(moveAction.getMode(), ActionMode.RECOMMEND);
-        assertEquals(resizeAction.getMode(), ActionMode.RECOMMEND);
+        assertEquals(resizeStorageAction.getMode(), ActionMode.RECOMMEND);
         assertEquals(activateAction.getMode(), ActionMode.RECOMMEND);
         assertEquals(deactivateAction.getMode(), ActionMode.RECOMMEND);
         assertEquals(storageMoveAction.getMode(), ActionMode.RECOMMEND);
@@ -225,29 +311,29 @@ public class ActionTest {
     }
 
     @Test
-    public void testGetModeSupportLevelUnsupported(){
+    public void testGetModeSupportLevelUnsupported() throws UnsupportedActionException {
         //UNSUPPORTED support level - no modes above DISABLED even though set to RECOMMEND
         moveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
                         SupportLevel.UNSUPPORTED).build();
-        moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.UNSUPPORTED).build();
-        deactivateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        deactivateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         activateRecommendation =
                 makeRec(makeActivateInfo(11L), SupportLevel.UNSUPPORTED).build();
-        activateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
-        resizeRecommendation = makeRec(makeResizeInfo(11L), SupportLevel.UNSUPPORTED).build();
-        resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+        activateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
+        storageResizeRecommendation = makeRec(makeStorageResizeInfo(11L), SupportLevel.UNSUPPORTED).build();
+        resizeStorageAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         storageMoveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 44L, 2, 55L, 2),
                         SupportLevel.UNSUPPORTED).build();
         storageMoveAction =
-                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+                new Action(storageMoveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         reconfigureRecommendation =
                 makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.UNSUPPORTED).build();
         reconfigureAction =
-                new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId, actionModeCalculator);
+                new Action(reconfigureRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
 
         Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
                 .put("resize", makeSetting("resize", ActionMode.RECOMMEND))
@@ -260,8 +346,15 @@ public class ActionTest {
 
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
                 .thenReturn(settings);
+
+        moveAction.refreshAction(entitySettingsCache);
+        storageMoveAction.refreshAction(entitySettingsCache);
+        activateAction.refreshAction(entitySettingsCache);
+        deactivateAction.refreshAction(entitySettingsCache);
+        storageMoveAction.refreshAction(entitySettingsCache);
+        reconfigureAction.refreshAction(entitySettingsCache);
         assertEquals(moveAction.getMode(), ActionMode.DISABLED);
-        assertEquals(resizeAction.getMode(), ActionMode.DISABLED);
+        assertEquals(storageMoveAction.getMode(), ActionMode.DISABLED);
         assertEquals(activateAction.getMode(), ActionMode.DISABLED);
         assertEquals(deactivateAction.getMode(), ActionMode.DISABLED);
         assertEquals(storageMoveAction.getMode(), ActionMode.DISABLED);
@@ -269,7 +362,7 @@ public class ActionTest {
     }
 
     @Test
-    public void testGetModeSupportLevelSupported() {
+    public void testGetModeSupportLevelSupported() throws UnsupportedActionException {
         //SUPPORTED support level - all modes work
 
         Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
@@ -284,7 +377,13 @@ public class ActionTest {
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
                 .thenReturn(settings);
 
-        assertEquals(resizeAction.getMode(), ActionMode.AUTOMATIC);
+        moveAction.refreshAction(entitySettingsCache);
+        storageMoveAction.refreshAction(entitySettingsCache);
+        activateAction.refreshAction(entitySettingsCache);
+        deactivateAction.refreshAction(entitySettingsCache);
+        storageMoveAction.refreshAction(entitySettingsCache);
+        reconfigureAction.refreshAction(entitySettingsCache);
+        assertEquals(storageMoveAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(activateAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(deactivateAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(moveAction.getMode(), ActionMode.AUTOMATIC);
@@ -292,23 +391,63 @@ public class ActionTest {
         assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
     }
 
-    public static ActionDTO.Action.Builder makeRec(ActionInfo.Builder infoBuilder,
-                                             final SupportLevel supportLevel) {
+    /**
+     * Test for {@link Action#getVisibilityLevel()} method.
+     * @throws UnsupportedActionException in case of unsupported action type.
+     */
+    @Test
+    public void testGetVisibilityLevel() throws UnsupportedActionException {
+        final ActionDTO.Action supportedRecommendation =
+                makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
+                        SupportLevel.SUPPORTED).build();
+        final Action supportedAction = new Action(supportedRecommendation, actionPlanId,
+                actionModeCalculator, IdentityGenerator.next());
+        final ActionDTO.Action unsupportedRecommendation =
+                makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
+                        SupportLevel.UNSUPPORTED).build();
+        final Action unsupportedAction = new Action(unsupportedRecommendation, actionPlanId,
+                actionModeCalculator, IdentityGenerator.next());
+
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+                .thenReturn(Collections.emptyMap());
+
+        supportedAction.refreshAction(entitySettingsCache);
+        unsupportedAction.refreshAction(entitySettingsCache);
+
+        assertEquals(VisibilityLevel.ALWAYS_VISIBLE, supportedAction.getVisibilityLevel());
+        assertEquals(VisibilityLevel.HIDDEN_BY_DEFAULT, unsupportedAction.getVisibilityLevel());
+    }
+
+    private static ActionDTO.Action.Builder makeRec(ActionInfo.Builder infoBuilder,
+            final SupportLevel supportLevel) {
         return ActionDTO.Action.newBuilder()
                 .setId(IdentityGenerator.next())
-                .setImportance(0)
+                .setDeprecatedImportance(0)
                 .setExecutable(true)
                 .setSupportingLevel(supportLevel)
                 .setInfo(infoBuilder).setExplanation(Explanation.newBuilder().build());
     }
 
-    private ActionInfo.Builder makeResizeInfo(long targetId) {
+    private ActionInfo.Builder makeVmResizeInfo(long targetId) {
         return ActionInfo.newBuilder().setResize(Resize.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                         .setType(0).build())
                 .setNewCapacity(20)
                 .setOldCapacity(10)
                 .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
+    }
+
+    private ActionInfo.Builder makeStorageResizeInfo(long targetId) {
+        return ActionInfo.newBuilder().setResize(Resize.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(0).build())
+            .setNewCapacity(20)
+            .setOldCapacity(10)
+            .setTarget(ActionEntity.newBuilder()
+                .setId(targetId)
+                // set some fake type for now
+                .setType(EntityType.STORAGE.getNumber())
+                .build()));
     }
 
     private ActionInfo.Builder makeDeactivateInfo(long targetId) {

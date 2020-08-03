@@ -1,0 +1,165 @@
+{
+  "Contexts": [
+    {
+      "context": {
+        "os": LINUX,
+        "csp": "AWS",
+        "region": sydney,
+        "billingAccount": biac1,
+        "tenancy": DEFAULT
+      },
+      "Templates": [
+        {
+          "name": t3.nano,
+          "family": t3,
+          "onDemandCost": {
+            "compute": 1.0,
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
+          },
+          "discountedCost": {
+            "compute": 0.0,
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
+          },
+          "coupons": 1
+        },
+        {
+          "name": t3a.nano,
+          "family": t3a,
+          "onDemandCost": {
+            "compute": 1.0,
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
+          },
+          "discountedCost": {
+            "compute": 0.0,
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
+          },
+          "coupons": 1
+        }
+      ],
+      "VirtualMachines": [
+        {
+          "name": VMA1,
+          "count": 3,
+          "groupName" : GRPA,
+          "businessAccount": 10,
+          "providers": [
+            t3a.nano,
+            t3.nano
+          ],
+          "zone": 1a,
+          "currentRICoverage": 0,
+          "currentTemplate": t3a.nano
+        },
+        {
+          "name": VMA2,
+          "count": 2,
+          "groupName" : GRPA,
+          "businessAccount": 10,
+          "providers": [
+            t3a.nano,
+            t3.nano
+          ],
+          "zone": 1b,
+          "currentRICoverage": 0,
+          "currentTemplate": t3.nano
+        },
+        {
+          "name": VMB1,
+          "count": 2,
+          "groupName" : GRPB,
+          "businessAccount": 10,
+          "providers": [
+            t3a.nano,
+            t3.nano
+          ],
+          "zone": 1a,
+          "currentRICoverage": 0,
+          "currentTemplate": t3a.nano
+        },
+        {
+          "name": VMB2,
+          "count": 3,
+          "groupName" : GRPB,
+          "businessAccount": 10,
+          "providers": [
+            t3a.nano,
+            t3.nano
+          ],
+          "zone": 1b,
+          "currentRICoverage": 0,
+          "currentTemplate": t3.nano
+        }
+      ],
+      "ReservedInstances": [
+        {
+          "name": RI1,
+          "businessAccount": 10,
+          "utilization": 0,
+          "template": t3a.nano,
+          "count": 5,
+          "isf": true
+        }
+      ],
+      "Matching": [
+        {
+          "VirtualMachine": VMA20,
+          "ReservedInstance": RI1,
+          "Template": t3a.nano,
+          "DiscountedCoupons": 1
+        },
+        {
+          "VirtualMachine": VMA21,
+          "ReservedInstance": RI1,
+          "Template": t3a.nano,
+          "DiscountedCoupons": 1
+        },
+        {
+          "VirtualMachine": VMA10,
+          "ReservedInstance": RI1,
+          "Template": t3a.nano,
+          "DiscountedCoupons": 1
+        },
+        {
+          "VirtualMachine": VMA11,
+          "ReservedInstance": RI1,
+          "Template": t3a.nano,
+          "DiscountedCoupons": 1
+        },
+        {
+          "VirtualMachine": VMA12,
+          "ReservedInstance": RI1,
+          "Template": t3a.nano,
+          "DiscountedCoupons": 1
+        },
+        {
+          "VirtualMachine": VMB20,
+          "Template": t3.nano
+        },
+        {
+          "VirtualMachine": VMB21,
+          "Template": t3.nano
+        },
+        {
+          "VirtualMachine": VMB10,
+          "Template": t3.nano
+        },
+        {
+          "VirtualMachine": VMB11,
+          "Template": t3.nano
+        },
+        {
+          "VirtualMachine": VMB22,
+          "Template": t3.nano
+        }
+      ]
+    }
+  ]
+}

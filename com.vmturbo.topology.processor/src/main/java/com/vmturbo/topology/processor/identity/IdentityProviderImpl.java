@@ -14,16 +14,19 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -58,6 +61,10 @@ public class IdentityProviderImpl implements IdentityProvider {
     // START diags-related constants
 
     /**
+     * File name inside diagnostics to store identity information.
+     */
+    public static final String ID_DIAGS_FILE_NAME = "Identity";
+    /**
      * The total number of diags entries. There should be this many DIAGS_*_IDX variables.
      */
     private static final int NUM_DIAGS_ENTRIES = 3;
@@ -75,7 +82,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     private final Logger logger = LogManager.getLogger();
 
     // START Fields for Probe ID management
-    private final ConcurrentMap<String, Long> probeTypeToId;
+    private ConcurrentMap<String, Long> probeTypeToId;
 
     private final Object probeIdLock = new Object();
     // END Fields for Probe ID management
@@ -113,6 +120,7 @@ public class IdentityProviderImpl implements IdentityProvider {
      * @param identityService The identity service to use when identifying service entities
      * @param keyValueStore The key value store where identity information that needs to be persisted is stored
      * @param identityGeneratorPrefix The prefix used to initialize the {@link IdentityGenerator}
+     * @param compatibilityChecker compatibility checker
      */
     public IdentityProviderImpl(@Nonnull final IdentityService identityService,
                                 @Nonnull final KeyValueStore keyValueStore,
@@ -124,11 +132,10 @@ public class IdentityProviderImpl implements IdentityProvider {
         this.probeInfoCompatibilityChecker = Objects.requireNonNull(compatibilityChecker);
 
         Map<String, String> savedProbeIds = this.keyValueStore.getByPrefix(PROBE_ID_PREFIX);
-
         this.probeTypeToId = savedProbeIds.entrySet().stream().collect(Collectors.toConcurrentMap(
-                entry -> entry.getKey().replaceFirst(PROBE_ID_PREFIX, ""),
-                entry -> Long.parseLong(entry.getValue())));
-    }
+            entry -> entry.getKey().replaceFirst(PROBE_ID_PREFIX, ""),
+            entry -> Long.parseLong(entry.getValue())));
+      }
 
     /** {@inheritDoc}
      */
@@ -209,8 +216,7 @@ public class IdentityProviderImpl implements IdentityProvider {
      */
     @Override
     public Map<Long, EntityDTO> getIdsForEntities(final long probeId,
-                                                  @Nonnull final List<EntityDTO> entityDTOs)
-            throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException {
+            @Nonnull final List<EntityDTO> entityDTOs) throws IdentityServiceException {
         Objects.requireNonNull(entityDTOs);
         /* We expect that the probe is already registered.
          * There is a small window in getProbeId() where concurrent calls could
@@ -239,17 +245,15 @@ public class IdentityProviderImpl implements IdentityProvider {
                 // If we are unable to assign an OID for an entity, abandon the attempt.
                 // One missing entity OID spoils the entire batch because of how tangled the relationships
                 // between entities are.
-                throw new IdentityMetadataMissingException(probeId, dto.getEntityType());
+                throw new IdentityServiceException(
+                        "Probe " + probeId + " sends entities of type " + dto.getEntityType()
+                                + " but provides no related " + "identity metadata.");
             }
         }
 
         final List<Long> ids;
         synchronized (identityServiceLock) {
-            try {
-                ids = identityService.getEntityOIDs(entryData);
-            } catch (IdentityWrongSetException | IdentityServiceOperationException e) {
-                throw new IdentityProviderException("Failed to assign IDs to entities.", e);
-            }
+            ids = identityService.getOidsForObjects(entryData);
         }
 
         final Map<Long, EntityDTO> retMap = new HashMap<>();
@@ -286,25 +290,24 @@ public class IdentityProviderImpl implements IdentityProvider {
 
     @Nonnull
     @Override
-    public List<String> collectDiags() {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         logger.info("Collecting diagnostics from the Identity Provider...");
         // No-pretty-print is important, because we want one line per item so that we
         // can restore properly.
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
-        // Synchronize on the probeIdLock so that probes that register
-        // during a diags dump don't cause any issues or inconsistencies.
-        final List<String> retList;
-        synchronized (probeIdLock) {
-            final StringWriter writer = new StringWriter();
-            identityService.backup(writer);
-
-            retList = new ArrayList<>(NUM_DIAGS_ENTRIES);
-            retList.add(DIAGS_PROBE_TYPE_IDX, gson.toJson(probeTypeToId));
-            retList.add(DIAGS_PROBE_METADATA_IDX, gson.toJson(perProbeMetadata));
-            retList.add(DIAGS_ID_SVC_IDX, writer.toString());
+        try {
+            // Synchronize on the probeIdLock so that probes that register
+            // during a diags dump don't cause any issues or inconsistencies.
+            synchronized (probeIdLock) {
+                appender.appendString(gson.toJson(probeTypeToId));
+                appender.appendString(gson.toJson(perProbeMetadata));
+                final StringWriter writer = new StringWriter();
+                identityService.backup(writer);
+                appender.appendString(writer.toString());
+            }
+        } finally {
+            logger.info("Finished collecting diagnostics from the Identity Provider.");
         }
-        logger.info("Finished collecting diagnostics from the Identity Provider.");
-        return retList;
     }
 
     @Override
@@ -325,7 +328,7 @@ public class IdentityProviderImpl implements IdentityProvider {
                 probeTypeToId.clear();
                 probeTypeToId.putAll(newProbeTypeToId);
                 // Keep Consul in sync with the internal cache
-                keyValueStore.remove(PROBE_ID_PREFIX);
+                keyValueStore.removeKeysWithPrefix(PROBE_ID_PREFIX);
                 probeTypeToId.forEach(this::storeProbeId);
             } catch (JsonSyntaxException e) {
                 throw new IllegalArgumentException(
@@ -347,6 +350,12 @@ public class IdentityProviderImpl implements IdentityProvider {
             identityService.restore(reader);
         }
         logger.info("Successfully restored the Identity Provider!");
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return ID_DIAGS_FILE_NAME;
     }
 
     private void storeProbeId(final String probeType, final Long probeId) {

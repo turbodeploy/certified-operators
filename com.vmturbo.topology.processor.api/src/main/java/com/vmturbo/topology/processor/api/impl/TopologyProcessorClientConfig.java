@@ -1,10 +1,18 @@
 package com.vmturbo.topology.processor.api.impl;
 
 import java.util.Arrays;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+
+import javax.annotation.Nonnull;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,19 +21,19 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import io.grpc.Channel;
-
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
-import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
+import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
 
 /**
  * Spring configuration to import to connect to TopologyProcessor instance.
@@ -46,6 +54,9 @@ public class TopologyProcessorClientConfig {
     @Value("${serverHttpPort}")
     private int topologyProcessorPort;
 
+    @Value("${topologyProcessorRoute:}")
+    private String topologyProcessorRoute;
+
     @Value("${serverGrpcPort}")
     private int topologyProcessorRpcPort;
 
@@ -62,37 +73,71 @@ public class TopologyProcessorClientConfig {
     @Bean
     protected ComponentApiConnectionConfig topologyProcessorClientConnectionConfig() {
         return ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(topologyProcessorHost, topologyProcessorPort)
+                .setHostAndPort(topologyProcessorHost, topologyProcessorPort, topologyProcessorRoute)
                 .build();
     }
 
-    @Bean
-    protected IMessageReceiver<TopologyProcessorNotification> topologyNotificationReceiver() {
-        return baseKafkaConfig.kafkaConsumer()
-                .messageReceiver(TopologyProcessorClient.NOTIFICATIONS_TOPIC,
-                        TopologyProcessorNotification::parseFrom);
-    }
-
-    @Bean
-    protected IMessageReceiver<Topology> liveTopologyBroadcastReceiver() {
-        return baseKafkaConfig.kafkaConsumer()
-                .messageReceiver(TopologyProcessorClient.TOPOLOGY_LIVE,
-                        Topology::parseFrom);
-    }
-
-    @Bean
-    protected IMessageReceiver<Topology> planTopologyBroadcastReceiver() {
-        return baseKafkaConfig.kafkaConsumer()
-                .messageReceiver(Arrays.asList(TopologyProcessorClient.TOPOLOGY_USER_PLAN,
-                        TopologyProcessorClient.TOPOLOGY_SCHEDULED_PLAN), Topology::parseFrom);
-    }
-
-    @Bean
-    protected IMessageReceiver<TopologySummary> topologySummaryReceiver() {
-        return baseKafkaConfig.kafkaConsumer()
+    protected IMessageReceiver<TopologyProcessorNotification> topologyNotificationReceiver(
+            Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+            .map(startFrom -> baseKafkaConfig.kafkaConsumer()
                 .messageReceiverWithSettings(
-                        new TopicSettings(TopologyProcessorClient.TOPOLOGY_SUMMARIES, StartFrom.BEGINNING),
-                        TopologySummary::parseFrom);
+                    new TopicSettings(TopologyProcessorClient.NOTIFICATIONS_TOPIC, startFrom),
+                    TopologyProcessorNotification::parseFrom))
+            .orElseGet(() -> baseKafkaConfig.kafkaConsumer()
+                .messageReceiver(TopologyProcessorClient.NOTIFICATIONS_TOPIC,
+                    TopologyProcessorNotification::parseFrom));
+    }
+
+    protected IMessageReceiver<Topology> liveTopologyBroadcastReceiver(
+            @Nonnull final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+            .map(startFrom -> baseKafkaConfig.kafkaConsumer()
+                .messageReceiverWithSettings(
+                    new TopicSettings(TopologyProcessorClient.TOPOLOGY_LIVE, startFrom),
+                    Topology::parseFrom))
+            .orElseGet(() -> baseKafkaConfig.kafkaConsumer()
+                .messageReceiver(TopologyProcessorClient.TOPOLOGY_LIVE,
+                    Topology::parseFrom));
+    }
+
+    protected IMessageReceiver<Topology> planTopologyBroadcastReceiver(
+            @Nonnull final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+            .map(startFrom -> baseKafkaConfig.kafkaConsumer()
+                .messageReceiversWithSettings(Arrays.asList(
+                    new TopicSettings(TopologyProcessorClient.TOPOLOGY_USER_PLAN, startFrom),
+                    new TopicSettings(TopologyProcessorClient.TOPOLOGY_SCHEDULED_PLAN, startFrom)),
+                    Topology::parseFrom))
+            .orElseGet(() -> baseKafkaConfig.kafkaConsumer()
+                .messageReceiver(Arrays.asList(TopologyProcessorClient.TOPOLOGY_USER_PLAN,
+                    TopologyProcessorClient.TOPOLOGY_SCHEDULED_PLAN), Topology::parseFrom));
+    }
+
+    protected IMessageReceiver<TopologySummary> topologySummaryReceiver(
+            @Nonnull final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+            .map(startFrom -> baseKafkaConfig.kafkaConsumer()
+                .messageReceiverWithSettings(
+                    new TopicSettings(TopologyProcessorClient.TOPOLOGY_SUMMARIES, startFrom),
+                    TopologySummary::parseFrom))
+            .orElseGet(() -> baseKafkaConfig.kafkaConsumer()
+                .messageReceiverWithSettings(
+                    // The default is to start from the beginning.
+                    new TopicSettings(TopologyProcessorClient.TOPOLOGY_SUMMARIES, StartFrom.BEGINNING),
+                    TopologySummary::parseFrom));
+    }
+
+    protected IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver(
+        @Nonnull final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+            .map(startFrom -> baseKafkaConfig.kafkaConsumer()
+                .messageReceiverWithSettings(
+                    new TopicSettings(TopologyProcessorClient.ENTITIES_WITH_NEW_STATE, startFrom),
+                    EntitiesWithNewState::parseFrom))
+            .orElseGet(() -> baseKafkaConfig.kafkaConsumer()
+                .messageReceiver(TopologyProcessorClient.ENTITIES_WITH_NEW_STATE,
+                    EntitiesWithNewState::parseFrom));
     }
 
     /**
@@ -102,29 +147,37 @@ public class TopologyProcessorClientConfig {
      * @param subscriptions set of features to subscribe to
      * @return topology processor client implementation
      */
-    public TopologyProcessor topologyProcessor(final Set<Subscription> subscriptions) {
+    public TopologyProcessor topologyProcessor(@Nonnull final TopologyProcessorSubscription... subscriptions) {
+        final Map<Topic, TopologyProcessorSubscription> subscriptionsByTopic = new HashMap<>();
+        for (TopologyProcessorSubscription sub : subscriptions) {
+            subscriptionsByTopic.put(sub.getTopic(), sub);
+        }
+
         final IMessageReceiver<TopologyProcessorNotification> notificationsReceiver
-                = subscriptions.contains(Subscription.Notifications)
-                    ? topologyNotificationReceiver()
-                    : null;
+            = subscriptionsByTopic.containsKey(Topic.Notifications)
+            ? topologyNotificationReceiver(subscriptionsByTopic.get(Topic.Notifications).getStartFrom())
+            : null;
         final IMessageReceiver<Topology> liveReceiver
-                = subscriptions.contains(Subscription.LiveTopologies)
-                    ? liveTopologyBroadcastReceiver()
-                    : null;
+            = subscriptionsByTopic.containsKey(Topic.LiveTopologies)
+            ? liveTopologyBroadcastReceiver(subscriptionsByTopic.get(Topic.LiveTopologies).getStartFrom())
+            : null;
         final IMessageReceiver<Topology> planReceiver
-                = subscriptions.contains(Subscription.PlanTopologies)
-                    ? planTopologyBroadcastReceiver()
-                    : null;
+            = subscriptionsByTopic.containsKey(Topic.PlanTopologies)
+            ? planTopologyBroadcastReceiver(subscriptionsByTopic.get(Topic.PlanTopologies).getStartFrom())
+            : null;
         final IMessageReceiver<TopologySummary> summaryReceiver
-                = subscriptions.contains(Subscription.TopologySummaries)
-                    ? topologySummaryReceiver()
-                    : null;
+            = subscriptionsByTopic.containsKey(Topic.TopologySummaries)
+            ? topologySummaryReceiver(subscriptionsByTopic.get(Topic.TopologySummaries).getStartFrom())
+            : null;
+        final IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver
+            = subscriptionsByTopic.containsKey(Topic.EntitiesWithNewState)
+            ? entitiesWithNewStateReceiver(subscriptionsByTopic.get(Topic.EntitiesWithNewState).getStartFrom())
+            : null;
         return TopologyProcessorClient.rpcAndNotification(topologyProcessorClientConnectionConfig(),
-                topologyProcessorClientThreadPool(), notificationsReceiver, liveReceiver,
-                planReceiver, summaryReceiver);
+            topologyProcessorClientThreadPool(), notificationsReceiver, liveReceiver,
+            planReceiver, summaryReceiver, entitiesWithNewStateReceiver);
     }
 
-    @Bean
     public TopologyProcessor topologyProcessorRpcOnly() {
         return TopologyProcessorClient.rpcOnly(topologyProcessorClientConnectionConfig());
     }
@@ -138,11 +191,20 @@ public class TopologyProcessorClientConfig {
      */
     @Bean
     public Channel topologyProcessorChannel() {
-        return GrpcChannelFactory.newChannelBuilder(topologyProcessorHost, topologyProcessorRpcPort)
+        return ComponentGrpcServer.newChannelBuilder(topologyProcessorHost, topologyProcessorRpcPort)
                 .build();
     }
 
-    public enum Subscription {
-        Notifications, LiveTopologies, PlanTopologies, TopologySummaries;
+    /**
+     * Creates action states message receiver which will be able to receive action state changes
+     * reported from external action approval backend.
+     *
+     * @return the bean created
+     */
+    @Nonnull
+    public IMessageReceiver<GetActionStateResponse> createActionStateReceiver() {
+        return baseKafkaConfig.kafkaConsumer()
+                .messageReceiver(TopologyProcessorClient.EXTERNAL_ACTION_UPDATES_TOPIC,
+                        GetActionStateResponse::parseFrom);
     }
 }

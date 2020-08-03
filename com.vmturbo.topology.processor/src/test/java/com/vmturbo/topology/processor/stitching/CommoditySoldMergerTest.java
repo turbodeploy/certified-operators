@@ -16,9 +16,13 @@ import javax.annotation.Nonnull;
 
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableList;
+
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
+import com.vmturbo.stitching.DataDrivenStitchingOperation.MetaDataAwareMergeCommoditySoldStrategy;
 import com.vmturbo.stitching.utilities.MergeEntities;
 import com.vmturbo.stitching.utilities.MergeEntities.MergeCommoditySoldStrategy;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
@@ -61,6 +65,13 @@ public class CommoditySoldMergerTest {
         .setCommodityType(CommodityType.VMEM)
         .setKey("A"), null);
 
+    final CommoditySold appA = new CommoditySold(CommodityDTO.newBuilder()
+        .setCommodityType(CommodityType.APPLICATION)
+        .setKey("A"), null);
+    final CommoditySold appB = new CommoditySold(CommodityDTO.newBuilder()
+        .setCommodityType(CommodityType.APPLICATION)
+        .setKey("B"), null);
+
     @Test
     public void testMergeCommodityDistinctFrom() {
         final List<CommoditySold> merged = merger.mergeCommoditiesSold(
@@ -84,7 +95,6 @@ public class CommoditySoldMergerTest {
 
         assertThat(merged, containsInAnyOrder(vcpuA, vcpuB));
     }
-
 
     @Test
     public void testMergeCommodityNoKeyDistinctFromKey() {
@@ -130,5 +140,34 @@ public class CommoditySoldMergerTest {
             Collections.singletonList(vcpuA), Collections.singletonList(vcpuABigger));
 
         assertThat(merged, is(empty()));
+    }
+
+    @Test
+    public void testMergeSoldCommoditiesIgnoreIfPresent() {
+        // create a commodity sold metadata, both vcpu and application commodity will be merged
+        final MetaDataAwareMergeCommoditySoldStrategy mergeStrategy =
+            new MetaDataAwareMergeCommoditySoldStrategy(ImmutableList.of(
+                CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.VCPU).build(),
+                CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.APPLICATION).build()));
+
+        CommoditySoldMerger merger = new CommoditySoldMerger(mergeStrategy);
+
+        List<CommoditySold> fromCommodities = ImmutableList.of(vcpuABigger, appA);
+        List<CommoditySold> ontoCommodities = ImmutableList.of(vcpuA, appB);
+
+        List<CommoditySold> merged = merger.mergeCommoditiesSold(fromCommodities, ontoCommodities);
+        // appA is merged and both appA and appB are in final list since they have different key
+        assertThat(merged, containsInAnyOrder(vcpuA, appA, appB));
+
+        // create commodity sold metadata, the application commodity will be ignored if present
+        final MetaDataAwareMergeCommoditySoldStrategy mergeStrategyIgnoreIfPresent =
+            new MetaDataAwareMergeCommoditySoldStrategy(ImmutableList.of(
+                CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.VCPU).build(),
+                CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.APPLICATION)
+                    .setIgnoreIfPresent(true).build()));
+        merger = new CommoditySoldMerger(mergeStrategyIgnoreIfPresent);
+        merged = merger.mergeCommoditiesSold(fromCommodities, ontoCommodities);
+        // appA is not merged since there is already an Application commodity (appB) on onto list
+        assertThat(merged, containsInAnyOrder(vcpuA, appB));
     }
 }

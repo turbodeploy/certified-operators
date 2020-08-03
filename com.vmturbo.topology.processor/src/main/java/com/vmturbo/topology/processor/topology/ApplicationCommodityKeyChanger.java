@@ -1,8 +1,11 @@
 package com.vmturbo.topology.processor.topology;
 
+import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -15,6 +18,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 
 /**
@@ -44,79 +49,94 @@ public class ApplicationCommodityKeyChanger {
 
     private static final String EMPTY_STRING_KEY = "";
 
+
+    /**
+     * These are the possible outcomes of attempting commodity key change on a given VM, used
+     * to consolidate reporting of VMs for which key change is not yet suported because the VM
+     * sells multiple application commodities.
+     */
+    public enum KeyChangeOutcome {
+        CHANGED,
+        UNCHANGED,
+        UNSUPPORTED
+    }
+
     /**
      * Executes the key change to all the replica vms.
      *
      * @param topologyGraph graph of the current discovered topology.
      * @return Number of modified commodity keys.
      */
-    public int execute(@Nonnull final TopologyGraph topologyGraph) {
+    public Map<KeyChangeOutcome, Integer> execute(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
 
-        final AtomicInteger numChanged = new AtomicInteger(0);
-        // iterate over all the VMs and check which ones needs to be changed
-        topologyGraph.entitiesOfType(EntityType.VIRTUAL_MACHINE).forEach(vm -> {
+        // perform key change on all the VMs, and group them according to outcome
+        Map<KeyChangeOutcome, List<TopologyEntity>> results =
+            topologyGraph.entitiesOfType(EntityType.VIRTUAL_MACHINE)
+                .collect(Collectors.groupingBy(vm -> {return performKeyChange(vm, topologyGraph);}));
 
-            // get the list of ApplicationCommodity sold
-            List<Builder> appCommoditySoldList = vm.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
-                .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.APPLICATION_VALUE)
-                .collect(Collectors.toList());
-
-            // for now we are doing this only for vms and applications, and only if the vm is selling
-            // a single ApplicationCommodity
-            if (appCommoditySoldList.size() == 1) {
-
-                TopologyDTO.CommodityType.Builder appComm = appCommoditySoldList.get(0).getCommodityTypeBuilder();
-                // remember the old key for later, when we need to scan the apps
-                String oldAppCommKey = appComm.getKey();
-
-                // if the key is null or empty, don't change it because it's not representing a
-                // constraint for the consumer
-                if (StringUtils.isNotEmpty(oldAppCommKey)) {
-
-                    // change the key to something that is unique, and cannot clash with the
-                    // same app commodity in the replicated vm
-                    // we are using the vm oid, because it's guaranteed to be unique
-                    String newCommKey = Long.toString(vm.getOid());
-                    numChanged.incrementAndGet();
-                    appComm.setKey(newCommKey);
-
-                    // change app key on apps that are consuming from the vm
-                    topologyGraph.getConsumers(vm)
-                        .filter(consumer -> consumer.getEntityType() == EntityType.APPLICATION_VALUE ||
-                                consumer.getEntityType() == EntityType.APPLICATION_SERVER_VALUE ||
-                                consumer.getEntityType() == EntityType.DATABASE_SERVER_VALUE)
-                        .forEach(app -> {
-
-                            // find the commodity set that is buying from that same vm
-                            CommoditiesBoughtFromProvider.Builder commBoughtFromProv = app.getTopologyEntityDtoBuilder()
-                                .getCommoditiesBoughtFromProvidersBuilderList()
-                                .stream()
-                                .filter(commFromProvider -> commFromProvider.getProviderId() == vm.getOid())
-                                .findFirst().get();
-
-                            // find the commodity with the corresponding old key
-                            commBoughtFromProv.getCommodityBoughtBuilderList().forEach(comm -> {
-                                TopologyDTO.CommodityType.Builder commType = comm.getCommodityTypeBuilder();
-                                if (oldAppCommKey.equals(commType.getKey())) {
-                                    // change the key to the new one, on the app side
-                                    commType.setKey(newCommKey);
-                                }
-                            });
-                        });
-                }
-
-            } else if (appCommoditySoldList.size() > 1) {
-                // TODO support key change when vms selling more than 1 app commodity
-                // in this case there is more than 1 app commodity sold by the vm
-                // it's not clear at this point which one we need to change, and which one to keep
-                // so we are not supporting this for now
-                // We need to check this logic again when we will implement APM/ACM probes in XL
-                logger.warn("Unable to change ApplicationCommodity key because VM OID:{} " +
-                    "displayName:{} is selling more than one of those", vm.getOid(), vm.getDisplayName());
-            }
-        });
-
-        return numChanged.get();
+        // emit a consolidated log message if key change was unsupported for any of them
+        final Collection<TopologyEntity> unsupportedVMs = results.get(KeyChangeOutcome.UNSUPPORTED);
+        if (unsupportedVMs != null && !unsupportedVMs.isEmpty()) {
+            logger.warn("App commodity key change not yet supported for {} VMs that sell multiple " +
+                "application commodities", unsupportedVMs.size());
+        }
+        // return # of vms with key change
+        return Stream.of(KeyChangeOutcome.values())
+            .collect(Collectors.toMap(Function.identity(),
+                o-> results.containsKey(o) ? results.get(o).size() : 0));
     }
 
+    private KeyChangeOutcome performKeyChange(TopologyEntity vm, TopologyGraph<TopologyEntity> topologyGraph) {
+        KeyChangeOutcome outcome = KeyChangeOutcome.UNCHANGED;
+
+        // get the list of ApplicationCommodity sold
+        List<Builder> appCommoditySoldList = vm.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+            .filter(commodity -> commodity.getCommodityType().getType() == CommodityType.APPLICATION_VALUE)
+            .collect(Collectors.toList());
+
+        // for now we are doing this only for vms and applications, and only if the vm is selling
+        // a single ApplicationCommodity
+        if (appCommoditySoldList.size() == 1) {
+
+            TopologyDTO.CommodityType.Builder appComm = appCommoditySoldList.get(0).getCommodityTypeBuilder();
+            // remember the old key for later, when we need to scan the apps
+            String oldAppCommKey = appComm.getKey();
+
+            // if the key is null or empty, don't change it because it's not representing a
+            // constraint for the consumer
+            if (StringUtils.isNotEmpty(oldAppCommKey)) {
+
+                // change the key to something that is unique, and cannot clash with the
+                // same app commodity in the replicated vm
+                // we are using the vm oid, because it's guaranteed to be unique
+                String newCommKey = Long.toString(vm.getOid());
+                outcome = KeyChangeOutcome.CHANGED;
+                appComm.setKey(newCommKey);
+
+                // change app key on apps that are consuming from the vm
+                topologyGraph.getConsumers(vm)
+                    .forEach(consumer -> {
+                        consumer.getTopologyEntityDtoBuilder()
+                            .getCommoditiesBoughtFromProvidersBuilderList().stream()
+                                .filter(commFromProvider -> commFromProvider.getProviderId() == vm.getOid())
+                                .map(CommoditiesBoughtFromProvider.Builder::getCommodityBoughtBuilderList)
+                                .flatMap(List::stream)
+                                .filter(commodity -> commodity.getCommodityType().getType() ==
+                                            CommodityType.APPLICATION_VALUE)
+                                .filter(appCommodity ->
+                                            oldAppCommKey.equals(appCommodity.getCommodityType().getKey()))
+                                .forEach(appCommodity -> appCommodity.getCommodityTypeBuilder().setKey(newCommKey));
+                    });
+            }
+
+        } else if (appCommoditySoldList.size() > 1) {
+            // TODO support key change when vms selling more than 1 app commodity
+            // in this case there is more than 1 app commodity sold by the vm
+            // it's not clear at this point which one we need to change, and which one to keep
+            // so we are not supporting this for now
+            // We need to check this logic again when we will implement APM/ACM probes in XL
+            outcome = KeyChangeOutcome.UNSUPPORTED;
+        }
+        return outcome;
+    }
 }

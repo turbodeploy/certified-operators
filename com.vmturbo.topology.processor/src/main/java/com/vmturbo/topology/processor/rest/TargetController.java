@@ -1,7 +1,10 @@
 package com.vmturbo.topology.processor.rest;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -10,6 +13,17 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.ws.rs.ForbiddenException;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableList;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,17 +36,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.google.common.collect.ImmutableList;
-
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-
-import com.vmturbo.identity.exceptions.IdentityStoreException;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowsRequest;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
@@ -61,7 +78,8 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
 @RestController
 public class TargetController {
 
-    public static final String VALIDATED = "Validated";
+    @VisibleForTesting
+    public static final String VALIDATING = "Validating";
 
     private final TargetStore targetStore;
 
@@ -75,14 +93,34 @@ public class TargetController {
 
     private final Logger logger = LogManager.getLogger();
 
-    public TargetController(@Nonnull final Scheduler scheduler, @Nonnull final TargetStore targetStore,
-                            @Nonnull final ProbeStore probeStore, @Nonnull IOperationManager operationManager,
-                            @Nonnull final TopologyHandler topologyHandler) {
-                this.scheduler = Objects.requireNonNull(scheduler);
-                this.targetStore = Objects.requireNonNull(targetStore);
-                this.probeStore = Objects.requireNonNull(probeStore);
-                this.operationManager = Objects.requireNonNull(operationManager);
-                this.topologyHandler = Objects.requireNonNull(topologyHandler);
+    private final WorkflowServiceBlockingStub workflowRpcService;
+
+    private final SettingPolicyServiceBlockingStub settingPolicyRpcService;
+
+    /**
+     * Constructor of {@link TargetController}.
+     *
+     * @param scheduler schedules events like target discovery or topology broadcast
+     * @param targetStore the target store
+     * @param probeStore the probe store
+     * @param operationManager the operation manager to operate with probes
+     * @param topologyHandler the {@link TopologyHandler} instance
+     * @param settingPolicyServiceBlockingStub the setting policy service
+     * @param workflowServiceBlockingStub the workflow service
+     */
+    public TargetController(@Nonnull final Scheduler scheduler,
+            @Nonnull final TargetStore targetStore, @Nonnull final ProbeStore probeStore,
+            @Nonnull IOperationManager operationManager,
+            @Nonnull final TopologyHandler topologyHandler,
+            @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
+            @Nonnull final WorkflowServiceBlockingStub workflowServiceBlockingStub) {
+        this.scheduler = Objects.requireNonNull(scheduler);
+        this.targetStore = Objects.requireNonNull(targetStore);
+        this.probeStore = Objects.requireNonNull(probeStore);
+        this.operationManager = Objects.requireNonNull(operationManager);
+        this.topologyHandler = Objects.requireNonNull(topologyHandler);
+        this.settingPolicyRpcService = Objects.requireNonNull(settingPolicyServiceBlockingStub);
+        this.workflowRpcService = Objects.requireNonNull(workflowServiceBlockingStub);
     }
 
     @RequestMapping(method = RequestMethod.POST,
@@ -98,9 +136,26 @@ public class TargetController {
             @ApiParam(value = "The information for the target to add.", required = true)
             @RequestBody final TargetSpec targetSpec) {
         try {
-            final Target target = targetStore.createTarget(targetSpec.toDto());
-            final TargetInfo targetInfo = targetToTargetInfo(target);
-            return new ResponseEntity<>(targetInfo, HttpStatus.OK);
+            final Optional<ProbeInfo> probeInfo = probeStore.getProbe(targetSpec.toDto().getProbeId());
+            if (probeInfo.isPresent()) {
+                final CreationMode creationMode = probeInfo.get().getCreationMode();
+                if (TargetOperation.ADD.isValidTargetOperation(creationMode)) {
+                    TopologyProcessorDTO.TargetSpec targetDto
+                            = probeInfo.get().getCreationMode() == CreationMode.INTERNAL
+                            ? targetSpec.toDto().toBuilder().setIsHidden(true).build()
+                            : targetSpec.toDto();
+                    final Target target = targetStore.createTarget(targetDto);
+                    final TargetInfo targetInfo = targetToTargetInfo(target);
+                    return new ResponseEntity<>(targetInfo, HttpStatus.OK);
+                } else {
+                    // invalid operation
+                    return errorResponse(new ForbiddenException("ADD operation is not allowed on "
+                        + targetSpec.getProbeId()), HttpStatus.FORBIDDEN);
+                }
+            } else {
+                return errorResponse(new ForbiddenException("Target probe was not found: "
+                    + targetSpec.getProbeId()), HttpStatus.NOT_FOUND);
+            }
         } catch (TopologyProcessorException | IdentityStoreException | DuplicateTargetException e) {
             return errorResponse(e, HttpStatus.BAD_REQUEST);
         } catch (InvalidTargetException e) {
@@ -157,11 +212,18 @@ public class TargetController {
                                     required = true) @RequestBody final Collection<InputField> targetSpec,
                     @ApiParam(value = "The ID of the target.") @PathVariable("targetId") final Long targetId) {
         try {
-            Objects.requireNonNull(targetSpec);
-            final Target target = targetStore.updateTarget(targetId, targetSpec.stream()
-                            .map(av -> av.toAccountValue()).collect(Collectors.toList()));
-            final TargetInfo targetInfo = targetToTargetInfo(target);
-            return new ResponseEntity<>(targetInfo, HttpStatus.OK);
+            Target target = getTargetFromStore(targetId);
+            if (TargetOperation.UPDATE.isValidTargetOperation(target.getProbeInfo().getCreationMode())) {
+                Objects.requireNonNull(targetSpec);
+                target = targetStore.updateTarget(targetId, targetSpec.stream()
+                    .map(av -> av.toAccountValue()).collect(Collectors.toList()));
+                final TargetInfo targetInfo = targetToTargetInfo(target);
+                return new ResponseEntity<>(targetInfo, HttpStatus.OK);
+            } else {
+                // invalid operation
+                return errorResponse(new ForbiddenException("UPDATE operation is not allowed on "
+                    + target.getDisplayName()), HttpStatus.FORBIDDEN);
+            }
         } catch (InvalidTargetException e) {
             final TargetInfo resp = error(e.getErrors());
             return new ResponseEntity<>(resp, HttpStatus.BAD_REQUEST);
@@ -186,14 +248,51 @@ public class TargetController {
     public ResponseEntity<TargetInfo> removeTarget(@ApiParam(
                     value = "The ID of the target.") @PathVariable("targetId") final Long targetId) {
         try {
-            final Target target = targetStore.removeTargetAndBroadcastTopology(targetId, topologyHandler, scheduler);
-            return new ResponseEntity<>(targetToTargetInfo(target), HttpStatus.OK);
+            Target target = getTargetFromStore(targetId);
+            final List<SettingPolicy> policiesBlockedTheDeletion =
+                    getPoliciesWithWorkflowsDiscoveredByTarget(targetId);
+            if (!policiesBlockedTheDeletion.isEmpty()) {
+                final Collection<String> policiesBlockedDeleting =
+                        Collections2.transform(policiesBlockedTheDeletion,
+                                policy -> policy.getInfo().getName() + " (" + policy.getId() + ')');
+                return errorResponse(new ForbiddenException(
+                        "Cannot remove target " + target.getDisplayName()
+                                + " because there are policies related to the target: "
+                                + policiesBlockedDeleting + " ."), HttpStatus.FORBIDDEN);
+            }
+            if (TargetOperation.REMOVE.isValidTargetOperation(target.getProbeInfo().getCreationMode())) {
+                target = targetStore.removeTargetAndBroadcastTopology(targetId, topologyHandler, scheduler);
+                return new ResponseEntity<>(targetToTargetInfo(target), HttpStatus.OK);
+            } else {
+                // invalid operation
+                return errorResponse(new ForbiddenException("Operation remove is not allowed on "
+                    + target.getDisplayName()), HttpStatus.FORBIDDEN);
+            }
         } catch (TargetNotFoundException e) {
             return errorResponse(e, HttpStatus.NOT_FOUND);
         } catch (IdentityStoreException e) {
             return errorResponse(e, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+    private List<SettingPolicy> getPoliciesWithWorkflowsDiscoveredByTarget(@Nonnull Long targetId) {
+        final List<Workflow> workflowsDiscoveredByTarget = workflowRpcService.fetchWorkflows(
+                FetchWorkflowsRequest.newBuilder().addTargetId(targetId).build())
+                .getWorkflowsList();
+        if (!workflowsDiscoveredByTarget.isEmpty()) {
+            final List<SettingPolicy> settingPolicies = new ArrayList<>();
+            settingPolicyRpcService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
+                    .addAllWorkflowId(
+                            Collections2.transform(workflowsDiscoveredByTarget, Workflow::getId))
+                    .build()).forEachRemaining(settingPolicies::add);
+            return settingPolicies;
+        }
+        return Collections.emptyList();
+    }
+
+    @Nonnull
+    private Target getTargetFromStore(@Nonnull final Long targetId) throws TargetNotFoundException {
+        return targetStore.getTarget(targetId).orElseThrow(() -> new TargetNotFoundException(targetId)); }
 
     private ResponseEntity<TargetInfo> errorResponse(Throwable exception, HttpStatus status) {
         final TargetInfo targetInfo = error(null, exception.getMessage());
@@ -206,13 +305,11 @@ public class TargetController {
         final Optional<Validation> lastValidation =
                 operationManager.getLastValidationForTarget(target.getId());
         final Optional<Discovery> currentDiscovery =
-                operationManager.getInProgressDiscoveryForTarget(target.getId());
+                operationManager.getInProgressDiscoveryForTarget(target.getId(), DiscoveryType.FULL);
         final Optional<Discovery> lastDiscovery =
-                operationManager.getLastDiscoveryForTarget(target.getId());
-        final Optional<? extends Operation> latestFinished =
-                getLatestOperationDate(lastValidation, lastDiscovery);
-        final LocalDateTime lastValidated =
-                latestFinished.isPresent() ? latestFinished.get().getCompletionTime() : null;
+                operationManager.getLastDiscoveryForTarget(target.getId(), DiscoveryType.FULL);
+        final Optional<? extends Operation> latestFinished = getLatestOperationDate(lastValidation, lastDiscovery);
+        final LocalDateTime lastValidated = latestFinished.map(Operation::getCompletionTime).orElse(null);
         boolean isProbeConnected = probeStore.isProbeConnected(target.getProbeId());
         final String status = getStatus(latestFinished, currentValidation, currentDiscovery, isProbeConnected);
         return success(target, isProbeConnected, status, lastValidated);
@@ -235,17 +332,22 @@ public class TargetController {
                              boolean isProbeConnected) {
         final String status;
         if (inProgressValidation.isPresent() && inProgressValidation.get().getUserInitiated()) {
-            status = "Validation in progress";
+            status = StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS;
         } else if (inProgressDiscovery.isPresent() && inProgressDiscovery.get().getUserInitiated()) {
-            status = "Discovery in progress";
+            status = StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS;
         } else if (latestFinished.isPresent()) {
-            status = latestFinished.get().getStatus() ==
-                    TopologyProcessorDTO.OperationStatus.Status.SUCCESS ? VALIDATED :
-                    String.join("Validation Failed, ", latestFinished.get().getErrors());
+            // If there is no on-going operation which was initiated by the user - show the
+            // status of the last operation.
+            if (latestFinished.get().getStatus() == OperationStatus.Status.SUCCESS) {
+                status = StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS;
+            } else {
+                status = latestFinished.get().getErrorString();
+            }
         } else if (!isProbeConnected) {
             status = "Failed to connect to probe. Check if probe is running";
         } else {
-            status = "Unknown";
+            // If the target status is unknown, show as "Validating"
+            status = VALIDATING;
         }
         return status;
     }
@@ -264,25 +366,26 @@ public class TargetController {
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .filter(op -> op.getCompletionTime() != null)
-                .max((op1, op2) -> (op1.getCompletionTime().compareTo(op2.getCompletionTime())));
+                .max(Comparator.comparing(Operation::getCompletionTime));
         return latestOperation;
     }
 
     private static TargetInfo error(final Long targetId, @Nonnull final String err) {
         String error = Objects.requireNonNull(err);
-        return new TargetInfo(targetId, ImmutableList.of(error), null, null, null, null);
+        return new TargetInfo(targetId, null, ImmutableList.of(error), null, null, null, null);
     }
 
     private static TargetInfo error(@Nonnull final List<String> errors) {
-        return new TargetInfo(null, errors, null, null, null, null);
+        return new TargetInfo(null, null, errors, null, null, null, null);
     }
 
     public static TargetInfo success(@Nonnull final Target target, final boolean probeConnected,
             @Nonnull final String targetStatus, @Nullable final LocalDateTime lastValidation) {
         Objects.requireNonNull(target);
         Objects.requireNonNull(targetStatus);
-        return new TargetInfo(target.getId(), null, new TargetSpec(target.getNoSecretDto()
-                .getSpec()), probeConnected, targetStatus, lastValidation);
+        return new TargetInfo(target.getId(), target.getDisplayName(), null,
+                new TargetSpec(target.getNoSecretDto().getSpec()), probeConnected,
+                targetStatus, lastValidation);
     }
 
 }

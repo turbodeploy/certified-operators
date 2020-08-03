@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.stats.query.live;
 
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.getCommodityDisplayName;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -13,16 +14,22 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.junit.Test;
-
 import com.google.common.collect.Sets;
 
+import org.junit.Test;
+
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.stats.query.live.CombinedStatsBuckets.CombinedStatsBucketsFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -34,9 +41,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.Grou
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
+import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -72,20 +80,15 @@ public class CombinedStatsBucketsTest {
         // No group by
         when(queryInfo.query()).thenReturn(CurrentActionStatsQuery.getDefaultInstance());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
 
         final SingleActionInfo savingsAction = actionInfo(
-            bldr -> {
-                bldr.setSavingsPerHour(CurrencyAmount.newBuilder()
-                    .setAmount(1));
-            },
+            bldr -> bldr.setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(1)),
             view -> {},
             Sets.newHashSet(CLOUD_VM, ON_PREM_VM));
         final SingleActionInfo investmentAction = actionInfo(
-            bldr -> {
-                bldr.setSavingsPerHour(CurrencyAmount.newBuilder()
-                    .setAmount(-1));
-            },
+            bldr -> bldr.setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(-1)),
             view -> {},
             // One of the same entities involved.
             Sets.newHashSet(ON_PREM_VM));
@@ -113,6 +116,7 @@ public class CombinedStatsBucketsTest {
             .addGroupBy(GroupBy.ACTION_CATEGORY)
             .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
         final SingleActionInfo inProgressCompliance = actionInfo(
             bldr -> {},
@@ -171,6 +175,173 @@ public class CombinedStatsBucketsTest {
                 .build()));
     }
 
+    /**
+     * Test that Grouping by CostType appropriately buckets the investment/savings/no savings.
+     */
+    @Test
+    public void testGroupByCostType() {
+        final QueryInfo queryInfo = mock(QueryInfo.class);
+        when(queryInfo.query()).thenReturn(CurrentActionStatsQuery.newBuilder()
+            .addGroupBy(GroupBy.ACTION_STATE)
+            .addGroupBy(GroupBy.ACTION_CATEGORY)
+            .addGroupBy(GroupBy.COST_TYPE)
+            .build());
+        when(queryInfo.entityPredicate()).thenReturn(entity -> true);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
+        final SingleActionInfo savingsAction = actionInfo(
+            bldr -> {
+                bldr.setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(500.00).build());
+            },
+            view -> {
+                when(view.getState()).thenReturn(ActionState.READY);
+                when(view.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
+            },
+            Sets.newHashSet(ON_PREM_VM));
+        final SingleActionInfo investmentAction1 = actionInfo(
+            bldr -> {
+                bldr.setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(-200.00).build());
+            },
+            view -> {
+                when(view.getState()).thenReturn(ActionState.READY);
+                when(view.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
+            },
+            Sets.newHashSet(ON_PREM_VM));
+        final SingleActionInfo investmentAction2 = actionInfo(
+            bldr -> {
+                bldr.setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(-100.00).build());
+            },
+            view -> {
+                when(view.getState()).thenReturn(ActionState.READY);
+                when(view.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
+            },
+            Sets.newHashSet(ON_PREM_VM));
+        final SingleActionInfo noSavingsOrInvestment = actionInfo(
+            bldr -> {
+                bldr.setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(0.00).build());
+            },
+            view -> {
+                when(view.getState()).thenReturn(ActionState.READY);
+                when(view.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
+            },
+            Sets.newHashSet(ON_PREM_VM));
+
+        buckets.addActionInfo(savingsAction);
+        buckets.addActionInfo(investmentAction1);
+        buckets.addActionInfo(investmentAction2);
+        buckets.addActionInfo(noSavingsOrInvestment);
+        final List<CurrentActionStat> stats = buckets.toActionStats().collect(Collectors.toList());
+        assertThat(stats, containsInAnyOrder(
+            CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE)
+                    .setActionState(ActionState.READY)
+                    .setCostType(ActionCostType.INVESTMENT))
+                .setActionCount(2)
+                .setEntityCount(1)
+                .setSavings(0.0)
+                .setInvestments(300.0)
+                .build(),
+            CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE)
+                    .setActionState(ActionState.READY)
+                    .setCostType(ActionCostType.SAVINGS))
+                .setActionCount(1)
+                .setEntityCount(1)
+                .setSavings(500.0)
+                .setInvestments(0.0)
+                .build(),
+            CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE)
+                    .setActionState(ActionState.READY)
+                    .setCostType(ActionCostType.ACTION_COST_TYPE_NONE))
+                .setActionCount(1)
+                .setEntityCount(1)
+                .setSavings(0.0)
+                .setInvestments(0.0)
+                .build()));
+    }
+
+    /**
+     * Test Group-by Action Severity properly buckets the numActions for each action severity category.
+     */
+    @Test
+    public void testGroupByActionSeverity() {
+        final QueryInfo queryInfo = mock(QueryInfo.class);
+        when(queryInfo.query()).thenReturn(CurrentActionStatsQuery.newBuilder()
+                .addGroupBy(GroupBy.SEVERITY)
+                .build());
+        when(queryInfo.entityPredicate()).thenReturn(entity -> true);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
+        final SingleActionInfo criticalActionPerfmance = actionInfo(
+                bldr -> { },
+                view -> {
+                    when(view.getState()).thenReturn(ActionState.READY);
+                    when(view.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
+                    when(view.getActionSeverity()).thenReturn(Severity.CRITICAL);
+                },
+                Sets.newHashSet(ON_PREM_VM));
+        final SingleActionInfo criticalActionCompliance = actionInfo(
+                bldr -> { },
+                view -> {
+                    when(view.getState()).thenReturn(ActionState.READY);
+                    when(view.getActionCategory()).thenReturn(ActionCategory.COMPLIANCE);
+                    when(view.getActionSeverity()).thenReturn(Severity.CRITICAL);
+                },
+                Sets.newHashSet(ON_PREM_VM));
+        final SingleActionInfo majorActionPrevention = actionInfo(
+                bldr -> { },
+                view -> {
+                    when(view.getState()).thenReturn(ActionState.READY);
+                    when(view.getActionCategory()).thenReturn(ActionCategory.PREVENTION);
+                    when(view.getActionSeverity()).thenReturn(Severity.MAJOR);
+                },
+                Sets.newHashSet(ON_PREM_VM));
+        final SingleActionInfo minorActionEfficiency = actionInfo(
+                bldr -> { },
+                view -> {
+                    when(view.getState()).thenReturn(ActionState.READY);
+                    when(view.getActionCategory()).thenReturn(ActionCategory.EFFICIENCY_IMPROVEMENT);
+                    when(view.getActionSeverity()).thenReturn(Severity.MINOR);
+                },
+                Sets.newHashSet(ON_PREM_VM));
+
+        buckets.addActionInfo(criticalActionPerfmance);
+        buckets.addActionInfo(criticalActionCompliance);
+        buckets.addActionInfo(majorActionPrevention);
+        buckets.addActionInfo(minorActionEfficiency);
+
+        final List<CurrentActionStat> stats = buckets.toActionStats().collect(Collectors.toList());
+        assertThat(stats, containsInAnyOrder(
+            CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                        .setSeverity(Severity.CRITICAL))
+                .setActionCount(2)
+                    .setEntityCount(1)
+                    .setSavings(0.0)
+                    .setInvestments(0.0)
+                .build(),
+            CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder().setSeverity(Severity.MAJOR))
+                    .setActionCount(1)
+                    .setEntityCount(1)
+                    .setSavings(0.0)
+                    .setInvestments(0.0)
+                .build(),
+            CurrentActionStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                        .setSeverity(Severity.MINOR))
+                .setActionCount(1)
+                    .setEntityCount(1)
+                    .setSavings(0.0)
+                    .setInvestments(0.0)
+                .build()
+        ));
+    }
+
     @Test
     public void testGroupByReasonCommodity() {
         final QueryInfo queryInfo = mock(QueryInfo.class);
@@ -178,14 +349,15 @@ public class CombinedStatsBucketsTest {
             .addGroupBy(GroupBy.REASON_COMMODITY)
             .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
         final SingleActionInfo reason1 = actionInfo(
             bldr -> {
                 bldr.setInfo(ActionInfo.newBuilder()
-                    .setActivate(Activate.newBuilder()
-                        .setTarget(CLOUD_VM)
-                        .addTriggeringCommodities(CommodityType.newBuilder()
-                            .setType(1))));
+                        .setActivate(Activate.newBuilder()
+                                .setTarget(CLOUD_VM)
+                                .addTriggeringCommodities(CommodityType.newBuilder().setType(1))
+                                .addTriggeringCommodities(CommodityType.newBuilder().setType(3))));
             },
             view -> {},
             Sets.newHashSet(CLOUD_VM));
@@ -202,23 +374,18 @@ public class CombinedStatsBucketsTest {
         buckets.addActionInfo(reason1);
         buckets.addActionInfo(reason2);
         final List<CurrentActionStat> stats = buckets.toActionStats().collect(Collectors.toList());
-        assertThat(stats, containsInAnyOrder(
-            CurrentActionStat.newBuilder()
-                .setStatGroup(StatGroup.newBuilder()
-                    .setReasonCommodityBaseType(1))
+        assertThat(stats, containsInAnyOrder(getTestBuild(1), getTestBuild(2), getTestBuild(3)));
+    }
+
+    private CurrentActionStat getTestBuild(int reasonCommodityType) {
+        return CurrentActionStat.newBuilder()
+                .setStatGroup(
+                        StatGroup.newBuilder().setReasonCommodityBaseType(reasonCommodityType))
                 .setActionCount(1)
                 .setEntityCount(1)
                 .setSavings(0.0)
                 .setInvestments(0.0)
-                .build(),
-            CurrentActionStat.newBuilder()
-                .setStatGroup(StatGroup.newBuilder()
-                    .setReasonCommodityBaseType(2))
-                .setActionCount(1)
-                .setEntityCount(1)
-                .setSavings(0.0)
-                .setInvestments(0.0)
-                .build()));
+                .build();
     }
 
     @Test
@@ -228,6 +395,7 @@ public class CombinedStatsBucketsTest {
             .addGroupBy(GroupBy.TARGET_ENTITY_TYPE)
             .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
         final SingleActionInfo vmTarget = actionInfo(
             bldr -> {
@@ -278,6 +446,7 @@ public class CombinedStatsBucketsTest {
             .addGroupBy(GroupBy.TARGET_ENTITY_ID)
             .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
         final SingleActionInfo vmTarget1 = actionInfo(
             bldr -> {
@@ -336,6 +505,7 @@ public class CombinedStatsBucketsTest {
             .addGroupBy(GroupBy.ACTION_EXPLANATION)
             .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
         final SingleActionInfo pmTarget1 = actionInfo(
             bldr -> {
@@ -346,8 +516,10 @@ public class CombinedStatsBucketsTest {
                         .setProvision(ProvisionExplanation.newBuilder()
                             .setProvisionBySupplyExplanation(
                                 ProvisionBySupplyExplanation.newBuilder()
-                                    .setMostExpensiveCommodity(CommodityDTO.CommodityType.CPU_VALUE)))
-                        .build());
+                                    .setMostExpensiveCommodityInfo(
+                                            ActionOrchestratorTestUtils.createReasonCommodity(
+                                                CommodityDTO.CommodityType.CPU_VALUE, null)))
+                        .build()));
             },
             view -> {},
             Sets.newHashSet(ON_PREM_PM));
@@ -360,8 +532,10 @@ public class CombinedStatsBucketsTest {
                         .setProvision(ProvisionExplanation.newBuilder()
                             .setProvisionBySupplyExplanation(
                                 ProvisionBySupplyExplanation.newBuilder()
-                                    .setMostExpensiveCommodity(CommodityDTO.CommodityType.MEM_VALUE)))
-                        .build());
+                                    .setMostExpensiveCommodityInfo(
+                                            ActionOrchestratorTestUtils.createReasonCommodity(
+                                                CommodityDTO.CommodityType.MEM_VALUE, null)))
+                        .build()));
             },
             view -> {},
             Sets.newHashSet(ON_PREM_PM));
@@ -374,13 +548,37 @@ public class CombinedStatsBucketsTest {
                         .setProvision(ProvisionExplanation.newBuilder()
                             .setProvisionBySupplyExplanation(
                                 ProvisionBySupplyExplanation.newBuilder()
-                                    .setMostExpensiveCommodity(CommodityDTO.CommodityType.MEM_VALUE)))
-                        .build());
+                                    .setMostExpensiveCommodityInfo(
+                                        ActionOrchestratorTestUtils.createReasonCommodity(
+                                                CommodityDTO.CommodityType.MEM_VALUE, null)))
+                        .build()));
             },
             view -> {},
             Sets.newHashSet(ON_PREM_PM));
 
+        final SingleActionInfo pmTarget4 = actionInfo(
+            bldr -> {
+                bldr.setInfo(ActionInfo.newBuilder()
+                    .setProvision(Provision.newBuilder()
+                        .setEntityToClone(ON_PREM_VM)))
+                    .setExplanation(Explanation.newBuilder()
+                        .setProvision(ProvisionExplanation.newBuilder()
+                            .setProvisionByDemandExplanation(
+                                ProvisionByDemandExplanation.newBuilder()
+                                    .setBuyerId(1)
+                                    .addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry.newBuilder()
+                                        .setCommodityBaseType(CommodityDTO.CommodityType.MEM_VALUE)
+                                        .setRequestedAmount(10).setMaxAmountAvailable(20))
+                                    .addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry.newBuilder()
+                                        .setCommodityBaseType(CommodityDTO.CommodityType.CPU_VALUE)
+                                        .setRequestedAmount(10).setMaxAmountAvailable(20)))
+                            .build()));
+            },
+            view -> {},
+            Sets.newHashSet(ON_PREM_VM));
+
         buckets.addActionInfo(pmTarget1);
+        buckets.addActionInfo(pmTarget4);
         // two actions of same explanation
         buckets.addActionInfo(pmTarget2);
         buckets.addActionInfo(pmTarget3);
@@ -389,19 +587,19 @@ public class CombinedStatsBucketsTest {
         assertThat(stats, containsInAnyOrder(
             CurrentActionStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
-                    .setActionExplanation(ClassicEnumMapper.getCommodityString(
-                        CommodityDTO.CommodityType.MEM) + " congestion"))
-                .setActionCount(2)
-                .setEntityCount(1)
+                    .setActionExplanation(getCommodityDisplayName(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.MEM_VALUE).build()) + " Congestion"))
+                .setActionCount(3)
+                .setEntityCount(2)
                 .setSavings(0.0)
                 .setInvestments(0.0)
                 .build(),
             CurrentActionStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
-                    .setActionExplanation(ClassicEnumMapper.getCommodityString(
-                        CommodityDTO.CommodityType.CPU) + " congestion"))
-                .setActionCount(1)
-                .setEntityCount(1)
+                    .setActionExplanation(getCommodityDisplayName(TopologyDTO.CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.CPU_VALUE).build()) + " Congestion"))
+                .setActionCount(2)
+                .setEntityCount(2)
                 .setSavings(0.0)
                 .setInvestments(0.0)
                 .build()));
@@ -413,6 +611,7 @@ public class CombinedStatsBucketsTest {
         when(queryInfo.query()).thenReturn(CurrentActionStatsQuery.getDefaultInstance());
         // Only match the cloud VM, not the on-prem VM.
         when(queryInfo.entityPredicate()).thenReturn(entity -> entity.equals(CLOUD_VM));
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
 
         final SingleActionInfo savingsAction = actionInfo(
@@ -445,16 +644,15 @@ public class CombinedStatsBucketsTest {
                         .setId(232)
                         .setType(EntityType.VIRTUAL_MACHINE_VALUE))))
             .setExplanation(Explanation.getDefaultInstance())
-            .setImportance(1);
+            .setDeprecatedImportance(1);
         actionCustomizer.accept(builder);
 
-        final ActionView actionView = mock(ActionView.class);
-        when(actionView.getRecommendation()).thenReturn(builder.build());
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(builder.build());
         actionViewConsumer.accept(actionView);
 
         final SingleActionInfo singleActionInfo = ImmutableSingleActionInfo.builder()
             .action(actionView)
-            .addAllInvolvedEntities(involvedEntities)
+            .putInvolvedEntities(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES, involvedEntities)
             .build();
         return singleActionInfo;
     }

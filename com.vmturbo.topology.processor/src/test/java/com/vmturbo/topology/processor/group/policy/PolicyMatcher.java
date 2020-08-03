@@ -16,19 +16,21 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.group.policy.application.InvalidMergePolicyTypeException;
+import com.vmturbo.topology.processor.group.policy.application.MergePolicy;
 
 /**
  * A helper for constructing matchers that make assertions about the behavior of policies.
  */
 public class PolicyMatcher {
 
-    private final TopologyGraph topologyGraph;
+    private final TopologyGraph<TopologyEntity> topologyGraph;
 
     /**
      * Prevent construction.
      */
-    public PolicyMatcher(@Nonnull final TopologyGraph topologyGraph) {
+    public PolicyMatcher(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
         this.topologyGraph = topologyGraph;
     }
 
@@ -51,7 +53,7 @@ public class PolicyMatcher {
     }
 
     public Matcher<TopologyEntity> hasProviderSegmentWithCapacity(final long segmentId,
-                                                          final float expectedCapacity) {
+                                                          final double expectedCapacity) {
         return new BaseMatcher<TopologyEntity>() {
             @Override
             public boolean matches(Object o) {
@@ -60,7 +62,7 @@ public class PolicyMatcher {
                     .anyMatch(commodity ->
                         commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
                             commodity.getCommodityType().getKey().equals(Long.toString(segmentId)) &&
-                            matchesCapacity(commodity, expectedCapacity, 0.2f)
+                            matchesCapacity(commodity, expectedCapacity, 0.2D)
                     );
             }
 
@@ -79,8 +81,8 @@ public class PolicyMatcher {
              * @return If the commodity capacity matches the expected capacity.
              */
             private boolean matchesCapacity(@Nonnull final CommoditySoldDTO commodity,
-                                            final float expectedCapacity,
-                                            final float epsilon) {
+                                            final double expectedCapacity,
+                                            final double epsilon) {
 
                 if (!commodity.hasCapacity()) {
                     return false;
@@ -344,6 +346,8 @@ public class PolicyMatcher {
                 return CommodityType.STORAGE_CLUSTER_VALUE;
             case DATACENTER:
                 return CommodityType.DATACENTER_VALUE;
+            case DESKTOP_POOL:
+                return CommodityType.ACTIVE_SESSIONS_VALUE;
             default:
                 throw new InvalidMergePolicyTypeException("Invalid merge policy type: "
                         + mergePolicy.getMergeType());

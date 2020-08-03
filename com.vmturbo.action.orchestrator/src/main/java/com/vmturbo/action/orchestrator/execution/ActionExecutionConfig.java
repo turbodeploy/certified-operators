@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.execution;
 
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,6 +10,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
+import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
+import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
+import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
@@ -21,7 +25,9 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
  */
 @Configuration
 @Import({ActionOrchestratorGlobalConfig.class,
-        GroupClientConfig.class})
+        TopologyProcessorConfig.class,
+        GroupClientConfig.class,
+        LicenseCheckClientConfig.class})
 public class ActionExecutionConfig {
 
     @Autowired
@@ -30,12 +36,21 @@ public class ActionExecutionConfig {
     @Autowired
     private GroupClientConfig groupClientConfig;
 
+    @Autowired
+    private TopologyProcessorConfig tpConfig;
+
+    @Autowired
+    private LicenseCheckClientConfig licenseCheckClientConfig;
+
     @Value("${failedGroupUpdateDelaySeconds:10}")
     private int groupUpdateDelaySeconds;
 
+    @Value("${actionExecution.timeoutMins}")
+    private int actionExecutionTimeoutMins;
+
     @Bean
     public ProbeCapabilityCache targetCapabilityCache() {
-        return new ProbeCapabilityCache(globalConfig.topologyProcessor(), actionCapabilitiesService());
+        return new ProbeCapabilityCache(tpConfig.topologyProcessor(), actionCapabilitiesService());
     }
 
     @Bean
@@ -52,31 +67,37 @@ public class ActionExecutionConfig {
      */
     @Bean
     public ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesService() {
-        return ProbeActionCapabilitiesServiceGrpc.newBlockingStub(globalConfig
+        return ProbeActionCapabilitiesServiceGrpc.newBlockingStub(tpConfig
                 .topologyProcessorChannel());
     }
 
     @Bean
-    public ActionExecutionEntitySelector actionExecutionTargetEntitySelector() {
-        return new EntityAndActionTypeBasedEntitySelector();
+    public ActionConstraintStoreFactory actionConstraintStoreFactory() {
+        return new ActionConstraintStoreFactory();
     }
 
+    /**
+     * Bean for {@link ActionExecutor}.
+     * @return The {@link ActionExecutor}.
+     */
     @Bean
     public ActionExecutor actionExecutor() {
         final ActionExecutor executor =
-                new ActionExecutor(globalConfig.topologyProcessorChannel());
+                new ActionExecutor(tpConfig.topologyProcessorChannel(),
+                    globalConfig.actionOrchestratorClock(),
+                    actionExecutionTimeoutMins,
+                    TimeUnit.MINUTES, licenseCheckClientConfig.licenseCheckClient());
 
-        globalConfig.topologyProcessor().addActionListener(executor);
+        tpConfig.topologyProcessor().addActionListener(executor);
 
         return executor;
     }
 
     @Bean
     public ActionTargetSelector actionTargetSelector() {
-        final ActionTargetSelector actionTargetSelector =
-                new ActionTargetSelector(targetCapabilityCache(),
-                        actionExecutionTargetEntitySelector(),
-                        globalConfig.topologyProcessorChannel());
-        return actionTargetSelector;
+        return new ActionTargetSelector(targetCapabilityCache(),
+                actionConstraintStoreFactory(),
+                globalConfig.repositoryProcessorChannel(),
+                tpConfig.realtimeTopologyContextId());
     }
 }

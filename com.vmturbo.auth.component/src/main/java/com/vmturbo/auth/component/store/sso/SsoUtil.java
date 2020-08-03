@@ -1,18 +1,31 @@
 package com.vmturbo.auth.component.store.sso;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADVISOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.AUTOMATOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.DEPLOYER;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SHARED_ADVISOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SHARED_OBSERVER;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SITE_ADMIN;
+
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.naming.CommunicationException;
 import javax.naming.Context;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
@@ -23,8 +36,12 @@ import javax.naming.directory.InitialDirContext;
 import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
+import org.apache.commons.collections4.map.CaseInsensitiveMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,6 +51,30 @@ import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
  * The {@link SsoUtil} is a SSO helper utility class.
  */
 public class SsoUtil {
+    /**
+     * Error message when AD is not setup.
+     */
+    @VisibleForTesting
+    public static final String AD_NOT_SETUP = "The AD has not been setup yet";
+    private static final String CTX_FACTORY = "com.sun.jndi.ldap.LdapCtxFactory";
+
+    /**
+     * Role to privilege map which is used for calculating least privileges (permissions). The bigger number on value,
+     * the more privilege the role has. For example, ADMINISTRATOR role have max privileges with 100 as value;
+     * SHARED_OBSERVER has min privileges with 40 as value.
+     * {@link CaseInsensitiveMap} is used there to support both case insensitive group name matching.
+     */
+    private static final Map<String, Integer> LEAST_PRIVILEGE_MAP =
+            new CaseInsensitiveMap(ImmutableMap.<String, Integer>builder()
+                    .put(ADMINISTRATOR, 100)
+                    .put(SITE_ADMIN, 90)
+                    .put(AUTOMATOR, 80)
+                    .put(ADVISOR, 70)
+                    .put(SHARED_ADVISOR, 60)
+                    .put(DEPLOYER, 50)
+                    .put(OBSERVER, 40)
+                    .put(SHARED_OBSERVER, 30)
+                    .build());
     /**
      * The logger.
      */
@@ -59,9 +100,9 @@ public class SsoUtil {
     private String adSearchBase_;
 
     /**
-     * The AD or SAML groups. The {@code <Group name, SecurityGroupDTO>} mapping.
+     * The AD or SAML groups. The {@code <Group name, SecurityGroupDTO>} mapping. Group name is case insensitive.
      */
-    private final Map<String, SecurityGroupDTO> ssoGroups_ = Collections.synchronizedMap(new HashMap<>());
+    private final Map<String, SecurityGroupDTO> ssoGroups_ = Collections.synchronizedMap(new CaseInsensitiveMap<>());
 
     /**
      * The AD or SAML users that were derived from groups.
@@ -155,7 +196,7 @@ public class SsoUtil {
         }
         // In case we have neither login provider URI nor domain name, don't even try to search.
         if (Strings.isNullOrEmpty(domainName_)) {
-            throw new SecurityException("The AD has not been setup yet");
+            throw new SecurityException(AD_NOT_SETUP);
         }
 
         Collection<String> ldapServers = new ArrayList<>();
@@ -435,7 +476,7 @@ public class SsoUtil {
                                                            final @Nonnull String user,
                                                            final @Nonnull String password) {
         Hashtable<String, String> props = new Hashtable<>();
-        props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+        props.put(Context.INITIAL_CONTEXT_FACTORY, CTX_FACTORY);
         props.put(Context.PROVIDER_URL, server);
         if (secureLoginProvider_) {
             props.put(Context.SECURITY_PROTOCOL, "ssl");
@@ -444,5 +485,75 @@ public class SsoUtil {
         props.put(Context.SECURITY_PRINCIPAL, user);
         props.put(Context.SECURITY_CREDENTIALS, password);
         return props;
+    }
+
+    /**
+     * Checks whether AD is available.
+     *
+     * @return {@code true} iff LDAP is available.
+     */
+    public boolean isADAvailable() {
+        Collection<String> ldapServers = findLDAPServersInWindowsDomain();
+        for (String srv : ldapServers) {
+            Hashtable<String, String> props = new Hashtable<>();
+            props.put(Context.INITIAL_CONTEXT_FACTORY, CTX_FACTORY);
+            props.put(Context.PROVIDER_URL, srv);
+            if (secureLoginProvider_) {
+                props.put(Context.SECURITY_PROTOCOL, "ssl");
+            }
+            props.put(Context.SECURITY_AUTHENTICATION, "simple");
+            Integer timeout = Integer.getInteger("ldapTimeout", 2000);
+            props.put("com.sun.jndi.ldap.connect.timeout", timeout.toString());
+            props.put("com.sun.jndi.ldap.read.timeout", timeout.toString());
+            try {
+                InitialDirContext ctx = new InitialDirContext(props);
+                ctx.getAttributes("");
+                return true;
+            } catch (CommunicationException e) {
+                logger.warn("The AD server " + srv + " is unreachable.");
+            } catch (NamingException e) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Find the least privilege groups.
+     *
+     * @param userGroups external user groups.
+     * @return sorted list of external groups in ascending orders.
+     */
+   private static List<SecurityGroupDTO> findLeastPrivilegeGroup(@Nonnull final Set<SecurityGroupDTO> userGroups) {
+        return userGroups.stream()
+                .sorted(Comparator.comparing(group -> LEAST_PRIVILEGE_MAP.get(group.getRoleName())))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Assert user in multiple external groups.
+     *
+     * @param userName the user name to be asserted.
+     * @param assignedGroups the assigned external group from SAML assertions
+     * @return {@link SecurityGroupDTO} if matches found.
+     */
+    @Nonnull
+    public Optional<SecurityGroupDTO> authorizeSAMLUserInGroups(@Nonnull final String userName,
+            @Nonnull final List<String> assignedGroups) {
+        // find the matches groups
+        final Set<SecurityGroupDTO> matchedGroup = ssoGroups_.keySet()
+                .stream()
+                .filter(group -> assignedGroups.stream()
+                        .anyMatch(assignedGroup -> assignedGroup.equalsIgnoreCase(group)))
+                .map(group -> ssoGroups_.get(group))
+                .collect(Collectors.toSet());
+        final Optional<SecurityGroupDTO> foundGroup = findLeastPrivilegeGroup(matchedGroup).stream()
+                .findFirst(); // this is the least privilege group
+        foundGroup.ifPresent(g -> {
+            if (!ssoGroupUsers_.contains(userName)) {
+                ssoGroupUsers_.add(userName);
+            }
+        });
+        return foundGroup;
     }
 }

@@ -1,0 +1,241 @@
+apiVersion: charts.helm.k8s.io/v1alpha1
+kind: Xl
+metadata:
+  name: xl-example
+spec:
+  # This configuration file is used for production.
+  # Default values copied from <project_dir>/helm-charts/xl/values.yaml
+
+  # Default values for xl.
+  # This is a YAML-formatted file.
+  # Declare variables to be passed into your templates.
+
+  # Any changes run : kubectl apply -f deploy/crds/charts_v1alpha1_xl_cr.yaml -n turbonomic
+
+  # Global settings
+  global:
+  #  registry: index.docker.io
+  #  imageUsername: turbouser
+  #  imagePassword: turbopassword
+    repository: turbonomic
+    tag: 7.22.6-SNAPSHOT
+    externalIP: 10.0.2.15
+    externalDbIP: 10.0.2.15
+    externalTimescaleDBIP: 10.0.2.15
+
+  grafana:
+    # Grafana is disabled by default. To enable it, uncomment:
+    #enabled: true
+    adminPassword: admin
+    grafana.ini:
+      database:
+        # Store data in sqlite3 (no persistence across restarts) by default. To persist, uncomment:
+        #type: postgres
+
+        # The password. TODO - figure out the correct/ideal way to deploy this without risking
+        # losing/resetting the password on upgrade.
+        # See: https://github.com/helm/charts/issues/5167
+        password: grafana
+
+  # Component selector - Probes
+  actionscript:
+    enabled: true
+  appdynamics:
+    enabled: true
+  appinsights:
+    enabled: true
+  aws:
+    enabled: true
+  azure:
+    enabled: true
+  dynatrace:
+    enabled: true
+  hpe3par:
+    enabled: true
+  hyperv:
+    enabled: true
+  kubeturbo:
+    enabled: true
+  netapp:
+    enabled: true
+  nutanix:
+    enabled: true
+  oneview:
+    enabled: true
+  prometheus-mysql-exporter:
+    enabled: true
+    mysql:
+      user: root
+      pass: vmturbo
+  prometheus:
+    enabled: true
+  prometurbo:
+    enabled: true
+  pure:
+    enabled: true
+  ucs:
+    enabled: true
+  vcenter:
+    enabled: true
+  vmax:
+    enabled: true
+  vmm:
+    enabled: true
+  wmi:
+    enabled: true
+  snmp:
+    enabled: true
+  mssql:
+    enabled: true
+  mysql:
+    enabled: false
+  newrelic:
+    enabled: true
+  udt:
+    enabled: true
+
+  # Resource limits - Core Services
+  action-orchestrator:
+    resources:
+      limits:
+        memory: 8Gi
+  api:
+    resources:
+      limits:
+        memory: 4Gi
+  auth:
+    resources:
+      limits:
+        memory: 768Mi
+  clustermgr:
+    resources:
+      limits:
+        memory: 512Mi
+  cost:
+    resources:
+      limits:
+        memory: 2Gi
+  group:
+    resources:
+      limits:
+        memory: 4Gi
+  history:
+    resources:
+      limits:
+        memory: 10Gi
+  market:
+    resources:
+      limits:
+        memory: 26Gi
+  plan-orchestrator:
+    resources:
+      limits:
+        memory: 4Gi
+  repository:
+    resources:
+      limits:
+        memory: 14Gi
+  topology-processor:
+    resources:
+      limits:
+        memory: 20Gi
+
+  # Resource limits - Core 3rd party
+  arangodb:
+    resources:
+      limits:
+        memory: 4Gi
+  kafka:
+    resources:
+      limits:
+        memory: 4Gi
+  zookeeper:
+    resources:
+      limits:
+        memory: 1Gi
+
+  # Resources limits - Probes
+  mediation-actionscript:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-appdynamics:
+    resources:
+      limits:
+        memory: 6Gi
+  mediation-appinsights:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-aws:
+    resources:
+      limits:
+        memory: 6Gi
+  mediation-awsbilling:
+    resources:
+      limits:
+        memory: 3Gi
+  mediation-awscost:
+    resources:
+      limits:
+        memory: 4500Mi
+  mediation-azure:
+    resources:
+      limits:
+        memory: 6Gi
+  mediation-azurecost:
+    resources:
+      limits:
+        memory: 3Gi
+  mediation-azurevolumes:
+    resources:
+      limits:
+        memory: 2Gi
+  mediation-dynatrace:
+    resources:
+      limits:
+        memory: 4Gi
+  mediation-ucs:
+    resources:
+      limits:
+        memory: 2Gi
+  mediation-vcenter:
+    resources:
+      limits:
+        memory: 16Gi
+  mediation-vcenterbrowsing:
+    resources:
+      limits:
+        memory: 2Gi
+  mediation-vmax:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-vmm:
+    resources:
+      limits:
+        memory: 2Gi
+  mediation-wmi:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-snmp:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-mssql:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-mysql:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-newrelic:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-udt:
+    resources:
+      limits:
+        memory: 1Gi

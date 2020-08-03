@@ -2,16 +2,23 @@ package com.vmturbo.api.component.external.api.util.action;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
@@ -25,12 +32,20 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * Maps action count stats from XL format to API {@link StatSnapshotApiDTO}s.
  */
 class ActionStatsMapper {
+
+    private static final Map<ActionCostType, String> COST_TYPE_STR =
+        ImmutableMap.<ActionCostType, String>builder()
+            .put(ActionCostType.SAVING, StringConstants.SAVINGS)
+            .put(ActionCostType.INVESTMENT, StringConstants.INVESTMENT)
+            .put(ActionCostType.SUPER_SAVING, StringConstants.SUPER_SAVINGS)
+            .build();
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -59,17 +74,23 @@ class ActionStatsMapper {
      *
      * @param currentActionStats The current stats retrieved from the action orchestrator.
      * @param query The {@link ActionStatsQuery} the stats are for.
+     * @param entityLookup A map of entity oid to {@link MinimalEntity}. In the case of group by template
+     *                     requests, we need to have the name of the entity in the response.
+     *                     The names are looked up using this map.
+     * @param cspLookup A map of entity oid to {@link MinimalEntity} to cloud type.
      * @return The {@link StatSnapshotApiDTO} to return to the caller.
      */
     @Nonnull
     public StatSnapshotApiDTO currentActionStatsToApiSnapshot(
             @Nonnull final List<CurrentActionStat> currentActionStats,
-            @Nonnull final ActionStatsQuery query) {
+            @Nonnull final ActionStatsQuery query,
+            @Nonnull Map<Long, MinimalEntity> entityLookup,
+            @Nonnull Map<Long, String> cspLookup) {
         final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
         statSnapshotApiDTO.setDate(query.currentTimeStamp().isPresent() ? query.currentTimeStamp().get()
                         : DateTimeUtil.toString(clock.millis()));
         statSnapshotApiDTO.setStatistics(currentActionStats.stream()
-            .flatMap(stat -> currentActionStatXlToApi(stat, query).stream())
+            .flatMap(stat -> currentActionStatXlToApi(stat, query, entityLookup, cspLookup).stream())
             .collect(Collectors.toList()));
         return statSnapshotApiDTO;
     }
@@ -100,7 +121,9 @@ class ActionStatsMapper {
 
     @Nonnull
     private List<StatApiDTO> currentActionStatXlToApi(@Nonnull final CurrentActionStat actionStat,
-                                                      @Nonnull final ActionStatsQuery query) {
+                                                      @Nonnull final ActionStatsQuery query,
+                                                      @Nonnull final Map<Long, MinimalEntity> entityLookup,
+                                                      @Nonnull final Map<Long, String> cspLookup) {
         // The filters that applied to get this action stat
         final GroupByFilters groupByFilters = groupByFiltersFactory.filtersForQuery(query);
         if (actionStat.getStatGroup().hasActionCategory()) {
@@ -131,12 +154,45 @@ class ActionStatsMapper {
             groupByFilters.setType(actionStat.getStatGroup().getActionType());
         }
 
+        if (actionStat.getStatGroup().hasCostType()) {
+            groupByFilters.setActionCostType(actionStat.getStatGroup().getCostType());
+        }
+
+        if (actionStat.getStatGroup().hasCsp()) {
+            final String cspType = cspLookup.get(Long.parseLong(actionStat.getStatGroup().getCsp()));
+            if (!StringUtils.isEmpty(cspType)) {
+                groupByFilters.setCSP(cspType);
+            }
+        }
+
+        if (actionStat.getStatGroup().hasSeverity()) {
+            groupByFilters.setActionRiskSeverity(actionStat.getStatGroup().getSeverity());
+        }
+
         if (actionStat.getStatGroup().hasTargetEntityType()) {
             groupByFilters.setTargetEntityType(actionStat.getStatGroup().getTargetEntityType());
         }
 
+        if (actionStat.getStatGroup().hasBusinessAccountId()) {
+            groupByFilters.setBusinessAccountId(actionStat.getStatGroup().getBusinessAccountId());
+        }
+
+        if (actionStat.getStatGroup().hasResourceGroupId()) {
+            groupByFilters.setResourceGroupId(actionStat.getStatGroup().getResourceGroupId());
+        }
+
         if (actionStat.getStatGroup().hasTargetEntityId()) {
-            groupByFilters.setTargetEntityId(actionStat.getStatGroup().getTargetEntityId());
+            if (query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
+                MinimalEntity template = entityLookup.get(actionStat.getStatGroup().getTargetEntityId());
+                if (template != null) {
+                    groupByFilters.setTemplate(template.getDisplayName());
+                } else {
+                    // We do this as a fallback instead of throwing an exception
+                    groupByFilters.setTemplate(String.valueOf(actionStat.getStatGroup().getTargetEntityId()));
+                }
+            } else {
+                groupByFilters.setTargetEntityId(actionStat.getStatGroup().getTargetEntityId());
+            }
         }
 
         if (actionStat.getStatGroup().hasReasonCommodityBaseType()) {
@@ -158,17 +214,32 @@ class ActionStatsMapper {
                 numberToAPIStatValue(actionStat.getEntityCount())));
         }
 
-        query.getCostType().ifPresent(actionCostType -> {
+        // The "costType" specified in the query is a filter that restricts the types of action
+        // cost stats we return. If it's not set, we return all non-zero ones.
+        final Stream<ActionCostType> costTypes = query.getCostType()
+            .map(Stream::of)
+            .orElseGet(() -> Stream.of(ActionCostType.values()));
+        costTypes.forEach(actionCostType -> {
             // We only want to return cost stats when investments/savings are non-zero, even
             // if they are explicitly set to zero.
-            if (actionCostType == ActionCostType.INVESTMENT && actionStat.getInvestments() > 0) {
-                retStats.add(newCostApiStat(groupByFilters,
-                    numberToAPIStatValue((float)actionStat.getInvestments()),
-                    ActionCostType.INVESTMENT));
-            } else if (actionCostType == ActionCostType.SAVING && actionStat.getSavings() > 0) {
-                retStats.add(newCostApiStat(groupByFilters,
-                    numberToAPIStatValue((float)actionStat.getSavings()),
-                    ActionCostType.SAVING));
+            if (actionCostType == ActionCostType.ACTION_COST_TYPE_NONE) {
+                // There is no reason to inject costPrice stat, when it is not a SAVING or INVESTMENT action.
+                // But it is also not an error so we simply do nothing here.
+            } else if (actionCostType == ActionCostType.INVESTMENT) {
+                if (actionStat.getInvestments() > 0) {
+                    retStats.add(newCostApiStat(groupByFilters,
+                        numberToAPIStatValue((float) actionStat.getInvestments()),
+                        ActionCostType.INVESTMENT));
+                }
+            } else if (actionCostType == ActionCostType.SAVING) {
+                if (actionStat.getSavings() > 0) {
+                    retStats.add(newCostApiStat(groupByFilters,
+                        numberToAPIStatValue((float) actionStat.getSavings()),
+                        ActionCostType.SAVING));
+                }
+            } else if (actionCostType == ActionCostType.SUPER_SAVING) {
+                // We don't currently support super-savings, but this is not an error.
+                logger.debug("Skipping costPrice stat injection for action cost type: {}", actionCostType);
             } else {
                 logger.error("Action cost type: {} not supported for action stats queries.",
                     actionCostType);
@@ -188,12 +259,16 @@ class ActionStatsMapper {
     private List<StatApiDTO> actionStatXLtoAPI(@Nonnull final ActionStat actionStat,
                                               @Nonnull final ActionStatsQuery query) {
         final GroupByFilters groupByFilters = groupByFiltersFactory.filtersForQuery(query);
-        if (actionStat.hasActionCategory()) {
-            groupByFilters.setCategory(actionStat.getActionCategory());
+        if (actionStat.getStatGroup().hasActionCategory()) {
+            groupByFilters.setCategory(actionStat.getStatGroup().getActionCategory());
         }
 
-        if (actionStat.hasActionState()) {
-            groupByFilters.setState(actionStat.getActionState());
+        if (actionStat.getStatGroup().hasActionState()) {
+            groupByFilters.setState(actionStat.getStatGroup().getActionState());
+        }
+
+        if (actionStat.getStatGroup().hasBusinessAccountId()) {
+            groupByFilters.setBusinessAccountId(actionStat.getStatGroup().getBusinessAccountId());
         }
 
         final List<StatApiDTO> retStats = new ArrayList<>();
@@ -209,7 +284,11 @@ class ActionStatsMapper {
                 actionStatValueXLtoAPI(actionStat.getEntityCount())));
         }
 
-        query.getCostType().ifPresent(costType -> {
+        final Set<ActionCostType> requestedCostTypes = query.getCostType()
+            .map(Collections::singleton)
+            // By default, we return both savings and investments.
+            .orElseGet(() -> Sets.newHashSet(ActionCostType.INVESTMENT, ActionCostType.SAVING));
+        requestedCostTypes.forEach(costType -> {
             // Note - Feb 26 2019 - the UI doesn't expect zero values for investments/savings.
             // We only want to return those stats when there were some investments/savings.
             // If any investments or savings were provided, we would expect the "max" to be greater than 0.
@@ -255,6 +334,10 @@ class ActionStatsMapper {
         Preconditions.checkArgument(actionCostType == ActionCostType.INVESTMENT ||
             actionCostType == ActionCostType.SAVING);
         final StatApiDTO value = newApiStat(StringConstants.COST_PRICE, groupByFilters, statValue);
+        final String costFilterValue = COST_TYPE_STR.get(actionCostType);
+        if (costFilterValue != null) {
+            value.addFilter(StringConstants.PROPERTY, costFilterValue);
+        }
         value.setUnits(StringConstants.DOLLARS_PER_HOUR);
         return value;
     }

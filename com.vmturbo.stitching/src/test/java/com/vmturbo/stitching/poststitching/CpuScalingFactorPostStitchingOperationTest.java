@@ -40,6 +40,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
     private static final double CPU_CAPACITY = 123D;
     private static final double CPU_PROVISIONED_CAPACITY = 456D;
     private static final long VM_OID = 5L;
+    private static final long APP_OID = 6L;
     private static final double CPU_SCALE_FACTOR = 1.3;
     private static final String TEST_CPU_MODEL = "cpu-model-1";
 
@@ -62,17 +63,28 @@ public class CpuScalingFactorPostStitchingOperationTest {
             pmCommoditiesSoldList,
             Collections.emptyList());
 
-
     // Set up the VCPU commodity for the test VM
     final CommodityBoughtDTO cpuBoughtCommodity = makeCommodityBought(CommodityType.CPU);
     final CommodityBoughtDTO cpuProvisionedBoughtCommodity = makeCommodityBought(
             CommodityType.CPU_PROVISIONED);
     final List<CommodityBoughtDTO> vmCommoditiesBoughtList = Lists.newArrayList(
             cpuBoughtCommodity, cpuProvisionedBoughtCommodity);
+    final CommoditySoldDTO vcpuSoldCommodity = makeCommoditySold(CommodityType.VCPU, CPU_CAPACITY);
+    final List<CommoditySoldDTO> vmCommoditiesSoldList = Lists.newArrayList(
+            vcpuSoldCommodity);
     private TopologyEntity.Builder vm1 = makeTopologyEntityBuilder(VM_OID,
             EntityType.VIRTUAL_MACHINE.getNumber(),
-            Collections.emptyList(),
+            vmCommoditiesSoldList,
             vmCommoditiesBoughtList);
+
+    // Set up the VCPU commodity for the test App
+    final CommodityBoughtDTO vcpuBoughtCommodity = makeCommodityBought(CommodityType.VCPU);
+    final List<CommodityBoughtDTO> appCommoditiesBoughtList = Lists.newArrayList(
+            vcpuBoughtCommodity);
+    private TopologyEntity.Builder app1 = makeTopologyEntityBuilder(APP_OID,
+            EntityType.APPLICATION_COMPONENT.getNumber(),
+            Collections.emptyList(),
+            appCommoditiesBoughtList);
 
     @SuppressWarnings("unchecked")
     private final IStitchingJournal<TopologyEntity> journal =
@@ -103,6 +115,12 @@ public class CpuScalingFactorPostStitchingOperationTest {
 
         // link the VM to the PM as a consumer
         pm1.addConsumer(vm1);
+        // link the App to the VM as a consumer.
+        vm1.addConsumer(app1);
+
+        // Ensure we can handle scenario where have consumer loop, and don't have
+        // innfinite recursion.
+        app1.addConsumer(vm1);
 
         // Set up the mock for the cpuCapacityStore
         when(cpuCapacityStore.getScalingFactor(TEST_CPU_MODEL))
@@ -123,10 +141,16 @@ public class CpuScalingFactorPostStitchingOperationTest {
                 .toBuilder()
                 .setScalingFactor(CPU_SCALE_FACTOR)
                 .build();
+        final CommoditySoldDTO expectedvCpuSoldCommodity = vcpuSoldCommodity.toBuilder()
+                .setScalingFactor(CPU_SCALE_FACTOR)
+                .build();
+        final CommodityBoughtDTO expectedvCpuBoughtCommodity = vcpuBoughtCommodity.toBuilder()
+                .setScalingFactor(CPU_SCALE_FACTOR)
+                .build();
 
         // Act
         final TopologicalChangelog<TopologyEntity> changeLog =
-                operation.performOperation(Stream.of(pm1.build(), vm1.build()),
+                operation.performOperation(Stream.of(pm1.build(), vm1.build(), app1.build()),
                         settingsMock, resultBuilder);
         changeLog.getChanges().forEach(change -> change.applyChange(journal));
         // Assert
@@ -143,6 +167,18 @@ public class CpuScalingFactorPostStitchingOperationTest {
                 .iterator().next().getCommodityBoughtList();
         assertThat(boughtVmCommodities, containsInAnyOrder(expectedVmCpuCommodity,
                 expectedVmCpuProvisionedCommodity));
+
+        // App-VM relationship Assertion.
+        final List<CommoditySoldDTO> soldVmCommodities = vm1.getEntityBuilder()
+                .getCommoditySoldListList();
+        assertEquals(1, soldVmCommodities.size());
+        assertThat(soldVmCommodities, containsInAnyOrder(expectedvCpuSoldCommodity));
+        final List<CommoditiesBoughtFromProvider> boughtAppCommoditiesFrom = app1.getEntityBuilder()
+                .getCommoditiesBoughtFromProvidersList();
+        assertEquals(1, boughtAppCommoditiesFrom.size());
+        final List<CommodityBoughtDTO> boughtAppCommodities = boughtAppCommoditiesFrom
+                .iterator().next().getCommodityBoughtList();
+        assertThat(boughtAppCommodities, containsInAnyOrder(expectedvCpuBoughtCommodity));
     }
 
 }

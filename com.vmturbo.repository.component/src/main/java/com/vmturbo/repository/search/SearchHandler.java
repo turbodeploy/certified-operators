@@ -7,7 +7,6 @@ import static javaslang.Patterns.Failure;
 import static javaslang.Patterns.Success;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,6 +33,7 @@ import javaslang.control.Try;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -42,7 +42,6 @@ import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.executor.AQL;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
-import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
 
 /**
@@ -85,8 +84,8 @@ public class SearchHandler {
         this.arangoDatabaseFactory = Objects.requireNonNull(arangoDatabaseFactory);
         this.executor = Objects.requireNonNull(graphDBExecutor);
 
-        executorService = Executors.newCachedThreadPool(
-                new ThreadFactoryBuilder().setNameFormat("search-handler-%d").build());
+        executorService = Tracing.traceAwareExecutor(Executors.newCachedThreadPool(
+                new ThreadFactoryBuilder().setNameFormat("search-handler-%d").build()));
     }
 
     /**
@@ -183,17 +182,10 @@ public class SearchHandler {
      */
     public Either<Throwable, Collection<ServiceEntityRepoDTO>> getEntitiesByOids(
             @Nonnull final Set<Long> entityOids,
-            @Nonnull final Optional<TopologyID> topologyID) {
-        final Optional<TopologyDatabase> databaseToUse = topologyID.map(TopologyID::database);
-        if (!databaseToUse.isPresent()) {
-            logger.warn("No topology database is available now");
-            return Either.right(Collections.emptyList());
-        }
-        final TopologyDatabase database = databaseToUse.get();
+            @Nonnull final TopologyID topologyID) {
         final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(
-                graphDefinition.getServiceEntityVertex(),
-                entityOids,
-                database);
+                graphDefinition.getSEVertexCollection(topologyID),
+                entityOids);
         final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeServiceEntityMultiGetCmd(cmd);
 
         return Match(seResults).of(

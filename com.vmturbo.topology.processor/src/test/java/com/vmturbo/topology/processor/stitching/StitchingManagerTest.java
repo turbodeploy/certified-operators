@@ -8,7 +8,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -28,6 +30,8 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -35,10 +39,12 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.ImmutableMap;
-
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
@@ -54,6 +60,7 @@ import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
@@ -63,7 +70,7 @@ import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeSti
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 public class StitchingManagerTest {
 
@@ -95,18 +102,32 @@ public class StitchingManagerTest {
     private final EntityDTO.Builder otherBar = virtualMachine("other-bar")
         .guestName("bar")
         .build().toBuilder();
+    private final EntityDTO.Builder unstitchedProxy2Remove =
+        virtualMachine("unstitched-proxy-delete")
+        .guestName("nomatch")
+        .build().toBuilder()
+        .setKeepStandalone(false)
+        .setOrigin(EntityOrigin.PROXY);
+    private final EntityDTO.Builder unstitchedProxy2Keep = virtualMachine("unstitched-proxy-keep")
+        .guestName("nomatch")
+        .build().toBuilder()
+        .setKeepStandalone(true)
+        .setOrigin(EntityOrigin.PROXY);
 
     private final EntityDTO.Builder pm = physicalMachine("pm")
         .numCpuCores(3)
         .build().toBuilder();
 
-    private final Map<String, StitchingEntityData> entityData = ImmutableMap.of(
-        vmFoo.getId(), nextEntity(vmFoo, firstTargetId),
-        vmBar.getId(), nextEntity(vmBar, firstTargetId),
-        otherFoo.getId(), nextEntity(otherFoo, secondTargetId),
-        otherBar.getId(), nextEntity(otherBar, secondTargetId),
-        pm.getId(), nextEntity(pm, firstTargetId)
-    );
+    private final Map<String, StitchingEntityData> entityData =
+        ImmutableMap.<String, StitchingEntityData>builder()
+            .put(vmFoo.getId(), nextEntity(vmFoo, firstTargetId))
+            .put(vmBar.getId(), nextEntity(vmBar, firstTargetId))
+            .put(otherFoo.getId(), nextEntity(otherFoo, secondTargetId))
+            .put(otherBar.getId(), nextEntity(otherBar, secondTargetId))
+            .put(unstitchedProxy2Remove.getId(), nextEntity(unstitchedProxy2Remove, secondTargetId))
+            .put(unstitchedProxy2Keep.getId(), nextEntity(unstitchedProxy2Keep, secondTargetId))
+            .put(pm.getId(), nextEntity(pm, firstTargetId))
+            .build();
 
     @Captor
     private ArgumentCaptor<TopologyStitchingEntity> stitchingEntityCaptor;
@@ -116,22 +137,31 @@ public class StitchingManagerTest {
         MockitoAnnotations.initMocks(this);
 
         when(target.getId()).thenReturn(firstTargetId);
+        when(target.getDisplayName()).thenReturn("target");
         when(targetStore.getProbeTargets(eq(probeId)))
             .thenReturn(Collections.singletonList(target));
+        when(targetStore.getAll()).thenReturn(Collections.singletonList(target));
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
+        when(probeStore.getProbe(probeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setUiProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setProbeType(SDKProbeType.VCENTER.getProbeType())
+            .build()));
+        when(target.getProbeId()).thenReturn(20L);
+        when(target.getProbeInfo()).thenReturn(ProbeInfo.getDefaultInstance());
     }
 
     @Test
     public void testStitchAloneOperation()  {
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsAlone("foo", "bar");
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5)
-            .setTargetStore(mock(TargetStore.class))
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, targetStore)
             .setIdentityProvider(mock(IdentityProviderImpl.class));
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
         final StitchingContext stitchingContext = spy(contextBuilder.build());
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(target));
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
         final StitchingManager stitchingManager =
@@ -139,9 +169,15 @@ public class StitchingManagerTest {
                     postStitchingOperationLibrary, probeStore, targetStore, cpuCapacityStore);
 
         stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
-        verify(stitchingContext).removeEntity(stitchingEntityCaptor.capture());
+        verify(stitchingContext, times(2))
+            .removeEntity(stitchingEntityCaptor.capture());
 
-        assertEquals("foo", stitchingEntityCaptor.getValue().getLocalId());
+        final List<String> removedEntities = stitchingEntityCaptor.getAllValues().stream()
+            .map(StitchingEntity::getLocalId)
+            .collect(Collectors.toList());
+
+        assertThat(removedEntities, containsInAnyOrder(vmFoo.getId(),
+            unstitchedProxy2Remove.getId()));
         assertEquals("updated-vm", vmBar.getDisplayName());
     }
 
@@ -150,25 +186,27 @@ public class StitchingManagerTest {
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsByGuestName();
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5)
-            .setTargetStore(mock(TargetStore.class))
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, targetStore)
             .setIdentityProvider(mock(IdentityProviderImpl.class));
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
         final StitchingContext stitchingContext = spy(contextBuilder.build());
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(target));
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
             preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore, cpuCapacityStore);
 
         stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
-        verify(stitchingContext, times(2)).removeEntity(stitchingEntityCaptor.capture());
+        verify(stitchingContext, times(3)).removeEntity(stitchingEntityCaptor.capture());
 
         final List<String> removedEntities = stitchingEntityCaptor.getAllValues().stream()
             .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList());
 
-        assertThat(removedEntities, containsInAnyOrder("other-foo", "other-bar"));
+        assertThat(removedEntities, containsInAnyOrder(otherFoo.getId(), otherBar.getId(),
+            unstitchedProxy2Remove.getId()));
+        assertFalse(removedEntities.contains(unstitchedProxy2Keep.getId()));
         assertEquals("updated-foo", vmFoo.getDisplayName());
         assertEquals("updated-bar", vmBar.getDisplayName());
     }
@@ -177,8 +215,7 @@ public class StitchingManagerTest {
     public void testPreStitching() {
         when(preStitchingOperationLibrary.getPreStitchingOperations()).thenReturn(
             Collections.singletonList(new EntityScopePreStitchingOperation()));
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5)
-            .setTargetStore(Mockito.mock(TargetStore.class))
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, targetStore)
             .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
@@ -207,7 +244,7 @@ public class StitchingManagerTest {
             3L, topologyEntityBuilder(3L, EntityType.STORAGE, Collections.emptyList()),
             4L, topologyEntityBuilder(4L, EntityType.VIRTUAL_MACHINE, Collections.emptyList())
         );
-        final TopologyGraph graph = TopologyGraph.newGraph(entities);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(entities);
         final StitchingJournal<TopologyEntity> stitchingJournal = new StitchingJournal<>();
         final GraphWithSettings graphWithSettings = new GraphWithSettings(graph, Collections.emptyMap(),
             Collections.emptyMap());
@@ -228,7 +265,10 @@ public class StitchingManagerTest {
 
     @Test
     public void testTargetsRecordedInJournal() {
-        final StitchingContext stitchingContext = mock(StitchingContext.class);
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(0, targetStore)
+            .setIdentityProvider(mock(IdentityProviderImpl.class));
+        final StitchingContext stitchingContext = spy(contextBuilder.build());
+        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
         when(stitchingOperationStore.getAllOperations()).thenReturn(Collections.emptyList());
         final StitchingManager stitchingManager =
             spy(new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary,
@@ -280,18 +320,18 @@ public class StitchingManagerTest {
         }
 
         @Override
-        public Optional<String> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
-            return Optional.of(internalEntity.getLocalId());
+        public Collection<String> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
+            return Collections.singleton(internalEntity.getLocalId());
         }
 
         @Override
-        public Optional<Void> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
-            return Optional.empty();
+        public Collection<Void> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
+            return Collections.emptySet();
         }
 
         @Nonnull
         @Override
-        public TopologicalChangelog stitch(@Nonnull Collection<StitchingPoint> stitchingPoints,
+        public TopologicalChangelog<StitchingEntity> stitch(@Nonnull Collection<StitchingPoint> stitchingPoints,
                                          @Nonnull StitchingChangesBuilder<StitchingEntity> result) {
             for (StitchingPoint stitchingPoint : stitchingPoints) {
                 final StitchingEntity internalEntity = stitchingPoint.getInternalEntity();
@@ -326,18 +366,20 @@ public class StitchingManagerTest {
         }
 
         @Override
-        public Optional<String> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
-            return Optional.of(internalEntity.getEntityBuilder().getVirtualMachineData().getGuestName());
+        public Collection<String> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
+            return Collections.singleton(internalEntity.getEntityBuilder().getVirtualMachineData()
+                            .getGuestName());
         }
 
         @Override
-        public Optional<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
-            return Optional.of(externalEntity.getEntityBuilder().getVirtualMachineData().getGuestName());
+        public Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
+            return Collections.singleton(externalEntity.getEntityBuilder().getVirtualMachineData()
+                            .getGuestName());
         }
 
         @Nonnull
         @Override
-        public TopologicalChangelog stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
+        public TopologicalChangelog<StitchingEntity> stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
                                          @Nonnull StitchingChangesBuilder<StitchingEntity> result) {
             stitchingPoints.forEach(stitchingPoint -> {
                 stitchingPoint.getExternalMatches().forEach(result::queueEntityRemoval);
@@ -359,7 +401,7 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public TopologicalChangelog performOperation(@Nonnull Stream<StitchingEntity> entities,
+        public TopologicalChangelog<StitchingEntity> performOperation(@Nonnull Stream<StitchingEntity> entities,
                                                    @Nonnull StitchingChangesBuilder<StitchingEntity> resultBuilder) {
             entities.forEach(entity ->
                 resultBuilder.queueUpdateEntityAlone(entity,
@@ -379,7 +421,7 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public TopologicalChangelog performOperation(@Nonnull final Stream<TopologyEntity> entities,
+        public TopologicalChangelog<TopologyEntity> performOperation(@Nonnull final Stream<TopologyEntity> entities,
                                                    @Nonnull final EntitySettingsCollection settingsCollection,
                                                    @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
             entities.forEach(entity ->

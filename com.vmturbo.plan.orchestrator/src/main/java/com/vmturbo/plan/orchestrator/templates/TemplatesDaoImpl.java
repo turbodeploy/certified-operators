@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator.templates;
 
+import static com.vmturbo.plan.orchestrator.db.tables.ClusterToHeadroomTemplateId.CLUSTER_TO_HEADROOM_TEMPLATE_ID;
 import static com.vmturbo.plan.orchestrator.db.tables.Template.TEMPLATE;
 
 import java.io.IOException;
@@ -18,6 +19,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
+import com.google.gson.reflect.TypeToken;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -28,19 +35,16 @@ import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Sets;
-import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
-import com.google.gson.reflect.TypeToken;
-
 import com.vmturbo.common.protobuf.plan.TemplateDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Template;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
@@ -83,9 +87,33 @@ public class TemplatesDaoImpl implements TemplatesDao {
      */
     @Nonnull
     @Override
-    public Set<TemplateDTO.Template> getAllTemplates() {
-        final List<Template> allTemplates = dsl.selectFrom(TEMPLATE).fetch().into(Template.class);
+    public Set<TemplateDTO.Template> getFilteredTemplates(@Nonnull final TemplatesFilter filter) {
+        // TODO (roman, Sept 20 2019) OM-50756: Add pagination parameters here (and all the way
+        // up to the UI) to retrieve large sets of templates in chunks.
+        final List<Template> allTemplates = dsl.selectFrom(TEMPLATE)
+            .where(filterToConditions(filter))
+            //TODO OM-52188 - temporarily hard-coding filtering results by name to avoid duplicate
+            // templates being returned for cloud targets.
+            // This should be removed when proper solution OM-52827 is implemented.
+            .groupBy(TEMPLATE.NAME)
+            .fetch()
+            .into(Template.class);
         return templatesToProto(allTemplates);
+    }
+
+    @Nonnull
+    private List<Condition> filterToConditions(@Nonnull final TemplatesFilter filter) {
+        final List<Condition> conditions = new ArrayList<>();
+        if (!filter.getTemplateIdsList().isEmpty()) {
+            conditions.add(TEMPLATE.ID.in(filter.getTemplateIdsList()));
+        }
+        if (!filter.getTemplateNameList().isEmpty()) {
+            conditions.add(TEMPLATE.NAME.in(filter.getTemplateNameList()));
+        }
+        if (filter.hasEntityType()) {
+            conditions.add(TEMPLATE.ENTITY_TYPE.eq(filter.getEntityType()));
+        }
+        return conditions;
     }
 
     /**
@@ -97,25 +125,11 @@ public class TemplatesDaoImpl implements TemplatesDao {
     @Nonnull
     @Override
     public Optional<TemplateDTO.Template> getTemplate(long id) {
-        return getTemplate(dsl, id);
+        return getTemplateInTransaction(dsl, id);
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Nonnull
-    @Override
-    public List<TemplateDTO.Template> getTemplatesByName(@Nonnull final String name) {
-        return dsl.selectFrom(TEMPLATE)
-            .where(TEMPLATE.NAME.eq(name))
-            .fetch().into(Template.class)
-            .stream()
-            .map(this::templateToProto)
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * Create a new template
+     * Create a new template. If a template with the same name exists, update it.
      *
      * @param templateInfo describe the contents of one template
      * @return new created template
@@ -124,47 +138,83 @@ public class TemplatesDaoImpl implements TemplatesDao {
     @Override
     @Nonnull
     public TemplateDTO.Template createTemplate(@Nonnull final TemplateInfo templateInfo) throws DuplicateTemplateException {
-        return internalCreateTemplate(dsl, templateInfo, TemplateDTO.Template.Type.USER);
+        return internalCreateTemplate(dsl, templateInfo, TemplateDTO.Template.Type.USER, Optional.empty());
     }
 
     /**
-     * Check template with the same name does not exist is current list of templates.
+     * Create a new template. If a template with the same name exists, update it.
      *
-     * @param context
+     * @param templateInfo describe the contents of one template
+     * @param targetId the target id this template is associated with
+     * @return new created template
+     * @throws DuplicateTemplateException if template name already exist
+     */
+    @Override
+    @Nonnull
+    public TemplateDTO.Template createTemplate(@Nonnull final TemplateInfo templateInfo,
+                                               @Nonnull final Optional<Long> targetId) throws DuplicateTemplateException {
+        return internalCreateTemplate(dsl, templateInfo, TemplateDTO.Template.Type.USER, targetId);
+    }
+
+    /**
+     * Check if a template with the given name and id exists in the db.
+     * If id is null, check if a template with the given name exists in the db.
+     * Otherwise, check if a template with the given name but a different id exists in the db.
+     * If there's one template in the db satisfies the condition, return it.
+     *
+     * @param context Transaction context.
      * @param templateName template display name.
      * @param id           while editing a template.
-     * @throws DuplicateTemplateException if duplicate template name found
+     * @return an optional of TemplateRecord
      */
-    private void determineUniqueTemplate(final DSLContext context, String templateName, @Nullable Long id) throws DuplicateTemplateException {
+    private Optional<TemplateRecord> determineUniqueTemplate(
+            final DSLContext context, String templateName, @Nullable Long id) {
         Condition existCondition = id == null ?
                 TEMPLATE.NAME.eq(templateName) :
                 TEMPLATE.NAME.eq(templateName).and(TEMPLATE.ID.notEqual(id));
-        if (context.fetchExists(TEMPLATE, existCondition)) {
-            throw new DuplicateTemplateException(templateName);
-        }
+        return Optional.ofNullable(context.fetchOne(TEMPLATE, existCondition));
     }
 
+    /**
+     * Create a new template. If a template with the same name exists, update it.
+     *
+     * @param context the transaction context
+     * @param templateInfo describes the contents of one template
+     * @param type of the template
+     * @param targetId the target id this template is associated with
+     * @return new created template
+     * @throws DuplicateTemplateException if duplicate template name found
+     */
     @Nonnull
     private TemplateDTO.Template internalCreateTemplate(@Nonnull final DSLContext context,
                                                         @Nonnull final TemplateInfo templateInfo,
-                                                        @Nonnull final TemplateDTO.Template.Type type)
+                                                        @Nonnull final TemplateDTO.Template.Type type,
+                                                        @Nonnull final Optional<Long> targetId)
             throws DuplicateTemplateException {
         try {
             return dsl.transactionResult(configuration -> {
-                determineUniqueTemplate(context, templateInfo.getName(), null);
+                Optional<TemplateRecord> templateRecordOptional =
+                    determineUniqueTemplate(context, templateInfo.getName(), null);
 
-                final TemplateDTO.Template templateDto = TemplateDTO.Template.newBuilder()
+                if (templateRecordOptional.isPresent()) {
+                    // If a template with the same name exists, update it.
+                    throw new DuplicateTemplateException(templateInfo.getName());
+                } else {
+                    // Create a new template.
+                    final TemplateDTO.Template.Builder templateBuilder = TemplateDTO.Template.newBuilder()
                         .setId(IdentityGenerator.next())
                         .setType(type)
-                        .setTemplateInfo(templateInfo)
-                        .build();
-                final TemplateRecord templateRecord = context.newRecord(TEMPLATE);
-                updateRecordFromProto(templateDto, templateRecord);
-                return templateDto;
+                        .setTemplateInfo(templateInfo);
+                    targetId.ifPresent(templateBuilder::setTargetId);
+                    final TemplateDTO.Template template = templateBuilder.build();
+                    final TemplateRecord templateRecord = context.newRecord(TEMPLATE);
+                    updateRecordFromProto(template, templateRecord);
+                    return template;
+                }
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof DuplicateTemplateException) {
-                throw (DuplicateTemplateException) e.getCause();
+                throw (DuplicateTemplateException)e.getCause();
             } else {
                 throw e;
             }
@@ -185,11 +235,33 @@ public class TemplatesDaoImpl implements TemplatesDao {
     @Nonnull
     public TemplateDTO.Template editTemplate(long id, @Nonnull TemplateInfo templateInfo)
             throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
+        return editTemplate(id, templateInfo, Optional.empty());
+    }
+    /**
+     * Update a existing template with new template instance.
+     *
+     * @param id of existing template
+     * @param templateInfo the new template instance need to store
+     * @param targetId the target id this template is associated with
+     * @return Updated template
+     * @throws NoSuchObjectException if not found existing template.
+     * @throws IllegalTemplateOperationException if any operation is not allowed.
+     * @throws DuplicateTemplateException if new template name already exist.
+     */
+    @Override
+    @Nonnull
+    public TemplateDTO.Template editTemplate(long id, @Nonnull TemplateInfo templateInfo,
+                                             @Nonnull final Optional<Long> targetId)
+            throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
         try {
             return dsl.transactionResult(configuration -> {
                 final DSLContext transactionDsl = DSL.using(configuration);
 
-                determineUniqueTemplate(transactionDsl, templateInfo.getName(), id);
+                Optional<TemplateRecord> templateRecordOptional =
+                    determineUniqueTemplate(transactionDsl, templateInfo.getName(), id);
+                if (templateRecordOptional.isPresent()) {
+                    throw new DuplicateTemplateException(templateInfo.getName());
+                }
 
                 final TemplateRecord templateRecord = transactionDsl.selectFrom(TEMPLATE)
                         .where(TEMPLATE.ID.eq(id))
@@ -206,19 +278,20 @@ public class TemplatesDaoImpl implements TemplatesDao {
                             "System-created templates are not editable.");
                 }
 
-                final TemplateDTO.Template newTemplate = oldTemplate.toBuilder()
-                        .setTemplateInfo(templateInfo)
-                        .build();
+                final TemplateDTO.Template.Builder newTemplateBuilder = oldTemplate.toBuilder()
+                        .setTemplateInfo(templateInfo);
+                targetId.ifPresent(newTemplateBuilder::setTargetId);
+                final TemplateDTO.Template newTemplate = newTemplateBuilder.build();
                 updateRecordFromProto(newTemplate, templateRecord);
                 return newTemplate;
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof NoSuchObjectException) {
-                throw (NoSuchObjectException) e.getCause();
+                throw (NoSuchObjectException)e.getCause();
             } else if (e.getCause() instanceof IllegalTemplateOperationException) {
-                throw (IllegalTemplateOperationException) e.getCause();
+                throw (IllegalTemplateOperationException)e.getCause();
             } else if (e.getCause() instanceof DuplicateTemplateException) {
-                throw (DuplicateTemplateException) e.getCause();
+                throw (DuplicateTemplateException)e.getCause();
             } else {
                 throw e;
             }
@@ -242,7 +315,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
                 //TODO: when delete a template, we need to delete relate reservations or modify related
                 // reservations status to invalid.
                 final DSLContext transactionDsl = DSL.using(configuration);
-                final TemplateDTO.Template template = getTemplate(transactionDsl, id)
+                final TemplateDTO.Template template = getTemplateInTransaction(transactionDsl, id)
                         .orElseThrow(() -> noSuchObjectException(id));
                 if (template.getType().equals(TemplateDTO.Template.Type.USER)) {
                     transactionDsl.deleteFrom(TEMPLATE).where(TEMPLATE.ID.eq(id)).execute();
@@ -256,7 +329,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
             if (e.getCause() instanceof NoSuchObjectException) {
                 throw (NoSuchObjectException)e.getCause();
             } else if (e.getCause() instanceof IllegalTemplateOperationException) {
-                throw (IllegalTemplateOperationException) e.getCause();
+                throw (IllegalTemplateOperationException)e.getCause();
             } else {
                 throw e;
             }
@@ -285,39 +358,6 @@ public class TemplatesDaoImpl implements TemplatesDao {
     }
 
     /**
-     * Get all templates by query entity type
-     *
-     * @param type entity type of template
-     * @return all selected Template object
-     */
-    @Nonnull
-    @Override
-    public Set<TemplateDTO.Template> getTemplatesByEntityType(int type) {
-        final List<Template> templates = dsl.selectFrom(TEMPLATE)
-            .where(TEMPLATE.ENTITY_TYPE.eq(type))
-            .fetch()
-            .into(Template.class);
-
-        return templatesToProto(templates);
-    }
-
-    /**
-     * Get a set of templates by template id list. The return templates size could be equal or less
-     * than request ids size. The client needs to check if there are missing templates.
-     *
-     * @param ids Set of template ids.
-     * @return  Set of templates.
-     */
-    @Override
-    @Nonnull
-    public Set<TemplateDTO.Template> getTemplates(@Nonnull Set<Long> ids) {
-        final List<Template> templateList =
-            dsl.selectFrom(TEMPLATE)
-                .where(TEMPLATE.ID.in(ids)).fetch().into(Template.class);
-        return templatesToProto(templateList);
-    }
-
-    /**
      * Get the count of matched templates which id is in the input id set.
      *
      * @param ids a set of template ids need check if exist.
@@ -329,8 +369,33 @@ public class TemplatesDaoImpl implements TemplatesDao {
                 .where(TEMPLATE.ID.in(ids)));
     }
 
-    private Optional<TemplateDTO.Template> getTemplate(@Nonnull final DSLContext dsl,
-                                                       final long id) {
+    @Nonnull
+    @Override
+    public Optional<TemplateDTO.Template> getClusterHeadroomTemplateForGroup(long groupId) {
+        TemplateRecord templateInstance = dsl.selectFrom(TEMPLATE)
+            .where(TEMPLATE.ID.eq(
+                dsl.select(CLUSTER_TO_HEADROOM_TEMPLATE_ID.TEMPLATE_ID)
+                    .from(CLUSTER_TO_HEADROOM_TEMPLATE_ID)
+                    .where(CLUSTER_TO_HEADROOM_TEMPLATE_ID.GROUP_ID.eq(groupId))
+            ))
+            .fetchOne();
+
+        return Optional.ofNullable(templateInstance)
+            .map(templateRecord -> templateRecord.into(Template.class))
+            .map(this::templateToProto);
+    }
+
+    @Override
+    public void setOrUpdateHeadroomTemplateForCluster(long groupId, long templateId) {
+        dsl.insertInto(CLUSTER_TO_HEADROOM_TEMPLATE_ID, CLUSTER_TO_HEADROOM_TEMPLATE_ID.GROUP_ID,
+            CLUSTER_TO_HEADROOM_TEMPLATE_ID.TEMPLATE_ID)
+            .values(groupId, templateId)
+            .onDuplicateKeyUpdate()
+            .set(CLUSTER_TO_HEADROOM_TEMPLATE_ID.TEMPLATE_ID, templateId)
+            .execute();
+    }
+
+    private Optional<TemplateDTO.Template> getTemplateInTransaction(@Nonnull final DSLContext dsl, final long id) {
         final TemplateRecord templateInstance =
             dsl.selectFrom(TEMPLATE).where(TEMPLATE.ID.eq(id)).fetchOne();
 
@@ -492,7 +557,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
             Sets.difference(newTemplates.keySet(), existingNames).forEach(nameToAdd -> {
                 try {
                     logger.info("Creating default template: {}", nameToAdd);
-                    internalCreateTemplate(transactionDsl, newTemplates.get(nameToAdd), Type.SYSTEM);
+                    internalCreateTemplate(transactionDsl, newTemplates.get(nameToAdd), Type.SYSTEM, Optional.empty());
                     logger.info("Created default template: {}", nameToAdd);
                 } catch (DuplicateTemplateException e) { // should never occur..
                     logger.error("Could not create default template : {} as another template with same name already exist.", nameToAdd);
@@ -507,16 +572,17 @@ public class TemplatesDaoImpl implements TemplatesDao {
      * This method retrieves all templates and serializes them as JSON strings.
      *
      * @return a list of serialized templates
-     * @throws DiagnosticsException
+     * @throws DiagnosticsException on exceptions occurred
      */
-    @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
-        final Set<TemplateDTO.Template> templates = getAllTemplates();
+    public void collectDiags(@Nonnull DiagnosticsAppender appender)
+            throws DiagnosticsException {
+        final Set<TemplateDTO.Template> templates =
+            getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         logger.info("Collecting diagnostics for {} templates", templates.size());
-        return templates.stream()
-            .map(template -> GSON.toJson(template, TemplateDTO.Template.class))
-            .collect(Collectors.toList());
+        for (TemplateDTO.Template template: templates) {
+            appender.appendString(GSON.toJson(template, TemplateDTO.Template.class));
+        }
     }
 
     /**
@@ -526,7 +592,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
      * templates from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     *      {@link StringDiagnosable#collectDiags(DiagnosticsAppender)}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains templates, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              template.
@@ -536,7 +602,8 @@ public class TemplatesDaoImpl implements TemplatesDao {
 
         final List<String> errors = new ArrayList<>();
 
-        final Set<TemplateDTO.Template> preexistingTemplates = getAllTemplates();
+        final Set<TemplateDTO.Template> preexistingTemplates =
+            getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         if (!preexistingTemplates.isEmpty()) {
             final int numPreexisting = preexistingTemplates.size();
             final String clearingMessage = "Clearing " + numPreexisting +
@@ -549,9 +616,10 @@ public class TemplatesDaoImpl implements TemplatesDao {
             final int deleted = deleteAllTemplates();
             if (deleted != numPreexisting) {
                 final String deletedMessage = "Failed to delete " + (numPreexisting - deleted) +
-                    " preexisting templates: " + getAllTemplates().stream()
-                        .map(template -> template.getTemplateInfo().getName())
-                        .collect(Collectors.toList());
+                    " preexisting templates: " + getFilteredTemplates(TemplatesFilter.getDefaultInstance())
+                    .stream()
+                    .map(template -> template.getTemplateInfo().getName())
+                    .collect(Collectors.toList());
                 logger.error(deletedMessage);
                 errors.add(deletedMessage);
             }
@@ -578,6 +646,12 @@ public class TemplatesDaoImpl implements TemplatesDao {
 
     }
 
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return "Templates";
+    }
+
     /**
      * Add a TemplateDTO.Template to the database.
      *
@@ -594,7 +668,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
             return r == 1 ? Optional.empty() : Optional.of("Failed to restore template " + template);
         } catch (DataAccessException e) {
             return Optional.of("Could not restore template " + template +
-                " because of DataAccessException "+ e.getMessage());
+                " because of DataAccessException " + e.getMessage());
         }
     }
 

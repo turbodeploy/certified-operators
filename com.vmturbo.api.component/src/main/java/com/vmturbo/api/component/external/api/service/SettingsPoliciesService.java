@@ -9,26 +9,23 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.stereotype.Component;
-import org.springframework.validation.Errors;
+import com.google.common.annotations.VisibleForTesting;
 
-import io.grpc.Channel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
-import com.google.common.annotations.VisibleForTesting;
+import org.springframework.stereotype.Component;
+import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISettingsPoliciesService;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
@@ -38,17 +35,17 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 
 /**
@@ -59,8 +56,6 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 @Component
 public class SettingsPoliciesService implements ISettingsPoliciesService {
-
-    private final Logger logger = LogManager.getLogger();
 
     private final SettingPolicyServiceBlockingStub settingPolicyService;
 
@@ -84,18 +79,32 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
      * @param entityTypes Filter the list by entity type.
      * @return The list of {@link SettingsPolicyApiDTO}, one for each setting policy that exists
      *         in the system.
-     * @throws Exception If something goes wrong.
      */
     @Override
     public List<SettingsPolicyApiDTO> getSettingsPolicies(boolean onlyDefaults,
-                                                          List<String> entityTypes) throws Exception {
-        final Set<Integer> acceptableEntityTypes = entityTypes == null || entityTypes.isEmpty() ?
-                Collections.emptySet() :
-                entityTypes.stream()
-                    .map(ServiceEntityMapper::fromUIEntityType)
+                                                          List<String> entityTypes) {
+        final Set<Integer> acceptableEntityTypes = entityTypes == null || entityTypes.isEmpty()
+                ? Collections.emptySet()
+                : entityTypes.stream()
+                    .map(ApiEntityType::fromString)
+                    .map(ApiEntityType::typeNumber)
                     .collect(Collectors.toSet());
+        return getSettingsPolicies(onlyDefaults, acceptableEntityTypes, Collections.emptySet());
+    }
 
-
+    /**
+     * Get the list of defined setting policies.
+     *
+     * @param onlyDefaults Show only the defaults.
+     * @param acceptableEntityTypes Filter the list by entity type.
+     * @param managersToInclude the set of managers to include in the response, if
+     *                          managersToInclude is empty, return all managers
+     * @return The list of {@link SettingsPolicyApiDTO}, one for each setting policy that exists
+     *         in the system.
+     */
+    public List<SettingsPolicyApiDTO> getSettingsPolicies(boolean onlyDefaults,
+                                                          @Nonnull Set<Integer> acceptableEntityTypes,
+                                                          @Nonnull Set<String> managersToInclude) {
         final ListSettingPoliciesRequest.Builder reqBuilder = ListSettingPoliciesRequest.newBuilder();
         if (onlyDefaults) {
             reqBuilder.setTypeFilter(Type.DEFAULT);
@@ -103,23 +112,20 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
 
         final List<SettingPolicy> settingPolicies = new LinkedList<>();
         settingPolicyService.listSettingPolicies(reqBuilder.build())
-            .forEachRemaining(policy -> {
-                // We use an empty acceptable set to indicate everything is accepted.
-                if (acceptableEntityTypes.isEmpty() ||
-                        acceptableEntityTypes.contains(policy.getInfo().getEntityType())) {
-                    settingPolicies.add(policy);
-                }
-            });
+                .forEachRemaining(policy -> {
+                    // We use an empty acceptable set to indicate everything is accepted.
+                    if (acceptableEntityTypes.isEmpty() ||
+                            acceptableEntityTypes.contains(policy.getInfo().getEntityType())) {
+                        settingPolicies.add(policy);
+                    }
+                });
 
-        // Inject settings to make it visible in UI if :
-        // No entity type was provided and none of the settings
-        // have scope (Default settings have no scope).
-        if (acceptableEntityTypes.isEmpty() &&
-                settingPolicies.stream().noneMatch(setting -> setting.getInfo().hasScope())) {
-            settingPolicies.add(createSettingPolicyForGlobalActionMode());
+        // Inject settings to make it visible in UI if no entity type was provided.
+        if (acceptableEntityTypes.isEmpty()) {
+            settingPolicies.add(createGlobalSettingPolicy());
         }
 
-        return settingsMapper.convertSettingPolicies(settingPolicies);
+        return settingsMapper.convertSettingPolicies(settingPolicies, managersToInclude);
     }
 
     /**
@@ -129,12 +135,12 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
      * @return setting policy to inject
      */
     @VisibleForTesting
-    SettingPolicy createSettingPolicyForGlobalActionMode() {
+    SettingPolicy createGlobalSettingPolicy() {
        return SettingPolicy.newBuilder()
             .setSettingPolicyType(Type.DEFAULT)
-            .setId(SettingsMapper.GLOBAL_ACTION_SETTING_NAME_ID)
+            .setId(SettingsMapper.GLOBAL_SETTING_POLICY_ID)
             .setInfo(SettingPolicyInfo.newBuilder()
-                .setName(SettingsMapper.GLOBAL_ACTION_SETTING_NAME)
+                .setName(SettingsMapper.GLOBAL_SETTING_POLICY_NAME)
                 .setEnabled(true))
             .build();
     }
@@ -163,10 +169,20 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
         final CreateSettingPolicyResponse response;
         try {
             response = settingPolicyService.createSettingPolicy(
-                    CreateSettingPolicyRequest.newBuilder()
-                            .setSettingPolicyInfo(policyInfo)
-                            .build());
+                CreateSettingPolicyRequest.newBuilder()
+                    .setSettingPolicyInfo(policyInfo)
+                    .build());
+            final String details = String.format("Created policy %s", settingPolicy.getDisplayName());
+            AuditLog.newEntry(AuditAction.CREATE_POLICY,
+                details, true)
+                .targetName(settingPolicy.getDisplayName())
+                .audit();
         } catch (StatusRuntimeException e) {
+            final String details = String.format("Failed to create policy %s", settingPolicy.getDisplayName());
+            AuditLog.newEntry(AuditAction.CREATE_POLICY,
+                details, false)
+                .targetName(settingPolicy.getDisplayName())
+                .audit();
             if (e.getStatus().getCode().equals(Code.ALREADY_EXISTS)) {
                 throw new OperationFailedException(e.getStatus().getDescription());
             } else if (e.getStatus().getCode().equals(Code.INVALID_ARGUMENT)) {
@@ -194,8 +210,8 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                                                    boolean setDefault,
                                                    SettingsPolicyApiDTO settingPolicy)
             throws Exception {
-        if (uuid.equals(String.valueOf(SettingsMapper.GLOBAL_ACTION_SETTING_NAME_ID))) {
-            return editGlobalActionModeSetting(setDefault, settingPolicy);
+        if (uuid.equals(String.valueOf(SettingsMapper.GLOBAL_SETTING_POLICY_ID))) {
+            return editGlobalSettingPolicy(setDefault, settingPolicy);
         }
         final long id = Long.valueOf(uuid);
         final SettingPolicy editedPolicy;
@@ -207,18 +223,18 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                         .build());
                 editedPolicy = response.getSettingPolicy();
 
-                if (settingsMapper.isVmEntityType(response.getSettingPolicy().getInfo().getEntityType())) {
-                    String rateOfResizeSettingName = GlobalSettingSpecs.RateOfResize.getSettingName();
-                    float defaultValue = GlobalSettingSpecs.RateOfResize.createSettingSpec().getNumericSettingValueType().getDefault();
-                    settingService.updateGlobalSetting(
-                        UpdateGlobalSettingRequest.newBuilder()
-                            .setSettingSpecName(rateOfResizeSettingName)
-                            .setNumericSettingValue(
-                                SettingDTOUtil.createNumericSettingValue(
-                                    defaultValue))
+                // Some global settings in the UI, are displayed along with the default policy
+                // for a specific entity type. Reset any global settings for the default policy here.
+                final int entityType = response.getSettingPolicy().getInfo().getEntityType();
+                if (SettingsMapper.ENTITY_TYPE_GLOBAL_SETTINGS.containsKey(entityType)) {
+                    final GlobalSettingSpecs settingSpec = SettingsMapper.ENTITY_TYPE_GLOBAL_SETTINGS.get(entityType);
+                    final String globalSettingName = settingSpec.getSettingName();
+                    float defaultValue = settingSpec.createSettingSpec().getNumericSettingValueType().getDefault();
+                    settingService.updateGlobalSetting(UpdateGlobalSettingRequest.newBuilder()
+                        .addSetting(Setting.newBuilder().setSettingSpecName(globalSettingName)
+                            .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(defaultValue)))
                             .build());
                 }
-
             } else {
                 final SettingPolicyInfo policyInfo =
                         settingsMapper.convertEditedInputPolicy(id, settingPolicy);
@@ -229,8 +245,18 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                                             .setNewInfo(policyInfo)
                                             .build());
                     editedPolicy = response.getSettingPolicy();
-                }
+            }
+            final String details = String.format("Changed policy %s", settingPolicy.getDisplayName());
+            AuditLog.newEntry(AuditAction.CHANGE_POLICY,
+                details, true)
+                .targetName(settingPolicy.getDisplayName())
+                .audit();
         } catch (StatusRuntimeException e) {
+            final String details = String.format("Failed to change policy %s", settingPolicy.getDisplayName());
+            AuditLog.newEntry(AuditAction.CHANGE_POLICY,
+                details, false)
+                .targetName(settingPolicy.getDisplayName())
+                .audit();
             if (e.getStatus().getCode().equals(Code.ALREADY_EXISTS)) {
                 throw new OperationFailedException(e.getStatus().getDescription());
             } else if (e.getStatus().getCode().equals(Code.INVALID_ARGUMENT)) {
@@ -245,10 +271,23 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
         return settingsMapper.convertSettingPolicy(editedPolicy);
     }
 
-    private SettingsPolicyApiDTO editGlobalActionModeSetting(boolean setDefault, SettingsPolicyApiDTO settingPolicy)
-                    throws OperationFailedException {
-        settingsMapper.updateGlobalActionModeSetting(setDefault, settingPolicy);
-        return settingsMapper.convertSettingPolicy(createSettingPolicyForGlobalActionMode());
+    private SettingsPolicyApiDTO editGlobalSettingPolicy(boolean setDefault, SettingsPolicyApiDTO settingPolicy) {
+        try {
+            settingsMapper.updateGlobalSettingPolicy(setDefault, settingPolicy);
+            final String details = String.format("Changed policy %s", settingPolicy.getDisplayName());
+            AuditLog.newEntry(AuditAction.CHANGE_POLICY,
+                details, true)
+                .targetName(settingPolicy.getDisplayName())
+                .audit();
+            return settingsMapper.convertSettingPolicy(createGlobalSettingPolicy());
+        } catch (RuntimeException e) {
+            final String details = String.format("Failed to change policy %s", settingPolicy.getDisplayName());
+            AuditLog.newEntry(AuditAction.CHANGE_POLICY,
+                details, false)
+                .targetName(settingPolicy.getDisplayName())
+                .audit();
+            throw e;
+        }
     }
 
     @Override
@@ -259,7 +298,17 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                 DeleteSettingPolicyRequest.newBuilder()
                     .setId(id)
                     .build());
+            final String details = String.format("Deleted policy with uuid: %s", uuid);
+            AuditLog.newEntry(AuditAction.DELETE_POLICY,
+                details, true)
+                .targetName(uuid)
+                .audit();
         } catch (StatusRuntimeException e) {
+            final String details = String.format("Failed to delete policy with uuid: %s", uuid);
+            AuditLog.newEntry(AuditAction.DELETE_POLICY,
+                details, false)
+                .targetName(uuid)
+                .audit();
             if (e.getStatus().getCode().equals(Code.INVALID_ARGUMENT)) {
                 throw new InvalidOperationException(e.getStatus().getDescription());
             } else if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {

@@ -1,5 +1,6 @@
 package com.vmturbo.auth.component.widgetset;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -82,13 +83,13 @@ public interface IWidgetsetStore {
     Optional<WidgetsetRecord> delete(long oid, long queryUserOid) throws InvalidResultException;
 
     /**
-     * Transfer all of the Widgetsets from the previous user to current user by user OID. We do this
-     * operation when deleting the previous user. The Widgetsets to be transferred must be "owned"
-     * by the previous user.
+     * Transfer all of the Widgetsets from the previous users to current user by user OID. We do
+     * this operation when deleting the previous user. The Widgetsets to be transferred must be
+     * "owned" by the previous user.
      *
-     * @param fromUserOid the previous user ID of the {@link Widgetset}
+     * @param fromUserOids collection of the previous user IDs of the {@link Widgetset}
      * @param toUserOid the current user ID of the {@link Widgetset}
      * @return @return an Iterator over all {@link WidgetsetRecord}s which have been transferred
      */
-    Iterator<WidgetsetRecord> transferOwnership(long fromUserOid, long toUserOid);
+    Iterator<WidgetsetRecord> transferOwnership(Collection<Long> fromUserOids, long toUserOid);
 }

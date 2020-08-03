@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -21,6 +22,7 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -120,11 +122,38 @@ public class StitchingOperationScopeFactory implements StitchingScopeFactory<Sti
      * {@inheritDoc}
      */
     @Override
+    public StitchingScope<StitchingEntity> probeCategoryScope(@Nonnull final ProbeCategory probeCategory) {
+        return new ProbeCategoryScope(stitchingContext, probeCategory, probeStore, targetStore);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public StitchingScope<StitchingEntity> multiProbeCategoryEntityTypeScope(
             @Nonnull final Set<ProbeCategory> probeCategories,
             @Nonnull final EntityType entityType) {
         return new MultiProbeCategoryEntityTypeStitchingScope(stitchingContext, probeCategories,
                 entityType, probeStore, targetStore);
+    }
+
+    @Override
+    public StitchingScope<StitchingEntity> missingDerivedTargetEntityTypeScope(
+        @Nonnull final String parentProbeType,
+        @Nonnull final String childProbeType,
+        @Nonnull final EntityType entityType) {
+        // TODO there is no compelling reason to implement this here right now.  It is very specfic
+        // to shared storage wasted files which are only handled in post stitching.  This can be
+        // implemented at a later date in the unlikely event we have a use for it.
+        throw new UnsupportedOperationException(
+            "missingDerivedTargetEntityTypeScope is not supported for stitching or pre-stitching");
+    }
+
+    @Override
+    public StitchingScope<TopologyEntity> hasAndLacksProbeCategoryEntityTypeStitchingScope(
+            @Nonnull Set<ProbeCategory> owningProbeCategories, @Nonnull Set<ProbeCategory> missingProbeCategories, @Nonnull EntityType entityType) {
+        throw new UnsupportedOperationException(
+                "missingSingleProbeCategoryEntityTypeStitchingScope is not needed for stitching");
     }
 
     public StitchingContext getStitchingContext() {
@@ -391,6 +420,38 @@ public class StitchingOperationScopeFactory implements StitchingScopeFactory<Sti
                 .flatMap(probeId -> targetStore.getProbeTargets(probeId).stream())
                 .map(Target::getId)
                 .flatMap(targetId -> getStitchingContext().internalEntities(entityType, targetId));
+        }
+    }
+
+    /**
+     * A calculation scope for applying a calculation to entities discovered by a probe category.
+     */
+    private static class ProbeCategoryScope extends BaseStitchingScope {
+
+        private final ProbeCategory probeCategory;
+        private final ProbeStore probeStore;
+        private final TargetStore targetStore;
+
+        ProbeCategoryScope(@Nonnull StitchingContext stitchingContext,
+                           @Nonnull final ProbeCategory probeCategory,
+                           @Nonnull final ProbeStore probeStore,
+                           @Nonnull final TargetStore targetStore) {
+            super(stitchingContext);
+            this.probeCategory = Objects.requireNonNull(probeCategory);
+            this.probeStore = Objects.requireNonNull(probeStore);
+            this.targetStore = Objects.requireNonNull(targetStore);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<StitchingEntity> entities() {
+            final Set<Long> probeCategoryTargetIds = probeStore.getProbeIdsForCategory(probeCategory).stream()
+                .flatMap(probeId -> targetStore.getProbeTargets(probeId).stream()
+                    .map(Target::getId))
+                .collect(Collectors.toSet());
+
+            return getStitchingContext().internalEntities(probeCategoryTargetIds)
+                .map(Function.identity());
         }
     }
 

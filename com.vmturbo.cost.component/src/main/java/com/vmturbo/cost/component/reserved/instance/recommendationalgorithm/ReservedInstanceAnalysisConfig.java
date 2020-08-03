@@ -5,20 +5,29 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostServiceConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
-import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
+import com.vmturbo.cost.component.reserved.instance.PlanReservedInstanceStore;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
-import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSender;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSenderConfig;
-import com.vmturbo.cost.component.topology.TopologyListenerConfig;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyAnalysisContextProvider;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyHistoricalDemandProvider;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RIBuyDemandCalculatorFactory;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RegionalRIMatcherCacheFactory;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceInventoryMatcherFactory;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceSpecMatcherFactory;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 @Import({
@@ -30,8 +39,20 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         RepositoryClientConfig.class,
         ReservedInstanceConfig.class,
         ReservedInstanceActionsSenderConfig.class,
-        TopologyListenerConfig.class})
+        ReservedInstanceSpecConfig.class})
 public class ReservedInstanceAnalysisConfig {
+
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
+
+    @Value("${preferredCurrentWeight}")
+    private float preferredCurrentWeight;
+
+    @Value("${riMinimumDataPoints}")
+    private int riMinimumDataPoints;
+
+    @Value("${allowStandaloneAccountRIBuyAnalysis:false}")
+    private boolean allowStandaloneAccountRIBuyAnalysis;
 
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
@@ -49,13 +70,10 @@ public class ReservedInstanceAnalysisConfig {
     private ReservedInstanceConfig reservedInstanceConfig;
 
     @Autowired
-    private BuyRIAnalysisConfig buyRIAnalysisConfig;
-
-    @Autowired
     private ReservedInstanceActionsSenderConfig reservedInstanceActionsSenderConfig;
 
     @Autowired
-    private TopologyListenerConfig topologyListenerConfig;
+    private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
     @Bean
     public SettingServiceBlockingStub settingServiceClient() {
@@ -63,22 +81,76 @@ public class ReservedInstanceAnalysisConfig {
     }
 
     @Bean
-    public RepositoryServiceBlockingStub repositoryServiceClient() {
-        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
-    }
-
-    @Bean
     public ReservedInstanceAnalyzer reservedInstanceAnalyzer() {
         return new ReservedInstanceAnalyzer(
                 settingServiceClient(),
-                repositoryServiceClient(),
-                reservedInstanceConfig.reservedInstanceBoughtStore(),
-                reservedInstanceConfig.reservedInstanceSpecStore(),
                 pricingConfig.priceTableStore(),
-                computeTierDemandStatsConfig.riDemandStatsStore(),
-                topologyListenerConfig.cloudTopologyFactory(),
+                pricingConfig.businessAccountPriceTableKeyStore(),
+                riBuyAnalysisContextProvider(),
+                riBuyDemandCalculatorFactory(),
                 reservedInstanceActionsSenderConfig.actionSender(),
-                reservedInstanceConfig.buyReservedInstanceStore());
+                reservedInstanceConfig.buyReservedInstanceStore(),
+                reservedInstanceConfig.actionContextRIBuyStore(),
+                realtimeTopologyContextId,
+                riMinimumDataPoints);
     }
 
+    @Bean
+    public RIBuyAnalysisContextProvider riBuyAnalysisContextProvider() {
+        return new RIBuyAnalysisContextProvider(
+                computeTierDemandStatsConfig.riDemandStatsStore(),
+                regionalRIMatcherCacheFactory(),
+                realtimeTopologyContextId,
+                allowStandaloneAccountRIBuyAnalysis);
+    }
+
+    @Bean
+    public RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory() {
+        return new RegionalRIMatcherCacheFactory(
+                reservedInstanceSpecMatcherFactory(),
+                reservedInstanceInventoryMatcherFactory());
+    }
+
+    @Bean
+    public ReservedInstanceSpecMatcherFactory reservedInstanceSpecMatcherFactory() {
+        return new ReservedInstanceSpecMatcherFactory(
+                reservedInstanceSpecConfig.reservedInstanceSpecStore());
+    }
+
+    @Bean
+    public ReservedInstanceInventoryMatcherFactory reservedInstanceInventoryMatcherFactory() {
+        return new ReservedInstanceInventoryMatcherFactory(
+                reservedInstanceConfig.reservedInstanceBoughtStore(),
+                reservedInstanceConfig.planReservedInstanceStore());
+    }
+
+    @Bean
+    public RIBuyDemandCalculatorFactory riBuyDemandCalculatorFactory() {
+        return new RIBuyDemandCalculatorFactory(
+                riBuyAnalysisDemandProvider(),
+                preferredCurrentWeight);
+    }
+
+    @Bean
+    public RIBuyHistoricalDemandProvider riBuyAnalysisDemandProvider() {
+        return new RIBuyHistoricalDemandProvider(computeTierDemandStatsConfig.riDemandStatsStore());
+    }
+
+    /**
+     * Get the real-time reserved instance store (existing inventory).
+     *
+     * @return The real-time reserved instance store.
+     */
+    public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
+        return reservedInstanceConfig.reservedInstanceBoughtStore();
+    }
+
+    /**
+     * Get the plan reserved instance store.
+     *
+     * @return The plan reserved instance store.
+     */
+    public PlanReservedInstanceStore planReservedInstanceStore() {
+        return reservedInstanceConfig.planReservedInstanceStore();
+    }
 }

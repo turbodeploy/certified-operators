@@ -1,41 +1,23 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.google.common.annotations.VisibleForTesting;
 import org.jooq.exception.DataAccessException;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceImplBase;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterResponse;
-import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountResponse;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
-import com.vmturbo.cost.component.db.tables.pojos.BuyReservedInstance;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceFilter;
 
 public class BuyReservedInstanceRpcService extends BuyReservedInstanceServiceImplBase {
-
-    private final Logger logger = LogManager.getLogger();
 
     private final BuyReservedInstanceStore buyRiStore;
 
@@ -50,8 +32,9 @@ public class BuyReservedInstanceRpcService extends BuyReservedInstanceServiceImp
             GetBuyReservedInstancesByFilterRequest request,
             StreamObserver<GetBuyReservedInstancesByFilterResponse> responseObserver) {
         try {
+            final BuyReservedInstanceFilter filter = constructBuyRIFilter(request);
             final Collection<ReservedInstanceBought> reservedInstanceBoughts =
-                    buyRiStore.getBuyReservedInstances(request);
+                    buyRiStore.getBuyReservedInstances(filter);
             final GetBuyReservedInstancesByFilterResponse.Builder responseBuilder =
                     GetBuyReservedInstancesByFilterResponse.newBuilder();
             reservedInstanceBoughts.stream().forEach(responseBuilder::addReservedInstanceBoughts);
@@ -62,5 +45,20 @@ public class BuyReservedInstanceRpcService extends BuyReservedInstanceServiceImp
                     .withDescription("Failed to get buy reserved instance by filter.")
                     .asException());
         }
+    }
+
+    @VisibleForTesting
+    private static BuyReservedInstanceFilter constructBuyRIFilter(GetBuyReservedInstancesByFilterRequest request) {
+        BuyReservedInstanceFilter.Builder filterBuilder = BuyReservedInstanceFilter.newBuilder()
+                .setRegionFilter(request.getRegionFilter())
+                .setAccountFilter(request.getAccountFilter());
+
+        if (request.hasTopologyContextId()) {
+            filterBuilder.addTopologyContextId(request.getTopologyContextId());
+        }
+        if (request.getBuyRiIdCount() > 0) {
+            filterBuilder.addBuyRIIdList(request.getBuyRiIdList());
+        }
+        return filterBuilder.build();
     }
 }

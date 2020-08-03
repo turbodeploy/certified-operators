@@ -1,0 +1,218 @@
+syntax = "proto2";
+package plan;
+
+option java_package = "com.vmturbo.common.protobuf.plan";
+
+import "plan/Scenario.proto";
+
+// NB Informational (most) messages in this set of declarations are serialized in rdbms.
+// They are not modifiable, only extendable.
+
+// A plan project is a container that acts as a context for a series of related (and/or interrelated)
+// plan runs that happen on some schedule.
+message PlanProject {
+    // The ID of the plan project
+    optional int64 plan_project_id = 1;
+
+    // Information describing the plan project
+    optional PlanProjectInfo plan_project_info = 2;
+}
+
+enum PlanProjectType {
+    // A custom plan project is created by the user
+    // and has no special behaviour/server-side code.
+    USER = 0;
+
+    // A headroom plan project is responsible for calculating
+    // per-cluster headroom (i.e. how many VMs can still fit into the cluster).
+    // There is always exactly one headroom plan project in the system.
+    CLUSTER_HEADROOM = 1;
+
+    // 2 Used for initial placement. 3 used for reservation plan. No longer needed.
+    reserved 2, 3;
+}
+
+// Information describing the plan project.
+message PlanProjectInfo {
+
+    // The name of the plan project. Names should be unique.
+    // This field should always be present.
+    optional string name = 1;
+
+    // How often to run the plan project.
+    // Running the plan project involves running all the different plans required
+    // to get the project's results.
+    //
+    // If this is not set, run this plan project on demand only.
+    optional Recurrence recurrence = 3;
+
+    // The type of the plan project
+    optional PlanProjectType type = 4 [default = USER];
+
+    // Create one plan for each cluster in the system.
+    //
+    // IMPORTANT:
+    // If set, there should be no scenario in "scenarios" with "scope" set.
+    //
+    // When set:
+    //    For each planProjScenario in "scenarios"
+    //       For each cluster in the system
+    //            Create a PlanProjectScenario with scope = cluster.id and
+    //            scenario = planProjScenario.scenario
+    //
+    // Then run each of the created scenarios.
+    optional bool per_cluster_scope = 10 [default = false];
+
+    // The scenarios involved in this plan project.
+    // Each scenario will run independently of the other.
+    repeated PlanProjectScenario scenarios = 11;
+
+    // A wrapper around a "regular" scenario to allow separate scopes
+    // (and other properties) for the different scenarios that are part of
+    // a plan project.
+    message PlanProjectScenario {
+        // Static scope to apply this scenario to.
+        // If set, apply the changes in the scenario to whatever entities the scope
+        // resolves to (which will be some subset of the topology).
+        // If not set, apply the changes in the scenario to the entire topology.
+        optional StaticScope scope = 1;
+
+        // The scenario changes to apply. This captures the topology and settings-related changes
+        // that need to be made to the entities in the selected scope.
+        repeated ScenarioChange changes = 2;
+    }
+
+    // A statically configured scope.
+    // The scope can be resolved to a specific subset of a topology.
+    message StaticScope {
+        // The oids of groups in the scope.
+        repeated int64 id = 1;
+    }
+}
+
+// Used to deserialize a collection of SPlanProjectInfo from a single JSON file
+message PlanProjectInfoCollection {
+    repeated PlanProjectInfo plan_project_info = 1;
+}
+
+// The Recurrence of the execution
+message Recurrence {
+    // The schedule of the recurrence.
+    // This determines the days on which to run the project.
+    optional Schedule schedule = 1;
+
+    // The time of the run in the days determined by schedule.
+    optional TimeOfRun time_of_run = 2;
+
+    message Daily {}
+
+    enum DayOfWeek {
+        MON = 1;
+        TUE = 2;
+        WED = 3;
+        THU = 4;
+        FRI = 5;
+        SAT = 6;
+        SUN = 7;
+    }
+
+    message Weekly {
+        // specify the day(s) of the week, default to Sunday
+        optional DayOfWeek day_of_week = 1;
+    }
+
+    message Monthly {
+        // specify the day(s) of the month (1-31). default to first day of the month
+        optional int32 day_of_month = 1 [default = 1];
+    }
+
+    message TimeOfRun {
+        // specify the hour in a day (0-23), default to 4AM
+        optional int32 hour = 1 [default = 4];
+    }
+
+    message Schedule {
+        oneof recurrence {
+            Daily daily = 1;
+            Weekly weekly = 2;
+            Monthly monthly = 3;
+        }
+    }
+}
+
+message GetPlanProjectRequest {
+    required int64 project_id = 1;
+}
+
+message GetPlanProjectResponse {
+    // If set, the get the plan project
+    // Will be unset if the project_id in
+    // the request referred to a non-existing plan project.
+    optional PlanProject project = 1;
+}
+
+message DeletePlanProjectRequest {
+    required int64 project_id = 1;
+}
+
+message DeletePlanProjectResponse {
+    // If set, the deleted project_id.
+    // Will be unset if the project_id in
+    // the request referred to a non-existing plan project.
+    optional int64 project_id = 1;
+}
+
+message GetAllPlanProjectsRequest {
+}
+
+message GetAllPlanProjectsResponse {
+    // The list of all plan projects.
+    repeated PlanProject projects = 1;
+}
+
+message RunPlanProjectRequest {
+    optional int64 id = 1;
+}
+
+message RunPlanProjectResponse {
+}
+
+// A service responsible for CRUD operations for plan project.
+// A plan project contains:
+// * An ID
+// * A name
+// * A list of Plan Scenarios
+// * Recurrence information - when and how often the plan project will be executed
+// Plan project will be persisted to the Plan database.
+service PlanProjectService {
+
+    // Attemp to run a specific plan project.
+    //
+    // This is currently (Dec 4 2017) for testing/demonstration purposes.
+    // If/when we make this part of the API, we'll need to implement and document
+    // the relationship between this call and the recurrence in the plan project.
+    rpc RunPlanProject(RunPlanProjectRequest) returns (RunPlanProjectResponse);
+
+    // Create a project given the information about a project.
+    // The newly created Project will be persisted to the Plan database.
+    //
+    // @returns the newly created project
+    rpc CreatePlanProject (PlanProjectInfo) returns (PlanProject);
+
+    // Get a project by its ID.
+    // Searches the plan project persisted previously to the Plan database.
+    //
+    // @parameter GetPlanProjectRequest indicates the ID of the plan project to search for.
+    // @returns the Project with the given ID; if not found, the PlanProject will not be set
+    rpc GetPlanProject(GetPlanProjectRequest) returns (GetPlanProjectResponse);
+
+    // Get all the existing plan projects.
+    rpc GetAllPlanProjects(GetAllPlanProjectsRequest) returns (GetAllPlanProjectsResponse);
+
+    // Delete an existing plan project from the Plan database.
+    //
+    // @param DeletePlanProjectRequest the unique ID of the project to be deleted
+    // @returns the ID of the Project that was deleted, if found,
+    // or the ID in the response will be unset if not found.
+    rpc DeletePlanProject(DeletePlanProjectRequest) returns (DeletePlanProjectResponse);
+}

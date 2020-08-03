@@ -7,18 +7,20 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.Channel;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import io.grpc.Channel;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
@@ -66,8 +68,8 @@ public class HistoryLivePerformanceTest extends HistoryPerformanceTest {
                 "HistoryPerformanceTest");
         historyMessageReceiver = HistoryMessageReceiver.create(messageConsumer);
         historyComponent =
-                new HistoryComponentNotificationReceiver(historyMessageReceiver, threadPool);
-        historyComponent.addStatsListener(statsListener);
+                new HistoryComponentNotificationReceiver(historyMessageReceiver, threadPool, 0);
+        historyComponent.addListener(statsListener);
         messageConsumer.start();
 
         final Channel historyChannel = componentTestRule.getCluster().newGrpcChannel("history");
@@ -109,7 +111,7 @@ public class HistoryLivePerformanceTest extends HistoryPerformanceTest {
     @Nonnull
     @Override
     protected void broadcastSourceTopology(TopologyInfo topologyInfo, Collection<TopologyEntityDTO> topoDTOs)
-            throws CommunicationException, InterruptedException {
+        throws CommunicationException, InterruptedException, OversizedElementException {
         final TopologyBroadcast topologyBroadcast = tpSender.broadcastLiveTopology(topologyInfo);
         for (final TopologyEntityDTO entity: topoDTOs) {
             topologyBroadcast.append(entity);

@@ -34,13 +34,13 @@ import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.stereotype.Component;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
 import com.vmturbo.components.api.test.IntegrationTestServer;
-import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
-import com.vmturbo.components.common.ConsulDiscoveryManualConfig;
+import com.vmturbo.components.common.ConsulRegistrationConfig;
 import com.vmturbo.components.common.migration.MigrationFramework;
 import com.vmturbo.mediation.client.MediationComponentConfig;
 import com.vmturbo.mediation.client.MediationComponentMain;
@@ -92,16 +92,13 @@ public abstract class AbstractIntegrationTest {
 
     @Configuration
     @Import({BaseVmtComponentConfig.class, MediationComponentConfig.class})
+    @Component("theComponent")
     static class ContextConfiguration extends MediationComponentMain {
+
         @Primary
         @Bean
         public MigrationFramework migrationFramework() {
             return Mockito.mock(MigrationFramework.class);
-        }
-
-        @Bean
-        public BaseVmtComponent theComponent() {
-            return new MediationComponentMain();
         }
     }
 
@@ -146,13 +143,17 @@ public abstract class AbstractIntegrationTest {
         environment.setProperty(TestMediationCommonConfig.FIELD_TEST_NAME,
                 testName.getMethodName());
         environment.setProperty("instance_id", testName.getMethodName());
+        environment.setProperty("instance_ip", "10.10.10.10");
         environment.setProperty("identityGeneratorPrefix", "0");
-        environment.setProperty("kvStoreRetryIntervalMillis", "1000");
+        environment.setProperty("kvStoreTimeoutSeconds", "5");
         environment.setProperty("websocket.pong.timeout", "10000");
         environment.setProperty("serverGrpcPort", "0");
         environment.setProperty("consul_port", "0");
         environment.setProperty("consul_host", "consul");
-        environment.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION, "true");
+        environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
+        environment.setProperty("standalone", "true");
+        environment.setProperty("clustermgr_port", "0");
+        environment.setProperty("connRetryIntervalSeconds", "10");
 
         applicationContext = new AnnotationConfigWebApplicationContext();
         applicationContext.setEnvironment(environment);
@@ -300,8 +301,12 @@ public abstract class AbstractIntegrationTest {
                                 "Websocket server should be started before container");
             }
             this.probe = probe;
-            this.probeJarsDir = tmpFolder.newFolder("probe-jars");
-            this.probeHome = tmpFolder.newFolder("probe-jars", "testprobe");
+            this.probeJarsDir = tmpFolder.newFolder();
+            this.probeHome =
+                    new File(probeJarsDir, probe.getType().replaceAll("[^\\p{Alnum}]", "X"));
+            if (!probeHome.mkdir()) {
+                throw new IllegalStateException("Could not create directory " + probeHome);
+            }
             final MockEnvironment environment = new MockEnvironment() {
                 @Override
                 protected void customizePropertySources(MutablePropertySources propertySources) {
@@ -316,11 +321,11 @@ public abstract class AbstractIntegrationTest {
             };
             environment.setProperty(TestMediationCommonConfig.FIELD_TEST_NAME,
                     testName.getMethodName());
-            environment.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION, "true");
+            environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
             environment.setProperty("consul_host", "consul");
             environment.setProperty("consul_port", "0");
             environment.setProperty("spring.application.name", "the-component");
-            environment.setProperty("kvStoreRetryIntervalMillis", "1000");
+            environment.setProperty("kvStoreTimeoutSeconds", "5");
 
             // Alter JMX domain in order to start multiple spring-boot applications inside one
             // JVM
@@ -332,11 +337,13 @@ public abstract class AbstractIntegrationTest {
             final String instanceId =
                             testName.getMethodName() + "-" + instanceCounter.getAndIncrement();
             environment.setProperty("instance_id", instanceId);
+            environment.setProperty("instance_ip", "10.10.10.10");
             environment.setProperty("component_type", "sdk-test-" + instanceId);
             environment.setProperty("probe-directory", probeJarsDir.toString());
             environment.setProperty("serverAddress",
                     webSocketServer.getServerURI(SdkServerConfig.REMOTE_MEDIATION_PATH).toString());
             environment.setProperty("instances." + instanceId + ".identityGeneratorPrefix", "0");
+            environment.setProperty("connRetryIntervalSeconds", "1");
             final Thread currentThread = Thread.currentThread();
             final ClassLoader currentClassLoader = currentThread.getContextClassLoader();
             ProbeCompiler.configureProbe(probeHome, probe);

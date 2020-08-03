@@ -65,18 +65,16 @@ public class SdkToProbeActionsConverter {
                 new SimpleCapabilityCreator(ActionDTO.ActionType.ACTIVATE));
         capabilityBuilders.put(ActionItemDTO.ActionType.MOVE,
                 new MoveCapabilityCreator(ENTITY_TYPES_BUT_STORAGE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.SCALE,
+                new SimpleCapabilityCreator(ActionType.SCALE));
         capabilityBuilders.put(ActionItemDTO.ActionType.SUSPEND,
                 new SimpleCapabilityCreator(ActionDTO.ActionType.DEACTIVATE));
         capabilityBuilders.put(ActionItemDTO.ActionType.TERMINATE,
                 new SimpleCapabilityCreator(ActionDTO.ActionType.DEACTIVATE));
-        capabilityBuilders.put(ActionItemDTO.ActionType.SPAWN,
-                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
         capabilityBuilders.put(ActionItemDTO.ActionType.ADD_PROVIDER,
                 new SimpleCapabilityCreator(ActionDTO.ActionType.START));
         capabilityBuilders.put(ActionItemDTO.ActionType.CHANGE,
                 new MoveCapabilityCreator(Collections.singleton(EntityType.STORAGE.getNumber())));
-        capabilityBuilders.put(ActionItemDTO.ActionType.REMOVE_PROVIDER,
-                new SimpleCapabilityCreator(ActionDTO.ActionType.DEACTIVATE));
         capabilityBuilders.put(ActionItemDTO.ActionType.PROVISION,
                 new SimpleCapabilityCreator(ActionDTO.ActionType.PROVISION));
         capabilityBuilders.put(ActionItemDTO.ActionType.RECONFIGURE,
@@ -85,23 +83,11 @@ public class SdkToProbeActionsConverter {
                 new SimpleCapabilityCreator(ActionDTO.ActionType.RESIZE));
         capabilityBuilders.put(ActionItemDTO.ActionType.RESIZE_CAPACITY,
                 new SimpleCapabilityCreator(ActionDTO.ActionType.RESIZE));
-        capabilityBuilders.put(ActionItemDTO.ActionType.WARN,
-                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
-        capabilityBuilders.put(ActionItemDTO.ActionType.RECONFIGURE_THRESHOLD,
-                new SimpleCapabilityCreator(ActionDTO.ActionType.RECONFIGURE));
         capabilityBuilders.put(ActionItemDTO.ActionType.DELETE,
-                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
+                new SimpleCapabilityCreator(ActionDTO.ActionType.DELETE));
         capabilityBuilders.put(ActionItemDTO.ActionType.RIGHT_SIZE,
                 new SimpleCapabilityCreator(ActionDTO.ActionType.RESIZE));
-        capabilityBuilders.put(ActionItemDTO.ActionType.RESERVE_ON_PM,
-                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
-        capabilityBuilders.put(ActionItemDTO.ActionType.RESERVE_ON_DS,
-                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
-        capabilityBuilders.put(ActionItemDTO.ActionType.RESIZE_FOR_EFFICIENCY,
-                new SimpleCapabilityCreator(ActionDTO.ActionType.RESIZE));
         capabilityBuilders.put(ActionItemDTO.ActionType.CROSS_TARGET_MOVE,
-                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
-        capabilityBuilders.put(ActionItemDTO.ActionType.RESERVE_ON_DA,
                 new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
         // Not sure that sdk MOVE_TOGETHER IS ACTUALLY MOVE
         capabilityBuilders.put(ActionItemDTO.ActionType.MOVE_TOGETHER,
@@ -166,11 +152,18 @@ public class SdkToProbeActionsConverter {
     private static ProbeActionCapability.ActionCapabilityElement convertSdkPolicyElementToXl(
             @Nonnull ActionPolicyDTO.ActionPolicyElement sdkPolicyElement) {
         Objects.requireNonNull(sdkPolicyElement);
-        final ActionCapabilityElement.Builder builder =
-                CAPABILITY_CREATORS.get(sdkPolicyElement.getActionType()).get();
-        if (builder.getActionType() == ActionType.NONE) {
-            logger.debug(sdkPolicyElement.getActionType() + " was mapped into ActionType.NONE! " +
-                    "Sdk policy element: " + sdkPolicyElement);
+        ActionCapabilityElement.Builder builder;
+        if (sdkPolicyElement.getActionType() == null ||
+                CAPABILITY_CREATORS.get(sdkPolicyElement.getActionType()) == null) {
+            logger.warn("Failed to get action capability for action type: " +
+                    sdkPolicyElement.getActionType());
+            builder = CAPABILITY_CREATORS.get(ActionItemDTO.ActionType.NONE).get();
+        } else {
+            builder = CAPABILITY_CREATORS.get(sdkPolicyElement.getActionType()).get();
+            if (builder.getActionType() == ActionType.NONE) {
+                logger.debug(sdkPolicyElement.getActionType() + " was mapped into ActionType.NONE! " +
+                        "Sdk policy element: " + sdkPolicyElement);
+            }
         }
         builder.setActionCapability(convert(sdkPolicyElement.getActionCapability()));
         return builder.build();

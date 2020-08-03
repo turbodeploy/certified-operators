@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -22,16 +23,19 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.ConstraintGroup;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.ConstraintGroup;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 
@@ -71,11 +75,13 @@ public class ConstraintsEditor {
      * @param graph to resolve groups members
      * @param changes with ignore constraint settings
      * @param isPressurePlan is true if plan is of type alleviate pressure
+     * @throws ConstraintsEditorException thrown if {@link IgnoreConstraint} has unsupported configs.
      */
-    public void editConstraints(@Nonnull final TopologyGraph graph,
-            @Nonnull final List<ScenarioChange> changes, boolean isPressurePlan) {
+    public void editConstraints(@Nonnull final TopologyGraph<TopologyEntity> graph,
+            @Nonnull final List<ScenarioChange> changes, boolean isPressurePlan)
+            throws ConstraintsEditorException {
         final Multimap<Long, String> entitiesToIgnoredCommodities = HashMultimap.create();
-        changes.forEach(change -> {
+        for (ScenarioChange change: changes) {
             if (change.hasPlanChanges()) {
                 final List<IgnoreConstraint> ignoreConstraints = change
                         .getPlanChanges().getIgnoreConstraintsList();
@@ -89,51 +95,96 @@ public class ConstraintsEditor {
                             });
                 }
             }
-        });
+        }
 
         deactivateCommodities(graph, entitiesToIgnoredCommodities);
     }
 
+    /**
+     * Checks if plan configured with unsupported {@link IgnoreConstraint}s options.
+     *
+     * @param ignoredCommodities the list of ignoreConstraints to check for proper configuration
+     * @return true if any ignoreCommodities is not supported.
+     */
+    @VisibleForTesting
+    static boolean hasUnsupportedIgnoreConstraintConfigurations(@Nonnull List<IgnoreConstraint> ignoredCommodities) {
+        return ignoredCommodities.stream()
+                .anyMatch(ignoreConstraint ->  {
+                    boolean deprecatedFieldConfiguration = ignoreConstraint.hasDeprecatedIgnoreEntityTypes();
+                    boolean misConfiguredGroup = ignoreConstraint.hasIgnoreGroup() && !ignoreConstraint.getIgnoreGroup().hasGroupUuid();
+                    return deprecatedFieldConfiguration || misConfiguredGroup;
+                });
+    }
+
+    /**
+     * Maps entityOids to commodities to ignore based on ignoreConstraints.
+     *
+     * @param ignoredCommodities ignoreConstraint changes
+     * @param graph to resolve groups members
+     * @param isPressurePlan is true if plan is of type alleviate pressure
+     * @return entityOids to commodities to ignore
+     * @throws ConstraintsEditorException thrown if {@link IgnoreConstraint} has unsupported configs.
+     */
     @Nonnull
     private Multimap<Long, String> getEntitiesOidsForIgnoredCommodities(
-                    @Nonnull List<IgnoreConstraint> ignoredCommodities,
-                    @Nonnull TopologyGraph graph, boolean isPressurePlan) {
+        @Nonnull List<IgnoreConstraint> ignoredCommodities,
+        @Nonnull TopologyGraph<TopologyEntity> graph, boolean isPressurePlan)
+            throws ConstraintsEditorException {
 
         final Multimap<Long, String> entitesToIgnoredCommodities = HashMultimap.create();
         boolean hasIgnoreAllEntities = ignoredCommodities.stream()
                 .anyMatch(IgnoreConstraint::hasIgnoreAllEntities);
 
+        // Older IgnoreConstraints configurations no longer supported.  We are trying
+        // to detect them here, in which case we fail plan and prompt user to create a new one
+        // rather then running a plan without applying ignoreConstraints as originally intended.
+        if (hasUnsupportedIgnoreConstraintConfigurations(ignoredCommodities)) {
+            throw new ConstraintsEditorException("Ignore Constraint configurations not longer supported," +
+                    "please reconfigure a new plan");
+        }
+
         // First check if all entities have to be ignored.
         if (hasIgnoreAllEntities) {
             graph.entities()
-                    .map(TopologyEntity::getOid)
-                    .forEach(entityId ->
-                            entitesToIgnoredCommodities.put(entityId, ALL_COMMODITIES));
+                    .forEach(entity -> {
+                        entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES);
+                        if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                            entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+                                .setShopTogether(true);
+                        }
+                    });
             return entitesToIgnoredCommodities;
         }
-
+        
         // Check if all entities of specific types have to be ignored.
         ignoredCommodities.stream()
-                .filter(IgnoreConstraint::hasIgnoreEntityTypes)
-                .map(IgnoreConstraint::getIgnoreEntityTypes)
-                .flatMap(entityTypes -> entityTypes.getEntityTypesList().stream())
+                .filter(IgnoreConstraint::hasGlobalIgnoreEntityType)
+                .map(IgnoreConstraint::getGlobalIgnoreEntityType)
+                .map(GlobalIgnoreEntityType::getEntityType)
                 .map(entityType -> graph.entitiesOfType(entityType))
                 .flatMap(Function.identity())
-                .forEach(entity ->
-                        entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES));
+                .forEach(entity -> {
+                    entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES);
+                    if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                        entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+                                .setShopTogether(true);
+                    }
+                });
 
         Set<Long> groups = ignoredCommodities.stream()
                 .filter(IgnoreConstraint::hasIgnoreGroup)
                 .map(IgnoreConstraint::getIgnoreGroup)
                 .map(ConstraintGroup::getGroupUuid)
                 .collect(Collectors.toSet());
+
         groupService.getGroups(GetGroupsRequest.newBuilder()
-                .addAllId(groups)
-                .setResolveClusterSearchFilters(true)
-                .build())
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .addAllId(groups))
+                        .setReplaceGroupPropertyWithGroupMembershipFilter(true)
+                        .build())
                 .forEachRemaining(group -> {
                     try {
-                        Set<Long> groupMembersOids = groupResolver.resolve(group, graph);
+                        Set<Long> groupMembersOids = groupResolver.resolve(group, graph).getAllEntities();
                         // Remove entityIds for which we have already determined that all commodity
                         // constraints have to be ignored.
                         groupMembersOids.removeAll(entitesToIgnoredCommodities.keySet());
@@ -175,7 +226,7 @@ public class ConstraintsEditor {
      * @return set of original Oids with VM customers.
      */
     private Set<Long> updateCommoditiesSoldForHostAndGetVMCustomers(Set<Long> groupMembersOids,
-                    TopologyGraph graph) {
+                    TopologyGraph<TopologyEntity> graph) {
         return groupMembersOids.stream()
             .map(oid -> graph.getEntity(oid))
             .filter(Optional::isPresent)
@@ -201,7 +252,7 @@ public class ConstraintsEditor {
     }
 
     @Nonnull
-    private void deactivateCommodities(@Nonnull TopologyGraph graph,
+    private void deactivateCommodities(@Nonnull TopologyGraph<TopologyEntity> graph,
             @Nonnull Multimap<Long, String> entitiesToIgnoredCommodities) {
         for (Long entityId : entitiesToIgnoredCommodities.keySet()) {
             final Optional<TopologyEntity> entity = graph.getEntity(entityId);
@@ -260,6 +311,21 @@ public class ConstraintsEditor {
             }
         }
         return deactivatedCommodities.build();
+    }
+
+    /**
+     * An exception thrown {@link ConstraintsEditor} stage fails.
+     */
+    public static class ConstraintsEditorException extends Exception {
+
+        /**
+         * Create a new {@link ConstraintsEditorException}.
+         *
+         * @param message The message describing the exception.
+         */
+        public ConstraintsEditorException(@Nonnull final String message) {
+            super(message);
+        }
     }
 
 }

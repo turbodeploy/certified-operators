@@ -11,12 +11,8 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.Context;
 import io.grpc.Contexts;
-import io.grpc.ForwardingServerCall;
 import io.grpc.ForwardingServerCallListener.SimpleForwardingServerCallListener;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
@@ -26,9 +22,10 @@ import io.grpc.Status;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 
-import com.vmturbo.api.exceptions.UnauthorizedObjectException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.auth.api.JWTKeyCodec;
-import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
@@ -42,6 +39,11 @@ import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
  * <li>Validate JWT token with public key</li>
  * <li>Store caller subject to context {@link Context}</li>
  * </ul>
+ * This passes user identity and role in the JWT token so we can authorize and track
+ * gRPC activity.
+ * <p/>
+ * Every component exposing a gRPC server should add a {@link JwtServerInterceptor} to
+ * its list of {@link ServerInterceptor}s.
  */
 public class JwtServerInterceptor implements ServerInterceptor {
     private static final int ALLOWED_CLOCK_SKEW_SECONDS = 60;
@@ -126,22 +128,23 @@ public class JwtServerInterceptor implements ServerInterceptor {
             public void onHalfClose() {
                 try {
                     super.onHalfClose();
-                } catch (Throwable t) {
+                } catch (RuntimeException t) {
                     translateException(t);
                 }
             }
 
-            private void translateException(Throwable t) {
+            private void translateException(RuntimeException t) {
                 final Status returnStatus;
                 if (t instanceof UserAccessScopeException) {
                     returnStatus = Status.PERMISSION_DENIED;
                 } else if (t instanceof UserAccessException) {
                     returnStatus = Status.PERMISSION_DENIED;
-                } else if (t instanceof AuthorizationException) {
-                    returnStatus = Status.UNAUTHENTICATED;
                 } else {
-                    returnStatus = Status.fromThrowable(t);
+                    // Exception is not related to Auth component logic. Rethrow it.
+                    throw t;
                 }
+                logger.debug("gRPC call to " + call.getMethodDescriptor().getFullMethodName() +
+                        " failed", t);
                 call.close(returnStatus.withCause(t).withDescription(t.getMessage()), new Metadata());
             }
         };

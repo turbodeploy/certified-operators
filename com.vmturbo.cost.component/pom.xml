@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>7.17.0-SNAPSHOT</version>
+        <version>7.22.6-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -40,6 +40,7 @@
                                         <location>com.vmturbo.cost.component</location>
                                         <location>com.vmturbo.common.protobuf.cost</location>
                                         <location>com.vmturbo.common.protobuf.logging</location>
+                                        <location>com.vmturbo.common.protobuf.trax</location>
                                         <location>com.vmturbo.components.common</location>
                                     </locations>
                                 </apiSource>
@@ -133,7 +134,7 @@
                     <!-- Generator parameters -->
                     <generator>
                         <database>
-                            <name>org.jooq.util.mysql.MySQLDatabase</name>
+                            <name>org.jooq.meta.mysql.MySQLDatabase</name>
                             <!-- Retrieve schema version from Flyway info table -->
                             <schemaVersionProvider>SELECT CONCAT_WS('_', '${db.outputSchema}', MAX(version)) from schema_version</schemaVersionProvider>
                             <includes>.*</includes>
@@ -151,6 +152,10 @@
                                     <!-- Associate that custom type with your converter. Note, a
                                          custom type can only have one converter in jOOQ -->
                                     <converter>com.vmturbo.sql.utils.LocalDateTimeConverter</converter>
+                                </customType>
+                                <customType>
+                                    <name>java.time.LocalDate</name>
+                                    <converter>com.vmturbo.sql.utils.LocalDateConverter</converter>
                                 </customType>
                                 <customType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.EntityCost</name>
@@ -186,12 +191,21 @@
                                     <expression>.*\..*_time</expression>
                                 </forcedType>
                                 <forcedType>
+                                    <!-- DATE columns named *_date -->
+                                    <name>java.time.LocalDate</name>
+                                    <expression>.*\..*_date</expression>
+                                </forcedType>
+                                <forcedType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.EntityCost</name>
                                     <expression>.*\.plan_projected_entity_cost\.entity_cost</expression>
                                 </forcedType>
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo</name>
                                     <expression>.*\.reserved_instance_bought\.reserved_instance_bought_info</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo</name>
+                                    <expression>.*\.plan_reserved_instance_bought\.reserved_instance_bought_info</expression>
                                 </forcedType>
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo</name>
@@ -225,10 +239,21 @@
                     </generator>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
     <dependencies>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.api</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>cost-api</artifactId>
@@ -237,10 +262,33 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>market-component-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>cloud-commitment-analysis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>reserved-instance-coverage-allocator</artifactId>
+        </dependency>
 
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+        </dependency>
+        <!-- Used for Buy RI Impact report generation -->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-websocket</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.immutables</groupId>
+            <artifactId>value</artifactId>
+            <version>${immutables.version}</version>
+            <scope>provided</scope>
         </dependency>
         <!-- Verify and decode JWT token -->
         <dependency>
@@ -250,6 +298,10 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>sql-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sql-test-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
@@ -270,6 +322,8 @@
             <artifactId>components-api-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- END test dependencies -->
+
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.sdk.server.common</artifactId>
@@ -282,7 +336,14 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>components-api</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>identity</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.plan.orchestrator.api</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -7,19 +8,22 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Lists;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.api.component.external.api.mapper.WidgetsetMapper;
 import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IWidgetSetsService;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.common.protobuf.widgets.Widgets.CreateWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetRequest;
@@ -52,7 +56,7 @@ public class WidgetSetsService implements IWidgetSetsService {
     @Override
     public List<WidgetsetApiDTO> getWidgetsetList(
             @Nullable Set<String> categories,
-            @Nullable String scopeType) {
+            @Nullable String scopeType) throws ConversionException, InterruptedException {
         final GetWidgetsetListRequest.Builder widgetsetListRequest = GetWidgetsetListRequest
                 .newBuilder();
         if (categories != null && categories.size() > 0) {
@@ -62,9 +66,10 @@ public class WidgetSetsService implements IWidgetSetsService {
             widgetsetListRequest.setScopeType(scopeType);
         }
         final List<WidgetsetApiDTO> answer = Lists.newLinkedList();
+        final List<Widgetset> widgetsetList = Lists.newLinkedList();
         widgetsetsService.getWidgetsetList(widgetsetListRequest.build())
-                .forEachRemaining(widgetsetRecord ->
-                        answer.add(widgetsetMapper.toUiWidgetset(widgetsetRecord)));
+                .forEachRemaining(widgetsetList::add);
+        answer.addAll(widgetsetMapper.toUiWidgetset(widgetsetList));
         return answer;
     }
 
@@ -80,37 +85,45 @@ public class WidgetSetsService implements IWidgetSetsService {
                 .setOid(widgetsetOid)
                 .build());
         if (result.hasOid()) {
-            return widgetsetMapper.toUiWidgetset(result);
+            return widgetsetMapper.toUiWidgetset(Collections.singleton(result)).iterator().next();
         } else {
             throw new UnknownObjectException("cannot find widgetset " + uuid);
         }
     }
 
     @Override
-    public WidgetsetApiDTO createWidgetset(@Nonnull WidgetsetApiDTO input) {
+    public WidgetsetApiDTO createWidgetset(@Nonnull WidgetsetApiDTO input)
+            throws ConversionException, InterruptedException {
         Widgets.WidgetsetInfo widgetsetInfo = widgetsetMapper.fromUiWidgetsetApiDTO(input);
-        try {
-            Widgets.Widgetset result = widgetsetsService.createWidgetset(CreateWidgetsetRequest.newBuilder()
-                    .setWidgetsetInfo(widgetsetInfo)
-                    .build());
-            return widgetsetMapper.toUiWidgetset(result);
-        } catch(Exception e) {
-            logger.error("create widget exception ", e);
-            throw e;
-        }
+        final Widgets.Widgetset result = widgetsetsService.createWidgetset(
+                CreateWidgetsetRequest.newBuilder().setWidgetsetInfo(widgetsetInfo).build());
+        AuditLog.newEntry(AuditAction.CREATE_WIDGETSET,
+                String.format("Created new widget set %s", widgetsetInfo.getDisplayName()), true)
+                .targetName("WIDGET SET")
+                .audit();
+        return widgetsetMapper.toUiWidgetset(Collections.singleton(result)).iterator().next();
     }
 
     @Override
-    public WidgetsetApiDTO updateWidgetset(String uuid, WidgetsetApiDTO input) throws
-            UnknownObjectException, OperationFailedException {
+    public WidgetsetApiDTO updateWidgetset(String uuid, WidgetsetApiDTO input)
+            throws UnknownObjectException, OperationFailedException, ConversionException,
+            InterruptedException {
         Widgets.Widgetset updatedWidgetset = widgetsetMapper.fromUiWidgetset(input);
         try {
             Widgets.Widgetset result = widgetsetsService.updateWidgetset(UpdateWidgetsetRequest.newBuilder()
                     .setOid(updatedWidgetset.getOid())
                     .setWidgetsetInfo(updatedWidgetset.getInfo())
                     .build());
-            return widgetsetMapper.toUiWidgetset(result);
+            AuditLog.newEntry(AuditAction.UPDATE_WIDGETSET,
+                    String.format("Updated widget set %s", updatedWidgetset.getInfo().getDisplayName()), true)
+                    .targetName("WIDGET SET")
+                    .audit();
+            return widgetsetMapper.toUiWidgetset(Collections.singleton(result)).iterator().next();
         } catch (StatusRuntimeException e) {
+            AuditLog.newEntry(AuditAction.UPDATE_WIDGETSET,
+                    String.format("Failed to update widget set %s", updatedWidgetset.getInfo().getDisplayName()), false)
+                    .targetName("WIDGET SET")
+                    .audit();
             if (e.getStatus().equals(Status.NOT_FOUND)) {
                 throw new UnknownObjectException("Cannot find widgetset: " + uuid);
             } else {
@@ -130,10 +143,18 @@ public class WidgetSetsService implements IWidgetSetsService {
             throw new IllegalArgumentException("Invalid widgetset uuid: " + uuid);
         }
         try {
-            widgetsetsService.deleteWidgetset(DeleteWidgetsetRequest.newBuilder()
+            Widgets.Widgetset result = widgetsetsService.deleteWidgetset(DeleteWidgetsetRequest.newBuilder()
                     .setOid(widgetsetOid)
                     .build());
+            AuditLog.newEntry(AuditAction.DELETE_WIDGETSET,
+                    String.format("Deleted widget set with id: %s", result.getInfo().getDisplayName()), true)
+                    .targetName("WIDGET SET")
+                    .audit();
         } catch(StatusRuntimeException e) {
+            AuditLog.newEntry(AuditAction.DELETE_WIDGETSET,
+                    String.format("Failed to delete widget set %d", widgetsetOid), false)
+                    .targetName("WIDGET SET")
+                    .audit();
             if (e.getStatus().equals(Status.NOT_FOUND)) {
                 throw new UnknownObjectException("Cannot find widgetset to delete: " + uuid);
             } else {
@@ -147,17 +168,23 @@ public class WidgetSetsService implements IWidgetSetsService {
      * Transfer all of the widgetsets from the user to be deleted to current login user, including
      * the non-shared widgetsets.
      *
-     * @param removedUserid the user id which will be deleted.
+     * @param removedUserid the user id which was deleted.
+     * @param userName the user name which was deleted.
      */
-    public void transferWidgetsets(@Nonnull final String removedUserid) {
+    public void transferWidgetsets(@Nonnull final String removedUserid, @Nonnull final String userName) {
         final Iterator<Widgetset> updatedWidgetsetsIter = widgetsetsService.transferWidgetset(
             TransferWidgetsetRequest.newBuilder()
                 .setRemovedUserid(removedUserid)
                 .build());
         while (updatedWidgetsetsIter.hasNext()) {
             final Widgetset widgetset = updatedWidgetsetsIter.next();
+            AuditLog.newEntry(AuditAction.TRANSFER_WIDGETSET,
+                    String.format("Transferred widget set %s from user %s to %s.",
+                            widgetset.getInfo().getDisplayName(), userName, widgetset.getOwnerUserid()), true)
+                    .targetName("WIDGET SET")
+                    .audit();
             logger.info("Transfer widgetset {} from user {} to {}.",
-                widgetset.getInfo().getDisplayName(), removedUserid, widgetset.getOwnerUserid());
+                widgetset.getInfo().getDisplayName(), userName, widgetset.getOwnerUserid());
         }
     }
 }

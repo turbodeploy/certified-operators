@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.arangodb.ArangoCursor;
@@ -52,6 +53,7 @@ public class SearchIntegration {
     private final String SERVICE_ENTITY_VERTEX = "seVertexCollection";
 
     @Test
+    @Ignore
     public void overallFlow() {
         final AQLRepr repr1 = new AQLRepr(List.of(Filter.propertyFilter(
                 PropertyFilter.newBuilder()
@@ -107,6 +109,7 @@ public class SearchIntegration {
     }
 
     @Test
+    @Ignore
     public void testOverallSearchParameters() throws Throwable {
         final SearchParameters searchParameters = SearchParameters.newBuilder()
                 .setStartingFilter(entityTypeFilter("VirtualMachine"))
@@ -156,6 +159,7 @@ public class SearchIntegration {
     }
 
     @Test
+    @Ignore
     public void testMaxInput() {
         final ArangoDB arangoDB = new ArangoDB.Builder()
                 .port(8600)
@@ -182,6 +186,7 @@ public class SearchIntegration {
     }
 
     @Test
+    @Ignore
     public void testSearchHandler() {
         final GraphCreatorFixture graphFixture = new GraphCreatorFixture();
         final GraphDefinition graphDefinition = graphFixture.getGraphDefinition();
@@ -196,7 +201,7 @@ public class SearchIntegration {
                                     .build();
                 };
 
-        final ArangoDBExecutor arangoDBExecutor = new ArangoDBExecutor(arangoDatabaseFactory);
+        final ArangoDBExecutor arangoDBExecutor = new ArangoDBExecutor(arangoDatabaseFactory, db);
 
         final AQLRepr repr1 = new AQLRepr(List.of(Filter.propertyFilter(
                 PropertyFilter.newBuilder()

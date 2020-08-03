@@ -3,23 +3,42 @@ package com.vmturbo.topology.processor.group.settings;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mockito;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mockito;
+
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
@@ -28,37 +47,123 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.template.TemplateConverterTestUtil;
+import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
+import com.vmturbo.topology.processor.template.VirtualMachineEntityConstructor;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
  * Unit test for {@link EntitySettingsApplicator}.
  */
+@RunWith(JUnitParamsRunner.class)
 public class EntitySettingsApplicatorTest {
 
     private static final long PARENT_ID = 23345;
     private static final long DEFAULT_SETTING_ID = 23346;
 
+    private static final Template VM_TEMPLATE = Template.newBuilder()
+            .setId(123)
+            .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
+            .build();
+
+    private static final Setting INSTANCE_STORE_AWARE_SCALING_SETTING =
+                    createInstanceStoreAwareScalingSetting(true);
     private static final Setting MOVE_DISABLED_SETTING = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
             .build();
 
+    private static final Setting MOVE_RECOMMEND_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
+        .build();
+
+    private static final Setting DELETE_MANUAL_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.Delete.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
+        .build();
+
+    private static final Setting DELETE_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.Delete.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
     private static final Setting RESIZE_DISABLED_SETTING = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
                     .build();
+
+    private static final Setting RESIZE_VCPU_DOWN_ENABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
+        .build();
+
+    private static final Setting RESIZE_VMEM_DOWN_ENABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
+        .build();
+
+    private static final Setting RESIZE_VCPU_DOWN_DISABLED_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+            .build();
+
+    private static final Setting RESIZE_VCPU_UP_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
+    private static final Setting RESIZE_VCPU_BELOW_MIN_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
+    private static final Setting RESIZE_VCPU_ABOVE_MAX_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
+    private static final Setting RESIZE_VMEM_DOWN_DISABLED_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+            .build();
+
+    private static final Setting RESIZE_VMEM_UP_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
+    private static final Setting RESIZE_VMEM_BELOW_MIN_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVmemBelowMinThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
+    private static final Setting RESIZE_VMEM_ABOVE_MAX_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
 
     private static final Setting SUSPEND_DISABLED_SETTING = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.Suspend.getSettingName())
@@ -70,23 +175,40 @@ public class EntitySettingsApplicatorTest {
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
                     .build();
 
-    private static final Setting MOVE_MANUAL_SETTING = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
-                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
-                    .build();
+    private static final Setting SUSPEND_RECOMMEND_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.Suspend.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
+            .build();
 
-    private static final Setting STORAGE_MOVE_MANUAL_SETTING = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
-                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
-                    .build();
+    private static final Setting PROVISION_RECOMMEND_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.Provision.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
+            .build();
+
+
+    private static final Setting MOVE_MANUAL_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
+            .build();
+
+    private static final Setting SHOP_TOGETHER_ENABLED = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ShopTogether.getSettingName())
+            .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true).build())
+            .build();
+
+    private static final Setting SHOP_TOGETHER_DISABLED = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ShopTogether.getSettingName())
+            .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false).build())
+            .build();
+
+    private static final Setting BUSINESS_USER_MOVE_RECOMMEND_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.BusinessUserMove.getSettingName())
+            .setEnumSettingValue(
+                    EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
+            .build();
 
     private static final Setting MOVE_AUTOMATIC_SETTING = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
-                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
-                    .build();
-
-    private static final Setting STORAGE_MOVE_AUTOMATIC_SETTING = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
                     .build();
 
@@ -109,17 +231,156 @@ public class EntitySettingsApplicatorTest {
                     .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(5000))
                     .build();
 
-    private static final Setting.Builder REZISE_SETTING_BUILDER = Setting.newBuilder()
+    private static final Setting BU_IMAGE_STORAGE_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeTargetUtilizationImageStorage.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(80))
+            .build();
+
+    private static final Setting BU_IMAGE_MEM_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeTargetUtilizationImageMem.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(70))
+            .build();
+
+    private static final Setting BU_IMAGE_CPU_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeTargetUtilizationImageCPU.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(60))
+            .build();
+
+    private static final Setting VM_IO_THROUGHPUT_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(
+                    EntitySettingSpecs.ResizeTargetUtilizationIoThroughput.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(50))
+            .build();
+
+    private static final Setting VM_NET_THROUGHPUT_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(
+                    EntitySettingSpecs.ResizeTargetUtilizationNetThroughput.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(40))
+            .build();
+
+    private static final Setting VM_VMEM_THROUGHPUT_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeTargetUtilizationVmem.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(30))
+            .build();
+
+    private static final Setting VM_VCPU_THROUGHPUT_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeTargetUtilizationVcpu.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(20))
+            .build();
+
+    private static final EnumSettingValue AUTOMATIC = EnumSettingValue.newBuilder()
+            .setValue(ActionDTO.ActionMode.AUTOMATIC.name()).build();
+
+    /**
+     * VMem min mode setting.
+     */
+    private static final Setting VMEM_MIN_MODE_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemBelowMinThreshold.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
+            .build();
+
+    /**
+     * VMem min setting.
+     */
+    private static final Setting VMEM_MIN_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemMinThreshold.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1024))
+            .build();
+
+
+    /**
+     * VMem Max mode setting.
+     */
+    private static final Setting VMEM_MAX_MODE_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
+            .build();
+
+    /**
+     * VMem Max setting.
+     */
+    private static final Setting VMEM_MAX_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemMaxThreshold.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10240))
+            .build();
+
+    /**
+     * VMem inbetween down settings.
+     */
+    private static final Setting VMEM_INBETWEEN_DOWN_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.getSettingName())
+            .setEnumSettingValue(AUTOMATIC).build();
+
+    /**
+     * VMem inbetween up settings.
+     */
+    private static final Setting VMEM_INBETWEEN_UP_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName())
+            .setEnumSettingValue(AUTOMATIC).build();
+
+    /**
+     * VCPU min mode setting.
+     */
+    private static final Setting VCPU_MIN_MODE_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
+            .build();
+
+    /**
+     * VCPU min setting.
+     */
+    private static final Setting VCPU_MIN_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10))
+            .build();
+
+    /**
+     * VCPU Max mode setting.
+     */
+    private static final Setting VCPU_MAX_MODE_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
+            .build();
+
+    /**
+     * VCPU Max setting.
+     */
+    private static final Setting VCPU_MAX_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(100))
+            .build();
+
+    /**
+     * VMem inbetween down settings.
+     */
+    private static final Setting VCPU_INBETWEEN_DOWN_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+            .setEnumSettingValue(AUTOMATIC).build();
+
+    /**
+     * VMem inbetween up settings.
+     */
+    private static final Setting VCPU_INBETWEEN_UP_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName())
+            .setEnumSettingValue(AUTOMATIC).build();
+
+    private static final Setting.Builder RESIZE_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+
+    private static final Setting.Builder SCALING_POLICY_SETTING_BUILDER = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ScalingPolicy.getSettingName());
 
     private static final TopologyEntityDTO PARENT_OBJECT =
             TopologyEntityDTO.newBuilder().setOid(PARENT_ID).setEntityType(100001).build();
+    private static final double DELTA = 0.001;
+    private static final int INSTANCE_DISK_SIZE_GB = 10;
+    private static final double NUM_DISKS = 3D;
 
     private EntitySettingsApplicator applicator;
 
-    private final TopologyInfo TOPOLOGY_INFO = TopologyInfo.getDefaultInstance();
+    private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.getDefaultInstance();
 
-    private final TopologyInfo CLUSTER_HEADROOM_TOPOLOGY_INFO = TopologyInfo.newBuilder()
+    private static final TopologyInfo CLUSTER_HEADROOM_TOPOLOGY_INFO = TopologyInfo.newBuilder()
             .setPlanInfo(PlanTopologyInfo.newBuilder()
                     .setPlanProjectType(PlanProjectType.CLUSTER_HEADROOM))
             .setTopologyType(TopologyType.PLAN)
@@ -138,40 +399,158 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testResizeSettingEnabled() {
-        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false));
-        REZISE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(null));
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
                 .setValue(ActionMode.MANUAL.name()));
-        applySettings(TOPOLOGY_INFO, entity, REZISE_SETTING_BUILDER.build());
-        Assert.assertEquals(true, entity.getCommoditySoldList(0).getIsResizeable());
-        Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
+        Assert.assertTrue(entity.getCommoditySoldList(0).getIsResizeable());
+        Assert.assertFalse(entity.getCommoditySoldList(1).getIsResizeable());
     }
 
     /**
      * Tests application of resize setting with DISABLED value. Commodities which have isResizeable
-     * true should be shange, commodities with isResizeable=false shouldn't be changed.
+     * true should be change, commodities with isResizeable=false shouldn't be changed.
      */
     @Test
     public void testResizeSettingDisabled() {
-        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false));
-        REZISE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(null));
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
                 .setValue(ActionMode.DISABLED.name()));
-        applySettings(TOPOLOGY_INFO, entity, REZISE_SETTING_BUILDER.build());
-        Assert.assertEquals(false, entity.getCommoditySoldList(0).getIsResizeable());
-        Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
+        Assert.assertFalse(entity.getCommoditySoldList(0).getIsResizeable());
+        Assert.assertFalse(entity.getCommoditySoldList(1).getIsResizeable());
     }
 
-    private TopologyEntityDTO.Builder getEntityForResizeableTest(final List<Boolean> commoditiesResizeable) {
+    /**
+     * Tests application of resize setting with DISABLED value for VMEM, besides one setting.
+     * Commodities should not change
+     */
+    @Test
+    public void testResizeVmemSettingEnabled() {
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(CommodityType.VMEM));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_VMEM_DOWN_ENABLED_SETTING,
+            RESIZE_VMEM_UP_DISABLED_SETTING, RESIZE_VMEM_ABOVE_MAX_DISABLED_SETTING,
+            RESIZE_VMEM_BELOW_MIN_DISABLED_SETTING);
+        Assert.assertTrue(entity.getCommoditySoldList(0).getIsResizeable());
+        Assert.assertFalse(entity.getCommoditySoldList(1).getIsResizeable());
+    }
+
+    /**
+     * Tests application of resize setting with DISABLED value for VCPU, besides one setting.
+     * Commodities should not change
+     */
+    @Test
+    public void testResizeVcpuSettingEnabled() {
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(CommodityType.VCPU));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_VCPU_DOWN_ENABLED_SETTING,
+            RESIZE_VCPU_UP_DISABLED_SETTING, RESIZE_VCPU_ABOVE_MAX_DISABLED_SETTING,
+            RESIZE_VCPU_BELOW_MIN_DISABLED_SETTING);
+        Assert.assertTrue(entity.getCommoditySoldList(0).getIsResizeable());
+        Assert.assertFalse(entity.getCommoditySoldList(1).getIsResizeable());
+    }
+
+    /**
+     * Tests application of resize setting with DISABLED value for VCPU. Commodities which have
+     * isResizeable true should be changed, commodities with isResizeable=false shouldn't be
+     * changed.
+     */
+    @Test
+    public void testResizeVmemSettingDisabled() {
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(CommodityType.VMEM));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_VMEM_DOWN_DISABLED_SETTING,
+                RESIZE_VMEM_UP_DISABLED_SETTING, RESIZE_VMEM_ABOVE_MAX_DISABLED_SETTING,
+                RESIZE_VMEM_BELOW_MIN_DISABLED_SETTING);
+        Assert.assertFalse(entity.getCommoditySoldList(0).getIsResizeable());
+        Assert.assertFalse(entity.getCommoditySoldList(1).getIsResizeable());
+    }
+
+    /**
+     * Tests application of resize setting with DISABLED value for VCPU. Commodities which have
+     * isResizeable true should be changed, commodities with isResizeable=false shouldn't be
+     * changed.
+     */
+    @Test
+    public void testResizeVcpuSettingDisabled() {
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(
+                ImmutableList.of(true, false), Optional.ofNullable(CommodityType.VCPU));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_VCPU_DOWN_DISABLED_SETTING,
+                RESIZE_VCPU_UP_DISABLED_SETTING, RESIZE_VCPU_ABOVE_MAX_DISABLED_SETTING,
+                RESIZE_VCPU_BELOW_MIN_DISABLED_SETTING);
+        Assert.assertFalse(entity.getCommoditySoldList(0).getIsResizeable());
+        Assert.assertFalse(entity.getCommoditySoldList(1).getIsResizeable());
+    }
+
+    private TopologyEntityDTO.Builder getEntityForResizeableTest(final List<Boolean> commoditiesResizeable,
+                                                                 Optional<CommodityType> commodityType) {
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder();
         for (boolean isResizeable : commoditiesResizeable) {
             entity.addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(1).build())
+                    .setCommodityType(TopologyDTO.CommodityType
+                        .newBuilder()
+                        .setType(commodityType.map(CommodityType::getNumber).orElse(1)).build())
                     .setIsResizeable(isResizeable).build());
         }
         return entity;
     }
 
     /**
-     * Tests move setting application. The result topology entity has to be marked not movable.
+     * Test that if the resizeable is disabled at the entity level,
+     * it is not enabled by the user setting.
+     */
+    @Test
+    public void testResizeSettingDisabledAtEntityLevel() {
+        // entity has resizable disabled at entity level
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(false, false),
+                                                             Optional.ofNullable(CommodityType.VCPU));
+        // user setting is enabled
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.MANUAL.name()));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
+        assertFalse(entity.getCommoditySoldList(0).getIsResizeable());
+        assertFalse(entity.getCommoditySoldList(1).getIsResizeable());
+
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.AUTOMATIC.name()));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
+        assertFalse(entity.getCommoditySoldList(0).getIsResizeable());
+        assertFalse(entity.getCommoditySoldList(1).getIsResizeable());
+
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.RECOMMEND.name()));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
+        assertFalse(entity.getCommoditySoldList(0).getIsResizeable());
+        assertFalse(entity.getCommoditySoldList(1).getIsResizeable());
+    }
+
+    /**
+     * Test that the resizeable that is unset at the entity level, is set to the user setting.
+     */
+    @Test
+    public void testResizeSettingUnsetAtEntityLevel() {
+        TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder();
+        entity.addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(1).build()));
+
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.DISABLED.name()));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
+        Assert.assertFalse(entity.getCommoditySoldList(0).getIsResizeable());
+
+        entity = TopologyEntityDTO.newBuilder();
+        entity.addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(1).build()));
+
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.AUTOMATIC.name()));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
+        Assert.assertTrue(entity.getCommoditySoldList(0).getIsResizeable());
+    }
+
+
+    /**
+     * Tests move setting application.
+     * The result is that the topology entity has to be marked not movable
+     * if the user setting disables move for that entity type
      */
     @Test
     public void testMoveApplicatorForVM() {
@@ -185,8 +564,369 @@ public class EntitySettingsApplicatorTest {
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
     }
 
+    /**
+     * Tests applying of VMem/VCPU min/Max applicators for a VM.
+     */
     @Test
-    public void testShopTogetherApplicator() {
+    public void testThresholdApplicatorForVM() {
+        long vmId = 7;
+        long pmId = 77;
+        double mbToKb = 1024;
+        final TypeSpecificInfo typeSpecificInfo = TypeSpecificInfo.newBuilder()
+                .setPhysicalMachine(PhysicalMachineInfo.newBuilder().setCpuCoreMhz(1000)).build();
+        final TopologyEntityDTO.Builder pm =
+                TopologyEntityDTO.newBuilder().setOid(pmId)
+                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .setTypeSpecificInfo(typeSpecificInfo);
+        TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder().setOid(vmId)
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VMEM_VALUE)))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE)))
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(pmId)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE));
+        final long entityId = entity.getOid();
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
+                entityId, topologyEntityBuilder(entity),
+                pmId, topologyEntityBuilder(pm)));
+        applySettings(TOPOLOGY_INFO, applicator, graph, entityId, VMEM_MIN_SETTING, VMEM_MIN_MODE_SETTING,
+                VMEM_MAX_SETTING, VMEM_MAX_MODE_SETTING, VMEM_INBETWEEN_DOWN_SETTING, VMEM_INBETWEEN_UP_SETTING,
+                VCPU_MIN_SETTING, VCPU_MIN_MODE_SETTING, VCPU_MAX_SETTING, VCPU_MAX_MODE_SETTING,
+                VCPU_INBETWEEN_DOWN_SETTING, VCPU_INBETWEEN_UP_SETTING);
+        final Thresholds vMemCommoditySoldThresholds = entity.getCommoditySoldList(0).getThresholds();
+        final Thresholds vCPUCommoditySoldThresholds = entity.getCommoditySoldList(1).getThresholds();
+        // VMem min is 1GB
+        Assert.assertEquals(0, vMemCommoditySoldThresholds.getMin(), DELTA);
+        // VMem Max is 10GB
+        Assert.assertEquals(10240 * mbToKb, vMemCommoditySoldThresholds.getMax(), DELTA);
+        // VCPU min is 10 cores X 1000 (host CPU speed)
+        Assert.assertEquals(0, vCPUCommoditySoldThresholds.getMin(), DELTA);
+        // VCPU min is 100 cores X 1000 (host CPU speed)
+        Assert.assertEquals(100_000, vCPUCommoditySoldThresholds.getMax(), DELTA);
+    }
+
+    /**
+     * Tests applying of VCPU min/Max applicators for a VM from Template.
+     *
+     * @throws Exception any test exception
+     */
+    @Test
+    public void testThresholdApplicatorForTemplateVM() throws Exception {
+        IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+        Mockito.when(identityProvider.generateTopologyId()).thenReturn(888L);
+
+        final TopologyEntityDTO.Builder entity = new VirtualMachineEntityConstructor()
+                .createTopologyEntityFromTemplate(VM_TEMPLATE, Collections.emptyMap(), null,
+                        TemplateActionType.CLONE, identityProvider, null);
+        entity.setEnvironmentType(EnvironmentType.ON_PREM);
+        final long entityId = entity.getOid();
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator
+            .newGraph(ImmutableMap.of(entityId, topologyEntityBuilder(entity)));
+        applySettings(TOPOLOGY_INFO, applicator, graph, entityId, VMEM_MIN_SETTING, VMEM_MIN_MODE_SETTING,
+                VMEM_MAX_SETTING, VMEM_MAX_MODE_SETTING, VMEM_INBETWEEN_DOWN_SETTING, VMEM_INBETWEEN_UP_SETTING,
+                VCPU_MIN_SETTING, VCPU_MIN_MODE_SETTING, VCPU_MAX_SETTING, VCPU_MAX_MODE_SETTING,
+                VCPU_INBETWEEN_DOWN_SETTING, VCPU_INBETWEEN_UP_SETTING);
+        final Thresholds vCPUCommoditySoldThresholds = entity.getCommoditySoldList(0).getThresholds();
+        // VCPU minThreshold 0 because the capacity < minThreshold from policy and the action is not disabled
+        Assert.assertEquals(0, vCPUCommoditySoldThresholds.getMin(), DELTA);
+        // VCPU min is 100 cores X 200 (vm capacity / num cpu)
+        Assert.assertEquals(20000, vCPUCommoditySoldThresholds.getMax(), DELTA);
+    }
+
+    /**
+     * Test that the user setting cannot override the entity's disabled move setting.
+     */
+    @Test
+    public void testDoNotOverrideEntityMove() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setMovable(false));
+        applySettings(TOPOLOGY_INFO, entity, MOVE_AUTOMATIC_SETTING);
+        assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+    }
+
+    /**
+     * Test that move settings are enabled by the user setting.
+     */
+    @Test
+    public void testApplyEnableMoveUserSetting() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
+
+        // Movable is not set in the entity
+        assertFalse(entity.getCommoditiesBoughtFromProviders(0).hasMovable());
+
+        applySettings(TOPOLOGY_INFO, entity, MOVE_AUTOMATIC_SETTING);
+        assertTrue(entity.getCommoditiesBoughtFromProviders(0).hasMovable()
+                        && entity.getCommoditiesBoughtFromProviders(0).getMovable());
+    }
+
+    /**
+     * Test that move settings are disabled by the user setting.
+     */
+    @Test
+    public void testApplyDisableMoveUserSetting() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
+
+        // Movable is not set in the entity
+        assertFalse(entity.getCommoditiesBoughtFromProviders(0).hasMovable());
+
+        applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
+        assertTrue(entity.getCommoditiesBoughtFromProviders(0).hasMovable()
+                && !entity.getCommoditiesBoughtFromProviders(0).getMovable());
+    }
+
+    /**
+     * Test Move Volume should apply movable to its connected VM's associated ST.
+     */
+    @Test
+    public void testMoveApplicatorForVolume() {
+        final long vvId = 123456L;
+        final long vmId = 234567L;
+        final long stId = 345678L;
+        final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(vmId)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(PARENT_ID).setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setVolumeId(vvId)
+            );
+
+        final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setOid(vvId)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(stId).setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .build());
+
+        final TopologyEntityDTO.Builder stEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE_TIER_VALUE)
+            .setOid(stId);
+
+        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, stEntity, applicator, MOVE_RECOMMEND_SETTING);
+
+        // assert that move flag only apply to volume, not vm
+        assertThat(vmEntity.getCommoditiesBoughtFromProvidersList().size(), is(1));
+        assertThat(vmEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+
+        assertThat(vvEntity.getCommoditiesBoughtFromProvidersList().size(), is(1));
+        assertThat(vvEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
+
+        assertThat(stEntity.getCommoditiesBoughtFromProvidersList().size(), is(0));
+    }
+
+    /**
+     * Test Move Unattached Volume.
+     */
+    @Test
+    public void testMoveApplicatorForUnattachedVolume() {
+        final long vvId = 123456L;
+        final long stId = 345678L;
+
+        // VV not attached to VM
+        final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).setOid(vvId)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(stId)
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE));
+
+        final TopologyEntityDTO.Builder stEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE_TIER_VALUE)
+            .setOid(stId);
+
+        applySettings(TOPOLOGY_INFO, vvEntity, stEntity, applicator, MOVE_RECOMMEND_SETTING);
+
+        assertThat(vvEntity.getCommoditiesBoughtFromProvidersList().size(), is(1));
+        assertThat(vvEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
+
+        assertThat(stEntity.getCommoditiesBoughtFromProvidersList().size(), is(0));
+    }
+
+    /**
+     * Test Delete Applicator for manual setting with entity's original AnalysisSetting.deletable True.
+     */
+    @Test
+    public void testDeleteApplicatorForManualSettingWithEntityConsumerPolicyDeletableTrue() {
+        final long vvId = 123456L;
+        final long vmId = 234567L;
+        final long stId = 345678L;
+
+        // Given
+        final boolean originalAnalysisSettingForVVDeletable = true;
+        final Setting manualSettingForDeleteVolume = DELETE_MANUAL_SETTING;
+
+        final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(vmId)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(vvId)
+                .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setVolumeId(vvId)
+            );
+        final TopologyEntityDTO.Builder vvEntity = createVirtualVolumeEntity(vvId, stId, originalAnalysisSettingForVVDeletable);
+        final TopologyEntityDTO.Builder stEntity = createStorageTierEntity(stId);
+
+        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, stEntity, applicator, manualSettingForDeleteVolume);
+
+        assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(true));
+    }
+
+    /**
+     * Test Delete Applicator for manual setting with entity's original AnalysisSetting.deletable false.
+     * Ensure the applicator do not remove the original setting.
+     */
+    @Test
+    public void testDeleteApplicatorForManualSettingWithEntityConsumerPolicyDeletableFalse() {
+        final long vvId = 123456L;
+        final long vmId = 234567L;
+        final long stId = 345678L;
+
+        // Given
+        final boolean originalAnalysisSettingForVVDeletable = false;
+        final Setting manualSettingForDeleteVolume = DELETE_MANUAL_SETTING;
+
+        final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(vmId)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(vvId)
+                .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setVolumeId(vvId));
+        final TopologyEntityDTO.Builder vvEntity = createVirtualVolumeEntity(vvId, stId, originalAnalysisSettingForVVDeletable);
+        final TopologyEntityDTO.Builder stEntity = createStorageTierEntity(stId);
+
+        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, stEntity, applicator, manualSettingForDeleteVolume);
+
+        assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(false));
+    }
+
+    /**
+     * Test Delete Applicator for disabled setting.
+     */
+    @Test
+    public void testDeleteApplicatorForDisabledSetting() {
+        final long vvId = 123456L;
+        final long vmId = 234567L;
+        final long stId = 345678L;
+
+        // Given
+        final boolean originalAnalysisSettingForVVDeletable = true;
+        final Setting manualSettingForDeleteVolume = DELETE_DISABLED_SETTING;
+
+        final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(vmId)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(vvId)
+                .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setVolumeId(vvId)
+                .setMovable(false));
+        final TopologyEntityDTO.Builder vvEntity = createVirtualVolumeEntity(vvId, stId, originalAnalysisSettingForVVDeletable);
+        final TopologyEntityDTO.Builder stEntity = createStorageTierEntity(stId);
+
+        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, stEntity, applicator, manualSettingForDeleteVolume);
+
+        assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(false));
+    }
+
+    private static TopologyEntityDTO.Builder createStorageTierEntity(long stId) {
+        return TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE_TIER_VALUE)
+            .setOid(stId);
+    }
+
+    private static TopologyEntityDTO.Builder createVirtualVolumeEntity(
+            long vvId, long stId, boolean originalAnalysisSettingForVVDeletable) {
+        return TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setOid(vvId)
+            .setAnalysisSettings(AnalysisSettings.newBuilder()
+                .setDeletable(originalAnalysisSettingForVVDeletable)
+                .build())
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(stId)
+                .build());
+    }
+
+    private Object parametersForShopTogether() {
+        TopologyInfo realtimeTopologyInfo = TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.REALTIME)
+                .build();
+
+        TopologyInfo planTopologyInfo = TopologyInfo.newBuilder()
+                .setPlanInfo(PlanTopologyInfo.getDefaultInstance())
+                .build();
+
+        return new Object[]{
+                // ShopTogether : ENABLED, REALTIME, PROBE VALUE : FALSE
+                // Probe value should supersede setting set in the UI
+                new Object[]{SHOP_TOGETHER_ENABLED, realtimeTopologyInfo, false, false},
+                // ShopTogether : ENABLED, REALTIME, PROBE VALUE : TRUE
+                // Probe value should supersede setting set in the UI
+                new Object[]{SHOP_TOGETHER_ENABLED, realtimeTopologyInfo, true, true},
+                // ShopTogether : DISABLED, REALTIME, PROBE VALUE : FALSE
+                // Override Probe value : Set false
+                new Object[]{SHOP_TOGETHER_DISABLED, realtimeTopologyInfo, false, false},
+                // ShopTogether : DISABLED, REALTIME, PROBE VALUE : TRUE
+                // Override Probe value : Set false
+                new Object[]{SHOP_TOGETHER_DISABLED, realtimeTopologyInfo, true, false},
+                // ShopTogether : DISABLED, PLAN, Probe/PreviousStage VALUE : TRUE
+                // Probe/PreviousStage value supersedes value in UI
+                new Object[]{SHOP_TOGETHER_DISABLED, planTopologyInfo, true, true},
+                // ShopTogether : DISABLED, PLAN, Probe/PreviousStage VALUE : FALSE
+                // Probe/PreviousStage value supersedes value in UI
+                new Object[]{SHOP_TOGETHER_DISABLED, planTopologyInfo, false, false},
+                // ShopTogether : ENABLED, PLAN, Probe/PreviousStage VALUE : TRUE
+                // Probe/PreviousStage value supersedes value in UI
+                new Object[]{SHOP_TOGETHER_ENABLED, planTopologyInfo, true, true},
+                // ShopTogether : ENABLED, PLAN, Probe/PreviousStage VALUE : False
+                // Probe/PreviousStage value supersedes value in UI
+                new Object[]{SHOP_TOGETHER_ENABLED, planTopologyInfo, false, false}
+        };
+    }
+
+    /**
+     * Test setting of shop together flag for VM (All cases explained in parameter method).
+     * @param shopTogetherSetting :  can be ENABLED/DISABLED
+     * @param topologyInfo : can be REALTIME/PLAN
+     * @param probeOrEarlierStageValue : can be T/F
+     * @param expectedFinalValue : final value will be T/F
+     */
+    @Test
+    @Parameters(method = "parametersForShopTogether")
+    public void testShopTogetherApplicatorForVMs(Setting shopTogetherSetting,
+            TopologyInfo topologyInfo,
+            boolean probeOrEarlierStageValue,
+            boolean expectedFinalValue) {
+
+        TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder()
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                        .setShopTogether(probeOrEarlierStageValue))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .setMovable(true));
+        applySettings(topologyInfo, vm, shopTogetherSetting);
+        assertThat(vm.getAnalysisSettings().getShopTogether(), is(expectedFinalValue));
+    }
+
+    @Test
+    public void testShopTogetherApplicatorForPMs() {
         final TopologyEntityDTO.Builder pmSNMNotSupport = TopologyEntityDTO.newBuilder()
                         .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(false))
                         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
@@ -194,7 +934,7 @@ public class EntitySettingsApplicatorTest {
                                 .setProviderId(PARENT_ID)
                                 .setProviderEntityType(EntityType.DATACENTER_VALUE)
                                 .setMovable(true));
-        applySettings(TOPOLOGY_INFO, pmSNMNotSupport, MOVE_MANUAL_SETTING);
+        applySettings(TOPOLOGY_INFO, pmSNMNotSupport, MOVE_AUTOMATIC_SETTING);
         assertThat(pmSNMNotSupport.getAnalysisSettings().getShopTogether(), is(false));
 
         final TopologyEntityDTO.Builder pmSNMSupport = TopologyEntityDTO.newBuilder()
@@ -206,46 +946,6 @@ public class EntitySettingsApplicatorTest {
                                 .setMovable(true));
         applySettings(TOPOLOGY_INFO, pmSNMSupport, MOVE_MANUAL_SETTING);
         assertThat(pmSNMSupport.getAnalysisSettings().getShopTogether(), is(true));
-
-        final TopologyEntityDTO.Builder vmSNMNotSupported = TopologyEntityDTO.newBuilder()
-                .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(false))
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                        .setProviderId(PARENT_ID)
-                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                        .setMovable(true));
-        applySettings(TOPOLOGY_INFO, vmSNMNotSupported, MOVE_MANUAL_SETTING, STORAGE_MOVE_MANUAL_SETTING);
-        assertThat(vmSNMNotSupported.getAnalysisSettings().getShopTogether(), is(false));
-
-        final TopologyEntityDTO.Builder vmSNMSupported = TopologyEntityDTO.newBuilder()
-                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                                .setProviderId(PARENT_ID)
-                                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                                .setMovable(true));
-        applySettings(TOPOLOGY_INFO, vmSNMSupported, MOVE_AUTOMATIC_SETTING, STORAGE_MOVE_AUTOMATIC_SETTING);
-        assertThat(vmSNMSupported.getAnalysisSettings().getShopTogether(), is(true));
-
-        final TopologyEntityDTO.Builder vmSNMSupported2 = TopologyEntityDTO.newBuilder()
-                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                                .setProviderId(PARENT_ID)
-                                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                                .setMovable(true));
-        applySettings(TOPOLOGY_INFO, vmSNMSupported2, MOVE_MANUAL_SETTING, STORAGE_MOVE_AUTOMATIC_SETTING);
-        assertThat(vmSNMSupported2.getAnalysisSettings().getShopTogether(), is(false));
-
-        final TopologyEntityDTO.Builder vmSNMSupported3 = TopologyEntityDTO.newBuilder()
-                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                                .setProviderId(PARENT_ID)
-                                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                                .setMovable(true));
-                applySettings(TOPOLOGY_INFO, vmSNMSupported3, MOVE_MANUAL_SETTING, STORAGE_MOVE_MANUAL_SETTING);
-                assertThat(vmSNMSupported3.getAnalysisSettings().getShopTogether(), is(true));
     }
 
     /**
@@ -263,7 +963,7 @@ public class EntitySettingsApplicatorTest {
     }
 
     @Test
-    public void testMovaApplicatorForStorage() {
+    public void testMoveApplicatorForStorage() {
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.STORAGE_VALUE)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
@@ -275,13 +975,87 @@ public class EntitySettingsApplicatorTest {
     }
 
     @Test
-    public void testMovaApplicatorNoProviderForStorage() {
+    public void testMoveApplicatorNoProviderForStorage() {
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.STORAGE_VALUE)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .setMovable(true));
         applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
+    }
+
+    /**
+     * Test application of {@link EntitySettingSpecs#BusinessUserMove}.
+     */
+    @Test
+    public void testMoveBusinessUserSettingApplication() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.BUSINESS_USER_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.DESKTOP_POOL_VALUE));
+        applySettings(TOPOLOGY_INFO, entity, BUSINESS_USER_MOVE_RECOMMEND_SETTING);
+        Assert.assertEquals(1, entity.getCommoditiesBoughtFromProvidersCount());
+        Assert.assertTrue(entity.getCommoditiesBoughtFromProviders(0).getMovable());
+    }
+
+    /**
+     * Test that suspend and provision settings are disabled by the user setting.
+     *
+     */
+    @Test
+    public void testApplyDisabledSuspendAndProvisionUserSetting() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .setDisplayName("Pod1")
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(1000)));
+
+        // Entity did not contain suspend and clone setting values.
+        assertFalse(entity.getAnalysisSettings().hasSuspendable());
+        assertFalse(entity.getAnalysisSettings().hasCloneable());
+
+
+        // Disable the suspend and provision
+        applySettings(TOPOLOGY_INFO, entity, SUSPEND_DISABLED_SETTING);
+        assertFalse(entity.getAnalysisSettings().getSuspendable());
+
+        applySettings(TOPOLOGY_INFO, entity, PROVISION_DISABLED_SETTING);
+        assertFalse(entity.getAnalysisSettings().getCloneable());
+    }
+
+    /**
+     * Test that disabled suspend and provision settings in the entity
+     * are not overridden by the user setting.
+     */
+    @Test
+    public void testDoNotOverrideEntitySuspendAndProvision() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(1000)))
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                        .setCloneable(false)
+                        .setSuspendable(false));
+
+        // Entity contains suspend and clone setting values.
+        assertTrue(entity.getAnalysisSettings().hasSuspendable()
+                     && !entity.getAnalysisSettings().getSuspendable());
+        assertTrue(entity.getAnalysisSettings().hasCloneable()
+                    && !entity.getAnalysisSettings().getCloneable());
+
+        // User settings cannot override the entity's disabled state
+        applySettings(TOPOLOGY_INFO, entity, SUSPEND_RECOMMEND_SETTING);
+        assertFalse(entity.getAnalysisSettings().getSuspendable());
+
+        applySettings(TOPOLOGY_INFO, entity, PROVISION_RECOMMEND_SETTING);
+        assertFalse(entity.getAnalysisSettings().getCloneable());
     }
 
     @Test
@@ -294,7 +1068,7 @@ public class EntitySettingsApplicatorTest {
                         .setMovable(true))
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                         .setIsResizeable(true)
-                        .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder().setType(1000)))
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(1000)))
                 .setAnalysisSettings(AnalysisSettings.newBuilder()
                                 .setCloneable(true)
                                 .setSuspendable(true));
@@ -312,6 +1086,255 @@ public class EntitySettingsApplicatorTest {
         assertFalse(entity.getAnalysisSettings().getCloneable());
     }
 
+    /**
+     * Checks all cases when instance store aware scaling setting will not cause addition of
+     * commodities to target entity.
+     */
+    @Test
+    public void checkSettingHasNoEffect() {
+        final Builder entity = createComputeTier(0L);
+        final Setting inactiveSetting = Setting.newBuilder()
+                        .setSettingSpecName(
+                                        EntitySettingSpecs.InstanceStoreAwareScaling.getSettingName())
+                        .build();
+        verifySettingHasNoEffect(entity, inactiveSetting);
+        final Setting disabledSetting = createInstanceStoreAwareScalingSetting(false);
+        verifySettingHasNoEffect(entity, disabledSetting);
+        verifySettingHasNoEffect(TopologyEntityDTO.newBuilder().setOid(0L)
+                                        .setEntityType(EntityType.COMPUTE_TIER_VALUE),
+                        INSTANCE_STORE_AWARE_SCALING_SETTING);
+        verifySettingHasNoEffect(TopologyEntityDTO.newBuilder().setOid(0L)
+                                        .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().build()),
+                        INSTANCE_STORE_AWARE_SCALING_SETTING);
+    }
+
+    private static Setting createInstanceStoreAwareScalingSetting(final boolean value) {
+        return Setting.newBuilder().setSettingSpecName(
+                        EntitySettingSpecs.InstanceStoreAwareScaling.getSettingName())
+                        .setBooleanSettingValue(
+                                        BooleanSettingValue.newBuilder().setValue(value).build())
+                        .build();
+    }
+
+    private static Builder createComputeTier(long oid) {
+        return TopologyEntityDTO.newBuilder().setOid(oid)
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setComputeTier(ComputeTierInfo.newBuilder()
+                                .setInstanceDiskSizeGb(INSTANCE_DISK_SIZE_GB)
+                                .setInstanceDiskType(InstanceDiskType.HDD)
+                                .setNumInstanceDisks(3)
+                                .build())
+                        .build());
+    }
+
+    private void verifySettingHasNoEffect(Builder entity, Setting disabledSetting) {
+        applySettings(TOPOLOGY_INFO, entity, disabledSetting);
+        final List<CommoditySoldDTO> soldCommodities = entity.getCommoditySoldListList();
+        Assert.assertThat(soldCommodities.size(), CoreMatchers.is(0));
+    }
+
+    /**
+     * Checks that when instance store aware scaling setting is enabled than compute tier instance
+     * which has instance store disks, will have 3 additional commodities after setting
+     * application.
+     */
+    @Test
+    public void checkComputeTierInstanceStoreSettings() {
+        final Builder entity = createComputeTier(0L);
+        final long entityOid = entity.getOid();
+        final CommoditiesBoughtFromProvider computeTierBoughtProvider =
+                        CommoditiesBoughtFromProvider.newBuilder().setProviderId(entityOid)
+                                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                        .build();
+        final TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder().setOid(777_778L)
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(computeTierBoughtProvider);
+        final long vmOid = vm.getOid();
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator
+                        .newGraph(ImmutableMap.of(vmOid, topologyEntityBuilder(vm), entity.getOid(),
+                                        topologyEntityBuilder(entity)));
+        final Map<Long, EntitySettings> entitySettings = ImmutableMap.of(vmOid,
+                        createSettings(vmOid, INSTANCE_STORE_AWARE_SCALING_SETTING), entityOid,
+                        createSettings(entityOid, INSTANCE_STORE_AWARE_SCALING_SETTING));
+        applySettings(graph, TOPOLOGY_INFO, entitySettings);
+        final List<CommoditySoldDTO.Builder> soldCommodities = entity.getCommoditySoldListBuilderList();
+        final Set<CommodityType> commodityTypes =
+                        soldCommodities.stream().map(CommoditySoldDTO.Builder::getCommodityType)
+                                        .map(TopologyDTO.CommodityType::getType)
+                                        .map(CommodityType::forNumber).collect(Collectors.toSet());
+        Assert.assertThat(soldCommodities.size(), CoreMatchers.is(3));
+        Assert.assertThat(commodityTypes, Matchers.containsInAnyOrder(CommodityType.NUM_DISK,
+                        CommodityType.INSTANCE_DISK_TYPE, CommodityType.INSTANCE_DISK_SIZE));
+        Assert.assertThat(soldCommodities.stream().map(CommoditySoldDTO.Builder::getIsResizeable)
+                                        .collect(Collectors.toSet()),
+                        CoreMatchers.is(Collections.singleton(false)));
+        Assert.assertThat(soldCommodities.stream().map(CommoditySoldDTO.Builder::getActive)
+                                        .collect(Collectors.toSet()),
+                        CoreMatchers.is(Collections.singleton(true)));
+        Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.INSTANCE_DISK_SIZE),
+                        CoreMatchers.is(INSTANCE_DISK_SIZE_GB * 1024D));
+        Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.NUM_DISK),
+                        CoreMatchers.is(NUM_DISKS));
+        final String instanceTypeKey = findCommodity(soldCommodities,
+                        c -> c.getCommodityType().getType()
+                                        == CommodityType.INSTANCE_DISK_TYPE_VALUE)
+                        .getCommodityType().getKey();
+        Assert.assertThat(instanceTypeKey, CoreMatchers.is(InstanceDiskType.HDD.name()));
+    }
+
+    private void applySettings(TopologyGraph<TopologyEntity> graph, TopologyInfo topologyInfo,
+                    final Map<Long, EntitySettings> entitySettings) {
+        final SettingPolicy policy = SettingPolicy.newBuilder().setId(DEFAULT_SETTING_ID).build();
+        final GraphWithSettings graphWithSettings = new GraphWithSettings(graph, entitySettings,
+                        Collections.singletonMap(DEFAULT_SETTING_ID, policy));
+        applicator.applySettings(topologyInfo, graphWithSettings);
+    }
+
+    private EntitySettings createSettings(final long entityId, Setting... settings) {
+        final EntitySettings.Builder settingsBuilder = EntitySettings.newBuilder()
+                        .setEntityOid(entityId)
+                        .setDefaultSettingPolicyId(DEFAULT_SETTING_ID);
+        for (Setting setting : settings) {
+            settingsBuilder.addUserSettings(SettingToPolicyId.newBuilder()
+                            .setSetting(setting)
+                            .addSettingPolicyId(1L)
+                            .build());
+        }
+        return settingsBuilder.build();
+    }
+
+    /**
+     * Checks the case when there is no {@link EntityType#COMPUTE_TIER} provider for a VM, than
+     * despite that setting is active and enabled we will not add instance store commodities.
+     */
+    @Test
+    public void checkSettingHasNoEffectForVm() {
+        final long providerOid = 777_777L;
+        final int providerEntityType = EntityType.PHYSICAL_MACHINE_VALUE;
+        final Builder provider = TopologyEntityDTO.newBuilder().setOid(providerOid)
+                        .setEntityType(providerEntityType);
+        final CommoditiesBoughtFromProvider computeTierBoughtProvider =
+                        CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerOid)
+                                        .setProviderEntityType(providerEntityType)
+                                        .build();
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(computeTierBoughtProvider);
+        applySettings(TOPOLOGY_INFO, entity, provider, applicator,
+                        INSTANCE_STORE_AWARE_SCALING_SETTING);
+        final CommoditiesBoughtFromProvider computeTierUpdatedProvider =
+                        entity.getCommoditiesBoughtFromProvidersList().stream()
+                                        .filter(p -> p.getProviderId() == providerOid)
+                                        .findFirst().get();
+        final List<CommodityBoughtDTO> boughtCommodities =
+                        computeTierUpdatedProvider.getCommodityBoughtList();
+        Assert.assertThat(boughtCommodities.size(), CoreMatchers.is(0));
+    }
+
+    /**
+     * Checks that in case VM has at least one Instance Store commodity type bought from compute
+     * tier provider, then instance store settings applicators will not add more commodities.
+     */
+    @Test
+    public void checkVmAlreadyHasInstanceStoreCommodities() {
+        final long providerOid = 777_777L;
+        final Builder provider = createComputeTier(providerOid);
+        final CommoditiesBoughtFromProvider computeTierBoughtProvider =
+                        CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerOid)
+                                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                                        .setCommodityType(TopologyDTO.CommodityType
+                                                                        .newBuilder()
+                                                                        .setType(CommodityType.INSTANCE_DISK_SIZE_VALUE)
+                                                                        .build())
+                                                        .setUsed(INSTANCE_DISK_SIZE_GB).build())
+                                        .build();
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(computeTierBoughtProvider);
+        applySettings(TOPOLOGY_INFO, entity, provider, applicator,
+                        INSTANCE_STORE_AWARE_SCALING_SETTING);
+        final CommoditiesBoughtFromProvider computeTierUpdatedProvider =
+                        entity.getCommoditiesBoughtFromProvidersList().stream()
+                                        .filter(p -> p.getProviderId() == providerOid)
+                                        .findFirst().get();
+        final List<CommodityBoughtDTO> boughtCommodities =
+                        computeTierUpdatedProvider.getCommodityBoughtList();
+        Assert.assertThat(boughtCommodities.size(), CoreMatchers.is(1));
+    }
+
+    /**
+     * Checks that when instance store aware scaling setting is enabled than VM instance which has
+     * instance store disks, will have 3 additional commodities after setting application.
+     */
+    @Test
+    public void checkVmInstanceStoreSettings() {
+        final long computeTierOid = 777_777L;
+        final long secondTierOid = 777_778L;
+        final Builder computeTierFirst = createComputeTier(computeTierOid);
+        final Builder computeTierSecond = createComputeTier(secondTierOid);
+        final CommoditiesBoughtFromProvider computeTierBoughtProvider =
+                        CommoditiesBoughtFromProvider.newBuilder().setProviderId(computeTierOid)
+                                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                        .build();
+        final CommoditiesBoughtFromProvider computeTierBoughtProviderSecond =
+                        CommoditiesBoughtFromProvider.newBuilder().setProviderId(secondTierOid)
+                                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                        .build();
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(computeTierBoughtProvider)
+                        .addCommoditiesBoughtFromProviders(computeTierBoughtProviderSecond);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
+                        entity.getOid(), topologyEntityBuilder(entity),
+                        computeTierOid, topologyEntityBuilder(computeTierFirst),
+                        secondTierOid, topologyEntityBuilder(computeTierSecond)));
+        applySettings(TOPOLOGY_INFO, applicator, graph, entity.getOid(),
+                        INSTANCE_STORE_AWARE_SCALING_SETTING);
+        /*
+          Any of compute tier provider can have new instance store commodities. It depends on
+          the order in entity.getCommoditiesBoughtFromProvidersList().
+         */
+        final Collection<CommodityBoughtDTO> boughtCommodities =
+                        entity.getCommoditiesBoughtFromProvidersList().stream()
+                                        .filter(p -> p.getProviderEntityType()
+                                                        == EntityType.COMPUTE_TIER_VALUE)
+                                        .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                                        .flatMap(Collection::stream).collect(Collectors.toSet());
+        Assert.assertThat(boughtCommodities.size(), CoreMatchers.is(3));
+        Assert.assertThat(getCommodityUsage(boughtCommodities, CommodityType.INSTANCE_DISK_SIZE),
+                        CoreMatchers.is(INSTANCE_DISK_SIZE_GB * 1024D));
+        Assert.assertThat(getCommodityUsage(boughtCommodities, CommodityType.NUM_DISK),
+                        CoreMatchers.is(NUM_DISKS));
+        final String instanceTypeKey = findCommodity(boughtCommodities,
+                        c -> c.getCommodityType().getType()
+                                        == CommodityType.INSTANCE_DISK_TYPE_VALUE)
+                        .getCommodityType().getKey();
+        Assert.assertThat(instanceTypeKey, CoreMatchers.is(InstanceDiskType.HDD.name()));
+    }
+
+    private static double getCommodityCapacity(Collection<CommoditySoldDTO.Builder> commodities,
+                    CommodityType commodityType) {
+        return findCommodity(commodities,
+                        c -> c.getCommodityType().getType() == commodityType.getNumber())
+                        .getCapacity();
+
+    }
+
+    @Nullable
+    private static <T> T findCommodity(@Nonnull Collection<T> commodities,
+                    @Nonnull Predicate<T> filter) {
+        return commodities.stream().filter(filter).findFirst().orElse(null);
+    }
+
+    private static double getCommodityUsage(Collection<CommodityBoughtDTO> commodities,
+                    CommodityType commodityType) {
+        return findCommodity(commodities,
+                        c -> c.getCommodityType().getType() == commodityType.getNumber()).getUsed();
+    }
+
     @Test
     public void testApplicatorsForLogicalPool() {
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
@@ -322,7 +1345,7 @@ public class EntitySettingsApplicatorTest {
                         .setMovable(true))
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                         .setIsResizeable(true)
-                        .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder().setType(1000)))
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(1000)))
                 .setAnalysisSettings(AnalysisSettings.newBuilder()
                                 .setCloneable(true)
                                 .setSuspendable(true));
@@ -346,7 +1369,7 @@ public class EntitySettingsApplicatorTest {
                 .setEntityType(EntityType.STORAGE_CONTROLLER_VALUE)
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                         .setIsResizeable(true)
-                        .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder().setType(1000)))
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(1000)))
                 .setAnalysisSettings(AnalysisSettings.newBuilder()
                                 .setCloneable(true));
 
@@ -409,6 +1432,10 @@ public class EntitySettingsApplicatorTest {
                 EntitySettingSpecs.StorageAmountUtilization);
         testUtilizationSettings(EntityType.STORAGE_CONTROLLER, CommodityType.CPU,
                 EntitySettingSpecs.CpuUtilization);
+        testUtilizationSettings(EntityType.VIRTUAL_MACHINE, CommodityType.VCPU_REQUEST,
+                EntitySettingSpecs.VCPURequestUtilization);
+        testUtilizationSettings(EntityType.CONTAINER_POD, CommodityType.VCPU_REQUEST,
+                EntitySettingSpecs.VCPURequestUtilization);
     }
 
     private TopologyEntityDTO.Builder createEntityWithCommodity(@Nonnull EntityType entityType,
@@ -438,6 +1465,25 @@ public class EntitySettingsApplicatorTest {
         return builder;
     }
 
+    /**
+     * Application component with two commodities, one resizeable and one not.
+     *s
+     * @return application component
+     */
+    private TopologyEntityDTO.Builder createAppWithTwoCommodities() {
+        return TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
+                .setOid(1)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .setType(CommodityType.HEAP_VALUE))
+                        .setIsResizeable(false))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .setType(CommodityType.THREADS_VALUE))
+                        .setIsResizeable(true));
+    }
+
     private void testUtilizationSettings(EntityType entityType, CommodityType commodityType,
             EntitySettingSpecs setting) {
         final TopologyEntityDTO.Builder builder =
@@ -464,58 +1510,39 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Tests effective capacity of the commodity when ignoring HA and Utilization Threshold setting.
+     * Tests effective capacity of the commodity.
      * It is expected that value is sourced from setting.
      */
     @Test
-    public void testHaUtilOverrride() {
+    public void testUtilOverrride() {
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
-        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f),
-                createSetting(EntitySettingSpecs.IgnoreHA, true));
+        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f));
         Assert.assertEquals(22f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
     }
 
     /**
-     * Tests effective capacity of the commodity when not ignoring HA and having Utilization
-     * Threshold setting.
-     * It is expected that value is sourced from probe.
+     * Tests effective capacity of the commodity without settings.
      */
     @Test
-    public void testNoHaNoUtilOverride() {
+    public void testNoUtilOverride() {
         final TopologyEntityDTO.Builder entity =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
-        final Setting setting = createSetting(EntitySettingSpecs.IgnoreHA, false);
-        applySettings(TOPOLOGY_INFO, entity, setting);
         Assert.assertEquals(11f, entity.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
     }
 
     /**
-     * Tests effective capacity of the commodity when ignoring HA and no Utilization Threshold
-     * setting present.
-     * It is expected that value is sourced from oribe.
-     */
-    @Test
-    public void testHaNoUtilOverride() {
-        final TopologyEntityDTO.Builder builder =
-                createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
-        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.IgnoreHA, true));
-        Assert.assertFalse(builder.getCommoditySoldList(0).hasEffectiveCapacityPercentage());
-    }
-
-    /**
-     * Tests effective capacity of the commodity when not ignoring HA and having Utilization
+     * Tests effective capacity of the commodity when having Utilization
      * Threshold setting.
      * It is expected that value is sourced from setting.
      */
     @Test
-    public void testNoHaUtilOverride() {
+    public void testUtilOverride() {
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
-        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f),
-                createSetting(EntitySettingSpecs.IgnoreHA, false));
+        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f));
         Assert.assertEquals(22f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
     }
@@ -525,11 +1552,10 @@ public class EntitySettingsApplicatorTest {
      * It is expected that value is sourced from setting.
      */
     @Test
-    public void testNoHaUtilOverrideNoInitial() {
+    public void testUtilOverrideNoInitial() {
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU);
-        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f),
-                createSetting(EntitySettingSpecs.IgnoreHA, false));
+        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f));
         Assert.assertEquals(22f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
     }
@@ -602,6 +1628,139 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
+     * Test resize target utilization commodity sold ang bought applicators.
+     */
+    @Test
+    public void testResizeTargetUtilizationCommodityApplicator() {
+        Stream.of(new Object[][]{
+                {CommodityType.VCPU, VM_VCPU_THROUGHPUT_RESIZE_TARGET_UTILIZATION},
+                {CommodityType.VMEM, VM_VMEM_THROUGHPUT_RESIZE_TARGET_UTILIZATION}})
+                .forEach(data -> testResizeTargetUtilizationCommoditySoldApplicator(
+                        EntityType.VIRTUAL_MACHINE, (CommodityType)data[0], (Setting)data[1]));
+
+        Stream.of(new Object[][]{
+                {EntityType.VIRTUAL_MACHINE, CommodityType.IO_THROUGHPUT,
+                        VM_IO_THROUGHPUT_RESIZE_TARGET_UTILIZATION},
+                {EntityType.VIRTUAL_MACHINE, CommodityType.NET_THROUGHPUT,
+                        VM_NET_THROUGHPUT_RESIZE_TARGET_UTILIZATION},
+                {EntityType.BUSINESS_USER, CommodityType.IMAGE_CPU,
+                        BU_IMAGE_CPU_RESIZE_TARGET_UTILIZATION},
+                {EntityType.BUSINESS_USER, CommodityType.IMAGE_MEM,
+                        BU_IMAGE_MEM_RESIZE_TARGET_UTILIZATION},
+                {EntityType.BUSINESS_USER, CommodityType.IMAGE_STORAGE,
+                        BU_IMAGE_STORAGE_RESIZE_TARGET_UTILIZATION}})
+                .forEach(data -> testResizeTargetUtilizationCommodityBoughtApplicator(
+                        (EntityType)data[0], (CommodityType)data[1], (Setting)data[2]));
+    }
+
+    /**
+     * Test resize target utilization commodity bought applicator.
+     *
+     * @param entityType the {@link EntityType}
+     * @param commodityType the {@link CommodityType}
+     * @param resizeTargetUtilizationSetting the resize target utilization {@link Setting}
+     */
+    private void testResizeTargetUtilizationCommodityBoughtApplicator(EntityType entityType,
+            CommodityType commodityType, Setting resizeTargetUtilizationSetting) {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(entityType.getNumber())
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                        .setType(commodityType.getNumber()))));
+        applySettings(TOPOLOGY_INFO, entity, resizeTargetUtilizationSetting);
+        assertEquals(resizeTargetUtilizationSetting.getNumericSettingValue().getValue() / 100,
+                entity.getCommoditiesBoughtFromProviders(0)
+                        .getCommodityBoughtList()
+                        .get(0)
+                        .getResizeTargetUtilization(), DELTA);
+    }
+
+    /**
+     * Test resize target utilization commodity sold applicator.
+     *
+     * @param entityType the {@link EntityType}
+     * @param commodityType the {@link CommodityType}
+     * @param resizeTargetUtilizationSetting the resize target utilization {@link Setting}
+     */
+    private void testResizeTargetUtilizationCommoditySoldApplicator(EntityType entityType,
+            CommodityType commodityType, Setting resizeTargetUtilizationSetting) {
+        final TopologyEntityDTO.Builder entity =
+                createEntityWithCommodity(entityType, commodityType);
+        applySettings(TOPOLOGY_INFO, entity, resizeTargetUtilizationSetting);
+        assertEquals(entity.getCommoditySoldList(0).getResizeTargetUtilization(),
+                resizeTargetUtilizationSetting.getNumericSettingValue().getValue() / 100, DELTA);
+    }
+
+    @Test
+    public void testResizeManualForAppServer() {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.APPLICATION_SERVER, CommodityType.HEAP);
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.MANUAL.name()));
+
+        applySettings(TOPOLOGY_INFO, builder, RESIZE_SETTING_BUILDER.build());
+
+        // Resizeable false for default setting of vStorage increment.
+        assertTrue(builder.getCommoditySoldListBuilder(0).getIsResizeable());
+    }
+
+    @Test
+    public void testResizeDisabledForAppServer() {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.APPLICATION_SERVER, CommodityType.HEAP);
+        RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.DISABLED.name()));
+
+        applySettings(TOPOLOGY_INFO, builder, RESIZE_SETTING_BUILDER.build());
+
+        // Resizeable false for default setting of vStorage increment.
+        assertFalse(builder.getCommoditySoldListBuilder(0).getIsResizeable());
+    }
+
+    /**
+     * Testing affect resize scaling policy on application component.
+     */
+    @Test
+    public void testScalingPolicyResizeForAppComponent() {
+        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
+        final TopologyEntityDTO.Builder originalBuilder = builder.clone();
+
+        SCALING_POLICY_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ScalingPolicyEnum.RESIZE.name()));
+
+        applySettings(TOPOLOGY_INFO, builder, SCALING_POLICY_SETTING_BUILDER.build());
+
+        // With RESIZE policy the commodities should not change
+        assertEquals(originalBuilder.getCommoditySoldListList(),
+                builder.getCommoditySoldListList());
+        assertFalse(builder.getAnalysisSettings().getCloneable());
+    }
+
+    /**
+     * Testing affect provision scaling policy on application component.
+     */
+    @Test
+    public void testScalingPolicyProvisionForAppComponent() {
+        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
+
+        SCALING_POLICY_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ScalingPolicyEnum.PROVISION.name()));
+
+        // Verify that we have at least one resizeable commodity in the test setup
+        assertTrue(builder.getCommoditySoldListList().stream()
+                .anyMatch(TopologyDTO.CommoditySoldDTO::getIsResizeable));
+
+        applySettings(TOPOLOGY_INFO, builder, SCALING_POLICY_SETTING_BUILDER.build());
+
+        // With PROVISION policy all commodities should be set to resizeable false
+        assertTrue(builder.getCommoditySoldListList().stream()
+                .noneMatch(TopologyDTO.CommoditySoldDTO::getIsResizeable));
+
+        assertTrue(builder.getAnalysisSettings().getCloneable());
+    }
+
+    /**
      * Creates float value setting.
      *
      * @param setting setting ID to create a setting with.
@@ -616,20 +1775,6 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Creates boolean value setting.
-     *
-     * @param setting setting ID to create a setting with
-     * @param value value of the setting
-     * @return setting object
-     */
-    private Setting createSetting(EntitySettingSpecs setting, boolean value) {
-        return Setting.newBuilder()
-                .setSettingSpecName(setting.getSettingName())
-                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(value).build())
-                .build();
-    }
-
-    /**
      * Applies the specified settings to the specified topology builder. Internally it constructs
      * topology graph with one additional parent entity to be able to buy from it.
      *
@@ -640,22 +1785,88 @@ public class EntitySettingsApplicatorTest {
                                @Nonnull TopologyEntityDTO.Builder entity,
                                @Nonnull Setting... settings) {
         final long entityId = entity.getOid();
-        final TopologyGraph graph = TopologyGraph.newGraph(ImmutableMap.of(
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
             entityId, topologyEntityBuilder(entity),
             PARENT_ID, topologyEntityBuilder(PARENT_OBJECT.toBuilder())));
+        applySettings(topologyInfo, applicator, graph, entityId, settings);
+    }
+
+    /**
+     * Applies the specified settings to the specified topology builder. Add additional entities
+     * to construct topology graph.
+     *
+     * @param topologyInfo {@link TopologyInfo}
+     * @param entity {@link TopologyEntityDTO} the entity to apply the setting
+     * @param otherEntity1 {@link TopologyEntityDTO} first other entity
+     * @param otherEntity2 {@link TopologyEntityDTO} second toher entity
+     * @param applicator the applicator to apply the setting
+     * @param settings setting to be applied
+     */
+    private static void applySettings(@Nonnull final TopologyInfo topologyInfo,
+                                      @Nonnull TopologyEntityDTO.Builder entity,
+                                      @Nonnull TopologyEntityDTO.Builder otherEntity1,
+                                      @Nonnull TopologyEntityDTO.Builder otherEntity2,
+                                      @Nonnull EntitySettingsApplicator applicator,
+                                      @Nonnull Setting... settings) {
+        final long entityId = entity.getOid();
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
+            entityId, topologyEntityBuilder(entity),
+            PARENT_ID, topologyEntityBuilder(PARENT_OBJECT.toBuilder()),
+            otherEntity1.getOid(), topologyEntityBuilder(otherEntity1),
+            otherEntity2.getOid(), topologyEntityBuilder(otherEntity2)));
+        applySettings(topologyInfo, applicator, graph, entityId, settings);
+    }
+
+    /**
+     * Applies the specified settings to the specified topology builder. Add additional entity
+     * to construct topology graph.
+     *
+     * @param topologyInfo {@link TopologyInfo}
+     * @param entity {@link TopologyEntityDTO} the entity to apply the setting
+     * @param otherEntity Other entity in TopologyGraph
+     * @param applicator the applicator to apply the setting
+     * @param settings setting to be applied
+     */
+    private static void applySettings(@Nonnull final TopologyInfo topologyInfo,
+                               @Nonnull TopologyEntityDTO.Builder entity,
+                               @Nonnull TopologyEntityDTO.Builder otherEntity,
+                               @Nonnull EntitySettingsApplicator applicator,
+                               @Nonnull Setting... settings) {
+        final long entityId = entity.getOid();
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
+            entityId, topologyEntityBuilder(entity),
+            PARENT_ID, topologyEntityBuilder(PARENT_OBJECT.toBuilder()),
+            otherEntity.getOid(), topologyEntityBuilder(otherEntity)));
+        applySettings(topologyInfo, applicator, graph, entityId, settings);
+    }
+
+    /**
+     * Applies the specified settings to the specified topology builder. Add additional entity
+     * to construct topology graph.
+     *
+     * @param topologyInfo {@link TopologyInfo}
+     * @param entityId identifier of the entity to apply the setting
+     * @param graph with other entities that will be processed.
+     * @param applicator the applicator to apply the setting
+     * @param settings setting to be applied
+     */
+    private static void applySettings(@Nonnull final TopologyInfo topologyInfo,
+                    @Nonnull EntitySettingsApplicator applicator,
+                    @Nonnull TopologyGraph<TopologyEntity> graph, long entityId,
+                    @Nonnull Setting... settings) {
         final EntitySettings.Builder settingsBuilder = EntitySettings.newBuilder()
-                .setEntityOid(entityId)
-                .setDefaultSettingPolicyId(DEFAULT_SETTING_ID);
+                        .setEntityOid(entityId)
+                        .setDefaultSettingPolicyId(DEFAULT_SETTING_ID);
         for (Setting setting : settings) {
             settingsBuilder.addUserSettings(SettingToPolicyId.newBuilder()
-                    .setSetting(setting)
-                    .setSettingPolicyId(1L)
-                    .build());
+                            .setSetting(setting)
+                            .addSettingPolicyId(1L)
+                            .build());
         }
         final SettingPolicy policy = SettingPolicy.newBuilder().setId(DEFAULT_SETTING_ID).build();
         final GraphWithSettings graphWithSettings = new GraphWithSettings(graph,
-                Collections.singletonMap(entityId, settingsBuilder.build()),
-                Collections.singletonMap(DEFAULT_SETTING_ID, policy));
+                        Collections.singletonMap(entityId, settingsBuilder.build()),
+                        Collections.singletonMap(DEFAULT_SETTING_ID, policy));
         applicator.applySettings(topologyInfo, graphWithSettings);
     }
 }

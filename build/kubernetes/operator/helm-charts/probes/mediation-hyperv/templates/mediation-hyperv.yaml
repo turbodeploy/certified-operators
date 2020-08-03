@@ -1,49 +1,56 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: {{ .Chart.Name }}
   labels:
     zone: secure
-    io.kompose.service: mediation-hyperv
-  name: mediation-hyperv
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   strategy:
     type: Recreate
   template:
     metadata:
+{{- if .Values.global }}
+  {{- if or .Values.annotations .Values.global.annotations }}
+      annotations:
+    {{- with .Values.annotations }}
+{{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.global.annotations }}
+{{- toYaml . | nindent 8 }}
+    {{- end }}
+  {{- end }}
+{{- end }}
       labels:
         zone: secure
-        io.kompose.service: mediation-hyperv
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
     spec:
       containers:
       - name: {{ .Chart.Name }}
-        image: {{ template "hyperv_image" . }}
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
-        env:
-        - name: JAVA_OPTS
 {{- if .Values.global }}
-  {{- if .Values.global.debug }}
-          value: {{ .Values.global.dev_options }} {{ .Values.java.options }}
+  {{- if .Values.global.customImageNames }}
+        image: {{ template "hyperv_image" . }}
   {{- else }}
-          value: {{ .Values.java.options }}
+        image: {{ template "image" . }}
   {{- end }}
-{{- else }}
-          value: {{ .Values.java.options }}
+        imagePullPolicy: {{ template "pullPolicy" . }}
 {{- end }}
-        - name: LOG4J_CONTEXT_SELECTOR
-          value: com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector
-        - name: clustermgr_host
-          value: clustermgr
-        - name: clustermgr_port
-          value: "8080"
-        - name: clustermgr_retry_delay_sec
-          value: "10"
-        - name: component_type
-          value: mediation-hyperv
-        - name: consul_host
-          value: consul
-        - name: instance_id
-          value: mediation-hyperv-1
+        env:
+{{ template "java.setJVMEnvironmentOptions" . }}
+{{ toYaml .Values.env | indent 8 }}
+        ports:
+          - containerPort: 8080
+        livenessProbe:
+          httpGet:
+            port: 8080
+            path: /health
+          periodSeconds: 60
+          failureThreshold: 60
         readinessProbe:
           httpGet:
             port: 8080
@@ -56,35 +63,75 @@ spec:
             drop:
             - ALL
         volumeMounts:
+        - mountPath: /etc/turbonomic
+          name: turbo-volume
+          readOnly: true
         - mountPath: /tmp
           name: mediation-hyperv-tmpfs0
+        - mountPath: /etc/targets
+          name: hyperv-secrets
+          readOnly: true
 {{- if .Values.global }}
-  {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
+  {{- if .Values.global.registry }}
+    {{- if .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+    {{- else -}}
+      {{- if and .Values.global.imageUsername .Values.global.imagePassword }}
       imagePullSecrets:
       - name: turbocred
+      {{- end -}}
+    {{- end -}}
   {{- end -}}
+  {{- with .Values.global.nodeSelector }}
+      nodeSelector:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.affinity }}
+      affinity:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.tolerations }}
+      tolerations:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
 {{- end }}
       restartPolicy: Always
       volumes:
+      - name: turbo-volume
+        configMap:
+          name: global-properties-{{ .Release.Name }}
+          optional: true
       - name: mediation-hyperv-tmpfs0
         emptyDir: {}
+      - name: hyperv-secrets
+        secret:
+          secretName: "hyperv"
+          optional: true
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
+  name: {{ .Chart.Name }}
   labels:
     zone: secure
-    io.kompose.service: mediation-hyperv
-  name: mediation-hyperv
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   ports:
-  - name: mediation-hyperv
+  - name: http-mediation-hyperv
     port: 8080
 {{- if .Values.global }}
-  {{- if .Values.global.debug }}
-  - name: mediation-hyperv-debug
+  {{- if or .Values.debug .Values.global.debug }}
+  - name: tcp-mediation-hyperv-debug
     port: 8000
   {{- end -}}
 {{- end }}
   selector:
-    io.kompose.service: mediation-hyperv
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}

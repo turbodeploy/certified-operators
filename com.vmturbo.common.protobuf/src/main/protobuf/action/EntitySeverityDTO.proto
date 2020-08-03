@@ -15,6 +15,17 @@ message EntitySeverity {
 
     // The severity of the corresponding entity.
     optional Severity severity = 2;
+
+    // A map that counts the ordinal of the severities of the entities under this entity in the supply chain.
+    // - BusinessApplication combines the severity breakdown of the BusinessTransaction underneath
+    //   it.
+    // - BusinessTransaction combines the severity breakdown of the Services underneath it.
+    // - Service counts the Severity of the entities below it in the supply chain until it reaches
+    //   Host or Storage or a leaf node.
+    // The map is populated only for BusinessApplication, BusinessTransaction, and Service. For all
+    // other entity types, the map will be empty. The map cannot be null because protobuf does not
+    // allow it.
+    map<int32, int64> severityBreakdown = 3;
 }
 
 // How many entities map to a specific type of severity.
@@ -42,11 +53,18 @@ message MultiEntityRequest {
 }
 
 message EntitySeveritiesResponse {
-    repeated EntitySeverity entity_severity = 1;
-
-    optional common.PaginationResponse pagination_response = 2;
+    oneof type {
+        // A chunk of entity severities to stream
+        EntitySeveritiesChunk entity_severity = 1;
+        // The response containing the cursor to retrieve the next page of results.
+        common.PaginationResponse pagination_response = 2;
+    }
 }
 
+message EntitySeveritiesChunk {
+    // The collection of entity severities
+    repeated EntitySeverity entity_severity = 1;
+}
 message SeverityCountsResponse {
     // The counts for entities in the request to GetSeverityCounts known to the
     // service are mapped to a specific severity.
@@ -59,7 +77,7 @@ message SeverityCountsResponse {
 // A service responsible for retrieving entity severities.
 service EntitySeverityService {
     // Get severity information for service entities by the service entity ids
-    rpc GetEntitySeverities(MultiEntityRequest) returns (EntitySeveritiesResponse);
+    rpc GetEntitySeverities(MultiEntityRequest) returns (stream EntitySeveritiesResponse);
 
     // Get the counts of how many severities in the request map to corresponding severities.
     //

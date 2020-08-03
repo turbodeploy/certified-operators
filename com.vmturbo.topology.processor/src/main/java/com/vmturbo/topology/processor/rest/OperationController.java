@@ -27,12 +27,12 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.DiscoverAllResponse;
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.OperationResponse;
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.ValidateAllResponse;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.Operation;
-import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -129,13 +129,13 @@ public class OperationController {
     @RequestMapping(value = "/{targetId}/discovery",
             method = RequestMethod.GET,
             produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})
-    @ApiOperation(value = "Get information about the last discovery on a target.",
+    @ApiOperation(value = "Get information about the last full discovery on a target.",
             notes = "If there is a discovery in progress, returns that discovery. Otherwise, returns the last " +
                     "discovery run on the target, or an error if no discovery has ever ran on the target.")
     public ResponseEntity<OperationResponse> getTargetDiscovery(@PathVariable("targetId") final Long targetId) {
-        final OperationResponse resp = operationManager.getLastDiscoveryForTarget(targetId)
+        final OperationResponse resp = operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL)
                 .map(OperationController::success)
-                .orElse(operationManager.getInProgressDiscoveryForTarget(targetId)
+                .orElse(operationManager.getInProgressDiscoveryForTarget(targetId, DiscoveryType.FULL)
                         .map(OperationController::success)
                         .orElse(OperationResponse.error("No discovery for target.", targetId)));
         return new ResponseEntity<>(resp, resp.isSuccess() ? HttpStatus.OK : HttpStatus.NOT_FOUND);
@@ -234,10 +234,10 @@ public class OperationController {
     private ResponseEntity<OperationResponse> performDiscovery(final long targetId) {
         try {
             logger.debug("PerformDiscovery for target {}", targetId);
-            if (!operationManager.getInProgressDiscoveryForTarget(targetId).isPresent()) {
-                scheduler.resetDiscoverySchedule(targetId);
+            if (!operationManager.getInProgressDiscoveryForTarget(targetId, DiscoveryType.FULL).isPresent()) {
+                scheduler.resetDiscoverySchedule(targetId, DiscoveryType.FULL);
             }
-            final Discovery discovery = operationManager.startDiscovery(targetId);
+            final Discovery discovery = operationManager.startDiscovery(targetId, DiscoveryType.FULL);
             discovery.setUserInitiated(true);
             return new ResponseEntity<>(success(discovery), HttpStatus.OK);
         } catch (TargetNotFoundException e) {
@@ -246,8 +246,8 @@ public class OperationController {
                     HttpStatus.NOT_FOUND);
         } catch (CommunicationException | InterruptedException | ProbeException e) {
             return new ResponseEntity<>(
-                    OperationResponse.error("Communication with remote probe failed.", targetId),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+                    OperationResponse.error("Communication with remote probe failed: " +
+                        e.getMessage(), targetId), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -263,8 +263,8 @@ public class OperationController {
                     HttpStatus.NOT_FOUND);
         } catch (CommunicationException | InterruptedException | ProbeException e) {
             return new ResponseEntity<>(
-                    OperationResponse.error("Communication with remote probe failed.", targetId),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+                    OperationResponse.error("Communication with remote probe failed: " +
+                        e.getMessage(), targetId), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

@@ -6,7 +6,6 @@ import io.swagger.annotations.ApiModel;
 
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
-import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.Operation;
 
@@ -15,12 +14,6 @@ import com.vmturbo.topology.processor.operation.Operation;
  */
 @ApiModel("Validation")
 public class Validation extends Operation {
-
-    /**
-     * The timer used for timing the duration of validations.
-     * Mark transient to avoid serialization of this field.
-     */
-    private transient final DataMetricTimer durationTimer;
 
     private static final DataMetricSummary VALIDATION_DURATION_SECONDS = DataMetricSummary.builder()
         .withName("tp_validation_duration_seconds")
@@ -35,11 +28,17 @@ public class Validation extends Operation {
         .build()
         .register();
 
+    /**
+     * Constructs validation operation.
+     *
+     * @param probeId probe OID
+     * @param targetId target OID
+     * @param identityProvider identity provider to assign unique operation OID
+     */
     public Validation(final long probeId,
                       final long targetId,
                       @Nonnull final IdentityProvider identityProvider) {
-        super(probeId, targetId, identityProvider);
-        durationTimer = VALIDATION_DURATION_SECONDS.startTimer();
+        super(probeId, targetId, identityProvider, VALIDATION_DURATION_SECONDS);
     }
 
     @Override
@@ -51,13 +50,13 @@ public class Validation extends Operation {
 
     @Nonnull
     @Override
-    protected DataMetricTimer getMetricsTimer() {
-        return durationTimer;
+    protected DataMetricCounter getStatusCounter() {
+        return VALIDATION_STATUS_COUNTER;
     }
 
     @Nonnull
     @Override
-    protected DataMetricCounter getStatusCounter() {
-        return VALIDATION_STATUS_COUNTER;
+    public String getErrorString() {
+        return "Validation failed: " + String.join(", ", getErrors());
     }
 }

@@ -1,32 +1,28 @@
 package com.vmturbo.market.topology.conversions;
 
-import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
-import com.vmturbo.market.topology.TopologyConversionConstants;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * This class contains all the {@link ReservedInstanceData} objects with the same distinguishing
@@ -36,36 +32,54 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 public class ReservedInstanceAggregate {
     private static final Logger logger = LogManager.getLogger();
     private static final String SEPARATOR = "|";
+    private static final double COMPARISON_DELTA = 0.0001;
     // The RIs are sorted according to the payment options
-    private static Map<PaymentOption, Integer> RIPriority = ImmutableMap.of(
+    private static final Map<PaymentOption, Integer> RIPriority = ImmutableMap.of(
             PaymentOption.ALL_UPFRONT, 1,
             PaymentOption.PARTIAL_UPFRONT, 2,
             PaymentOption.NO_UPFRONT, 3);
     // the object that uniquely identifies this RIAggregate
-    ReservedInstanceKey riKey;
+    private final ReservedInstanceKey riKey;
 
     // list of bought RIs that have the same ReservedInstanceKey
-    Set<ReservedInstanceData> constituentRIs = new HashSet<>();
+    private final Set<ReservedInstanceData> constituentRIs = new HashSet<>();
 
-    // largest compute tier for in the family that this RI belongs to
-    TopologyEntityDTO largestTier = null;
+    // For a ReservedInstanceAggregate representing instance size flexible RIs, the largest compute
+    // tier in the family that this RI belongs to. For non-instance size flexible RIs, the
+    // compute tier of the RI.
+    private final TopologyEntityDTO computeTier;
+    private final Set<TopologyEntityDTO> computeTiersInScope;
 
     // A map of the RI Bought id to the coupon usage information
-    private final Map<Long, RICouponInfo> riCouponInfoMap = Maps.newHashMap();
+    private final Map<Long, RICouponInfo> riCouponInfoMap = new HashMap<>();
+    // Set of business account ids to which the RIs that belong to this RI Aggregate can be applied
+    // to.
+    private final Set<Long> applicableBusinessAccounts;
+    private final boolean platformFlexible;
 
-    public ReservedInstanceAggregate(ReservedInstanceData riData, Map<Long, TopologyEntityDTO> topology) {
-        riKey = new ReservedInstanceKey(riData, topology);
+    ReservedInstanceAggregate(@Nonnull final ReservedInstanceData riData,
+                              @Nonnull final ReservedInstanceKey riKey,
+                              @Nonnull final TopologyEntityDTO computeTier,
+                              @Nonnull final Set<TopologyEntityDTO> computeTiersInScope,
+                              @Nonnull final Set<Long> applicableBusinessAccounts) {
+        this.riKey = Objects.requireNonNull(riKey);
+        this.computeTier = Objects.requireNonNull(computeTier);
+        platformFlexible = riData.getReservedInstanceSpec().getReservedInstanceSpecInfo()
+                .getPlatformFlexible();
+        this.computeTiersInScope = ImmutableSet.copyOf(computeTiersInScope);
+        this.applicableBusinessAccounts = applicableBusinessAccounts;
     }
 
-    public ReservedInstanceKey getRiKey() {
+    ReservedInstanceKey getRiKey() {
         return riKey;
     }
 
     public Set<ReservedInstanceData> getConstituentRIs() {
-        return constituentRIs;
+        return Collections.unmodifiableSet(constituentRIs);
     }
 
-    void addConstituentRi(ReservedInstanceData riData) {
+    void addConstituentRi(ReservedInstanceData riData,
+                          final double couponsUsed) {
         if (!riKey.isInstanceSizeFlexible() && !constituentRIs.isEmpty()) {
             logger.error("Attempting to add more than 1 constituent RI to {} which is " +
                     "not instance size flexible", getDisplayName());
@@ -73,38 +87,15 @@ public class ReservedInstanceAggregate {
         }
         constituentRIs.add(riData);
         riCouponInfoMap.put(riData.getReservedInstanceBought().getId(), new RICouponInfo(
-                riData.getReservedInstanceBought()));
+                riData.getReservedInstanceBought(), couponsUsed));
     }
 
-    TopologyEntityDTO getLargestTier() {
-        return largestTier;
+    TopologyEntityDTO getComputeTier() {
+        return computeTier;
     }
 
-    /**
-     * Checks if the computeTier is present in the zone and region that this {@link ReservedInstanceAggregate}
-     * is associated with and if so, set it as the largestTier
-     *
-     */
-    void checkAndUpdateLargestTier(TopologyEntityDTO computeTier, ReservedInstanceKey key) {
-        ComputeTierInfo info = computeTier.getTypeSpecificInfo().getComputeTier();
-        if (largestTier == null &&
-                // check if the computeTier is in this region
-                areEntitiesConnected(computeTier, key.getRegionId())) {
-                // TODO: check if the computeTier is in this zone
-            largestTier = computeTier;
-        }
-    }
-
-    /**
-     * Checks if the computeTier is connected to the passed entity
-     *
-     * @return true if connected, false otherwise
-     */
-    private boolean areEntitiesConnected(TopologyEntityDTO computeTier, long entityId) {
-        return computeTier.getConnectedEntityListList().stream()
-                .map(ConnectedEntity::getConnectedEntityId)
-                .filter(id -> id == entityId)
-                .count() != 0;
+    public Set<TopologyEntityDTO> getComputeTiersInScope() {
+        return computeTiersInScope;
     }
 
     @Override
@@ -120,6 +111,9 @@ public class ReservedInstanceAggregate {
         if (obj == null) {
             return false;
         }
+        if (!this.getClass().isInstance(obj)) {
+            return false;
+        }
         ReservedInstanceAggregate aggregate = (ReservedInstanceAggregate)obj;
         // compare ReservedInstanceKey
         return aggregate.getRiKey().equals(this.getRiKey());
@@ -127,13 +121,12 @@ public class ReservedInstanceAggregate {
 
     public String getDisplayName() {
         if (riKey == null) return null;
-        StringBuilder displayName = new StringBuilder().append(riKey.getAccount()).append(SEPARATOR)
-                .append(riKey.getFamily()).append(SEPARATOR)
-                .append(riKey.getOs()).append(SEPARATOR)
-                .append(riKey.getRegionId()).append(SEPARATOR)
-                .append(riKey.getTenancy()).append(SEPARATOR)
-                .append(riKey.getZoneId());
-        return displayName.toString();
+        return riKey.getAccountScopeId() + SEPARATOR +
+                riKey.getFamily() + SEPARATOR +
+                riKey.getOs() + SEPARATOR +
+                riKey.getRegionId() + SEPARATOR +
+                riKey.getTenancy() + SEPARATOR +
+                riKey.getZoneId();
     }
 
     /**
@@ -168,16 +161,16 @@ public class ReservedInstanceAggregate {
      *
      * @param entityId The entity id which wants to use the coupons
      * @param totalNumberOfCouponsToUse the number of coupons which the entity wants to use
-     * @return the entity reserved instance coverage for this
+     * @return mapping from RI ID -> Number of coupons used of that RI.
      */
-    public Optional<EntityReservedInstanceCoverage> useCoupons(
-            long entityId, double totalNumberOfCouponsToUse) {
+    public Map<Long, Double> useCoupons(long entityId, double totalNumberOfCouponsToUse) {
         double origTotalNumberOfCouponsToUse = totalNumberOfCouponsToUse;
         List<ReservedInstanceData> sortedRis =  getConstituentRIs().stream().sorted(
-                (riData1, riData2) -> RIPriority.get(riData1.getReservedInstanceSpec().getReservedInstanceSpecInfo().getType().getPaymentOption())
-                        .compareTo(RIPriority.get(riData2.getReservedInstanceSpec().getReservedInstanceSpecInfo().getType().getPaymentOption())))
+                Comparator.comparing(riData ->
+                        RIPriority.get(riData.getReservedInstanceSpec()
+                                .getReservedInstanceSpecInfo().getType().getPaymentOption())))
                 .collect(Collectors.toList());
-        EntityReservedInstanceCoverage.Builder riCoverageBuilder = null;
+        Map<Long, Double> riIdtoCouponsOfRIUsed  = new HashMap<>();
         for(ReservedInstanceData riData : sortedRis) {
             if (totalNumberOfCouponsToUse < 0) {
                 logger.error("Total number of coupons to use is {} in {} for entityId {}",
@@ -190,21 +183,19 @@ public class ReservedInstanceAggregate {
             RICouponInfo couponInfo = riCouponInfoMap.get(riBought.getId());
             double couponsOfRiUsed = couponInfo.useCoupons(totalNumberOfCouponsToUse);
             if (couponsOfRiUsed > 0) {
-                if (riCoverageBuilder == null) {
-                    riCoverageBuilder = EntityReservedInstanceCoverage.newBuilder();
-                    riCoverageBuilder.setEntityId(entityId);
-                }
                 totalNumberOfCouponsToUse -= couponsOfRiUsed;
-                riCoverageBuilder.putCouponsCoveredByRi(riBought.getId(), couponsOfRiUsed);
+                riIdtoCouponsOfRIUsed.put(riBought.getId(), couponsOfRiUsed);
             }
         }
-        if (totalNumberOfCouponsToUse > 0) {
+
+        if (totalNumberOfCouponsToUse > COMPARISON_DELTA) {
             logger.error("Attempted to use {} coupons but could only use {} in {} for entityId {}",
                     origTotalNumberOfCouponsToUse,
                     origTotalNumberOfCouponsToUse - totalNumberOfCouponsToUse,
                     getDisplayName(), entityId);
         }
-        return riCoverageBuilder == null ? Optional.empty() : Optional.of(riCoverageBuilder.build());
+
+        return riIdtoCouponsOfRIUsed;
     }
 
     /**
@@ -221,108 +212,20 @@ public class ReservedInstanceAggregate {
      */
     public void relinquishCoupons(EntityReservedInstanceCoverage riCoverageToRelinquish) {
         riCoverageToRelinquish.getCouponsCoveredByRiMap().forEach((riId, couponsToRelinquish) -> {
-            double couponsRelinquished = riCouponInfoMap.get(riId).relinquishCoupons(couponsToRelinquish);
-            if (couponsRelinquished < couponsToRelinquish) {
-                logger.error("Wanted to relinquish {} coupons, but could only relinquish {} " +
-                        "coupons in {} for {}", couponsToRelinquish, couponsRelinquished,
-                        riId, riCoverageToRelinquish.getEntityId());
+            final RICouponInfo riCouponInfo = riCouponInfoMap.get(riId);
+            if (riCouponInfo != null) {
+                double couponsRelinquished = riCouponInfo.relinquishCoupons(couponsToRelinquish);
+                if (Math.abs(couponsRelinquished - couponsToRelinquish) > COMPARISON_DELTA) {
+                    logger.error("Wanted to relinquish {} coupons, but could only relinquish {} " +
+                                    "coupons in {} for {}", couponsToRelinquish, couponsRelinquished,
+                            riId, riCoverageToRelinquish.getEntityId());
+                }
             }
         });
     }
 
-    /**
-     * This class is what distinguishes one {@link ReservedInstanceAggregate} from another
-     *
-     */
-    class ReservedInstanceKey {
-        private final Tenancy tenancy;
-        private final OSType os;
-        private final long regionId;
-        private final long zoneId;
-        private final long accountId;
-        private final String family;
-        private final long riBoughtId;
-
-        Tenancy getTenancy() {
-            return tenancy;
-        }
-
-        OSType getOs() {
-            return os;
-        }
-
-        long getRegionId() {
-            return regionId;
-        }
-
-        String getFamily() {
-            return family;
-        }
-
-        long getAccount() {
-            return accountId;
-        }
-
-        long getZoneId() {
-            return zoneId;
-        }
-
-        private ReservedInstanceKey(ReservedInstanceData riData, Map<Long, TopologyEntityDTO> topology) {
-            ReservedInstanceSpecInfo riSpec = riData.getReservedInstanceSpec().getReservedInstanceSpecInfo();
-            ReservedInstanceBoughtInfo riBoughtInfo = riData.getReservedInstanceBought().getReservedInstanceBoughtInfo();
-            this.tenancy = riSpec.getTenancy();
-            this.os = riSpec.getOs();
-            this.regionId = riSpec.getRegionId();
-            this.family = topology.get(riSpec.getTierId()).getTypeSpecificInfo().getComputeTier().getFamily();
-            this.zoneId = riBoughtInfo.getAvailabilityZoneId();
-            this.accountId = riBoughtInfo.getBusinessAccountId();
-            if (!isInstanceSizeFlexible()) {
-                this.riBoughtId = riData.getReservedInstanceBought().getId();
-            } else {
-                this.riBoughtId = -1l;
-            }
-        }
-
-        @Override
-        public int hashCode() {
-            if (isInstanceSizeFlexible()) {
-                return Objects.hash(tenancy, os, regionId, family, zoneId, accountId);
-            } else {
-                return Objects.hash(riBoughtId);
-            }
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-
-            // In case of instance size flexible operating systems, compares the tenancy, os,
-            // region, zone, family to check if 2 RIAggregates are the same. Otherwise checks if
-            // the RIBoughtIds are the same.
-            ReservedInstanceKey other = (ReservedInstanceKey)obj;
-            if (isInstanceSizeFlexible()) {
-                return this.tenancy == other.tenancy &&
-                        this.os == other.os &&
-                        this.regionId == other.regionId &&
-                        this.family.equals(other.family) &&
-                        this.zoneId == other.zoneId &&
-                        this.accountId == other.accountId;
-            } else {
-                return this.riBoughtId == other.riBoughtId;
-            }
-        }
-
-        private boolean isInstanceSizeFlexible() {
-            return TopologyConversionConstants.INSTANCE_SIZE_FLEXIBLE_OPERATING_SYSTEMS.contains(os);
-        }
+    boolean isPlatformFlexible() {
+        return platformFlexible;
     }
 
     /**
@@ -333,15 +236,14 @@ public class ReservedInstanceAggregate {
      * 2. In case we want to know how many coupons of the RIBought were used prior to market
      * running, we will not lose that information
      */
-    private class RICouponInfo {
+    private static class RICouponInfo {
         private int totalNumberOfCoupons;
         private double numberOfCouponsUsed;
 
-        private RICouponInfo(ReservedInstanceBought riBought) {
+        private RICouponInfo(ReservedInstanceBought riBought, double usedCoupons) {
             totalNumberOfCoupons = riBought.getReservedInstanceBoughtInfo()
                     .getReservedInstanceBoughtCoupons().getNumberOfCoupons();
-            numberOfCouponsUsed = riBought.getReservedInstanceBoughtInfo()
-                    .getReservedInstanceBoughtCoupons().getNumberOfCouponsUsed();
+            numberOfCouponsUsed = usedCoupons;
         }
 
         private double getRemainingCoupons() {
@@ -357,18 +259,15 @@ public class ReservedInstanceAggregate {
         }
 
         /**
-         * Use the coupons of this RI
-         * @param numberOfCouponsToUse the number of coupons to use
-         * @return the number of coupons that were used
+         * Use the coupons of this RI.
+         *
+         * @param numberOfCouponsToUse the number of coupons to use.
+         * @return the number of coupons that were used.
          */
         private double useCoupons(double numberOfCouponsToUse) {
             double couponsOfRiUsed = 0;
             if (getRemainingCoupons() > 0) {
-                if (getRemainingCoupons() > numberOfCouponsToUse) {
-                    couponsOfRiUsed = numberOfCouponsToUse;
-                } else {
-                    couponsOfRiUsed = getRemainingCoupons();
-                }
+                couponsOfRiUsed = Math.min(getRemainingCoupons(), numberOfCouponsToUse);
                 if (couponsOfRiUsed > 0) {
                     numberOfCouponsUsed += couponsOfRiUsed;
                 }
@@ -377,12 +276,13 @@ public class ReservedInstanceAggregate {
         }
 
         /**
-         * Relinquish coupons of this RI
-         * @param numberOfCouponsToRelinquish the number of coupons to relinquish
-         * @return the number of coupons relinquished
+         * Relinquish coupons of this RI.
+         *
+         * @param numberOfCouponsToRelinquish the number of coupons to relinquish.
+         * @return the number of coupons relinquished.
          */
         private double relinquishCoupons(double numberOfCouponsToRelinquish) {
-            double numberOfCouponsRelinquished = 0;
+            double numberOfCouponsRelinquished;
             if (numberOfCouponsUsed >= numberOfCouponsToRelinquish) {
                 numberOfCouponsUsed -= numberOfCouponsToRelinquish;
                 numberOfCouponsRelinquished = numberOfCouponsToRelinquish;
@@ -394,4 +294,7 @@ public class ReservedInstanceAggregate {
         }
     }
 
+    Set<Long> getApplicableBusinessAccount() {
+        return applicableBusinessAccounts;
+    }
 }

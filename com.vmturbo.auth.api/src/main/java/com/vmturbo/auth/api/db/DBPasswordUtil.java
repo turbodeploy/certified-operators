@@ -6,14 +6,15 @@ import java.util.Base64;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.components.api.ComponentRestTemplate;
 
@@ -27,10 +28,17 @@ public class DBPasswordUtil {
     private static final Logger logger = LogManager.getLogger(
             DBPasswordUtil.class);
 
-    static final String SECURESTORAGE_PATH = "/securestorage/";
-    static final String SQL_DB_ROOT_PASSWORD_PATH = "getSqlDBRootPassword";
-    static final String ARANGO_DB_ROOT_PASSWORD_PATH = "getArangoDBRootPassword";
-    static final String INFLUX_DB_ROOT_PASSWORD_PATH = "getInfluxDBRootPassword";
+    public static final String SECURESTORAGE_PATH = "/securestorage/";
+    public static final String SQL_DB_ROOT_PASSWORD_PATH = "getSqlDBRootPassword";
+    public static final String SQL_DB_ROOT_USERNAME_PATH = "getSqlDBRootUsername";
+    public static final String ARANGO_DB_ROOT_PASSWORD_PATH = "getArangoDBRootPassword";
+    public static final String INFLUX_DB_ROOT_PASSWORD_PATH = "getInfluxDBRootPassword";
+    public static final String POSTGRES_DB_ROOT_USERNAME_PATH = "getPostgresDBRootUsername";
+
+    /**
+     * The database root username.
+     */
+    private String dbRootUsername;
 
     /**
      * The database root password.
@@ -62,6 +70,7 @@ public class DBPasswordUtil {
     private final RestTemplate restTemplate;
     private final String authHost;
     private final int authPort;
+    private final String authRoute;
     private final int authRetryDelaySecs;
 
     /**
@@ -69,11 +78,13 @@ public class DBPasswordUtil {
      *
      * @param authHost The auth component host.
      * @param authPort The auth component port.
+     * @param authRoute The auth component route, to use as a prefix for auth URIs.
      * @param authRetryDelaySecs number of seconds to delay between connection retries
      */
-    public DBPasswordUtil(String authHost, int authPort, int authRetryDelaySecs) {
+    public DBPasswordUtil(String authHost, int authPort, String authRoute, int authRetryDelaySecs) {
         this.authHost = authHost;
         this.authPort = authPort;
+        this.authRoute = authRoute;
         this.authRetryDelaySecs = authRetryDelaySecs;
         restTemplate = ComponentRestTemplate.create();
     }
@@ -117,6 +128,24 @@ public class DBPasswordUtil {
     }
 
     /**
+     * Obtains the default root DB username.
+     *
+     * @param sqlDialect type of the sql database
+     * @return The default root DB username
+     */
+    public static String obtainDefaultRootDbUser(String sqlDialect) {
+        switch (sqlDialect) {
+            case "POSTGRES":
+                return "postgres";
+            case "MYSQL":
+            case "MARIADB":
+                return "root";
+            default:
+                throw new UnsupportedOperationException("No default root username defined for: " + sqlDialect);
+        }
+    }
+
+    /**
      * Fetch the the SQL database root password from the Auth component.
      *
      * In case we have an error obtaining the database root password from the auth component,
@@ -129,6 +158,31 @@ public class DBPasswordUtil {
      */
     public synchronized @Nonnull String getSqlDbRootPassword() {
         return getRootPassword(SQL_DB_ROOT_PASSWORD_PATH, "SQL");
+    }
+
+    /**
+     * Fetch the the SQL database root username from the Auth component.
+     *
+     * In case we have an error obtaining the database root username from the auth component,
+     * retry continually with a configured delay between each retry.
+     *
+     * If the auth component is down and the database root username has been changed, there will be
+     * no security implications, as the component will not be able to access the database..
+     *
+     * @param sqlDialect the type of the sql database
+     * @return The SQL database root password.
+     */
+    public synchronized @Nonnull String getSqlDbRootUsername(String sqlDialect) {
+        switch (sqlDialect) {
+            case "POSTGRES":
+                // for postgres, default root username is postgres
+                return getRootUser(POSTGRES_DB_ROOT_USERNAME_PATH);
+            case "MYSQL":
+            case "MARIADB":
+            default:
+                // for other sql dbs like mysql, mariadb, default root username is root
+                return getRootUser(SQL_DB_ROOT_USERNAME_PATH);
+        }
     }
 
     /**
@@ -161,6 +215,38 @@ public class DBPasswordUtil {
         return getRootPassword(INFLUX_DB_ROOT_PASSWORD_PATH, "Influx");
     }
 
+    private @Nonnull String getRootUser(@Nonnull final String usernameKeyOffset) {
+        for (int i = 1; dbRootUsername == null; i++) {
+            // Obtains the database root username.
+            // Since the password change in the database will require the JDBC pools to be
+            // restarted, that implies we need to restart the history component. Which means
+            // we can cache the username here.
+            final String request = UriComponentsBuilder.newInstance()
+                .scheme("http")
+                .host(authHost)
+                .port(authPort)
+                .path(authRoute + SECURESTORAGE_PATH + usernameKeyOffset)
+                .build().toUriString();
+            try {
+                ResponseEntity<String> result =
+                    restTemplate.getForEntity(request, String.class);
+                dbRootUsername = result.getBody();
+                if (StringUtils.isEmpty(dbRootUsername)) {
+                    throw new IllegalArgumentException("root db username is empty");
+                }
+            } catch (ResourceAccessException e) {
+                logger.warn("...Unable to fetch the SQL database root name; sleep {} secs; try {}",
+                    authRetryDelaySecs, i);
+                try {
+                    Thread.sleep(Duration.ofSeconds(authRetryDelaySecs).toMillis());
+                } catch (InterruptedException e2) {
+                    logger.warn("...Auth connection retry sleep interrupted; still waiting");
+                }
+            }
+        }
+        return dbRootUsername;
+    }
+
     /**
      * Retrieves a database root password from the Auth component.
      *
@@ -183,13 +269,13 @@ public class DBPasswordUtil {
                 .scheme("http")
                 .host(authHost)
                 .port(authPort)
-                .path(SECURESTORAGE_PATH + passwordKeyOffset)
+                .path(authRoute + SECURESTORAGE_PATH + passwordKeyOffset)
                 .build().toUriString();
             try {
                 ResponseEntity<String> result =
                     restTemplate.getForEntity(request, String.class);
                 dbRootPassword = result.getBody();
-                if (dbRootPassword.isEmpty()) {
+                if (StringUtils.isEmpty(dbRootPassword)) {
                     throw new IllegalArgumentException("root " + databaseType + " db password is empty");
                 }
             } catch (ResourceAccessException e) {

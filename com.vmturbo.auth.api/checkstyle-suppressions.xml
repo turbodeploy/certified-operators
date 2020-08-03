@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]AuthClientConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]Base64CodecUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]JWTKeyCodec.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]Pair.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]SpringSecurityConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]auditing[/\\]AuditAction.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]auditing[/\\]AuditLog.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]auditing[/\\]AuditLogEntry.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]auditing[/\\]AuditLogUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authentication[/\\]AuthenticationException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authentication[/\\]IAuthenticator.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authentication[/\\]credentials[/\\]ADCredentials.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authentication[/\\]credentials[/\\]BasicCredentials.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authentication[/\\]credentials[/\\]CredentialsBuilder.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authentication[/\\]credentials[/\\]JWTAuthenticationToken.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authentication[/\\]credentials[/\\]SAMLUser.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authentication[/\\]credentials[/\\]SAMLUserUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]AuthorizationException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]IAuthorizationToken.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]IAuthorizationVerifier.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]UserSessionConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]UserSessionContext.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]jwt[/\\]JWTAuthorizationVerifier.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]jwt[/\\]JwtClientInterceptor.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]jwt[/\\]JwtServerInterceptor.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]jwt[/\\]SecurityConstant.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]kvstore[/\\]AuthApiKVConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]kvstore[/\\]AuthStore.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]kvstore[/\\]ComponentJwtStore.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]kvstore[/\\]IAuthStore.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]scoping[/\\]AccessScopeCacheKey.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]scoping[/\\]EntityAccessScope.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]scoping[/\\]UserScopeServiceClientConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]scoping[/\\]UserScopeUtils.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]spring[/\\]SpringMethodSecurityExpressionHandler.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]spring[/\\]SpringMethodSecurityExpressionRoot.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]testtools[/\\]JwtContextUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]db[/\\]DBPasswordUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]licensing[/\\]LicenseApiInputDTO.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]licensing[/\\]LicenseCheckClient.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]licensing[/\\]LicenseCheckClientConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]licensing[/\\]LicenseFeaturesRequiredException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]usermgmt[/\\]ActiveDirectoryDTO.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]usermgmt[/\\]AuthUserDTO.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]usermgmt[/\\]AuthUserModifyDTO.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]usermgmt[/\\]AuthorizeUserInputDTO.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]usermgmt[/\\]SecurityGroupDTO.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]Base64CodecUtilsTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]auditing[/\\]AuditLogUtilsTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authentication[/\\]CredentialsTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]UserContextUtilsTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]UserSessionContextTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]jwt[/\\]VerifierTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]scoping[/\\]AccessScopeCacheKeyTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]authorization[/\\]scoping[/\\]UserScopeUtilsTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]db[/\\]DBPasswordUtilTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]auth[/\\]api[/\\]licensing[/\\]LicenseCheckClientTest.java" />
+</suppressions>

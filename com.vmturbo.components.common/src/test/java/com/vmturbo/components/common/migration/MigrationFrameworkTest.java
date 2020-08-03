@@ -11,16 +11,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableSortedMap;
+import com.google.protobuf.util.JsonFormat;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableSortedMap;
-import com.google.protobuf.util.JsonFormat;
-
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
-import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
 import com.vmturbo.common.protobuf.common.Migration.MigrationRecord;
+import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
 import com.vmturbo.kvstore.KeyValueStore;
 
 public class MigrationFrameworkTest {
@@ -160,19 +160,6 @@ public class MigrationFrameworkTest {
                     .setCompletionPercentage(100.0f)
                     .setStatusMessage("Migrated 100 records")
                     .build();
-        }
-
-        @Override
-        public MigrationProgressInfo getMigrationInfo() {
-            return migrationBuilder
-                    .setStatus(MigrationStatus.RUNNING)
-                    .setCompletionPercentage(60.0f)
-                    .build();
-        }
-
-        @Override
-        public MigrationStatus getMigrationStatus() {
-            return MigrationStatus.RUNNING;
         }
     }
 }

@@ -1,11 +1,13 @@
 package com.vmturbo.ml.datastore;
 
-import java.util.Optional;
+import java.util.Collections;
+import java.util.List;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
-import com.vmturbo.ml.datastore.topology.ActionsListenerConfig;
+import io.grpc.BindableService;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,22 +15,18 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
-
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.influxdb.InfluxHealthMonitor;
 import com.vmturbo.ml.datastore.influx.InfluxConfig;
 import com.vmturbo.ml.datastore.rpc.MLDatastoreRpcConfig;
+import com.vmturbo.ml.datastore.topology.ActionsListenerConfig;
 import com.vmturbo.ml.datastore.topology.TopologyListenerConfig;
 
 /**
  * The ML datastore component receives information broadcast from various components in
  * the system containing metrics about the state of the customer's environment.
  *
- * It writes this data to influxdb for persistent storage for use in training ML algorithms.
+ * <p>It writes this data to influxdb for persistent storage for use in training ML algorithms.
  */
 @Configuration("theComponent")
 @Import({
@@ -51,6 +49,11 @@ public class MLDatastoreComponent extends BaseVmtComponent {
 
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * Starts the component.
+     *
+     * @param args The mandatory arguments.
+     */
     public static void main(String[] args) {
         // Check if Metron is enabled. If not, immediately exit.
         if (Boolean.parseBoolean(System.getenv("METRON_ENABLED"))) {
@@ -71,19 +74,13 @@ public class MLDatastoreComponent extends BaseVmtComponent {
         getHealthMonitor().addHealthCheck(
             new InfluxHealthMonitor(influxHealthCheckIntervalSeconds,
                 () -> listenerConfig.topologyEntitiesListener()
-                    .getInfluxConnection()
-                    .orElse(null)));
+                    .getInfluxConnection()));
     }
 
-    @Override
-    @Nonnull
-    protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        // Monitor for server metrics with prometheus.
-        final MonitoringServerInterceptor monitoringInterceptor =
-            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
 
-        return Optional.of(builder
-            .addService(ServerInterceptors.intercept(rpcConfig.mlDatastoreRpcService(), monitoringInterceptor))
-            .build());
+    @Nonnull
+    @Override
+    public List<BindableService> getGrpcServices() {
+        return Collections.singletonList(rpcConfig.mlDatastoreRpcService());
     }
 }

@@ -1,5 +1,11 @@
 package com.vmturbo.clustermgr.aggregator;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -14,12 +20,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
+
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.proactivesupport.DataMetric;
 import com.vmturbo.proactivesupport.DataMetricLOB;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.*;
 
 /**
  * The DataAggregatorTest implements data aggregator tests.
@@ -34,20 +39,14 @@ public class DataAggregatorTest {
     @Before
     public void setup() throws IOException {
         File tempDir = tempFolder.newFolder();
-        dataAggregatorBasePath = DataAggregator.BASE_PATH;
-        DataAggregator.BASE_PATH = tempDir.getAbsolutePath();
-    }
-
-    @After
-    public void teardown() {
-        DataAggregator.BASE_PATH = dataAggregatorBasePath;
+        dataAggregatorBasePath = tempDir.getAbsolutePath();
     }
 
     @Test
     public void testBasePoint() {
-        DataAggregator aggregator = new DataAggregator();
+        DataAggregator aggregator = new DataAggregator(dataAggregatorBasePath);
         Calendar calendar = Calendar.getInstance();
-        String base = DataAggregator.BASE_PATH + "/" + calendar.get(Calendar.YEAR) + "_" +
+        String base = dataAggregatorBasePath + File.separator + calendar.get(Calendar.YEAR) + "_" +
                       calendar.get(Calendar.MONTH) + "_" +
                       calendar.get(Calendar.DAY_OF_MONTH) + "_" +
                       calendar.get(Calendar.HOUR_OF_DAY) + "_" +
@@ -57,7 +56,7 @@ public class DataAggregatorTest {
 
     @Test
     public void testPersistMessage() throws IOException {
-        DataAggregator aggregator = new DataAggregator();
+        DataAggregator aggregator = new DataAggregator(dataAggregatorBasePath);
         aggregator.currentBase_ = new File(tempFolder.newFolder().getAbsolutePath());
         DataMetric msg = new TestDataCollectorMessage(false);
         aggregator.persistLOBMessage(msg);
@@ -74,7 +73,7 @@ public class DataAggregatorTest {
 
     @Test
     public void testPersistMessageFailure() throws IOException {
-        DataAggregator aggregator = new DataAggregator();
+        DataAggregator aggregator = new DataAggregator(dataAggregatorBasePath);
         aggregator.currentBase_ = new File(tempFolder.newFolder().getAbsolutePath());
         DataMetric msg = new TestDataCollectorMessage(true);
         aggregator.persistLOBMessage(msg);
@@ -87,7 +86,7 @@ public class DataAggregatorTest {
 
     @Test
     public void testCreateFileFailure() throws IOException {
-        DataAggregator aggregator = new DataAggregator();
+        DataAggregator aggregator = new DataAggregator(dataAggregatorBasePath);
         aggregator.currentBase_ = new File("/dev/null");
         DataMetric msg = new TestDataCollectorMessage(true);
         aggregator.receiveLocalOffline(ImmutableList.of(msg));
@@ -99,7 +98,7 @@ public class DataAggregatorTest {
     public void testReceiveOffline() throws IOException {
         // Use spy, as mock() will not invoke the underlying methods (from the method you invoked
         // directly)
-        DataAggregator aggregator = spy(new DataAggregator());
+        DataAggregator aggregator = spy(new DataAggregator(dataAggregatorBasePath));
         aggregator.currentBase_ = new File(tempFolder.newFolder().getAbsolutePath());
         // We will not be able to copy, as we are using the mocks for messages.
         doNothing().when(aggregator).persistLOBMessage((any()));

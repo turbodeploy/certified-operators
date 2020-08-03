@@ -9,22 +9,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
-import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.builders.SDKConstants;
@@ -91,46 +84,29 @@ public class StorageProvisionSpecFactory {
     /**
      * Helper method to get TopologyEntityDTOs for given search criteria.
      */
-    private List<TopologyEntityDTO> getHostsConsumingFromStorageEntity(
-            @Nonnull long storageId) {
-        SearchParameters searchParameter = SearchParameters.newBuilder()
-                // start from storage entity oid
-                .setStartingFilter(PropertyFilter.newBuilder()
-                        .setPropertyName(SpecSearchUtil.OID)
-                        .setStringFilter(StringFilter.newBuilder()
-                                .setStringPropertyRegex(Long.toString(storageId))
-                                .setPositiveMatch(true)
-                                .setCaseSensitive(false))
-                        .build())
-                // traverse PRODUCES relationship (Storage produces a storage access commodity that
-                // PMs consume)
-                .addSearchFilter(SearchFilter.newBuilder()
-                        .setTraversalFilter(TraversalFilter.newBuilder()
-                                .setTraversalDirection(TraversalDirection.PRODUCES)
-                                .setStoppingCondition(StoppingCondition.newBuilder()
-                                        .setNumberHops(1).build()))
-                        .build())
-                // find all hosts consuming from this storage entity
-                .addSearchFilter(SearchFilter.newBuilder().setPropertyFilter(
-                        PropertyFilter.newBuilder()
-                                .setPropertyName(SpecSearchUtil.ENTITY_TYPE)
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                        .setValue(EntityType.PHYSICAL_MACHINE_VALUE)
-                                        .setComparisonOperator(ComparisonOperator.EQ))))
-                // ensure that all hosts returned have a display name
-                .addSearchFilter(SearchFilter.newBuilder().setPropertyFilter(
-                        PropertyFilter.newBuilder()
-                                .setPropertyName(SpecSearchUtil.DISPLAY_NAME)
-                                .setStringFilter(StringFilter.newBuilder()
-                                        .setStringPropertyRegex(NON_EMPTY_REGEX)
-                                        .setPositiveMatch(true))))
-                .build();
+    private List<TopologyEntityDTO> getHostsConsumingFromStorageEntity(long storageId) {
+        final SearchParameters searchParameter = SearchParameters.newBuilder()
+            // start from storage entity oid
+            .setStartingFilter(SearchProtoUtil.idFilter(storageId))
+            // traverse PRODUCES relationship (Storage produces a storage access commodity that
+            // PMs consume)
+            .addSearchFilter(SearchFilter.newBuilder()
+                .setTraversalFilter(TraversalFilter.newBuilder()
+                    .setTraversalDirection(TraversalDirection.PRODUCES)
+                    .setStoppingCondition(StoppingCondition.newBuilder()
+                        .setNumberHops(1).build()))
+                .build())
+            // find all hosts consuming from this storage entity
+            .addSearchFilter(SearchFilter.newBuilder()
+                .setPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.PHYSICAL_MACHINE_VALUE)))
+            // ensure that all hosts returned have a display name
+            .addSearchFilter(SearchFilter.newBuilder()
+                    .setPropertyFilter(SearchProtoUtil.nameFilterRegex(NON_EMPTY_REGEX)))
+            .build();
 
         return SpecSearchUtil.searchTopologyEntityDTOs(
-                SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addSearchParameters(searchParameter)
-                        .build(),
-                searchServiceRpc);
+            searchParameter,
+            searchServiceRpc);
     }
 
 }

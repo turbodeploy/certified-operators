@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -21,7 +22,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -55,20 +55,19 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
 
     /**
      * This maps probe names to maps of probe properties that are hard-coded, i.e., they are
-     * always set.  It is currently used to disable the listener feature in the vCenter probe
-     * (the feature is not supported in XL).
+     * always set.
      *
      * The maps are formatted so that they are ready to be added to a "set-properties"
      * mediation message, i.e., their keys conform to the format "probe.probeName.propertyName".
      */
     private static final Map<String, Map<String, String>> HARD_CODED_PROBE_PROPERTIES =
         ImmutableMap.<String, Map<String, String>>builder()
-            .put("vCenter", ImmutableMap.of("probe.vCenter.listener.enabled", "false"))
             // Disable saving the cost.usage.report for AWS and Azure. The SDK probes won't be
             // able to write the report to disk (because it's a read-only volume), so enabling
             // these will break discovery.
-            .put("AWS Billing", ImmutableMap.of("probe.AWS Billing.save.cost.usage.report", "false"))
-            .put("Azure", ImmutableMap.of("probe.Azure.save.cost.usage.report", "false"))
+            .put(SDKProbeType.AWS_BILLING.getProbeType(), ImmutableMap.of("probe.AWS Billing.save.cost.usage.report", "true",
+                    "probe.AWS Billing.tmp.diags.dir", "/tmp/diags/aws/billing/"))
+            .put(SDKProbeType.AZURE.getProbeType(), ImmutableMap.of("probe.Azure.save.cost.usage.report", "false"))
             .build();
 
     /**
@@ -159,7 +158,7 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
         // remove old probe properties under this probe
         for (String name :
                 getProbeSpecificProbeProperties(probeId).map(Entry::getKey).collect(Collectors.toList())) {
-            kvStore.remove(probeSpecific(probeId, name));
+            kvStore.removeKeysWithPrefix(probeSpecific(probeId, name));
         }
 
         // put the new probe properties under this probe
@@ -206,12 +205,13 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
         // put target-specific probe properties into the map
         for (Target target : targets) {
             final long targetId = target.getId();
-            final String targetName = targetStore.getTargetAddress(targetId).orElse(null);
+            final String targetName = target.getDisplayName();
             if (targetName == null) {
-                logger.warn("Target with id " + targetId + " has no address");
+                // should never happen
+                logger.warn("Target with id " + targetId + " has no display name");
                 continue;
             }
-            getTargetSpecificProbeProperties(target.getProbeId(), target.getId())
+            getTargetSpecificProbeProperties(target.getProbeId(), targetId)
                 .forEach(keyValuePair ->
                     resultBuilder.putProperties(
                         transformToMediationPropertyKey(false, targetName, keyValuePair.getKey()),
@@ -231,7 +231,7 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
                 getTargetSpecificProbeProperties(probeId, targetId)
                     .map(Entry::getKey)
                     .collect(Collectors.toList())) {
-            kvStore.remove(targetSpecific(targetId, name));
+            kvStore.removeKeysWithPrefix(targetSpecific(targetId, name));
         }
 
         // put the new probe properties under this target
@@ -255,7 +255,7 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
         if (!kvStore.containsKey(kvStoreKey)) {
             throw new ProbeException("Probe property " + key.toString() + " does not exist");
         }
-        kvStore.remove(kvStoreKey);
+        kvStore.removeKeysWithPrefix(kvStoreKey);
     }
 
     /**

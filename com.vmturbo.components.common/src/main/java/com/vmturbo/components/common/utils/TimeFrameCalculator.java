@@ -3,10 +3,13 @@ package com.vmturbo.components.common.utils;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 
 /**
@@ -14,7 +17,6 @@ import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPerio
  * timestamp, depending on the stats retainment configuration.
  */
 public class TimeFrameCalculator {
-
     private final Clock clock;
 
     private final RetentionPeriodFetcher retentionPeriodFetcher;
@@ -28,34 +30,70 @@ public class TimeFrameCalculator {
     /**
      * Clip a millisecond epoch number to a time frame.
      *
-     * @param millis a millisecond epoch number in the past
+     * @param startTimestamp a millisecond epoch number in the past
      * @return a time frame name.
      */
     @Nonnull
-    public TimeFrame millis2TimeFrame(final long millis) {
-        final Duration timeBack = Duration.between(Instant.ofEpochMilli(millis), clock.instant());
+    public TimeFrame millis2TimeFrame(final long startTimestamp) {
+        final Duration timeBack =
+                        Duration.between(Instant.ofEpochMilli(startTimestamp), clock.instant());
+        return range2TimeFrame(timeBack.toMillis(), retentionPeriodFetcher.getRetentionPeriods());
+    }
 
-        final RetentionPeriods retentionPeriods = retentionPeriodFetcher.getRetentionPeriods();
-
-        if (timeBack.toMinutes() <= retentionPeriods.latestRetentionMinutes()) {
+    /**
+     * Converts a range represented in milliseconds into {@link TimeFrame} instance.
+     *
+     * @param range range in milliseconds
+     * @param retentionPeriods retention periods used for as a borders to detect the
+     *                 smallest {@link TimeFrame}.
+     * @return a time frame name.
+     */
+    @Nonnull
+    public TimeFrame range2TimeFrame(long range, @Nonnull RetentionPeriods retentionPeriods) {
+        // no start date was mentioned - use latest
+        if (range == 0) {
             return TimeFrame.LATEST;
         }
-
-        if (timeBack.toHours() <= retentionPeriods.hourlyRetentionHours()) {
+        final Duration duration = Duration.ofMillis(range);
+        if (duration.toMinutes() <= retentionPeriods.latestRetentionMinutes()) {
+            return TimeFrame.LATEST;
+        }
+        if (duration.toHours() <= retentionPeriods.hourlyRetentionHours()) {
             return TimeFrame.HOUR;
         }
-
-        if (timeBack.toDays() <= retentionPeriods.dailyRetentionDays()) {
+        if (duration.toDays() <= retentionPeriods.dailyRetentionDays()) {
             return TimeFrame.DAY;
         }
-
         return TimeFrame.MONTH;
     }
 
-    public enum TimeFrame {
-        LATEST,
-        HOUR,
-        DAY,
-        MONTH,
+    /**
+     * It is possible that one timestamp lies in more than one tables related to timeframe.
+     * For example, a timestamp an hour ago (LATEST timeframe) from current time has potential to be in hour/day/month
+     * table. Hence, for such a case we return all such time frames.
+     * @param timeFrame current time frame to apply.
+     * @return all time frames where this timeframe can possibly fit.
+     */
+    public List<TimeFrame> getAllRelevantTimeFrames(TimeFrame timeFrame) {
+        List<TimeFrame> timeFrames = new ArrayList<>();
+        // NOTE : Break statements are intentionally avoided after every case.
+        switch (timeFrame) {
+            case LATEST:
+                timeFrames.add(TimeFrame.LATEST);
+            case HOUR:
+                timeFrames.add(TimeFrame.HOUR);
+            case DAY:
+                timeFrames.add(TimeFrame.DAY);
+            case MONTH:
+                timeFrames.add(TimeFrame.MONTH);
+                break;
+            default:
+                timeFrames.add(TimeFrame.MONTH);
+        }
+        return timeFrames;
     }
+
+
+
+
 }

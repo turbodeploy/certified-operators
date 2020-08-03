@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>7.17.0-SNAPSHOT</version>
+        <version>7.22.6-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -23,6 +23,7 @@
         <immutables-javaslang.version>0.1.0</immutables-javaslang.version>
         <javaslang.version>2.0.5</javaslang.version>
         <reactor.version>3.0.3.RELEASE</reactor.version>
+        <ical4j.version>3.0.10</ical4j.version>
 
         <!-- TODO: user and password configuration should NOT be checked into source control -->
         <db.url>jdbc:mysql://localhost:3306</db.url>
@@ -47,10 +48,6 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.repository.api</artifactId>
         </dependency>
         <dependency>
@@ -61,8 +58,28 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>auth-api</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>topology-processor-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>identity</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.plan.orchestrator.api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.plan.orchestrator.api</artifactId>
+        </dependency>
         <!-- Other Dependencies -->
+        <dependency>
+            <groupId>org.jooq</groupId>
+            <artifactId>jooq</artifactId>
+            <version>${jooq.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
@@ -134,9 +151,21 @@
             <artifactId>sql-utils</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sql-test-utils</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.retry</groupId>
             <artifactId>spring-retry</artifactId>
-            <version>1.2.0.RELEASE</version>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mnode.ical4j</groupId>
+            <artifactId>ical4j</artifactId>
+            <version>${ical4j.version}</version>
         </dependency>
 
         <!-- Test Scope -->
@@ -162,6 +191,13 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
@@ -222,6 +258,7 @@
                 <!-- Specify the maven code generator plugin -->
                 <groupId>org.jooq</groupId>
                 <artifactId>jooq-codegen-maven</artifactId>
+                <version>${jooq.version}</version>
 
                 <!-- The plugin should hook into the generate goal -->
                 <executions>
@@ -245,7 +282,7 @@
                     <!-- Generator parameters -->
                     <generator>
                         <database>
-                            <name>org.jooq.util.mysql.MySQLDatabase</name>
+                            <name>org.jooq.meta.mysql.MySQLDatabase</name>
                             <!-- Retrieve schema version from Flyway info table -->
                             <schemaVersionProvider>SELECT CONCAT_WS('_', '${db.outputSchema}', MAX(version)) from schema_version</schemaVersionProvider>
                             <includes>.*</includes>
@@ -258,24 +295,42 @@
                             </schemata>
                             <customTypes>
                                 <customType>
-                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo</name>
-                                    <converter>com.vmturbo.group.setting.SettingPolicyInfoConverter</converter>
-                                </customType>
-                                <customType>
                                     <name>com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo</name>
                                     <converter>com.vmturbo.group.policy.PolicyInfoConverter</converter>
+                                </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase</name>
+                                    <converter>com.vmturbo.group.setting.SettingTypeConverter</converter>
                                 </customType>
                             </customTypes>
 
                             <!-- Then, associate custom types with database columns -->
                             <forcedTypes>
                                 <forcedType>
-                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo</name>
-                                    <expression>.*\.setting_policy\.setting_policy_data</expression>
+                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase</name>
+                                    <expression>.*\.setting_policy_setting\.setting_type</expression>
                                 </forcedType>
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo</name>
                                     <expression>.*\.policy\.policy_data</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>BOOLEAN</name>
+                                    <includeTypes>(?i:TINYINT\(1\))</includeTypes>
+                                </forcedType>
+                                <forcedType>
+                                    <userType>
+                                        com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType
+                                    </userType>
+                                    <includeExpression>.*\.group_type</includeExpression>
+                                    <converter>com.vmturbo.group.group.GroupTypeConverter</converter>
+                                </forcedType>
+                                <forcedType>
+                                    <userType>
+                                        com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType
+                                    </userType>
+                                    <enumConverter>true</enumConverter>
+                                    <expression>.*\.grouping\.optimization_environment_type</expression>
                                 </forcedType>
                             </forcedTypes>
                         </database>
@@ -303,6 +358,7 @@
                                         <location>com.vmturbo.common.protobuf.group</location>
                                         <location>com.vmturbo.common.protobuf.logging</location>
                                         <location>com.vmturbo.common.protobuf.setting</location>
+                                        <location>com.vmturbo.common.protobuf.schedule</location>
                                         <location>com.vmturbo.components.common</location>
                                     </locations>
                                 </apiSource>
@@ -310,6 +366,10 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>

@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.util.action;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -11,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -18,6 +20,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import org.junit.Test;
 
@@ -40,7 +45,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat.StatGroup;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 public class ActionStatsMapperTest {
 
@@ -65,7 +70,7 @@ public class ActionStatsMapperTest {
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(stat1Filters);
 
         final StatSnapshotApiDTO snapshots = new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query);
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap(), Maps.newHashMap());
 
         assertThat(snapshots.getDate(), is(DateTimeUtil.toString(clock.millis())));
 
@@ -107,6 +112,8 @@ public class ActionStatsMapperTest {
                 .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE)
                 .setActionState(ActionState.READY)
                 .setActionType(ActionType.ACTIVATE)
+                .setCostType(ActionDTO.ActionCostType.SAVINGS)
+                .setSeverity(ActionDTO.Severity.CRITICAL)
                 .setActionExplanation("Mem congestion")
                 .setTargetEntityId(111))
             .setActionCount(3)
@@ -123,19 +130,22 @@ public class ActionStatsMapperTest {
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getCostType()).thenReturn(Optional.empty());
         when(query.currentTimeStamp()).thenReturn(Optional.empty());
+        ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setGroupBy(new ArrayList<>());
+        when(query.actionInput()).thenReturn(inputDTO);
 
         final GroupByFilters stat1Filters = mock(GroupByFilters.class);
-        final List<StatFilterApiDTO> stat1ApiFilters = Collections.singletonList(new StatFilterApiDTO());
+        final List<StatFilterApiDTO> stat1ApiFilters = Lists.newArrayList(new StatFilterApiDTO());
         when(stat1Filters.getFilters()).thenReturn(stat1ApiFilters);
 
         final GroupByFilters stat2Filters = mock(GroupByFilters.class);
-        final List<StatFilterApiDTO> stat2ApiFilters = Collections.singletonList(new StatFilterApiDTO());
+        final List<StatFilterApiDTO> stat2ApiFilters = Lists.newArrayList(new StatFilterApiDTO());
         when(stat2Filters.getFilters()).thenReturn(stat2ApiFilters);
 
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(stat1Filters, stat2Filters);
 
         new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat1, stat2), query);
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat1, stat2), query, Maps.newHashMap(), Maps.newHashMap());
 
         // Should have been called twice - one for each action stat.
         verify(groupByFiltersFactory, times(2)).filtersForQuery(any());
@@ -145,13 +155,39 @@ public class ActionStatsMapperTest {
         verify(stat1Filters).setReasonCommodity(1);
         verify(stat1Filters).setTargetEntityType(10);
         verify(stat1Filters).setTargetEntityId(111);
+        verify(stat1Filters).setActionCostType(ActionDTO.ActionCostType.SAVINGS);
+        verify(stat1Filters).setActionRiskSeverity(ActionDTO.Severity.CRITICAL);
         verify(stat1Filters).setExplanation("Mem congestion");
         // We get the filters for each StatApiDTO.
         verify(stat1Filters, times(2)).getFilters();
         verifyNoMoreInteractions(stat1Filters);
 
-        verify(stat2Filters, times(2)).getFilters();
+        // Stat2 has investments and savings.
+        verify(stat2Filters, times(4)).getFilters();
         verifyNoMoreInteractions(stat2Filters);
+    }
+
+    @Test
+    public void tempNoSavingsOrInvestmentsShouldNotAddStats() {
+        final CurrentActionStat stat = CurrentActionStat.newBuilder()
+            .setInvestments(0.0)
+            .setSavings(0.0)
+            .build();
+
+        final ActionStatsQuery query = mock(ActionStatsQuery.class);
+        when(query.getCostType()).thenReturn(Optional.empty());
+        when(query.currentTimeStamp()).thenReturn(Optional.empty());
+        ActionApiInputDTO inputDTO = new ActionApiInputDTO();
+        inputDTO.setGroupBy(new ArrayList<>());
+        when(query.actionInput()).thenReturn(inputDTO);
+
+        StatSnapshotApiDTO stats = new ActionStatsMapper(clock, groupByFiltersFactory)
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat), query, Maps.newHashMap(), Maps.newHashMap());
+
+        List<StatApiDTO> statsList = stats.getStatistics();
+
+        // Because we we set the investment and savings to 0, there shouldn't be any stats.
+        assertEquals(statsList.size(),0);
     }
 
     @Test
@@ -166,16 +202,19 @@ public class ActionStatsMapperTest {
             .addStatSnapshots(ActionStatSnapshot.newBuilder()
                 .setTime(statTime)
                 .addStats(ActionStat.newBuilder()
-                    .setActionState(ActionDTO.ActionState.READY)
-                    .setActionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT)
+                    .setStatGroup(ActionStat.StatGroup.newBuilder()
+                        .setActionState(ActionDTO.ActionState.READY)
+                        .setActionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT))
                     .setActionCount(Value.newBuilder()
                         .setMin(1)
                         .setAvg(2)
-                        .setMax(3))
+                        .setMax(3)
+                        .setTotal(7))
                     .setEntityCount(Value.newBuilder()
                         .setMin(4)
                         .setAvg(5)
-                        .setMax(6))))
+                        .setMax(6)
+                        .setTotal(8))))
             .build();
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
@@ -233,8 +272,9 @@ public class ActionStatsMapperTest {
             .addStatSnapshots(ActionStatSnapshot.newBuilder()
                 .setTime(statTime)
                 .addStats(ActionStat.newBuilder()
-                    .setActionState(ActionDTO.ActionState.READY)
-                    .setActionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT)
+                    .setStatGroup(ActionStat.StatGroup.newBuilder()
+                        .setActionState(ActionDTO.ActionState.READY)
+                        .setActionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT))
                     .setSavings(Value.newBuilder()
                         .setMin(1)
                         .setAvg(2)
@@ -249,7 +289,7 @@ public class ActionStatsMapperTest {
         when(query.getCostType()).thenReturn(Optional.of(ActionCostType.SAVING));
 
         final GroupByFilters groupByFilters = mock(GroupByFilters.class);
-        final List<StatFilterApiDTO> apiFilters = Collections.singletonList(new StatFilterApiDTO());
+        final List<StatFilterApiDTO> apiFilters = Lists.newArrayList(new StatFilterApiDTO());
         when(groupByFilters.getFilters()).thenReturn(apiFilters);
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
@@ -280,8 +320,9 @@ public class ActionStatsMapperTest {
             .addStatSnapshots(ActionStatSnapshot.newBuilder()
                 .setTime(statTime)
                 .addStats(ActionStat.newBuilder()
-                    .setActionState(ActionDTO.ActionState.READY)
-                    .setActionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT)
+                    .setStatGroup(ActionStat.StatGroup.newBuilder()
+                        .setActionState(ActionDTO.ActionState.READY)
+                        .setActionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT))
                     .setInvestments(Value.newBuilder()
                         .setMin(1)
                         .setAvg(2)
@@ -296,7 +337,7 @@ public class ActionStatsMapperTest {
         when(query.getCostType()).thenReturn(Optional.of(ActionCostType.INVESTMENT));
 
         final GroupByFilters groupByFilters = mock(GroupByFilters.class);
-        final List<StatFilterApiDTO> apiFilters = Collections.singletonList(new StatFilterApiDTO());
+        final List<StatFilterApiDTO> apiFilters = Lists.newArrayList(new StatFilterApiDTO());
         when(groupByFilters.getFilters()).thenReturn(apiFilters);
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
@@ -326,7 +367,7 @@ public class ActionStatsMapperTest {
             .build();
 
         final GroupByFilters groupByFilters = mock(GroupByFilters.class);
-        final List<StatFilterApiDTO> apiFilters = Collections.singletonList(new StatFilterApiDTO());
+        final List<StatFilterApiDTO> apiFilters = Lists.newArrayList(new StatFilterApiDTO());
         when(groupByFilters.getFilters()).thenReturn(apiFilters);
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
@@ -335,7 +376,7 @@ public class ActionStatsMapperTest {
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
         final StatSnapshotApiDTO snapshot = new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query);
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap(), Maps.newHashMap());
 
         assertThat(snapshot.getDate(), is(DateTimeUtil.toString(clock.millis())));
         assertThat(snapshot.getStatistics().size(), is(1));
@@ -357,7 +398,7 @@ public class ActionStatsMapperTest {
             .build();
 
         final GroupByFilters groupByFilters = mock(GroupByFilters.class);
-        final List<StatFilterApiDTO> apiFilters = Collections.singletonList(new StatFilterApiDTO());
+        final List<StatFilterApiDTO> apiFilters = Lists.newArrayList(new StatFilterApiDTO());
         when(groupByFilters.getFilters()).thenReturn(apiFilters);
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
@@ -366,7 +407,7 @@ public class ActionStatsMapperTest {
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
         final StatSnapshotApiDTO snapshot = new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query);
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap(), Maps.newHashMap());
 
         assertThat(snapshot.getDate(), is(DateTimeUtil.toString(clock.millis())));
         assertThat(snapshot.getStatistics().size(), is(1));

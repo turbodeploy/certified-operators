@@ -1,5 +1,6 @@
 package com.vmturbo.reports.component;
 
+import java.sql.SQLException;
 import java.time.Duration;
 
 import javax.annotation.PreDestroy;
@@ -8,7 +9,8 @@ import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.jooq.conf.MappedSchema;
 import org.jooq.impl.DefaultConfiguration;
-import org.mariadb.jdbc.MySQLDataSource;
+import org.mariadb.jdbc.MariaDbDataSource;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -30,7 +32,7 @@ public class ReportingTestDbConfig extends TestSQLDatabaseConfig {
     public Flyway localFlyway() {
         return new FlywayMigrator(Duration.ofMinutes(1), Duration.ofSeconds(5), () -> {
             final Flyway flyway = new Flyway();
-            flyway.setDataSource(dataSource());
+            flyway.setDataSource(flyway().getDataSource());
             flyway.setSchemas(REPORTING_TEST_SCHEMA);
             flyway.setLocations(ReportingDbConfig.MIGRATIONS_LOCATION);
             return flyway;
@@ -39,16 +41,20 @@ public class ReportingTestDbConfig extends TestSQLDatabaseConfig {
 
     @Bean
     public DataSource reportingDatasource() {
-        final MySQLDataSource dataSource = new MySQLDataSource();
-        dataSource.setUrl(getDbUrl() + '/' + testSchemaName());
-        dataSource.setUser("root");
-        dataSource.setPassword("vmturbo");
-        return dataSource;
+        final MariaDbDataSource dataSource = new MariaDbDataSource();
+        try {
+            dataSource.setUrl(dbConfiguration().getDbUrl() + '/' + dbConfiguration().getTestSchemaName());
+            dataSource.setUser("root");
+            dataSource.setPassword("vmturbo");
+            return dataSource;
+        } catch (SQLException e) {
+            throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
+        }
     }
 
     @Bean
-    public DefaultConfiguration configuration() {
-        final DefaultConfiguration jooqConfiguration = super.configuration();
+    public org.jooq.Configuration configuration() {
+        final org.jooq.Configuration jooqConfiguration = dbConfiguration().getConfiguration();
 
         jooqConfiguration.settings()
                 .getRenderMapping()

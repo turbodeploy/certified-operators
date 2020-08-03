@@ -1,12 +1,16 @@
 package com.vmturbo.topology.processor.probes;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 
@@ -15,6 +19,11 @@ import com.vmturbo.topology.processor.api.AccountFieldValueType;
  * using {@link AccountDefEntry} interface.
  */
 public class AccountValueAdaptor {
+    /**
+     * Default regular expression to validate a field.
+     */
+    static final String DEFAULT_STRING_REGEXP = ".*";
+
     /**
      * Hide constructor for utility class.
      */
@@ -58,6 +67,20 @@ public class AccountValueAdaptor {
         public String getDefaultValue() {
             return entry.hasDefaultValue() ? entry.getDefaultValue() : null;
         }
+
+        @Nullable
+        @Override
+        public List<String> getAllowedValues() {
+            return entry.getAllowedValuesList();
+        }
+
+        @Nonnull
+        @Override
+        public Optional<Pair<String, String>> getDependencyField() {
+            return entry.hasDependencyKey() ?
+                    Optional.of(Pair.create(entry.getDependencyKey(), entry.getDependencyValue())) :
+                    Optional.empty();
+        }
     }
 
     /**
@@ -93,9 +116,15 @@ public class AccountValueAdaptor {
         }
 
         @Override
+        public String getVerificationRegex() {
+            return customEntry.getVerificationRegex();
+        }
+
+        @Override
         public AccountFieldValueType getValueType() {
             switch (customEntry.getFieldTypeCase()) {
                 case GROUP_SCOPE:
+                case ENTITY_SCOPE:
                     return AccountFieldValueType.GROUP_SCOPE;
                 case PRIMITIVE_VALUE:
                     switch (customEntry.getPrimitiveValue()) {
@@ -146,6 +175,12 @@ public class AccountValueAdaptor {
         }
 
         @Override
+        public String getVerificationRegex() {
+            return DEFAULT_STRING_REGEXP;
+        }
+
+
+            @Override
         public AccountFieldValueType getValueType() {
             if (enumVal.getGroupScopeFields() != null) {
                 return AccountFieldValueType.GROUP_SCOPE;

@@ -7,9 +7,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.Builder;
 
 /**
@@ -19,21 +24,33 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.Builder;
  */
 @Immutable
 public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataType<T> {
+    private static final Logger logger = LogManager.getLogger();
 
-    private T maxValue;
+    private final T maxValue;
+    private final Class<T> enumClass;
 
     /**
      * Constructs enum data type holding specified default value.
      *
      * @param defaultValue default value
+     * @param enumClass class of an enum
      */
-    public EnumSettingDataType(@Nonnull T defaultValue) {
-        super(defaultValue);
+    public EnumSettingDataType(@Nonnull T defaultValue, @Nonnull Class<T> enumClass) {
+        this(defaultValue, null, enumClass);
     }
 
-    public EnumSettingDataType(@Nonnull T defaultValue, @Nonnull T maxValue) {
+    /**
+     * Constructs enum data type holding specified default value.
+     *
+     * @param defaultValue default value
+     * @param maxValue maximum value
+     * @param enumClass class of an enum
+     */
+    public EnumSettingDataType(@Nonnull T defaultValue, @Nullable T maxValue,
+                    @Nonnull Class<T> enumClass) {
         super(defaultValue);
         this.maxValue = maxValue;
+        this.enumClass = enumClass;
     }
 
     @Override
@@ -50,6 +67,31 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
                 .setDefault(getDefault().name())
                 .putAllEntityDefaults(entityDefaults)
                 .build());
+    }
+
+    @Override
+    @Nullable
+    public T getValue(@Nullable Setting setting) {
+        if (setting == null || !setting.hasEnumSettingValue()
+                        || !setting.getEnumSettingValue().hasValue()) {
+            return null;
+        }
+        String value = setting.getEnumSettingValue().getValue();
+        if (value == null) {
+            logger.error("Unset enum setting value in " + setting);
+            return null;
+        }
+        try {
+            return Enum.valueOf(enumClass, value);
+        } catch (IllegalArgumentException e) {
+            logger.error("Invalid enum setting value " + value + " in " + setting, e);
+            return null;
+        }
+    }
+
+    @Nonnull
+    public Class<T> getEnumClass() {
+        return enumClass;
     }
 }
 

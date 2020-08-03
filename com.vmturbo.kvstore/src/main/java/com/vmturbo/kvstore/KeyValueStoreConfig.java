@@ -17,20 +17,31 @@ public class KeyValueStoreConfig {
     @Value("${consul_port}")
     private String consulPort;
 
-    @Value("${instance_id}")
+    // temporary fix to base the upgrade kv store root on the component_type, since
+    // instance_id will change from invocation to invocation, especially version to version
+    // TODO: migrate kv store root for existing customers to something more reasonable and remove
+    // the "-1"
+    @Value("${component_type}-1")
     private String applicationName;
 
-    @Value("${kvStoreRetryIntervalMillis}")
-    private long kvStoreRetryIntervalMillis;
+    @Value("${kvStoreTimeoutSeconds:120}")
+    private long kvStoreTimeoutSeconds;
+
+    @Value("${consulNamespace:}")
+    private String consulNamespace;
+
+    @Value("${enableConsulNamespace:false}")
+    private boolean enableConsulNamespace;
 
     @Bean
     public KeyValueStore keyValueStore() {
         return new ConsulKeyValueStore(
+                ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace),
                 applicationName,
                 consulHost,
                 consulPort,
-                kvStoreRetryIntervalMillis,
-                TimeUnit.MILLISECONDS
+                kvStoreTimeoutSeconds,
+                TimeUnit.SECONDS
         );
     }
 
@@ -46,7 +57,7 @@ public class KeyValueStoreConfig {
         return applicationName;
     }
 
-    protected long getKvStoreRetryIntervalMillis() {
-        return kvStoreRetryIntervalMillis;
+    protected long getKvStoreTimeoutSecond() {
+        return kvStoreTimeoutSeconds;
     }
 }

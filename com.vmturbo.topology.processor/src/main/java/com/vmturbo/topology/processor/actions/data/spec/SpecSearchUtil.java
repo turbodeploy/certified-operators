@@ -2,14 +2,22 @@ package com.vmturbo.topology.processor.actions.data.spec;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
+import io.grpc.StatusRuntimeException;
+
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
@@ -22,29 +30,23 @@ public class SpecSearchUtil {
 
     private static final Logger logger = LogManager.getLogger();
 
-    // Constants used for searching the topology
-
-    // This is defined in SearchMapper.DISPLAY_NAME_PROPERTY, but that is not reachable from the
-    // Topology Processor
-    public static final String DISPLAY_NAME = "displayName";
-
-    // This is defined in SearchMapper.ENTITY_TYPE_PROPERTY, but that is not reachable from the
-    // Topology Processor
-    public static final String ENTITY_TYPE = "entityType";
-
-    // This is defined in GroupMapper.OID, but that is not reachable from the Topology Processor
-    public static final String OID = "oid";
-
     /**
      * Search for TopologyEntityDTOs for a given request.
      */
     public static List<TopologyEntityDTO> searchTopologyEntityDTOs(
-            @Nonnull final SearchTopologyEntityDTOsRequest request,
+            @Nonnull final SearchParameters params,
             @Nonnull final SearchServiceBlockingStub searchServiceRpc) {
         try {
-            return searchServiceRpc.searchTopologyEntityDTOs(request).getTopologyEntityDtosList();
-        } catch (Exception e) {
-            logger.error("Error when getting TopologyEntityDTOs for request: {}", request, e);
+            return RepositoryDTOUtil.topologyEntityStream(searchServiceRpc.searchEntitiesStream(
+                SearchEntitiesRequest.newBuilder()
+                    .setReturnType(Type.FULL)
+                    .setSearch(SearchQuery.newBuilder()
+                        .addSearchParameters(params))
+                    .build()))
+                .map(PartialEntity::getFullEntity)
+                .collect(Collectors.toList());
+        } catch (StatusRuntimeException e) {
+            logger.error("Error when getting TopologyEntityDTOs for request: {}", params, e);
             return Collections.emptyList();
         }
     }

@@ -2,14 +2,12 @@ package com.vmturbo.auth.api.authorization.scoping;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import org.springframework.security.access.AccessDeniedException;
 
 import com.vmturbo.components.common.identity.OidFilter;
 import com.vmturbo.components.common.identity.OidSet;
@@ -33,7 +31,7 @@ public class EntityAccessScope implements OidFilter {
 
     // the collection of groups to base the access scope on -- may, and usually will, be empty
     @Nonnull
-    private final List<Long> scopeGroupIds;
+    private final Collection<Long> scopeGroupIds;
 
     // the collection of scope group member oids. This is cached for convenience, and used by the
     // supply chain query.
@@ -55,7 +53,7 @@ public class EntityAccessScope implements OidFilter {
         this.accessibleOidsByEntityType = Collections.EMPTY_MAP;
     }
 
-    public EntityAccessScope(@Nullable List<Long> groupIds, @Nullable OidSet scopeGroupMemberOids,
+    public EntityAccessScope(@Nullable Collection<Long> groupIds, @Nullable OidSet scopeGroupMemberOids,
                              @Nullable OidFilter accessFilter, @Nullable Map<String, OidSet> oidsByEntityType) {
         this.scopeGroupIds = groupIds != null ? groupIds : Collections.EMPTY_LIST;
         this.scopeGroupMemberOids = scopeGroupMemberOids != null ? scopeGroupMemberOids : OidSet.EMPTY_OID_SET;
@@ -64,7 +62,7 @@ public class EntityAccessScope implements OidFilter {
     }
 
     @Nonnull
-    public List<Long> getScopeGroupIds() {
+    public Collection<Long> getScopeGroupIds() {
         return scopeGroupIds;
     }
 
@@ -130,6 +128,25 @@ public class EntityAccessScope implements OidFilter {
         }
 
         return accessibleOidsByEntityType.getOrDefault(entityType, OidSet.EMPTY_OID_SET);
+    }
+
+    /**
+     * Get an OidSet of the accessible oids for the specified collection of entityTypes. This set is only relevant
+     * if EntityAccessScope.containsAll() is false -- if the scope contains "all" entities then this
+     * method will just return an {@link AllOidsSet} that is not iterable.
+     *
+     * @param entityTypes The string entity type to look for
+     * @return an {@link OidSet} of entity oids of the requested type in the accessible set.
+     */
+    public OidSet getAccessibleOidsByEntityTypes(Collection<String> entityTypes) {
+        // special case for "all oids".
+        if (accessFilter.containsAll()) {
+            return AllOidsSet.ALL_OIDS_SET;
+        }
+        Set<Long> oids = new HashSet<>();
+        entityTypes.stream().filter(accessibleOidsByEntityType::containsKey).forEach(entityType ->
+                oids.addAll(accessibleOidsByEntityType.get(entityType).toSet()));
+        return new RoaringBitmapOidSet(oids);
     }
 
     public String toString() {

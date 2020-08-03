@@ -11,6 +11,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
+import com.vmturbo.components.common.RequiresDataInitialization;
+import com.vmturbo.components.common.RequiresDataInitialization.InitializationException;
+import com.vmturbo.components.common.migration.AbstractMigration;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
@@ -35,7 +38,7 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
  *  1. New account definition "isStorageBrowsingEnabled".
  *  2. New entity identity metadata for VIRTUAL_VOLUME entity type.
  */
-public class V_01_00_01__Vim_Probe_Storage_Browsing_Migration implements Migration {
+public class V_01_00_01__Vim_Probe_Storage_Browsing_Migration extends AbstractMigration {
 
     private final Logger logger = LogManager.getLogger();
 
@@ -44,12 +47,6 @@ public class V_01_00_01__Vim_Probe_Storage_Browsing_Migration implements Migrati
     private final IdentityServiceUnderlyingStore identityInMemoryStore;
 
     private final IdentityProvider identityProvider;
-
-    private final Object migrationInfoLock = new Object();
-
-    @GuardedBy("migrationInfoLock")
-    private final MigrationProgressInfo.Builder migrationInfo =
-        MigrationProgressInfo.newBuilder();
 
     // New Account Definition Entry for VC Storage Browsing flag
     private static final AccountDefEntry STORAGE_BROWSING_ACCOUNT_DEFINITION =
@@ -84,38 +81,34 @@ public class V_01_00_01__Vim_Probe_Storage_Browsing_Migration implements Migrati
     public V_01_00_01__Vim_Probe_Storage_Browsing_Migration(@Nonnull ProbeStore probeStore,
                                                             @Nonnull IdentityServiceUnderlyingStore identityInMemoryStore,
                                                             @Nonnull IdentityProvider identityProvider) {
-
         this.probeStore = Objects.requireNonNull(probeStore);
         this.identityInMemoryStore = Objects.requireNonNull(identityInMemoryStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
     }
 
     @Override
-    public MigrationStatus getMigrationStatus() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.getStatus();
-        }
-    }
-
-    @Override
-    public MigrationProgressInfo getMigrationInfo() {
-        synchronized (migrationInfoLock) {
-            return migrationInfo.build();
-        }
-    }
-
-    @Override
-    public MigrationProgressInfo startMigration() {
+    public MigrationProgressInfo doStartMigration() {
         // Update the probe metadata with the new account value.
-
         logger.info("Starting migration of vCenter account values.");
+
+        // Force initialization of the probe store, so the non-migrated
+        // data is loaded from Consul into its local state.
+        if (probeStore instanceof RequiresDataInitialization) {
+            try {
+                ((RequiresDataInitialization)probeStore).initialize();
+            } catch (InitializationException e) {
+                String msg = "Failed to initialize probe store with error: " + e.getMessage();
+                logger.error("{}", msg, e);
+                return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
+            }
+        }
 
         Optional<Long> probeId =
             probeStore.getProbeIdForType(SDKProbeType.VCENTER.getProbeType());
         if (!probeId.isPresent()) {
             String msg ="No vCenter probe to upgrade. Upgrade finished.";
             logger.info(msg);
-            return createMigrationProgressInfo(MigrationStatus.SUCCEEDED, 100, msg);
+            return updateMigrationProgress(MigrationStatus.SUCCEEDED, 100, msg);
         }
 
         Optional<ProbeInfo> oldProbeInfoOpt = probeStore.getProbe(probeId.get());
@@ -124,7 +117,7 @@ public class V_01_00_01__Vim_Probe_Storage_Browsing_Migration implements Migrati
         if (!oldProbeInfoOpt.isPresent()) {
             String msg = "Missing vCenter probe info to upgrade. Upgrade aborted.";
             logger.error(msg);
-            return createMigrationProgressInfo(MigrationStatus.FAILED, 0, msg);
+            return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
         }
 
         ProbeInfo oldProbeInfo = oldProbeInfoOpt.get();
@@ -133,7 +126,7 @@ public class V_01_00_01__Vim_Probe_Storage_Browsing_Migration implements Migrati
             String msg = "vCenter probe info has unexpected number of account definitions: "
                 + oldAccountValuesCount + ". Upgrade aborted.";
             logger.error(msg);
-            return createMigrationProgressInfo(MigrationStatus.FAILED, 0, msg);
+            return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
         }
 
         // Prepare the updated ProbeInfo
@@ -150,33 +143,17 @@ public class V_01_00_01__Vim_Probe_Storage_Browsing_Migration implements Migrati
         } catch (ProbeException pe) {
             String msg = "Error while persisting new probeInfo {}";
             logger.error(msg, newProbeInfo, pe);
-            return createMigrationProgressInfo(MigrationStatus.FAILED, 50, msg);
+            return updateMigrationProgress(MigrationStatus.FAILED, 50, msg);
         }
 
         final String progressMessage = "Added isStorageBrowsingEnabled flag to account definitions.";
-        createMigrationProgressInfo(MigrationStatus.RUNNING, 50, progressMessage);
+        updateMigrationProgress(MigrationStatus.RUNNING, 50, progressMessage);
 
         // Reload the IdentityMetadataInMemory store so that it picks up the updated entries
         identityProvider.updateProbeInfo(newProbeInfo.build());
         identityInMemoryStore.reloadEntityDescriptors();
 
-        return createMigrationProgressInfo(MigrationStatus.SUCCEEDED, 100,
+        return updateMigrationProgress(MigrationStatus.SUCCEEDED, 100,
             "Successfully migrated the probeInfo to include the isStorageBrowsingEnabled flag.");
-    }
-
-    /**
-     *  Update the migrationInfo and return a new MigrationProgressInfo
-     *  with the updated status.
-     */
-    private MigrationProgressInfo createMigrationProgressInfo(@Nonnull MigrationStatus status,
-                                                              @Nonnull float completionPercentage,
-                                                              @Nonnull String msg) {
-        synchronized (migrationInfoLock) {
-            return migrationInfo
-                .setStatus(status)
-                .setCompletionPercentage(completionPercentage)
-                .setStatusMessage(msg)
-                .build();
-        }
     }
 }

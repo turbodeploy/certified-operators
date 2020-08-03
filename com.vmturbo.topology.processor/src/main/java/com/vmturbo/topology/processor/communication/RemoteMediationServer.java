@@ -8,38 +8,48 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableSet;
-
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionUpdateStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.InitializationContent;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
+import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.sdk.server.common.SdkWebsocketServerTransportHandler.TransportRegistrar;
 import com.vmturbo.topology.processor.communication.ExpiringMessageHandler.HandlerStatus;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.action.Action;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
+import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
+import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeException;
-import com.vmturbo.topology.processor.probes.ProbeRpcService;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetStoreException;
 
 /**
  * Remote mediation (SDK) server. This class provides routines to interact with remote probes.
@@ -48,18 +58,11 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
 
     private final Logger logger = LogManager.getLogger();
 
-    public RemoteMediationServer(@Nonnull final ProbeStore probeStore) {
-        Objects.requireNonNull(probeStore);
-        this.probeStore = probeStore;
-        logger.info("Remote mediation server started");
-        PassiveAdjustableExpiringMap<Integer, MessageAnticipator> expiringHandlerMap =
-                        new PassiveAdjustableExpiringMap<>();
-        messageHandlers = Collections.synchronizedMap(expiringHandlerMap);
-        messageHandlerExpirationClock = expiringHandlerMap.getExpirationClock();
-    }
+    private final ProbePropertyStore probePropertyStore;
 
     private final ProbeStore probeStore;
 
+    private final ProbeContainerChooser containerChooser;
     // counter used to store the messageID that we need
     // to use when sending out a request
     // note: when the counter overflow, a negative number will be used
@@ -81,6 +84,27 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     private final Clock messageHandlerExpirationClock;
 
     /**
+     * Construct the instance.
+     *
+     * @param probeStore probes registry
+     * @param probePropertyStore probe and target-specific properties registry
+     * @param containerChooser it will route the requests to the right transport
+     */
+    public RemoteMediationServer(@Nonnull final ProbeStore probeStore,
+                                 @Nonnull ProbePropertyStore probePropertyStore,
+                                 @Nonnull ProbeContainerChooser containerChooser) {
+        Objects.requireNonNull(probeStore);
+        this.probeStore = probeStore;
+        this.probePropertyStore = probePropertyStore;
+        logger.info("Remote mediation server started");
+        PassiveAdjustableExpiringMap<Integer, MessageAnticipator> expiringHandlerMap =
+                        new PassiveAdjustableExpiringMap<>();
+        messageHandlers = Collections.synchronizedMap(expiringHandlerMap);
+        messageHandlerExpirationClock = expiringHandlerMap.getExpirationClock();
+        this.containerChooser = Objects.requireNonNull(containerChooser);
+    }
+
+    /**
      * Get the next message id to be used. Message ID can be a negative value.
      * @return The next message id to use when sending a message.
      */
@@ -91,7 +115,11 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     @Override
     public void registerTransport(ContainerInfo containerInfo,
                     ITransport<MediationServerMessage, MediationClientMessage> serverEndpoint) {
-        logger.info("Registration message received from " + serverEndpoint);
+        logger.info("Registration message received from {} with probes {}", serverEndpoint,
+                containerInfo.getProbesList()
+                        .stream()
+                        .map(ProbeInfo::getProbeType)
+                        .collect(Collectors.toList()));
 
         // Register the transport handlers before registering the probes, so that
         // we still receive connection errors that happen while the probe store is saving
@@ -99,8 +127,9 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         //
         // Note: This should be safe, because we expect the probe to be resilient to receiving a
         // request to remove a probe while it's still processing that probe's addition.
+        containerInfo.getPersistentTargetIdsList()
+            .forEach(targetId -> containerChooser.assignTargetToTransport(serverEndpoint, targetId));
         registerTransportHandlers(serverEndpoint);
-
         for (final ProbeInfo probeInfo : containerInfo.getProbesList()) {
             try {
                 probeStore.registerNewProbe(probeInfo, serverEndpoint);
@@ -112,20 +141,22 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         }
     }
 
-    /**
-     * This method is implemented only for backward-compatibility with OpsManager.
-     * Initialization of probe properties on a newly-registered mediation client is not done
-     * using an initialization message anymore.  Instead, it is done by listener coded which
-     * is found in {@link ProbeRpcService#ProbeRpcService}.
-     *
-     * @return empty {@link InitializationContent} message.
-     */
     @Override
-    public InitializationContent getInitializationContent() {
-        return
-            InitializationContent.newBuilder()
-                .setProbeProperties(SetProperties.getDefaultInstance())
-                .build();
+    @Nonnull
+    public InitializationContent getInitializationContent(@Nonnull ContainerInfo containerInfo) {
+        // a good deal of TP logic already relies on no more than 1 registered probe per type
+        Set<Long> probeIds = containerInfo.getProbesList().stream().map(ProbeInfo::getProbeType)
+                        .map(type -> probeStore.getProbeIdForType(type))
+                        .filter(Optional::isPresent).map(Optional::get).collect(Collectors.toSet());
+        try {
+            SetProperties initContent = probePropertyStore.buildSetPropertiesMessageForProbe(probeIds);
+            logger.debug("Initializing probes {} with properties:\n{}", probeIds::toString,
+                         initContent::toString);
+            return InitializationContent.newBuilder().setProbeProperties(initContent).build();
+        } catch (ProbeException | TargetStoreException e) {
+            logger.warn("Failed to construct probe properties for " + probeIds, e);
+            return InitializationContent.getDefaultInstance();
+        }
     }
 
     private void registerTransportHandlers(
@@ -213,15 +244,24 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         logger.info("container {} closed", endpoint);
     }
 
-    private void sendMessageToProbe(long probeId,
+    private void broadcastMessageToProbeInstances(long probeId,
+                                             MediationServerMessage message)
+        throws CommunicationException, InterruptedException, ProbeException {
+            for (ITransport<MediationServerMessage, MediationClientMessage> transport
+                : probeStore.getTransport(probeId)) {
+                transport.send(message);
+            }
+    }
+
+    private void sendMessageToProbe(@Nonnull final Target target,
                                     MediationServerMessage message,
                                     @Nullable IOperationMessageHandler<?> responseHandler)
             throws CommunicationException, InterruptedException, ProbeException {
         boolean success = false;
         try {
-            // Use first available transport.
             final ITransport<MediationServerMessage, MediationClientMessage> transport =
-                    probeStore.getTransport(probeId).iterator().next();
+                containerChooser.choose(target.getProbeId(),
+                    target.getSerializedIdentifyingFields(), message);
             // Register the handler before sending the message so there is no gap where there is
             // no registered handler for an outgoing message. Of course this means cleanup is
             // necessary!
@@ -240,21 +280,23 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     }
 
     @Override
-    public void sendDiscoveryRequest(final long probeId,
+    public int sendDiscoveryRequest(final Target target,
                                      @Nonnull final DiscoveryRequest discoveryRequest,
                                      @Nonnull final IOperationMessageHandler<Discovery>
                                              responseHandler)
         throws ProbeException, CommunicationException, InterruptedException {
 
+        final int messageId = nextMessageId();
         final MediationServerMessage message = MediationServerMessage.newBuilder()
-                .setMessageID(nextMessageId())
+                .setMessageID(messageId)
                 .setDiscoveryRequest(discoveryRequest).build();
 
-        sendMessageToProbe(probeId, message, responseHandler);
+        sendMessageToProbe(target, message, responseHandler);
+        return messageId;
     }
 
     @Override
-    public void sendValidationRequest(final long probeId,
+    public void sendValidationRequest(@Nonnull final Target target,
             @Nonnull final ValidationRequest validationRequest,
             @Nonnull final IOperationMessageHandler<Validation> validationMessageHandler)
             throws InterruptedException, ProbeException, CommunicationException {
@@ -262,11 +304,11 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                 .setMessageID(nextMessageId())
                 .setValidationRequest(validationRequest).build();
 
-        sendMessageToProbe(probeId, message, validationMessageHandler);
+        sendMessageToProbe(target, message, validationMessageHandler);
     }
 
     @Override
-    public void sendActionRequest(final long probeId,
+    public void sendActionRequest(@Nonnull final Target target,
             @Nonnull final ActionRequest actionRequest,
             @Nonnull final IOperationMessageHandler<Action> actionMessageHandler)
             throws InterruptedException, ProbeException, CommunicationException {
@@ -274,7 +316,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                 .setMessageID(nextMessageId())
                 .setActionRequest(actionRequest).build();
 
-        sendMessageToProbe(probeId, message, actionMessageHandler);
+        sendMessageToProbe(target, message, actionMessageHandler);
     }
 
     @Override
@@ -286,30 +328,83 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                 .setProperties(setProperties)
                 .build();
 
-        sendMessageToProbe(probeId, message, null);
+        broadcastMessageToProbeInstances(probeId, message);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void removeMessageHandlers(@Nonnull final Predicate<Operation> shouldRemoveFilter) {
+    public void sendActionApprovalsRequest(@Nonnull Target target,
+            @Nonnull ActionApprovalRequest actionApprovalRequest,
+            @Nonnull IOperationMessageHandler<ActionApproval> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        final int messageId = nextMessageId();
+        final MediationServerMessage message = MediationServerMessage.newBuilder()
+                .setMessageID(messageId)
+                .setActionApproval(actionApprovalRequest).build();
+
+        sendMessageToProbe(target, message, messageHandler);
+    }
+
+    @Override
+    public void sendActionUpdateStateRequest(@Nonnull Target target,
+            @Nonnull ActionUpdateStateRequest actionUpdateStateRequest,
+            @Nonnull IOperationMessageHandler<ActionUpdateState> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        final int messageId = nextMessageId();
+        final MediationServerMessage message = MediationServerMessage.newBuilder()
+                .setMessageID(messageId)
+                .setActionUpdateState(actionUpdateStateRequest).build();
+        sendMessageToProbe(target, message, messageHandler);
+    }
+
+    @Override
+    public void sendGetActionStatesRequest(@Nonnull Target target,
+            @Nonnull GetActionStateRequest getActionStateRequest,
+            @Nonnull IOperationMessageHandler<GetActionState> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        final int messageId = nextMessageId();
+        final MediationServerMessage message = MediationServerMessage.newBuilder()
+                .setMessageID(messageId)
+                .setGetActionState(getActionStateRequest).build();
+        sendMessageToProbe(target, message, messageHandler);
+    }
+
+    @Override
+    public void sendActionAuditRequest(@Nonnull Target target,
+            @Nonnull ActionAuditRequest actionAuditRequest,
+            @Nonnull IOperationMessageHandler<ActionAudit> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException {
+        final int messageId = nextMessageId();
+        final MediationServerMessage message = MediationServerMessage.newBuilder().setMessageID(
+                messageId).setActionAudit(actionAuditRequest).build();
+        sendMessageToProbe(target, message, messageHandler);
+    }
+
+    @Override
+    public void handleTargetRemoval(long probeId, long targetId,
+                                    @Nonnull TargetUpdateRequest request)
+                    throws CommunicationException, InterruptedException, ProbeException {
         synchronized (messageHandlers) {
             messageHandlers.entrySet().removeIf(entry -> {
                 final Operation operation = entry.getValue().getMessageHandler().getOperation();
-                return shouldRemoveFilter.test(operation);
+                return operation.getTargetId() == targetId;
             });
         }
+        MediationServerMessage message =
+                        MediationServerMessage.newBuilder()
+                            .setMessageID(nextMessageId())
+                            .setTargetUpdateRequest(request)
+                            .build();
+        broadcastMessageToProbeInstances(probeId, message);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public int checkForExpiredHandlers() {
+    public void checkForExpiredHandlers() {
         // PassiveAdjustableExpiringMap will check for expiration on all its entries
         // whenever any operation is performed on it, including size()
-        return messageHandlers.size();
+        messageHandlers.size();
     }
 
     /**
@@ -320,6 +415,10 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     @Override
     public Clock getMessageHandlerExpirationClock() {
         return messageHandlerExpirationClock;
+    }
+
+    public InitializationContent getInitializationContent() {
+        return InitializationContent.getDefaultInstance();
     }
 
     public Logger getLogger() {

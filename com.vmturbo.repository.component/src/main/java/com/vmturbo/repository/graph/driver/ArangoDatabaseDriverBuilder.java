@@ -5,12 +5,17 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.arangodb.ArangoDB;
+import com.arangodb.entity.CollectionEntity;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A builder for {@link GraphDatabaseDriver}s that connect to ArangoDB.
  */
 public class ArangoDatabaseDriverBuilder implements GraphDatabaseDriverBuilder {
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * The system database is the "special" Arango database that has extra properties
@@ -23,21 +28,22 @@ public class ArangoDatabaseDriverBuilder implements GraphDatabaseDriverBuilder {
     /**
      * The single underlying ArangoDB connection, shared between all {@link GraphDatabaseDriver}s.
      */
-    private ArangoDB arangoDB;
+    private ArangoDatabaseFactory arangoFactory;
 
     public ArangoDatabaseDriverBuilder(@Nonnull final ArangoDatabaseFactory arangoFactory) {
-        this.arangoDB = arangoFactory.getArangoDriver();
+        this.arangoFactory = arangoFactory;
     }
 
     @Override
-    public GraphDatabaseDriver build(final String database) {
-        return new ArangoGraphDatabaseDriver(arangoDB, database);
+    public GraphDatabaseDriver build(final String database, final String collectionNameSuffix) {
+        return new ArangoGraphDatabaseDriver(arangoFactory.getArangoDriver(), database, collectionNameSuffix);
     }
 
     @Override
-    public Set<String> listDatabases() {
-        return arangoDB.getAccessibleDatabases().stream()
-            .filter(name -> !name.equals(SYSTEM_DATABASE_NAME))
+    public Set<String> listCollections(final String arangoDatabaseName) {
+        return arangoFactory.getArangoDriver().db(arangoDatabaseName).getCollections().stream()
+            .filter(collection -> !collection.getIsSystem())
+            .map(CollectionEntity::getName)
             .collect(Collectors.toSet());
     }
 }

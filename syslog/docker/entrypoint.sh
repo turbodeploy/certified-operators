@@ -18,4 +18,15 @@ fi
 touch /home/vmtsyslog/rsyslog/log.txt
 tail -F /home/vmtsyslog/rsyslog/log.txt &
 
-rm -f /tmp/rsyslog.pid; exec /usr/sbin/rsyslogd -n -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
+cp /etc/rsyslog.conf /tmp/rsyslog.conf
+
+# Use custom logging format if specified
+if [ -n "${VMTFORMAT}" ]; then
+  sed -i "s/template VMTFormat.*/template VMTFormat,\"$(echo -n ${VMTFORMAT})\\\n\"/" /tmp/rsyslog.conf
+fi
+# Use custom external auditlog desctionation if specified
+if [ -n "${EXTERNAL_AUDITLOG}" ]; then
+  sed -i "s/remote_auditlog/${EXTERNAL_AUDITLOG}/" /tmp/rsyslog.conf
+fi
+
+rm -f /tmp/rsyslog.pid; exec /usr/sbin/rsyslogd -n -f /tmp/rsyslog.conf -i /tmp/rsyslog.pid

@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.sshd.client.ClientBuilder;
@@ -17,6 +18,7 @@ import org.apache.sshd.client.ClientFactoryManager;
 import org.apache.sshd.client.SshClient;
 import org.apache.sshd.client.config.hosts.HostConfigEntryResolver;
 import org.apache.sshd.client.session.ClientSession;
+import org.apache.sshd.client.subsystem.SubsystemClient;
 import org.apache.sshd.client.subsystem.sftp.SftpClient;
 import org.apache.sshd.client.subsystem.sftp.SftpClient.Attributes;
 import org.apache.sshd.client.subsystem.sftp.SftpClientFactory;
@@ -25,7 +27,7 @@ import org.apache.sshd.common.random.RandomFactory;
 import org.apache.sshd.common.random.SingletonRandomFactory;
 import org.apache.sshd.common.util.security.SecurityUtils;
 
-import sun.misc.IOUtils;
+import com.google.common.base.Charsets;
 
 import com.vmturbo.mediation.actionscript.exception.KeyValidationException;
 import com.vmturbo.mediation.actionscript.exception.RemoteExecutionException;
@@ -66,61 +68,101 @@ public class SshUtils {
     public static class SshRunner implements AutoCloseable {
         private final ActionScriptProbeAccount accountValues;
         private final ActionExecutionDTO actionExecutionDTO;
-        private final SshClient client;
-        private final ClientSession session;
-        // We create this once at class initiation, because it can be quite expensive on machines that lack hardware
-        // crypto acceleration.
+        private SshClient client = null;
+        private ClientSession session = null;
+        // We create this once at class initiation, because it can be quite expensive on machines
+        // that lack hardware crypto acceleration.
         private static RandomFactory randomFactory = new SingletonRandomFactory(SecurityUtils.getRandomFactory());
+        private boolean isInitialized = false;
+        private Throwable initException = null;
 
-        public SshRunner(@Nonnull final ActionScriptProbeAccount accountValues, @Nullable final ActionExecutionDTO actionExecutionDTO) throws KeyValidationException, RemoteExecutionException {
+        public SshRunner(@Nonnull final ActionScriptProbeAccount accountValues,
+                         @Nullable final ActionExecutionDTO actionExecutionDTO) {
             this.accountValues = accountValues;
             this.actionExecutionDTO = actionExecutionDTO;
+        }
 
-            final String host = accountValues.getNameOrAddress();
-            final String userid = accountValues.getUserid();
-            final int port = Integer.valueOf(accountValues.getPort());
-            final String privateKeyString = accountValues.getPrivateKeyString();
-            KeyPair loginKeyPair;
-            try {
-                loginKeyPair = SshUtils.extractKeyPair(privateKeyString);
-            } catch (GeneralSecurityException | IOException e) {
-                throw new KeyValidationException(String.format("Cannot recover public key from string for action script target %s", accountValues.getNameOrAddress()), e);
+
+        /**
+         * Initialize an SshRunner instance.
+         *
+         * <p>This is done on demand upon first use of the instance. It can't be done during
+         * construction because then exceptions thrown by this initialization would defeat the
+         * auto-close behavior for instances allocated in try-with-resources statements</p>
+         *
+         * @throws KeyValidationException
+         * @throws RemoteExecutionException
+         */
+        private synchronized void initialize() throws KeyValidationException, RemoteExecutionException {
+            if (isInitialized) {
+                // we only really initialize once, and if that fails, then all subsequent initialize calls
+                // fail the same way. Otherwise, subsequent inits are a no-op.
+                if (initException instanceof KeyValidationException) {
+                    throw (KeyValidationException) initException;
+                } else if (initException instanceof RemoteExecutionException) {
+                    throw (RemoteExecutionException) initException;
+                } else {
+                    return;
+                }
             }
-            // set up our server key to accept either the key specified in the target or any key if none
-            // is given. In latter case, we'll remember it and require it in future connections
-            final AcceptAnyOrGivenServerKeyVerifier serverKeyVerifier = new AcceptAnyOrGivenServerKeyVerifier(accountValues.getHostKey(), host);
-            // previously we used the recommended SshClient.setupDefaultClient() and then set components we wanted to change
-            // afterward. But that method actually does all the default initialization first. That wouldn't
-            // be a big deal except that now we want to avoid the costly default initialization of randomFactory
-            this.client = new ClientBuilder()
-                // there should not be an ssh-config file in the turbo installation, and if there is one
-                // we don't want to process it.
-                .hostConfigEntryResolver(HostConfigEntryResolver.EMPTY)
-                .serverKeyVerifier(serverKeyVerifier)
-                // use our built-once factory value
-                .randomFactory(randomFactory)
-                .build();
-            client.start();
-
+            // make sure we don't initialize again after this time
+            this.isInitialized = true;
             try {
-                PropertyResolverUtils.updateProperty(client, ClientFactoryManager.HEARTBEAT_INTERVAL, TimeUnit.SECONDS.toMillis(HEARTBEAT_SECS));
-                this.session = client.connect(userid, host, port)
-                    .verify(SESSION_CONNECT_TIMEOUT_SECS, TimeUnit.SECONDS)
-                    .getSession();
-                session.setUsername(userid);
-                session.addPublicKeyIdentity(loginKeyPair);
-                session.auth().verify(AUTH_TIMEOUT_SECS, TimeUnit.SECONDS);
-                logger.debug("session authenticated to " + host);
-            } catch (IOException e) {
-                throw new RemoteExecutionException("IO Exception while using the SSH client "
-                    + host + ": " + e.getMessage(), e);
+                final String host = accountValues.getNameOrAddress();
+                final String userid = accountValues.getUserid();
+                final int port = Integer.valueOf(accountValues.getPort());
+                KeyPair loginKeyPair;
+                final String privateKeyString = accountValues.getPrivateKeyString();
+                try {
+                    loginKeyPair = SshUtils.extractKeyPair(privateKeyString);
+                } catch (GeneralSecurityException | IOException e) {
+                    throw new KeyValidationException(String.format("Cannot recover public key from string for action script target %s", accountValues.getNameOrAddress()), e);
+                }
+                // set up our server key to accept either the key specified in the target or any key if none
+                // is given. In latter case, we'll remember it and require it in future connections
+                final AcceptAnyOrGivenServerKeyVerifier serverKeyVerifier = new AcceptAnyOrGivenServerKeyVerifier(accountValues.getHostKey(), host);
+                // previously we used the recommended SshClient.setupDefaultClient() and then set components we wanted to change
+                // afterward. But that method actually does all the default initialization first. That wouldn't
+                // be a big deal except that now we want to avoid the costly default initialization of randomFactory
+                this.client = new ClientBuilder()
+                    // there should not be an ssh-config file in the turbo installation, and if there is one
+                    // we don't want to process it.
+                    .hostConfigEntryResolver(HostConfigEntryResolver.EMPTY)
+                    .serverKeyVerifier(serverKeyVerifier)
+                    // use our built-once factory value
+                    .randomFactory(randomFactory)
+                    .build();
+                client.start();
+
+                try {
+                    PropertyResolverUtils.updateProperty(client, ClientFactoryManager.HEARTBEAT_INTERVAL, TimeUnit.SECONDS.toMillis(HEARTBEAT_SECS));
+                    this.session = client.connect(userid, host, port)
+                        .verify(SESSION_CONNECT_TIMEOUT_SECS, TimeUnit.SECONDS)
+                        .getSession();
+                    session.setUsername(userid);
+                    session.addPublicKeyIdentity(loginKeyPair);
+                    session.auth().verify(AUTH_TIMEOUT_SECS, TimeUnit.SECONDS);
+                    logger.debug("session authenticated to " + host);
+                } catch (IOException e) {
+                    throw new RemoteExecutionException("IO Exception while using the SSH client "
+                        + host + ": " + e.getMessage(), e);
+                }
+            } catch (KeyValidationException | RemoteExecutionException e) {
+                // if we fail, remember why, so any subsequent initialize invocations will fail
+                // the same way
+                this.initException = e;
+                throw e;
             }
         }
 
-        public <T> T run(RemoteCommand<T> remoteCommand) throws RemoteExecutionException {
+        public <T> T run(RemoteCommand<T> remoteCommand)
+            throws RemoteExecutionException, KeyValidationException {
+
+            initialize();
             return remoteCommand.execute(accountValues, session, actionExecutionDTO);
         }
 
+        @Override
         public void close() {
             if (session != null) {
                 try {
@@ -130,11 +172,7 @@ public class SshUtils {
                 }
             }
             if (client != null) {
-                try {
-                    client.close();
-                } catch (IOException e) {
-                    logger.warn("Failed to close SSH client session", e);
-                }
+                client.stop();
             }
         }
     }
@@ -179,16 +217,15 @@ public class SshUtils {
      */
     public static String getRemoteFileContent(final String path, @Nonnull SshRunner runner) throws RemoteExecutionException, KeyValidationException {
         RemoteCommand<String> cmd = (a, session, ae) -> {
+            SftpClient sftp = null;
             try {
-                SftpClient sftp = null;
                 sftp = SftpClientFactory.instance().createSftpClient(session);
-                return new String(IOUtils.readFully(sftp.read(path),
-                    Integer.MAX_VALUE, // read to end of stream
-                    true)); // this arg is ignored when prior is -1 or MAX_VALUE
+                return new String(IOUtils.toString(sftp.read(path), Charsets.UTF_8));
             } catch (IOException e) {
                 throw new RemoteExecutionException("Failed to fetch remote file", e);
+            } finally {
+                closeClient(sftp, "SFTP");
             }
-
         };
         return runner.run(cmd);
     }
@@ -204,15 +241,28 @@ public class SshUtils {
      * @throws KeyValidationException if the key provided in the accountValues is not valid
      * */
     public static Attributes getRemoteFileAttributes(final String path, @Nonnull final SshRunner runner) throws RemoteExecutionException, KeyValidationException {
-        RemoteCommand<Attributes> cmd = (a, session, ae) -> {
+        RemoteCommand<Attributes> cmd;
+        cmd = (a, session, ae) -> {
             SftpClient sftp = null;
             try {
                 sftp = SftpClientFactory.instance().createSftpClient(session);
                 return sftp.lstat(path);
             } catch (IOException e) {
                 throw new RemoteExecutionException("Failed to obtain file attributes", e);
+            } finally {
+                closeClient(sftp, "SFTP");
             }
         };
         return runner.run(cmd);
+    }
+
+    private static void closeClient(SubsystemClient client, String label) {
+        if (client != null) {
+            try {
+                client.close();
+            } catch (IOException e) {
+                logger.warn("Failed to close {} client", label, e);
+            }
+        }
     }
 }

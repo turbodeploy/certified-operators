@@ -1,0 +1,1839 @@
+[
+    {
+      "entityType" : "BUSINESS_ACCOUNT",
+      "id" : "631949720430",
+      "displayName" : "631949720430",
+      "businessAccountData" : {}
+    },
+    {
+      "entityType" : "BUSINESS_ACCOUNT",
+      "id" : "323871187550",
+      "displayName" : "323871187550",
+      "businessAccountData" : {}
+    },
+    {
+      "entityType" : "BUSINESS_ACCOUNT",
+      "id" : "192821421245",
+      "displayName" : "192821421245",
+      "consistsOf" : [
+        "631949720430",
+        "001844731978",
+        "323871187550"
+      ],
+      "businessAccountData" : {}
+    },
+    {
+      "entityType" : "BUSINESS_ACCOUNT",
+      "id" : "001844731978",
+      "displayName" : "001844731978",
+      "businessAccountData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-055095b83d4534a03",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 16
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 16
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-03ab1db7d65f9da9b",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-05d37092523462c04",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-08258ad60d461009c",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 16
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 16
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-2::VM::i-0f164615911c1ca6b",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-08bb32d6e2ba1b0db",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-1::VM::i-0e4b84eb925d18e46",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 4
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::eu-west-1::RI::f623cc93-3938-4857-a868-21b38b1639af",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 2
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ap-northeast-2::VM::i-09b803986677708f0",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "SUSE"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0f64c86b0ad935762",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-040eec48323126392",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ap-southeast-2::VM::i-0f28ca8b84ae3082b",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Windows"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-01d31ebc889665e2e",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0d6d64563204ca85d",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0377d810aa1fd1be4",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-02b0917eb416f574b",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ap-northeast-2::VM::i-091f192f3e4dfeb05",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-2::VM::i-0ff3515b83028ecc3",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-0e2f6bcee9cb34c4b",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux_SQL_Standard"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-00f365ab2de2fadb3",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-00d03a1ac7aa4db85",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-1::VM::i-0e0c4daa764806438",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-04e87da646c4045e1",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-3::VM::i-07c785fdb959c9437",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 1
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::eu-west-3::RI::50eb928f-eccd-4e3f-9bbf-8d657a2c7b60",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 1
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0b39ac7a5d2aa2e32",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 768
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 599.6190526171429
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-1::VM::i-038a955444de20e23",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 4
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::eu-west-1::RI::1dfd0860-4099-441c-9c5f-9a84956fb1a0",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 4
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-01864ef77408511af",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0225a7ccac9b519c1",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 64
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 64
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-066793815c0a2c36f",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0b788abf8c58b78c5",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0f3aae471c06f5bc0",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-1::VM::i-0482fe28888095506",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 4
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::eu-west-1::RI::1dfd0860-4099-441c-9c5f-9a84956fb1a0",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 4
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-086bd28502508ec80",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0fd504c8fc650c801",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-04cbf9f767744459a",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-080e44f8cc8d056a3",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-02b27704da09ff071",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-1::VM::i-0c66daf936107d833",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-2::VM::i-07811057be11565fb",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-2::VM::i-088db596688e68435",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "RHEL"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0efda593c64fd3413",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-04fa1b8a9fe85f11a",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 16
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::ca-central-1::RI::3f95dded-2f3a-44e6-97a4-4933ded3497a",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 16
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-07ed9c0b189b53deb",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-2::VM::i-072f5f70d80e1db7e",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0d0622bb9c5bf4175",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0b73676d18e62f8b7",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-08996012d8bb32586",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-1::VM::i-0ffdc8db82433831e",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0ad7b8e40d094f43b",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 16
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 16
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0efa6a4d92cb9c660",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0f65990018d71f7f9",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0d3566496c10deca2",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-2::VM::i-038ed4414d046ddbb",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0b1f0df23ac9e1f98",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-central-1::VM::i-0a80265dc67a77c03",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "RHEL"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-08751fbdcce48ce7c",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-056b9cdd18b4ddba2",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 16
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 16
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0ec772f12eb3e9d63",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 32
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 32
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-3::VM::i-033782ab96d6db223",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0b92627e18bd8f0a7",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-05ebe0cc6e812177f",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0ab17b22262cb13b3",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-00b4d1a6666751348",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0d26c98f1a41d2031",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-095039b0fda1a4b9a",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-07ceca24e15cd60e5",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-0cdc94d651b3e1442",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-06e2a442ba18b2090",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-00bbf13ba72213ef6",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0c6e21f59c0c5f0e3",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0a8ff52b6f215883f",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-00c3921eb494da7d4",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ap-northeast-2::VM::i-041b7362b82caa813",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-001aff925bece1df1",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-09bf1a387a3443e45",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-06b02dd18ec54387d",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0278783afad18e78f",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0924bb4805b9a8a51",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-3::VM::i-0bdf6496916050299",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 1
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::eu-west-3::RI::50eb928f-eccd-4e3f-9bbf-8d657a2c7b60",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 0.09090909090909091
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-023a627803eb9a892",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-053bee9963b67f3dd",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 64
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::ca-central-1::RI::04fd87dc-99f3-4f49-978e-ae588ddc8ec3",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 64
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-1::VM::i-077985294fe418246",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-01568cf21cde1f607",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0812e531ea21da00f",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0a04d6c5f5f4e9d9b",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-02f75e9f1c8b3e584",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-central-1::VM::i-0786dc12cba7da066",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0d560b471bfda01ca",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-08e3aa77484496365",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-0361e91036e8d6091",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "SUSE"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0ef55d943931de23d",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ap-southeast-2::VM::i-01165fb413792e974",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 2
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::ap-southeast-2::RI::a20e30c2-1066-40a5-b2d7-7d3a2c294c3f",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 2
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-central-1::VM::i-02f5ec12b192cc554",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-087194c939e48dc77",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-2::VM::i-00d03da5474d4e789",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 1
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::eu-west-2::RI::dbc05922-4a06-47f8-a393-7ea4607ef246",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 1
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-051b93b59befe64e4",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-07f76fb96eb92bd06",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0dce8891bcab75c6a",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0bbd11130b8cd3240",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0136d757dc7e96ea2",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-0cabdd9a7650292b9",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0815a77b67873a3ff",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0784f009f278dfb2f",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0a6235edbbed13b1c",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-01168ade191ad1b8a",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-03fed4ebe663a8125",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-09e227387ea789226",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0aa8532cded3fe6da",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-0b47b1c9528cd28f2",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-094a72a9386387b18",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "RHEL"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0462b08026e1c2e41",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-1::VM::i-009c09745e5e4b046",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0f2502eff0d5ef82f",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-04232026e4bb826b1",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0b89a4d5e7baf0f81",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-0e1c97e902dfb64c4",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-09f1932f3be51c72a",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-06fcfdce3509f1d74",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 1
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::ca-central-1::RI::615a66cf-9094-4948-9c0f-214dcf8f1d37",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 1
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "SUSE"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-085573104336e6313",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Windows_SQL_Standard"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0ebec95b0f6ddbbf8",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0703445cd9a0c75b3",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0aa56e4a9f447bb60",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-0f4ba5c00a4852012",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Windows"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-058413d7cd2e96227",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Windows"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0a21b233419e34533",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-3::VM::i-0b425aa80206cd88c",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 1
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::eu-west-3::RI::50eb928f-eccd-4e3f-9bbf-8d657a2c7b60",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 1
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-3::VM::i-04201eb08fc215b8a",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 1
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::eu-west-3::RI::50eb928f-eccd-4e3f-9bbf-8d657a2c7b60",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 1
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0dbf015b7681c5eef",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-007bfd2e2aa4158f2",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-0f5e07fc42fa0d2b6",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0e49ac39e1203c5ea",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-0a873c64391dd0bac",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-0eb0665e482802712",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-06dea271e85ee99b2",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-2::VM::i-0c018334a5b3d489a",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ap-southeast-2::VM::i-0159129d81b64ffac",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-1::VM::i-01e9df64a429ee1b6",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-0e09fd198934d203f",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "RHEL"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-2::VM::i-07ff9c43203653465",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::eu-west-1::VM::i-01df70adfd7f94905",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 16
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::eu-west-1::RI::69368185-4b3d-49ca-810f-ef3d2a991a56",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 16
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-09736f15b246b0704",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-east-1::VM::i-0c53dfcd39d8891f2",
+      "commoditiesSold" : [
+        {
+          "commodityType" : "COUPON",
+          "capacity" : 16
+        }
+      ],
+      "commoditiesBought" : [
+        {
+          "providerId" : "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa",
+          "bought" : [
+            {
+              "commodityType" : "COUPON",
+              "used" : 16
+            }
+          ],
+          "providerType" : "RESERVED_INSTANCE"
+        }
+      ],
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::ca-central-1::VM::i-0f43b7b9c72da4cea",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    },
+    {
+      "entityType" : "VIRTUAL_MACHINE",
+      "id" : "aws::us-west-2::VM::i-02fa9db18f3395d7e",
+      "origin" : "PROXY",
+      "virtualMachineData" : {
+        "vmState" : {},
+        "guestName" : "Linux"
+      },
+      "virtualMachineRelatedData" : {}
+    }
+]

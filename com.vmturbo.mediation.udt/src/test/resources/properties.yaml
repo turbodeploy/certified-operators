@@ -1,0 +1,6 @@
+defaultProperties:
+  global:
+    serverGrpcPort : 9001
+    groupHost: group
+    repositoryHost: repository
+    grpcPingIntervalSeconds: 300

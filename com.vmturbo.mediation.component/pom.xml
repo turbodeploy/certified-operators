@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>mediation-parent</artifactId>
-        <version>7.17.0-SNAPSHOT</version>
+        <version>7.22.6-SNAPSHOT</version>
         <relativePath>../build/mediation-parent-pom.xml</relativePath>
     </parent>
 
@@ -96,6 +96,22 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.mediation.newrelic</artifactId>
+                                    <version>${apm.probes.branch.version}</version>
+                                    <type>zip</type>
+                                    <overWrite>false</overWrite>
+                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.newrelic-${apm.probes.branch.version}</outputDirectory>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.mediation.appinsights</artifactId>
+                                    <version>${apm.probes.branch.version}</version>
+                                    <type>zip</type>
+                                    <overWrite>false</overWrite>
+                                    <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.appinsights-${apm.probes.branch.version}</outputDirectory>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.mediation.hds</artifactId>
                                     <version>${vmturbo.mt.branch.version}</version>
                                     <type>zip</type>
@@ -112,8 +128,8 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.mediation.hyperv</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <artifactId>com.vmturbo.mediation.hyperv.conversion</artifactId>
+                                    <version>${project.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.hyperv-${vmturbo.mt.branch.version}</outputDirectory>
@@ -200,8 +216,8 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.mediation.vmware.sdk</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <artifactId>com.vmturbo.mediation.vcenter.conversion</artifactId>
+                                    <version>${project.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.vmware.sdk-${vmturbo.mt.branch.version}</outputDirectory>
@@ -216,8 +232,8 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.mediation.vmm.sdk</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <artifactId>com.vmturbo.mediation.vmm.conversion</artifactId>
+                                    <version>${project.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars/com.vmturbo.mediation.vmm.sdk-${vmturbo.mt.branch.version}</outputDirectory>
@@ -234,6 +250,24 @@
                         </configuration>
                     </execution>
                 </executions>
+                <dependencies>
+                    <!-- These dependencies are added to enforce build order -->
+                    <dependency>
+                        <groupId>com.vmturbo</groupId>
+                        <artifactId>com.vmturbo.mediation.vcenter.conversion</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>com.vmturbo</groupId>
+                        <artifactId>com.vmturbo.mediation.hyperv.conversion</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>com.vmturbo</groupId>
+                        <artifactId>com.vmturbo.mediation.vmm.conversion</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                </dependencies>
             </plugin>
         </plugins>
     </build>

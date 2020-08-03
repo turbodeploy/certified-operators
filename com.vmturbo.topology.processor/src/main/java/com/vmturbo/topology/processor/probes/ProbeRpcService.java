@@ -9,11 +9,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.probe.ProbeDTO.DeleteProbePropertyRequest;
 import com.vmturbo.common.protobuf.probe.ProbeDTO.DeleteProbePropertyResponse;
@@ -34,13 +34,10 @@ import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateProbePropertyTableReques
 import com.vmturbo.common.protobuf.probe.ProbeDTO.UpdateProbePropertyTableResponse;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc.ProbeRpcServiceImplBase;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
-import com.vmturbo.topology.processor.probeproperties.KVBackedProbePropertyStore;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore.ProbePropertyKey;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
-import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreException;
 
 /**
@@ -55,40 +52,13 @@ public class ProbeRpcService extends ProbeRpcServiceImplBase {
      * Construct the service.  Access to probes, targets, mediation,
      * and a key/value store (for persistence) is required.
      *
-     * @param probeStore probe store.
-     * @param targetStore target store.
-     * @param keyValueStore persistence.
+     * @param probePropertyStore probe/target property store
      * @param mediationServer mediation service.
      */
-    public ProbeRpcService(
-            @Nonnull ProbeStore probeStore,
-            @Nonnull TargetStore targetStore,
-            @Nonnull KeyValueStore keyValueStore,
+    public ProbeRpcService(@Nonnull ProbePropertyStore probePropertyStore,
             @Nonnull RemoteMediationServer mediationServer) {
-        probePropertyStore =
-            new KVBackedProbePropertyStore(
-                Objects.requireNonNull(probeStore),
-                Objects.requireNonNull(targetStore),
-                Objects.requireNonNull(keyValueStore));
-            this.mediationServer = Objects.requireNonNull(mediationServer);
-
-            // execute code upon registration of new probe
-            // send relevant probe-property information to the new probe
-            probeStore.addListener(
-                (probeId, probeInfo) -> {
-                    try {
-                        sendProbePropertyMediationMessageForProbe(probeId);
-                    } catch (
-                            InterruptedException |
-                            CommunicationException |
-                            ProbeException |
-                            TargetStoreException e) {
-                        logger.error(
-                            "Could not send probe-property information to newly registered probe with id " +
-                                probeId + " with probe type " + probeInfo.getProbeType(),
-                            e);
-                    }
-                });
+        this.mediationServer = Objects.requireNonNull(mediationServer);
+        this.probePropertyStore = probePropertyStore;
     }
 
     @Override

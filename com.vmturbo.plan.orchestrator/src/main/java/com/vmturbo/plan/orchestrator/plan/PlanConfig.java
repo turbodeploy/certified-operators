@@ -2,7 +2,13 @@ package com.vmturbo.plan.orchestrator.plan;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,60 +16,66 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
-
-import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
-import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanStatusNotification;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
+import com.vmturbo.components.common.health.MessageProducerHealthMonitor;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
+import com.vmturbo.plan.orchestrator.GlobalConfig;
+import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 /**
  * Spring configuration for plan instance manipulations.
  */
 @Configuration
-@Import({SQLDatabaseConfig.class, RepositoryClientConfig.class,
+@Import({PlanOrchestratorDBConfig.class, RepositoryClientConfig.class,
         ActionOrchestratorClientConfig.class, HistoryClientConfig.class,
         RepositoryClientConfig.class, TopologyProcessorClientConfig.class,
         BaseKafkaProducerConfig.class, ReservationConfig.class,
-        GroupClientConfig.class, CostClientConfig.class})
+        GroupClientConfig.class, CostClientConfig.class, GlobalConfig.class})
 public class PlanConfig {
 
-    /**
-     * This parameter is used to control the time out hours for running plans
-     */
-    @Value("${planTimeOutHours}")
-    private int planTimeOutHours;
+    @Value("${planTimeoutMin:180}")
+    private int planTimeoutMin;
+
+    @Value("${planCleanupIntervalMin:5}")
+    private int planCleanupIntervalMin;
 
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
 
+    @Value("${startAnalysisRetryTimeoutMin:30}")
+    private long startAnalysisRetryTimeoutMin;
+
+    @Value("${numPlanAnalysisThreads:5}")
+    private int numPlanAnalysisThreads;
+
     @Autowired
-    private SQLDatabaseConfig dbConfig;
+    private PlanOrchestratorDBConfig dbConfig;
 
     @Autowired
     private RepositoryClientConfig repositoryClientConfig;
@@ -92,30 +104,86 @@ public class PlanConfig {
     @Autowired
     private UserSessionConfig userSessionConfig;
 
+    @Autowired
+    private GlobalConfig globalConfig;
+
     @Bean
     public PlanDao planDao() {
         return new PlanDaoImpl(dbConfig.dsl(),
-                repositoryClientConfig.repositoryClient(),
-                actionsRpcService(),
-                statsRpcService(),
                 groupClientConfig.groupChannel(),
                 userSessionConfig.userSessionContext(),
-                planTimeOutHours);
+                repositoryClientConfig.searchServiceClient(),
+                supplyChainRpcService(),
+                globalConfig.clock(),
+                planCleanupExecutor(), planTimeoutMin,
+                TimeUnit.MINUTES,
+                planCleanupIntervalMin,
+                TimeUnit.MINUTES);
+    }
+
+    /**
+     * Scheduled executor used by {@link PlanDao} to asynchronously clean up (i.e. mark as failed)
+     * plans with no activity for a certain time period.
+     *
+     * @return The {@link ScheduledExecutorService}.
+     */
+    @Bean
+    public ScheduledExecutorService planCleanupExecutor() {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
+            .setNameFormat("plan-cleanup-%d").build();
+        return Executors.newSingleThreadScheduledExecutor(threadFactory);
     }
 
     @Bean
     public PlanRpcService planService() {
         return new PlanRpcService(planDao(),
-                analysisService(),
-                planNotificationSender(),
-                startAnalysisThreadPool(),
-                userSessionConfig.userSessionContext(),
-                buyRIService());
+            analysisService(),
+            planNotificationSender(),
+            startAnalysisThreadPool(),
+            userSessionConfig.userSessionContext(),
+            buyRIService(),
+            groupServiceBlockingStub(),
+            repositoryServiceBlockingStub(),
+            planReservedInstanceService(),
+            boughtRIService(),
+            startAnalysisRetryTimeoutMin,
+            TimeUnit.MINUTES,
+            realtimeTopologyContextId);
     }
 
     @Bean
     public BuyRIAnalysisServiceBlockingStub buyRIService() {
         return BuyRIAnalysisServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    /**
+     * Bean for Reserved Instance Bought Rpc Service.
+     *
+     * @return a ReservedInstanceBoughtServiceBlockingStub.
+     */
+    @Bean
+    public ReservedInstanceBoughtServiceBlockingStub boughtRIService() {
+        return ReservedInstanceBoughtServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    /**
+     * Grpc stub for the plan reserved instance service.
+     *
+     * @return The {@link PlanReservedInstanceServiceBlockingStub}.
+     */
+    @Bean
+    public PlanReservedInstanceServiceBlockingStub planReservedInstanceService() {
+        return PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    /**
+     * Grpc stub for the cost service.
+     *
+     * @return The {@link CostServiceBlockingStub}.
+     */
+    @Bean
+    public CostServiceBlockingStub costService() {
+        return CostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     @Bean
@@ -130,42 +198,35 @@ public class PlanConfig {
     }
 
     @Bean
-    public ActionOrchestrator actionOrchestrator() {
-        final ActionOrchestrator actionOrchestrator = aoClientConfig.actionOrchestratorClient();
-        actionOrchestrator.addActionsListener(planProgressListener());
-        return actionOrchestrator;
-    }
-
-    @Bean
-    public ActionsServiceBlockingStub actionsRpcService() {
-        return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
-    }
-
-    @Bean
     public RepositoryServiceBlockingStub repositoryServiceBlockingStub() {
         return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    /**
+     * Blocking Group Service client creator.
+     *
+     * @return Blocking Group Service client.
+     */
+    @Bean
+    public GroupServiceBlockingStub groupServiceBlockingStub() {
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     @Bean
     public PlanProgressListener planProgressListener() {
         final PlanProgressListener listener =  new PlanProgressListener(planDao(), planService(),
-                reservationConfig.reservationPlacementHandler(), realtimeTopologyContextId);
+                realtimeTopologyContextId);
+        aoClientConfig.actionOrchestratorClient().addListener(listener);
         repositoryClientConfig.repository().addListener(listener);
-        historyClientConfig.historyComponent().addStatsListener(listener);
+        historyClientConfig.historyComponent().addListener(listener);
+        globalConfig.costNotificationClient().addCostNotificationListener(listener);
+        globalConfig.marketNotificationClient().addAnalysisStatusListener(listener);
+        globalConfig.tpNotificationClient().addTopologySummaryListener(listener);
         return listener;
     }
 
-    /**
-     * Stats/history terms used interchangeably.
-     */
-
     @Bean
-    public StatsHistoryServiceBlockingStub statsRpcService() {
-        return StatsHistoryServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
-    }
-
-    @Bean
-    public IMessageSender<PlanInstance> notificationSender() {
+    public IMessageSender<PlanStatusNotification> notificationSender() {
         return kafkaProducerConfig.kafkaMessageSender()
                 .messageSender(PlanOrchestratorClientImpl.STATUS_CHANGED_TOPIC);
     }
@@ -178,8 +239,8 @@ public class PlanConfig {
     }
 
     @Bean
-    public KafkaProducerHealthMonitor kafkaHealthMonitor() {
-        return new KafkaProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
+    public MessageProducerHealthMonitor messageProducerHealthMonitor() {
+        return new MessageProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
     }
 
     @Bean(destroyMethod = "shutdownNow")
@@ -187,10 +248,7 @@ public class PlanConfig {
         final ThreadFactory threadFactory = new ThreadFactoryBuilder()
                 .setNameFormat("plan-analysis-starter-%d")
                 .build();
-        // Using a single thread executor right now to avoid overwhelming
-        // the topology processor, since the construction and broadcast
-        // of topologies is expensive and we already have issues with OOM crashes.
-        return Executors.newSingleThreadExecutor(threadFactory);
+        return Executors.newFixedThreadPool(Math.max(1, numPlanAnalysisThreads), threadFactory);
     }
 
     @Bean
@@ -202,6 +260,18 @@ public class PlanConfig {
     public PlanInstanceCompletionListener planInstanceCompletionListener() {
         final PlanInstanceCompletionListener listener =
                 new PlanInstanceCompletionListener(planInstanceQueue());
+        planDao().addStatusListener(listener);
+        return listener;
+    }
+
+    @Bean
+    public SupplyChainServiceGrpc.SupplyChainServiceBlockingStub supplyChainRpcService() {
+        return SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    @Bean
+    public PlanMetricsListener planMetricsListener() {
+        final PlanMetricsListener listener = new PlanMetricsListener();
         planDao().addStatusListener(listener);
         return listener;
     }

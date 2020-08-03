@@ -1,26 +1,34 @@
 package com.vmturbo.components.common.health;
 
+import static org.junit.Assert.assertFalse;
+
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
-import reactor.core.publisher.Flux;
+import com.vmturbo.components.common.config.PropertiesConfigSource;
 
 /**
  * Tests for the Memory Monitor
  */
 public class MemoryMonitorTest {
 
-    //@Test
+    /**
+     * Test Memory Monitor
+     */
+    @Ignore // ignoring due to periodic timing issues with this test.
+    @Test
     public void testMemoryMonitor() {
         // create a test monitor that triggers when old gen used exceeds 25%.
-        MemoryMonitor memoryMonitor = new MemoryMonitor(0.10);
+        final Double targetRatio = 0.50;
+        PropertiesConfigSource config = new PropertiesConfigSource();
+        config.setProperty(MemoryMonitor.PROP_MAX_HEALTHY_HEAP_USED_RATIO, targetRatio);
+        MemoryMonitor memoryMonitor = new MemoryMonitor(config);
 
         // verify initial check is healthy.
         HealthStatus status = memoryMonitor.getHealthStatus();
@@ -32,14 +40,14 @@ public class MemoryMonitorTest {
         // to trigger old gen usage, we will to allocate a "humongous object" that should go right into old gen.
         //
         // To trigger the unhealthy state, the humongous object should also be over the threshold size.
-        int humongousObjectGuestimate = (int) (Math.ceil(memUsage.getMax() * 0.10));
+        int humongousObjectGuestimate = (int)(Math.ceil(memUsage.getMax() * targetRatio));
         System.out.println("MONGO is here!! Allocating humongous object of "+ humongousObjectGuestimate +" bytes.");
         // allocate a humongo, then trigger a GC that should result in a memory health check update
         byte[] mongo = new byte[humongousObjectGuestimate];
         System.gc();
         // verify that the next health status reports the problem
         status = memoryMonitor.getStatusStream().blockFirst();
-        Assert.assertFalse("We should now be over the threshold after allocating the large object.", status.isHealthy());
+        assertFalse("We should now be over the threshold after allocating the large object.", status.isHealthy());
 
         // release mongo and we should go back to normal
         mongo = null;
@@ -50,7 +58,6 @@ public class MemoryMonitorTest {
         // or the latest memory monitor status if we don't get one from last(). (due to timing
         // issues we could totally miss the status update in the time it takes to set up the flux)
         status = memoryMonitor.getStatusStream().take(Duration.ofMillis(100)).last(memoryMonitor.getHealthStatus()).block();
-        Assert.assertTrue("We should now be back under the threshold."+ status.getDetails(), status.isHealthy());
+        Assert.assertTrue("We should now be back under the threshold. " + status.getDetails(), status.isHealthy());
     }
-
 }

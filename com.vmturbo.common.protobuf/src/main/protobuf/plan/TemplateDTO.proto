@@ -4,6 +4,7 @@ package plan;
 option java_package = "com.vmturbo.common.protobuf.plan";
 
 import "topology/TopologyDTO.proto";
+import "plan/DeploymentProfileDTO.proto";
 
 // Template represents the pattern of service entity, inclues both user created templates and probe
 // discovered templates. For this model, templates contain two part: TemplateSpec and TemplateInfo,
@@ -181,14 +182,37 @@ message DeleteTemplatesByTargetRequest {
     optional int64 target_id = 1;
 }
 
+// Filter used for querying templates.
+// To match the filter, a template must match all conditions in the filter.
+message TemplatesFilter {
+    // The template IDs targeted by the filter.
+    // If empty, all IDs are allowed.
+    repeated int64 template_ids = 1;
+
+    // The template names targeted by the filter.
+    // If empty, all names are allowed.
+    repeated string template_name = 2;
+
+    // The entity type of the templates targeted by the filter.
+    // If unset, all entity types are allowed.
+    optional int32 entity_type = 3;
+}
+
 // Request for get all templates
 message GetTemplatesRequest {
+    optional TemplatesFilter filter = 1;
+
+    // If true, include the deployment profiles that this template is associated with
+    // in the response. A template may be associated with zero or more deployment profiles.
+    optional bool include_deployment_profiles = 2;
 }
 
 // Request for get template by template id
 message GetTemplateRequest {
     // Id of the request template
     optional int64 template_id = 1;
+
+    optional bool include_deployment_profiles = 2;
 }
 
 // Request for create template
@@ -212,19 +236,43 @@ message DeleteTemplateRequest {
     optional int64 template_id = 1;
 }
 
-message GetTemplatesByTypeRequest {
-    // Id of Entity type
-    optional int32 entity_type = 1;
+// Request for getting the headroom template for a cluster
+message GetHeadroomTemplateRequest {
+    // Id of the group for which we need the headroom template
+    optional int64 group_id = 1;
 }
 
-// Request for getting templates by Ids.
-message GetTemplatesByIdsRequest {
-    repeated int64 template_ids = 1;
+// Response for getting the headroom template for a cluster
+message GetHeadroomTemplateResponse {
+    // The headroom template for the cluster
+    optional Template headroom_template = 1;
 }
 
-// Request for getting templates by name.
-message GetTemplatesByNameRequest {
-    optional string template_name = 1;
+// Request for updating the headroom template for a cluster
+message UpdateHeadroomTemplateRequest {
+    // Id of the group for which we need the headroom template
+    optional int64 group_id = 1;
+    // Id of the template associated to the group
+    optional int64 template_id = 2;
+}
+
+// Response for updating the headroom template for a cluster
+message UpdateHeadroomTemplateResponse {
+}
+
+message GetTemplatesResponse {
+    // The templates that matched the filter in the request, as well as their associated
+    // deployment profiles, if requested.
+    repeated SingleTemplateResponse templates = 1;
+}
+
+// The query response for a single template.
+message SingleTemplateResponse {
+    // The template.
+    optional Template template = 1;
+
+    // The deployment profiles associated with the template.
+    repeated DeploymentProfile deployment_profile = 2;
 }
 
 service TemplateService {
@@ -232,10 +280,10 @@ service TemplateService {
     rpc DeleteTemplatesByTarget (DeleteTemplatesByTargetRequest) returns (stream Template);
 
     // Get all templates
-    rpc GetTemplates(GetTemplatesRequest) returns (stream Template);
+    rpc GetTemplates(GetTemplatesRequest) returns (stream GetTemplatesResponse);
 
     // Get the template by template id
-    rpc GetTemplate(GetTemplateRequest) returns (Template);
+    rpc GetTemplate(GetTemplateRequest) returns (SingleTemplateResponse);
 
     // Create a new template
     rpc CreateTemplate(CreateTemplateRequest) returns (Template);
@@ -246,14 +294,13 @@ service TemplateService {
     // Delete the existing template
     rpc DeleteTemplate(DeleteTemplateRequest) returns (Template);
 
-    // Get templates by entity type
-    rpc GetTemplatesByType(GetTemplatesByTypeRequest) returns (stream Template);
+    // Get headroom template for cluster
+    rpc GetHeadroomTemplateForCluster(GetHeadroomTemplateRequest)
+        returns (GetHeadroomTemplateResponse);
 
-    // Get a list of Templates by Ids
-    rpc GetTemplatesByIds(GetTemplatesByIdsRequest) returns (stream Template);
-
-    // Get a list of templates by name
-    rpc GetTemplatesByName(GetTemplatesByNameRequest) returns (stream Template);
+    // Updates the headroom template for a group
+    rpc UpdateHeadroomTemplateForCluster(UpdateHeadroomTemplateRequest)
+        returns (UpdateHeadroomTemplateResponse);
 }
 
 // Get all template specs

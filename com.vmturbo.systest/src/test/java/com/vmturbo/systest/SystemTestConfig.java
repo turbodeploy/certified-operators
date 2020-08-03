@@ -2,7 +2,9 @@ package com.vmturbo.systest;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.EnumSet;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -15,7 +17,8 @@ import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.external.api.TurboApiClient;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
 
 /**
  * Spring Configuration for the System Test suite.
@@ -27,7 +30,7 @@ public class SystemTestConfig {
 
 
     // Websocket URL to connect to for notifications, e.g. plan progress updates.
-    private static final String WEBSOCKET_URL = "/vmturbo/messages";
+    private static final String WEBSOCKET_URL = "/ws/messages";
 
     @Autowired
     private TopologyProcessorClientConfig tpClientConfig;
@@ -62,7 +65,11 @@ public class SystemTestConfig {
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        return tpClientConfig.topologyProcessor(EnumSet.allOf(Subscription.class));
+        final List<TopologyProcessorSubscription> subscriptionList = Stream.of(Topic.values())
+            .map(TopologyProcessorSubscription::forTopic)
+            .collect(Collectors.toList());
+        return tpClientConfig.topologyProcessor(subscriptionList.toArray(
+            new TopologyProcessorSubscription[Topic.values().length]));
     }
 
     @Bean

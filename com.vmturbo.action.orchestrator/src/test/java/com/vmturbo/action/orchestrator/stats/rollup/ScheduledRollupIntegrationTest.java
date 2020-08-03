@@ -20,19 +20,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotDayRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotHourRecord;
@@ -44,21 +39,23 @@ import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsByMonthRecor
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler.ActionStatRollup;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    loader = AnnotationConfigContextLoader.class,
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class ScheduledRollupIntegrationTest {
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
 
-    private Flyway flyway;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private RollupTestUtils rollupTestUtils;
 
@@ -71,21 +68,7 @@ public class ScheduledRollupIntegrationTest {
 
     @Before
     public void setup() {
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway = dbConfig.flyway();
-        flyway.clean();
-        flyway.migrate();
-
-        // Grab a handle for JOOQ DB operations
-        dsl = dbConfig.dsl();
-
         rollupTestUtils = new RollupTestUtils(dsl);
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     @Test
@@ -149,47 +132,30 @@ public class ScheduledRollupIntegrationTest {
             secondSnapshotRecord.setActionSnapshotTime(secondTime);
             secondSnapshotRecord.store();
 
-            final ActionStatsLatestRecord m1A1FirstRecord = dsl.newRecord(Tables.ACTION_STATS_LATEST);
-            m1A1FirstRecord.setActionSnapshotTime(firstTime);
-            m1A1FirstRecord.setActionGroupId(actionGroup1);
-            m1A1FirstRecord.setMgmtUnitSubgroupId(mgmtSubgroup1);
-            m1A1FirstRecord.setTotalEntityCount(5);
-            m1A1FirstRecord.setTotalActionCount(10);
-            m1A1FirstRecord.setTotalSavings(BigDecimal.valueOf(1));
-            m1A1FirstRecord.setTotalInvestment(BigDecimal.valueOf(2));
-            m1A1FirstRecord.store();
+            // record 1: Management Subgroup 1, Action Group 1
+            storeLatestActionStatsRecord(firstTime, mgmtSubgroup1, actionGroup1,
+                /* totalEntityCount*/ 5, /* totalActionCount */10, /* newActionCount */ 1,
+                /* totalInvestment */ 2, /* totalSavings */ 1);
 
-            final ActionStatsLatestRecord m1A2FirstRecord = m1A1FirstRecord.copy();
-            m1A2FirstRecord.setActionSnapshotTime(m1A1FirstRecord.getActionSnapshotTime());
-            m1A2FirstRecord.setMgmtUnitSubgroupId(m1A1FirstRecord.getMgmtUnitSubgroupId());
-            m1A2FirstRecord.setActionGroupId(actionGroup2);
-            // One field to distinguish it from the first AG.
-            m1A2FirstRecord.setTotalEntityCount(m1A1FirstRecord.getTotalEntityCount() + 1);
-            m1A2FirstRecord.store();
+            // record 1: Management Subgroup 1, Action Group 2
+            storeLatestActionStatsRecord(firstTime, mgmtSubgroup1, actionGroup2,
+                /* totalEntityCount*/ 6, /* totalActionCount */10, /* newActionCount */ 2,
+                /* totalInvestment */ 2, /* totalSavings */ 1);
 
-            final ActionStatsLatestRecord m2Record = m1A1FirstRecord.copy();
-            m2Record.setActionSnapshotTime(firstTime);
-            m2Record.setMgmtUnitSubgroupId(mgmtSubgroup2);
-            m2Record.setActionGroupId(actionGroup1);
-            m2Record.store();
+            // record 1: Management Subgroup 2, Action Group 1
+            storeLatestActionStatsRecord(firstTime, mgmtSubgroup2, actionGroup1,
+                /* totalEntityCount*/ 5, /* totalActionCount */10, /* newActionCount */ 2,
+                /* totalInvestment */ 2, /* totalSavings */ 1);
 
-            final ActionStatsLatestRecord m1A1SecondRecord = dsl.newRecord(Tables.ACTION_STATS_LATEST);
-            m1A1SecondRecord.setActionSnapshotTime(secondTime);
-            m1A1SecondRecord.setActionGroupId(m1A1FirstRecord.getActionGroupId());
-            m1A1SecondRecord.setMgmtUnitSubgroupId(m1A1FirstRecord.getMgmtUnitSubgroupId());
-            m1A1SecondRecord.setTotalEntityCount(3);
-            m1A1SecondRecord.setTotalActionCount(8);
-            m1A1SecondRecord.setTotalSavings(BigDecimal.valueOf(3));
-            m1A1SecondRecord.setTotalInvestment(BigDecimal.valueOf(4));
-            m1A1SecondRecord.store();
+            // record 2: Management Subgroup 1, Action Group 1
+            storeLatestActionStatsRecord(secondTime, mgmtSubgroup1, actionGroup1,
+                /* totalEntityCount*/ 3, /* totalActionCount */8, /* newActionCount */ 1,
+                /* totalInvestment */ 4, /* totalSavings */ 3);
 
-            final ActionStatsLatestRecord m1A2SecondRecord = m1A1SecondRecord.copy();
-            m1A2SecondRecord.setActionSnapshotTime(m1A1SecondRecord.getActionSnapshotTime());
-            m1A2SecondRecord.setMgmtUnitSubgroupId(m1A1SecondRecord.getMgmtUnitSubgroupId());
-            m1A2SecondRecord.setActionGroupId(actionGroup2);
-            // One field to distinguish it from the first AG.
-            m1A2SecondRecord.setTotalEntityCount(m1A1SecondRecord.getTotalEntityCount() + 1);
-            m1A2SecondRecord.store();
+            // record 2: Management Subgroup 1, Action Group 2
+            storeLatestActionStatsRecord(secondTime, mgmtSubgroup1, actionGroup2,
+                /* totalEntityCount*/ 4, /* totalActionCount */5, /* newActionCount */ 1,
+                /* totalInvestment */ 4, /* totalSavings */ 3);
         }
 
         // END ARRANGEMENT ----
@@ -248,10 +214,13 @@ public class ScheduledRollupIntegrationTest {
             assertThat(mu1A1HourRecord.getMgmtUnitSubgroupId(), is(mgmtSubgroup1));
             assertThat(mu1A1HourRecord.getActionGroupId(), is(actionGroup1));
 
+            // Total - New of the first latest record.
+            assertThat(mu1A1HourRecord.getPriorActionCount(), is(9));
+            assertThat(mu1A1HourRecord.getNewActionCount(), is(2));
             assertThat(mu1A1HourRecord.getMaxActionCount(), is(10));
             assertThat(mu1A1HourRecord.getMinActionCount(), is(8));
             assertThat(mu1A1HourRecord.getAvgActionCount().doubleValue(),
-                closeTo((10 + 8) / 2.0, 0.0001));
+                closeTo((10 + 1) / 2.0, 0.0001));
 
             assertThat(mu1A1HourRecord.getMaxEntityCount(), is(5));
             assertThat(mu1A1HourRecord.getMinEntityCount(), is(3));
@@ -280,9 +249,10 @@ public class ScheduledRollupIntegrationTest {
             assertThat(mu1A2HourRecord.getActionGroupId(), is(actionGroup2));
 
             assertThat(mu1A2HourRecord.getMaxActionCount(), is(10));
-            assertThat(mu1A2HourRecord.getMinActionCount(), is(8));
+            assertThat(mu1A2HourRecord.getMinActionCount(), is(5));
+            // 10 original, 1 new from second period
             assertThat(mu1A2HourRecord.getAvgActionCount().doubleValue(),
-                closeTo((10 + 8) / 2.0, 0.0001));
+                closeTo((10 + 1) / 2.0, 0.0001));
 
             assertThat(mu1A2HourRecord.getMaxEntityCount(), is(6));
             assertThat(mu1A2HourRecord.getMinEntityCount(), is(4));
@@ -313,7 +283,6 @@ public class ScheduledRollupIntegrationTest {
 
             assertThat(m2HourRecord.getMaxActionCount(), is(10));
             assertThat(m2HourRecord.getMinActionCount(), is(10));
-            // The zero-action snapshot affects the average.
             assertThat(m2HourRecord.getAvgActionCount().doubleValue(),
                 closeTo(10 / 2.0, 0.0001));
 
@@ -335,6 +304,27 @@ public class ScheduledRollupIntegrationTest {
             assertThat(m2HourRecord.getAvgInvestment().doubleValue(),
                 closeTo(2.0 / 2, 0.0001));
         }
+    }
+
+    private void storeLatestActionStatsRecord(final LocalDateTime firstTime,
+                                              final int mgmtSubgroup,
+                                              final int actionGroup,
+                                              final int totalEntityCount,
+                                              final int totalActionCount,
+                                              final int newActionCount,
+                                              final int totalInvestment,
+                                              final int totalSavings) {
+        final ActionStatsLatestRecord newActionStatsLatestRecord = dsl.newRecord(
+            Tables.ACTION_STATS_LATEST);
+        newActionStatsLatestRecord.setActionSnapshotTime(firstTime);
+        newActionStatsLatestRecord.setActionGroupId(actionGroup);
+        newActionStatsLatestRecord.setMgmtUnitSubgroupId(mgmtSubgroup);
+        newActionStatsLatestRecord.setTotalEntityCount(totalEntityCount);
+        newActionStatsLatestRecord.setTotalActionCount(totalActionCount);
+        newActionStatsLatestRecord.setNewActionCount(newActionCount);
+        newActionStatsLatestRecord.setTotalSavings(BigDecimal.valueOf(totalSavings));
+        newActionStatsLatestRecord.setTotalInvestment(BigDecimal.valueOf(totalInvestment));
+        newActionStatsLatestRecord.store();
     }
 
     @Test
@@ -401,6 +391,8 @@ public class ScheduledRollupIntegrationTest {
             m1A1FirstRecord.setHourTime(firstTime);
             m1A1FirstRecord.setActionGroupId(actionGroup1);
             m1A1FirstRecord.setMgmtUnitSubgroupId(mgmtSubgroup1);
+            m1A1FirstRecord.setPriorActionCount(10);
+            m1A1FirstRecord.setNewActionCount(100);
             m1A1FirstRecord.setMinActionCount(1);
             m1A1FirstRecord.setAvgActionCount(BigDecimal.valueOf(2));
             m1A1FirstRecord.setMaxActionCount(3);
@@ -423,6 +415,8 @@ public class ScheduledRollupIntegrationTest {
             m1A2FirstRecord.setMinEntityCount(m1A1FirstRecord.getMinEntityCount() + 10);
             m1A2FirstRecord.setAvgEntityCount(m1A1FirstRecord.getAvgEntityCount().add(BigDecimal.valueOf(10)));
             m1A2FirstRecord.setMaxEntityCount(m1A1FirstRecord.getMaxEntityCount() + 10);
+            m1A2FirstRecord.setPriorActionCount(m1A1FirstRecord.getPriorActionCount() + 10);
+            m1A2FirstRecord.setNewActionCount(m1A1FirstRecord.getNewActionCount() + 10);
             m1A2FirstRecord.store();
 
             final ActionStatsByHourRecord m2Record = m1A1FirstRecord.copy();
@@ -438,6 +432,8 @@ public class ScheduledRollupIntegrationTest {
             m1A1SecondRecord.setActionGroupId(m1A1FirstRecord.getActionGroupId());
             m1A1SecondRecord.setMgmtUnitSubgroupId(m1A1FirstRecord.getMgmtUnitSubgroupId());
             m1A1SecondRecord.setMinActionCount(m1A1FirstRecord.getMinActionCount() - 1);
+            m1A1SecondRecord.setPriorActionCount(9);
+            m1A1SecondRecord.setNewActionCount(99);
             m1A1SecondRecord.setAvgActionCount(m1A1FirstRecord.getAvgActionCount().subtract(BigDecimal.ONE));
             m1A1SecondRecord.setMaxActionCount(m1A1FirstRecord.getMaxActionCount() - 1);
             m1A1SecondRecord.setMinEntityCount(m1A1FirstRecord.getMinEntityCount() - 1);
@@ -677,6 +673,8 @@ public class ScheduledRollupIntegrationTest {
             m1A1FirstRecord.setDayTime(firstTime);
             m1A1FirstRecord.setActionGroupId(actionGroup1);
             m1A1FirstRecord.setMgmtUnitSubgroupId(mgmtSubgroup1);
+            m1A1FirstRecord.setPriorActionCount(10);
+            m1A1FirstRecord.setNewActionCount(100);
             m1A1FirstRecord.setMinActionCount(1);
             m1A1FirstRecord.setAvgActionCount(BigDecimal.valueOf(2));
             m1A1FirstRecord.setMaxActionCount(3);
@@ -699,6 +697,8 @@ public class ScheduledRollupIntegrationTest {
             m1A2FirstRecord.setMinEntityCount(m1A1FirstRecord.getMinEntityCount() + 10);
             m1A2FirstRecord.setAvgEntityCount(m1A1FirstRecord.getAvgEntityCount().add(BigDecimal.valueOf(10)));
             m1A2FirstRecord.setMaxEntityCount(m1A1FirstRecord.getMaxEntityCount() + 10);
+            m1A2FirstRecord.setPriorActionCount(m1A1FirstRecord.getPriorActionCount() + 10);
+            m1A2FirstRecord.setNewActionCount(m1A1FirstRecord.getNewActionCount() + 10);
             m1A2FirstRecord.store();
 
             final ActionStatsByDayRecord m2Record = m1A1FirstRecord.copy();
@@ -713,6 +713,8 @@ public class ScheduledRollupIntegrationTest {
             m1A1SecondRecord.setDayTime(secondTime);
             m1A1SecondRecord.setActionGroupId(m1A1FirstRecord.getActionGroupId());
             m1A1SecondRecord.setMgmtUnitSubgroupId(m1A1FirstRecord.getMgmtUnitSubgroupId());
+            m1A1SecondRecord.setPriorActionCount(9);
+            m1A1SecondRecord.setNewActionCount(99);
             m1A1SecondRecord.setMinActionCount(m1A1FirstRecord.getMinActionCount() - 1);
             m1A1SecondRecord.setAvgActionCount(m1A1FirstRecord.getAvgActionCount().subtract(BigDecimal.ONE));
             m1A1SecondRecord.setMaxActionCount(m1A1FirstRecord.getMaxActionCount() - 1);
@@ -732,6 +734,8 @@ public class ScheduledRollupIntegrationTest {
             m1A2SecondRecord.setMgmtUnitSubgroupId(m1A1SecondRecord.getMgmtUnitSubgroupId());
             m1A2SecondRecord.setActionGroupId(actionGroup2);
             // One field to distinguish it from the first AG.
+            m1A2SecondRecord.setPriorActionCount(m1A1SecondRecord.getPriorActionCount() + 10);
+            m1A2SecondRecord.setNewActionCount(m1A1SecondRecord.getNewActionCount() + 10);
             m1A2SecondRecord.setMinEntityCount(m1A1SecondRecord.getMinEntityCount() + 10);
             m1A2SecondRecord.setAvgEntityCount(m1A1SecondRecord.getAvgEntityCount().add(BigDecimal.valueOf(10)));
             m1A2SecondRecord.setMaxEntityCount(m1A1SecondRecord.getMaxEntityCount() + 10);
@@ -788,64 +792,70 @@ public class ScheduledRollupIntegrationTest {
 
         // Verify the first management subunit's first action group record.
         {
-            final ActionStatsByMonthRecord mu1A1DayRecord =
+            final ActionStatsByMonthRecord mu1A1MonthRecord =
                 monthStatsByMgmtUnitAndActionGroup.get(mgmtSubgroup1).get(actionGroup1);
-            assertThat(mu1A1DayRecord.getMonthTime(), is(rollupMonthTime));
-            assertThat(mu1A1DayRecord.getMgmtUnitSubgroupId(), is(mgmtSubgroup1));
-            assertThat(mu1A1DayRecord.getActionGroupId(), is(actionGroup1));
+            assertThat(mu1A1MonthRecord.getMonthTime(), is(rollupMonthTime));
+            assertThat(mu1A1MonthRecord.getMgmtUnitSubgroupId(), is(mgmtSubgroup1));
+            assertThat(mu1A1MonthRecord.getActionGroupId(), is(actionGroup1));
 
             // Max should come from the first record.
             // Min should come from the second record.
-            assertThat(mu1A1DayRecord.getMaxActionCount(), is(3));
-            assertThat(mu1A1DayRecord.getMinActionCount(), is(0));
-            assertThat(mu1A1DayRecord.getAvgActionCount().doubleValue(),
+            assertThat(mu1A1MonthRecord.getMaxActionCount(), is(3));
+            assertThat(mu1A1MonthRecord.getMinActionCount(), is(0));
+            assertThat(mu1A1MonthRecord.getAvgActionCount().doubleValue(),
                 closeTo((2 + 1) / 2.0, 0.0001));
 
-            assertThat(mu1A1DayRecord.getMaxEntityCount(), is(6));
-            assertThat(mu1A1DayRecord.getMinEntityCount(), is(3));
-            assertThat(mu1A1DayRecord.getAvgEntityCount().doubleValue(),
+            assertThat(mu1A1MonthRecord.getNewActionCount(), is(100 + 99));
+            assertThat(mu1A1MonthRecord.getPriorActionCount(), is(10));
+
+            assertThat(mu1A1MonthRecord.getMaxEntityCount(), is(6));
+            assertThat(mu1A1MonthRecord.getMinEntityCount(), is(3));
+            assertThat(mu1A1MonthRecord.getAvgEntityCount().doubleValue(),
                 closeTo((5 + 4) / 2.0, 0.0001));
 
-            assertThat(mu1A1DayRecord.getMaxSavings().doubleValue(), is(9.0));
-            assertThat(mu1A1DayRecord.getMinSavings().doubleValue(), is(6.0));
-            assertThat(mu1A1DayRecord.getAvgSavings().doubleValue(),
+            assertThat(mu1A1MonthRecord.getMaxSavings().doubleValue(), is(9.0));
+            assertThat(mu1A1MonthRecord.getMinSavings().doubleValue(), is(6.0));
+            assertThat(mu1A1MonthRecord.getAvgSavings().doubleValue(),
                 closeTo((7 + 8) / 2.0, 0.0001));
 
-            assertThat(mu1A1DayRecord.getMaxInvestment().doubleValue(), is(12.0));
-            assertThat(mu1A1DayRecord.getMinInvestment().doubleValue(), is(9.0));
-            assertThat(mu1A1DayRecord.getAvgInvestment().doubleValue(),
+            assertThat(mu1A1MonthRecord.getMaxInvestment().doubleValue(), is(12.0));
+            assertThat(mu1A1MonthRecord.getMinInvestment().doubleValue(), is(9.0));
+            assertThat(mu1A1MonthRecord.getAvgInvestment().doubleValue(),
                 closeTo((10 + 11) / 2.0, 0.0001));
         }
 
         // Verify the first management subunit's second action group record.
         // This tests that different action groups get rolled up correctly.
         {
-            final ActionStatsByMonthRecord mu1A2DayRecord =
+            final ActionStatsByMonthRecord mu1A2MonthRecord =
                 monthStatsByMgmtUnitAndActionGroup.get(mgmtSubgroup1).get(actionGroup2);
-            assertThat(mu1A2DayRecord.getMonthTime(), is(rollupMonthTime));
-            assertThat(mu1A2DayRecord.getMgmtUnitSubgroupId(), is(mgmtSubgroup1));
-            assertThat(mu1A2DayRecord.getActionGroupId(), is(actionGroup2));
+            assertThat(mu1A2MonthRecord.getMonthTime(), is(rollupMonthTime));
+            assertThat(mu1A2MonthRecord.getMgmtUnitSubgroupId(), is(mgmtSubgroup1));
+            assertThat(mu1A2MonthRecord.getActionGroupId(), is(actionGroup2));
 
             // Entities was the different stat for ag2
-            assertThat(mu1A2DayRecord.getMaxEntityCount(), is(6 + 10));
-            assertThat(mu1A2DayRecord.getMinEntityCount(), is(3 + 10));
-            assertThat(mu1A2DayRecord.getAvgEntityCount().doubleValue(),
+            assertThat(mu1A2MonthRecord.getMaxEntityCount(), is(6 + 10));
+            assertThat(mu1A2MonthRecord.getMinEntityCount(), is(3 + 10));
+            assertThat(mu1A2MonthRecord.getAvgEntityCount().doubleValue(),
                 closeTo((10 + 5 + 10 + 4) / 2.0, 0.0001));
 
+            assertThat(mu1A2MonthRecord.getPriorActionCount(), is(10 + 10));
+            assertThat(mu1A2MonthRecord.getNewActionCount(), is(100 + 99 + 10 + 10));
+
             // The rest of the comparison is the same as for the first action group.
-            assertThat(mu1A2DayRecord.getMaxActionCount(), is(3));
-            assertThat(mu1A2DayRecord.getMinActionCount(), is(0));
-            assertThat(mu1A2DayRecord.getAvgActionCount().doubleValue(),
+            assertThat(mu1A2MonthRecord.getMaxActionCount(), is(3));
+            assertThat(mu1A2MonthRecord.getMinActionCount(), is(0));
+            assertThat(mu1A2MonthRecord.getAvgActionCount().doubleValue(),
                 closeTo((2 + 1) / 2.0, 0.0001));
 
-            assertThat(mu1A2DayRecord.getMaxSavings().doubleValue(), is(9.0));
-            assertThat(mu1A2DayRecord.getMinSavings().doubleValue(), is(6.0));
-            assertThat(mu1A2DayRecord.getAvgSavings().doubleValue(),
+            assertThat(mu1A2MonthRecord.getMaxSavings().doubleValue(), is(9.0));
+            assertThat(mu1A2MonthRecord.getMinSavings().doubleValue(), is(6.0));
+            assertThat(mu1A2MonthRecord.getAvgSavings().doubleValue(),
                 closeTo((7 + 8) / 2.0, 0.0001));
 
-            assertThat(mu1A2DayRecord.getMaxInvestment().doubleValue(), is(12.0));
-            assertThat(mu1A2DayRecord.getMinInvestment().doubleValue(), is(9.0));
-            assertThat(mu1A2DayRecord.getAvgInvestment().doubleValue(),
+            assertThat(mu1A2MonthRecord.getMaxInvestment().doubleValue(), is(12.0));
+            assertThat(mu1A2MonthRecord.getMinInvestment().doubleValue(), is(9.0));
+            assertThat(mu1A2MonthRecord.getAvgInvestment().doubleValue(),
                 closeTo((10 + 11) / 2.0, 0.0001));
         }
 
@@ -868,6 +878,9 @@ public class ScheduledRollupIntegrationTest {
             // The zero-action snapshot affects the average.
             assertThat(m2DayRecord.getAvgActionCount().doubleValue(),
                 closeTo(2 / 2.0, 0.0001));
+
+            assertThat(m2DayRecord.getPriorActionCount(), is(10));
+            assertThat(m2DayRecord.getNewActionCount(), is(100));
 
             assertThat(m2DayRecord.getMaxEntityCount(), is(6));
             assertThat(m2DayRecord.getMinEntityCount(), is(4));

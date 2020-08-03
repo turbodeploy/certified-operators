@@ -34,13 +34,6 @@ import com.vmturbo.proactivesupport.communications.ServerChannelListener;
 @ThreadSafe
 public class DataAggregator {
     /**
-     * The base point for the data persistence.
-     */
-    @VisibleForTesting
-    static String BASE_PATH = System.getProperty("aggregator.base",
-                                                 "/home/turbonomic/data/datapoint");
-
-    /**
      * The logger.
      */
     private final Logger logger_ = LogManager.getLogger(DataAggregator.class);
@@ -51,10 +44,14 @@ public class DataAggregator {
     @VisibleForTesting
     File currentBase_;
 
+    private final String aggregatorBasePath;
+
     /**
      * Constructs the data aggregator.
+     * @param aggregatorBasePath Base path for the aggregation files.
      */
-    public DataAggregator() {
+    public DataAggregator(String aggregatorBasePath) {
+        this.aggregatorBasePath = aggregatorBasePath;
         startAggregationInterval();
     }
 
@@ -75,7 +72,7 @@ public class DataAggregator {
     public synchronized File startAggregationInterval() {
         File current = getCurrentBase();
         Calendar calendar = Calendar.getInstance();
-        currentBase_ = new File(BASE_PATH + "/" +
+        currentBase_ = new File(aggregatorBasePath + "/" +
                                 calendar.get(Calendar.YEAR) + "_" +
                                 calendar.get(Calendar.MONTH) + "_" +
                                 calendar.get(Calendar.DAY_OF_MONTH) + "_" +

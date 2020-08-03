@@ -4,7 +4,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,10 +18,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSetting
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProtoMoles;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.ResourcePath;
 
 /**
  * Test sending emails with the MailManager class with different SMTP settings.
@@ -106,8 +105,7 @@ public class MailManagerTest {
         mailManager.sendMail(Arrays.asList("testeamil@turbonomic.com"),
                 "Test SSL",
                 "Test body",
-                Arrays.asList(getClass().getClassLoader()
-                        .getResource("emailAttachment.txt").getFile()));
+                Arrays.asList(ResourcePath.getTestResource(getClass(), "emailAttachment.txt").toString()));
     }
 
     /**
@@ -124,10 +122,9 @@ public class MailManagerTest {
                 .thenReturn(getSettingListGoogleTLS());
 
         mailManager.sendMail(Arrays.asList("testemail@turbonomic.com"),
-                "Test TLS",
-                "Test body",
-                Arrays.asList(getClass().getClassLoader()
-                        .getResource("emailAttachment.txt").getFile()));
+            "Test TLS",
+            "Test body",
+            Arrays.asList(ResourcePath.getTestResource(getClass(), "emailAttachment.txt").toString()));
     }
 
     /**

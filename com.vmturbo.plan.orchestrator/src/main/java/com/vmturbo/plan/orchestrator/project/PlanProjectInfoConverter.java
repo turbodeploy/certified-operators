@@ -6,7 +6,7 @@ import org.jooq.Converter;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
 
 /**
  * Convert a PlanProjectInfo to/from a byte blob for serialization of the protobuf to the database.

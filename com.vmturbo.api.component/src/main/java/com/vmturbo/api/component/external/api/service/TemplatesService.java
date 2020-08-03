@@ -1,25 +1,21 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Lists;
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
-
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.TemplateMapper;
@@ -33,6 +29,7 @@ import com.vmturbo.api.dto.template.CpuModelApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiInputDTO;
+import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ITemplatesService;
 import com.vmturbo.api.utils.ParamStrings;
@@ -45,19 +42,17 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.EditTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateSpecByEntityTypeRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateSpecRequest;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateSpecsRequest;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByTypeRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc.TemplateSpecServiceBlockingStub;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
- * Service implementation for /templates endpoint
+ * Service implementation for /templates endpoint.
  **/
 public class TemplatesService implements ITemplatesService {
 
@@ -83,38 +78,32 @@ public class TemplatesService implements ITemplatesService {
      */
     private final CpuInfoMapper cpuInfoMapper;
 
+    private final TemplatesUtils templatesUtils;
 
-    public TemplatesService(@Nonnull final TemplateServiceBlockingStub templateService,
-                            @Nonnull final TemplateMapper templateMapper,
-                            @Nonnull final TemplateSpecServiceBlockingStub templateSpecService,
-                            @Nonnull final CpuCapacityServiceBlockingStub cpuCapacityService,
-                            @Nonnull final CpuInfoMapper cpuInfoMapper,
-                            final int cpuCatalogLifeHours) {
+
+    TemplatesService(@Nonnull final TemplateServiceBlockingStub templateService,
+                    @Nonnull final TemplateMapper templateMapper,
+                    @Nonnull final TemplateSpecServiceBlockingStub templateSpecService,
+                    @Nonnull final CpuCapacityServiceBlockingStub cpuCapacityService,
+                    @Nonnull final CpuInfoMapper cpuInfoMapper,
+                    @Nonnull final TemplatesUtils templatesUtils,
+                    final int cpuCatalogLifeHours) {
         this.templateService = Objects.requireNonNull(templateService);
         this.templateMapper = Objects.requireNonNull(templateMapper);
         this.templateSpecService = Objects.requireNonNull(templateSpecService);
         this.cpuCapacityService = Objects.requireNonNull(cpuCapacityService);
         this.cpuInfoMapper = Objects.requireNonNull(cpuInfoMapper);
+        this.templatesUtils = Objects.requireNonNull(templatesUtils);
     }
 
     /**
      * Get all templates including user defined and probe discovered templates.
      *
      * @return list of {@link TemplateApiDTO}.
-     * @throws Exception
      */
     @Override
-    public List<TemplateApiDTO> getTemplates() throws Exception {
-        GetTemplatesRequest templateRequest = GetTemplatesRequest.getDefaultInstance();
-        Iterable<Template> templates = () -> templateService.getTemplates(templateRequest);
-        GetTemplateSpecsRequest templateSpecRequest = GetTemplateSpecsRequest.getDefaultInstance();
-        Iterable<TemplateSpec> templateSpecs = () -> templateSpecService.getTemplateSpecs(templateSpecRequest);
-        Map<Long, TemplateSpec> templateSpecMap = StreamSupport.stream(templateSpecs.spliterator(), false)
-            .collect(Collectors.toMap(entry -> entry.getId(), Function.identity()));
-        return StreamSupport.stream(templates.spliterator(), false)
-            .filter(template -> template.getTemplateInfo().hasTemplateSpecId())
-            .map(template -> templateMapper.mapToTemplateApiDTO(template,
-                templateSpecMap.get(template.getTemplateInfo().getTemplateSpecId())))
+    public List<TemplateApiDTO> getTemplates() {
+        return templatesUtils.getTemplates(GetTemplatesRequest.getDefaultInstance())
             .collect(Collectors.toList());
     }
 
@@ -123,59 +112,53 @@ public class TemplatesService implements ITemplatesService {
      *
      * @param uuidOrType id of template or entity type.
      * @return list of {@link TemplateApiDTO}.
-     * @throws Exception
+     * @throws Exception If something goes wrong.
      */
     @Override
     public List<TemplateApiDTO> getTemplate(String uuidOrType) throws Exception {
-        try {
-            Optional<Integer> entityType = getEntityType(uuidOrType.toLowerCase());
-            if (entityType.isPresent()) {
-                // call template rpc service to get templates and then convert to TemplateApiDTO
-                GetTemplatesByTypeRequest request = GetTemplatesByTypeRequest.newBuilder()
-                    .setEntityType(entityType.get())
-                    .build();
-                Iterable<Template> templates = () -> templateService.getTemplatesByType(request);
-                GetTemplateSpecByEntityTypeRequest templateSpecRequest = GetTemplateSpecByEntityTypeRequest.newBuilder()
-                    .setEntityType(entityType.get())
-                    .build();
-                TemplateSpec templateSpec = templateSpecService.getTemplateSpecByEntityType(templateSpecRequest);
-                return StreamSupport.stream(templates.spliterator(), false)
-                    .map(template -> templateMapper.mapToTemplateApiDTO(template, templateSpec))
-                    .collect(Collectors.toList());
-            }
-            else if (isLongType(uuidOrType)){
-                // The search key is not a valid entity type.  Try to search by UUID if it is a number.
-                final Template template = getTemplateById(Long.valueOf(uuidOrType));
-                TemplateSpec templateSpec = getTemplateSpecById(template.getTemplateInfo().getTemplateSpecId());
-                return Lists.newArrayList(templateMapper.mapToTemplateApiDTO(template, templateSpec));
-            }
-            else {
-                // Try to search by template name.
-                templateService.getTemplatesByName(GetTemplatesByNameRequest.newBuilder()
-                        .setTemplateName(uuidOrType)
-                        .build());
-                return Lists.newArrayList();
-            }
-        } catch (StatusRuntimeException e) {
-            if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
-                throw new UnknownObjectException("The search criterion is not a valid template " +
-                        "UUID, template name or entity type: " + uuidOrType);
-            }
-            else {
-                throw e;
-            }
+        Optional<Integer> entityType = getEntityType(uuidOrType.toLowerCase());
+        final List<TemplateApiDTO> retTemplates;
+        if (entityType.isPresent()) {
+            // call template rpc service to get templates and then convert to TemplateApiDTO
+            final GetTemplatesRequest request = GetTemplatesRequest.newBuilder()
+                .setFilter(TemplatesFilter.newBuilder()
+                    .setEntityType(entityType.get()))
+                .build();
+            retTemplates = templatesUtils.getTemplates(request)
+                .collect(Collectors.toList());
+        } else if (isLongType(uuidOrType)) {
+            // The search key is not a valid entity type.  Try to search by UUID if it is a number.
+            final GetTemplatesRequest request = GetTemplatesRequest.newBuilder()
+                .setFilter(TemplatesFilter.newBuilder()
+                    .addTemplateIds(Long.valueOf(uuidOrType)))
+                .build();
+            retTemplates = Collections.singletonList(templatesUtils.getTemplates(request)
+                // We can assume there will only be one with the ID.
+                .findFirst()
+                .orElseThrow(() -> new UnknownObjectException("The search criterion is not a valid template " +
+                    "UUID, template name or entity type: " + uuidOrType)));
+        } else {
+            // Try to search by template name.
+            final GetTemplatesRequest request = GetTemplatesRequest.newBuilder()
+                .setFilter(TemplatesFilter.newBuilder()
+                    .addTemplateName(uuidOrType))
+                .build();
+            retTemplates = templatesUtils.getTemplates(request)
+                .collect(Collectors.toList());
         }
+        return retTemplates;
     }
 
     /**
+     * u
      * Create a new user defined template.
      *
      * @param inputDto input template information {@link TemplateApiInputDTO}.
      * @return a {@link TemplateApiDTO}.
-     * @throws Exception
+     * @throws UnauthorizedObjectException If the input template format is wrong.
      */
     @Override
-    public TemplateApiDTO addTemplate(TemplateApiInputDTO inputDto) throws Exception {
+    public TemplateApiDTO addTemplate(TemplateApiInputDTO inputDto) throws UnauthorizedObjectException {
         int entityType = convertClassNameToEntityType(inputDto.getClassName());
         GetTemplateSpecByEntityTypeRequest templateSpecRequest = GetTemplateSpecByEntityTypeRequest.newBuilder()
             .setEntityType(entityType)
@@ -186,16 +169,16 @@ public class TemplatesService implements ITemplatesService {
             .setTemplateInfo(templateInfo)
             .build();
         final Template template = templateService.createTemplate(request);
-        return templateMapper.mapToTemplateApiDTO(template, templateSpec);
+        return templateMapper.mapToTemplateApiDTO(template, templateSpec, Collections.emptyList());
     }
 
     /**
      * Update a existing template, if no such template, throw unknown object exception.
      *
-     * @param uuid id of the template need to update.
+     * @param uuid     id of the template need to update.
      * @param inputDto input template information {@link TemplateApiInputDTO}.
      * @return a updated template {@link TemplateApiDTO}
-     * @throws Exception
+     * @throws Exception If something goes wrong when executing the call.
      */
     @Override
     public TemplateApiDTO editTemplate(String uuid, TemplateApiInputDTO inputDto) throws Exception {
@@ -209,7 +192,7 @@ public class TemplatesService implements ITemplatesService {
                 .setTemplateId(Long.parseLong(uuid))
                 .build();
             final Template template = templateService.editTemplate(request);
-            return templateMapper.mapToTemplateApiDTO(template, templateSpec);
+            return templateMapper.mapToTemplateApiDTO(template, templateSpec, Collections.emptyList());
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 throw new UnknownObjectException(e.getStatus().getDescription());
@@ -224,7 +207,7 @@ public class TemplatesService implements ITemplatesService {
      *
      * @param uuid id of the template need to delete.
      * @return boolean represent if delete succeeded.
-     * @throws Exception
+     * @throws Exception If something goes wrong executing the call.
      */
     @Override
     public Boolean deleteTemplate(String uuid) throws Exception {
@@ -246,8 +229,9 @@ public class TemplatesService implements ITemplatesService {
     /**
      * Validate input template information to make sure all the fields are allowed.
      *
-     * @param dto contains all input template information.
-     * @param errors
+     * @param dto    contains all input template information.
+     * @param errors Validation errors. If there are errors with this template, they will be added to
+     *               this object.
      */
     @Override
     public void validateInput(final TemplateApiInputDTO dto, Errors errors) {
@@ -286,26 +270,26 @@ public class TemplatesService implements ITemplatesService {
         final CpuModelListResponse cpuModelListResponse = cpuCapacityService.getCpuModelList(
             CpuModelListRequest.getDefaultInstance());
         return cpuModelListResponse.getCpuInfoList().stream()
-                .map(cpuInfoMapper::convertCpuDTO)
-                .collect(Collectors.toList());
+            .map(cpuInfoMapper::convertCpuDTO)
+            .collect(Collectors.toList());
     }
 
     @Override
-    public List<DeploymentProfileApiDTO> getDeploymentProfiles(String uuid) throws Exception {
-	    throw ApiUtils.notImplementedInXL();
-	}
+    public List<DeploymentProfileApiDTO> getDeploymentProfiles(String uuid) {
+        throw ApiUtils.notImplementedInXL();
+    }
 
     private String validateStatNames(ResourceApiDTO resource, Set<String> allowedStats,
                                      String resourceName) {
-        final StringBuilder msgBuilder = new StringBuilder();
         if (resource.getStats() != null) {
-            resource.getStats().stream()
+            return resource.getStats().stream()
                 .map(StatApiDTO::getName)
                 .filter(name -> !allowedStats.contains(name))
                 .collect(Collectors.joining(",", "The following stat names in " + resourceName
                     + " are not allowed: ", "."));
+        } else {
+            return "";
         }
-        return msgBuilder.toString();
     }
 
     private String validateTypesNames(String typeName, Set<String> allowedTypes,
@@ -324,13 +308,13 @@ public class TemplatesService implements ITemplatesService {
      * @return Optional object represent if uuidOrType is entity type or not.
      */
     private Optional<Integer> getEntityType(String uuidOrType) {
-        if(uuidOrType.equals(ParamStrings.VIRTUAL_MACHINE)) {
+        if (uuidOrType.equals(ParamStrings.VIRTUAL_MACHINE)) {
             return Optional.of(EntityType.VIRTUAL_MACHINE.getNumber());
-        }
-        else if (uuidOrType.equals(ParamStrings.PHYSICAL_MACHINE)) {
+        } else if (uuidOrType.equals(ParamStrings.PHYSICAL_MACHINE)) {
             return Optional.of(EntityType.PHYSICAL_MACHINE.getNumber());
-        }
-        else if (uuidOrType.equals(ParamStrings.STORAGE)) {
+        } else if (uuidOrType.equals(ParamStrings.HCI_PHYSICAL_MACHINE)) {
+            return Optional.of(EntityType.HCI_PHYSICAL_MACHINE.getNumber());
+        } else if (uuidOrType.equals(ParamStrings.STORAGE)) {
             return Optional.of(EntityType.STORAGE.getNumber());
         }
         return Optional.empty();
@@ -360,6 +344,8 @@ public class TemplatesService implements ITemplatesService {
                 return EntityType.VIRTUAL_MACHINE.getNumber();
             case ParamStrings.PHYSICAL_MACHINE:
                 return EntityType.PHYSICAL_MACHINE.getNumber();
+            case ParamStrings.HCI_PHYSICAL_MACHINE:
+                return EntityType.HCI_PHYSICAL_MACHINE.getNumber();
             case ParamStrings.STORAGE:
                 return EntityType.STORAGE.getNumber();
             default:
@@ -372,7 +358,7 @@ public class TemplatesService implements ITemplatesService {
         final GetTemplateRequest templateRequest = GetTemplateRequest.newBuilder()
             .setTemplateId(id)
             .build();
-        return templateService.getTemplate(templateRequest);
+        return templateService.getTemplate(templateRequest).getTemplate();
     }
 
     private TemplateSpec getTemplateSpecById(long id) {
@@ -385,7 +371,7 @@ public class TemplatesService implements ITemplatesService {
     @Nonnull
     @Override
     public Set<String> getCloudTemplatesOses(@Nonnull String scopeUuid)
-            throws UnknownObjectException {
+        throws UnknownObjectException {
         // TODO implement as soon as cloud templates are published in XL
         throw ApiUtils.notImplementedInXL();
     }
@@ -393,7 +379,7 @@ public class TemplatesService implements ITemplatesService {
     @Nonnull
     @Override
     public List<EntityPriceDTO> getTemplatePrices(@Nonnull String entityUuid, @Nonnull String uuidTemplate, @Nonnull String dcUuid)
-            throws UnknownObjectException {
+        throws UnknownObjectException {
         throw ApiUtils.notImplementedInXL();
     }
 

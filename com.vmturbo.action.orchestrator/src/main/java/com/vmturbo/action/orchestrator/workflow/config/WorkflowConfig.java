@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.workflow.rpc.DiscoveredWorkflowRpcService;
 import com.vmturbo.action.orchestrator.workflow.rpc.WorkflowRpcService;
 import com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowIdentityStore;
@@ -18,19 +19,18 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTOREST;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.identity.store.CachingIdentityStore;
 import com.vmturbo.identity.store.PersistentIdentityStore;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 /**
  * Spring configuration for Workflow processing - rpc, store.
  **/
 @Configuration
-@Import(SQLDatabaseConfig.class)
+@Import(ActionOrchestratorDBConfig.class)
 public class WorkflowConfig {
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private ActionOrchestratorDBConfig databaseConfig;
 
     @Bean
     public DiscoveredWorkflowRpcService discoveredWorkflowRpcService() {

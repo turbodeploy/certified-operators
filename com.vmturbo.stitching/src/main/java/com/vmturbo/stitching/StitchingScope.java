@@ -125,6 +125,17 @@ public interface StitchingScope<ENTITY> {
 
         /**
          * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
+         * discovered by a specific probe category.
+         *
+         * @param probeCategory The category of probe whose entities should be fed to the calculation.
+         *                      Example: HYPERVISOR or STORAGE
+         * @return A {@link StitchingScope} used for retrieving entities of a given type discovered by a given
+         *         category of probe.
+         */
+        StitchingScope<ENTITY> probeCategoryScope(@Nonnull ProbeCategory probeCategory);
+
+        /**
+         * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
          * of a given {@link EntityType} discovered by a specific type of probe category.
          *
          * @param probeCategories The set of categories of probes whose entities should be fed to
@@ -138,5 +149,42 @@ public interface StitchingScope<ENTITY> {
                 @Nonnull final Set<ProbeCategory> probeCategories,
                 @Nonnull final EntityType entityType);
 
+        /**
+         * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
+         * of a given {@link EntityType} discovered by a specific type of probe and not discovered
+         * by a derived target of another type of probe.  This is used for identifying shared
+         * storages that are we don't have complete storage browsing information for.
+         *
+         * @param parentProbeType The name of the probe type of the main probe that discovers the
+         *                        entity.
+         * @param childProbeType The name of the probe type that is the derived target of the main
+         *                       probe type.
+         * @param entityType The type of entity to find.
+         * @return A {@link StitchingScope} used for retrieving entities of a given type discovered
+         * by multiple targets of the parentProbeType but missing at least one matching target of
+         * childProbeType.
+         */
+        StitchingScope<ENTITY> missingDerivedTargetEntityTypeScope(
+            @Nonnull String parentProbeType,
+            @Nonnull String childProbeType,
+            @Nonnull EntityType entityType);
+
+
+        /**
+         * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
+         * of a given {@link EntityType} discovered by some probe categories but NOT discovered by other probe categories.
+         * This is used for identifying
+         * VMs that has a hypervisor target but has no guestosprocesses target, we will disable vmem resizing for such VMs.
+         *
+         * @param owningProbeCategories The probe categories that VMs have
+         * @param missingProbeCategories The probe categories that VMs don't have
+         * @param entityType The type of entity to find.
+         * @return Return a {@link StitchingScope} that restricts the calculation to operate on only entities
+         * of a given {@link EntityType} NOT discovered by a specific type of probe.
+         */
+        StitchingScope<TopologyEntity> hasAndLacksProbeCategoryEntityTypeStitchingScope(
+                @Nonnull final Set<ProbeCategory> owningProbeCategories,
+                @Nonnull final Set<ProbeCategory> missingProbeCategories,
+                @Nonnull final EntityType entityType);
     }
 }

@@ -66,10 +66,19 @@ public class RolledUpStatCalculator {
         // that adds extra and unnecessary object allocation. Since we
         // don't need to weigh the average of each record, we calculate the average
         // directly (avg = total / numSnapshotsInRange for each thing we're tracking).
-        int totalActions = 0;
         int totalEntities = 0;
         double totalInvestment = 0;
         double totalSavings = 0;
+
+        // total actions = "prior actions for first stat" + sum("new actions over time range")
+        // calculate the "prior actions" indirectly from "total actions" - "new actions" for
+        // first stat of this time range
+        final StatWithSnapshotCnt<ActionStatsLatestRecord> firstStatOfTimeRange =
+            actionStats.iterator().next();
+        // calculate the "old actions" indirectly from "total actions" - "new actions"
+        int initialTotalActions = firstStatOfTimeRange.record().getTotalActionCount() - firstStatOfTimeRange.record().getNewActionCount();
+        int totalActions = initialTotalActions;
+        int newActions = 0;
 
         for (final StatWithSnapshotCnt<ActionStatsLatestRecord> recordAndCount : actionStats) {
             // Each "latest" record can only represent one action snapshot.
@@ -85,7 +94,8 @@ public class RolledUpStatCalculator {
             maxInvestment = Math.max(maxInvestment, actionStat.getTotalInvestment().doubleValue());
             maxSavings = Math.max(maxSavings, actionStat.getTotalSavings().doubleValue());
 
-            totalActions += actionStat.getTotalActionCount();
+            totalActions += actionStat.getNewActionCount();
+            newActions += actionStat.getNewActionCount();
             totalEntities += actionStat.getTotalEntityCount();
             totalInvestment += actionStat.getTotalInvestment().doubleValue();
             totalSavings += actionStat.getTotalSavings().doubleValue();
@@ -100,6 +110,8 @@ public class RolledUpStatCalculator {
             .maxEntityCount(maxEntityCount)
             .maxInvestment(maxInvestment)
             .maxSavings(maxSavings)
+            .priorActionCount(initialTotalActions)
+            .newActionCount(newActions)
             .avgActionCount((double)totalActions / numSnapshotsInRange)
             .avgEntityCount((double)totalEntities / numSnapshotsInRange)
             .avgInvestment(totalInvestment / numSnapshotsInRange)
@@ -134,8 +146,16 @@ public class RolledUpStatCalculator {
         double maxSavings = Double.MIN_VALUE;
 
         final List<AverageSummary> avgSummaries = new ArrayList<>(actionStats.size());
+
+        // total actions = "prior actions for first stat" + sum("new actions over time range")
+        final StatWithSnapshotCnt<ActionStatsByHourRecord> firstStatOfTimeRange =
+            actionStats.iterator().next();
+        final int priorActionCount = firstStatOfTimeRange.record().getPriorActionCount();
+        int newActions = 0;
+
         for (StatWithSnapshotCnt<ActionStatsByHourRecord> recordAndCount : actionStats) {
             ActionStatsByHourRecord actionStat = recordAndCount.record();
+            newActions += actionStat.getNewActionCount();
             minActionCount = Math.min(minActionCount, actionStat.getMinActionCount());
             minEntityCount = Math.min(minEntityCount, actionStat.getMinEntityCount());
             minInvestment = Math.min(minInvestment, actionStat.getMinInvestment().doubleValue());
@@ -166,6 +186,8 @@ public class RolledUpStatCalculator {
             .maxEntityCount(maxEntityCount)
             .maxInvestment(maxInvestment)
             .maxSavings(maxSavings)
+            .priorActionCount(priorActionCount)
+            .newActionCount(newActions)
             .avgActionCount(totalAvgSummary.avgActionCount())
             .avgEntityCount(totalAvgSummary.avgEntityCount())
             .avgInvestment(totalAvgSummary.avgInvestment())
@@ -200,9 +222,15 @@ public class RolledUpStatCalculator {
         double maxInvestment = Double.MIN_VALUE;
         double maxSavings = Double.MIN_VALUE;
 
+        // total actions = "prior actions for first stat" + sum("new actions over time range")
+        final StatWithSnapshotCnt<ActionStatsByDayRecord> firstStatOfTimeRange =
+            actionStats.iterator().next();
+        final int priorActionCount = firstStatOfTimeRange.record().getPriorActionCount();
+        int newActions = 0;
         final List<AverageSummary> avgSummaries = new ArrayList<>(actionStats.size());
         for (StatWithSnapshotCnt<ActionStatsByDayRecord> recordAndCount : actionStats) {
             final ActionStatsByDayRecord actionStat = recordAndCount.record();
+            newActions += actionStat.getNewActionCount();
             minActionCount = Math.min(minActionCount, actionStat.getMinActionCount());
             minEntityCount = Math.min(minEntityCount, actionStat.getMinEntityCount());
             minInvestment = Math.min(minInvestment, actionStat.getMinInvestment().doubleValue());
@@ -233,6 +261,8 @@ public class RolledUpStatCalculator {
             .maxEntityCount(maxEntityCount)
             .maxInvestment(maxInvestment)
             .maxSavings(maxSavings)
+            .priorActionCount(priorActionCount)
+            .newActionCount(newActions)
             .avgActionCount(totalAvgSummary.avgActionCount())
             .avgEntityCount(totalAvgSummary.avgEntityCount())
             .avgInvestment(totalAvgSummary.avgInvestment())

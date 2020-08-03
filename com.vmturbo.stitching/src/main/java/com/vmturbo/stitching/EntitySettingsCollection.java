@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
@@ -88,6 +89,26 @@ public class EntitySettingsCollection {
         return getEntitySetting(topologyEntity.getOid(), settingName);
     }
 
+    /**
+     * Extract the entity setting value by passed entity and spec.
+     *
+     * @param <T> setting value type
+     * @param oid entity identifier
+     * @param settingSpec setting specification
+     * @param cls setting value class
+     * @return setting value, null if not present
+     */
+    @Nullable
+    public <T> T getEntitySettingValue(long oid,
+                                       @Nonnull EntitySettingSpecs settingSpec,
+                                       @Nonnull Class<T> cls) {
+        Optional<Setting> setting = getEntitySetting(oid, settingSpec);
+        if (!setting.isPresent()) {
+            return null;
+        }
+        return settingSpec.getValue(setting.get(), cls);
+    }
+
     private Optional<Setting> associatedDefaultSetting(@Nonnull final EntitySettings settingsForEntity,
                                                        @Nonnull final String settingName) {
         if (!settingsForEntity.hasDefaultSettingPolicyId()) {
@@ -133,5 +154,16 @@ public class EntitySettingsCollection {
     public Optional<Setting> getEntityUserSetting(@Nonnull final TopologyEntity entity,
                                                   @Nonnull final EntitySettingSpecs setting) {
         return getEntityUserSetting(entity.getOid(), setting.getSettingName());
+    }
+
+    /**
+     * Indicate weather an entity with a given entityOid has a user policy defined.
+     *
+     * @param entityOid of the input entity
+     * @return true if the entity has a user policy, false otherwise.
+     */
+    public boolean hasUserPolicySettings(final long entityOid) {
+        return settingsByEntity.containsKey(entityOid) &&
+            !settingsByEntity.get(entityOid).getUserSettingsList().isEmpty();
     }
 }

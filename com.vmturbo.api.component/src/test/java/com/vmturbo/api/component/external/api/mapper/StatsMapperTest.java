@@ -2,7 +2,9 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -16,7 +18,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -24,19 +25,25 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import org.junit.Before;
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.service.TargetsService;
+import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.dto.statistic.StatHistUtilizationApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -45,6 +52,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -53,31 +61,39 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
-import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Unit tests for the static Mapper utility functions for the {@link StatsService}.
  */
 public class StatsMapperTest {
 
-    public static final long START_DATE = 1234L;
-    public static final long END_DATE = 5678L;
-    public static final String PUID = "puid-";
-    public static final String CSP = "CSP";
-    public static final String AWS = "AWS";
-    public static final String COST_COMPONENT = "costComponent";
-    private static final String VIRTUAL_MACHINE = "VirtualMachine";
+    private static final long START_DATE = 1234L;
+    private static final String START_DATE_STR = DateTimeUtil.toString(1234L);
+    private static final long END_DATE = 5678L;
+    private static final String PUID = "puid-";
+    private static final String CSP = "CSP";
+    private static final String AWS = "AWS";
+    private static final String COST_COMPONENT = "costComponent";
+    private static final String PERCENTILE = "percentile";
 
     private PaginationMapper paginationMapper = mock(PaginationMapper.class);
 
@@ -97,16 +113,14 @@ public class StatsMapperTest {
 
         // Arrange
         Stats.StatSnapshot testSnapshot = Stats.StatSnapshot.newBuilder()
-                .setSnapshotDate("date-value")
-                .setStartDate(1234L)
-                .setEndDate(5678L)
+                .setSnapshotDate(START_DATE)
                 .addAllStatRecords(buildStatRecords(postfixes, relations))
                 .build();
 
         // Act
         StatSnapshotApiDTO mapped = statsMapper.toStatSnapshotApiDTO(testSnapshot);
         // Assert
-        assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(DateTimeUtil.toString(testSnapshot.getSnapshotDate()), is(mapped.getDate()));
         assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(3, testSnapshot.getStatRecordsCount());
         verifyMappedStatRecord(testSnapshot.getStatRecords(0), mapped.getStatistics().get(0),
@@ -124,9 +138,7 @@ public class StatsMapperTest {
 
         // Arrange
         Stats.StatSnapshot testSnapshot = Stats.StatSnapshot.newBuilder()
-                .setSnapshotDate("date-value")
-                .setStartDate(START_DATE)
-                .setEndDate(END_DATE)
+                .setSnapshotDate(START_DATE)
                 .addAllStatRecords(buildStatRecords(postfixes, relations))
                 .build();
 
@@ -148,6 +160,7 @@ public class StatsMapperTest {
         assertThat(filter.getType(), is(StatsMapper.FILTER_NAME_KEY));
         assertThat(filter.getValue(), is(statKey));
     }
+
     @Test
     public void testMetricsDoNotIncludeCapacityOrReserved() throws Exception {
         // Price index is a metric and metrics should not include capacities or reserved
@@ -161,6 +174,36 @@ public class StatsMapperTest {
         final StatApiDTO dto = statsMapper.toStatSnapshotApiDTO(snapshot).getStatistics().get(0);
         assertNull(dto.getCapacity());
         assertNull(dto.getReserved());
+    }
+
+    /**
+     * When a {@link StatRecord} is given in data transfer units that are multiples of
+     * Byte/sec (i.e., KByte/sec, MByte/sec, GByte/sec), the method
+     * {@link StatsMapper#toStatSnapshotApiDTO} should perform a correct conversion
+     * of all the values to multiples of bit/sec.
+     */
+    @Test
+    public void testDataTransferConversionUnit() {
+        final String originalUnits = "KByte/sec";
+        final String expectedUnits = "Kbit/sec";
+        final float epsilon = 0.01f;
+        final StatRecord statRecord = makeStatRecordBuilder(0, "", RelationType.COMMODITIES.getLiteral())
+                                          .setUnits(originalUnits)
+                                          .build();
+        final StatSnapshot snapshot = StatSnapshot.newBuilder().addStatRecords(statRecord).build();
+
+        final StatApiDTO dto = statsMapper.toStatSnapshotApiDTO(snapshot).getStatistics().get(0);
+
+        Assert.assertEquals(expectedUnits, dto.getUnits());
+        Assert.assertEquals(dto.getValues().getAvg(), dto.getValue(), epsilon);
+        Assert.assertEquals(statRecord.getCapacity().getMax() * 8, dto.getCapacity().getMax(), epsilon);
+        Assert.assertEquals(statRecord.getCapacity().getAvg() * 8, dto.getCapacity().getAvg(), epsilon);
+        Assert.assertEquals(statRecord.getCapacity().getMin() * 8, dto.getCapacity().getMin(), epsilon);
+        Assert.assertEquals(statRecord.getCapacity().getTotal() * 8, dto.getCapacity().getTotal(), epsilon);
+        Assert.assertEquals(statRecord.getUsed().getMax() * 8, dto.getValues().getMax(), epsilon);
+        Assert.assertEquals(statRecord.getUsed().getAvg() * 8, dto.getValues().getAvg(), epsilon);
+        Assert.assertEquals(statRecord.getUsed().getMin() * 8, dto.getValues().getMin(), epsilon);
+        Assert.assertEquals(statRecord.getUsed().getTotal() * 8, dto.getValues().getTotal(), epsilon);
     }
 
     @Test
@@ -228,6 +271,41 @@ public class StatsMapperTest {
         ));
     }
 
+    /**
+     * Test to make sure that both start and end times are being parsed with the utility that
+     * understands relative times, not just millis-since-epoch
+     *
+     * <p>This test proves the fix for OM-48318. It's just a single case that failed prior to the
+     * fix. The parsing utility method has its own existing suite of tests.</p>
+     */
+    @Test
+    public void testToEntityStatsRequestOffsetTimes() {
+        // Arrange
+        final EntityStatsScope scope = EntityStatsScope.newBuilder()
+            .setEntityList(EntityList.newBuilder()
+                .addEntities(1L))
+            .build();
+        StatPeriodApiInputDTO apiRequestInput = new StatPeriodApiInputDTO();
+        final String startRelativeTime = "-5d";
+        final String endRelativeTime = "+2h";
+
+        final long expectedStart = DateTimeUtil.parseTime(startRelativeTime);
+        final long expectedEnd = DateTimeUtil.parseTime(endRelativeTime);
+
+        apiRequestInput.setStartDate(startRelativeTime);
+        apiRequestInput.setEndDate(endRelativeTime);
+        final EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
+        when(paginationMapper.toProtoParams(paginationRequest))
+            .thenReturn(PaginationParameters.getDefaultInstance());
+        final GetEntityStatsRequest requestProtobuf = statsMapper.toEntityStatsRequest(scope,
+            apiRequestInput, paginationRequest);
+
+        // calculate time ranges to test, with some slop to account for clock advance since mapping
+        final long slop_ms = 2_000;
+        assertThat(Math.abs(requestProtobuf.getFilter().getStartDate() - expectedStart), lessThan(slop_ms));
+        assertThat(Math.abs(requestProtobuf.getFilter().getEndDate() - expectedEnd), lessThan(slop_ms));
+    }
+
     @Test
     public void testToEntityStatsRequestDefaults() {
         // Arrange
@@ -283,9 +361,11 @@ public class StatsMapperTest {
         assertThat(filter.getCommodityAttributesCount(), equalTo(0));
     }
 
+    private static final long PLAN_ID = 7L;
+    private static final long projectedTopologyId = 77L;
     private static final PlanInstance PLAN_INSTANCE = PlanInstance.newBuilder()
-            .setPlanId(7L)
-            .setProjectedTopologyId(77L)
+            .setPlanId(PLAN_ID)
+            .setProjectedTopologyId(projectedTopologyId)
             .setStatus(PlanStatus.SUCCEEDED)
             .build();
 
@@ -311,33 +391,33 @@ public class StatsMapperTest {
     public void testToPlanTopologyStatsRequestTopologyIdSet() {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getTopologyId(), is(PLAN_INSTANCE.getProjectedTopologyId()));
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getTopologyId(), is(projectedTopologyId));
     }
 
     @Test
     public void testToPlanTopologyStatsRequestPeriodStartDate() {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        period.setStartDate("7");
+        period.setStartDate("117");
         inputDto.setPeriod(period);
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getFilter().getStartDate(), is(7L));
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRequestDetails().getFilter().getStartDate(), is(117L));
     }
 
     @Test
     public void testToPlanTopologyStatsRequestPeriodEndDate() {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        period.setEndDate("7");
+        period.setEndDate("118");
         inputDto.setPeriod(period);
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getFilter().getEndDate(), is(7L));
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRequestDetails().getFilter().getEndDate(), is(118L));
     }
 
     @Test
@@ -349,9 +429,9 @@ public class StatsMapperTest {
         period.setStatistics(Collections.singletonList(statDto));
         inputDto.setPeriod(period);
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getFilter().getCommodityRequestsList(), containsInAnyOrder(
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRequestDetails().getFilter().getCommodityRequestsList(), containsInAnyOrder(
             CommodityRequest.newBuilder()
                 .setCommodityName(statDto.getName())
                 .build()));
@@ -362,18 +442,18 @@ public class StatsMapperTest {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setRelatedType("Cousin");
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getRelatedEntityType(), is(inputDto.getRelatedType()));
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRequestDetails().getRelatedEntityType(), is(inputDto.getRelatedType()));
     }
 
     @Test
     public void testToPlanTopologyStatsRequestPaginationParams() {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getPaginationParams(), is(MAPPED_PAGINATION_PARAMS));
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRequestDetails().getPaginationParams(), is(MAPPED_PAGINATION_PARAMS));
     }
 
     @Test
@@ -381,9 +461,9 @@ public class StatsMapperTest {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Lists.newArrayList("1", "2"));
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getEntityFilter().getEntityIdsList(), containsInAnyOrder(1L, 2L));
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRequestDetails().getEntityFilter().getEntityIdsList(), containsInAnyOrder(1L, 2L));
     }
 
     @Test
@@ -391,109 +471,47 @@ public class StatsMapperTest {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Collections.emptyList());
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
         // Request shouldn't have an entity filter at all, instead of having an entity filter
         // with no entity IDS.
-        assertFalse(request.hasEntityFilter());
+        assertFalse(request.getRequestDetails().hasEntityFilter());
     }
 
     private static final StatsFilter STATS_FILTER = StatsFilter.newBuilder()
             .setStartDate(7777)
+            .setRequestProjectedHeadroom(false)
             .build();
 
     @Test
     public void testClusterStatsRequest() {
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        when(statsMapper.newPeriodStatsFilter(period, Optional.empty())).thenReturn(STATS_FILTER);
+        when(statsMapper.newPeriodStatsFilter(period, false)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
-                statsMapper.toClusterStatsRequest("7", period);
-        assertThat(clusterStatsRequest.getClusterId(), is(7L));
+                statsMapper.toClusterStatsRequest(Long.toString(PLAN_ID), period);
+        assertThat(clusterStatsRequest.getClusterIds(0), is(PLAN_ID));
         assertThat(clusterStatsRequest.getStats(), is(STATS_FILTER));
     }
 
     @Test
     public void testClusterStatsRequestWithNullPeriod() {
         final StatPeriodApiInputDTO period = null;
-        when(statsMapper.newPeriodStatsFilter(period, Optional.empty())).thenReturn(STATS_FILTER);
+        when(statsMapper.newPeriodStatsFilter(period, false)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
-                statsMapper.toClusterStatsRequest("7", period);
-        assertThat(clusterStatsRequest.getClusterId(), is(7L));
+                statsMapper.toClusterStatsRequest(Long.toString(PLAN_ID), period);
+        assertThat(clusterStatsRequest.getClusterIds(0), is(PLAN_ID));
         assertThat(clusterStatsRequest.getStats(), is(STATS_FILTER));
     }
 
+    /**
+     * Tests {@link StatsMapper#toClusterStatsRequest(String, StatPeriodApiInputDTO)}
+     * with a market scope.
+     */
     @Test
-    public void testAveragedEntityStatsRequestNoTempGroupType() {
-        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        when(statsMapper.newPeriodStatsFilter(period, Optional.empty())).thenReturn(STATS_FILTER);
-
-        final Set<Long> uuids = Sets.newHashSet(1L, 2L);
-
-        final GetAveragedEntityStatsRequest request =
-                statsMapper.toAveragedEntityStatsRequest(uuids, period, Optional.empty());
-        assertThat(request.getEntitiesList(), containsInAnyOrder(uuids.toArray()));
-        assertThat(request.getFilter(), is(STATS_FILTER));
-        assertTrue(request.getRelatedEntityType().isEmpty());
-    }
-
-    @Test
-    public void testAveragedEntityStatsRequestWithTempGroupType() {
-        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        final Optional<Integer> tempGroupType = Optional.of(10);
-        when(statsMapper.newPeriodStatsFilter(period, tempGroupType)).thenReturn(STATS_FILTER);
-
-        final Set<Long> uuids = Sets.newHashSet(1L, 2L);
-
-        final GetAveragedEntityStatsRequest request =
-                statsMapper.toAveragedEntityStatsRequest(uuids, period, tempGroupType);
-        assertTrue(request.getEntitiesList().isEmpty());
-        assertThat(request.getFilter(), is(STATS_FILTER));
-        assertThat(request.getRelatedEntityType(), is(VIRTUAL_MACHINE));
-    }
-
-    @Test
-    public void testAveragedEntityStatsRequestWithNullPeriod() {
-        final Optional<Integer> tempGroupType = Optional.of(10);
-        when(statsMapper.newPeriodStatsFilter(null, tempGroupType)).thenReturn(STATS_FILTER);
-
-        final Set<Long> uuids = Sets.newHashSet(1L, 2L);
-
-        final GetAveragedEntityStatsRequest request =
-                statsMapper.toAveragedEntityStatsRequest(uuids, null, tempGroupType);
-        assertTrue(request.getEntitiesList().isEmpty());
-        assertThat(request.getFilter(), is(STATS_FILTER));
-        assertThat(request.getRelatedEntityType(), is(VIRTUAL_MACHINE));
-    }
-
-    @Test
-    public void testAveragedEntityStatsRequestWithStatistics() {
-        final StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
-        when(statsMapper.newPeriodStatsFilter(statPeriodApiInputDTO,
-            Optional.empty())).thenReturn(STATS_FILTER);
-        StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statApiInputDTO.setRelatedEntityType(VIRTUAL_MACHINE);
-        statPeriodApiInputDTO.setStatistics(Lists.newArrayList(statApiInputDTO));
-        final GetAveragedEntityStatsRequest request =
-            statsMapper.toAveragedEntityStatsRequest(new HashSet<>(), statPeriodApiInputDTO,
-                Optional.empty());
-        assertTrue(request.getEntitiesList().isEmpty());
-        assertThat(request.getFilter(), is(STATS_FILTER));
-        assertThat(request.getRelatedEntityType(), is(VIRTUAL_MACHINE));
-    }
-
-    @Test
-    public void testAveragedEntityStatsRequestWithoutRelatedEntityType() {
-        final StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
-        when(statsMapper.newPeriodStatsFilter(statPeriodApiInputDTO,
-            Optional.empty())).thenReturn(STATS_FILTER);
-        StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statPeriodApiInputDTO.setStatistics(Lists.newArrayList(statApiInputDTO));
-        final GetAveragedEntityStatsRequest request =
-            statsMapper.toAveragedEntityStatsRequest(new HashSet<>(), statPeriodApiInputDTO,
-                Optional.empty());
-        assertTrue(request.getEntitiesList().isEmpty());
-        assertThat(request.getFilter(), is(STATS_FILTER));
-        assertTrue(request.getRelatedEntityType().isEmpty());
+    public void testClusterStatsRequestWithMarketScope() {
+        when(statsMapper.newPeriodStatsFilter(null, false)).thenReturn(STATS_FILTER);
+        assertEquals(Collections.emptyList(),
+                     statsMapper.toClusterStatsRequest("Market", null).getClusterIdsList());
     }
 
     /**
@@ -506,8 +524,32 @@ public class StatsMapperTest {
         StatsMapper localStatsMapper = new StatsMapper(new PaginationMapper());
         StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
         statPeriodApiInputDTO.setEndDate("1M");
-        StatsFilter filter = localStatsMapper.newPeriodStatsFilter(statPeriodApiInputDTO, Optional.empty());
+        StatsFilter filter = localStatsMapper.newPeriodStatsFilter(statPeriodApiInputDTO);
         assertTrue(filter.hasEndDate());
+    }
+
+    /**
+     * Test that data center stats can be retrieved successfully, even though the search is really
+     * done on stats of a group of physical machines.
+     */
+    @Test
+    public void testNewPeriodStatsFilterWithDataCenters() {
+        StatsMapper localStatsMapper = new StatsMapper(new PaginationMapper());
+        StatPeriodApiInputDTO statPeriodApiInputDTO = new StatPeriodApiInputDTO();
+        List<StatApiInputDTO> statistics = Lists.newArrayListWithCapacity(1);
+        // The API caller is requesting stats for a DATACENTER
+        statistics.add(new StatApiInputDTO(CommodityType.CPU_ALLOCATION.name(),
+            ApiEntityType.DATACENTER.apiStr(), null, null));
+        statPeriodApiInputDTO.setStatistics(statistics);
+        // Stats for a data center will be collected with a group entity type of PHYSICAL_MACHINE
+        StatsFilter filter =
+            localStatsMapper.newPeriodStatsFilter(statPeriodApiInputDTO);
+        // All resulting commodity requests should have the related entity type of PHYSICAL_MACHINE,
+        // expressed in the API format
+        filter.getCommodityRequestsList().stream()
+            .filter(CommodityRequest::hasRelatedEntityType)
+            .map(CommodityRequest::getRelatedEntityType)
+            .forEach(relatedEntityType -> assertEquals(ApiEntityType.PHYSICAL_MACHINE.apiStr(), relatedEntityType));
     }
 
     @Test
@@ -515,9 +557,10 @@ public class StatsMapperTest {
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
         final Set<Long> uuids = Sets.newHashSet(1L, 2L);
 
-        final ProjectedEntityStatsRequest request =
-                statsMapper.toProjectedEntityStatsRequest(uuids, period, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getEntitiesList(), containsInAnyOrder(uuids.toArray()));
+        final ProjectedEntityStatsRequest request = statsMapper.toProjectedEntityStatsRequest(
+            StatsTestUtil.createEntityStatsScope(uuids), period, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getScope().getEntityList().getEntitiesList(),
+            containsInAnyOrder(uuids.toArray()));
         assertThat(request.getPaginationParams(), is(MAPPED_PAGINATION_PARAMS));
     }
 
@@ -525,9 +568,10 @@ public class StatsMapperTest {
     public void testProjectedEntityStatsRequestWithNullPeriod() {
         final Set<Long> uuids = Sets.newHashSet(1L, 2L);
 
-        final ProjectedEntityStatsRequest request =
-                statsMapper.toProjectedEntityStatsRequest(uuids, null, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getEntitiesList(), containsInAnyOrder(uuids.toArray()));
+        final ProjectedEntityStatsRequest request = statsMapper.toProjectedEntityStatsRequest(
+            StatsTestUtil.createEntityStatsScope(uuids), null, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getScope().getEntityList().getEntitiesList(),
+            containsInAnyOrder(uuids.toArray()));
         assertThat(request.getPaginationParams(), is(MAPPED_PAGINATION_PARAMS));
     }
 
@@ -544,8 +588,8 @@ public class StatsMapperTest {
 
         final Set<Long> uuids = Sets.newHashSet(1L, 2L);
 
-        final ProjectedEntityStatsRequest request =
-                statsMapper.toProjectedEntityStatsRequest(uuids, period, ENTITY_PAGINATION_REQUEST);
+        final ProjectedEntityStatsRequest request = statsMapper.toProjectedEntityStatsRequest(
+            StatsTestUtil.createEntityStatsScope(uuids), period, ENTITY_PAGINATION_REQUEST);
 
         assertThat(request.getCommodityNameList(), containsInAnyOrder(stats.toArray()));
     }
@@ -565,9 +609,7 @@ public class StatsMapperTest {
 
        // Arrange
         StatSnapshot testSnapshot = StatSnapshot.newBuilder()
-                .setSnapshotDate("date-value")
-                .setStartDate(1234L)
-                .setEndDate(5678L)
+                .setSnapshotDate(START_DATE)
                 .addAllStatRecords(buildStatRecords(postfixes, relations))
                 .build();
 
@@ -594,7 +636,7 @@ public class StatsMapperTest {
         apiDTO3.setUuid("6");
 
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate("date-value")
+                .setSnapshotDate(1_000_000)
                 .addStatRecords(getStatRecordBuilder(null, 1l, Optional.of(4l)))
                 .addStatRecords(getStatRecordBuilder(null, 2l, Optional.of(5l)))
                 .addStatRecords(getStatRecordBuilder(null, 3l,  Optional.of(6l)))
@@ -608,9 +650,9 @@ public class StatsMapperTest {
                 ImmutableList.of(apiDTO1, apiDTO2, apiDTO3),
                 targetsService);
         // Assert
-        assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
-        assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
-        assertEquals(3, testSnapshot.getStatRecordsCount());
+        assertThat(mapped.getDate(), is(DateTimeUtil.toString(cloudStatRecord.getSnapshotDate())));
+        assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
+        assertEquals(3, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
                 statApiDTO.getFilters().stream().allMatch(statFilterApiDTO ->
                         statFilterApiDTO.getType().equals(StatsService.CLOUD_SERVICE))));
@@ -634,13 +676,6 @@ public class StatsMapperTest {
                 RelationType.METRICS.getLiteral()};
 
         // Arrange
-        StatSnapshot testSnapshot = StatSnapshot.newBuilder()
-                .setSnapshotDate("date-value")
-                .setStartDate(1234L)
-                .setEndDate(5678L)
-                .addAllStatRecords(buildStatRecords(postfixes, relations))
-                .build();
-
         TargetApiDTO targetApiDTO1 = new TargetApiDTO();
         targetApiDTO1.setType("AWS");
         targetApiDTO1.setUuid("4");
@@ -652,7 +687,7 @@ public class StatsMapperTest {
         targetApiDTO3.setType("AWS");
 
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate("date-value")
+                .setSnapshotDate(START_DATE)
                 .addStatRecords(getStatRecordBuilder(null, 1l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(null, 2l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(null, 4l, Optional.empty()))
@@ -666,9 +701,9 @@ public class StatsMapperTest {
                 Collections.EMPTY_LIST,
                 targetsService);
         // Assert
-        assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
-        assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
-        assertEquals(3, testSnapshot.getStatRecordsCount());
+        assertThat(mapped.getDate(), is(START_DATE_STR));
+        assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
+        assertEquals(3, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
                 statApiDTO.getFilters().stream().allMatch(statFilterApiDTO ->
                         statFilterApiDTO.getType().equals(csp))));
@@ -685,13 +720,6 @@ public class StatsMapperTest {
                 RelationType.METRICS.getLiteral()};
 
         // Arrange
-        StatSnapshot testSnapshot = StatSnapshot.newBuilder()
-                .setSnapshotDate("date-value")
-                .setStartDate(1234L)
-                .setEndDate(5678L)
-                .addAllStatRecords(buildStatRecords(postfixes, relations))
-                .build();
-
         TargetApiDTO targetApiDTO1 = new TargetApiDTO();
         targetApiDTO1.setType("AWS");
         targetApiDTO1.setUuid("4");
@@ -700,7 +728,7 @@ public class StatsMapperTest {
         targetApiDTO3.setType("AWS");
 
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate("date-value")
+                .setSnapshotDate(START_DATE)
                 .addStatRecords(getStatRecordBuilder(null, 1l, Optional.of(11111L)))
                 .addStatRecords(getStatRecordBuilder(null, 2l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(null, 4l, Optional.empty()))
@@ -714,30 +742,62 @@ public class StatsMapperTest {
                 Collections.EMPTY_LIST,
                 targetsService);
         // Assert
-        assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
-        assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
-        assertEquals(3, testSnapshot.getStatRecordsCount());
+        assertThat(mapped.getDate(), is(START_DATE_STR));
+        assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
+        assertEquals(3, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
                 statApiDTO.getFilters().stream().allMatch(statFilterApiDTO ->
                         statFilterApiDTO.getType().equals("CSP"))));
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
                 statApiDTO.getFilters().stream().allMatch(statFilterApiDTO ->
                         statFilterApiDTO.getValue().equals("AWS"))));
+    }
 
+    @Test
+    public void testToSnapShotApiDTODisplayNames() {
+        final long oid = 0L;
+        final String providerName = "provider";
+        final String key = "key";
+        final EntityStats entityStats =
+            EntityStats.newBuilder()
+                .setOid(oid)
+                .addStatSnapshots(
+                    StatSnapshot.newBuilder()
+                        .addStatRecords(StatRecord.newBuilder()
+                                          .setRelation(RelationType.COMMODITIES.getLiteral())
+                                          .setName(CommodityType.VCPU.toString()))
+                        .addStatRecords(StatRecord.newBuilder()
+                                           .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
+                                           .setName(CommodityType.CPU.toString())
+                                           .setProviderDisplayName(providerName))
+                        .addStatRecords(StatRecord.newBuilder()
+                                           .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
+                                           .setName(CommodityType.CLUSTER.toString())
+                                           .setProviderDisplayName(providerName)
+                                           .setStatKey(key)))
+                .build();
+
+        final StatSnapshotApiDTO result = statsMapper.toStatSnapshotApiDTO(entityStats.getStatSnapshots(0));
+
+        Assert.assertEquals(3L, result.getStatistics().size());
+        Assert.assertNull(result.getStatistics().get(0).getDisplayName());
+        Assert.assertEquals("FROM: " + providerName + " ", result.getStatistics().get(1).getDisplayName());
+        Assert.assertEquals("FROM: " + providerName + " KEY: " + key,
+                            result.getStatistics().get(2).getDisplayName());
     }
 
     @Test
     public void testToCloudStatSnapshotApiDTO() throws Exception{
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(1))
+                .setSnapshotDate(START_DATE)
                 .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE, 1l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP, 2l, Optional.empty()))
-                .addStatRecords(getStatRecordBuilder(CostCategory.LICENSE, 3l, Optional.empty()))
+                .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_LICENSE, 3l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(CostCategory.STORAGE, 4l, Optional.empty()))
                 .addStatRecords(getStatRecordBuilder(CostCategory.RI_COMPUTE, 5l, Optional.empty()))
                 .build();
         final StatSnapshotApiDTO mapped = statsMapper.toCloudStatSnapshotApiDTO(cloudStatRecord);
-        assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(mapped.getDate(), is(START_DATE_STR));
         assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(5, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> statApiDTO.getFilters() != null ));
@@ -745,7 +805,7 @@ public class StatsMapperTest {
                 && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
         assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.IP.name())
                 && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
-        assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.LICENSE.name())
+        assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.ON_DEMAND_LICENSE.name())
                 && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
         assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO -> statApiDTO.getFilters().get(0).getValue().equals(CostCategory.STORAGE.name())
                 && statApiDTO.getFilters().get(0).getType().equals(COST_COMPONENT) ));
@@ -756,14 +816,156 @@ public class StatsMapperTest {
     @Test
     public void testToCloudStatSnapshotApiDTOWithEmptyCostCategory() throws Exception{
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(DateTimeUtil.toString(1))
+                .setSnapshotDate(START_DATE)
                 .addStatRecords(getStatRecordBuilder(null, 1l, Optional.empty()))
                 .build();
         final StatSnapshotApiDTO mapped = statsMapper.toCloudStatSnapshotApiDTO(cloudStatRecord);
-        assertThat(cloudStatRecord.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(mapped.getDate(), is(START_DATE_STR));
         assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(1, cloudStatRecord.getStatRecordsCount());
-        assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> statApiDTO.getFilters() == null ));
+        assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> CollectionUtils.isEmpty(statApiDTO.getFilters())));
+    }
+
+    /**
+     * Test the population of an entity stats api dto from a minimal entity dto.
+     */
+    @Test
+    public void testPopulateEntityDataEntityStatApiDTOFromMinimalEntity() {
+        MinimalEntity vm = MinimalEntity.newBuilder()
+                .setOid(123L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("Test VM 1")
+                .setEnvironmentType(
+                        EnvironmentTypeMapper.fromApiToXL(
+                                com.vmturbo.api.enums.EnvironmentType.ONPREM))
+                .build();
+        EntityStatsApiDTO outputDTO = new EntityStatsApiDTO();
+
+        StatsMapper.populateEntityDataEntityStatsApiDTO(vm, outputDTO);
+        // Verify the data in the output
+        assertEquals("123", outputDTO.getUuid());
+        assertEquals("VirtualMachine", outputDTO.getClassName());
+        assertEquals("Test VM 1", outputDTO.getDisplayName());
+        assertEquals(com.vmturbo.api.enums.EnvironmentType.ONPREM, outputDTO.getEnvironmentType());
+
+        // Also test an entity without an env type
+        MinimalEntity pm = MinimalEntity.newBuilder()
+                .setOid(123L)
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setDisplayName("Test PM 1")
+                .build();
+        EntityStatsApiDTO outputDTO2 = StatsMapper.populateEntityDataEntityStatsApiDTO(pm,
+                new EntityStatsApiDTO());
+        // Verify the data in the output
+        assertEquals("123", outputDTO2.getUuid());
+        assertEquals("PhysicalMachine", outputDTO2.getClassName());
+        assertEquals("Test PM 1", outputDTO2.getDisplayName());
+        //  no env type was specified.  So, this will be null
+        assertEquals(null, outputDTO2.getEnvironmentType());
+
+    }
+
+
+    /**
+     * Test the population of an entity stats api dto from an api id.
+     */
+    @Test
+    public void testPopulateEntityDataEntityStatApiDTOFromApiId() {
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(123L);
+        when(apiId.uuid()).thenReturn("123");
+        when(apiId.getClassName()).thenReturn("VirtualMachine");
+        when(apiId.getDisplayName()).thenReturn("Test VM 1");
+        when(apiId.getEnvironmentType())
+                .thenReturn(
+                        EnvironmentTypeMapper.fromApiToXL(
+                                com.vmturbo.api.enums.EnvironmentType.ONPREM));
+
+        EntityStatsApiDTO outputDTO = StatsMapper.populateEntityDataEntityStatsApiDTO(
+                apiId, new EntityStatsApiDTO());
+        // Verify the data in the output
+        assertEquals("123", outputDTO.getUuid());
+        assertEquals("VirtualMachine", outputDTO.getClassName());
+        assertEquals("Test VM 1", outputDTO.getDisplayName());
+        assertEquals(com.vmturbo.api.enums.EnvironmentType.ONPREM, outputDTO.getEnvironmentType());
+    }
+
+    /**
+     * Test the population of an entity stats api dto from an api partial entity dto.
+     */
+    @Test
+    public void testPopulateEntityDataEntityStatApiDTOFromApiPartialEntity() {
+
+        ApiPartialEntity apiPartialEntity = ApiPartialEntity.newBuilder()
+                .setOid(123L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("Test VM 1")
+                .setEnvironmentType(
+                        EnvironmentTypeMapper.fromApiToXL(
+                                com.vmturbo.api.enums.EnvironmentType.ONPREM))
+                .build();
+
+        EntityStatsApiDTO outputDTO = StatsMapper.populateEntityDataEntityStatsApiDTO(
+                apiPartialEntity, new EntityStatsApiDTO());
+        // Verify the data in the output
+        assertEquals("123", outputDTO.getUuid());
+        assertEquals("VirtualMachine", outputDTO.getClassName());
+        assertEquals("Test VM 1", outputDTO.getDisplayName());
+        assertEquals(com.vmturbo.api.enums.EnvironmentType.ONPREM, outputDTO.getEnvironmentType());
+
+        // Test without env type
+        ApiPartialEntity apiPartialEntityNoEnv = ApiPartialEntity.newBuilder()
+                .setOid(456L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("Test VM 2")
+                .build();
+
+        EntityStatsApiDTO outputDTONoEnv = new EntityStatsApiDTO();
+        StatsMapper.populateEntityDataEntityStatsApiDTO(apiPartialEntityNoEnv, outputDTONoEnv);
+        // Verify the data in the output
+        assertEquals("456", outputDTONoEnv.getUuid());
+        assertEquals("VirtualMachine", outputDTONoEnv.getClassName());
+        assertEquals("Test VM 2", outputDTONoEnv.getDisplayName());
+        assertEquals(null, outputDTONoEnv.getEnvironmentType());
+    }
+
+    /**
+     * Tests {@link StatRecord} name matched to UICommodityType.
+     *
+     * <p>Name has STAT_PREFIX_CURRENT in the front, these are plan_source aggregated stats</p>
+     */
+    @Test
+    public void testToStatApiDtoMappingStatsWithCurrentPrefixToCorrectUICommodityType() {
+        //GIVEN
+        StatRecord record = makeStatRecordBuilder(0, "", RelationType.COMMODITIES.getLiteral())
+                .setName(StringConstants.STAT_PREFIX_CURRENT.concat(UICommodityType.STORAGE_AMOUNT.apiStr()))
+                .build();
+
+        //WHEN
+        StatApiDTO dto = this.statsMapper.toStatApiDto(record);
+
+        //THEN
+        assertEquals(dto.getName(), UICommodityType.STORAGE_AMOUNT.apiStr());
+    }
+
+    /**
+     * Tests {@link StatRecord} name not matched to CommodityType.
+     *
+     * <p>Name has STAT_PREFIX_CURRENT in the front, these are plan_source aggregated stats</p>
+     */
+    @Test
+    public void testToStatApiDtoMappingStatsWithCurrentPrefixButNotUICommodityType() {
+        //GIVEN
+        StatRecord record = makeStatRecordBuilder(0, "", RelationType.COMMODITIES.getLiteral())
+                .setName(StringConstants.STAT_PREFIX_CURRENT.concat(StringConstants.NUM_CPUS))
+                .build();
+
+        //WHEN
+        StatApiDTO dto = this.statsMapper.toStatApiDto(record);
+
+        //THEN
+        assertEquals(dto.getName(), StringConstants.NUM_CPUS);
     }
 
     private CloudCostStatRecord.StatRecord.Builder getStatRecordBuilder(@Nullable CostCategory costCategory, float value, Optional<Long> associatedEntityId) {
@@ -812,8 +1014,21 @@ public class StatsMapperTest {
 
         assertThat(mappedStat.getRelatedEntity().getDisplayName(), is(test.getProviderDisplayName()));
         assertThat(mappedStat.getRelatedEntity().getUuid(), is(test.getProviderUuid()));
-        assertThat(mappedStat.getUnits(), is(test.getUnits()));
+        if (test.hasUnits()) {
+            assertThat(mappedStat.getUnits(), is(test.getUnits()));
+        } else {
+            assertThat(mappedStat.getUnits(), is(nullValue()));
+        }
         assertThat(mappedStat.getValue(), is(test.getUsed().getAvg()));
+        final StatHistUtilizationApiDTO percentile = mappedStat.getHistUtilizations().get(0);
+        final HistUtilizationValue expected = test.getHistUtilizationValueList().stream()
+                        .filter(value -> PERCENTILE.equals(value.getType())).findAny().get();
+        assertThat(percentile.getUsage(),
+                        is(expected.getUsage().getAvg()));
+        assertThat(percentile.getCapacity(),
+                        is(expected.getCapacity().getAvg()));
+        assertThat(percentile.getType(),
+                        is(expected.getType()));
         validateStatValue(mappedStat.getValues(), test.getUsed());
     }
 
@@ -831,7 +1046,7 @@ public class StatsMapperTest {
     private List<StatRecord> buildStatRecords(String[] postfixes, String[] relations) {
         List<StatRecord> records = new ArrayList<>();
         for (int i = 0; i < postfixes.length; i++) {
-            records.add(buildStatRecord(i, postfixes[i], relations[i]));
+            records.add(makeStatRecordBuilder(i, postfixes[i], relations[i]).build());
         }
         return records;
     }
@@ -850,26 +1065,32 @@ public class StatsMapperTest {
     }
 
     /**
-     * Create a test StatRecord populated with values based on the postfix for string fields and the index for
-     * numeric fields.
+     * Create a test {@link StatRecord.Builder} populated with values based
+     * on the postfix for string fields and the index for numeric fields.
      *
      * @param index an ascending index to be used to salt numeric fields.
      * @param postfix a string postfix to be added to string-based fields.
-     * @return a newly initialized StatRecord initialized based on the input index and postfix.
+     * @param relation a string to be used as the {@code relation} field of the new record.
+     * @return a newly initialized {@link StatRecord.Builder} initialized based on the input index and postfix.
      */
-    private StatRecord buildStatRecord(int index, String postfix, String relation) {
+    private StatRecord.Builder makeStatRecordBuilder(int index, String postfix, String relation) {
+        final StatValue capacity = buildStatValue(1000 + index);
         return StatRecord.newBuilder()
             .setName("name-" + postfix)
             .setProviderUuid(PUID + postfix)
             .setProviderDisplayName("provider-" + postfix)
-            .setCapacity(buildStatValue(1000 + index))
+            .setCapacity(capacity)
             .setReserved(2000 + index)
             .setCurrentValue(3000 + index)
             .setPeak(buildStatValue(index))
             .setUsed(buildStatValue(index + 100))
-            .setValues(buildStatValue(index + 200))
-            .setRelation(relation)
-            .build();
+            .setValues(buildStatValue(index + 200)).addHistUtilizationValue(
+                                        HistUtilizationValue.newBuilder()
+                                                        .setType(PERCENTILE)
+                                                        .setUsage(buildStatValue(index + 300))
+                                                        .setCapacity(capacity)
+                                                        .build())
+            .setRelation(relation);
     }
 
     private static StatValue buildStatValue(int seed) {

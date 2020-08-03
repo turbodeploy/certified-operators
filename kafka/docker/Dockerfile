@@ -1,5 +1,16 @@
-FROM registry.access.redhat.com/rhel7
+FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
+
+# Required OpenShift Labels
+LABEL name="kafka" \
+      vendor="Turbonomic" \
+      version="7" \
+      release="1" \
+      summary="kafka" \
+      description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
+
+# Required Licenses
+COPY licenses /licenses
 
 # This is the release of Kafka and Scala to pull in.
 COPY kafka.profile /etc/kafka.profile
@@ -11,13 +22,14 @@ COPY start-kafka /
 RUN groupadd -g 1000 kafka && useradd -m -r -d /home/kafka -g 1000 -s /bin/bash -u 101 kafka && \
     passwd -l root
 
-RUN yum install -y rsyslog java-11-openjdk-headless && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+# Install rsyslog and java-11 packages
+RUN dnf install -y rsyslog procps-ng java-11-openjdk-headless gnutls && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
 
 RUN source /etc/kafka.profile && \
     cd /tmp && \
-    curl -k -s -O https://10.10.150.66/repository/xl/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
+    curl -k -s -O http://apache.mirrors.pair.com/kafka/${KAFKA_VERSION}/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
     tar -C /opt -xvf kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
     ln -s kafka_${SCALA_VERSION}-${KAFKA_VERSION} /opt/kafka && \
     rm kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \

@@ -5,14 +5,14 @@ import java.util.Optional;
 
 import com.google.common.collect.ImmutableList;
 
+import io.grpc.Context;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-
-import io.grpc.Context;
 
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -39,13 +39,16 @@ public class UserContextUtilsTest {
         // clear the security context
         SecurityContextHolder.getContext().setAuthentication(null);
         // set a test grpc context
-        Context testContext = Context.current().withValue(SecurityConstant.USER_ID_CTX_KEY, "1")
+        Context testContext = Context.current().withValue(SecurityConstant.USER_ID_CTX_KEY, "USER")
+                    .withValue(SecurityConstant.USER_UUID_KEY, "1")
                     .withValue(SecurityConstant.USER_ROLES_KEY, ImmutableList.of("ADMIN", "TEST"));
         Context previous = testContext.attach();
-        // verify the user id matched
+        // verify the user id and user name matched
         Optional<String> userId = UserContextUtils.getCurrentUserId();
         Assert.assertTrue(userId.isPresent());
         Assert.assertEquals("1", userId.get());
+        String userName = UserContextUtils.getCurrentUserName();
+        Assert.assertEquals("USER", userName);
         // verify the roles can be found
         Optional<List<String>> roles = UserContextUtils.getCurrentUserRoles();
         Assert.assertTrue(roles.isPresent());
@@ -78,6 +81,8 @@ public class UserContextUtilsTest {
         Assert.assertEquals("11111", userId.get());
         // verify the roles can be found
         Optional<List<String>> roles = UserContextUtils.getCurrentUserRoles();
+        String currentUserName = UserContextUtils.getCurrentUserName();
+        Assert.assertEquals("admin", currentUserName);
         Assert.assertTrue(roles.isPresent());
         Assert.assertTrue(roles.get().containsAll(ImmutableList.of("TEST", "ADMIN")));
         Assert.assertTrue(UserContextUtils.currentUserHasRole("TEST").get());

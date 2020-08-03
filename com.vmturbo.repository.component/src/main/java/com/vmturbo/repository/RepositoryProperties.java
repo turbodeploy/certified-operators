@@ -15,14 +15,23 @@ public class RepositoryProperties {
     // TODO : karthikt - All these config values should be moved to consul.
     @Configuration
     public static class ArangoDB {
+
+        @Value("${arangoDBNamespace:}")
+        private String namespace;
+
         @Value("${REPOSITORY_ARANGODB_HOST:127.0.0.1}")
         private String host;
 
-        private int port = 8529;
+        @Value("${arangoDBPort:8529}")
+        private int port;
 
         private String defaultDatabase = "_system";
 
-        private String username = "root";
+        @Value("${arangoDBUsername:root}")
+        private String username;
+
+        @Value("${arangoDBPassword:}")
+        private String password;
 
         private String arangoDumpPath = "/home/turbonomic/arangodump";
 
@@ -37,6 +46,16 @@ public class RepositoryProperties {
         private int batchSize = 100;
 
         private int maxConnections = 5;
+
+        /**
+         * Get the ArangoDB namespace to be used as prefix to construct database names to support
+         * multi tenancy.
+         *
+         * @return ArangoDB namespace to be used as prefix to construct database names.
+         */
+        public String getNamespace() {
+            return namespace;
+        }
 
         public String getHost() {
             return host;
@@ -66,8 +85,8 @@ public class RepositoryProperties {
             return username;
         }
 
-        public void setUsername(String username) {
-            this.username = username;
+        public String getPassword() {
+            return password;
         }
 
         public String getArangoDumpPath() {

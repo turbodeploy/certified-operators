@@ -2,7 +2,9 @@ package com.vmturbo.components.test.utilities.utils;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
@@ -10,10 +12,10 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -28,17 +30,20 @@ public class GroupGenerator {
      * @param entityDisplayName The display name of the host.
      * @return The group of only the entities with the given display name.
      */
-    public GroupInfo entityWithName(final EntityType entityType,
+    public GroupDefinition entityWithName(final EntityType entityType,
                                     @Nonnull final String entityDisplayName) {
-        return GroupInfo.newBuilder()
-            .setEntityType(entityType.getNumber())
-            .setSearchParametersCollection(
-                SearchParametersCollection.newBuilder()
-                    .addSearchParameters(
-                        SearchParameters.newBuilder()
-                            .setStartingFilter(entityTypeFilter(entityType))
-                            .addSearchFilter(displayNameFilter(entityDisplayName))))
-                    .build();
+        return GroupDefinition.newBuilder()
+                .setEntityFilters(EntityFilters.newBuilder()
+                        .addEntityFilter(EntityFilter.newBuilder()
+                                .setEntityType(entityType.getNumber())
+                                .setSearchParametersCollection(
+                                        SearchParametersCollection.newBuilder()
+                                                .addSearchParameters(SearchParameters.newBuilder()
+                                                        .setStartingFilter(
+                                                                entityTypeFilter(entityType))
+                                                        .addSearchFilter(displayNameFilter(
+                                                                entityDisplayName))))))
+                .build();
     }
 
     /**
@@ -47,17 +52,20 @@ public class GroupGenerator {
      * @param hostDisplayName The display name of the host.
      * @return The group of all VMs on the host with the given display name.
      */
-    public GroupInfo vmsOnHost(@Nonnull final String hostDisplayName) {
-        return GroupInfo.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .setSearchParametersCollection(
-                SearchParametersCollection.newBuilder()
-                    .addSearchParameters(
-                        SearchParameters.newBuilder()
-                            .setStartingFilter(entityTypeFilter(EntityType.PHYSICAL_MACHINE))
-                            .addSearchFilter(displayNameFilter(hostDisplayName))
-                            .addSearchFilter(traverseToTypeFilter(EntityType.VIRTUAL_MACHINE))))
-            .build();
+    public GroupDefinition vmsOnHost(@Nonnull final String hostDisplayName) {
+        final SearchParameters params = SearchParameters.newBuilder()
+                .setStartingFilter(entityTypeFilter(EntityType.PHYSICAL_MACHINE))
+                .addSearchFilter(displayNameFilter(hostDisplayName))
+                .addSearchFilter(traverseToTypeFilter(EntityType.VIRTUAL_MACHINE))
+                .build();
+        return GroupDefinition.newBuilder()
+                .setEntityFilters(EntityFilters.newBuilder()
+                        .addEntityFilter(EntityFilter.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                .setSearchParametersCollection(
+                                        SearchParametersCollection.newBuilder()
+                                                .addSearchParameters(params))))
+                .build();
     }
 
     /**
@@ -66,17 +74,20 @@ public class GroupGenerator {
      * @param storageDisplayName The group of all VMs on the storage with the given display name.
      * @return The group of all VMs on the storage with the given display name.
      */
-    public GroupInfo vmsOnStorage(@Nonnull final String storageDisplayName) {
-        return GroupInfo.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .setSearchParametersCollection(
-                SearchParametersCollection.newBuilder()
-                    .addSearchParameters(
-                        SearchParameters.newBuilder()
-                            .setStartingFilter(entityTypeFilter(EntityType.STORAGE))
-                            .addSearchFilter(displayNameFilter(storageDisplayName))
-                            .addSearchFilter(traverseToTypeFilter(EntityType.VIRTUAL_MACHINE))))
-            .build();
+    public GroupDefinition vmsOnStorage(@Nonnull final String storageDisplayName) {
+        final SearchParameters params = SearchParameters.newBuilder()
+                .setStartingFilter(entityTypeFilter(EntityType.STORAGE))
+                .addSearchFilter(displayNameFilter(storageDisplayName))
+                .addSearchFilter(traverseToTypeFilter(EntityType.VIRTUAL_MACHINE))
+                .build();
+        return GroupDefinition.newBuilder()
+                .setEntityFilters(EntityFilters.newBuilder()
+                        .addEntityFilter(EntityFilter.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                                .setSearchParametersCollection(
+                                        SearchParametersCollection.newBuilder()
+                                                .addSearchParameters(params))))
+                .build();
     }
 
 
@@ -86,17 +97,20 @@ public class GroupGenerator {
      * @param dcDisplayName The display name of the desired datacenter.
      * @return The group of all hosts on the datacenter with the given display name.
      */
-    public GroupInfo hostsOnDatacenter(@Nonnull final String dcDisplayName) {
-        return GroupInfo.newBuilder()
-            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .setSearchParametersCollection(
-                SearchParametersCollection.newBuilder()
-                    .addSearchParameters(
-                        SearchParameters.newBuilder()
-                            .setStartingFilter(entityTypeFilter(EntityType.DATACENTER))
-                            .addSearchFilter(displayNameFilter(dcDisplayName))
-                            .addSearchFilter(traverseToTypeFilter(EntityType.PHYSICAL_MACHINE))))
-            .build();
+    public GroupDefinition hostsOnDatacenter(@Nonnull final String dcDisplayName) {
+        final SearchParameters params = SearchParameters.newBuilder()
+                .setStartingFilter(entityTypeFilter(EntityType.DATACENTER))
+                .addSearchFilter(displayNameFilter(dcDisplayName))
+                .addSearchFilter(traverseToTypeFilter(EntityType.PHYSICAL_MACHINE))
+                .build();
+        return GroupDefinition.newBuilder()
+                .setEntityFilters(EntityFilters.newBuilder()
+                        .addEntityFilter(EntityFilter.newBuilder()
+                                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                .setSearchParametersCollection(
+                                        SearchParametersCollection.newBuilder()
+                                                .addSearchParameters(params))))
+                .build();
     }
 
     private PropertyFilter entityTypeFilter(final EntityType entityType) {

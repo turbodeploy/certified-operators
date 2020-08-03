@@ -15,14 +15,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -30,6 +30,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -40,6 +41,12 @@ import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
  */
 @ThreadSafe
 public class RemoteProbeStore implements ProbeStore {
+
+    /**
+     * The prefix used in the error message when we try to get the transport of a probe that has
+     * no registered transports (e.g. at startup, before probes register).
+     */
+    public static final String TRANSPORT_NOT_REGISTERED_PREFIX = "Probe for requested id is not registered: ";
 
     @GuardedBy("dataLock")
     private final KeyValueStore keyValueStore;
@@ -76,17 +83,30 @@ public class RemoteProbeStore implements ProbeStore {
 
     private final ProbeOrdering probeOrdering;
 
+    /**
+     * The action merge policy/specs conversion repository.
+     */
+    private final ActionMergeSpecsRepository actionMergeSpecsRepository;
+
     public RemoteProbeStore(@Nonnull final KeyValueStore keyValueStore,
                             @Nonnull IdentityProvider identityProvider,
-                            @Nonnull final StitchingOperationStore stitchingOperationStore) {
+                            @Nonnull final StitchingOperationStore stitchingOperationStore,
+                            final @Nonnull ActionMergeSpecsRepository actionSpecsRepository) {
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         identityProvider_ = Objects.requireNonNull(identityProvider);
         this.stitchingOperationStore = Objects.requireNonNull(stitchingOperationStore);
-
-        // Load ProbeInfo persisted in Consul.
-        Map<String, String> persistedProbeInfos = this.keyValueStore.getByPrefix(PROBE_KV_STORE_PREFIX);
+        this.actionMergeSpecsRepository = actionSpecsRepository;
 
         this.probeInfos = new HashMap<>();
+        this.probeOrdering = new StandardProbeOrdering(this);
+    }
+
+    @Override
+    public void initialize() {
+        logger.debug("initialize");
+        this.probeInfos.clear();
+        // Load ProbeInfo persisted in Consul.
+        Map<String, String> persistedProbeInfos = this.keyValueStore.getByPrefix(PROBE_KV_STORE_PREFIX);
         persistedProbeInfos.values().stream()
             .map(probeInfoJson -> {
                 try {
@@ -94,7 +114,7 @@ public class RemoteProbeStore implements ProbeStore {
                     JsonFormat.parser().merge(probeInfoJson, probeInfoBuilder);
                     return probeInfoBuilder.build();
                 } catch (InvalidProtocolBufferException e){
-                    logger.error("Failed to load probe info from Consul.");
+                    logger.error("Failed to load probe info from Consul: {}", probeInfoJson, e);
                     return null;
                 }
             })
@@ -113,7 +133,6 @@ public class RemoteProbeStore implements ProbeStore {
                             " Keeping first. Dropping: {}", probeId, probeInfo);
                 }
             });
-        this.probeOrdering = new StandardProbeOrdering(this);
     }
 
     /**
@@ -157,6 +176,8 @@ public class RemoteProbeStore implements ProbeStore {
             // If we successfully got an ID it means we passed the compatibility check.
             probeInfos.put(probeId, probeInfo);
             stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
+            // Save the action merge policies
+            actionMergeSpecsRepository.setPoliciesForProbe(probeId, probeInfo);
 
             if (probeExists) {
                 logger.info("Connected probe " + probeId +
@@ -187,7 +208,7 @@ public class RemoteProbeStore implements ProbeStore {
             probeInfos.clear();
             probeInfos.putAll(probeInfoMap);
             // Keep Consul in sync with the internal cache
-            keyValueStore.remove(PROBE_KV_STORE_PREFIX);
+            keyValueStore.removeKeysWithPrefix(PROBE_KV_STORE_PREFIX);
             probeInfos.forEach((probeId, probeInfo) -> {
                 try {
                     storeProbeInfo(probeId, probeInfo);
@@ -217,7 +238,7 @@ public class RemoteProbeStore implements ProbeStore {
                     long probeId) throws ProbeException {
         synchronized (dataLock) {
             if (!probes.containsKey(probeId)) {
-                throw new ProbeException("Probe for requested id is not registered: " + probeId);
+                throw new ProbeException(TRANSPORT_NOT_REGISTERED_PREFIX + probeId);
             }
             return probes.get(probeId);
         }

@@ -4,9 +4,13 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
-public class StorageTierAspectMapper implements IAspectMapper {
+/**
+ * Mapper for getting storage tier aspect.
+ */
+public class StorageTierAspectMapper extends AbstractAspectMapper {
 
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull TopologyEntityDTO entity) {
@@ -18,7 +22,7 @@ public class StorageTierAspectMapper implements IAspectMapper {
     }
 
     @Override
-    public @Nonnull String getAspectName() {
-        return "storageTierAspect";
+    public @Nonnull AspectName getAspectName() {
+        return AspectName.STORAGE_TIER;
     }
 }

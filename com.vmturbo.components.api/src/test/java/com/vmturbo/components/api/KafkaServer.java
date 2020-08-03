@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.zookeeper.server.ServerConfig;
 import org.apache.zookeeper.server.ZooKeeperServerMain;
+import org.apache.zookeeper.server.admin.AdminServer.AdminServerException;
 import org.apache.zookeeper.server.quorum.QuorumPeerConfig;
 import org.junit.rules.ExternalResource;
 
@@ -132,7 +133,7 @@ public class KafkaServer extends ExternalResource {
             try {
 
                 zooKeeperServer.runFromConfig(configuration);
-            } catch (IOException e) {
+            } catch (IOException | AdminServerException e) {
                 System.out.println("ZooKeeper Failed");
                 e.printStackTrace(System.err);
             }

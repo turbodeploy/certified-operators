@@ -91,12 +91,14 @@ public class MonthActionStatTable implements ActionStatTable {
 
         @Override
         protected int numSnapshotsInSnapshotRecord(@Nonnull final ActionSnapshotMonthRecord record) {
-            throw new UnsupportedOperationException("Unexpected rollup on monthly record.");
+            return record.getNumActionSnapshots();
         }
 
         @Override
         protected RolledUpActionGroupStat recordToGroupStat(final ActionStatsByMonthRecord record) {
             return ImmutableRolledUpActionGroupStat.builder()
+                .priorActionCount(record.getPriorActionCount())
+                .newActionCount(record.getNewActionCount())
                 .avgActionCount(record.getAvgActionCount().doubleValue())
                 .minActionCount(record.getMinActionCount())
                 .maxActionCount(record.getMaxActionCount())
@@ -134,6 +136,9 @@ public class MonthActionStatTable implements ActionStatTable {
             record.setMonthTime(startTime);
             record.setActionGroupId(actionGroupId);
             record.setMgmtUnitSubgroupId(mgmtUnitSubgroupId);
+
+            record.setPriorActionCount(rolledUpActionGroupStats.priorActionCount());
+            record.setNewActionCount(rolledUpActionGroupStats.newActionCount());
 
             record.setAvgActionCount(BigDecimal.valueOf(rolledUpActionGroupStats.avgActionCount()));
             record.setMaxActionCount(rolledUpActionGroupStats.maxActionCount());

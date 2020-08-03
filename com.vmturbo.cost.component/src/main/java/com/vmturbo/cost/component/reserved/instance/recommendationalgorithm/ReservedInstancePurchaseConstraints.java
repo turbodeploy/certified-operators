@@ -4,9 +4,9 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
-
 
 /**
  * This class controls what kind of Reserved Instances the recommendation algorithm will recommend buying.
@@ -34,6 +34,13 @@ public class ReservedInstancePurchaseConstraints {
         this.offeringClass = Objects.requireNonNull(offeringClass);
         this.termInYears = termInYears;
         this.paymentOption = Objects.requireNonNull(paymentOption);
+    }
+
+    public ReservedInstancePurchaseConstraints(@Nonnull ReservedInstanceType type) {
+        Objects.requireNonNull(type);
+        this.offeringClass = type.getOfferingClass();
+        this.termInYears = type.getTermYears();
+        this.paymentOption = type.getPaymentOption();
     }
 
     /**
@@ -66,6 +73,27 @@ public class ReservedInstancePurchaseConstraints {
         return paymentOption;
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(offeringClass.ordinal(), termInYears, paymentOption.ordinal());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
+        if (this.getClass() != o.getClass()) {
+            return false;
+        }
+        ReservedInstancePurchaseConstraints constraints = (ReservedInstancePurchaseConstraints)o;
+        return offeringClass == constraints.getOfferingClass()
+            && (termInYears == constraints.getTermInYears()
+            && paymentOption == constraints.getPaymentOption());
+    }
 
     @Override
     public String toString() {

@@ -17,8 +17,7 @@ public interface AttributeExtractor<T> {
      * in a newly created {@link IdentityMatchingAttributes}.
      *
      * @param item the item whose com.vmturbo.identity.attributes will be extracted
-     * @return a new {@link IdentityMatchingAttributes} populated with the desired com.vmturbo.identity.attributes
-     * extracted from the item
+     * @return a new model that is representing the instance of {@code item}
      */
     @Nonnull
     IdentityMatchingAttributes extractAttributes(@Nonnull T item);

@@ -15,6 +15,12 @@ topics:
   - topic: tp-notifications
     properties:
       retention.ms: 604800000 # 604800000 ms = 7 days
+  - topic: analysis-summary
+    properties:
+      retention.ms: 7200000 # 7200k ms = 2 hr
+  - topic: analysis-status-notification
+    properties:
+      retention.ms: 7200000 # 7200k ms = 2 hr
   - topic: topology-summaries # a topic containing short summaries of topologies
     properties:
       retention.ms: 3600000 # 3600k ms = 1 hr
@@ -25,6 +31,9 @@ topics:
     properties:
       retention.ms: 3600000 # 3600k ms = 1 hr
   - topic: tp-scheduled-plan-topologies
+    properties:
+      retention.ms: 7200000 # 7200k ms = 2 hr
+  - topic: entities-with-new-state
     properties:
       retention.ms: 7200000 # 7200k ms = 2 hr
   - topic: plan-analysis-topologies
@@ -54,12 +63,21 @@ topics:
   - topic: plan-orchestrator-status-changed
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: reservation-status-notifications
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: cost-notifications
+    properties:
+      retention.ms: 3600000 # 3600k ms = 1 hr
   - topic: report-generation-notifications
     properties:
       retention.ms: 600000 # 600k ms = 10 min
   - topic: system-notifications
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: component-status
+    properties:
+      retention.ms: 7200000 # 2 hr
   - topic: license-summary
     properties:
       cleanup.policy: compact # use compacted log to preserve the latest license summary
@@ -67,6 +85,24 @@ topics:
       segment.ms: 360000 # more frequent segment rolls to allow compaction of this tiny topic
       segment.bytes: 75000 # smaller segment sizes since the messages are small and single-keyed
       delete.retention.ms: 360000 # don't need to keep deletes for long on this topic
+  - topic: settings-updates
+    properties:
+          retention.ms: 360000
+  - topic: external-action-approval-requests
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: external-action-update-state-requests
+    properties:
+      retention.ms: 7200000 # 2 hr
+  - topic: external-action-audit-events
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: tp-external-action-state-updates
+    properties:
+      retention.ms: 7200000 # 2 hr
+  - topic: tp-external-action-approval-responses
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
 
 # the following topics are not in use yet.
 #  - topic: action-status

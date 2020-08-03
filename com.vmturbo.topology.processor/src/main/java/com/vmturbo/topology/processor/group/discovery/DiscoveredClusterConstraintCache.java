@@ -18,14 +18,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * This class is used to handle discovered cluster constraints which come from Probe discovery response.
@@ -40,8 +41,6 @@ public class DiscoveredClusterConstraintCache {
     private final EntityStore entityStore;
 
     private final Map<Long, List<DiscoveredClusterConstraint>> discoveredClusterConstraintMap;
-
-    private final double MAX_CAPACITY = 1e9d;
 
     public DiscoveredClusterConstraintCache(@Nonnull final EntityStore entityStore) {
         this.entityStore = Objects.requireNonNull(entityStore);
@@ -86,7 +85,7 @@ public class DiscoveredClusterConstraintCache {
      *
      * @param topologyGraph a graph of topology.
      */
-    public void applyClusterCommodity(@Nonnull final TopologyGraph topologyGraph) {
+    public void applyClusterCommodity(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
         discoveredClusterConstraintMap.values().stream()
                 .flatMap(List::stream)
                 .filter(discoveredClusterConstraint ->
@@ -221,7 +220,7 @@ public class DiscoveredClusterConstraintCache {
      * @return a boolean.
      */
     private boolean hasClusterConstraint(
-            @Nonnull final TopologyGraph topologyGraph,
+            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
             @Nonnull final DiscoveredClusterConstraint discoveredClusterConstraint) {
         return hasClusterConstraintForProvider(topologyGraph, discoveredClusterConstraint.providerIds) &&
                 hasClusterConstraintForConsumer(topologyGraph, getIncludedConsumers(topologyGraph,
@@ -237,7 +236,7 @@ public class DiscoveredClusterConstraintCache {
      * @return a boolean.
      */
     private boolean hasClusterConstraintForProvider(
-            @Nonnull final TopologyGraph topologyGraph,
+            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
             @Nonnull final Set<Long> providerIds) {
         return providerIds.stream()
                 .map(topologyGraph::getEntity)
@@ -275,7 +274,7 @@ public class DiscoveredClusterConstraintCache {
      * @return a boolean.
      */
     private boolean hasClusterConstraintForConsumer(
-            @Nonnull final TopologyGraph topologyGraph,
+            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
             @Nonnull final Set<Long> consumerIds,
             @Nonnull final DiscoveredClusterConstraint discoveredClusterConstraint) {
         return consumerIds.stream()
@@ -330,7 +329,7 @@ public class DiscoveredClusterConstraintCache {
      * @return a set of consumer ids.
      */
     private Set<Long> getIncludedConsumers(
-            @Nonnull final TopologyGraph topologyGraph,
+            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
             @Nonnull final DiscoveredClusterConstraint discoveredClusterConstraint) {
         return getAllConsumerIds(discoveredClusterConstraint, topologyGraph).stream()
                 .filter(consumerId ->
@@ -346,7 +345,7 @@ public class DiscoveredClusterConstraintCache {
      * @param providerIds a set of provider ids.
      * @param clusterCommodity cluster Commodity type.
      */
-    private void applyClusterCommodityForProvider(@Nonnull final TopologyGraph topologyGraph,
+    private void applyClusterCommodityForProvider(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                                   @Nonnull final Set<Long> providerIds,
                                                   @Nonnull final CommodityType clusterCommodity) {
         for (Long providerId : providerIds) {
@@ -357,7 +356,7 @@ public class DiscoveredClusterConstraintCache {
                 providerEntity.get().getTopologyEntityDtoBuilder()
                         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                                 .setCommodityType(clusterCommodity)
-                                .setCapacity(MAX_CAPACITY)
+                                .setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY)
                                 .setIsResizeable(false));
             }
         }
@@ -372,7 +371,7 @@ public class DiscoveredClusterConstraintCache {
      * @param providerEntityType provider entity type.
      * @param clusterCommodity cluster Commodity type.
      */
-    private void applyClusterCommodityForConsumer(@Nonnull final TopologyGraph topologyGraph,
+    private void applyClusterCommodityForConsumer(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                                                   @Nonnull final Set<Long> consumerIds,
                                                   @Nonnull final Set<Long> providerIds,
                                                   final int providerEntityType,
@@ -406,7 +405,7 @@ public class DiscoveredClusterConstraintCache {
      */
     private Set<Long> getAllConsumerIds(
             @Nonnull final DiscoveredClusterConstraint discoveredClusterConstraint,
-            @Nonnull TopologyGraph topologyGraph) {
+            @Nonnull TopologyGraph<TopologyEntity> topologyGraph) {
         final Set<Long> allConsumerIds = new HashSet<>();
         for (Long providerId : discoveredClusterConstraint.getProviderIds()) {
             final Optional<TopologyEntity> providerEntity = topologyGraph.getEntity(providerId);

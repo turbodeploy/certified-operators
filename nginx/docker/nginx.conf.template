@@ -4,13 +4,13 @@ include /etc/nginx/userconf/*.conf;
 # keep process alive so docker container doesn't exit
 daemon off;
 
-worker_processes  1;
+worker_processes $WORKER_PROCESSES;
 
 error_log  /var/log/nginx/error.log warn;
 pid        /var/run/nginx.pid;
 
 events {
-    worker_connections 256;
+    worker_connections $WORKER_CONNECTIONS;
 }
 
 http {
@@ -25,8 +25,35 @@ http {
 
     access_log  /var/log/nginx/access.log  main;
 
+    # START: NGINX HARDENING
+    # Hide Nginx version
+    server_tokens off;
+
+    # Prevent VERB tampering, and only allow supported VERBS GET, 
+    # POST, OPTIONS, PUT, DELETE and HEAD.
+    # Removed TRACE AND DEBUG
+    map $request_method $bad_method {
+        default 1;
+        ~(?i)(GET|POST|OPTIONS|PUT|DELETE|HEAD) 0;
+    }
+
+    # Hardening of timeouts to mitigate DoS attacks
+    reset_timedout_connection on;
+    keepalive_requests  100;
+    client_header_timeout 10s;
+    client_body_timeout 10s;
+    send_timeout        10s;
+    lingering_timeout   5s;
+    # END: NGINX HARDENING
+
+
     # turn off proxy buffering due to read-only fs
     proxy_buffering off;
+
+    proxy_temp_path /tmp/proxy 1 2;
+    fastcgi_temp_path /tmp/fastcgi 1 2;
+    uwsgi_temp_path /tmp/uwsgi 1 2;
+    scgi_temp_path /tmp/scgi 1 2;
 
     sendfile        on;
     #tcp_nopush     on;
@@ -35,6 +62,7 @@ http {
 
     # These two should be the same or nginx will start writing
     #  large request bodies to temp files
+    client_body_temp_path /tmp/client_body 1 2;
     client_body_buffer_size 10m;
     client_max_body_size    10m;
 
@@ -79,11 +107,7 @@ http {
             return 301 https://$host$request_uri;
         }
 
-        location = /metrics {
-            set $api_servers $API;
-            proxy_pass         http://$api_servers:8080/metrics;
-            proxy_set_header   Host $http_host;
-        }
+        location /healthz/ready { return 200 OK; }
 
         # include any additional server config files for the insecure port
         include /etc/nginx/userconf/insecure/*.conf;
@@ -92,28 +116,61 @@ http {
     server {
         listen 8443 ssl http2;
         ssl on;
-        ssl_certificate /tmp/certs/cert.pem;
-        ssl_certificate_key /tmp/certs/cert.key;
-        ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+        ssl_certificate /etc/nginx/certs/tls.crt;
+        ssl_certificate_key /etc/nginx/certs/tls.key;
+        ssl_protocols TLSv1.2;
+        ssl_ciphers "EECDH+ECDSA+AESGCM EECDH+aRSA+AESGCM EECDH+ECDSA+SHA384 EECDH+ECDSA+SHA256 EECDH+aRSA+SHA384 EECDH+aRSA+SHA256 EECDH+aRSA+RC4 EECDH EDH+aRSA RC4 !aNULL !eNULL !LOW !3DES !MD5 !EXP !PSK !SRP !DSS !RC4";
 
+        # CSP Headers
+        include /etc/nginx/includes/content-security-policy.conf;
 
-	# swagger-ui paths without trailing slash do 302 redirect to add the slash
-	rewrite ^(/apidoc(/v2)?)$ $scheme://$host/$1/ redirect;
-	rewrite ^(/swagger(/external)?)$ $scheme://$host/$1/ redirect;
+        # Block MIME sniffing
+        add_header X-Content-Type-Options "nosniff" always;
 
-	# swagger-ui paths without index.html get it added on (internal, no redirect)
-	rewrite ^(/apidoc(/v2)?)/$ $1/index.html;
-	rewrite ^(/swagger(/external)?)/$ $1/index.html;
+        # XSS filtering.
+        add_header X-XSS-Protection "1; mode=block" always;
 
-	# all swagger-ui paths are routed to /swagger/external
-	rewrite ^/apidoc(/v2)?(.+)$ /swagger/external$2;
-	rewrite ^/swagger(/external)?(.+)$ /swagger/external$2;
+        # Enable HTTP Strict Transport Security
+        add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
 
-	# /api and /api/v2 paths route internally to /vmturbo/rest
-	rewrite ^/api(/v2)?(.+)$ /vmturbo/rest$2;
+        add_header X-Frame-Options "SAMEORIGIN" always;
 
-	# proxying default paths
-        location ~ (/$|/index|/app|/vmturbo(?!/messages)|/rest|/cgi-bin|/swagger) {
+        #### Following rules are intended to support the following URLS:
+        #### * API methods:
+        ####     /api/v3/<method>  (PREFERRED)
+        ####     /api/<method>
+        #### * Swagger-UI:
+        ####     /apidoc/v3/index.html, /apidoc/v3/, /apidoc/v3  (PREFERRED)
+        ####     /apidoc/index.html, /apidoc/, /apidoc
+        ####     /swagger/external/index.html, /swagger/external/, /swagger/external
+        ####     /swagger/index.html, /swagger/, /swagger
+        #### * Swagger File as JSON (replace ".json" with ".yaml" to get YAML version)
+        ####     /apidoc/v3/swagger.json  (PREFERRED)
+        ####     /apidoc/swagger.json, /swagger/external/swagger.json, /swagger/swagger.json
+        ####
+        #### Note: the preferred paths lay a foundation for an evolving, versioned API, with
+        #### the ability to support multiple versions simultaneously. Non-preferred paths
+        #### may be dropped without notice and should not be communicated to customers.
+        ####
+        #### Internal API component paths to which the above should be mapped:
+        #### * Swagge-UI URLs: /swagger/external/{index.html, swagger.json, swagger.yaml}
+        #### * API URLs: /api/v3/<method> or /api/<method> (no rewrites required)
+
+        # swagger-ui paths without trailing slash do 302 redirect to add the slash
+        rewrite ^/(apidoc(/v3)?)$ $scheme://$host/$1/ redirect;
+        rewrite ^/(swagger(/external)?)$ $scheme://$host/$1/ redirect;
+
+        # swagger-ui paths without index.html get it added on (internal, no redirect)
+        rewrite ^(/apidoc(/v3)?)/$ $1/index.html;
+        rewrite ^(/swagger(/external)?)/$ $1/index.html;
+
+        # all swagger-ui paths (including requests for swagger.json or swagger.yaml)
+        # are routed to /swagger/external
+        rewrite ^/apidoc(/v3)?(.+)$ /swagger/external$2;
+        rewrite ^/swagger(/external)?(.+)$ /swagger/external$2;
+
+        # proxying default paths
+        location ~ ^(/$|/api|/app|/vmturbo/rest|/vmturbo/saml2|/vmturbo/oauth2) {
             # we are using variables for the upstream servers instead of an upstream entry because
             # of the DNS caching problem -- only nginx plus will dynamically resolve the upstream
             # servers
@@ -123,8 +180,79 @@ http {
             proxy_set_header   X-Real-IP $remote_addr;
             proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_connect_timeout 10s;
-            proxy_read_timeout 600s;
+            proxy_read_timeout 6000s;
             proxy_intercept_errors on;
+
+            # START:  NGINX HARDENING
+            # Hide Nginx version
+            server_tokens off;
+
+            #Add cookie security and httponly headers
+            proxy_cookie_path / "/; HTTPOnly; Secure";
+            # END:  NGINX HARDENING
+
+            # Ensure the proxy-side redirect from API gets rewritten to the gateway address
+            proxy_set_header   X-Forwarded-Proto $scheme;
+            proxy_redirect     http://$http_host/ $scheme://$http_host/;
+
+            # Send 503 "service unavailable" on gateway issues, where API may be down or unavailable
+            error_page 502 503 504 =503 /maintenance/;
+
+            access_log  /var/log/nginx/access.log  upstream_ws;
+        }
+
+        # Proxying the report-related route, and redirecting to Grafana.
+        location /reports {
+            set $grafana_servers $GRAFANA;
+
+            # If grafana's URL is not provider, return a 404. This should never happen in a
+            # real deployment.
+            #
+            # The "unset" string is specified in entrypoint.sh string as the value when no grafana
+            # environment variable is present.
+            if ($grafana_servers = unset) {
+                return 404;
+            }
+
+            # If it is set, then pass through to grafana.
+            proxy_pass         http://$grafana_servers:3000;
+            proxy_set_header   Host $http_host;
+            proxy_set_header   X-Real-IP $remote_addr;
+            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header   X-WEBAUTH-USER reports-viewer;
+            rewrite       ^/reports/?(.*) /$1 break;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 6000s;
+            proxy_intercept_errors on;
+
+            ## Include all add_header directives for the report location block since we need to override the defaults.
+            ## IMPORTANT: any "add_headers" for this location block must be placed inside this inclusion file directly
+            include /etc/nginx/includes/report-headers.conf;
+
+            access_log  /var/log/nginx/access.log  upstream_ws;
+        }
+
+        location /swagger/external {
+            set $api_servers $API;
+            proxy_pass         http://$api_servers:8080;
+            proxy_set_header   Host $http_host;
+            proxy_set_header   X-Real-IP $remote_addr;
+            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 6000s;
+            proxy_intercept_errors on;
+
+            ## Include all add_header directives for the swagger location block since we need to override the defaults
+            ## IMPORTANT: any "add_headers" for this location block must be placed inside this inclusion file directly
+            include /etc/nginx/includes/external-swagger-headers.conf;
+
+            # START:  NGINX HARDENING
+            # Hide Nginx version
+            server_tokens off;
+
+            #Add cookie security and httponly headers
+            proxy_cookie_path / "/; HTTPOnly; Secure";
+            # END:  NGINX HARDENING
 
             # Ensure the proxy-side redirect from API gets rewritten to the gateway address
             proxy_set_header   X-Forwarded-Proto $scheme;
@@ -158,13 +286,13 @@ http {
         }
 
         # For proxying websockets
-        location = /vmturbo/messages {
+        location = /ws/messages {
             set $api_servers $API;
 
             # For proxying of websockets to API SSL port
-            #proxy_pass         https://$api_servers:9443/vmturbo/messages;
+            #proxy_pass         https://$api_servers:9443/ws/messages;
             # For proxying to non-SSL API
-            proxy_pass        http://$api_servers:8080/vmturbo/messages;
+            proxy_pass        http://$api_servers:8080/ws/messages;
 
             proxy_set_header   Host $http_host;
             proxy_set_header   X-Real-IP $remote_addr;
@@ -220,7 +348,7 @@ http {
             # proxy_pass_header X-XSRF-TOKEN;
 
             # long timeout to allow for WS connections idle for longer than the default 60s
-            proxy_read_timeout 6000s;
+            proxy_read_timeout 600s;
 
             proxy_intercept_errors on;
             proxy_cache_bypass $http_upgrade;
@@ -244,7 +372,7 @@ http {
 
         # Diags download can take a long time. So we set the read timeout to a
         # higher value.
-        location = /vmturbo/rest/cluster/diagnostics {
+        location = /api/v3/cluster/diagnostics {
             set $api_servers $API;
             proxy_pass         http://$api_servers:8080;
             proxy_set_header   Host $http_host;
@@ -263,6 +391,8 @@ http {
 
             access_log  /var/log/nginx/access.log  upstream_ws;
         }
+
+        location /healthz/ready { return 200 OK; }
 
         # include any additional server config files for the secured block
         include /etc/nginx/userconf/secure/*.conf;

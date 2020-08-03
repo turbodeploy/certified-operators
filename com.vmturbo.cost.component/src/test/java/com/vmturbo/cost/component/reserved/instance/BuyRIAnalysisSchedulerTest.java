@@ -19,8 +19,8 @@ import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisScheduler;
-import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
+import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 
 public class BuyRIAnalysisSchedulerTest {
 
@@ -34,20 +34,6 @@ public class BuyRIAnalysisSchedulerTest {
             ComputeTierDemandStatsStore.class);
 
     @Test
-    public void testCreateInitialScheduleTask() {
-        final ScheduledFuture<?> initialMockFuture = Mockito.mock(ScheduledFuture.class);
-        final long initialIntervalMillis = TimeUnit.MILLISECONDS.convert(initialIntervalHours, TimeUnit.HOURS);
-        Mockito.doReturn(initialMockFuture).when(scheduledExecutorSpy).scheduleAtFixedRate(
-                any(), Mockito.anyLong(), eq(initialIntervalMillis), any()
-        );
-        final BuyRIAnalysisScheduler buyRIAnalysisScheduler = new BuyRIAnalysisScheduler(
-                scheduledExecutorSpy, computeTierDemandStatsStoreMock, initialIntervalHours,
-                normalIntervalHours);
-        verify(scheduledExecutorSpy).scheduleAtFixedRate(any(), Mockito.anyLong(),
-                eq(initialIntervalMillis), any());
-    }
-
-    @Test
     public void testCreateNormalScheduleTask() {
         final ScheduledFuture<?> initialMockFuture = Mockito.mock(ScheduledFuture.class);
         final long initialIntervalMillis = TimeUnit.MILLISECONDS.convert(initialIntervalHours, TimeUnit.HOURS);
@@ -55,14 +41,12 @@ public class BuyRIAnalysisSchedulerTest {
         Mockito.doReturn(initialMockFuture).when(scheduledExecutorSpy).scheduleAtFixedRate(
                 any(), Mockito.anyLong(), eq(initialIntervalMillis), any()
         );
-        Mockito.when(computeTierDemandStatsStoreMock.containsDataOverWeek()).thenReturn(true);
+        ReservedInstanceAnalysisInvoker invoker = Mockito.mock(ReservedInstanceAnalysisInvoker.class);
         final BuyRIAnalysisScheduler buyRIAnalysisScheduler = new BuyRIAnalysisScheduler(
-                scheduledExecutorSpy, computeTierDemandStatsStoreMock, initialIntervalHours,
-                normalIntervalHours);
-        buyRIAnalysisScheduler.initialTriggerBuyRIAnalysis(normalIntervalHours);
-        verify(initialMockFuture).cancel(false);
-        verify(scheduledExecutorSpy).scheduleAtFixedRate(any(), Mockito.anyLong(),
-                eq(normalIntervalMillis), any());
+                scheduledExecutorSpy, invoker, normalIntervalHours);
+        buyRIAnalysisScheduler.normalTriggerBuyRIAnalysis();
+        final StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = invoker.getStartBuyRIAnalysisRequest();
+        verify(invoker).invokeBuyRIAnalysis(startBuyRIAnalysisRequest);
     }
 
     /**

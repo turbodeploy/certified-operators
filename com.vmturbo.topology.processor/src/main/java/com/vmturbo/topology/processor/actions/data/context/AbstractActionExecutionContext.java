@@ -11,21 +11,30 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowParameter;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowProperty;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhase;
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.operation.ActionConversions;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 
 /**
@@ -38,7 +47,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * Token to use generating error logging during entity lookup. This corresponds to the
      * main entity in any action, the entity being acted upon.
      */
-    protected static final String TARGET_LOOKUP_TOKEN = "primary";
+    private static final String TARGET_LOOKUP_TOKEN = "primary";
 
     /**
      * The id of this action, as sent from Action Orchestrator
@@ -51,10 +60,10 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     private final long targetId;
 
     /**
-     * Indicates whether this action has a workflow associated with it
+     * Workflow, if any.
      * Workflows allow actions to be executed through a third party action orchestrator
      */
-    private final boolean hasWorkflow;
+    private final Workflow workflow;
 
     /**
      * The action type-specific data associated with this action, as sent from Action Orchestrator
@@ -86,6 +95,16 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      */
     protected List<ActionItemDTO> actionItems;
 
+    /**
+     * The SDK (probe-facing) type that will be sent to the probes.
+     */
+    protected ActionItemDTO.ActionType SDKActionType;
+
+    protected ActionDTO.ActionType actionType;
+
+    @Nullable
+    protected final String explanation;
+
     protected AbstractActionExecutionContext(@Nonnull final ExecuteActionRequest request,
                                              @Nonnull final ActionDataManager dataManager,
                                              @Nonnull final EntityStore entityStore,
@@ -93,14 +112,36 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         Objects.requireNonNull(request);
         this.actionId = request.getActionId();
         this.targetId = request.getTargetId();
-        this.hasWorkflow = request.hasWorkflowInfo();
+        this.workflow = request.hasWorkflowInfo() ? buildWorkflow(request.getWorkflowInfo()) : null;
         this.actionInfo = Objects.requireNonNull(request.getActionInfo());
         this.dataManager = Objects.requireNonNull(dataManager);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.entityRetriever = Objects.requireNonNull(entityRetriever);
+        this.actionType = Objects.requireNonNull(request.getActionType());
+        this.explanation = request.getExplanation();
     }
 
-    protected void buildActionItems() throws ContextCreationException {
+    @Nonnull
+    @Override
+    public ActionItemDTO.ActionType getSDKActionType() {
+        if (SDKActionType == null) {
+            SDKActionType = calculateSDKActionType(actionType);
+        }
+        return SDKActionType;
+    }
+
+    /**
+     * Calculates the {@link ActionItemDTO.ActionType} that will be sent to probes from the one
+     * received from Action Orchestrator {@link ActionDTO.ActionType}
+     *
+     * @param actionType The {@link ActionDTO.ActionType} received from AO
+     * @return The {@link ActionItemDTO.ActionType} that will be sent to the probes
+     */
+    protected ActionItemDTO.ActionType calculateSDKActionType(@Nonnull final ActionDTO.ActionType actionType) {
+        return ActionConversions.convertActionType(actionType);
+    }
+
+    private void buildActionItems() throws ContextCreationException {
         // Build the action items, the primary data carrier to the probe for action execution
         List<ActionItemDTO.Builder> actionItemBuilders = initActionItemBuilders();
         actionItems = actionItemBuilders.stream()
@@ -129,24 +170,20 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         return targetId;
     }
 
-    /**
-     * Indicates whether this action has a workflow associated with it.
-     * Workflows allow actions to be executed through a third party action orchestrator.
-     *
-     * @return true, if this action has a workflow associated with it; otherwise, false.
-     */
+    @Nonnull
     @Override
-    public boolean hasWorkflow() {
-        return hasWorkflow;
+    public Optional<Workflow> getWorkflow() {
+        return Optional.ofNullable(workflow);
     }
 
     /**
-     * Get all of the action item DTOs associated with executing this action
+     * Get all of the action item DTOs associated with executing this action.
      *
      * @return all of the action item DTOs associated with executing this action
+     * @throws ContextCreationException if failure occurred while constructing context
      */
     @Override
-    public List<ActionItemDTO> getActionItems() {
+    public List<ActionItemDTO> getActionItems() throws ContextCreationException {
         if (actionItems == null) {
             buildActionItems();
         }
@@ -162,7 +199,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * @return a Set of entities involved in the action
      */
     @Override
-    public Set<Long> getAffectedEntities() {
+    public Set<Long> getControlAffectedEntities() {
         return Collections.singleton(getPrimaryEntityId());
     }
 
@@ -174,7 +211,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      */
     @Nullable
     @Override
-    public Long getSecondaryTargetId() throws TargetNotFoundException {
+    public Long getSecondaryTargetId() throws ContextCreationException {
         return null;
     }
 
@@ -190,9 +227,11 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      *
      * @param actionItemBuilders the full list of action items, from which the primary one will be extracted
      * @return the primary {@link ActionItemDTO.Builder} for this action
+     * @throws ContextCreationException if failure occurred while constructing context
      */
     protected ActionItemDTO.Builder getPrimaryActionItemBuilder(
-            @Nonnull List<ActionItemDTO.Builder> actionItemBuilders) {
+            @Nonnull List<ActionItemDTO.Builder> actionItemBuilders)
+            throws ContextCreationException {
         return actionItemBuilders.stream()
                 .findFirst()
                 .orElseThrow(() -> new ContextCreationException("No action item builders found. "
@@ -227,8 +266,9 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * The default implementation creates a single {@link ActionItemDTO.Builder}
      *
      * @return a list of {@link ActionItemDTO.Builder ActionItemDTO builders}
+     * @throws ContextCreationException if failure occurred while constructing context
      */
-    protected List<ActionItemDTO.Builder> initActionItemBuilders() {
+    protected List<ActionItemDTO.Builder> initActionItemBuilders() throws ContextCreationException {
         // Get the full entity, including a combination of both stitched and raw data
         final EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
         return buildPrimaryActionItem(fullEntityDTO);
@@ -242,8 +282,11 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * @param fullEntityDTO a {@link EntityDTO} representing the primary entity for this action
      * @return a list of {@link ActionItemDTO.Builder ActionItemDTO builders} containing a single
      * item representing the primary actionItem for this action
+     * @throws ContextCreationException if failure occurred while constructing context
      */
-    protected List<ActionItemDTO.Builder> buildPrimaryActionItem(final EntityDTO fullEntityDTO) {
+    @Nonnull
+    protected List<ActionItemDTO.Builder> buildPrimaryActionItem(final EntityDTO fullEntityDTO)
+            throws ContextCreationException {
         final ActionItemDTO.Builder actionItemBuilder = ActionItemDTO.newBuilder();
         actionItemBuilder.setActionType(getSDKActionType());
         actionItemBuilder.setUuid(Long.toString(getActionId()));
@@ -263,7 +306,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         return builders;
     }
 
-    protected EntityDTO getFullEntityDTO(long entityId) {
+    protected EntityDTO getFullEntityDTO(long entityId) throws ContextCreationException {
         try {
             return entityRetriever.fetchAndConvertToEntityDTO(entityId);
         } catch (EntityRetrievalException e) {
@@ -272,9 +315,8 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         }
     }
 
-    protected PerTargetInfo getPerTargetInfo(final long targetId,
-                                             final long entityId,
-                                             final String entityType) {
+    private PerTargetInfo getPerTargetInfo(final long targetId, final long entityId,
+            final String entityType) throws ContextCreationException {
         return entityStore.getEntity(entityId)
                 .orElseThrow(() -> ContextCreationException.noEntity(entityType, entityId))
                 .getEntityInfo(targetId)
@@ -282,7 +324,8 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
                         entityType, entityId, targetId));
     }
 
-    protected Optional<EntityDTO> getHost(final EntityDTO entity) {
+    @Nonnull
+    protected Optional<EntityDTO> getHost(final EntityDTO entity) throws ContextCreationException {
         // Right now hosted by only gets set for VM -> PM and Container -> Pod relationships.
         // Hosted by for VM -> PM relationships is most notably required by the HyperV probe.
         // TODO (roman, May 16 2017): Generalize to all entities where this is necessary.
@@ -298,7 +341,10 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
                     getPrimaryEntityId(),
                     TARGET_LOOKUP_TOKEN);
             // Look up the raw entity info for the host
-            return Optional.of(getFullEntityDTO(entityInfo.getHost()));
+            final long host = entityInfo.getHost();
+            if (host != 0) {
+                return Optional.of(getFullEntityDTO(host));
+            }
         }
         return Optional.empty();
     }
@@ -312,4 +358,102 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         return dataManager.getContextData(actionInfo);
     }
 
+    @Override
+    @Nonnull
+    public ActionExecutionDTO buildActionExecutionDto() throws ContextCreationException {
+        final ActionExecutionDTO.Builder actionExecutionBuilder = ActionExecutionDTO.newBuilder()
+                .setActionOid(getActionId())
+                .setActionType(getSDKActionType())
+                .addAllActionItem(getActionItems());
+
+        if (explanation != null) {
+            actionExecutionBuilder.setExplanation(explanation);
+        }
+
+        // if a WorkflowInfo action execution override is present, translate it to a NonMarketEntity
+        // and include it in the ActionExecution to be sent to the target
+        getWorkflow().ifPresent(actionExecutionBuilder::setWorkflow);
+        return actionExecutionBuilder.build();
+    }
+
+    /**
+     * Create a Workflow DTO representing the given {@link WorkflowDTO.WorkflowInfo}.
+     *
+     * @param workflowInfo the information describing this Workflow, including ID, displayName,
+     *                     and defining data - parameters and properties.
+     * @return a newly created {@link Workflow} DTO
+     */
+    private static Workflow buildWorkflow(WorkflowDTO.WorkflowInfo workflowInfo) {
+        final Workflow.Builder wfBuilder = Workflow.newBuilder();
+        if (workflowInfo.hasDisplayName()) {
+            wfBuilder.setDisplayName(workflowInfo.getDisplayName());
+        }
+        if (workflowInfo.hasName()) {
+            wfBuilder.setId(workflowInfo.getName());
+        }
+        if (workflowInfo.hasDescription()) {
+            wfBuilder.setDescription(workflowInfo.getDescription());
+        }
+        wfBuilder.addAllParam(workflowInfo.getWorkflowParamList().stream()
+                .map(AbstractActionExecutionContext::buildWorkflowParameter)
+                .collect(Collectors.toList()));
+        // include the 'property' entries from the Workflow
+        wfBuilder.addAllProperty(workflowInfo.getWorkflowPropertyList().stream()
+                .map(AbstractActionExecutionContext::buildWorkflowProperty)
+                .collect(Collectors.toList()));
+        if (workflowInfo.hasScriptPath()) {
+            wfBuilder.setScriptPath(workflowInfo.getScriptPath());
+        }
+        if (workflowInfo.hasEntityType()) {
+            wfBuilder.setEntityType(EntityDTO.EntityType.forNumber(workflowInfo.getEntityType()));
+        }
+        if (workflowInfo.hasActionType()) {
+            ActionType converted = ActionConversions.convertActionType(workflowInfo.getActionType());
+            if (converted != null) {
+                wfBuilder.setActionType(converted);
+            }
+        }
+        if (workflowInfo.hasActionPhase()) {
+            final ActionScriptPhase converted = ActionConversions.convertActionPhase(workflowInfo.getActionPhase());
+            if (converted != null) {
+                wfBuilder.setPhase(converted);
+            }
+        }
+        if (workflowInfo.hasTimeLimitSeconds()) {
+            wfBuilder.setTimeLimitSeconds(workflowInfo.getTimeLimitSeconds());
+        }
+        return wfBuilder.build();
+    }
+
+    @Nonnull
+    private static Workflow.Parameter buildWorkflowParameter(
+            @Nonnull WorkflowParameter workflowParam) {
+        final Workflow.Parameter.Builder parmBuilder = Workflow.Parameter.newBuilder();
+        if (workflowParam.hasDescription()) {
+            parmBuilder.setDescription(workflowParam.getDescription());
+        }
+        if (workflowParam.hasName()) {
+            parmBuilder.setName(workflowParam.getName());
+        }
+        if (workflowParam.hasType()) {
+            parmBuilder.setType(workflowParam.getType());
+        }
+        if (workflowParam.hasMandatory()) {
+            parmBuilder.setMandatory(workflowParam.getMandatory());
+        }
+        return parmBuilder.build();
+    }
+
+    @Nonnull
+    private static Workflow.Property buildWorkflowProperty(
+            @Nonnull WorkflowProperty workflowProperty) {
+        final Workflow.Property.Builder propBUilder = Workflow.Property.newBuilder();
+        if (workflowProperty.hasName()) {
+            propBUilder.setName(workflowProperty.getName());
+        }
+        if (workflowProperty.hasValue()) {
+            propBUilder.setValue(workflowProperty.getValue());
+        }
+        return propBUilder.build();
+    }
 }

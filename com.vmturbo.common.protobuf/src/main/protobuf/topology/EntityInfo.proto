@@ -3,21 +3,6 @@ package topology;
 
 option java_package = "com.vmturbo.common.protobuf.topology";
 
-// Entity Info returned from given entity id.
-message EntityInfo {
-    // Id of entity.
-    required int64 entity_id = 1;
-
-    // Targets that discovered this entity and the probes they belong to.
-    map<int64, int64> target_id_to_probe_id = 2;
-}
-
-// Proto request that includes entity ids
-message GetEntitiesInfoRequest {
-    // Entity Id list.
-    repeated int64 entity_ids = 1;
-}
-
 // For further details see comments on GetHostsInfo in EntityService below.
 // TODO: Determine if the topology processor is the correst source of this information.
 // Note that if multiple targets discovered a host (impossible as long as we only support VC)
@@ -63,11 +48,6 @@ message GetHostInfoRequest {
 
 // A GRPC service that only provide one service that retrieve entity infos from given entity id list
 service EntityService {
-
-    // Retrieve entity infos from given request that includes a list of entity ids.
-    // If an entity with given id was found it returns entity info with value found = true,
-    // Else it returns enity info with value found = false.
-    rpc GetEntitiesInfo(GetEntitiesInfoRequest) returns (stream EntityInfo);
 
     // Request information about the hosts for virtual machines.
     // TODO: (David Blinn 6/12/17 - this is being put in place as a hack to support resize action conversion

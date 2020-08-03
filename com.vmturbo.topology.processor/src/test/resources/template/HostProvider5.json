@@ -1,0 +1,145 @@
+{
+  "entityType": 2,
+  "oid": "73488350794439",
+  "displayName": "SCIO:ESXDC9DS1",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::Virtual_ESX_4238e2ce-54ca-5a35-4d2e-0096dcb83745"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73488350794450",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 6
+    },
+    "used": 24585.0,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::Virtual_ESX_4238daa2-2e61-66d4-b88f-47ea0f98da3a"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73488350794448",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 22
+    },
+    "used": 11.100000000000001,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 8
+    },
+    "used": 1453.0,
+    "peak": 0.0,
+    "capacity": 16128.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 64
+    },
+    "used": 2.7333333333333334,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::Virtual_ESX_4238ed8c-d146-64b4-af57-cbda493e0936"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73488350794444",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 59,
+      "key": "free_storage_cluster"
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "73488350794433",
+    "providerEntityType": 11,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 60,
+        "key": "DiskArray-5b913961-e90cebcd-e239-005056b87c9e"
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "VcTgtIdAndInternalName": "0972d97a98fbb4eee80b33311b8b32e1d3e62b0e"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1590999807913",
+      "discoveredTargetData": {
+        "73488349925440": {
+          "vendorId": "datastore-444"
+        }
+      }
+    }
+  },
+  "tags": {
+  },
+  "typeSpecificInfo": {
+    "storage": {
+      "externalName": ["eui.332661dc021c4098dcb7bf7d00000000", "332661dc021c4098dcb7bf7d00000000"],
+      "storageType": "FIBER_CHANNEL",
+      "isLocal": false
+    }
+  }
+}

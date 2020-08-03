@@ -6,40 +6,59 @@
 
     <groupId>com.vmturbo</groupId>
     <artifactId>Turbonomic-XL</artifactId>
-    <version>7.17.0-SNAPSHOT</version>
+    <version>7.22.6-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
-        <market.version>3.4.0-SNAPSHOT</market.version>
+        <market.version>3.22.6-SNAPSHOT</market.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>6.4.0-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>7.22.6-SNAPSHOT</vmturbo.mt.branch.version>
+
+        <!-- Version from the APM PRobes Repository (Newrelic, AppInsights) -->
+        <apm.probes.branch.version>7.22.6-SNAPSHOT</apm.probes.branch.version>
 
         <!-- MT Version com.vmturbo.ux -->
-        <ux.mt.branch.version>7.17.0-SNAPSHOT</ux.mt.branch.version>
+        <ux.mt.branch.version>7.22.6-SNAPSHOT</ux.mt.branch.version>
+
+        <!-- API Repository version, determines what version of the API definition to pull in -->
+        <com.vmturbo.api.version>3.1.19-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
-        <cpu.capacity.version>1.2.0-SNAPSHOT</cpu.capacity.version>
+        <cpu.capacity.version>1.4.0</cpu.capacity.version>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <spring.version>4.3.8.RELEASE</spring.version>
-        <spring.security.version>4.2.2.RELEASE</spring.security.version>
-        <guava.version>23.0</guava.version>
+        <spring.version>5.2.4.RELEASE</spring.version>
+        <spring.retry.version>1.2.4.RELEASE</spring.retry.version>
+        <spring.security.version>5.3.2.RELEASE</spring.security.version>
+        <guava.version>28.2-jre</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
 
-        <grpc.version>1.11.0</grpc.version>
+        <grpc.version>1.29.0</grpc.version>
         <grpc.prometheus.version>0.3.0</grpc.prometheus.version>
 
-        <protobuf.version>3.5.1</protobuf.version>
+        <protobuf.version>3.11.0</protobuf.version>
         <protobuf.maven.plugin.version>0.5.1</protobuf.maven.plugin.version>
         <os.maven.plugin.version>1.4.1.Final</os.maven.plugin.version>
-
+        <owasp.version>5.3.2</owasp.version>
         <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
+
+        <lz4.version>1.4</lz4.version>
+        <fastutil.version>8.3.1</fastutil.version>
+
+        <!-- START Versions for the various opentracing libraries.
+             Do not change them independently without verifying that they are compatible with
+             each other! Check the projects' github repositories and nested dependencies. -->
+        <opentracing.version>0.33.0</opentracing.version>
+        <jaeger.version>1.2.0</jaeger.version>
+        <opentracing.concurrent.version>0.4.0</opentracing.concurrent.version>
+        <opentracing.grpc.version>0.2.1</opentracing.grpc.version>
+        <!-- END Versions for the various opentracing libraries -->
 
         <slf4j.version>1.7.25</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
@@ -56,19 +75,19 @@
         <javax.xml.ws.version>2.3.1</javax.xml.ws.version>
         <com.sun.xml.bind.version>2.3.0.1</com.sun.xml.bind.version>
         <hamcrest-all.version>1.3</hamcrest-all.version>
+        <hamcrest-optional-version>2.0.0</hamcrest-optional-version>
         <javassist.version>3.21.0-GA</javassist.version>
 
         <mockito.version>1.10.19</mockito.version>
         <powermock.version>1.6.6</powermock.version>
 
         <jmockit.version>1.18</jmockit.version>
-        <consul-client.version>0.16.3</consul-client.version>
+        <consul-client.version>1.4.0</consul-client.version>
         <gson.version>2.8.0</gson.version>
-        <httpclient.version>4.5.3</httpclient.version>
-        <sshd.core.version>2.1.0</sshd.core.version>
+        <httpclient.version>4.5.10</httpclient.version>
         <httpclient.async.version>4.1.3</httpclient.async.version>
-        <jackson.version>2.9.5</jackson.version>
-        <commons-lang3.version>3.5</commons-lang3.version>
+        <jackson.version>2.10.0</jackson.version>
+        <commons-lang3.version>3.8.1</commons-lang3.version>
         <commons-lang.version>2.6</commons-lang.version>
         <jersey-client.version>2.17</jersey-client.version>
         <jersey-media-jaxb.version>2.17</jersey-media-jaxb.version>
@@ -76,24 +95,29 @@
         <swagger-annotations.version>1.5.13</swagger-annotations.version>
         <swagger.codegen.plugin.version>2.2.3</swagger.codegen.plugin.version>
         <jackson-datatype-guava.version>2.6.5</jackson-datatype-guava.version>
-        <jackson-core.version>2.9.5</jackson-core.version>
+        <jackson-core.version>2.10.0</jackson-core.version>
+        <snakeyaml.version>1.26</snakeyaml.version>
         <javax.ws.rs-api.version>2.0</javax.ws.rs-api.version>
         <commons-collections4.version>4.1</commons-collections4.version>
-        <jooq.version>3.8.5</jooq.version>
+        <commons-csv.version>1.7</commons-csv.version>
+        <jooq.version>3.12.3</jooq.version>
         <ojdbc.version>11.2.0.4.0</ojdbc.version>
         <flyway.version>4.0.3</flyway.version>
         <flyway-plugin.version>4.2.0</flyway-plugin.version>
         <google.findbugs.version>2.0.3</google.findbugs.version>
-        <tomcat.version>8.5.15</tomcat.version>
+        <spotbugs.version>3.1.12</spotbugs.version>
+        <tomcat.version>9.0.33</tomcat.version>
         <start-class/>
         <api.version>${project.version}</api.version>
         <springfox.version>2.7.0</springfox.version>
         <swagger.plugin.version>3.1.7</swagger.plugin.version>
         <asciidoctor.plugin.version>1.5.3</asciidoctor.plugin.version>
         <swagger2markup.plugin.version>0.9.3</swagger2markup.plugin.version>
+        <commons-validator.version>1.6</commons-validator.version>
+        <memory-metrics.version>0.3.3</memory-metrics.version>
         <!-- END swagger properties -->
 
-        <docker.compose.rule.version>0.31.1</docker.compose.rule.version>
+        <docker.compose.rule.version>1.5.0</docker.compose.rule.version>
         <asciitable.version>0.3.2</asciitable.version>
         <zjsonpatch.version>0.3.6</zjsonpatch.version>
 
@@ -101,21 +125,23 @@
         <json-path.version>2.2.0</json-path.version>
         <copy.rename.plugin.version>1.0.1</copy.rename.plugin.version>
 
-        <mariadb.client.version>1.1.7</mariadb.client.version>
+        <mariadb.client.version>2.3.0</mariadb.client.version>
+        <postgresql.client.version>42.2.12</postgresql.client.version>
 
         <reactor.version>3.0.4.RELEASE</reactor.version>
 
         <arangodb.version>3.0.ON</arangodb.version>
         <arangodb.driver.version>4.2.6</arangodb.driver.version>
-        <kafka.version>1.1.0</kafka.version>
+        <kafka.version>2.4.0</kafka.version>
 
         <st4.version>4.0.8</st4.version>
-        <failsafe.version>2.19.1</failsafe.version>
-        <surefire.version>2.20</surefire.version>
-        <!-- This allows nested modules to override the path to the root checkstyle.xml -->
-        <checkstyle.path>${project.basedir}/../build/checkstyle.xml</checkstyle.path>
-        <jetty.version>9.4.17.v20190418</jetty.version>
-        <bouncycastle.version>1.57</bouncycastle.version>
+        <failsafe.version>3.0.0-M4</failsafe.version>
+        <surefire.version>3.0.0-M4</surefire.version>
+        <jetty.version>9.4.19.v20190610</jetty.version>
+        <bouncycastle.version>1.60</bouncycastle.version>
+        <JUnitParams.version>1.0.4</JUnitParams.version>
+        <hibernate.validator.version>5.1.3.Final</hibernate.validator.version>
+
         <!-- FlexLM, for use with Cisco licenses -->
         <flex.lm.version>11.14.1.1</flex.lm.version>
 
@@ -124,9 +150,28 @@
         <docker.image.prefix>turbonomic</docker.image.prefix>
 
         <immutables.version>2.7.3</immutables.version>
-        <roaringbitmap.version>[0.7,)</roaringbitmap.version>
+        <roaringbitmap.version>0.8.13</roaringbitmap.version>
         <!-- java slang -->
         <javaslang.version>2.0.5</javaslang.version>
+
+        <!-- EM: The spring-security-saml2-service-provider:jar:5.3.0.RELEASE lib is bringing
+        cryptacular 1.1.3 as a transitive dependency, which is affected by a security vulnerability.
+        The dependency version below is used only to enforce a specific version that
+        does not suffer from a vulnerability. See bug OM-59184 -->
+        <cryptacular.version>1.1.4</cryptacular.version>
+
+        <!-- EM: The consul-api dependency is bringing a dependency on
+        commons-codec:jar:1.10, which is affected by a security vulnerability.
+        The dependency below is used only to enforce a specific version that
+        does not suffer from a vulnerability. See bug OM-59183 -->
+        <commons-codec.version>1.14</commons-codec.version>
+
+        <!-- EM: The commons-validator dependency is bringing a dependency on
+        commons-beanutils:jar:1.9.2, which is affected by a security vulnerability.
+        The dependency below is used only to enforce a specific version that
+        does not suffer from a vulnerability. See bug OM-59181 -->
+        <commons-beanutils.version>1.9.4</commons-beanutils.version>
+
     </properties>
 
     <prerequisites>
@@ -154,6 +199,20 @@
             <id>common-protobuf</id>
             <modules>
                 <module>../com.vmturbo.common.protobuf</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>baseimage</id>
+            <modules>
+                <module>../com.vmturbo.components.baseimage</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>diags</id>
+            <modules>
+                <module>../diags</module>
             </modules>
         </profile>
 
@@ -218,12 +277,14 @@
                 <module>../com.vmturbo.history.component.api</module>
                 <module>../com.vmturbo.history</module>
                 <module>../com.vmturbo.history.schema</module>
+                <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
 
         <profile>
             <id>repository</id>
             <modules>
+                <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
             </modules>
@@ -238,8 +299,22 @@
         </profile>
 
         <profile>
+            <id>extractor</id>
+            <modules>
+                <module>../com.vmturbo.components.common</module>
+                <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.topology.graph</module>
+                <module>../com.vmturbo.search.metadata</module>
+                <module>../com.vmturbo.sql.utils</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>topology-processor</id>
             <modules>
+                <module>../com.vmturbo.auth.api</module>
+                <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
@@ -260,6 +335,7 @@
             <id>group</id>
             <modules>
                 <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.identity</module>
                 <module>../com.vmturbo.group.component</module>
                 <module>../com.vmturbo.group.api</module>
             </modules>
@@ -268,18 +344,32 @@
         <profile>
             <id>cost</id>
             <modules>
+                <module>../com.vmturbo.cloud.commitment.analysis</module>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.cost.calculation</module>
                 <module>../com.vmturbo.cost.component</module>
                 <module>../com.vmturbo.cost.component.api</module>
+                <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
             </modules>
         </profile>
 
         <profile>
             <id>api</id>
             <modules>
+                <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
+                <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.common.api</module>
+                <module>../com.vmturbo.search.metadata</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>licensing</id>
+            <modules>
+                <module>../com.vmturbo.licensing</module>
             </modules>
         </profile>
 
@@ -294,24 +384,32 @@
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
-                <module>../com.vmturbo.mediation.aws.conversion</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
-                <module>../com.vmturbo.mediation.azure.conversion</module>
-                <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
+                <module>../com.vmturbo.mediation.azure.ea.component</module>
+                <module>../com.vmturbo.mediation.azure.sp.component</module>
+                <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
-                <module>../com.vmturbo.mediation.cloud.conversion</module>
+                <module>../com.vmturbo.mediation.conversion</module>
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
+                <module>../com.vmturbo.mediation.custom.data.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
+                <module>../com.vmturbo.mediation.database.mysql.component</module>
+                <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
+                <module>../com.vmturbo.mediation.gcp.component</module>
+                <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.istio.component</module>
+                <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
+                <module>../com.vmturbo.mediation.intersight.server.component</module>
+                <module>../com.vmturbo.mediation.intersight.ucs.component</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
@@ -319,14 +417,21 @@
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.netflow.component</module>
+                <module>../com.vmturbo.mediation.newrelic.component</module>
+                <module>../com.vmturbo.mediation.nutanix.component</module>
+                <module>../com.vmturbo.mediation.appinsights.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.pivotal.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
+                <module>../com.vmturbo.mediation.udt</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
+                <module>../com.vmturbo.mediation.servicenow.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
+                <module>../com.vmturbo.mediation.terraform.component</module>
                 <module>../com.vmturbo.mediation.tetration.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>
@@ -344,6 +449,13 @@
             <id>kafka</id>
             <modules>
                 <module>../kafka</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>zookeeper</id>
+            <modules>
+                <module>../zookeeper</module>
             </modules>
         </profile>
 
@@ -398,10 +510,27 @@
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
             </modules>
         </profile>
+        <profile>
+            <id>integration-intersight</id>
+            <modules>
+                <module>../com.vmturbo.integrations.intersight</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-intersight</id>
+            <modules>
+                <module>../com.vmturbo.integrations.intersight</module>
+                <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
+                <module>../com.vmturbo.mediation.intersight.server.component</module>
+                <module>../com.vmturbo.mediation.intersight.ucs.component</module>
+            </modules>
+        </profile>
 
         <profile>
             <id>mediation-vcenter</id>
             <modules>
+                <module>../com.vmturbo.mediation.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
                 <module>../com.vmturbo.mediation.vcenter.conversion</module>
             </modules>
@@ -417,6 +546,8 @@
         <profile>
             <id>mediation-hyperv</id>
             <modules>
+                <module>../com.vmturbo.mediation.conversion</module>
+                <module>../com.vmturbo.mediation.hyperv.conversion</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
             </modules>
         </profile>
@@ -425,6 +556,13 @@
             <id>mediation-netapp</id>
             <modules>
                 <module>../com.vmturbo.mediation.netapp.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-nutanix</id>
+            <modules>
+                <module>../com.vmturbo.mediation.nutanix.component</module>
             </modules>
         </profile>
 
@@ -445,6 +583,8 @@
         <profile>
             <id>mediation-vmm</id>
             <modules>
+                <module>../com.vmturbo.mediation.conversion</module>
+                <module>../com.vmturbo.mediation.vmm.conversion</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
             </modules>
         </profile>
@@ -515,8 +655,6 @@
         <profile>
             <id>mediation-aws</id>
             <modules>
-                <module>../com.vmturbo.mediation.cloud.conversion</module>
-                <module>../com.vmturbo.mediation.aws.conversion</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
             </modules>
         </profile>
@@ -531,18 +669,16 @@
         <profile>
             <id>mediation-azure</id>
             <modules>
-                <module>../com.vmturbo.mediation.cloud.conversion</module>
-                <module>../com.vmturbo.mediation.azure.conversion</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
+                <module>../com.vmturbo.mediation.azure.ea.component</module>
+                <module>../com.vmturbo.mediation.azure.sp.component</module>
             </modules>
         </profile>
 
         <profile>
             <id>mediation-azure-volumes</id>
             <modules>
-                <module>../com.vmturbo.mediation.cloud.conversion</module>
-                <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
             </modules>
         </profile>
@@ -550,6 +686,7 @@
         <profile>
             <id>mediation-vcenter-browsing</id>
             <modules>
+                <module>../com.vmturbo.mediation.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
             </modules>
@@ -577,6 +714,13 @@
         </profile>
 
         <profile>
+            <id>mediation-mysql</id>
+            <modules>
+                <module>../com.vmturbo.mediation.database.mysql.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-wmi</id>
             <modules>
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
@@ -598,6 +742,49 @@
         </profile>
 
         <profile>
+            <id>mediation-newrelic</id>
+            <modules>
+                <module>../com.vmturbo.mediation.newrelic.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-appinsights</id>
+            <modules>
+                <module>../com.vmturbo.mediation.appinsights.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-customdata</id>
+            <modules>
+                <module>../com.vmturbo.mediation.custom.data.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-udt</id>
+            <modules>
+                <module>../com.vmturbo.mediation.udt</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-baremetal</id>
+            <modules>
+                <module>../com.vmturbo.mediation.baremetal.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-datadog</id>
+            <modules>
+                <module>../com.vmturbo.mediation.datadog.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-dynatrace</id>
             <modules>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
@@ -608,6 +795,13 @@
             <id>mediation-netflow</id>
             <modules>
                 <module>../com.vmturbo.mediation.netflow.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-terraform</id>
+            <modules>
+                <module>../com.vmturbo.mediation.terraform.component</module>
             </modules>
         </profile>
 
@@ -654,6 +848,14 @@
         </profile>
 
         <profile>
+            <id>mediation-actionscript</id>
+            <modules>
+                <module>../com.vmturbo.mediation.actionscript</module>
+                <module>../com.vmturbo.mediation.actionscript.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-stressprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -676,23 +878,38 @@
             </modules>
         </profile>
 
+        <profile>
+            <id>mediation-utilprobe</id>
+            <modules>
+                <module>../com.vmturbo.mediation.utilprobe.component</module>
+            </modules>
+        </profile>
+
         <!-- Development profile. Intended for use during the development of a change.
              Don't include slow modules here (unless it's ABSOLUTELY necessary)! -->
         <profile>
             <id>development</id>
             <modules>
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
+                <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.communication.matrix</module>
+                <module>../com.vmturbo.trax</module>
+                <module>../com.vmturbo.cloud.commitment.analysis</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.cost.calculation</module>
+                <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
+                <module>../com.vmturbo.sql.test.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
                 <module>../com.vmturbo.components.api.test</module>
@@ -707,7 +924,12 @@
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
+                <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.search.metadata</module>
+                <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
+                <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
                 <module>../com.vmturbo.history</module>
@@ -717,12 +939,15 @@
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
                 <module>../com.vmturbo.reports.api</module>
-                <module>../com.vmturbo.reports.component</module>
-                <module>../com.vmturbo.reports.templates</module>
+                <!--module>../com.vmturbo.reports.component</module>
+                <module>../com.vmturbo.reports.templates</module -->
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
                 <module>../com.vmturbo.system.notification.sender</module>
+                <module>../com.vmturbo.component.status.api</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
+
+                <module>../com.vmturbo.voltron</module>
 
                 <!-- Probe components. This should only include core mediation packages
                 and the mediation component. -->
@@ -730,17 +955,20 @@
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
-                <module>../com.vmturbo.mediation.aws.conversion</module>
-                <module>../com.vmturbo.mediation.azure.conversion</module>
-                <module>../com.vmturbo.mediation.cloud.conversion</module>
+                <module>../com.vmturbo.mediation.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
+                <module>../com.vmturbo.mediation.udt</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.component</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
+
+                <!-- module containing base classes for test classes appearing in multiple modules -->
+                <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
 
@@ -751,17 +979,25 @@
             <id>platform</id>
             <modules>
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
+                <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.communication.matrix</module>
+                <module>../com.vmturbo.trax</module>
+                <module>../com.vmturbo.cloud.commitment.analysis</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.cost.calculation</module>
+                <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
+                <module>../com.vmturbo.sql.test.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
                 <module>../com.vmturbo.components.api.test</module>
@@ -778,7 +1014,12 @@
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
+                <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.search.metadata</module>
+                <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
+                <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
                 <module>../com.vmturbo.history</module>
@@ -788,16 +1029,22 @@
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
                 <module>../com.vmturbo.reports.api</module>
-                <module>../com.vmturbo.reports.component</module>
-                <module>../com.vmturbo.reports.templates</module>
+                <!-- module>../com.vmturbo.reports.component</module>
+                <module>../com.vmturbo.reports.templates</module -->
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
+                <module>../com.vmturbo.component.status.api</module>
                 <module>../com.vmturbo.system.notification.sender</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
+
+                <module>../com.vmturbo.voltron</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
+
+                <!-- module containing base classes for test classes appearing in multiple modules -->
+                <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
 
@@ -805,23 +1052,58 @@
         <profile>
             <id>release</id>
             <modules>
+                <!-- There is a non-maven dependency between any module
+                     that builds a docker image and the baseimage module.
+                     The baseimage module creates the docker image that
+                     all other images should be based on, but the poms don't
+                     capture that relationship.
+
+                     Therefore, keep this at the top of the modules list
+                     so that it gets built first despite not being explicitly
+                     depended on by other modules.
+
+                     For order of module building see:
+                     https://maven.apache.org/guides/mini/guide-multiple-modules.html -->
+                <module>../versioning</module>
+                <module>../com.vmturbo.components.baseimage</module>
+
+                <!-- Infrequently changing dependencies. Essentially the equivalent of
+                     libraries from the XL developer's point of view.
+                     There may be non-maven dependencies between the development modules
+                     and these libraries, so keep them towards the top of the module list. -->
+                <module>../syslog</module>
+                <module>../db</module>
+                <module>../com.vmturbo.arangodb</module>
                 <module>../com.vmturbo.influxdb</module>
                 <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
                 <module>../protoc-grpc-moles</module>
+                <module>../diags</module>
+                <module>../kafka</module>
+                <module>../zookeeper</module>
+                <module>../nginx</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
+                <module>../com.vmturbo.licensing</module>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
+                <module>../com.vmturbo.search.api</module>
+                <module>../com.vmturbo.common.api</module>
                 <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.communication.matrix</module>
+                <module>../com.vmturbo.trax</module>
+                <module>../com.vmturbo.cloud.commitment.analysis</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
+                <module>../com.vmturbo.consul</module>
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.cost.calculation</module>
+                <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
+                <module>../com.vmturbo.sql.test.utils</module>
                 <module>../com.vmturbo.components.api.root</module>
                 <module>../com.vmturbo.components.api</module>
                 <module>../com.vmturbo.components.api.test</module>
@@ -838,7 +1120,12 @@
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
+                <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.search.metadata</module>
+                <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
+                <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
                 <module>../com.vmturbo.history</module>
@@ -848,56 +1135,81 @@
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
                 <module>../com.vmturbo.reports.api</module>
-                <module>../com.vmturbo.reports.component</module>
-                <module>../com.vmturbo.reports.templates</module>
+                <!-- module>../com.vmturbo.reports.component</module>
+                <module>../com.vmturbo.reports.templates</module -->
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
+                <module>../com.vmturbo.component.status.api</module>
                 <module>../com.vmturbo.system.notification.sender</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
 
+                <module>../com.vmturbo.voltron</module>
+
                 <!-- Probe components. These are ALL the probes. -->
                 <module>../com.vmturbo.mediation.probe.parent</module>
+                <module>../com.vmturbo.mediation.client</module>
+                <module>../com.vmturbo.mediation.client.bootstrap</module>
+
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
-                <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
-                <module>../com.vmturbo.mediation.actionscript.component</module>
+                <module>../com.vmturbo.mediation.conversion</module>
+
+                <!-- Mediation container with all the probes inside. -->
+                <module>../com.vmturbo.mediation.component</module>
+
+                <!-- Individual components -->
                 <module>../com.vmturbo.mediation.aix.component</module>
+                <module>../com.vmturbo.mediation.delegatingprobe.component</module>
+                <module>../com.vmturbo.mediation.actionscript.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
-                <module>../com.vmturbo.mediation.aws.conversion</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
-                <module>../com.vmturbo.mediation.azure.conversion</module>
-                <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
-                <module>../com.vmturbo.mediation.client</module>
-                <module>../com.vmturbo.mediation.client.bootstrap</module>
-                <module>../com.vmturbo.mediation.cloud.conversion</module>
+                <module>../com.vmturbo.mediation.azure.ea.component</module>
+                <module>../com.vmturbo.mediation.azure.sp.component</module>
+                <module>../com.vmturbo.mediation.baremetal.component</module>
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
+                <module>../com.vmturbo.mediation.custom.data.component</module>
+                <module>../com.vmturbo.mediation.udt</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
+                <module>../com.vmturbo.mediation.database.mysql.component</module>
+                <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
+                <module>../com.vmturbo.mediation.gcp.component</module>
+                <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
                 <module>../com.vmturbo.mediation.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
+                <module>../com.vmturbo.mediation.hyperv.conversion</module>
+                <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
+                <module>../com.vmturbo.mediation.intersight.server.component</module>
+                <module>../com.vmturbo.mediation.intersight.ucs.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
+                <module>../com.vmturbo.mediation.newrelic.component</module>
+                <module>../com.vmturbo.mediation.appinsights.component</module>
                 <module>../com.vmturbo.mediation.netflow.component</module>
+                <module>../com.vmturbo.mediation.nutanix.component</module>
                 <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.pivotal.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
+                <module>../com.vmturbo.mediation.servicenow.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
+                <module>../com.vmturbo.mediation.terraform.component</module>
                 <module>../com.vmturbo.mediation.tetration.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>
@@ -908,17 +1220,16 @@
                 <module>../com.vmturbo.mediation.vcenter.conversion</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
+                <module>../com.vmturbo.mediation.vmm.conversion</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
-                <module>../versioning</module>
-
-                <!-- Mediation container with all the probes inside. -->
-                <module>../com.vmturbo.mediation.component</module>
-
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
+
+                <!-- module containing base classes for test classes appearing in multiple modules -->
+                <module>../com.vmturbo.testbases</module>
             </modules>
         </profile>
         <profile>
@@ -929,11 +1240,36 @@
                 <module>../syslog</module>
                 <module>../db</module>
                 <module>../com.vmturbo.arangodb</module>
+                <module>../com.vmturbo.consul</module>
+                <module>../com.vmturbo.ml.datastore</module>
+                <module>../com.vmturbo.influxdb</module>
                 <module>../kafka</module>
                 <module>../zookeeper</module>
                 <module>../nginx</module>
                 <module>../diags</module>
             </modules>
+        </profile>
+        <profile>
+            <id>securitycheck</id>
+            <build>
+              <plugins>
+                <plugin>
+                  <groupId>org.owasp</groupId>
+                  <artifactId>dependency-check-maven</artifactId>
+                  <version>${owasp.version}</version>
+                  <!--configuration>
+                    <suppressionFiles>${basedir}/suppressed.xml</suppressionFiles>
+                  </configuration-->
+                  <executions>
+                    <execution>
+                      <goals>
+                        <goal>check</goal>
+                      </goals>
+                    </execution>
+                  </executions>
+                </plugin>
+              </plugins>
+            </build>
         </profile>
         <profile>
             <id>save</id>
@@ -964,6 +1300,27 @@
                 </plugins>
             </build>
         </profile>
+        <profile>
+            <id>refresh-base-components</id>
+            <build>
+                <defaultGoal>exec:exec@refresh</defaultGoal>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>refresh</id>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <executable>${project.basedir}/refresh-base-components/refresh-base-components.sh</executable>
+                            <commandlineArgs>${version}</commandlineArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
     <build>
         <extensions>
@@ -990,9 +1347,14 @@
                     <version>${jacocoVersion}</version>
                     <executions>
                         <execution>
+                            <id>jacoco-initialize</id>
+                            <phase>initialize</phase>
                             <goals>
                                 <goal>prepare-agent</goal>
                             </goals>
+                            <configuration>
+                                <propertyName>jacoco.agent.argLine</propertyName>
+                            </configuration>
                         </execution>
                         <execution>
                             <id>report</id>
@@ -1058,29 +1420,39 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-checkstyle-plugin</artifactId>
-                    <version>2.16</version>
+                    <version>3.1.1</version>
                     <dependencies>
                         <dependency>
                             <groupId>com.puppycrawl.tools</groupId>
                             <artifactId>checkstyle</artifactId>
-                            <version>6.12</version>
+                            <version>8.23</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>com.vmturbo</groupId>
+                            <artifactId>com.vmturbo.checkstyle.config</artifactId>
+                            <version>${vmturbo.mt.branch.version}</version>
                         </dependency>
                     </dependencies>
-                    <configuration>
-                        <sourceDirectory>${project.basedir}</sourceDirectory>
-                        <configLocation>${checkstyle.path}</configLocation>
-                        <includes>src/**,*.xml</includes>
-                        <failOnViolation>false</failOnViolation>
-                        <consoleOutput>true</consoleOutput>
-                    </configuration>
                     <executions>
                         <execution>
+                            <id>validate</id>
                             <phase>validate</phase>
                             <goals>
                                 <goal>check</goal>
                             </goals>
                         </execution>
                     </executions>
+                    <configuration>
+                        <configLocation>vmt-checkstyle.xml</configLocation>
+                        <encoding>UTF-8</encoding>
+                        <violationSeverity>info</violationSeverity>
+                        <failOnViolation>true</failOnViolation>
+                        <failsOnError>false</failsOnError>
+                        <sourceDirectories>
+                            <sourceDirectory>${basedir}</sourceDirectory>
+                        </sourceDirectories>
+                        <includes>src/**,*.xml,*.md</includes>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>
@@ -1117,6 +1489,23 @@
                             </manifestEntries>
                         </archive>
                     </configuration>
+                </plugin>
+                <plugin>
+                   <groupId>com.github.spotbugs</groupId>
+                   <artifactId>spotbugs-maven-plugin</artifactId>
+                   <version>${spotbugs.version}</version>
+                   <configuration>
+                       <!-- min|less|default|more|max -->
+                       <effort>More</effort>
+                       <!-- Report on Low, Medium, High bugs -->
+                       <threshold>High</threshold>
+                       <failOnError>false</failOnError>
+                       <maxHeap>1024</maxHeap>
+                       <!--
+                        <includeFilterFile></includeFilterFile>
+                        <excludeFilterFile></excludeFilterFile>
+                       -->
+                   </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -1191,7 +1580,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-site-plugin</artifactId>
-                    <version>3.4</version>
+                    <version>3.9.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -1253,6 +1642,8 @@
                             <exclude>**/Abstract*.java</exclude>
                         </excludes>
                         <trimStackTrace>false</trimStackTrace>
+                        <!-- Required to deal properly with non-ASCII characters across platforms. -->
+                        <argLine>${jacoco.agent.argLine} -Dfile.encoding=UTF-8</argLine>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -1404,6 +1795,11 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>io.fabric8</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <version>0.33.0</version>
+            </plugin>
         </plugins>
     </build>
 
@@ -1439,6 +1835,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>topology-processor-</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.communication.matrix-</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -1479,6 +1880,26 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.history.schema</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>extractor-schema</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>search-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>search-metadata</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>common-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -1545,6 +1966,12 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
+                <artifactId>sql-test-utils</artifactId>
+                <scope>test</scope>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
                 <artifactId>components-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -1571,6 +1998,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>stitching</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>topology-graph</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -1647,12 +2079,39 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
+                <artifactId>cloud-commitment-analysis</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>reserved-instance-coverage-allocator</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>component-status-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
                 <artifactId>system-notification-sender</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>system-notification-receiver</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.testbases</artifactId>
+                <version>${project.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>trax</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -1668,9 +2127,19 @@
                 <version>${bouncycastle.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.bouncycastle</groupId>
-                <artifactId>bcpkix-jdk15on</artifactId>
-                <version>${bouncycastle.version}</version>
+                <groupId>org.cryptacular</groupId>
+                <artifactId>cryptacular</artifactId>
+                <version>${cryptacular.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-codec</groupId>
+                <artifactId>commons-codec</artifactId>
+                <version>${commons-codec.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-beanutils</groupId>
+                <artifactId>commons-beanutils</artifactId>
+                <version>${commons-beanutils.version}</version>
             </dependency>
 
             <!-- The Test dependencies for auth -->
@@ -1680,11 +2149,17 @@
                 <version>${json-path.version}</version>
             </dependency>
 
+            <dependency>
+                <groupId>org.lz4</groupId>
+                <artifactId>lz4-java</artifactId>
+                <version>${lz4.version}</version>
+            </dependency>
+
             <!-- Dependencies from MT -->
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.api</artifactId>
-                <version>${vmturbo.mt.branch.version}</version>
+                <version>${com.vmturbo.api.version}</version>
                 <exclusions>
                     <exclusion>
                         <groupId>org.slf4j</groupId>
@@ -1726,7 +2201,7 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.licensing</artifactId>
-                <version>${vmturbo.mt.branch.version}</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.macrovision</groupId>
@@ -1734,9 +2209,65 @@
                 <version>${flex.lm.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.macrovision</groupId>
+                <artifactId>flexlmutil</artifactId>
+                <version>${flex.lm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.macrovision</groupId>
+                <artifactId>EccpressoAll</artifactId>
+                <version>${flex.lm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.macrovision</groupId>
+                <artifactId>flexlmmgmt</artifactId>
+                <version>${flex.lm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.macrovision</groupId>
+                <artifactId>magellaninfo</artifactId>
+                <version>${flex.lm.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.mediation.common</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.mediation.connector.intersight</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.mediation.gcp</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.google.protobuf</groupId>
+                        <artifactId>protobuf-java</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.google.protobuf</groupId>
+                        <artifactId>protobuf-java-util</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-netty</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-protobuf</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-stub</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-core</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
@@ -1768,23 +2299,6 @@
                 <groupId>com.turbonomic</groupId>
                 <artifactId>com.turbonomic.cpucapacity</artifactId>
                 <version>${cpu.capacity.version}</version>
-            </dependency>
-
-            <!-- Embedded Tomcat -->
-            <dependency>
-                <groupId>org.apache.tomcat.embed</groupId>
-                <artifactId>tomcat-embed-core</artifactId>
-                <version>${tomcat.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.tomcat.embed</groupId>
-                <artifactId>tomcat-embed-websocket</artifactId>
-                <version>${tomcat.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.tomcat.embed</groupId>
-                <artifactId>tomcat-embed-el</artifactId>
-                <version>${tomcat.version}</version>
             </dependency>
 
             <!-- Override the version of jooq being pulled in by Spring Boot.
@@ -1849,6 +2363,11 @@
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-beans</artifactId>
                 <version>${spring.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.retry</groupId>
+                <artifactId>spring-retry</artifactId>
+                <version>${spring.retry.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework</groupId>
@@ -1942,6 +2461,12 @@
                 <groupId>org.slf4j</groupId>
                 <artifactId>jcl-over-slf4j</artifactId>
                 <version>1.7.25</version>
+            </dependency>
+            <dependency>
+                <groupId>org.owasp</groupId>
+                <artifactId>dependency-check-maven</artifactId>
+                <version>${owasp.version}</version>
+                <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>junit</groupId>
@@ -2089,6 +2614,12 @@
                 <version>${hamcrest-all.version}</version>
                 <scope>test</scope>
             </dependency>
+            <dependency>
+                <groupId>com.github.npathai</groupId>
+                <artifactId>hamcrest-optional</artifactId>
+                <version>${hamcrest-optional-version}</version>
+                <scope>test</scope>
+            </dependency>
 
             <dependency>
                 <groupId>org.powermock</groupId>
@@ -2106,6 +2637,12 @@
                 <groupId>org.powermock</groupId>
                 <artifactId>powermock-api-mockito</artifactId>
                 <version>${powermock.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs</artifactId>
+                <version>${spotbugs.version}</version>
                 <scope>test</scope>
             </dependency>
 
@@ -2126,20 +2663,11 @@
             </dependency>
 
             <dependency>
-                <groupId>org.apache.sshd</groupId>
-                <artifactId>sshd-core</artifactId>
-                <version>${sshd.core.version}</version>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>${postgresql.client.version}</version>
             </dependency>
-            <dependency>
-                <groupId>org.apache.sshd</groupId>
-                <artifactId>sshd-common</artifactId>
-                <version>${sshd.core.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.sshd</groupId>
-                <artifactId>sshd-sftp</artifactId>
-                <version>${sshd.core.version}</version>
-            </dependency>
+
             <dependency>
                 <groupId>org.apache.httpcomponents</groupId>
                 <artifactId>httpclient</artifactId>
@@ -2194,6 +2722,17 @@
                 <artifactId>grpc-core</artifactId>
                 <version>${grpc.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-services</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-testing</artifactId>
+                <version>${grpc.version}</version>
+                <scope>test</scope>
+            </dependency>
             <!-- END gRPC dependencies. -->
 
             <!-- START Prometheus dependencies -->
@@ -2229,6 +2768,39 @@
                 </exclusions>
             </dependency>
             <!-- END Prometheus dependencies -->
+
+            <dependency>
+                <groupId>io.opentracing</groupId>
+                <artifactId>opentracing-api</artifactId>
+                <version>${opentracing.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opentracing</groupId>
+                <artifactId>opentracing-noop</artifactId>
+                <version>${opentracing.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opentracing</groupId>
+                <artifactId>opentracing-util</artifactId>
+                <version>${opentracing.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.opentracing.contrib</groupId>
+                <artifactId>opentracing-concurrent</artifactId>
+                <version>${opentracing.concurrent.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opentracing.contrib</groupId>
+                <artifactId>opentracing-grpc</artifactId>
+                <version>${opentracing.grpc.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.jaegertracing</groupId>
+                <artifactId>jaeger-client</artifactId>
+                <version>${jaeger.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>org.apache.commons</groupId>
@@ -2297,6 +2869,16 @@
                 <version>${jackson-core.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.fasterxml.jackson.dataformat</groupId>
+                <artifactId>jackson-dataformat-xml</artifactId>
+                <version>${jackson-core.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.yaml</groupId>
+                <artifactId>snakeyaml</artifactId>
+                <version>${snakeyaml.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>javax.ws.rs</groupId>
                 <artifactId>javax.ws.rs-api</artifactId>
                 <version>${javax.ws.rs-api.version}</version>
@@ -2305,6 +2887,11 @@
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-collections4</artifactId>
                 <version>${commons-collections4.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-csv</artifactId>
+                <version>${commons-csv.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.palantir.docker.compose</groupId>
@@ -2325,6 +2912,11 @@
                 <groupId>io.projectreactor</groupId>
                 <artifactId>reactor-core</artifactId>
                 <version>${reactor.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>it.unimi.dsi</groupId>
+                <artifactId>fastutil</artifactId>
+                <version>${fastutil.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.apache.tomcat</groupId>
@@ -2348,11 +2940,6 @@
                 <scope>test</scope>
             </dependency>
             <dependency>
-                <groupId>commons-validator</groupId>
-                <artifactId>commons-validator</artifactId>
-                <version>1.3.1</version>
-            </dependency>
-            <dependency>
                 <groupId>oro</groupId>
                 <artifactId>oro</artifactId>
                 <version>2.0.8</version>
@@ -2373,8 +2960,8 @@
                 <version>${jetty.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.eclipse.jetty.websocket</groupId>
-                <artifactId>websocket-client</artifactId>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-util</artifactId>
                 <version>${jetty.version}</version>
             </dependency>
             <dependency>
@@ -2391,6 +2978,43 @@
                 <groupId>org.roaringbitmap</groupId>
                 <artifactId>RoaringBitmap</artifactId>
                 <version>${roaringbitmap.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.sf.trove4j</groupId>
+                <artifactId>trove4j</artifactId>
+                <version>3.0.3</version>
+            </dependency>
+            <dependency>
+                <groupId>it.unimi.dsi</groupId>
+                <artifactId>fastutil</artifactId>
+                <version>8.3.1</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-validator</groupId>
+                <artifactId>commons-validator</artifactId>
+                <version>${commons-validator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.jbellis</groupId>
+                <artifactId>jamm</artifactId>
+                <version>${memory-metrics.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jgit</groupId>
+                <artifactId>org.eclipse.jgit</artifactId>
+                <version>5.6.0.201912101111-r</version>
+            </dependency>
+            <dependency>
+                <groupId>pl.pragmatists</groupId>
+                <artifactId>JUnitParams</artifactId>
+                <version>${JUnitParams.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.hibernate</groupId>
+                <artifactId>hibernate-validator</artifactId>
+                <version>${hibernate.validator.version}</version>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -2412,6 +3036,18 @@
             </snapshots>
         </repository>
     </repositories>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>vmturbo</id>
+            <name>VMTurbo plugin repository</name>
+            <url>http://build.vmturbo.com:8081/nexus/content/groups/public/</url>
+        </pluginRepository>
+        <pluginRepository>
+            <id>snapshots</id>
+            <name>Internal Snapshots</name>
+            <url>http://build.vmturbo.com:8081/nexus/content/repositories/snapshots</url>
+        </pluginRepository>
+    </pluginRepositories>
     <distributionManagement>
         <repository>
             <id>releases</id>

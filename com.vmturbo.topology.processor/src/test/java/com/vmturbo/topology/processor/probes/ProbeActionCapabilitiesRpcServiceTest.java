@@ -166,6 +166,7 @@ public class ProbeActionCapabilitiesRpcServiceTest {
         return ProbeInfo.newBuilder()
                 .setProbeType("ProbeType")
                 .setProbeCategory("Category")
+                .setUiProbeCategory("uiProbeCat")
                 .addAllActionPolicy(actionCapabilities)
                 .build();
     }

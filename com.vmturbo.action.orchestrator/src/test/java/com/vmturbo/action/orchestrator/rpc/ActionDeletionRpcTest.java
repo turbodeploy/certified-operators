@@ -7,23 +7,26 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.util.Optional;
 
+import io.grpc.Status.Code;
+
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 
-import io.grpc.Status.Code;
-
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
-import com.vmturbo.action.orchestrator.execution.ActionExecutor;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -39,36 +42,48 @@ public class ActionDeletionRpcTest {
     private final ActionStorehouse actionStorehouse = mock(ActionStorehouse.class);
     private final ActionStore actionStore = mock(ActionStore.class);
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
-    private final WorkflowStore workflowStore = mock(WorkflowStore.class);
     private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
     private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
+    private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
+    private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
 
     private final long topologyContextId = 3;
 
     private final Clock clock = new MutableFixedClock(1_000_000);
 
-    private ActionsRpcService actionsRpcService =
-        new ActionsRpcService(clock, actionStorehouse,
-            mock(ActionExecutor.class),
-            mock(ActionTargetSelector.class),
-            mock(ActionTranslator.class),
-            paginatorFactory,
-            workflowStore,
-            statReader,
-            liveStatReader);
+    private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
+    private ActionApprovalManager approvalManager;
+    private ActionsRpcService actionsRpcService;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
+    private GrpcTestServer grpcServer;
 
+    /**
+     * Initializes the tests.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-
+        approvalManager = Mockito.mock(ActionApprovalManager.class);
+        actionsRpcService = new ActionsRpcService(clock, actionStorehouse, approvalManager,
+                mock(ActionTranslator.class), paginatorFactory, statReader, liveStatReader,
+                userSessionContext, acceptedActionsStore, rejectedActionsStore, 500);
+        grpcServer = GrpcTestServer.newServer(actionsRpcService);
+        grpcServer.start();
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStorehouse.getStore(topologyContextId)).thenReturn(Optional.of(actionStore));
+    }
+
+    /**
+     * Cleans up resources after tests.
+     */
+    @After
+    public void cleanup() {
+        grpcServer.close();
     }
 
     @Test

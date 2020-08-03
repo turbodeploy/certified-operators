@@ -1,7 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -9,23 +8,22 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.stream.Collectors;
 
-import org.flywaydb.core.Flyway;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -33,64 +31,95 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class PlanProjectedRICoverageAndUtilStoreTest {
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
-    private DSLContext dsl;
-    private Flyway flyway;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
 
-    private ReservedInstanceBoughtStore reservedInstanceBoughtStore = mock(ReservedInstanceBoughtStore.class);
-    private ReservedInstanceSpecStore reservedInstanceSpecStore = mock(ReservedInstanceSpecStore.class);
-    private RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
-    private GrpcTestServer testServer = GrpcTestServer.newServer(repositoryService);
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    private static final long PLAN_ID = 20L;
+    private static final double DELTA = 0.01;
+
+    private final DSLContext dsl = dbConfig.getDslContext();
+
+    private final ReservedInstanceSpecStore reservedInstanceSpecStore = mock(
+            ReservedInstanceSpecStore.class);
+    private final RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
+    private PlanReservedInstanceServiceBlockingStub planReservedInstanceService;
+
     private PlanProjectedRICoverageAndUtilStore store;
+
     private static final EntityReservedInstanceCoverage ENTITY_RI_COVERAGE =
             EntityReservedInstanceCoverage.newBuilder()
                     .setEntityId(1L)
                     .putCouponsCoveredByRi(10L, 100.0)
+                    .setEntityCouponCapacity(10)
                     .build();
     private final TopologyInfo topoInfo = TopologyInfo.newBuilder()
-            .setTopologyContextId(20l)
-            .setTopologyId(0l)
+            .setTopologyContextId(PLAN_ID)
+            .setTopologyId(0L)
             .build();
     private final int chunkSize = 10;
 
-    @Before
-    public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        testServer.start();
-        // set time out on topology available or failure for 1 seconds
-        store = Mockito.spy(new PlanProjectedRICoverageAndUtilStore(dsl, 1, RepositoryServiceGrpc
-                .newBlockingStub(testServer.getChannel()), reservedInstanceBoughtStore,
-                reservedInstanceSpecStore, chunkSize));
-    }
+    private final PlanReservedInstanceStore planReservedInstanceStore = Mockito.mock(
+            PlanReservedInstanceStore.class);
+    private final BuyReservedInstanceStore buyReservedInstanceStore = mock(
+            BuyReservedInstanceStore.class);
+    private final PlanReservedInstanceRpcService planRiService = new PlanReservedInstanceRpcService(
+            planReservedInstanceStore, buyReservedInstanceStore, reservedInstanceSpecStore);
 
-    @After
-    public void teardown() {
-        flyway.clean();
+    /**
+     * Test gRPC server for mocking gRPC dependencies.
+     */
+    @Rule
+    public GrpcTestServer testServer = GrpcTestServer.newServer(repositoryService);
+
+    /**
+     * gRPC server for plan service.
+     */
+    @Rule
+    public GrpcTestServer planGrpcServer = GrpcTestServer.newServer(planRiService);
+
+
+    @Before
+    public void setup() {
+        planReservedInstanceService = PlanReservedInstanceServiceGrpc.newBlockingStub(planGrpcServer.getChannel());
+        // set time out on topology available or failure for 1 seconds
+        store = Mockito.spy(new PlanProjectedRICoverageAndUtilStore(dsl,
+                RepositoryServiceGrpc.newBlockingStub(testServer.getChannel()),
+                planReservedInstanceService, reservedInstanceSpecStore, chunkSize));
     }
 
     @Test
@@ -100,154 +129,229 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                         .selectFrom(Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING).fetch();
         assertEquals(1, records.size());
         PlanProjectedEntityToReservedInstanceMappingRecord rcd = records.get(0);
-        assertTrue(rcd.getEntityId() == 1l);
-        assertTrue(rcd.getPlanId() == 20l);
-        assertTrue(rcd.getReservedInstanceId() == 10l);
-        assertTrue(rcd.getUsedCoupons() == 100);
+        assertEquals(1L, rcd.getEntityId(), DELTA);
+        assertEquals(PLAN_ID, rcd.getPlanId(), DELTA);
+        assertEquals(10L, rcd.getReservedInstanceId(), DELTA);
+        assertEquals(100, rcd.getUsedCoupons(), DELTA);
     }
 
     @Test
     public void testUpdateProjectedRIUtilTableForPlan() {
-        List<ReservedInstanceBought> riBought = new ArrayList<>();
-        riBought.add(ReservedInstanceBought.newBuilder().setId(10l)
-                .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                        .setReservedInstanceSpec(701l)
-                        .setAvailabilityZoneId(1000l)
-                        .setBusinessAccountId(2l)
-                        .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons
-                                .newBuilder().setNumberOfCoupons(100)))
-                .build());
-        riBought.add(ReservedInstanceBought.newBuilder().setId(5l)
-                .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                        .setReservedInstanceSpec(702l)
-                        .setAvailabilityZoneId(2000l)
-                        .setBusinessAccountId(2l)
-                        .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons
-                                .newBuilder().setNumberOfCoupons(200)))
-                .build());
-        when(reservedInstanceBoughtStore
-             .getReservedInstanceBoughtByFilter(any())).thenReturn(riBought);
-        Set<Long> riSpecId = new HashSet<Long>();
-        riSpecId.add(701l);
-        riSpecId.add(702l);
+        mockPlanRIUtilizationTables();
+        final List<PlanProjectedReservedInstanceUtilizationRecord> records = dsl
+                        .selectFrom(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION).fetch();
+        assertEquals(2, records.size());
+        PlanProjectedReservedInstanceUtilizationRecord rcd = records.get(0);
+        assertEquals(10L, rcd.getId(), DELTA);
+        assertEquals(PLAN_ID, rcd.getPlanId(), DELTA);
+        assertEquals(1000L, rcd.getAvailabilityZoneId(), DELTA);
+        assertEquals(2L, rcd.getBusinessAccountId(), DELTA);
+        assertEquals(100, rcd.getTotalCoupons(), DELTA);
+        assertEquals(100, rcd.getUsedCoupons(), DELTA);
+
+        rcd = records.get(1);
+        assertEquals(11L, rcd.getId(), DELTA);
+        assertEquals(PLAN_ID, rcd.getPlanId(), DELTA);
+        assertEquals(0L, rcd.getAvailabilityZoneId(), DELTA);
+        assertEquals(2L, rcd.getBusinessAccountId(), DELTA);
+        assertEquals(200, rcd.getTotalCoupons(), DELTA);
+        assertEquals(0, rcd.getUsedCoupons(), DELTA);
+    }
+
+    /**
+     * Updates dummy RIs bought to simulate those selected by user in OCP RI inventory
+     * widget. Coupon capacity of these RIs is used to show total projected capacity value.
+     */
+    private void updateReservedInstanceBought() {
+        List<ReservedInstanceBought> selectedRis = new ArrayList<>();
+        selectedRis.add(ReservedInstanceBought.newBuilder()
+                .setId(10)
+                .setReservedInstanceBoughtInfo(
+                        ReservedInstanceBoughtInfo.newBuilder()
+                                .setReservedInstanceSpec(701L)
+                                .setBusinessAccountId(2)
+                                .setAvailabilityZoneId(1000)
+                                .setNumBought(1)
+                                .setDisplayName("m5.large")
+                                .setReservedInstanceBoughtCoupons(
+                                        ReservedInstanceBoughtCoupons.newBuilder()
+                                                .setNumberOfCoupons(100)
+                                )
+                ).build());
+        selectedRis.add(ReservedInstanceBought.newBuilder()
+                .setId(11)
+                .setReservedInstanceBoughtInfo(
+                        ReservedInstanceBoughtInfo.newBuilder()
+                                .setReservedInstanceSpec(702L)
+                                .setBusinessAccountId(2)
+                                .setAvailabilityZoneId(0)
+                                .setNumBought(1)
+                                .setDisplayName("t5.large")
+                                .setReservedInstanceBoughtCoupons(
+                                        ReservedInstanceBoughtCoupons.newBuilder()
+                                                .setNumberOfCoupons(200)
+                                )
+                ).build());
+
+        final UploadRIDataRequest uploadRequest =
+                UploadRIDataRequest
+                        .newBuilder()
+                        .setTopologyContextId(PLAN_ID)
+                        .addAllReservedInstanceBought(selectedRis)
+                        .build();
+        planReservedInstanceService.insertPlanReservedInstanceBought(uploadRequest);
+        when(planReservedInstanceStore.getReservedInstanceBoughtByPlanId(PLAN_ID))
+                .thenReturn(selectedRis);
+    }
+
+    private void mockPlanRIUtilizationTables() {
+        updateReservedInstanceBought();
         List<ReservedInstanceSpec> specs = new ArrayList<>();
-        specs.add(ReservedInstanceSpec.newBuilder().setId(701l)
-                .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder().setRegionId(3000l))
+        specs.add(ReservedInstanceSpec.newBuilder().setId(701L)
+                .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder().setRegionId(3000L))
                 .build());
-        specs.add(ReservedInstanceSpec.newBuilder().setId(702l)
-                  .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder().setRegionId(4000l))
+        specs.add(ReservedInstanceSpec.newBuilder().setId(702L)
+                  .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder().setRegionId(4000L))
                   .build());
         when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any())).thenReturn(specs);
 
-        store.updateProjectedRIUtilTableForPlan(topoInfo, Arrays.asList(ENTITY_RI_COVERAGE));
-        final List<PlanProjectedReservedInstanceUtilizationRecord> records = dsl
-                        .selectFrom(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION).fetch();
-        assertEquals(1, records.size());
-        PlanProjectedReservedInstanceUtilizationRecord rcd = records.get(0);
-        assertTrue(rcd.getId() == 10l);
-        assertTrue(rcd.getPlanId() == 20l);
-        assertTrue(rcd.getAvailabilityZoneId() == 1000l);
-        assertTrue(rcd.getBusinessAccountId() == 2l);
-        assertTrue(rcd.getTotalCoupons() == 100);
-        assertTrue(rcd.getUsedCoupons() == 100);
+        store.updateProjectedRIUtilTableForPlan(topoInfo, Arrays.asList(ENTITY_RI_COVERAGE), new ArrayList<>());
     }
 
     @Test
     public void testUpdateProjectedRICoverageTableForPlan() {
-        Map<Long, TopologyEntityDTO> entityMap = getEntityMap();
-        long projectedTopoId = 12300l;
-        store.onProjectedTopologyAvailable(projectedTopoId, topoInfo.getTopologyContextId());
-        // assuming ri oid is 5 and it is used by vm with oid 101l
-        @SuppressWarnings("unchecked")
-        Map<Long, Double> riUsage = new HashMap<>();
-        riUsage.put(5l, 0.2);
-        List<EntityReservedInstanceCoverage> entityRICoverage = Arrays
-                        .asList(EntityReservedInstanceCoverage
-                        .newBuilder()
-                        .setEntityId(101l)
-                        .putAllCouponsCoveredByRi(riUsage)
-                        .build());
-        when(repositoryService.retrieveTopologyEntities(any()))
-                .thenReturn(Arrays.asList(EntityBatch.newBuilder()
-                        .addAllEntities(entityMap.values()).build()));
-        store.updateProjectedRICoverageTableForPlan(projectedTopoId, topoInfo, entityRICoverage);
+        long projectedTopoId = 12300L;
+        mockPlanProjectedRICoverageTable(projectedTopoId, false, null, null);
         final List<PlanProjectedReservedInstanceCoverageRecord> records = dsl
                         .selectFrom(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE).fetch();
         assertEquals(1, records.size());
         PlanProjectedReservedInstanceCoverageRecord rcd = records.get(0);
-        assertTrue(rcd.getEntityId() == 101l);
-        assertTrue(rcd.getPlanId() == 20l);
-        assertTrue(rcd.getRegionId() == 2000l);
-        assertTrue(rcd.getAvailabilityZoneId() == 1000l);
+        assertEquals(101L, rcd.getEntityId(), DELTA);
+        assertEquals(PLAN_ID, rcd.getPlanId(), DELTA);
+        assertEquals(2000L, rcd.getRegionId(), DELTA);
+        assertEquals(1000L, rcd.getAvailabilityZoneId(), DELTA);
         dsl.delete(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE);
     }
 
-    private Map<Long, TopologyEntityDTO> getEntityMap() {
-        Map<Long, TopologyEntityDTO> entityMap = new HashMap();
-     // build up a topology in which az is owned by region,
+    private void mockPlanProjectedRICoverageTable(long projectedTopoId, boolean noZones,
+                                                  final List<TopologyEntityDTO> additionalEntities,
+                                                  final List<EntityReservedInstanceCoverage> additionalRICoverage) {
+        final Map<Long, TopologyEntityDTO> entityMap = getEntityMap(noZones, additionalEntities);
+        store.onProjectedTopologyAvailable(projectedTopoId, topoInfo.getTopologyContextId());
+        // assuming ri oid is 5 and it is used by vm with oid 101L
+        final Map<Long, Double> riUsage = new HashMap<>();
+        riUsage.put(5L, 0.2);
+        List<EntityReservedInstanceCoverage> entityRICoverage = Lists.newArrayList(EntityReservedInstanceCoverage
+            .newBuilder()
+            .setEntityId(101L)
+            .putAllCouponsCoveredByRi(riUsage)
+            .setEntityCouponCapacity(5)
+            .build());
+        if (additionalRICoverage != null) {
+            entityRICoverage.addAll(additionalRICoverage);
+        }
+
+        when(repositoryService.retrieveTopologyEntities(any()))
+            .thenReturn(Arrays.asList(PartialEntityBatch.newBuilder()
+                .addAllEntities(entityMap.values()
+                    .stream()
+                    .map(e -> PartialEntity.newBuilder()
+                        .setFullEntity(e)
+                        .build())
+                    .collect(Collectors.toList()))
+                .build()));
+        store.updateProjectedRICoverageTableForPlan(projectedTopoId, topoInfo, entityRICoverage);
+    }
+
+    private static Map<Long, TopologyEntityDTO> getEntityMap(boolean noZones,
+                                                             final List<TopologyEntityDTO> additionalEntities) {
+        Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
+        // build up a topology in which az is owned by region,
         // vm connectedTo az and consumes computeTier,
         // computeTier connectedTo region,
         // ba connectedTo vm
         TopologyEntityDTO az = TopologyEntityDTO.newBuilder()
                         .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
-                        .setOid(1000l)
+                        .setOid(1000L)
                         .build();
         TopologyEntityDTO region = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.REGION_VALUE)
-                .setOid(2000l)
+                .setOid(2000L)
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(1000l)
+                        .setConnectedEntityId(1000L)
                         .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
                 .build();
         TopologyEntityDTO ba = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
-                .setOid(3000l)
+                .setOid(3000L)
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(101l)
+                        .setConnectedEntityId(101L)
+                        .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(102L)
                         .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
                 .build();
         TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
                         .setEntityType(EntityType.COMPUTE_TIER_VALUE)
-                        .setOid(4000l)
+                        .setOid(4000L)
                         .addConnectedEntityList(ConnectedEntity.newBuilder()
-                                .setConnectedEntityId(2000l)
+                                .setConnectedEntityId(2000L)
                                 .setConnectedEntityType(EntityType.REGION_VALUE))
+                        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                                .setComputeTier(ComputeTierInfo.newBuilder().setNumCoupons(10)))
                         .build();
-        TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
+
+        TopologyEntityDTO.Builder vmBuilder = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setOid(101l)
+                .setOid(101L)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                         .setProviderId(4000l)
-                         .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE))
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(1000l)
-                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
-                .build();
-        entityMap.put(1000l, az);
-        entityMap.put(2000l, region);
-        entityMap.put(3000l, ba);
-        entityMap.put(4000l, computeTier);
-        entityMap.put(101l, vm);
+                         .setProviderId(4000L)
+                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE));
+        if (noZones) {
+            vmBuilder.addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityId(2000L)
+                    .setConnectedEntityType(EntityType.REGION_VALUE));
+        } else {
+            vmBuilder.addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityId(1000L)
+                    .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE));
+        }
+        TopologyEntityDTO vm = vmBuilder.build();
+
+        entityMap.put(1000L, az);
+        entityMap.put(2000L, region);
+        entityMap.put(3000L, ba);
+        entityMap.put(4000L, computeTier);
+        entityMap.put(101L, vm);
+        if (additionalEntities != null) {
+            additionalEntities.forEach(e -> entityMap.put(e.getOid(), e));
+        }
         return entityMap;
     }
 
     @Test
     public void testOnProjectedTopologyAvailableAndOnProjectedTopologyFailure() {
-        long projectedTopoId1 = 100011l;
-        long projectedTopoId2 = 100012l;
-        long contextId = 120001l;
+        long projectedTopoId1 = 100011L;
+        long projectedTopoId2 = 100012L;
+        long contextId = 120001L;
         @SuppressWarnings("unchecked")
         Map<Long, Double> riUsage = new HashMap<>();
-        riUsage.put(5l, 0.2);
+        riUsage.put(5L, 0.2);
         List<EntityReservedInstanceCoverage> entityRICoverage = Arrays
                         .asList(EntityReservedInstanceCoverage
                         .newBuilder()
-                        .setEntityId(101l)
+                        .setEntityId(101L)
                         .putAllCouponsCoveredByRi(riUsage)
+                        .setEntityCouponCapacity(5)
                         .build());
         when(repositoryService.retrieveTopologyEntities(any()))
-            .thenReturn(Arrays.asList(EntityBatch.newBuilder()
-                .addAllEntities(getEntityMap().values()).build()));
+            .thenReturn(Arrays.asList(PartialEntityBatch.newBuilder()
+                    .addAllEntities(getEntityMap(false, null).values().stream()
+                    .map(e -> PartialEntity.newBuilder()
+                        .setFullEntity(e)
+                        .build())
+                    .collect(Collectors.toList()))
+                .build()));
         Thread thread1 = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -286,10 +390,10 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                         .selectFrom(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE).fetch();
         assertEquals(1, records.size());// 1 record is added
         PlanProjectedReservedInstanceCoverageRecord rcd = records.get(0);
-        assertTrue(rcd.getEntityId() == 101l);
-        assertTrue(rcd.getPlanId() == 20l);
-        assertTrue(rcd.getRegionId() == 2000l);
-        assertTrue(rcd.getAvailabilityZoneId() == 1000l);
+        assertEquals(101L, rcd.getEntityId(), DELTA);
+        assertEquals(PLAN_ID, rcd.getPlanId(), DELTA);
+        assertEquals(2000L, rcd.getRegionId(), DELTA);
+        assertEquals(1000L, rcd.getAvailabilityZoneId(), DELTA);
         thread3.start();
         thread4.start();
         try {
@@ -301,4 +405,171 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                         .selectFrom(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE).fetch();
         assertEquals(1, newRecords.size()); //still has only 1 record
     }
+
+    /**
+     * Test getting of RI utilization stats from DB.
+     */
+    @Test
+    public void testGetReservedInstanceUtilizationStatsRecords() {
+        mockPlanRIUtilizationTables();
+        final List<ReservedInstanceStatsRecord> statsRecords =
+                store.getPlanReservedInstanceUtilizationStatsRecords(PLAN_ID, Collections.emptyList());
+        assertEquals(1, statsRecords.size());
+        final ReservedInstanceStatsRecord record = statsRecords.get(0);
+        // Coupon capacities are 100 and 200, so average is 150.
+        assertEquals(150, record.getCapacity().getAvg(), DELTA);
+        // Used coupons is 100 out of 2 coupons, so average is 50.
+        assertEquals(50, record.getValues().getAvg(), DELTA);
+    }
+
+    /**
+     * Test getting of RI coverage stats from DB.
+     */
+    @Test
+    public void testGetReservedInstanceCoverageStatsRecords() {
+        mockPlanRIUtilizationTables();
+        mockPlanProjectedRICoverageTable(PLAN_ID, false, null, null);
+        final List<ReservedInstanceStatsRecord> statsRecords =
+                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList());
+        assertEquals(1, statsRecords.size());
+        final ReservedInstanceStatsRecord record = statsRecords.get(0);
+        assertEquals(5, record.getCapacity().getAvg(), DELTA);
+        assertEquals(0.2, record.getValues().getAvg(), DELTA);
+    }
+
+    /**
+     * Test getting of RI coverage stats from DB when the entity is connected directly to the Region, not to the Zone.
+     */
+    @Test
+    public void testGetReservedInstanceCoverageStatsRecordsWithoutZones() {
+        mockPlanRIUtilizationTables();
+        mockPlanProjectedRICoverageTable(PLAN_ID, true, null, null);
+        final List<ReservedInstanceStatsRecord> statsRecords =
+                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList());
+        assertEquals(1, statsRecords.size());
+        final ReservedInstanceStatsRecord record = statsRecords.get(0);
+        assertEquals(5, record.getCapacity().getAvg(), DELTA);
+        assertEquals(0.2, record.getValues().getAvg(), DELTA);
+    }
+
+    /**
+     * Test saving RI coverage stats into the DB when there are BIDDING VMs.
+     */
+    @Test
+    public void testGetReservedInstanceCoverageStatsRecordsWithBiddingVMs() {
+        long vmBiddingOid = 102L;
+        TopologyEntityDTO ba = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setOid(3001L)
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(vmBiddingOid)
+                        .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .build();
+        TopologyEntityDTO vmBidding = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(vmBiddingOid)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(4000L)
+                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE))
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(1000L)
+                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setVirtualMachine(
+                                TypeSpecificInfo.VirtualMachineInfo.newBuilder()
+                                        .setBillingType(CommonDTO.EntityDTO.VirtualMachineData.VMBillingType.BIDDING)
+                        )
+                )
+                .build();
+        final Map<Long, Double> riUsage = ImmutableMap.of(4L, 0D);
+        EntityReservedInstanceCoverage vmCoverage = EntityReservedInstanceCoverage
+                .newBuilder()
+                .setEntityId(vmBiddingOid)
+                .putAllCouponsCoveredByRi(riUsage)
+                .setEntityCouponCapacity(4)
+                .build();
+
+        mockPlanRIUtilizationTables();
+        mockPlanProjectedRICoverageTable(PLAN_ID, false,
+                ImmutableList.of(vmBidding, ba), ImmutableList.of(vmCoverage));
+        final List<ReservedInstanceStatsRecord> statsRecords =
+                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList());
+        assertEquals(1, statsRecords.size());
+        final ReservedInstanceStatsRecord record = statsRecords.get(0);
+        assertEquals(5, record.getCapacity().getAvg(), DELTA);
+        assertEquals(0.2, record.getValues().getAvg(), DELTA);
+    }
+
+    /**
+     * Test used coupons should be less than or equals total coupons with permissible excess of
+     * coupon used over capacity.
+     */
+    @Test
+    public void testPermissibleExcessOfCouponUsedOverCapacity() {
+        final TopologyEntityDTO virtualMachine = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(102L)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(4000L)
+                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE))
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(1000L)
+                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
+                .build();
+        mockPlanRIUtilizationTables();
+        mockPlanProjectedRICoverageTable(PLAN_ID, false, Collections.singletonList(virtualMachine),
+                Arrays.asList(EntityReservedInstanceCoverage.newBuilder()
+                        .setEntityId(virtualMachine.getOid())
+                        .putCouponsCoveredByRi(4L, 64.00003D)
+                        .setEntityCouponCapacity(64)
+                        .build(), EntityReservedInstanceCoverage.newBuilder()
+                        .setEntityId(101L)
+                        .putCouponsCoveredByRi(4L, 4.800003D)
+                        .setEntityCouponCapacity(4)
+                        .build()));
+        final List<ReservedInstanceStatsRecord> statsRecords =
+                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList());
+        assertEquals(1, statsRecords.size());
+        final ReservedInstanceStatsRecord record = statsRecords.get(0);
+        assertEquals(5, record.getCapacity().getAvg(), DELTA);
+        assertEquals(5.000003, record.getValues().getAvg(), DELTA);
+    }
+
+    /**
+     * Tests getting accumulated RI coverage map that merges RI coverages for each entity.
+     */
+    @Test
+    public void testGetAccumulatedRICoverageMap() {
+        EntityReservedInstanceCoverage riCoverage1 = EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(1L)
+                .putCouponsCoveredByRi(1L, 0.5)
+                .build();
+        EntityReservedInstanceCoverage riCoverage2 = EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(1L)
+                .putCouponsCoveredByRi(1L, 0.5)
+                .build();
+        EntityReservedInstanceCoverage riCoverage3 = EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(2L)
+                .putCouponsCoveredByRi(1L, 2.0)
+                .build();
+        EntityReservedInstanceCoverage riCoverage4 = EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(4L)
+                .putCouponsCoveredByRi(1L, 1.0)
+                .build();
+        EntityReservedInstanceCoverage riCoverage5 = EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(4L)
+                .putCouponsCoveredByRi(1L, 1.0)
+                .putCouponsCoveredByRi(2L, 2.0)
+                .build();
+        List<EntityReservedInstanceCoverage> entityRICoverage = Arrays.asList(riCoverage1,
+                riCoverage2, riCoverage3, riCoverage4, riCoverage5);
+        Map<Long, Double> accumulatedRICoverage = store.getAggregatedEntityRICoverage(entityRICoverage);
+        // check coverage for entity ID 1
+        assertEquals(new Double(1.0), accumulatedRICoverage.get(1L));
+        // Check coverage for entity ID 2
+        assertEquals(new Double(2.0), accumulatedRICoverage.get(2L));
+        // Check coverage for entity ID 4
+        assertEquals(new Double(4.0), accumulatedRICoverage.get(4L));
+    }
+
 }

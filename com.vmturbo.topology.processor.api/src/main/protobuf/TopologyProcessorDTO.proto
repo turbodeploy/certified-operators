@@ -9,11 +9,14 @@ message TargetSpec {
     required int64 probe_id = 1;
     // Account values, used for this target.
     repeated AccountValue account_value = 2;
-    // This field is valid only the target is derived target. It represents
-    // the id of the parent target which discovered this target.
-    optional int64 parent_id = 3;
-    // This field indicates that whether the target should be show on UI.
+    // This field has been deprecated as it is made redundant by derived_target_ids.
+    optional int64 parent_id = 3 [deprecated = true];
+    // This field indicates whether the target should be show on UI.
     optional bool is_hidden = 4 [default = false];
+    // This field indicates whether the target cannot be changed through public APIs.
+    optional bool read_only = 5 [default = false];
+    // This field stores the derived target IDs associated with this target.
+    repeated int64 derived_target_ids = 6;
 }
 
 message TargetInfo {
@@ -21,6 +24,9 @@ message TargetInfo {
     required int64 id = 1;
 
     optional TargetSpec spec = 2;
+
+    // The target display name, used for the UI and for logging.
+    optional string display_name = 3;
 }
 
 // Messages, sent by server side of API
@@ -33,27 +39,69 @@ message TopologyProcessorNotification {
     oneof type {
         // Error message shows, that client side could not process the request.
         string error = 2;
+
         // Notification of validation result.
         OperationStatus validation_notification = 7;
+
         // Notification of validation result.
         OperationStatus discovery_notification = 8;
 
         // Notification of target is removed event.
         int64 target_removed_notification = 9;
+
         // Notification of target has been changed event.
         TargetInfo target_changed_notification = 10;
+
         // Notification of new target has been added event.
         TargetInfo target_added_notification = 11;
 
         // Notification of an update about action execution progress.
         .action.ActionProgress action_progress = 12;
+
         // Notification of an action completing successfully.
         .action.ActionSuccess action_success = 13;
+
         // Notification of an action completing unsuccessfully.
         .action.ActionFailure action_failure = 14;
 
+        // Notifications that some actions got lost - the Topology Processor no longer knows
+        // whether they are still in progress, succeeded, or failed. It's up to the listener
+        // to decide how to treat these actions.
+        ActionsLost actions_lost = 15;
+
         // Notification of a probe having successfully registered.
         ProbeInfo probe_registration_notification = 20;
+    }
+}
+
+// Describes actions the Topology Processor lost state for.
+// This is not together with the other action notificatons - "ActionProgress", "ActionSuccess", and
+// "ActionFailure" - because this one doesn't need to be shared across multiple component APIs.
+message ActionsLost {
+
+    oneof type {
+        // Specific actions were lost. This could happen if one of the probes goes down -
+        // the probes are stateless, so even if it comes back up it will not know if the request
+        // it triggered before restart is still in progress, has succeeded, or has failed.
+        ActionIds lost_action_id = 1;
+
+        // All in-progress actions started before this time were lost.
+        // The topology processor doesn't know their IDs.
+        // This will happen during a topology processor restart.
+        // The time is a unix timestamp.
+        //
+        // Note - because clocks can be out of sync between services (especially if services are
+        // on different nodes) we should be careful when comparing this timestamp to other
+        // timestamps across component instances. However, it's reasonable to expect that the
+        // times across containers are roughly in sync (e.g. not hours apart).
+        int64 before_time = 2;
+    }
+
+    message ActionIds {
+        // The IDs of the lost actions.
+        // An empty list means no actions were lost. We use ActionsLost.all_lost = true to indicate
+        // when ALL actions were lost.
+        repeated int64 action_ids = 1;
     }
 }
 

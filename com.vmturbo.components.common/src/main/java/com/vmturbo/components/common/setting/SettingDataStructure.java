@@ -1,7 +1,9 @@
 package com.vmturbo.components.common.setting;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -29,4 +31,13 @@ public interface SettingDataStructure<T> {
      * @param builder builder to append setting data structure to.
      */
     void build(@Nonnull SettingSpec.Builder builder);
+
+    /**
+     * Extract the value out of a setting object.
+     *
+     * @param setting setting
+     * @return value, null if absent
+     */
+    @Nullable
+    T getValue(@Nullable Setting setting);
 }

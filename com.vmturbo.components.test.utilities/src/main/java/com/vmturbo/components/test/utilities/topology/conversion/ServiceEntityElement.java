@@ -17,6 +17,7 @@ import javax.xml.bind.annotation.XmlType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -234,7 +235,7 @@ public class ServiceEntityElement implements IntoSdkProto<EntityDTO.Builder> {
     @Override
     public EntityDTO.Builder toSdkProto() {
         final EntityDTO.Builder builder = EntityDTO.newBuilder()
-            .setEntityType(ClassicEnumMapper.entityType(getEntityType()))
+            .setEntityType(ApiEntityType.fromString(getEntityType()).sdkType())
             .setId(getUuid())
             .setDisplayName(getDisplayName())
             .setOrigin(EntityOrigin.DISCOVERED);

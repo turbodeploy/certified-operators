@@ -1,22 +1,30 @@
 package com.vmturbo.market.topology.conversions;
 
+import static com.vmturbo.trax.Trax.trax;
+
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
+import org.springframework.util.CollectionUtils;
 
-import com.google.common.collect.Sets;
-
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -25,28 +33,38 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity.TimeSlotReasonInformation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
+import com.vmturbo.market.topology.RiDiscountedMarketTier;
+import com.vmturbo.market.topology.SingleRegionMarketTier;
 import com.vmturbo.market.topology.conversions.CloudEntityResizeTracker.CommodityUsageType;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
@@ -58,11 +76,17 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTriggerTraderTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.trax.Trax;
+import com.vmturbo.trax.TraxCollectors;
+import com.vmturbo.trax.TraxConfiguration.TraxContext;
+import com.vmturbo.trax.TraxNumber;
 
 /**
  * This class has methods which interpret {@link ActionTO} to {@link Action}
@@ -75,20 +99,28 @@ public class ActionInterpreter {
     private final Map<Long, TopologyEntityDTO> originalTopology;
     private final Map<Long, EconomyDTOs.TraderTO> oidToProjectedTraderTOMap;
     private final CloudEntityResizeTracker cert;
-    private final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage;
+    private final TierExcluder tierExcluder;
+    private final ProjectedRICoverageCalculator projectedRICoverageCalculator;
+    private static final Set<EntityState> evacuationEntityState =
+        EnumSet.of(EntityState.MAINTENANCE, EntityState.FAILOVER);
+    private final CommodityIndex commodityIndex;
 
     ActionInterpreter(@Nonnull final CommodityConverter commodityConverter,
                       @Nonnull final Map<Long, ShoppingListInfo> shoppingListOidToInfos,
                       @Nonnull final CloudTopologyConverter cloudTc, Map<Long, TopologyEntityDTO> originalTopology,
                       @Nonnull final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap, CloudEntityResizeTracker cert,
-                      @Nonnull final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage) {
+                      @Nonnull final ProjectedRICoverageCalculator projectedRICoverageCalculator,
+                      @Nonnull final TierExcluder tierExcluder,
+                      @Nonnull final Supplier<CommodityIndex> commodityIndexSupplier) {
         this.commodityConverter = commodityConverter;
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
         this.originalTopology = originalTopology;
         this.oidToProjectedTraderTOMap = oidToTraderTOMap;
         this.cert = cert;
-        this.projectedRiCoverage = projectedRiCoverage;
+        this.projectedRICoverageCalculator = projectedRICoverageCalculator;
+        this.tierExcluder = tierExcluder;
+        this.commodityIndex = commodityIndexSupplier.get();
     }
 
     /**
@@ -111,40 +143,55 @@ public class ActionInterpreter {
     @Nonnull
     Optional<Action> interpretAction(@Nonnull final ActionTO actionTO,
                                      @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-                                     @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-                                     @NonNull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-                                     @NonNull TopologyCostCalculator topologyCostCalculator) {
+                                     @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+                                     @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+                                     @Nonnull TopologyCostCalculator topologyCostCalculator) {
         try {
-            Optional<CurrencyAmount> savings = calculateActionSavings(actionTO,
+            final CalculatedSavings savings;
+            final Action.Builder action;
+
+            try (TraxContext traxContext = Trax.track("SAVINGS", actionTO.getActionTypeCase().name())) {
+                savings = calculateActionSavings(actionTO,
                     originalCloudTopology, projectedCosts, topologyCostCalculator);
-            // The action importance should never be infinite, as setImportance() will fail.
-            final Action.Builder action = Action.newBuilder()
-                    // Assign a unique ID to each generated action.
-                    .setId(IdentityGenerator.next())
-                    .setImportance(actionTO.getImportance())
-                    .setExplanation(interpretExplanation(actionTO, savings))
-                    .setExecutable(!actionTO.getIsNotExecutable());
-            savings.ifPresent(action::setSavingsPerHour);
+
+                // The action importance should never be infinite, as setImportance() will fail.
+                action = Action.newBuilder()
+                        // Assign a unique ID to each generated action.
+                        .setId(IdentityGenerator.next())
+                        .setDeprecatedImportance(actionTO.getImportance())
+                        .setExplanation(interpretExplanation(actionTO, savings, projectedTopology))
+                        .setExecutable(!actionTO.getIsNotExecutable());
+                savings.applySavingsToAction(action);
+
+                if (traxContext.on()) {
+                    logger.info("{} calculation stack for {} action {}:\n{}",
+                        () -> savings.getClass().getSimpleName(),
+                        () -> actionTO.getActionTypeCase().name(),
+                        () -> Long.toString(action.getId()),
+                        savings.savingsAmount::calculationStack);
+
+                }
+            }
 
             final ActionInfo.Builder infoBuilder = ActionInfo.newBuilder();
 
             switch (actionTO.getActionTypeCase()) {
                 case MOVE:
-                    Move move = interpretMoveAction(actionTO.getMove(), projectedTopology);
-                    if (move.getChangesList().isEmpty()) {
-                        // There needs to be at least one change provider. It will currently hit
-                        // this block for Accounting actions on the cloud.
+                    Optional<ActionDTO.Move> move = interpretMoveAction(
+                            actionTO.getMove(), projectedTopology, originalCloudTopology);
+                    if (move.isPresent()) {
+                        infoBuilder.setMove(move.get());
+                    } else {
                         return Optional.empty();
                     }
-                    infoBuilder.setMove(move);
                     break;
                 case COMPOUND_MOVE:
                     infoBuilder.setMove(interpretCompoundMoveAction(actionTO.getCompoundMove(),
-                            projectedTopology));
+                            projectedTopology, originalCloudTopology));
                     break;
                 case RECONFIGURE:
                     infoBuilder.setReconfigure(interpretReconfigureAction(
-                            actionTO.getReconfigure(), projectedTopology));
+                            actionTO.getReconfigure(), projectedTopology, originalCloudTopology));
                     break;
                 case PROVISION_BY_SUPPLY:
                     infoBuilder.setProvision(interpretProvisionBySupply(
@@ -155,8 +202,13 @@ public class ActionInterpreter {
                             actionTO.getProvisionByDemand(), projectedTopology));
                     break;
                 case RESIZE:
-                    infoBuilder.setResize(interpretResize(
-                            actionTO.getResize(), projectedTopology));
+                    Optional<ActionDTO.Resize> resize = interpretResize(
+                            actionTO.getResize(), projectedTopology);
+                    if (resize.isPresent()) {
+                        infoBuilder.setResize(resize.get());
+                    } else {
+                        return Optional.empty();
+                    }
                     break;
                 case ACTIVATE:
                     infoBuilder.setActivate(interpretActivate(
@@ -187,95 +239,92 @@ public class ActionInterpreter {
      * @param originalCloudTopology the CloudTopology which came into Analysis
      * @param projectedCosts a map of the id of the entity to its projected costJournal
      * @param topologyCostCalculator the topology cost calculator used to calculate costs
-     * @return
+     * @return The calculated savings for the action. Returns {@link NoSavings} if no
+     *         savings could be calculated.
      */
-    @NonNull
-    Optional<CurrencyAmount> calculateActionSavings(@Nonnull final ActionTO actionTO,
-            @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology,
-            @NonNull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
-            @NonNull TopologyCostCalculator topologyCostCalculator) {
+    @Nonnull
+    CalculatedSavings calculateActionSavings(@Nonnull final ActionTO actionTO,
+            @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+            @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+            @Nonnull TopologyCostCalculator topologyCostCalculator) {
         switch (actionTO.getActionTypeCase()) {
             case MOVE:
-                MoveTO move = actionTO.getMove();
-                MarketTier destMarketTier = cloudTc.getMarketTier(move.getDestination());
-                MarketTier sourceMarketTier = cloudTc.getMarketTier(move.getSource());
+                final MoveTO move = actionTO.getMove();
+                final MarketTier destMarketTier = cloudTc.getMarketTier(move.getDestination());
+                final MarketTier sourceMarketTier = cloudTc.getMarketTier(move.getSource());
                 // Savings can be calculated if the destination is cloud
                 if (destMarketTier != null) {
                     TopologyEntityDTO cloudEntityMoving = getTopologyEntityMoving(move);
                     if (cloudEntityMoving != null) {
-                        CostJournal<TopologyEntityDTO> destCostJournal = projectedCosts
-                                .get(cloudEntityMoving.getOid());
-                        if (destCostJournal != null) {
-                            // Only the on demand costs are considered. RI Compute is not
-                            // considered. RI component is considered as 0 cost. Inside the market
-                            // also, RIs are considered as 0 cost. So it makes sense to be
-                            // consistent. But it can also be viewed from another perspective.
-                            // RI Compute has 2 components - upfront cost already paid to the
-                            // CSP and an hourly cost which is not yet paid. So the true savings
-                            // should consider the hourly cost and ignore the upfront cost.
-                            // Currently, both of these are clubbed into RI compute and
-                            // we cannot differentiate.
-                            double onDemandDestCost = getOnDemandCostForMarketTier(
-                                    cloudEntityMoving, destMarketTier, destCostJournal);
-                            // Now get the source cost. Assume on prem source cost 0.
-                            double onDemandSourceCost = 0;
-                            if (sourceMarketTier != null) {
-                                Optional<CostJournal<TopologyEntityDTO>> sourceCostJournal =
-                                        topologyCostCalculator.calculateCostForEntity(
-                                                originalCloudTopology, cloudEntityMoving);
-                                if (!sourceCostJournal.isPresent()) {
-                                    return Optional.empty();
-                                }
-                                onDemandSourceCost = getOnDemandCostForMarketTier(cloudEntityMoving,
-                                        sourceMarketTier, sourceCostJournal.get());
-                            }
-                            double savings = onDemandSourceCost - onDemandDestCost;
-                            logger.debug("Savings of action for {} moving from {} to {} is {}",
-                                    cloudEntityMoving.getDisplayName(),
-                                    sourceMarketTier.getDisplayName(),
-                                    destMarketTier.getDisplayName(), savings);
-                            return Optional.of(CurrencyAmount.newBuilder().setAmount(savings).build());
+                        final String entityTypeName = EntityType.forNumber(cloudEntityMoving.getEntityType()).name();
+                        try (TraxContext traxContext = Trax.track("SAVINGS", cloudEntityMoving.getDisplayName(),
+                            Long.toString(cloudEntityMoving.getOid()), entityTypeName,
+                            actionTO.getActionTypeCase().name())) {
+                            return calculateMoveSavings(originalCloudTopology,
+                                projectedCosts, topologyCostCalculator, destMarketTier,
+                                sourceMarketTier, cloudEntityMoving);
                         }
+                    } else {
+                        return new NoSavings(trax(0, "no moving entity"));
                     }
+                } else {
+                    return new NoSavings(trax(0, "no destination market tier for " + move.getDestination()));
                 }
-                break;
-            case COMPOUND_MOVE:
-                List<MoveTO> moves = actionTO.getCompoundMove().getMovesList();
-                // Savings can be calculated if the destination is cloud
-                boolean isDestCloud = moves.stream().anyMatch(m -> cloudTc.isMarketTier(m.getDestination()));
-                boolean isSourceCloud = moves.stream().anyMatch(m -> cloudTc.isMarketTier(m.getSource()));
-                if (isDestCloud) {
-                    TopologyEntityDTO cloudEntityMoving = getTopologyEntityMoving(moves.get(0));
-                    if (cloudEntityMoving != null) {
-                        CostJournal<TopologyEntityDTO> destCostJournal = projectedCosts
-                                .get(cloudEntityMoving.getOid());
-                        if (destCostJournal != null) {
-                            double totalOnDemandDestCost = destCostJournal
-                                    .getTotalHourlyCostExcluding(Sets.immutableEnumSet(CostCategory.RI_COMPUTE));
-                            // Now get the source cost. Assume on prem source cost 0.
-                            double totalOnDemandSourceCost = 0;
-                            if (isSourceCloud) {
-                                Optional<CostJournal<TopologyEntityDTO>> sourceCostJournal =
-                                        topologyCostCalculator.calculateCostForEntity(
-                                                originalCloudTopology, cloudEntityMoving);
-                                if (!sourceCostJournal.isPresent()) {
-                                    return Optional.empty();
-                                }
-                                totalOnDemandSourceCost = sourceCostJournal.get()
-                                        .getTotalHourlyCostExcluding(Sets.immutableEnumSet(CostCategory.RI_COMPUTE));
-                            }
-                            double savings = totalOnDemandSourceCost - totalOnDemandDestCost;
-                            logger.debug("Savings of compound move for {} = {}",
-                                    cloudEntityMoving.getDisplayName(), savings);
-                            return Optional.of(CurrencyAmount.newBuilder().setAmount(savings).build());
-                        }
-                    }
-                }
-                break;
             default:
-                return Optional.empty();
+                return new NoSavings(trax(0, "No savings calculation for "
+                    + actionTO.getActionTypeCase().name()));
         }
-        return Optional.empty();
+
+        // Do not have a return statement here. Ensure all cases in the switch return a value.
+    }
+
+    @Nonnull
+    private CalculatedSavings calculateMoveSavings(@Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
+                                                   @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
+                                                   @Nonnull TopologyCostCalculator topologyCostCalculator,
+                                                   @Nonnull MarketTier destMarketTier,
+                                                   @Nullable MarketTier sourceMarketTier,
+                                                   @Nonnull TopologyEntityDTO cloudEntityMoving) {
+        final CostJournal<TopologyEntityDTO> destCostJournal = projectedCosts
+                .get(cloudEntityMoving.getOid());
+        if (destCostJournal != null) {
+            // Only the on demand costs are considered. RI Compute is not
+            // considered. RI component is considered as 0 cost. Inside the market
+            // also, RIs are considered as 0 cost. So it makes sense to be
+            // consistent. But it can also be viewed from another perspective.
+            // RI Compute has 2 components - upfront cost already paid to the
+            // CSP and an hourly cost which is not yet paid. So the true savings
+            // should consider the hourly cost and ignore the upfront cost.
+            // Currently, both of these are clubbed into RI compute and
+            // we cannot differentiate.
+            TraxNumber onDemandDestCost = getOnDemandCostForMarketTier(
+                    cloudEntityMoving, destMarketTier, destCostJournal);
+            // Now get the source cost. Assume on prem source cost 0.
+            final TraxNumber onDemandSourceCost;
+            if (sourceMarketTier != null) {
+                Optional<CostJournal<TopologyEntityDTO>> sourceCostJournal =
+                        topologyCostCalculator.calculateCostForEntity(
+                                originalCloudTopology, cloudEntityMoving);
+                if (!sourceCostJournal.isPresent()) {
+                    return new NoSavings(trax(0, "no source cost journal"));
+                }
+                onDemandSourceCost = getOnDemandCostForMarketTier(cloudEntityMoving,
+                        sourceMarketTier, sourceCostJournal.get());
+            } else {
+                onDemandSourceCost = trax(0, "source on-prem");
+            }
+
+            final String savingsDescription = String.format("Savings for %s \"%s\" (%d)",
+                EntityType.forNumber(cloudEntityMoving.getEntityType()).name(),
+                cloudEntityMoving.getDisplayName(), cloudEntityMoving.getOid());
+            final TraxNumber savings = onDemandSourceCost.minus(onDemandDestCost).compute(savingsDescription);
+            logger.debug("{} to move from {} to {} is {}", savingsDescription,
+                sourceMarketTier == null ? null : sourceMarketTier.getDisplayName(),
+                destMarketTier.getDisplayName(), savings);
+            return new CalculatedSavings(savings);
+        } else {
+            return new NoSavings(trax(0, "no destination cost journal"));
+        }
     }
 
     @Nullable
@@ -296,21 +345,35 @@ public class ActionInterpreter {
      * @param journal the cost journal
      * @return the total cost of the market tier
      */
-    @NonNull
-    private double getOnDemandCostForMarketTier(TopologyEntityDTO cloudEntityMoving,
-                                            MarketTier marketTier,
-                                            CostJournal<TopologyEntityDTO> journal) {
-        double totalOnDemandCost = 0;
+    @Nonnull
+    private TraxNumber getOnDemandCostForMarketTier(TopologyEntityDTO cloudEntityMoving,
+                                                    MarketTier marketTier,
+                                                    CostJournal<TopologyEntityDTO> journal) {
+        final TraxNumber totalOnDemandCost;
         if (TopologyDTOUtil.isPrimaryTierEntityType(marketTier.getTier().getEntityType())) {
-            double onDemandComputeCost = journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE);
-            double licenseCost = journal.getHourlyCostForCategory(CostCategory.LICENSE);
-            double ipCost = journal.getHourlyCostForCategory(CostCategory.IP);
-            totalOnDemandCost = onDemandComputeCost + licenseCost + ipCost;
-            logger.debug("Costs for {} on {} are -> on demand compute cost = {}, licenseCost = {}, ipCost = {}",
+
+            // In determining on-demand costs for SCALE actions, the savings from buy RI actions
+            // should be ignored. Therefore, we lookup the on-demand cost, ignoring savings
+            // from CostSource.BUY_RI_DISCOUNT
+            TraxNumber onDemandComputeCost = journal.getHourlyCostFilterEntries(
+                    CostCategory.ON_DEMAND_COMPUTE,
+                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+            TraxNumber licenseCost = journal.getHourlyCostFilterEntries(
+                    CostCategory.ON_DEMAND_LICENSE,
+                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+            TraxNumber reservedLicenseCost = journal.getHourlyCostFilterEntries(
+                    CostCategory.RESERVED_LICENSE,
+                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+            TraxNumber ipCost = journal.getHourlyCostForCategory(CostCategory.IP);
+            totalOnDemandCost = Stream.of(onDemandComputeCost, licenseCost, reservedLicenseCost, ipCost)
+                .collect(TraxCollectors.sum(marketTier.getTier().getDisplayName() + " total cost"));
+            logger.debug("Costs for {} on {} are -> on demand compute cost = {}, licenseCost = {}," +
+                    " reservedLicenseCost = {}, ipCost = {}",
                     cloudEntityMoving.getDisplayName(), marketTier.getDisplayName(),
-                    onDemandComputeCost, licenseCost, ipCost);
+                    onDemandComputeCost, licenseCost, reservedLicenseCost, ipCost);
         } else {
-            totalOnDemandCost = journal.getHourlyCostForCategory(CostCategory.STORAGE);
+            totalOnDemandCost = journal.getHourlyCostForCategory(CostCategory.STORAGE)
+                .named(marketTier.getTier().getDisplayName() + " total cost");
             logger.debug("Costs for {} on {} are -> storage cost = {}",
                     cloudEntityMoving.getDisplayName(), marketTier.getDisplayName(), totalOnDemandCost);
         }
@@ -323,13 +386,13 @@ public class ActionInterpreter {
         final long entityId = deactivateTO.getTraderToDeactivate();
         final List<CommodityType> topologyCommodities =
                 deactivateTO.getTriggeringBasketList().stream()
-                        .map(commodityConverter::economyToTopologyCommodity)
+                        .map(commodityConverter::marketToTopologyCommodity)
                         .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .collect(Collectors.toList());
+                    .map(Optional::get)
+                    .collect(Collectors.toList());
         return ActionDTO.Deactivate.newBuilder()
                 .setTarget(createActionEntity(entityId, projectedTopology))
-                .addAllTriggeringCommodities(topologyCommodities)
+            .addAllTriggeringCommodities(topologyCommodities)
                 .build();
     }
 
@@ -342,12 +405,14 @@ public class ActionInterpreter {
      *
      * @param compoundMoveTO the input {@link CompoundMoveTO}
      * @param projectedTopology a map of entity id to its {@link ProjectedTopologyEntity}
+     * @param originalCloudTopology The original cloud topology
      * @return {@link ActionDTO.Move} representing the compound move
      */
     @Nonnull
     private ActionDTO.Move interpretCompoundMoveAction(
             @Nonnull final CompoundMoveTO compoundMoveTO,
-            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+            @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
         List<MoveTO> moves = compoundMoveTO.getMovesList();
         if (moves.isEmpty()) {
             throw new IllegalStateException(
@@ -366,12 +431,12 @@ public class ActionInterpreter {
         Long targetOid = targetIds.iterator().next();
 
         return ActionDTO.Move.newBuilder()
-                .setTarget(createActionEntity(
-                        targetIds.iterator().next(), projectedTopology))
-                .addAllChanges(moves.stream()
-                        .map(move -> createChangeProviders(move, projectedTopology, targetOid))
-                        .flatMap(List::stream)
-                        .collect(Collectors.toList()))
+            .setTarget(createActionEntity(
+                targetIds.iterator().next(), projectedTopology))
+            .addAllChanges(moves.stream()
+                .map(move -> createChangeProviders(move, projectedTopology, originalCloudTopology, targetOid))
+                .flatMap(List::stream)
+                .collect(Collectors.toList()))
                 .build();
     }
 
@@ -380,7 +445,7 @@ public class ActionInterpreter {
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         return ActionDTO.Provision.newBuilder()
                 .setEntityToClone(createActionEntity(
-                        provisionByDemandTO.getModelSeller(), projectedTopology))
+                    provisionByDemandTO.getModelSeller(), projectedTopology))
                 .setProvisionedSeller(provisionByDemandTO.getProvisionedSeller())
                 .build();
     }
@@ -397,7 +462,7 @@ public class ActionInterpreter {
     }
 
     /**
-     * Convert the {@link MoveTO} recieved from M2 into a {@link ActionDTO.Move} action.
+     * Convert the {@link MoveTO} received from M2 into a {@link ActionDTO.Move} action.
      * We do 2 things in this method:
      * 1. Create an action entity and set it as the target for the move
      * 2. Create change providers. Change providers specify the from and to of the move action.
@@ -406,30 +471,53 @@ public class ActionInterpreter {
      *
      * @param moveTO the input {@link MoveTO}
      * @param projectedTopology a map of entity id to the {@link ProjectedTopologyEntity}.
+     * @param originalCloudTopology the original cloud topology
      * @return {@link ActionDTO.Move} representing the move
      */
     @Nonnull
-    private ActionDTO.Move interpretMoveAction(@Nonnull final MoveTO moveTO,
-                           @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+    Optional<ActionDTO.Move> interpretMoveAction(@Nonnull final MoveTO moveTO,
+                                       @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+                                       @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
         final ShoppingListInfo shoppingList =
                 shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
         if (shoppingList == null) {
             throw new IllegalStateException(
                     "Market returned invalid shopping list for MOVE: " + moveTO);
         } else {
-            return ActionDTO.Move.newBuilder()
-                    .setTarget(
-                            createActionEntity(shoppingList.buyerId, projectedTopology))
-                    .addAllChanges(createChangeProviders(moveTO,
-                            projectedTopology, shoppingList.buyerId))
-                    .build();
+            MarketTier destination = cloudTc.getMarketTier(moveTO.getDestination());
+            if (destination != null && destination.hasRIDiscount()) {
+                logger.error("MoveTO for entity {} has RI {} as destination. This should not happen.",
+                    shoppingList.buyerId, destination.getDisplayName());
+                return Optional.empty();
+            }
+            List<ChangeProvider> changeProviderList = createChangeProviders(moveTO,
+                    projectedTopology, originalCloudTopology, shoppingList.buyerId);
+            if (!CollectionUtils.isEmpty(changeProviderList)) {
+                ActionDTO.Move.Builder builder = ActionDTO.Move.newBuilder()
+                        .setTarget(createActionEntity(shoppingList.buyerId, projectedTopology))
+                        .addAllChanges(changeProviderList);
+                if (moveTO.hasScalingGroupId()) {
+                    builder.setScalingGroupId(moveTO.getScalingGroupId());
+                }
+                return Optional.of(builder.build());
+            }
         }
+        return Optional.empty();
     }
 
+    /**
+     * Interpret a market generated reconfigure action.
+     *
+     * @param reconfigureTO  a {@link ReconfigureTO}
+     * @param projectedTopology the projectedTopology
+     * @param originalCloudTopology the originalCloudTopology
+     * @return a {@link ActionDTO.Reconfigure}
+     */
     @Nonnull
     private ActionDTO.Reconfigure interpretReconfigureAction(
             @Nonnull final ReconfigureTO reconfigureTO,
-            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+            @Nonnull final CloudTopology<TopologyEntityDTO> originalCloudTopology) {
         final ShoppingListInfo shoppingList =
                 shoppingListOidToInfos.get(reconfigureTO.getShoppingListToReconfigure());
         if (shoppingList == null) {
@@ -437,25 +525,31 @@ public class ActionInterpreter {
                     "Market returned invalid shopping list for RECONFIGURE: " + reconfigureTO);
         } else {
             final ActionDTO.Reconfigure.Builder builder = ActionDTO.Reconfigure.newBuilder()
-                    .setTarget(createActionEntity(shoppingList.buyerId, projectedTopology));
+                    .setTarget(createActionEntity(shoppingList.getBuyerId(), projectedTopology));
 
             if (reconfigureTO.hasSource()) {
-                builder.setSource(createActionEntity(reconfigureTO.getSource(), projectedTopology));
+                Optional<Long> providerIdOptional = getOriginalProviderId(
+                    reconfigureTO.getSource(), shoppingList.getBuyerId(), originalCloudTopology);
+                providerIdOptional.ifPresent(providerId ->
+                    builder.setSource(createActionEntity(providerId, projectedTopology)));
             }
-
+            if (reconfigureTO.hasScalingGroupId()) {
+                builder.setScalingGroupId(reconfigureTO.getScalingGroupId());
+            }
             return builder.build();
         }
     }
 
     @Nonnull
-    private ActionDTO.Resize interpretResize(@Nonnull final ResizeTO resizeTO,
+    private Optional<ActionDTO.Resize> interpretResize(@Nonnull final ResizeTO resizeTO,
                      @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final long entityId = resizeTO.getSellingTrader();
+        final CommoditySpecificationTO cs = resizeTO.getSpecification();
         final CommodityType topologyCommodityType =
-                commodityConverter.economyToTopologyCommodity(resizeTO.getSpecification())
+                commodityConverter.marketToTopologyCommodity(cs)
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "Resize commodity can't be converted to topology commodity format! "
-                                        + resizeTO.getSpecification()));
+                                        + cs));
         // Determine if this is a remove limit or a regular resize.
         final TopologyEntityDTO projectedEntity = projectedTopology.get(entityId).getEntity();
 
@@ -464,6 +558,14 @@ public class ActionInterpreter {
             projectedEntity.getCommoditySoldListList().stream()
                 .filter(commSold -> commSold.getCommodityType().equals(topologyCommodityType))
                 .findFirst();
+        Optional<CommoditySoldDTO> originalCommoditySold =
+                commodityIndex.getCommSold(projectedEntity.getOid(), topologyCommodityType);
+        ResizeTO adjustedResizeTO = resizeTO.toBuilder()
+                .setOldCapacity((float)TopologyConverter.reverseScaleComm(resizeTO.getOldCapacity(),
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .setNewCapacity((float)TopologyConverter.reverseScaleComm(resizeTO.getNewCapacity(),
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .build();
         if (projectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE.getNumber()) {
             // If this is a VM and has a restricted capacity, we are going to assume it's a limit
             // removal. This logic seems like it could be fragile, in that limit may not be the
@@ -472,7 +574,7 @@ public class ActionInterpreter {
             TraderTO traderTO = oidToProjectedTraderTOMap.get(entityId);
             // find the commodity on the trader and see if there is a limit?
             for (CommoditySoldTO commoditySold : traderTO.getCommoditiesSoldList()) {
-                if (commoditySold.getSpecification().equals(resizeTO.getSpecification())) {
+                if (commoditySold.getSpecification().equals(cs)) {
                     // We found the commodity sold.  If it has a utilization upper bound < 1.0,
                     // then the commodity is restricted, and according to our VM-rule, we will
                     // treat this as a limit removal.
@@ -505,7 +607,7 @@ public class ActionInterpreter {
                             .setCommodityType(topologyCommodityType)
                             .setCommodityAttribute(CommodityAttribute.LIMIT);
                         setHotAddRemove(resizeBuilder, resizeCommSold);
-                        return resizeBuilder.build();
+                        return Optional.of(resizeBuilder.build());
                     }
                     break;
                 }
@@ -513,11 +615,35 @@ public class ActionInterpreter {
         }
         ActionDTO.Resize.Builder resizeBuilder = ActionDTO.Resize.newBuilder()
                 .setTarget(createActionEntity(entityId, projectedTopology))
-                .setNewCapacity(resizeTO.getNewCapacity())
-                .setOldCapacity(resizeTO.getOldCapacity())
+                .setNewCapacity(adjustedResizeTO.getNewCapacity())
+                .setOldCapacity(adjustedResizeTO.getOldCapacity())
                 .setCommodityType(topologyCommodityType);
         setHotAddRemove(resizeBuilder, resizeCommSold);
-        return resizeBuilder.build();
+        if (resizeTO.hasScalingGroupId()) {
+            resizeBuilder.setScalingGroupId(resizeTO.getScalingGroupId());
+        }
+        if (!resizeTO.getResizeTriggerTraderList().isEmpty()) {
+            // Scale Up: Show relevant vSan resizes when hosts are provisioned due to
+            // the commodity type being scaled.
+            if (adjustedResizeTO.getNewCapacity() > adjustedResizeTO.getOldCapacity()) {
+                Optional<ResizeTriggerTraderTO> resizeTriggerTraderTO = resizeTO.getResizeTriggerTraderList().stream()
+                    .filter(resizeTriggerTrader -> resizeTriggerTrader.getRelatedCommoditiesList()
+                        .contains(cs.getBaseType())).findFirst();
+                if (!resizeTriggerTraderTO.isPresent()) {
+                    return Optional.empty();
+                }
+            // Scale Down: Pick related vSan host being suspended that has no reason commodities
+            // since it is suspension due to low roi.
+            } else if (adjustedResizeTO.getNewCapacity() < adjustedResizeTO.getOldCapacity()) {
+                Optional<ResizeTriggerTraderTO> resizeTriggerTraderTO = resizeTO.getResizeTriggerTraderList().stream()
+                    .filter(resizeTriggerTrader -> resizeTriggerTrader.getRelatedCommoditiesList()
+                        .isEmpty()).findFirst();
+                if (!resizeTriggerTraderTO.isPresent()) {
+                    return Optional.empty();
+                }
+            }
+        }
+        return Optional.of(resizeBuilder.build());
     }
 
     /**
@@ -544,7 +670,7 @@ public class ActionInterpreter {
         final long entityId = activateTO.getTraderToActivate();
         final List<CommodityType> topologyCommodities =
                 activateTO.getTriggeringBasketList().stream()
-                        .map(commodityConverter::economyToTopologyCommodity)
+                        .map(commodityConverter::marketToTopologyCommodity)
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                         .collect(Collectors.toList());
@@ -560,75 +686,168 @@ public class ActionInterpreter {
      * @param move the input {@link MoveTO}
      * @param projectedTopology A map of the id of the entity to its {@link ProjectedTopologyEntity}.
      * @param targetOid targetOid
+     * @param originalCloudTopology The original cloud topology.
      * @return A list of change providers representing the move
      */
     @Nonnull
-    List<ChangeProvider> createChangeProviders(
+    private List<ChangeProvider> createChangeProviders(
             @Nonnull final MoveTO move, @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-            Long targetOid) {
+            CloudTopology<TopologyEntityDTO> originalCloudTopology, Long targetOid) {
         List<ChangeProvider> changeProviders = new ArrayList<>();
-        MarketTier sourceMt = move.hasSource() ? cloudTc.getMarketTier(move.getSource()) : null;
-        MarketTier destMt = move.hasDestination() ? cloudTc.getMarketTier(move.getDestination()) : null;
-        TopologyEntityDTO sourceAz = null;
-        TopologyEntityDTO destAz = null;
+        MarketTier sourceMarketTier = move.hasSource() ?
+                cloudTc.getMarketTier(move.getSource()) : null;
+        MarketTier destMarketTier = move.hasDestination() ?
+                cloudTc.getMarketTier(move.getDestination()) : null;
+        TopologyEntityDTO sourceAzOrRegion = null;
+        TopologyEntityDTO destAzOrRegion = null;
         TopologyEntityDTO sourceTier = null;
         TopologyEntityDTO destTier = null;
+        TopologyEntityDTO sourceRegion = null;
+        TopologyEntityDTO destinationRegion = null;
         TopologyEntityDTO target = originalTopology.get(targetOid);
-        Long moveSource = move.hasSource() ? move.getSource() : null;
-        if (destMt != null ) {
+
+        if (destMarketTier != null ) {
+            if (destMarketTier.isSingleRegion()) {
+                // For a RI Discounted market tier we get the region from the destination market tier
+                // SingleRegionMarketTier is currently only for RIDiscountedMarketTier. So,
+                // region information is coming from Tier itself.
+                destinationRegion = ((SingleRegionMarketTier)destMarketTier).getRegion();
+            } else {
+                // This is a onDemandMarketTier so we get the region from the move context.
+                // MultiRegionMarketTier contains all region's cost information so only move context
+                // can tell which region was chosen inside market analysis.
+                long regionCommSpec = move.getMoveContext().getRegionId();
+                destinationRegion = originalTopology.get(regionCommSpec);
+            }
+
             // TODO: We are considering the destination AZ as the first AZ of the destination
             // region. In case of zonal RIs, we need to get the zone of the RI.
-            destAz = TopologyDTOUtil.getConnectedEntitiesOfType(
-                    destMt.getRegion(), EntityType.AVAILABILITY_ZONE_VALUE,
-                    originalTopology).get(0);
-            destTier = destMt.getTier();
+            List<TopologyEntityDTO> connectedEntities = TopologyDTOUtil.getConnectedEntitiesOfType(
+                destinationRegion, EntityType.AVAILABILITY_ZONE_VALUE, originalTopology);
+            destAzOrRegion = connectedEntities.isEmpty() ?
+                destinationRegion : connectedEntities.get(0);
+            destTier = destMarketTier.getTier();
         }
-        if (sourceMt != null) {
-            // Soruce AZ is the AZ which the target is connected to.
-            sourceAz = TopologyDTOUtil.getConnectedEntitiesOfType(target,
-                    EntityType.AVAILABILITY_ZONE_VALUE, originalTopology).get(0);
-            sourceTier = sourceMt.getTier();
+
+        if (sourceMarketTier != null) {
+            if (sourceMarketTier.isSingleRegion()) {
+                // Ri Discounted MarketTiers have a region associated with them
+                sourceRegion = ((SingleRegionMarketTier)sourceMarketTier).getRegion();
+            } else {
+                if (originalCloudTopology != null) {
+                    Optional<TopologyEntityDTO> regionFromCloudTopo = originalCloudTopology.getConnectedRegion(targetOid);
+                    if (regionFromCloudTopo != null && regionFromCloudTopo.isPresent()) {
+                        // For an onDemandMarketTier get the source region from the original cloud topology
+                        sourceRegion = regionFromCloudTopo.get();
+                    }
+                }
+            }
+
+            // Soruce AZ or Region is the AZ or Region which the target is connected to.
+            List<TopologyEntityDTO> connectedEntities = TopologyDTOUtil.getConnectedEntitiesOfType(target,
+                Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
+                originalTopology);
+            if (!connectedEntities.isEmpty())
+                sourceAzOrRegion = connectedEntities.get(0);
+            else
+                logger.error("{} is not connected to any AZ or Region", target.getDisplayName());
+            if (sourceMarketTier.hasRIDiscount()) {
+                Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> boughtGroupingFromTier =
+                    target.getCommoditiesBoughtFromProvidersList().stream()
+                        .filter(grouping -> grouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
+                        .findFirst();
+
+                if (boughtGroupingFromTier.isPresent()) {
+                    sourceTier = originalCloudTopology.getEntity(boughtGroupingFromTier.get().getProviderId()).get();
+                }
+            } else {
+                sourceTier = sourceMarketTier.getTier();
+            }
         }
+
+        Long moveSource = move.hasSource() ? move.getSource() : null;
+        // Update moveSource if the original supplier is in MAINTENANCE or FAILOVER state.
+        final ShoppingListInfo shoppingListInfo = shoppingListOidToInfos.get(move.getShoppingListToMove());
+        if (!move.hasSource() &&
+            shoppingListInfo.getSellerId() != null &&
+            projectedTopology.containsKey(shoppingListInfo.getSellerId()) &&
+            evacuationEntityState.contains(
+                projectedTopology.get(shoppingListInfo.getSellerId()).getEntity().getEntityState())) {
+            moveSource = shoppingListInfo.getSellerId();
+        }
+
         Long resourceId = shoppingListOidToInfos.get(move.getShoppingListToMove()).resourceId;
         // 4 case of moves:
         // 1) Cloud to cloud. 2) on prem to cloud. 3) cloud to on prem. 4) on prem to on prem.
-        if (sourceMt != null && destMt != null) {
-            if ((destMt.getRegion() == sourceMt.getRegion()) && (destTier == sourceTier)
-                    && (move.hasCouponDiscount()&& move.hasCouponId())) {
-                logger.warn("ACCOUNTING action generated for {}. We do not handle accounting " +
-                        "actions YET. Dropping action.", target.getDisplayName());
-            }
+        if (sourceMarketTier != null && destMarketTier != null) {
             // Cloud to cloud move
-            if (destMt.getRegion() != sourceMt.getRegion()) {
-                // AZ change provider. We create an AZ change provider because the target is
-                // connected to AZ.
-                changeProviders.add(createChangeProvider(sourceAz.getOid(),
-                        destAz.getOid(), null, projectedTopology));
+            if (destinationRegion != sourceRegion) {
+                // AZ or Region change provider. We create an AZ or Region change provider
+                // because the target is connected to AZ or Region.
+                changeProviders.add(createChangeProvider(sourceAzOrRegion.getOid(),
+                    destAzOrRegion.getOid(), null, projectedTopology));
             }
-            if (destTier != sourceTier) {
+            // Note that we also generate accounting actions for complete loss of RI coverage.
+            final boolean generateTierAction;
+            final boolean isAccountingAction = destinationRegion == sourceRegion
+                    && destTier == sourceTier
+                    && (move.hasCouponDiscount() && move.hasCouponId() ||
+                        sourceMarketTier.hasRIDiscount());
+            if (isAccountingAction) {
+                // We need to check if the original projected RI coverage of the target are the same.
+                // If they are the same, we should drop the action.
+                final double originalRICoverage = getTotalRiCoverage(
+                        cloudTc.getRiCoverageForEntity(targetOid).orElse(null));
+                final double projectedRICoverage = getTotalRiCoverage(
+                        projectedRICoverageCalculator.getProjectedRICoverageForEntity(targetOid));
+                generateTierAction = !areEqual(originalRICoverage, projectedRICoverage);
+                if (generateTierAction) {
+                    logger.debug("Accounting action for {} (OID: {}). " +
+                            "Original RI coverage: {}, projected RI coverage: {}.",
+                            target.getDisplayName(), target.getOid(),
+                            originalRICoverage, projectedRICoverage);
+                }
+            } else {
+                generateTierAction = destTier != sourceTier;
+            }
+            if (generateTierAction) {
                 // Tier change provider
                 changeProviders.add(createChangeProvider(sourceTier.getOid(),
                         destTier.getOid(), resourceId, projectedTopology));
             }
-        } else if (sourceMt == null && destMt != null) {
+        } else if (sourceMarketTier == null && destMarketTier != null) {
             // On prem to cloud move (with or without source)
-            // AZ change provider. We create an AZ change provider because the target is
-            // connected to AZ
+            // AZ or Region change provider. We create an AZ or Region change provider
+            // because the target is connected to AZ or Region.
             changeProviders.add(createChangeProvider(moveSource,
-                    destAz.getOid(), null, projectedTopology));
+                destAzOrRegion.getOid(), null, projectedTopology));
             // Tier change provider
             changeProviders.add(createChangeProvider(moveSource,
                     destTier.getOid(), resourceId, projectedTopology));
-        } else if (sourceMt != null && destMt == null) {
+        } else if (sourceMarketTier != null && destMarketTier == null) {
             // Cloud to on prem move
             changeProviders.add(createChangeProvider(sourceTier.getOid(),
                     move.getDestination(), resourceId, projectedTopology));
         } else {
             // On prem to on prem (with or without source)
+            // A cloud container pod moving from a cloud VM to another cloud VM is covered by this case.
             changeProviders.add(createChangeProvider(moveSource,
                     move.getDestination(), resourceId, projectedTopology));
         }
         return changeProviders;
+    }
+
+    private static double getTotalRiCoverage(
+            @Nullable final EntityReservedInstanceCoverage entityReservedInstanceCoverage) {
+        if (entityReservedInstanceCoverage == null) {
+            return 0D;
+        }
+        return entityReservedInstanceCoverage.getCouponsCoveredByRiMap().values().stream()
+                .mapToDouble(Double::doubleValue).sum();
+    }
+
+    private static boolean areEqual(final double d1, final double d2) {
+        return Math.abs(d1 - d2) <= 0.0001;
     }
 
     @Nonnull
@@ -647,16 +866,17 @@ public class ActionInterpreter {
         return changeProviderBuilder.build();
     }
 
-    private Explanation interpretExplanation(@Nonnull ActionTO actionTO,
-                                             @Nonnull Optional<CurrencyAmount> savings) {
+    private Explanation interpretExplanation(
+            @Nonnull ActionTO actionTO, @Nonnull CalculatedSavings savings,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         Explanation.Builder expBuilder = Explanation.newBuilder();
         switch (actionTO.getActionTypeCase()) {
             case MOVE:
-                expBuilder.setMove(interpretMoveExplanation(actionTO.getMove(), savings));
+                expBuilder.setMove(interpretMoveExplanation(actionTO, savings, projectedTopology));
                 break;
             case RECONFIGURE:
                 expBuilder.setReconfigure(
-                        interpretReconfigureExplanation(actionTO.getReconfigure()));
+                        interpretReconfigureExplanation(actionTO));
                 break;
             case PROVISION_BY_SUPPLY:
                 expBuilder.setProvision(
@@ -680,7 +900,8 @@ public class ActionInterpreter {
                 break;
             case COMPOUND_MOVE:
                 // TODO(COMPOUND): different moves in a compound move may have different explanations
-                expBuilder.setMove(interpretCompoundMoveExplanation(actionTO.getCompoundMove().getMovesList()));
+                expBuilder.setMove(interpretCompoundMoveExplanation(
+                    actionTO, projectedTopology));
                 break;
             default:
                 throw new IllegalArgumentException("Market returned invalid action type "
@@ -689,24 +910,40 @@ public class ActionInterpreter {
         return expBuilder.build();
     }
 
-    private MoveExplanation interpretMoveExplanation(@Nonnull MoveTO moveTO,
-                                                     @Nonnull Optional<CurrencyAmount> savings) {
+    private MoveExplanation interpretMoveExplanation(
+            @Nonnull ActionTO actionTO, @Nonnull CalculatedSavings savings,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        MoveTO moveTO = actionTO.getMove();
         MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
         // For simple moves, set the sole change provider explanation to be the primary one
         ChangeProviderExplanation.Builder changeProviderExplanation =
-            changeExplanation(moveTO, savings)
-                .setIsPrimaryChangeProviderExplanation(true);
+            changeExplanation(actionTO, moveTO, savings, projectedTopology, true);
         moveExpBuilder.addChangeProviderExplanation(changeProviderExplanation);
+        if (moveTO.hasScalingGroupId()) {
+            moveExpBuilder.setScalingGroupId(moveTO.getScalingGroupId());
+        }
         return moveExpBuilder.build();
     }
 
-    private ReconfigureExplanation
-    interpretReconfigureExplanation(ReconfigureTO reconfTO) {
-        return ReconfigureExplanation.newBuilder()
-                .addAllReconfigureCommodity(reconfTO.getCommodityToReconfigureList().stream()
-                        .map(commodityConverter::commodityIdToCommodityType)
-                        .collect(Collectors.toList()))
-                .build();
+    /**
+     * Generate explanation for a reconfigure action.
+     *
+     * @param actionTO An {@link ActionTO} describing an action recommendation generated by the market.
+     * @return {@link ReconfigureExplanation}
+     */
+    private ReconfigureExplanation interpretReconfigureExplanation(@Nonnull final ActionTO actionTO) {
+        final ReconfigureTO reconfigureTO = actionTO.getReconfigure();
+        final ReconfigureExplanation.Builder reconfigureExplanation = ReconfigureExplanation.newBuilder()
+            .addAllReconfigureCommodity(reconfigureTO.getCommodityToReconfigureList().stream()
+                .map(commodityConverter::commodityIdToCommodityType)
+                .filter(commType -> !tierExcluder.isCommodityTypeForTierExclusion(commType))
+                .map(commType2ReasonCommodity())
+                .collect(Collectors.toList()));
+        tierExcluder.getReasonSettings(actionTO).ifPresent(reconfigureExplanation::addAllReasonSettings);
+        if (reconfigureTO.hasScalingGroupId()) {
+            reconfigureExplanation.setScalingGroupId(reconfigureTO.getScalingGroupId());
+        }
+        return reconfigureExplanation.build();
     }
 
     private ProvisionExplanation
@@ -744,18 +981,27 @@ public class ActionInterpreter {
 
     private ProvisionExplanation
     interpretProvisionExplanation(ProvisionBySupplyTO provisionBySupply) {
+        CommodityType commType = commodityConverter.marketToTopologyCommodity(
+                provisionBySupply.getMostExpensiveCommodity()).orElseThrow(() -> new IllegalArgumentException(
+            "Most expensive commodity in provision can't be converted to topology commodity format! "
+                + provisionBySupply.getMostExpensiveCommodity()));
         return ProvisionExplanation.newBuilder()
-                .setProvisionBySupplyExplanation(
-                        ProvisionBySupplyExplanation.newBuilder()
-                                .setMostExpensiveCommodity(provisionBySupply
-                                        .getMostExpensiveCommodity())
-                                .build())
+            .setProvisionBySupplyExplanation(
+                ProvisionBySupplyExplanation.newBuilder()
+                    .setMostExpensiveCommodityInfo(
+                        ReasonCommodity.newBuilder().setCommodityType(commType).build())
+                    .build())
                 .build();
     }
 
     private ResizeExplanation interpretResizeExplanation(ResizeTO resizeTO) {
-        return ResizeExplanation.newBuilder().setStartUtilization(resizeTO.getStartUtilization())
-                .setEndUtilization(resizeTO.getEndUtilization()).build();
+        ResizeExplanation.Builder builder = ResizeExplanation.newBuilder()
+            .setDeprecatedStartUtilization(resizeTO.getStartUtilization())
+            .setDeprecatedEndUtilization(resizeTO.getEndUtilization());
+        if (resizeTO.hasScalingGroupId()) {
+            builder.setScalingGroupId(resizeTO.getScalingGroupId());
+        }
+        return builder.build();
     }
 
     private ActivateExplanation interpretActivateExplanation(ActivateTO activateTO) {
@@ -764,123 +1010,176 @@ public class ActionInterpreter {
                 .build();
     }
 
-    private MoveExplanation interpretCompoundMoveExplanation(@Nonnull List<MoveTO> moveTOs) {
+    private MoveExplanation interpretCompoundMoveExplanation(
+            @Nonnull ActionTO actionTO,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
-        for (MoveTO moveTO : moveTOs) {
+        for (MoveTO moveTO : actionTO.getCompoundMove().getMovesList()) {
             TraderTO destinationTrader = oidToProjectedTraderTOMap.get(moveTO.getDestination());
             boolean isPrimaryChangeExplanation = destinationTrader != null
                     && ActionDTOUtil.isPrimaryEntityType(destinationTrader.getType());
             ChangeProviderExplanation.Builder changeProviderExplanation =
-                changeExplanation(moveTO, Optional.empty())
-                    .setIsPrimaryChangeProviderExplanation(isPrimaryChangeExplanation);
+                changeExplanation(actionTO, moveTO, new NoSavings(trax(0)), projectedTopology,
+                    isPrimaryChangeExplanation);
             moveExpBuilder.addChangeProviderExplanation(changeProviderExplanation);
         }
         return moveExpBuilder.build();
     }
 
-    private ChangeProviderExplanation.Builder changeExplanation(MoveTO moveTO, Optional<CurrencyAmount> savings) {
+    private ChangeProviderExplanation.Builder changeExplanation(
+            @Nonnull ActionTO actionTO,
+            @Nonnull MoveTO moveTO,
+            @Nonnull CalculatedSavings savings,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+            boolean isPrimaryChangeExplanation) {
         ActionDTOs.MoveExplanation moveExplanation = moveTO.getMoveExplanation();
+        ChangeProviderExplanation.Builder changeProviderExplanation;
         switch (moveExplanation.getExplanationTypeCase()) {
             case COMPLIANCE:
                 // TODO: For Cloud Migration plans, we need to change compliance to efficiency or
                 // performance based on whether the entity resized down or up. This needs to be done
                 // once resize and cloud migration stories are done
-                return ChangeProviderExplanation.newBuilder()
-                        .setCompliance(ChangeProviderExplanation.Compliance.newBuilder()
-                                .addAllMissingCommodities(
-                                        moveExplanation.getCompliance()
-                                                .getMissingCommoditiesList().stream()
-                                                .map(commodityConverter::commodityIdToCommodityType)
-                                                .collect(Collectors.toList())
-                                )
-                                .build());
+                Compliance.Builder compliance = ChangeProviderExplanation.Compliance.newBuilder()
+                    .addAllMissingCommodities(
+                        moveExplanation.getCompliance()
+                            .getMissingCommoditiesList().stream()
+                            .map(commodityConverter::commodityIdToCommodityType)
+                            .filter(commType -> !tierExcluder.isCommodityTypeForTierExclusion(commType))
+                            .map(commType2ReasonCommodity())
+                            .collect(Collectors.toList())
+                    );
+                if (isPrimaryChangeExplanation) {
+                    tierExcluder.getReasonSettings(actionTO).ifPresent(compliance::addAllReasonSettings);
+                }
+                changeProviderExplanation = ChangeProviderExplanation.newBuilder()
+                    .setCompliance(compliance);
+                break;
             case CONGESTION:
                 // For cloud entities we explain create either an efficiency or congestion change
-                // explanation based on the savings
-                return changeExplanationBasedOnSavings(moveTO, savings).orElse(
-                        ChangeProviderExplanation.newBuilder().setCongestion(
-                                ChangeProviderExplanation.Congestion.newBuilder()
-                                .addAllCongestedCommodities(
-                                        moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
-                                                .map(commodityConverter::commodityIdToCommodityType)
-                                                .collect(Collectors.toList()))
-                                .build()));
+                // explanation
+                changeProviderExplanation = changeExplanationForCloud(moveTO, savings).orElse(
+                    ChangeProviderExplanation.newBuilder().setCongestion(
+                        ChangeProviderExplanation.Congestion.newBuilder()
+                        .addAllCongestedCommodities(
+                                moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
+                                        .map(commodityConverter::commodityIdToCommodityTypeAndSlot)
+                                        .map(commTypeAndSlot2ReasonCommodity(
+                                            shoppingListOidToInfos.get(moveTO.getShoppingListToMove())
+                                                .getBuyerId(), moveTO.getSource()))
+                                        .collect(Collectors.toList()))
+                        .build()));
+                break;
             case EVACUATION:
-                return ChangeProviderExplanation.newBuilder()
-                        .setEvacuation(ChangeProviderExplanation.Evacuation.newBuilder()
-                                .setSuspendedEntity(moveExplanation.getEvacuation().getSuspendedTrader())
-                                .build());
+                changeProviderExplanation = ChangeProviderExplanation.newBuilder()
+                    .setEvacuation(ChangeProviderExplanation.Evacuation.newBuilder()
+                        .setSuspendedEntity(moveExplanation.getEvacuation().getSuspendedTrader())
+                        .build());
+                break;
             case INITIALPLACEMENT:
-                return ChangeProviderExplanation.newBuilder()
+                final ShoppingListInfo shoppingListInfo =
+                    shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
+                // Create Evacuation instead of InitialPlacement
+                // if the original supplier is in MAINTENANCE or FAILOVER state.
+                if (shoppingListInfo.getSellerId() != null &&
+                    projectedTopology.containsKey(shoppingListInfo.getSellerId()) &&
+                    evacuationEntityState.contains(
+                        projectedTopology.get(shoppingListInfo.getSellerId()).getEntity().getEntityState())) {
+                    changeProviderExplanation = ChangeProviderExplanation.newBuilder()
+                        .setEvacuation(ChangeProviderExplanation.Evacuation.newBuilder()
+                            .setSuspendedEntity(shoppingListInfo.getSellerId())
+                            .setIsAvailable(false)
+                            .build());
+                } else {
+                    changeProviderExplanation = ChangeProviderExplanation.newBuilder()
                         .setInitialPlacement(ChangeProviderExplanation.InitialPlacement.getDefaultInstance());
+                }
+                break;
             case PERFORMANCE:
                 // For cloud entities we explain create either an efficiency or congestion change
-                // explanation based on the savings
-                return changeExplanationBasedOnSavings(moveTO, savings).orElse(ChangeProviderExplanation.newBuilder()
+                // explanation
+                changeProviderExplanation = changeExplanationForCloud(moveTO, savings)
+                    .orElse(ChangeProviderExplanation.newBuilder()
                         .setPerformance(ChangeProviderExplanation.Performance.getDefaultInstance()));
+                break;
             default:
                 logger.error("Unknown explanation case for move action: "
                         + moveExplanation.getExplanationTypeCase());
-                return ChangeProviderExplanation.getDefaultInstance().toBuilder();
+                changeProviderExplanation = ChangeProviderExplanation.getDefaultInstance().toBuilder();
+                break;
         }
+        changeProviderExplanation.setIsPrimaryChangeProviderExplanation(isPrimaryChangeExplanation);
+        return changeProviderExplanation;
     }
 
-    /**
-     * For cloud entities, we calculate the change provider explanation of the action based on
-     * savings. If there are savings, then the explanation is efficiency, otherwise we say
-     * performance.
-     *
-     * @param moveTO the move for which we are computing the category
-     * @param savings the savings
-     * @return
-     */
-    private Optional<ChangeProviderExplanation.Builder> changeExplanationBasedOnSavings(MoveTO moveTO,
-                                                                                Optional<CurrencyAmount> savings) {
+    private Optional<ChangeProviderExplanation.Builder> changeExplanationForCloud(
+        @Nonnull final MoveTO moveTO, @Nonnull final CalculatedSavings savings) {
         Optional<ChangeProviderExplanation.Builder> explanation = Optional.empty();
         if (cloudTc.isMarketTier(moveTO.getSource()) && cloudTc.isMarketTier(moveTO.getDestination())) {
             ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
-            if (savings.isPresent()) {
-                boolean isPrimaryTierChange = TopologyDTOUtil.isPrimaryTierEntityType(
-                        cloudTc.getMarketTier(moveTO.getDestination()).getTier().getEntityType());
-                Map<CommodityUsageType, Set<CommodityType>> commsResizedByUsageType =
-                        cert.getCommoditiesResizedByUsageType(slInfo.getBuyerId());
-                Set<CommodityType> congestedComms = commsResizedByUsageType.get(CommodityUsageType.CONGESTED);
-                Set<CommodityType> underUtilizedComms = commsResizedByUsageType.get(CommodityUsageType.UNDER_UTILIZED);
-                if (savings.get().getAmount() >= 0) {
-                    Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder();
-                    if (isPrimaryTierChange && cert.didCommoditiesOfEntityResize(slInfo.buyerId)) {
-                        if (congestedComms != null && !congestedComms.isEmpty()) {
-                            efficiencyBuilder.addAllCongestedCommodities(congestedComms);
-                        }
-                        if (underUtilizedComms != null && !underUtilizedComms.isEmpty()) {
-                            efficiencyBuilder.addAllUnderUtilizedCommodities(underUtilizedComms);
-                        }
-                    } else if (isPrimaryTierChange && projectedRiCoverage.get(slInfo.getBuyerId()) != null) {
-                        efficiencyBuilder.setIsRiCoverageIncreased(true);
-                    }
-                    explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                            efficiencyBuilder));
-                } else {
-                    Congestion.Builder congestionBuilder = ChangeProviderExplanation.Congestion.newBuilder();
-                    if (isPrimaryTierChange && cert.didCommoditiesOfEntityResize(slInfo.getBuyerId())) {
-                        if (congestedComms != null && !congestedComms.isEmpty()) {
-                            congestionBuilder.addAllCongestedCommodities(congestedComms);
-                        }
-                        if (underUtilizedComms != null && !underUtilizedComms.isEmpty()) {
-                            congestionBuilder.addAllUnderUtilizedCommodities(underUtilizedComms);
-                        }
-                    } else if (isPrimaryTierChange && projectedRiCoverage.get(slInfo.getBuyerId()) != null) {
-                        congestionBuilder.setIsRiCoverageIncreased(true);
-                    }
-                    explanation =  Optional.of(ChangeProviderExplanation.newBuilder().setCongestion(
-                            congestionBuilder));
-                }
+            Map<CommodityUsageType, Set<CommodityType>> commsResizedByUsageType =
+                cert.getCommoditiesResizedByUsageType(slInfo.getBuyerId());
+            Set<CommodityType> congestedComms = commsResizedByUsageType.get(CommodityUsageType.CONGESTED);
+            Set<CommodityType> underUtilizedComms = commsResizedByUsageType.get(CommodityUsageType.UNDER_UTILIZED);
+            boolean isPrimaryTierChange = TopologyDTOUtil.isPrimaryTierEntityType(
+                cloudTc.getMarketTier(moveTO.getDestination()).getTier().getEntityType());
+            // First, check if there was a congested commodity. If there was, then that is the one driving the action
+            if (!congestedComms.isEmpty()) {
+                Congestion.Builder congestionBuilder = ChangeProviderExplanation.Congestion.newBuilder()
+                    .addAllCongestedCommodities(commTypes2ReasonCommodities(congestedComms));
+                explanation =  Optional.of(ChangeProviderExplanation.newBuilder().setCongestion(
+                    congestionBuilder));
+            } else if (isPrimaryTierChange && didRiCoverageIncrease(slInfo.getBuyerId())) {
+                // Next, check if RI Coverage increased. If yes, that is the reason of the action.
+                Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
+                        .setIsRiCoverageIncreased(true);
+                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                    efficiencyBuilder));
+            } else if (!underUtilizedComms.isEmpty()) {
+                // Next, check if there are any underUtilized commodities. If yes, then that is the reason of the action.
+                Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
+                    .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(underUtilizedComms));
+                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                    efficiencyBuilder));
+            } else if (savings.savingsAmount.getValue() > 0) {
+                // There were no under-utilized commodities. Action is purely because the same
+                // requirements fit in a cheaper template.
+                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                    Efficiency.newBuilder().setIsWastedCost(true)));
             } else {
-                logger.error("No savings present while trying to explain move for {}",
-                        originalTopology.get(slInfo.getBuyerId()).getDisplayName());
+                logger.error("Could not explain cloud scale action. MoveTO = {} .Entity oid = {}",
+                    moveTO, slInfo.getBuyerId());
+                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                    Efficiency.getDefaultInstance()));
             }
         }
         return explanation;
+    }
+
+    /**
+     * Check if RI coverage increased for entity.
+     * Get the original number of coupons covered from the original EntityReservedInstanceCoverage
+     * Get the projected number of coupons covered from the projected EntityReservedInstanceCoverage
+     * The RI coverage for the entity increased if the projected coupons covered is greater than
+     * the original coupons covered.
+     *
+     * @param entityId id of entity for which ri coverage increase is to be checked
+     * @return true if the RI coverage increased. False otherwise.
+     */
+    private boolean didRiCoverageIncrease(long entityId) {
+        double projectedCouponsCovered = 0;
+        double originalCouponsCovered = 0;
+        EntityReservedInstanceCoverage projectedCoverage = projectedRICoverageCalculator
+            .getProjectedRICoverageForEntity(entityId);
+        if (projectedCoverage != null && !projectedCoverage.getCouponsCoveredByRiMap().isEmpty()) {
+            projectedCouponsCovered = projectedCoverage
+                .getCouponsCoveredByRiMap().values().stream().reduce(0.0, Double::sum);
+        }
+        Optional<EntityReservedInstanceCoverage> originalCoverage = cloudTc.getRiCoverageForEntity(entityId);
+        if (originalCoverage.isPresent() && !originalCoverage.get().getCouponsCoveredByRiMap().isEmpty()) {
+            originalCouponsCovered = originalCoverage.get()
+                .getCouponsCoveredByRiMap().values().stream().reduce(0.0, Double::sum);
+        }
+        return projectedCouponsCovered > originalCouponsCovered;
     }
 
     private ActionEntity createActionEntity(final long id,
@@ -891,5 +1190,175 @@ public class ActionInterpreter {
             .setType(projectedEntity.getEntityType())
             .setEnvironmentType(projectedEntity.getEnvironmentType())
             .build();
+    }
+
+    private static Function<CommodityType, ReasonCommodity> commType2ReasonCommodity() {
+        return ct -> ReasonCommodity.newBuilder().setCommodityType(ct).build();
+    }
+
+    private Function<Pair<CommodityType, Optional<Integer>>, ReasonCommodity>
+        commTypeAndSlot2ReasonCommodity(final long buyer, final long source) {
+        return ct -> {
+            final CommodityType commType = ct.first;
+            final Optional<Integer> slot = ct.second;
+            final ReasonCommodity.Builder builder = ReasonCommodity.newBuilder().setCommodityType(commType);
+            slot.ifPresent(sl -> builder.setTimeSlot(TimeSlotReasonInformation.newBuilder()
+                .setSlot(sl)
+                .setTotalSlotNumber(getTotalTimeSlotNumber(commType, buyer, source))
+                .build()));
+            return builder.build();
+        };
+    }
+
+    private static Collection<ReasonCommodity>
+            commTypes2ReasonCommodities(Collection<CommodityType> types) {
+        return types.stream().map(commType2ReasonCommodity()).collect(Collectors.toList());
+    }
+
+    /**
+     * Get total number of time slots for time slot commodity.
+     *
+     * @param commodityType Time slot {@link CommodityType}
+     * @param buyer Buyer Id
+     * @param moveSource Move source ID
+     * @return Total number of time slots, or 0 if cannot be determined
+     */
+    private int getTotalTimeSlotNumber(@Nonnull final CommodityType commodityType,
+            final long buyer, final long moveSource) {
+        final TopologyEntityDTO origTopology = originalTopology.get(buyer);
+        if (null == origTopology) {
+            logger.error("No originalTopology value found for key {}", () -> moveSource);
+            return 0;
+        }
+        final CommoditiesBoughtFromProvider commoditiesBoughtFromProvider =
+            origTopology.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(e -> moveSource == e.getProviderId()).findFirst().orElse(null);
+        if (commoditiesBoughtFromProvider == null) {
+            logger.error("No commodities bought found for provider {}", () -> moveSource);
+            return 0;
+        }
+        final CommodityBoughtDTO commodityBought = commoditiesBoughtFromProvider.getCommodityBoughtList()
+            .stream().filter(e -> commodityType.getType() == (e.getCommodityType().getType()))
+            .findFirst().orElse(null);
+        if (commodityBought == null) {
+            logger.error("No CommodityBoughtDTO found for commodity type {}, entity id {}",
+                () -> commodityType, () -> moveSource);
+            return 0;
+        }
+        if (commodityBought.hasHistoricalUsed() && commodityBought.getHistoricalUsed().getTimeSlotCount() > 0) {
+            return commodityBought.getHistoricalUsed().getTimeSlotCount();
+        } else {
+            logger.error("No timeslots found for commodity type {}, entity id {}",
+                () -> commodityType, () -> moveSource);
+            return 0;
+        }
+    }
+
+    /**
+     * Get the original providerId of a buyer.
+     *
+     * @param providerId a topology entity oid or a market generated providerId
+     * @param buyerId the buyerId
+     * @param originalCloudTopology the original {@link CloudTopology}
+     * @return the original providerId
+     */
+    private Optional<Long> getOriginalProviderId(
+            final long providerId, final long buyerId,
+            @Nonnull final CloudTopology<TopologyEntityDTO> originalCloudTopology) {
+        if (cloudTc.isMarketTier(providerId)) {
+            final MarketTier marketTier = cloudTc.getMarketTier(providerId);
+            if (marketTier == null) {
+                return Optional.empty();
+            }
+
+            long originalProviderId = marketTier.getTier().getOid();
+            if (marketTier.hasRIDiscount()) {
+                // RIDiscountedMarketTiers can represent multiple tiers in case of instance size
+                // flexible RIs. So we cannot directly pick up the tier from RIDiscountedTier.
+                // If the destination is an RIDiscountedMarketTier, it means we are looking for
+                // the primary tier. We can fetch this information from the original cloud topology.
+                originalProviderId = originalCloudTopology.getPrimaryTier(buyerId).get().getOid();
+            }
+            return Optional.of(originalProviderId);
+        }
+        return Optional.of(providerId);
+    }
+
+
+    /**
+     * Class that wraps a savings amount to model a savings number that was actually
+     * calculated, as opposed to {@link com.vmturbo.market.topology.conversions.ActionInterpreter.NoSavings}
+     * which models when we could not calculate any savings for an entity.
+     */
+    @Immutable
+    static class CalculatedSavings {
+        public final TraxNumber savingsAmount;
+
+        CalculatedSavings(@Nonnull final TraxNumber savingsAmount) {
+            this.savingsAmount = savingsAmount;
+        }
+
+        /**
+         * Apply the savings to an action by setting the action's savingsPerHour
+         * field.
+         *
+         * @param action The action to apply the savings to.
+         */
+        public void applySavingsToAction(@Nonnull final Action.Builder action) {
+            action.setSavingsPerHour(CurrencyAmount.newBuilder()
+                .setAmount(savingsAmount.getValue()));
+        }
+
+        /**
+         * Whether the calculated savings actually has any savings. Note that even zero savings,
+         * when it is calculated as opposed to unavailable due to being {@link NoSavings},
+         * will still return true here.
+         *
+         * @return Whether the calculated savings actually has any savings.
+         */
+        public boolean hasSavings() {
+            return true;
+        }
+    }
+
+    /**
+     * Models a situation where we could not actually calculate a savings amount.
+     */
+    @Immutable
+    static class NoSavings extends CalculatedSavings {
+        /**
+         * Create a new {@link NoSavings} object. Note that we cannot have a helper that
+         * creates the {@link TraxNumber} for the caller because then the call site in the logs
+         * for the {@link TraxNumber} creation would be our factory method, not the line calling
+         * the factory method.
+         *
+         * @param savingsAmount The amount saved. Should be zero.
+         */
+        NoSavings(@Nonnull final TraxNumber savingsAmount) {
+            super(savingsAmount);
+
+            Preconditions.checkArgument(savingsAmount.valueEquals(0),
+                "No Savings must have a zero savings amount");
+        }
+
+        /**
+         * Do not apply {@link NoSavings} to actions.
+         *
+         * @param action The action to apply the savings to.
+         */
+        @Override
+        public void applySavingsToAction(@Nonnull final Action.Builder action) {
+
+        }
+
+        /**
+         * {@link NoSavings} never has any savings.
+         *
+         * @return false
+         */
+        @Override
+        public boolean hasSavings() {
+            return false;
+        }
     }
 }

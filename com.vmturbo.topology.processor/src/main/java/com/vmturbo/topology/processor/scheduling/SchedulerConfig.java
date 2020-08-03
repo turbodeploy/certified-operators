@@ -2,13 +2,13 @@ package com.vmturbo.topology.processor.scheduling;
 
 import java.util.concurrent.Executors;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.topology.SchedulerREST;
 import com.vmturbo.topology.processor.KVConfig;
@@ -58,8 +58,17 @@ public class SchedulerConfig {
             topologyConfig.topologyHandler(),
             kvConfig.keyValueStore(),
             stitchingConfig.stitchingJournalFactory(),
+                (name) -> Executors.newSingleThreadScheduledExecutor(
+                    new ThreadFactoryBuilder().setNameFormat(name)
+                            .build()),
+                (name) -> Executors.newSingleThreadScheduledExecutor(
+                    new ThreadFactoryBuilder().setNameFormat(name)
+                            .build()),
             Executors.newSingleThreadScheduledExecutor(
-                    new ThreadFactoryBuilder().setNameFormat("target-operations-scheduler")
+                    new ThreadFactoryBuilder().setNameFormat("realtime-broadcast-scheduler")
+                            .build()),
+            Executors.newSingleThreadScheduledExecutor(
+                    new ThreadFactoryBuilder().setNameFormat("target-operations-expiration-scheduler")
                             .build()),
             topologyBroadcastIntervalMinutes
         );

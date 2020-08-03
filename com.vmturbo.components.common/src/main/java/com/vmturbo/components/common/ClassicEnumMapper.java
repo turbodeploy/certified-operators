@@ -5,15 +5,13 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
 
 /**
@@ -21,15 +19,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
  */
 public class ClassicEnumMapper {
     private static final Logger logger = LogManager.getLogger();
-
-    public static EntityType entityType(@Nonnull final String classicEntityTypeName) {
-        final EntityType entityType = ENTITY_TYPE_MAPPINGS.get(classicEntityTypeName);
-        if (entityType == null) {
-            logger.info("Missing entity type information for: " + classicEntityTypeName);
-        }
-
-        return entityType;
-    }
 
     public static CommodityType commodityType(@Nonnull final String classicCommodityTypeName) {
         final CommodityType commodityType = COMMODITY_TYPE_MAPPINGS.get(classicCommodityTypeName);
@@ -62,39 +51,6 @@ public class ClassicEnumMapper {
     }
 
     /**
-     * Mappings between entityType enum values in SDK DTO's to strings that are stored
-     * in Classic OpsManager topology files.
-     */
-    public static final BiMap<String, EntityType> ENTITY_TYPE_MAPPINGS =
-        new ImmutableBiMap.Builder<String, EntityType>()
-            .put("VirtualMachine",          EntityType.VIRTUAL_MACHINE)
-            .put("PhysicalMachine",         EntityType.PHYSICAL_MACHINE)
-            .put("Storage",                 EntityType.STORAGE)
-            .put("DiskArray",               EntityType.DISK_ARRAY)
-            .put("DataCenter",              EntityType.DATACENTER)
-            .put("VirtualDataCenter",       EntityType.VIRTUAL_DATACENTER)
-            .put("Application",             EntityType.APPLICATION)
-            .put("VirtualApplication",      EntityType.VIRTUAL_APPLICATION)
-            .put("Container",               EntityType.CONTAINER)
-            .put("StorageController",       EntityType.STORAGE_CONTROLLER)
-            .put("IOModule",                EntityType.IO_MODULE)
-            .put("Internet",                EntityType.INTERNET)
-            .put("Switch",                  EntityType.SWITCH)
-            .put("Chassis",                 EntityType.CHASSIS)
-            .put("Network",                 EntityType.NETWORK)
-            .put("Database",                EntityType.DATABASE)
-            .put("ApplicationServer",       EntityType.APPLICATION_SERVER)
-            .put("DPod",                    EntityType.DPOD)
-            .put("VPod",                    EntityType.VPOD)
-            .put("ContainerPod",            EntityType.CONTAINER_POD)
-            .put("LogicalPool",             EntityType.LOGICAL_POOL)
-            .put("CloudService",            EntityType.CLOUD_SERVICE)
-            .put("DistributedVirtualPortgroup", EntityType.DISTRIBUTED_VIRTUAL_PORTGROUP)
-            .put("BusinessAccount",         EntityType.BUSINESS_ACCOUNT)
-            .put("Unknown",                 EntityType.UNKNOWN)
-            .build();
-
-    /**
      * Mappings between commodityType enum values in SDK DTO's to strings that are stored
      * in Classic OpsManager topology files.
      */
@@ -105,12 +61,13 @@ public class ClassicEnumMapper {
             .put("Ballooning",                  CommodityType.BALLOONING)
             .put("BufferCommodity",             CommodityType.BUFFER_COMMODITY)
             .put("ClusterCommodity",            CommodityType.CLUSTER)
-            .put("CollectionTime",              CommodityType.COLLECTION_TIME)
+            .put("CollectionTime",              CommodityType.REMAINING_GC_CAPACITY)
             .put("Cooling",                     CommodityType.COOLING)
             .put("Connection",                  CommodityType.CONNECTION)
             .put("CPU",                         CommodityType.CPU)
             .put("CPUAllocation",               CommodityType.CPU_ALLOCATION)
             .put("CPUProvisioned",              CommodityType.CPU_PROVISIONED)
+            .put("CPURequestAllocation",        CommodityType.CPU_REQUEST_ALLOCATION)
             .put("CrossCloudMoveSvc",           CommodityType.CROSS_CLOUD_MOVE_SVC)
             .put("CrossClusterMoveSvc",         CommodityType.CROSS_CLUSTER_MOVE_SVC)
             .put("DataCenterCommodity",         CommodityType.DATACENTER)
@@ -130,9 +87,11 @@ public class ClassicEnumMapper {
             .put("Mem",                         CommodityType.MEM)
             .put("MemAllocation",               CommodityType.MEM_ALLOCATION)
             .put("MemProvisioned",              CommodityType.MEM_PROVISIONED)
+            .put("MemRequestAllocation",        CommodityType.MEM_REQUEST_ALLOCATION)
             .put("NetThroughput",               CommodityType.NET_THROUGHPUT)
             .put("NetworkCommodity",            CommodityType.NETWORK)
-            .put("PORT_CHANEL",                 CommodityType.PORT_CHANEL)
+            .put("NumberConsumers",             CommodityType.NUMBER_CONSUMERS)
+            .put("PortChannel",                 CommodityType.PORT_CHANEL)
             .put("Power",                       CommodityType.POWER)
             .put("Q16VCPU",                     CommodityType.Q16_VCPU)
             .put("Q1VCPU",                      CommodityType.Q1_VCPU)
@@ -154,14 +113,24 @@ public class ClassicEnumMapper {
             .put("StorageLatency",              CommodityType.STORAGE_LATENCY)
             .put("StorageProvisioned",          CommodityType.STORAGE_PROVISIONED)
             .put("Swapping",                    CommodityType.SWAPPING)
+            .put("TenancyAccess",               CommodityType.TENANCY_ACCESS)
             .put("Threads",                     CommodityType.THREADS)
             .put("Transaction",                 CommodityType.TRANSACTION)
             .put("TransactionLog",              CommodityType.TRANSACTION_LOG)
             .put("VCPU",                        CommodityType.VCPU)
+            .put("VCPULimitQuota",              CommodityType.VCPU_LIMIT_QUOTA)
+            .put("VCPURequest",                 CommodityType.VCPU_REQUEST)
+            .put("VCPURequestQuota",            CommodityType.VCPU_REQUEST_QUOTA)
             .put("VDCCommodity",                CommodityType.VDC)
             .put("VMem",                        CommodityType.VMEM)
+            .put("VMemLimitQuota",              CommodityType.VMEM_LIMIT_QUOTA)
+            .put("VMemRequest",                 CommodityType.VMEM_REQUEST)
+            .put("VMemRequestQuota",            CommodityType.VMEM_REQUEST_QUOTA)
+            .put("VMPMAccessCommodity",         CommodityType.VMPM_ACCESS)
             .put("VStorage",                    CommodityType.VSTORAGE)
             .put("Unknown",                     CommodityType.UNKNOWN)
+            .put("Zone",                        CommodityType.ZONE)
+            .put("KPI",                         CommodityType.KPI)
             .build();
 
     /**
@@ -190,25 +159,32 @@ public class ClassicEnumMapper {
      * Note that this is defined in opsmgr/com.vmturbo.reports.db but never used (AFAIK).
      * We didn't want to include the 'db' project here.
      **/
-    public  enum CommodityTypeUnits {
+    public enum CommodityTypeUnits {
+        ACTIVE_SESSIONS("ActiveSessions", ""),
         BALLOONING("Ballooning", "KB"),
         COLLECTION_TIME("CollectionTime", "%"),
+        REMAINING_GC_CAPACITY("RemainingGcCapacity", "%"),
         CONNECTION("Connection", "Connections"),
         COOLING("Cooling", "C"),
         CPU("CPU", "MHz"),
         CPU_ALLOCATION("CPUAllocation", "MHz"),
+        CPU_REQUEST_ALLOCATION("CPURequestAllocation", "MHz"),
         CPU_HEADROOM("CPUHeadroom", "VM"),
         CPU_EXHAUSTION("CPUExhaustion", "Day"),
         CPU_PROVISIONED("CPUProvisioned", "MHz"),
         DB_CACHE_HIT_RATE("DBCacheHitRate", "%"),
         DB_MEM("DBMem", "KB"),
         EXTENT("Extent", ""),
-        FLOW("Flow", "Bytes"),
+        FLOW("Flow", "KByte/sec"),
         FLOW_ALLOCATION("FlowAllocation", "Bytes"),
         HEAP("Heap", "KB"),
+        IMAGE_CPU("ImageCPU", "MHz"),
+        IMAGE_MEM("ImageMem", "KB"),
+        IMAGE_STORAGE("ImageStorage", "MB"),
         IO_THROUGHPUT("IOThroughput", "KByte/sec"),
         MEM("Mem", "KB"),
         MEM_ALLOCATION("MemAllocation", "KB"),
+        MEM_REQUEST_ALLOCATION("MemRequestAllocation", "KB"),
         MEM_HEADROOM("MemHeadroom", "VM"),
         MEM_EXHAUSTION("MemExhaustion", "Day"),
         MEM_PROVISIONED("MemProvisioned", "KB"),
@@ -217,6 +193,11 @@ public class ClassicEnumMapper {
         NUM_SOCKETS("numSockets", ""),
         NUM_CORES("numCores", ""),
         NUM_VCPUS("numVCPUs", ""),
+        NUMBER_CONSUMERS("NumberConsumers", ""),
+        POOL_CPU("PoolCPU", "MHz"),
+        POOL_MEM("PoolMem", "KB"),
+        POOL_STORAGE("PoolStorage", "MB"),
+        PORT_CHANEL("PortChannel", "KByte/sec"),
         POWER("Power", "W"),
         PRODUCES("Produces", ""),
         SPACE("Space", ""),
@@ -239,11 +220,17 @@ public class ClassicEnumMapper {
         SWAPPING("Swapping", "Byte/sec"),
         THREADS("Threads", "Threads"),
         TRANSACTION("Transaction", "TPS"),
-        TRANSACTION_LOG("TransactionLog", "GB"),
+        TRANSACTION_LOG("TransactionLog", "MB"),
         VCPU("VCPU", "MHz"),
         VCPU_ALLOCATION("VCPUAllocation", "MHz"),
+        VCPU_LIMIT_QUOTA("VCPULimitQuota", "MHz"),
+        VCPU_REQUEST("VCPURequest", "MHz"),
+        VCPU_REQUEST_QUOTA("VCPURequestQuota", "MHz"),
         VMEM("VMem", "KB"),
         VMEM_ALLOCATION("VMemAllocation", "MB"),
+        VMEM_LIMIT_QUOTA("VMemLimitQuota", "KB"),
+        VMEM_REQUEST("VMemRequest", "KB"),
+        VMEM_REQUEST_QUOTA("VMemRequestQuota", "KB"),
         VSTORAGE("VStorage", "MB"),
         // Access Commodities
         CLUSTER("ClusterCommodity", ""),
@@ -259,6 +246,7 @@ public class ClassicEnumMapper {
         VDC("VDCCommodity", ""),
         VMPM_ACCESS("VMPMAccessCommodity", ""),
         HOST_LUN_ACCESS("HOST_LUN_ACCESS", ""),
+        TOTAL_SESSIONS("TotalSessions", ""),
         // End of Access Commodities
         UNKNOWN("Unknown", "");
 
@@ -283,15 +271,30 @@ public class ClassicEnumMapper {
             return COMMODITY_TYPE_UNITS_MAP.get(mixedCaseName);
         }
 
+        /**
+         * Match commodityType string to Enum ignoring case.
+         *
+         * @param commodityType Used to match against Enums available
+         * @return Matched {@link CommodityTypeUnits} if matched or else null
+         */
+        public static CommodityTypeUnits fromStringIgnoreCase(String commodityType) {
+            return COMMODITY_TYPE_UNITS_MAP_LOWER_CASE.get(commodityType.toLowerCase());
+        }
+
         private static final Map<String, CommodityTypeUnits> COMMODITY_TYPE_UNITS_MAP;
+        private static final Map<String, CommodityTypeUnits> COMMODITY_TYPE_UNITS_MAP_LOWER_CASE;
 
         static {
             ImmutableMap.Builder<String, CommodityTypeUnits> commodityTypeMapBuilder =
                     new ImmutableMap.Builder<>();
+            ImmutableMap.Builder<String, CommodityTypeUnits> commodityTypeMapBuilderLowerCase =
+                    new ImmutableMap.Builder<>();
             for (CommodityTypeUnits t : CommodityTypeUnits.values()) {
                 commodityTypeMapBuilder.put(t.getMixedCase(), t);
+                commodityTypeMapBuilderLowerCase.put(t.getMixedCase().toLowerCase(), t);
             }
             COMMODITY_TYPE_UNITS_MAP = commodityTypeMapBuilder.build();
+            COMMODITY_TYPE_UNITS_MAP_LOWER_CASE = commodityTypeMapBuilderLowerCase.build();
         }
     }
 

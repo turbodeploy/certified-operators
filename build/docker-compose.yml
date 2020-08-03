@@ -43,13 +43,16 @@ volumes:
   nginx-data: *localdriver
   nginx-run: *localdriver
   nginx-home: *localdriver
+  timescale-data: *localdriver
 
 services:
   rsyslog:
     extends:
       file: common-services.yml
       service: common-service
-    image: turbonomic/syslog
+    image: turbonomic/syslog:${XL_VERSION}
+    ports:
+      - "${RSYSLOG_PORT}"
     volumes:
       - syslogdata:/home/vmtsyslog
       - syslogdata_rotate:/var/lib/logrotate
@@ -60,7 +63,7 @@ services:
     extends:
       file: common-services.yml
       service: common-service
-    image: turbonomic/com.vmturbo.consul
+    image: turbonomic/com.vmturbo.consul:${XL_VERSION}
     command: ["vmt-server", "-client=0.0.0.0", "-ui"]
     environment:
       - CONSUL_BIND_INTERFACE=eth0
@@ -81,7 +84,7 @@ services:
     extends:
       file: common-services.yml
       service: common-service
-    image: turbonomic/db
+    image: turbonomic/db:${XL_VERSION}
     volumes:
       - mysqldata:/var/lib/mysql
       - mysql_log:/var/log
@@ -98,7 +101,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/zookeeper
+    image: turbonomic/zookeeper:${XL_VERSION}
     restart: always
     mem_limit: ${ZOOKEEPER_MEM_LIMIT}M
     environment:
@@ -111,7 +114,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/kafka
+    image: turbonomic/kafka:${XL_VERSION}
     mem_limit: ${KAFKA_MEM_LIMIT}M
     environment:
       BROKER_ID: 1
@@ -136,7 +139,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/auth
+    image: turbonomic/auth:${XL_VERSION}
     depends_on:
       - clustermgr
       - consul
@@ -148,7 +151,14 @@ services:
       component_type: auth
       instance_id: auth-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${AUTH_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${AUTH_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${AUTH_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     volumes:
       - auth:/home/turbonomic/data
     mem_limit: ${AUTH_MEM_LIMIT_MB}M
@@ -157,7 +167,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/com.vmturbo.clustermgr
+    image: turbonomic/com.vmturbo.clustermgr:${XL_VERSION}
     depends_on:
       - consul
       - rsyslog
@@ -169,7 +179,14 @@ services:
       component_type: clustermgr
       instance_id: clustermgr-1
       serverHttpPort: 8080
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${CLUSTERMGR_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${CLUSTERMGR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${CLUSTERMGR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       node_name: default
       consul_host: consul
       kafkaServers: ${KAFKA_SERVERS}
@@ -181,7 +198,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/com.vmturbo.api.component
+    image: turbonomic/com.vmturbo.api.component:${XL_VERSION}
     depends_on:
       - clustermgr
       - kafka1
@@ -193,7 +210,14 @@ services:
       component_type: api
       instance_id: api-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${API_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${API_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${API_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     volumes:
       - api:/home/turbonomic/data
       - /tmp/certs:/tmp/certs
@@ -205,12 +229,13 @@ services:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/nginx
+    image: turbonomic/nginx:${XL_VERSION}
     ports:
       - "${NGINX_HTTP_PORT}"
       - "${NGINX_HTTPS_PORT}"
     environment:
       API: api
+      GRAFANA: grafana
       TOPOLOGY: topology-processor
       DNS_RESOLVER: 127.0.0.11
     volumes:
@@ -224,7 +249,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/market-component
+    image: turbonomic/market-component:${XL_VERSION}
     depends_on: &clustermgrdep
       - clustermgr
       - kafka1
@@ -235,14 +260,21 @@ services:
       component_type: market
       instance_id: market-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MARKET_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${MARKET_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MARKET_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MARKET_MEM_LIMIT_MB}M
 
   action-orchestrator:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/action-orchestrator
+    image: turbonomic/action-orchestrator:${XL_VERSION}
     depends_on:
       - db
       - auth
@@ -255,14 +287,21 @@ services:
       component_type: action-orchestrator
       instance_id: action-orchestrator-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${ACTION_ORCHESTRATOR_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${ACTION_ORCHESTRATOR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${ACTION_ORCHESTRATOR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${ACTION_ORCHESTRATOR_MEM_LIMIT_MB}M
 
   topology-processor:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/topology-processor
+    image: turbonomic/topology-processor:${XL_VERSION}
     ports:
       - "${TOPOLOGY_PROCESSOR_PORT}"
       - "${TOPOLOGY_PROCESSOR_DEBUG_PORT}"
@@ -276,7 +315,14 @@ services:
       instance_id: topology-processor-1
       node_name: default
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${TOPOLOGY_PROCESSOR_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${TOPOLOGY_PROCESSOR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${TOPOLOGY_PROCESSOR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     volumes:
       - topology-processor:/home/turbonomic/data
     mem_limit: ${TOPOLOGY_PROCESSOR_MEM_LIMIT_MB}M
@@ -287,7 +333,7 @@ services:
       service: dev-component
     # The image, created by the docker-maven-plugin, has the
     # name turbonomic/<artifactId from pom>
-    image: turbonomic/sample
+    image: turbonomic/sample:${XL_VERSION}
     depends_on:
       - clustermgr
     # These are the ports that get exposed outside the container network.
@@ -306,13 +352,20 @@ services:
     environment:
       component_type: sample
       instance_id: sample-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${SAMPLE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${SAMPLE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${SAMPLE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
 
   arangodb:
     extends:
       file: common-services.yml
       service: common-service
-    image: turbonomic/arangodb
+    image: turbonomic/arangodb:${XL_VERSION}
     environment:
       ARANGO_ROOT_PASSWORD: "root"
     ports:
@@ -328,7 +381,7 @@ services:
     extends:
       file: common-services.yml
       service: common-service
-    image: turbonomic/influxdb
+    image: turbonomic/influxdb:${XL_VERSION}
     environment:
       METRON_ENABLED: "${METRON_ENABLED}"
       LOG_TO_STDOUT: "true"
@@ -346,7 +399,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/ml-datastore
+    image: turbonomic/ml-datastore:${XL_VERSION}
     ports:
       - "${ML_DATASTORE_PORT}"
       - "${ML_DATASTORE_DEBUG_PORT}"
@@ -360,14 +413,21 @@ services:
       instance_id: ml-datastore-1
       kafkaServers: ${KAFKA_SERVERS}
       METRON_ENABLED: "${METRON_ENABLED}"
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${ML_DATASTORE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${ML_DATASTORE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${ML_DATASTORE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${ML_DATASTORE_MEM_LIMIT_MB}M
 
   repository:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/com.vmturbo.repository-component
+    image: turbonomic/com.vmturbo.repository-component:${XL_VERSION}
     ports:
       - "${REPOSITORY_PORT}"
       - "${REPOSITORY_DEBUG_PORT}"
@@ -381,14 +441,21 @@ services:
       instance_id: repository-1
       REPOSITORY_ARANGODB_HOST: arangodb
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${REPOSITORY_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${REPOSITORY_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${REPOSITORY_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${REPOSITORY_MEM_LIMIT_MB}M
 
   group:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/com.vmturbo.group
+    image: turbonomic/com.vmturbo.group:${XL_VERSION}
     ports:
       - "${GROUP_PORT}"
       - "${GROUP_DEBUG_PORT}"
@@ -400,7 +467,14 @@ services:
       component_type: group
       instance_id: group-1
       logging.level.com.vmturbo.group: info # change to debug to enable more debugging output
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${GROUP_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${GROUP_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${GROUP_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       kafkaServers: ${KAFKA_SERVERS}
     mem_limit: ${GROUP_MEM_LIMIT_MB}M
 
@@ -408,7 +482,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/com.vmturbo.history
+    image: turbonomic/com.vmturbo.history:${XL_VERSION}
     ports:
       - "${HISTORY_PORT}"
       - "${HISTORY_DEBUG_PORT}"
@@ -422,14 +496,21 @@ services:
       instance_id: history-1
       logging.level.com.vmturbo.history: INFO
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${HISTORY_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${HISTORY_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${HISTORY_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${HISTORY_MEM_LIMIT_MB}M
 
   plan-orchestrator:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/com.vmturbo.plan.orchestrator
+    image: turbonomic/com.vmturbo.plan.orchestrator:${XL_VERSION}
     ports:
       - "${PLAN_ORCHESTRATOR_PORT}"
       - "${PLAN_ORCHESTRATOR_DEBUG_PORT}"
@@ -442,14 +523,21 @@ services:
       component_type: plan-orchestrator
       instance_id: plan-orchestrator-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${PLAN_ORCHESTRATOR_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${PLAN_ORCHESTRATOR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${PLAN_ORCHESTRATOR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${PLAN_ORCHESTRATOR_MEM_LIMIT_MB}M
 
   reporting:
     extends:
       file: common-services.yml
       service: dev-component
-    image: turbonomic/com.vmturbo.reports.component
+    image: turbonomic/com.vmturbo.reports.component:${XL_VERSION}
     ports:
       - "${REPORTING_PORT}"
       - "${REPORTING_DEBUG_PORT}"
@@ -464,35 +552,121 @@ services:
       instance_id: reporting-1
       report.files.output.dir: /home/turbonomic/data
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${REPORTING_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${REPORTING_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${REPORTING_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${REPORTING_MEM_LIMIT_MB}M
 
   cost:
-      extends:
-        file: common-services.yml
-        service: dev-component
-      image: turbonomic/com.vmturbo.cost.component
-      ports:
-        - "${COST_PORT}"
-        - "${COST_DEBUG_PORT}"
-      depends_on:
-        - clustermgr
-        - db
-        - kafka1
-        - auth
-      environment:
-        component_type: cost
-        instance_id: cost-1
-        logging.level.com.vmturbo.cost: info # change to debug to enable more debugging output
-        JAVA_OPTS: "${DEV_JAVA_OPTS} ${COST_SYSTEM_PROPERTIES}"
-        kafkaServers: ${KAFKA_SERVERS}
-      mem_limit: ${COST_MEM_LIMIT_MB}M
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.cost.component:${XL_VERSION}
+    ports:
+      - "${COST_PORT}"
+      - "${COST_DEBUG_PORT}"
+    depends_on:
+      - clustermgr
+      - db
+      - kafka1
+      - auth
+    environment:
+      component_type: cost
+      instance_id: cost-1
+      logging.level.com.vmturbo.cost: info # change to debug to enable more debugging output
+      JAVA_COMPONENT_OPTS: "${COST_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${COST_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      kafkaServers: ${KAFKA_SERVERS}
+    mem_limit: ${COST_MEM_LIMIT_MB}M
+
+  extractor:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/extractor:${XL_VERSION}
+    ports:
+      - "${EXTRACTOR_PORT}"
+      - "${EXTRACTOR_DEBUG_PORT}"
+    depends_on:
+      - timescaledb
+      - kafka1
+      - auth
+    environment:
+      component_type: extractor
+      instance_id: extractor-1
+      logging.level.com.vmturbo.extractor: info # change to debug to enable more debugging output
+      JAVA_COMPONENT_OPTS: "${EXTRACTOR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${EXTRACTOR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      kafkaServers: ${KAFKA_SERVERS}
+    mem_limit: ${EXTRACTOR_MEM_LIMIT_MB}M
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg12
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: vmturbo
+    volumes:
+      - timescale-data:/var/lib/postresql/data
+    ports:
+      - 5432:5432
+    mem_limit: ${TIMESCALE_MEM_LIMIT_MB}M
+
+  # Purely in-memory store.
+  # Currently only used for integration type testing.
+  grafana:
+    image: grafana/grafana:7.0.1
+    ports:
+      - 3000:3000
+
+  integration-intersight:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/intersight-integration:${XL_VERSION}
+    ports:
+      - "${INTEGRATION_INTERSIGHT_PORT}"
+      - "${INTEGRATION_INTERSIGHT_DEBUG_PORT}"
+    depends_on:
+      - clustermgr
+      - kafka1
+      - auth
+      - topology-processor
+    environment:
+      component_type: integration-intersight
+      instance_id: integration-intersight-1
+      JAVA_COMPONENT_OPTS: "${INTEGRATION_INTERSIGHT_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${INTEGRATION_INTERSIGHT_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      kafkaServers: ${KAFKA_SERVERS}
+    mem_limit: ${INTEGRATION_INTERSIGHT_MEM_LIMIT_MB}M
 
   mediation-vcenter:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.vcenter.component
+    image: turbonomic/com.vmturbo.mediation.vcenter.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_VCENTER_PORT}"
@@ -500,14 +674,43 @@ services:
     environment:
       component_type: mediation-vcenter
       instance_id: mediation-vcenter-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VCENTER_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_VCENTER_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_VCENTER_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_VCENTER_MEM_LIMIT_MB}M
+
+  mediation-udt:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.udt.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_UDT_PORT}"
+      - "${MEDIATION_UDT_DEBUG_PORT}"
+    environment:
+      component_type: mediation-udt
+      instance_id: mediation-udt-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_UDT_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_UDT_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_UDT_MEM_LIMIT_MB}M
 
   mediation-vcenter-browsing:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.vcenter.browsing.component
+    image: turbonomic/com.vmturbo.mediation.vcenter.browsing.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_VCENTER_BROWSING_PORT}"
@@ -515,14 +718,21 @@ services:
     environment:
       component_type: mediation-vcenter-browsing
       instance_id: mediation-vcenter-browsing-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VCENTER_BROWSING_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_VCENTER_BROWSING_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_VCENTER_BROWSING_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_VCENTER_BROWSING_MEM_LIMIT_MB}M
 
   mediation-stressprobe:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.stressprobe.component
+    image: turbonomic/com.vmturbo.mediation.stressprobe.component:${XL_VERSION}
     ports:
       - "${MEDIATION_STRESSPROBE_PORT}"
       - "${MEDIATION_STRESSPROBE_DEBUG_PORT}"
@@ -534,15 +744,22 @@ services:
       serverGrpcPort: 9001
       consul_host: consul
       consul_port: 8500
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_STRESSPROBE_SYSTEM_PROPERTIES}"
-      kvStoreRetryIntervalMillis : 1000
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_STRESSPROBE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_STRESSPROBE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      kvStoreTimeoutSeconds : 120
     mem_limit: ${MEDIATION_STRESSPROBE_MEM_LIMIT_MB}M
 
   mediation-storagestressprobe:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.storagestressprobe.component
+    image: turbonomic/com.vmturbo.mediation.storagestressprobe.component:${XL_VERSION}
     ports:
       - "${MEDIATION_STORAGESTRESSPROBE_PORT}"
       - "${MEDIATION_STORAGESTRESSPROBE_DEBUG_PORT}"
@@ -554,15 +771,22 @@ services:
       consul_port: 8500
       component_type: mediation-stressprobe
       instance_id: mediation-storagestressprobe-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_STORAGESTRESSPROBE_SYSTEM_PROPERTIES}"
-      kvStoreRetryIntervalMillis : 1000
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_STORAGESTRESSPROBE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_STORAGESTRESSPROBE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      kvStoreTimeoutSeconds : 120
     mem_limit: ${MEDIATION_STORAGESTRESSPROBE_MEM_LIMIT_MB}M
 
   mediation-delegatingprobe:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.delegatingprobe.component
+    image: turbonomic/com.vmturbo.mediation.delegatingprobe.component:${XL_VERSION}
     ports:
       - "${MEDIATION_DELEGATINGPROBE_PORT}"
       - "${MEDIATION_DELEGATINGPROBE_DEBUG_PORT}"
@@ -570,15 +794,22 @@ services:
     environment:
       component_type: mediation-delegatingprobe
       instance_id: mediation-delegatingprobe-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_DELEGATINGPROBE_SYSTEM_PROPERTIES}"
-      kvStoreRetryIntervalMillis : 1000
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_DELEGATINGPROBE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_DELEGATINGPROBE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      kvStoreTimeoutSeconds : 120
     mem_limit: ${MEDIATION_DELEGATINGPROBE_MEM_LIMIT_MB}M
 
   mediation-hyperv:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.hyperv.component
+    image: turbonomic/com.vmturbo.mediation.hyperv.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_HYPERV_PORT}"
@@ -586,14 +817,21 @@ services:
     environment:
       component_type: mediation-hyperv
       instance_id: mediation-hyperv-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HYPERV_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_HYPERV_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_HYPERV_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_HYPERV_MEM_LIMIT_MB}M
 
   mediation-netapp:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.netapp.component
+    image: turbonomic/com.vmturbo.mediation.netapp.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_NETAPP_PORT}"
@@ -601,14 +839,43 @@ services:
     environment:
       component_type: mediation-netapp
       instance_id: mediation-netapp-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_NETAPP_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_NETAPP_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_NETAPP_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_NETAPP_MEM_LIMIT_MB}M
+
+  mediation-nutanix:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.nutanix.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_NUTANIX_PORT}"
+      - "${MEDIATION_NUTANIX_DEBUG_PORT}"
+    environment:
+      component_type: mediation-nutanix
+      instance_id: mediation-nutanix-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_NUTANIX_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_NUTANIX_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_NUTANIX_MEM_LIMIT_MB}M
 
   mediation-ucs:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.ucs.component
+    image: turbonomic/com.vmturbo.mediation.ucs.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_UCS_PORT}"
@@ -616,14 +883,21 @@ services:
     environment:
       component_type: mediation-ucs
       instance_id: mediation-ucs-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_UCS_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_UCS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_UCS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_UCS_MEM_LIMIT_MB}M
 
   mediation-aix:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.aix.component
+    image: turbonomic/com.vmturbo.mediation.aix.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_AIX_PORT}"
@@ -631,14 +905,21 @@ services:
     environment:
       component_type: mediation-aix
       instance_id: mediation-aix-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AIX_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AIX_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AIX_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_AIX_MEM_LIMIT_MB}M
 
   mediation-vmax:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.vmax.component
+    image: turbonomic/com.vmturbo.mediation.vmax.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_VMAX_PORT}"
@@ -646,14 +927,21 @@ services:
     environment:
       component_type: mediation-vmax
       instance_id: mediation-vmax-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VMAX_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_VMAX_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_VMAX_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_VMAX_MEM_LIMIT_MB}M
 
   mediation-vmm:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.vmm.component
+    image: turbonomic/com.vmturbo.mediation.vmm.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_VMM_PORT}"
@@ -661,14 +949,21 @@ services:
     environment:
       component_type: mediation-vmm
       instance_id: mediation-vmm-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VMM_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_VMM_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_VMM_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_VMM_MEM_LIMIT_MB}M
 
   mediation-hpe3par:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.hpe3par.component
+    image: turbonomic/com.vmturbo.mediation.hpe3par.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_HPE3PAR_PORT}"
@@ -676,14 +971,21 @@ services:
     environment:
       component_type: mediation-hpe3par
       instance_id: mediation-hpe3par-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HPE3PAR_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_HPE3PAR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_HPE3PAR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_HPE3PAR_MEM_LIMIT_MB}M
 
   mediation-pure:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.pure.component
+    image: turbonomic/com.vmturbo.mediation.pure.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_PURE_PORT}"
@@ -691,14 +993,21 @@ services:
     environment:
       component_type: mediation-pure
       instance_id: mediation-pure-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_PURE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_PURE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_PURE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_PURE_MEM_LIMIT_MB}M
 
   mediation-scaleio:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.scaleio.component
+    image: turbonomic/com.vmturbo.mediation.scaleio.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_SCALEIO_PORT}"
@@ -706,14 +1015,43 @@ services:
     environment:
       component_type: mediation-scaleio
       instance_id: mediation-scaleio-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_SCALEIO_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_SCALEIO_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_SCALEIO_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_SCALEIO_MEM_LIMIT_MB}M
+
+  mediation-servicenow:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.servicenow.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_SERVICENOW_PORT}"
+      - "${MEDIATION_SERVICENOW_DEBUG_PORT}"
+    environment:
+      component_type: mediation-servicenow
+      instance_id: mediation-servicenow-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_SERVICENOW_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_SERVICENOW_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_SERVICENOW_MEM_LIMIT_MB}M
 
   mediation-hds:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.hds.component
+    image: turbonomic/com.vmturbo.mediation.hds.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_HDS_PORT}"
@@ -721,14 +1059,21 @@ services:
     environment:
       component_type: mediation-hds
       instance_id: mediation-hds-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HDS_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_HDS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_HDS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_HDS_MEM_LIMIT_MB}M
 
   mediation-compellent:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.compellent.component
+    image: turbonomic/com.vmturbo.mediation.compellent.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_COMPELLENT_PORT}"
@@ -736,14 +1081,21 @@ services:
     environment:
       component_type: mediation-compellent
       instance_id: mediation-compellent-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_COMPELLENT_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_COMPELLENT_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_COMPELLENT_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_COMPELLENT_MEM_LIMIT_MB}M
 
   mediation-xtremio:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.xtremio.component
+    image: turbonomic/com.vmturbo.mediation.xtremio.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_XTREMIO_PORT}"
@@ -751,14 +1103,21 @@ services:
     environment:
       component_type: mediation-xtremio
       instance_id: mediation-xtremio-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_XTREMIO_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_XTREMIO_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_XTREMIO_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_XTREMIO_MEM_LIMIT_MB}M
 
   mediation-vplex:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.vplex.component
+    image: turbonomic/com.vmturbo.mediation.vplex.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_VPLEX_PORT}"
@@ -766,14 +1125,21 @@ services:
     environment:
       component_type: mediation-vplex
       instance_id: mediation-vplex-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VPLEX_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_VPLEX_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_VPLEX_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_VPLEX_MEM_LIMIT_MB}M
 
   mediation-rhv:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.rhv.component
+    image: turbonomic/com.vmturbo.mediation.rhv.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_RHV_PORT}"
@@ -781,14 +1147,21 @@ services:
     environment:
       component_type: mediation-rhv
       instance_id: mediation-rhv-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_RHV_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_RHV_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_RHV_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_RHV_MEM_LIMIT_MB}M
 
   mediation-openstack:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.openstack.component
+    image: turbonomic/com.vmturbo.mediation.openstack.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_OPENSTACK_PORT}"
@@ -796,14 +1169,21 @@ services:
     environment:
       component_type: mediation-openstack
       instance_id: mediation-openstack-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_OPENSTACK_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_OPENSTACK_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_OPENSTACK_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_OPENSTACK_MEM_LIMIT_MB}M
 
   mediation-ucsdirector:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.ucsdirector.component
+    image: turbonomic/com.vmturbo.mediation.ucsdirector.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_UCSDIRECTOR_PORT}"
@@ -811,14 +1191,21 @@ services:
     environment:
       component_type: mediation-ucsdirector
       instance_id: mediation-ucsdirector-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_UCSDIRECTOR_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_UCSDIRECTOR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_UCSDIRECTOR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_UCSDIRECTOR_MEM_LIMIT_MB}M
 
   mediation-aws:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.aws.component
+    image: turbonomic/com.vmturbo.mediation.aws.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_AWS_PORT}"
@@ -826,7 +1213,14 @@ services:
     environment:
       component_type: mediation-aws
       instance_id: mediation-aws-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AWS_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AWS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AWS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -838,7 +1232,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.aws.billing.component
+    image: turbonomic/com.vmturbo.mediation.aws.billing.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_AWSBILLING_PORT}"
@@ -846,7 +1240,14 @@ services:
     environment:
       component_type: mediation-awsbilling
       instance_id: mediation-awsbilling-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AWSBILLING_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AWSBILLING_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AWSBILLING_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -858,7 +1259,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.aws.cost.component
+    image: turbonomic/com.vmturbo.mediation.aws.cost.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_AWSCOST_PORT}"
@@ -866,7 +1267,14 @@ services:
     environment:
       component_type: mediation-awscost
       instance_id: mediation-awscost-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AWSCOST_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AWSCOST_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AWSCOST_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -874,11 +1282,36 @@ services:
       - mediation-awscost:/home/turbonomic/data
     mem_limit: ${MEDIATION_AWSCOST_MEM_LIMIT_MB}M
 
+  mediation-datadog:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.datadog.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_DATADOG_PORT}"
+      - "${MEDIATION_DATADOG_DEBUG_PORT}"
+    environment:
+      component_type: mediation-datadog
+      instance_id: mediation-datadog-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_DATADOG_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_DATADOG_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
+    mem_limit: ${MEDIATION_DATADOG_MEM_LIMIT_MB}M
+
   mediation-azure:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.azure.component
+    image: turbonomic/com.vmturbo.mediation.azure.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_AZURE_PORT}"
@@ -886,7 +1319,14 @@ services:
     environment:
       component_type: mediation-azure
       instance_id: mediation-azure-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AZURE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AZURE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AZURE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -898,7 +1338,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.azure.cost.component
+    image: turbonomic/com.vmturbo.mediation.azure.cost.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_AZURECOST_PORT}"
@@ -906,7 +1346,14 @@ services:
     environment:
       component_type: mediation-azurecost
       instance_id: mediation-azurecost-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AZURECOST_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AZURECOST_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AZURECOST_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -914,11 +1361,61 @@ services:
       - mediation-azurecost:/home/turbonomic/data
     mem_limit: ${MEDIATION_AZURECOST_MEM_LIMIT_MB}M
 
+  mediation-azureea:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.azure.ea.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_AZUREEA_PORT}"
+      - "${MEDIATION_AZUREEA_DEBUG_PORT}"
+    environment:
+      component_type: mediation-azureea
+      instance_id: mediation-azureea-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AZUREEA_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AZUREEA_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
+    mem_limit: ${MEDIATION_AZUREEA_MEM_LIMIT_MB}M
+
+  mediation-azuresp:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.azure.sp.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_AZURESP_PORT}"
+      - "${MEDIATION_AZURESP_DEBUG_PORT}"
+    environment:
+      component_type: mediation-azuresp
+      instance_id: mediation-azuresp-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AZURESP_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AZURESP_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
+    mem_limit: ${MEDIATION_AZURESP_MEM_LIMIT_MB}M
+
   mediation-azure-volumes:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.azure.volumes.component
+    image: turbonomic/com.vmturbo.mediation.azure.volumes.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_AZURE_VOLUMES_PORT}"
@@ -926,7 +1423,14 @@ services:
     environment:
       component_type: mediation-azure-volumes
       instance_id: mediation-azure-volumes-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AZURE_VOLUMES_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AZURE_VOLUMES_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AZURE_VOLUMES_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -936,7 +1440,7 @@ services:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.oneview.component
+    image: turbonomic/com.vmturbo.mediation.oneview.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_ONEVIEW_PORT}"
@@ -944,14 +1448,21 @@ services:
     environment:
       component_type: mediation-oneview
       instance_id: mediation-oneview-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_ONEVIEW_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ONEVIEW_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_ONEVIEW_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_ONEVIEW_MEM_LIMIT_MB}M
 
   mediation-vcd:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.vcd.component
+    image: turbonomic/com.vmturbo.mediation.vcd.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_VCD_PORT}"
@@ -959,14 +1470,21 @@ services:
     environment:
       component_type: mediation-vcd
       instance_id: mediation-vcd-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VCD_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_VCD_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_VCD_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_VCD_MEM_LIMIT_MB}M
 
   mediation-mssql:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.database.mssql.component
+    image: turbonomic/com.vmturbo.mediation.database.mssql.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_MSSQL_PORT}"
@@ -974,14 +1492,43 @@ services:
     environment:
       component_type: mediation-mssql
       instance_id: mediation-mssql-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_MSSQL_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_MSSQL_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_MSSQL_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_MSSQL_MEM_LIMIT_MB}M
+
+  mediation-mysql:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.database.mysql.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_MYSQL_PORT}"
+      - "${MEDIATION_MYSQL_DEBUG_PORT}"
+    environment:
+      component_type: mediation-mysql
+      instance_id: mediation-mysql-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_MYSQL_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_MYSQL_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_MYSQL_MEM_LIMIT_MB}M
 
   mediation-actionscript:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.actionscript.component
+    image: turbonomic/com.vmturbo.mediation.actionscript.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_ACTIONSCRIPT_PORT}"
@@ -989,14 +1536,21 @@ services:
     environment:
       component_type: mediation-actionscript
       instance_id: mediation-actionscript-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_ACTIONSCRIPT_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ACTIONSCRIPT_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_ACTIONSCRIPT_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_ACTIONSCRIPT_MEM_LIMIT_MB}M
 
   mediation-wmi:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.apm.wmi.component
+    image: turbonomic/com.vmturbo.mediation.apm.wmi.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_WMI_PORT}"
@@ -1004,14 +1558,21 @@ services:
     environment:
       component_type: mediation-wmi
       instance_id: mediation-wmi-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_WMI_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_WMI_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_WMI_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_WMI_MEM_LIMIT_MB}M
 
   mediation-snmp:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.apm.snmp.component
+    image: turbonomic/com.vmturbo.mediation.apm.snmp.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_SNMP_PORT}"
@@ -1019,14 +1580,21 @@ services:
     environment:
       component_type: mediation-snmp
       instance_id: mediation-snmp-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_SNMP_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_SNMP_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_SNMP_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_SNMP_MEM_LIMIT_MB}M
 
   mediation-appdynamics:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.appdynamics.component
+    image: turbonomic/com.vmturbo.mediation.appdynamics.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_APPDYNAMICS_PORT}"
@@ -1034,14 +1602,87 @@ services:
     environment:
       component_type: mediation-appdynamics
       instance_id: mediation-appdynamics-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_APPDYNAMICS_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_APPDYNAMICS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_APPDYNAMICS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_APPDYNAMICS_MEM_LIMIT_MB}M
+
+  mediation-newrelic:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.newrelic.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_NEWRELIC_PORT}"
+      - "${MEDIATION_NEWRELIC_DEBUG_PORT}"
+    environment:
+      component_type: mediation-newrelic
+      instance_id: mediation-newrelic-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_NEWRELIC_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_NEWRELIC_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_NEWRELIC_MEM_LIMIT_MB}M
+
+  mediation-appinsights:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.appinsights.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_APPINSIGHTS_PORT}"
+      - "${MEDIATION_APPINSIGHTS_DEBUG_PORT}"
+    environment:
+      component_type: mediation-appinsights
+      instance_id: mediation-appinsights-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_APPINSIGHTS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_APPINSIGHTS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_APPINSIGHTS_MEM_LIMIT_MB}M
+
+  mediation-customdata:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.custom.data.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_CUSTOMDATA_PORT}"
+      - "${MEDIATION_CUSTOMDATA_DEBUG_PORT}"
+    environment:
+      component_type: mediation-customdata
+      instance_id: mediation-customdata-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_CUSTOMDATA_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_CUSTOMDATA_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_CUSTOMDATA_MEM_LIMIT_MB}M
 
   mediation-dynatrace:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.dynatrace.component
+    image: turbonomic/com.vmturbo.mediation.dynatrace.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_DYNATRACE_PORT}"
@@ -1049,14 +1690,21 @@ services:
     environment:
       component_type: mediation-dynatrace
       instance_id: mediation-dynatrace-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_DYNATRACE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_DYNATRACE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_DYNATRACE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_DYNATRACE_MEM_LIMIT_MB}M
 
   mediation-pivotal:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.pivotal.component
+    image: turbonomic/com.vmturbo.mediation.pivotal.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_PIVOTAL_PORT}"
@@ -1064,14 +1712,21 @@ services:
     environment:
       component_type: mediation-pivotal
       instance_id: mediation-pivotal-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_PIVOTAL_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_PIVOTAL_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_PIVOTAL_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_PIVOTAL_MEM_LIMIT_MB}M
 
   mediation-cloudfoundry:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.cloudfoundry.component
+    image: turbonomic/com.vmturbo.mediation.cloudfoundry.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_CLOUDFOUNDRY_PORT}"
@@ -1079,14 +1734,21 @@ services:
     environment:
       component_type: mediation-cloudfoundry
       instance_id: mediation-cloudfoundry-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_CLOUDFOUNDRY_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_CLOUDFOUNDRY_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_CLOUDFOUNDRY_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_CLOUDFOUNDRY_MEM_LIMIT_MB}M
 
   mediation-istio:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.istio.component
+    image: turbonomic/com.vmturbo.mediation.istio.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_ISTIO_PORT}"
@@ -1094,14 +1756,21 @@ services:
     environment:
       component_type: mediation-istio
       instance_id: mediation-istio-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_ISTIO_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ISTIO_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_ISTIO_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_ISTIO_MEM_LIMIT_MB}M
 
   mediation-netflow:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.netflow.component
+    image: turbonomic/com.vmturbo.mediation.netflow.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_NETFLOW_PORT}"
@@ -1109,14 +1778,21 @@ services:
     environment:
       component_type: mediation-netflow
       instance_id: mediation-netflow-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_NETFLOW_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_NETFLOW_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_NETFLOW_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_NETFLOW_MEM_LIMIT_MB}M
 
   mediation-tetration:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.tetration.component
+    image: turbonomic/com.vmturbo.mediation.tetration.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_TETRATION_PORT}"
@@ -1124,14 +1800,21 @@ services:
     environment:
       component_type: mediation-tetration
       instance_id: mediation-tetration-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_TETRATION_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_TETRATION_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_TETRATION_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_TETRATION_MEM_LIMIT_MB}M
 
   mediation-hyperflex:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.hyperflex.component
+    image: turbonomic/com.vmturbo.mediation.hyperflex.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
       - "${MEDIATION_HYPERFLEX_PORT}"
@@ -1139,14 +1822,21 @@ services:
     environment:
       component_type: mediation-hyperflex
       instance_id: mediation-hyperflex-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HYPERFLEX_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_HYPERFLEX_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_HYPERFLEX_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_HYPERFLEX_MEM_LIMIT_MB}M
 
   mediation-horizon:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/com.vmturbo.mediation.horizon.component
+    image: turbonomic/com.vmturbo.mediation.horizon.component:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
     - "${MEDIATION_HORIZON_PORT}"
@@ -1154,14 +1844,87 @@ services:
     environment:
       component_type: mediation-horizon
       instance_id: mediation-horizon-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HORIZON_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_HORIZON_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_HORIZON_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_HORIZON_MEM_LIMIT_MB}M
+
+  mediation-intersight-hyperflex:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.intersight.hyperflex.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+    - "${MEDIATION_INTERSIGHT_HYPERFLEX_PORT}"
+    - "${MEDIATION_INTERSIGHT_HYPERFLEX_DEBUG_PORT}"
+    environment:
+      component_type: mediation-intersight-hyperflex
+      instance_id: mediation-intersight-hyperflex-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_INTERSIGHT_HYPERFLEX_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_INTERSIGHT_HYPERFLEX_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_INTERSIGHT_HYPERFLEX_MEM_LIMIT_MB}M
+
+  mediation-intersight-ucs:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.intersight.ucs.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+    - "${MEDIATION_INTERSIGHT_UCS_PORT}"
+    - "${MEDIATION_INTERSIGHT_UCS_DEBUG_PORT}"
+    environment:
+      component_type: mediation-intersight-ucs
+      instance_id: mediation-intersight-ucs-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_INTERSIGHT_UCS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_INTERSIGHT_UCS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_INTERSIGHT_UCS_MEM_LIMIT_MB}M
+
+  mediation-intersight-server:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.intersight.server.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+    - "${MEDIATION_INTERSIGHT_SERVER_PORT}"
+    - "${MEDIATION_INTERSIGHT_SERVER_DEBUG_PORT}"
+    environment:
+      component_type: mediation-intersight-server
+      instance_id: mediation-intersight-server-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_INTERSIGHT_SERVER_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_INTERSIGHT_SERVER_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_INTERSIGHT_SERVER_MEM_LIMIT_MB}M
 
   mediation:
     extends:
       file: common-services.yml
       service: dev-mediation-component
-    image: turbonomic/mediation
+    image: turbonomic/mediation:${XL_VERSION}
     depends_on: *clustermgrdep
     ports:
     - "${MEDIATION_COMPONENT_PORT}"
@@ -1169,5 +1932,12 @@ services:
     environment:
       component_type: mediation
       instance_id: mediation-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_COMPONENT_XMX_MB}M ${MEDIATION_COMPONENT_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} -Xmx${MEDIATION_COMPONENT_XMX_MB}M ${MEDIATION_COMPONENT_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_COMPONENT_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_COMPONENT_MEM_LIMIT_MB}M

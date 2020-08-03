@@ -11,12 +11,12 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
-
-import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.component.AuthDBConfig;
@@ -166,9 +166,26 @@ public class DBStore implements ISecureStore {
      * @return The database root password.
      */
     public @Nonnull String getRootSqlDBPassword() {
-        Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.CONSUL_ROOT_KEY);
+        Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.CONSUL_ROOT_DB_PASS_KEY);
         return CryptoFacility.decrypt(
                 rootDbPassword.orElseThrow(() -> new SecurityException("No root SQL DB password")));
+    }
+
+    /**
+     * Retrieves the SQL database root username.
+     *
+     * @return The database root username.
+     */
+    @Override
+    public @Nonnull String getRootSqlDBUsername() {
+        Optional<String> rootDbUsername = keyValueStore_.get(AuthDBConfig.CONSUL_ROOT_DB_USER_KEY);
+        return rootDbUsername.orElseThrow(() -> new SecurityException("No root SQL DB username"));
+    }
+
+    @Override
+    public @Nonnull String getPostgresRootUsername() {
+        Optional<String> rootDbUsername = keyValueStore_.get(AuthDBConfig.POSTGRES_ROOT_USER_KEY);
+        return rootDbUsername.orElseThrow(() -> new SecurityException("No Postgres root username"));
     }
 
     /**
@@ -180,7 +197,7 @@ public class DBStore implements ISecureStore {
      */
     public boolean setRootSqlDBPassword(final @Nonnull String existingPassword,
                                         final @Nonnull String newPassword) {
-        Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.CONSUL_ROOT_KEY);
+        Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.CONSUL_ROOT_DB_PASS_KEY);
         if (!rootDbPassword.isPresent() ||
             !Objects.equals(existingPassword, CryptoFacility.decrypt(rootDbPassword.get()))) {
             logger.error("Error changing SQL DB root password. The existing password doesn't match.");
@@ -206,7 +223,7 @@ public class DBStore implements ISecureStore {
                 }
             }
             if (changed) {
-                keyValueStore_.put(AuthDBConfig.CONSUL_ROOT_KEY,
+                keyValueStore_.put(AuthDBConfig.CONSUL_ROOT_DB_PASS_KEY,
                                    CryptoFacility.encrypt(newPassword));
                 logger.info("Successfully changed the SQL DB root password");
             } else {
@@ -243,7 +260,7 @@ public class DBStore implements ISecureStore {
     }
 
     /**
-     * Retrieves the Infulx database root password.
+     * Retrieves the Influx database root password.
      *
      * @return The database root password.
      */

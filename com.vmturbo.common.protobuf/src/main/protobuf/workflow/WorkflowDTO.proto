@@ -105,12 +105,14 @@ message FetchWorkflowRequest {
     optional int64 id = 1;
 }
 
-// Request to fetch all the workflows on the system with the given OrchestratorType, or all if
-// 'orchestrator_type' is absent.
+// Request to fetch all the workflows satisfying this request
 // TODO: currently no filtering or paging implemented
 message FetchWorkflowsRequest {
     // the type of orchestrator to filter on; if absent, return all
     optional OrchestratorType orchestrator_type = 1;
+
+    // the targets discovered these workflows
+    repeated int64 target_id = 3;
 }
 
 // Response for fetching a single workflow by id.  If the workflow is not found, the 'workflow'

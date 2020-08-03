@@ -8,25 +8,43 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
+import com.vmturbo.cost.component.SupplyChainServiceConfig;
+import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 @Configuration
 @Import({MarketClientConfig.class,
         MarketListenerConfig.class,
-        SQLDatabaseConfig.class})
+        CostDBConfig.class,
+        CostNotificationConfig.class,
+        RepositoryClientConfig.class,
+        SupplyChainServiceConfig.class})
 public class EntityCostConfig {
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private CostDBConfig databaseConfig;
+
+    @Autowired
+    private CostNotificationConfig costNotificationConfig;
 
     @Value("${persistEntityCostChunkSize}")
     private int persistEntityCostChunkSize;
 
     @Autowired
     private MarketComponent marketComponent;
+
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
+
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
+
+    @Autowired
+    private SupplyChainServiceConfig supplyChainServiceConfig;
 
     @Bean
     public EntityCostStore entityCostStore() {
@@ -35,19 +53,22 @@ public class EntityCostConfig {
 
     @Bean
     public ProjectedEntityCostStore projectedEntityCostStore() {
-        return new ProjectedEntityCostStore();
+        return new ProjectedEntityCostStore(repositoryClientConfig.repositoryClient(),
+                supplyChainServiceConfig.supplyChainRpcService(), realtimeTopologyContextId);
     }
 
     @Bean
     public PlanProjectedEntityCostStore planProjectedEntityCostStore() {
-        return new PlanProjectedEntityCostStore(databaseConfig.dsl(), persistEntityCostChunkSize);
+        return new PlanProjectedEntityCostStore(databaseConfig.dsl(),
+                persistEntityCostChunkSize);
     }
 
     @Bean
     public CostComponentProjectedEntityCostListener projectedEntityCostListener() {
         final CostComponentProjectedEntityCostListener projectedEntityCostListener =
                 new CostComponentProjectedEntityCostListener(projectedEntityCostStore(),
-                                                             planProjectedEntityCostStore());
+                        planProjectedEntityCostStore(),
+                        costNotificationConfig.costNotificationSender());
         marketComponent.addProjectedEntityCostsListener(projectedEntityCostListener);
         return projectedEntityCostListener;
     }

@@ -28,7 +28,7 @@ import reactor.core.publisher.Mono;
 
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.components.common.mapping.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 
 /**

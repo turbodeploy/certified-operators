@@ -15,19 +15,25 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
-import com.vmturbo.action.orchestrator.stats.ImmutableSingleActionSnapshot;
+import com.vmturbo.action.orchestrator.stats.ImmutableStatsActionView;
+import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician.PreviousBroadcastActions;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
-import com.vmturbo.action.orchestrator.stats.SingleActionSnapshotFactory.SingleActionSnapshot;
+import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator.GlobalAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
+import com.vmturbo.action.orchestrator.stats.groups.ImmutableActionGroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.ImmutableMgmtUnitSubgroup;
 import com.vmturbo.action.orchestrator.stats.groups.ImmutableMgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -41,6 +47,12 @@ public class GlobalActionAggregatorTest {
 
     private final GlobalAggregatorFactory aggregatorFactory = new GlobalAggregatorFactory();
 
+    private final ActionGroupKey actionGroupKey = ImmutableActionGroupKey.builder()
+        .actionType(ActionType.MOVE)
+        .actionMode(ActionMode.RECOMMEND)
+        .category(ActionCategory.PERFORMANCE_ASSURANCE)
+        .actionState(ActionState.READY).build();
+
     @Test
     public void testOnPremGlobalAndPerEntityRecords() {
         final ActionDTO.Action onPremSavingsAction = Action.newBuilder()
@@ -51,30 +63,29 @@ public class GlobalActionAggregatorTest {
                         .setId(7)
                         .setType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .setEnvironmentType(EnvironmentType.ON_PREM))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .setExplanation(Explanation.getDefaultInstance())
             .build();
 
         final GlobalActionAggregator aggregator = aggregatorFactory.newAggregator(TIME);
 
         final int actionGroupId = 123;
-        final ActionGroupKey actionGroupKey = mock(ActionGroupKey.class);
         final ActionGroup actionGroup = mock(ActionGroup.class);
         when(actionGroup.id()).thenReturn(actionGroupId);
-        SingleActionSnapshot savingsSnapshot = ImmutableSingleActionSnapshot.builder()
-                .actionGroupKey(actionGroupKey)
-                .recommendation(onPremSavingsAction)
-                .addInvolvedEntities(ActionEntity.newBuilder()
-                        .setId(7)
-                        .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .build())
-                .addInvolvedEntities(ActionEntity.newBuilder()
-                        .setId(77)
-                        .setType(EntityType.PHYSICAL_MACHINE_VALUE)
-                        .build())
-                .build();
+        StatsActionView savingsSnapshot = ImmutableStatsActionView.builder()
+            .actionGroupKey(actionGroupKey)
+            .recommendation(onPremSavingsAction)
+            .addInvolvedEntities(ActionEntity.newBuilder()
+                .setId(7)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build())
+            .addInvolvedEntities(ActionEntity.newBuilder()
+                .setId(77)
+                .setType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .build())
+            .build();
 
-        aggregator.processAction(savingsSnapshot);
+        aggregator.processAction(savingsSnapshot, new PreviousBroadcastActions());
 
         final MgmtUnitSubgroup globalSubgroup = ImmutableMgmtUnitSubgroup.builder()
                 .id(987)
@@ -121,6 +132,7 @@ public class GlobalActionAggregatorTest {
         ActionStatsLatestRecord globalRecord = recordsByMgmtUnitSubgroup.get(globalSubgroup.id());
         assertThat(globalRecord.getTotalEntityCount(), is(2));
         assertThat(globalRecord.getTotalActionCount(), is(1));
+        assertThat(globalRecord.getNewActionCount(), is(1));
     }
 
     @Test
@@ -135,23 +147,22 @@ public class GlobalActionAggregatorTest {
             .setInfo(ActionInfo.newBuilder()
                 .setActivate(Activate.newBuilder()
                     .setTarget(entity)))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .setExplanation(Explanation.getDefaultInstance())
             .build();
 
         final GlobalActionAggregator aggregator = aggregatorFactory.newAggregator(TIME);
 
         final int actionGroupId = 123;
-        final ActionGroupKey actionGroupKey = mock(ActionGroupKey.class);
         final ActionGroup actionGroup = mock(ActionGroup.class);
         when(actionGroup.id()).thenReturn(actionGroupId);
-        SingleActionSnapshot savingsSnapshot = ImmutableSingleActionSnapshot.builder()
+        StatsActionView savingsSnapshot = ImmutableStatsActionView.builder()
             .actionGroupKey(actionGroupKey)
             .recommendation(cloudSavingsAction)
             .addInvolvedEntities(entity)
             .build();
 
-        aggregator.processAction(savingsSnapshot);
+        aggregator.processAction(savingsSnapshot, new PreviousBroadcastActions());
 
         final MgmtUnitSubgroup globalSubgroup = ImmutableMgmtUnitSubgroup.builder()
             .id(987)
@@ -185,6 +196,7 @@ public class GlobalActionAggregatorTest {
         ActionStatsLatestRecord globalRecord = recordsByMgmtUnitSubgroup.get(globalSubgroup.id());
         assertThat(globalRecord.getTotalEntityCount(), is(1));
         assertThat(globalRecord.getTotalActionCount(), is(1));
+        assertThat(globalRecord.getNewActionCount(), is(1));
     }
 
     /**
@@ -197,7 +209,7 @@ public class GlobalActionAggregatorTest {
     public void testHybridGlobalAndPerEntityRecords() {
         final ActionEntity app = ActionEntity.newBuilder()
             .setId(7)
-            .setType(EntityType.APPLICATION_VALUE)
+            .setType(EntityType.APPLICATION_COMPONENT_VALUE)
             .setEnvironmentType(EnvironmentType.ON_PREM)
             .build();
         final ActionEntity onPremVm = ActionEntity.newBuilder()
@@ -219,17 +231,16 @@ public class GlobalActionAggregatorTest {
                     .addChanges(ChangeProvider.newBuilder()
                         .setSource(onPremVm)
                         .setDestination(cloudVm))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .setExplanation(Explanation.getDefaultInstance())
             .build();
 
         final GlobalActionAggregator aggregator = aggregatorFactory.newAggregator(TIME);
 
         final int actionGroupId = 123;
-        final ActionGroupKey actionGroupKey = mock(ActionGroupKey.class);
         final ActionGroup actionGroup = mock(ActionGroup.class);
         when(actionGroup.id()).thenReturn(actionGroupId);
-        SingleActionSnapshot savingsSnapshot = ImmutableSingleActionSnapshot.builder()
+        StatsActionView savingsSnapshot = ImmutableStatsActionView.builder()
             .actionGroupKey(actionGroupKey)
             .recommendation(hybridAction)
             .addInvolvedEntities(app)
@@ -237,7 +248,7 @@ public class GlobalActionAggregatorTest {
             .addInvolvedEntities(cloudVm)
             .build();
 
-        aggregator.processAction(savingsSnapshot);
+        aggregator.processAction(savingsSnapshot, new PreviousBroadcastActions());
 
         final MgmtUnitSubgroup globalSubgroup = ImmutableMgmtUnitSubgroup.builder()
             .id(987)
@@ -248,10 +259,10 @@ public class GlobalActionAggregatorTest {
                 .mgmtUnitId(0)
                 .build())
             .build();
-        final MgmtUnitSubgroup appSubgroup = ImmutableMgmtUnitSubgroup.builder()
+        final MgmtUnitSubgroup appCompSubgroup = ImmutableMgmtUnitSubgroup.builder()
             .id(231)
             .key(ImmutableMgmtUnitSubgroupKey.builder()
-                .entityType(EntityType.APPLICATION_VALUE)
+                .entityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .environmentType(EnvironmentType.ON_PREM)
                 .mgmtUnitType(ManagementUnitType.GLOBAL)
                 .mgmtUnitId(0)
@@ -269,7 +280,8 @@ public class GlobalActionAggregatorTest {
 
         // Expect one record for VM, and one record for PM
         final Map<Integer, ActionStatsLatestRecord> recordsByMgmtUnitSubgroup = aggregator.createRecords(
-            ImmutableMap.of(globalSubgroup.key(), globalSubgroup, vmSubgroup.key(), vmSubgroup, appSubgroup.key(), appSubgroup),
+            ImmutableMap.of(globalSubgroup.key(), globalSubgroup, vmSubgroup.key(), vmSubgroup,
+                    appCompSubgroup.key(), appCompSubgroup),
             ImmutableMap.of(actionGroupKey, actionGroup))
             .collect(Collectors.toMap(ActionStatsLatestRecord::getMgmtUnitSubgroupId, Function.identity()));
 
@@ -277,12 +289,13 @@ public class GlobalActionAggregatorTest {
         assertThat(vmRecord.getTotalEntityCount(), is(2));
         assertThat(vmRecord.getTotalActionCount(), is(1));
 
-        ActionStatsLatestRecord appRecord = recordsByMgmtUnitSubgroup.get(appSubgroup.id());
+        ActionStatsLatestRecord appRecord = recordsByMgmtUnitSubgroup.get(appCompSubgroup.id());
         assertThat(appRecord.getTotalEntityCount(), is(1));
         assertThat(appRecord.getTotalActionCount(), is(1));
 
         ActionStatsLatestRecord globalRecord = recordsByMgmtUnitSubgroup.get(globalSubgroup.id());
         assertThat(globalRecord.getTotalEntityCount(), is(3));
         assertThat(globalRecord.getTotalActionCount(), is(1));
+        assertThat(globalRecord.getNewActionCount(), is(1));
     }
 }

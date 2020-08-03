@@ -3,57 +3,72 @@ dependencies:
   - name: arangodb
     repository: file://../base/arangodb
     version: 0.1.0
+    condition: control.enabled,platform.enabled
   - name: consul
     repository: file://../base/consul
     version: 0.1.0
+    condition: platform.enabled
   - name: db
     repository: file://../base/db
     version: 0.1.0
+    condition: platform.enabled
   - name: influxdb
     repository: file://../base/influxdb
     version: 0.1.0
     condition: metron.enabled
+  - name: postgresql
+    repository: file://../base/postgresql
+    version: 8.9.6
+    condition: timescaledb.enabled,extractor.enabled,reporting.enabled
   - name: kafka
     repository: file://../base/kafka
     version: 0.1.0
+    condition: platform.enabled
   - name: nginx
     repository: file://../base/nginx
     version: 0.1.0
-    condition: ui.enabled
+    condition: nginxingress.enabled
   - name: rsyslog
     repository: file://../base/rsyslog
     version: 0.1.0
   - name: zookeeper
     repository: file://../base/zookeeper
     version: 0.1.0
+    condition: platform.enabled
 
 # Services dependencies
   - name: api
     repository: file://../services/api
     version: 0.1.0
-    condition: ui.enabled
+    condition: platform.enabled
   - name: auth
     repository: file://../services/auth
     version: 0.1.0
+    condition: platform.enabled
   - name: action-orchestrator
     repository: file://../services/action-orchestrator
     version: 0.1.0
+    condition: control.enabled,platform.enabled
   - name: clustermgr
     repository: file://../services/clustermgr
     version: 0.1.0
+    condition: platform.enabled
   - name: cost
     repository: file://../services/cost
     version: 0.1.0
+    condition: control.enabled,platform.enabled
   - name: group
     repository: file://../services/group
     version: 0.1.0
+    condition: platform.enabled
   - name: history
     repository: file://../services/history
     version: 0.1.0
-    condition: history.enabled
+    condition: control.enabled,platform.enabled
   - name: market
     repository: file://../services/market
     version: 0.1.0
+    condition: control.enabled,platform.enabled
   - name: ml-datastore
     repository: file://../services/ml-datastore
     version: 0.1.0
@@ -61,20 +76,23 @@ dependencies:
   - name: ml-training
     repository: file://../services/ml-training
     version: 0.1.0
-    condition: metron.enabled
+    condition: training.enabled
   - name: plan-orchestrator
     repository: file://../services/plan-orchestrator
     version: 0.1.0
-  - name: reporting
-    repository: file://../services/reporting
-    version: 0.1.0
-    condition: reporting.enabled
+    condition: control.enabled,platform.enabled
   - name: repository
     repository: file://../services/repository
     version: 0.1.0
+    condition: platform.enabled
   - name: topology-processor
     repository: file://../services/topology-processor
     version: 0.1.0
+    condition: platform.enabled
+  - name: extractor
+    repository: file://../services/extractor
+    version: 0.1.0
+    condition: extractor.enabled # todo: change to platform.enabled once XLR/search is ready
 
 # Logging dependencies
   - name: elasticsearch
@@ -89,16 +107,60 @@ dependencies:
     repository: file://../base/logstash
     version: 1.7.0
     condition: global.elk
+  - name: loki
+    repository: file://../base/loki
+    version: "^0.20.0"
+    condition: loki.enabled
+  - name: promtail
+    repository: file://../base/promtail
+    version: "^0.15.0"
+    condition: promtail.enabled
+  - name: fluent-bit
+    repository: file://../base/fluent-bit
+    version: "^0.0.2"
+    condition: fluent-bit.enabled
 
-  # Monitoring dependencies
+# Monitoring dependencies
   - name: prometheus
     repository: file://../base/prometheus
-    version: 8.9.1
+    version: 9.5.0
     condition: prometheus.enabled
+  - name: prometheus-mysql-exporter
+    repository: file://../base/prometheus-mysql-exporter
+    version: 0.5.2
+    condition: prometheus-mysql-exporter.enabled
   - name: grafana
     repository: file://../base/grafana
-    version: 3.0.1
-    condition: grafana.enabled
+    version: 5.1.25
+    condition: grafana.enabled,reporting.enabled
+  - name: kubeturbo
+    repository: file://../base/kubeturbo
+    version: 0.1.0
+    condition: kubeturbo.enabled
+  - name: prometurbo
+    repository: file://../base/prometurbo
+    version: 0.1.0
+    condition: prometurbo.enabled
+  - name: chronograf
+    repository: file://../base/chronograf
+    version: 1.1.0
+    condition: chronograf.enabled
+  - name: datacloud
+    repository: file://../base/datacloud
+    version: 0.1.0
+    condition: datacloud.enabled
+
+# Tracing dependencies
+  - name: jaeger-operator
+    repository: file://../base/jaeger-operator
+    version: 2.15.1
+    condition: jaeger-operator.enabled
+
+# Integration dependencies
+  - name: intersight-integration
+    repository: file://../services/intersight-integration
+    version: 0.1.0
+    condition: intersight-integration.enabled
 
 # Mediation dependencies
   - name: mediation-actionscript
@@ -113,6 +175,10 @@ dependencies:
     repository: file://../probes/mediation-appdynamics
     version: 0.1.0
     condition: appdynamics.enabled
+  - name: mediation-appinsights
+    repository: file://../probes/mediation-appinsights
+    version: 0.1.0
+    condition: appinsights.enabled
   - name: mediation-aws
     repository: file://../probes/mediation-aws
     version: 0.1.0
@@ -120,11 +186,19 @@ dependencies:
   - name: mediation-awsbilling
     repository: file://../probes/mediation-awsbilling
     version: 0.1.0
-    condition: awsbilling.enabled
+    condition: aws.enabled
   - name: mediation-awscost
     repository: file://../probes/mediation-awscost
     version: 0.1.0
-    condition: awscost.enabled
+    condition: aws.enabled
+  - name: mediation-baremetal
+    repository: file://../probes/mediation-baremetal
+    version: 0.1.0
+    condition: baremetal.enabled
+  - name: mediation-datadog
+    repository: file://../probes/mediation-datadog
+    version: 0.1.0
+    condition: datadog.enabled
   - name: mediation-awslambda
     repository: file://../probes/mediation-awslambda
     version: 0.1.0
@@ -136,11 +210,19 @@ dependencies:
   - name: mediation-azurecost
     repository: file://../probes/mediation-azurecost
     version: 0.1.0
-    condition: azurecost.enabled
+    condition: azure.enabled
+  - name: mediation-azureea
+    repository: file://../probes/mediation-azureea
+    version: 0.1.0
+    condition: azure.enabled
+  - name: mediation-azuresp
+    repository: file://../probes/mediation-azuresp
+    version: 0.1.0
+    condition: azure.enabled
   - name: mediation-azurevolumes
     repository: file://../probes/mediation-azurevolumes
     version: 0.1.0
-    condition: azurevolumes.enabled
+    condition: azure.enabled
   - name: mediation-cloudfoundry
     repository: file://../probes/mediation-cloudfoundry
     version: 0.1.0
@@ -149,10 +231,22 @@ dependencies:
     repository: file://../probes/mediation-compellent
     version: 0.1.0
     condition: compellent.enabled
+  - name: mediation-customdata
+    repository: file://../probes/mediation-customdata
+    version: 0.1.0
+    condition: customdata.enabled
   - name: mediation-dynatrace
     repository: file://../probes/mediation-dynatrace
     version: 0.1.0
     condition: dynatrace.enabled
+  - name: mediation-gcp
+    repository: file://../probes/mediation-gcp
+    version: 0.1.0
+    condition: gcp.enabled
+  - name: mediation-gcpcost
+    repository: file://../probes/mediation-gcpcost
+    version: 0.1.0
+    condition: gcp.enabled
   - name: mediation-hds
     repository: file://../probes/mediation-hds
     version: 0.1.0
@@ -173,6 +267,18 @@ dependencies:
     repository: file://../probes/mediation-hyperv
     version: 0.1.0
     condition: hyperv.enabled
+  - name: mediation-intersight
+    repository: file://../probes/mediation-intersight
+    version: 0.1.0
+    condition: intersight.enabled
+  - name: mediation-intersighthyperflex
+    repository: file://../probes/mediation-intersighthyperflex
+    version: 0.1.0
+    condition: intersight.enabled
+  - name: mediation-intersightucs
+    repository: file://../probes/mediation-intersightucs
+    version: 0.1.0
+    condition: intersight.enabled
   - name: mediation-istio
     repository: file://../probes/mediation-istio
     version: 0.1.0
@@ -185,10 +291,22 @@ dependencies:
     repository: file://../probes/mediation-netflow
     version: 0.1.0
     condition: netflow.enabled
+  - name: mediation-newrelic
+    repository: file://../probes/mediation-newrelic
+    version: 0.1.0
+    condition: newrelic.enabled
+  - name: mediation-nutanix
+    repository: file://../probes/mediation-nutanix
+    version: 0.1.0
+    condition: nutanix.enabled
   - name: mediation-mssql
     repository: file://../probes/mediation-mssql
     version: 0.1.0
     condition: mssql.enabled
+  - name: mediation-mysql
+    repository: file://../probes/mediation-mysql
+    version: 0.1.0
+    condition: mysql.enabled
   - name: mediation-oneview
     repository: file://../probes/mediation-oneview
     version: 0.1.0
@@ -213,10 +331,18 @@ dependencies:
     repository: file://../probes/mediation-scaleio
     version: 0.1.0
     condition: scaleio.enabled
+  - name: mediation-servicenow
+    repository: file://../probes/mediation-servicenow
+    version: 0.1.0
+    condition: servicenow.enabled
   - name: mediation-snmp
     repository: file://../probes/mediation-snmp
     version: 0.1.0
     condition: snmp.enabled
+  - name: mediation-terraform
+    repository: file://../probes/mediation-terraform
+    version: 0.1.0
+    condition: terraform.enabled
   - name: mediation-tetration
     repository: file://../probes/mediation-tetration
     version: 0.1.0
@@ -229,6 +355,10 @@ dependencies:
     repository: file://../probes/mediation-ucsdirector
     version: 0.1.0
     condition: ucsdirector.enabled
+  - name: mediation-udt
+    repository: file://../probes/mediation-udt
+    version: 0.1.0
+    condition: udt.enabled
   - name: mediation-vcenter
     repository: file://../probes/mediation-vcenter
     version: 0.1.0
@@ -236,7 +366,7 @@ dependencies:
   - name: mediation-vcenterbrowsing
     repository: file://../probes/mediation-vcenterbrowsing
     version: 0.1.0
-    condition: vcenterbrowsing.enabled
+    condition: vcenter.enabled
   - name: mediation-vcd
     repository: file://../probes/mediation-vcd
     version: 0.1.0

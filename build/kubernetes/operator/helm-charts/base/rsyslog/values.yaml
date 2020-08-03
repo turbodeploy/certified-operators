@@ -2,6 +2,8 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+annotations: {}
+
 replicaCount: 1
 
 image:
@@ -9,10 +11,12 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+#env:
+  # - name: EXTERNAL_AUDITLOG
+  #   value: rsyslog-audit.company.com:514
+
+persistence:
+  logsize: 30Gi
+  auditsize: 30Gi
+
 resources: {}
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}

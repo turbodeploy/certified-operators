@@ -1,169 +1,91 @@
 package com.vmturbo.auth.component.store;
 
+import static com.vmturbo.auth.api.authorization.IAuthorizationVerifier.PROVIDER_CLAIM;
 import static com.vmturbo.auth.api.authorization.IAuthorizationVerifier.SCOPE_CLAIM;
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP_ADDRESS_CLAIM;
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.UUID_CLAIM;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PREDEFINED_SECURITY_GROUPS_SET;
+import static com.vmturbo.auth.component.store.AuthProviderHelper.areValidRoles;
+import static com.vmturbo.auth.component.store.AuthProviderHelper.changePasswordAllowed;
+import static com.vmturbo.auth.component.store.AuthProviderHelper.mayAlterUserWithRoles;
+import static com.vmturbo.auth.component.store.AuthProviderHelper.roleMatched;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+
+import io.jsonwebtoken.CompressionCodecs;
+import io.jsonwebtoken.JwtBuilder;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.CompressionCodecs;
-import io.jsonwebtoken.Jws;
-import io.jsonwebtoken.JwtBuilder;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.impl.crypto.EllipticCurveProvider;
-
-import com.vmturbo.api.enums.UserRole;
-import com.vmturbo.auth.api.JWTKeyCodec;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
+import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
-import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
+import com.vmturbo.auth.component.widgetset.WidgetsetDbStore;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**
  * The consul-backed authentication store that holds the users information.
  */
 @ThreadSafe
-public class AuthProvider {
+public class AuthProvider extends AuthProviderBase {
 
-    /**
-     * The KV prefix.
-     */
-    @VisibleForTesting
-    static final String PREFIX = "users/";
-
-    /**
-     * The KV AD prefix.
-     */
-    private static final String PREFIX_AD = "ad/info";
-
-    private static final String PREFIX_GROUP = "groups/";
-
-    /**
-     * The key location property
-     */
-    private static final String VMT_PRIVATE_KEY_DIR_PARAM = "com.vmturbo.kvdir";
-
-    /**
-     * The default encryption key location
-     */
-    private static final String VMT_PRIVATE_KEY_DIR = "/home/turbonomic/data/kv";
-
-    /**
-     * The keystore data file name
-     */
-    private static final String VMT_PRIVATE_KEY_FILE = "vmt_helper_kv.inout";
-
-    /**
-     * The admin initialization file name
-     */
-    private static final String VMT_INIT_KEY_FILE = "vmt_helper_init.inout";
-
-    /**
-     * The charset for the passwords
-     */
-    private static final String CHARSET_CRYPTO = "UTF-8";
-
-    /**
-     * The expiration time is 10 minutes.
-     */
-    private static final int TOKEN_EXPIRATION_MIN = 10;
-    public static final String UNABLE_TO_AUTHORIZE_THE_USER = "Unable to authorize the user: ";
-    public static final String WITH_GROUP = " with group: ";
-    public static final String AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER =
+    private static final String UNABLE_TO_AUTHORIZE_THE_USER = "Unable to authorize the user: ";
+    private static final String WITH_GROUP = " with group: ";
+    private static final String AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER =
             "AUDIT::SUCCESS: Success authenticating user: ";
+    private final AuthInitProvider authInitProvider;
 
-    /**
-     * The private key.
-     * It is protected by synchronization on the instance.
-     */
-    private PrivateKey privateKey_ = null;
-
-    /**
-     * The logger
-     */
     private final Logger logger_ = LogManager.getLogger(AuthProvider.class);
-
-    /**
-     * The JSON builder.
-     */
-    private static final Gson GSON = new GsonBuilder().create();
-
-    /**
-     * The init claim.
-     */
-    private static final String CLAIM = "initStatus";
-
-    /**
-     * The init status.
-     */
-    private static final String INIT_SUBJECT = "admin";
-
-    /**
-     * The key/value store.
-     */
-    @GuardedBy("storeLock")
-    private final @Nonnull KeyValueStore keyValueStore_;
-
-    /**
-     * Locks for write operations on target storages.
-     */
-    private final Object storeLock_ = new Object();
 
     /**
      * The AD provider.
      */
     private final @Nonnull SsoUtil ssoUtil;
 
-    /**
-     * The transient SSO group-based users.
-     */
-    private final Map<String, String> ssoUsersToUuid_ =
-            Collections.synchronizedMap(new HashMap<>());
+    private final UserPolicy userPolicy;
 
     /**
      * The identity generator prefix
@@ -172,43 +94,37 @@ public class AuthProvider {
     private long identityGeneratorPrefix_;
 
     /**
+     * We may sometimes call the group service to verify scope groups.
+     */
+    private final Optional<GroupServiceBlockingStub> groupServiceClient;
+
+    /**
+     * Store for managing widgetsets belonging to a user.
+     */
+    private final WidgetsetDbStore widgetsetDbStore;
+
+    /**
      * Constructs the KV store.
      *
      * @param keyValueStore The underlying store backend.
+     * @param groupServiceClient gRPC client to access the group service.
+     * @param keyValueDir Function to provide the directory to store private key value data.
+     * @param widgetsetDbStore The store for managing widgetsets.
+     * @param userPolicy The system-wide user policy.
      */
-    public AuthProvider(@Nonnull final KeyValueStore keyValueStore) {
-        keyValueStore_ = Objects.requireNonNull(keyValueStore);
+    public AuthProvider(@Nonnull final KeyValueStore keyValueStore,
+                        @Nullable final GroupServiceBlockingStub groupServiceClient,
+                        @Nonnull final Supplier<String> keyValueDir,
+                        @Nullable final WidgetsetDbStore widgetsetDbStore,
+                        @Nonnull UserPolicy userPolicy) {
+        super(keyValueStore);
+        authInitProvider = new AuthInitProvider(keyValueStore, keyValueDir);
         ssoUtil = new SsoUtil();
         IdentityGenerator.initPrefix(identityGeneratorPrefix_);
+        this.groupServiceClient = Optional.ofNullable(groupServiceClient);
+        this.widgetsetDbStore = widgetsetDbStore;
+        this.userPolicy = userPolicy;
     }
-
-    /**
-     * Generates an AUTH token for the specified user.
-     *
-     * @param userName The user name.
-     * @param uuid     The UUID.
-     * @param roles    The role names.
-     * @return The generated JWT token.
-     */
-    private @Nonnull JWTAuthorizationToken generateToken(final @Nonnull String userName,
-                                                         final @Nonnull String uuid,
-                                                         final @Nonnull List<String> roles,
-                                                         final @Nullable List<Long> scopeGroups) {
-        final PrivateKey privateKey = getEncryptionKeyForVMTurboInstance();
-        JwtBuilder jwtBuilder = Jwts.builder()
-                             .setSubject(userName)
-                             .claim(IAuthorizationVerifier.ROLE_CLAIM, roles)
-                             .claim(UUID_CLAIM, uuid)
-                             .compressWith(CompressionCodecs.GZIP)
-                             .signWith(SignatureAlgorithm.ES256, privateKey);
-        // any scopes, does the user have?
-        if (CollectionUtils.isNotEmpty(scopeGroups)) {
-            jwtBuilder.claim(SCOPE_CLAIM, scopeGroups);
-        }
-        String compact = jwtBuilder.compact();
-        return new JWTAuthorizationToken(compact);
-    }
-
 
     /**
      * Generates an AUTH token for the specified user with remote IP address.
@@ -216,20 +132,24 @@ public class AuthProvider {
      * @param userName  The user name.
      * @param uuid      The UUID.
      * @param roles     The role names.
+     * @param scopeGroups The groups in the scope to which the user has access
      * @param ipAddress The remote IP address.
+     * @param provider The login provider.
      * @return The generated JWT token.
      */
     private @Nonnull JWTAuthorizationToken generateToken(final @Nonnull String userName,
                                                          final @Nonnull String uuid,
                                                          final @Nonnull List<String> roles,
                                                          final @Nullable List<Long> scopeGroups,
-                                                         final @Nonnull String ipAddress) {
-        final PrivateKey privateKey = getEncryptionKeyForVMTurboInstance();
+                                                         final @Nonnull String ipAddress,
+                                                         final @Nonnull AuthUserDTO.PROVIDER provider) {
+        final PrivateKey privateKey = authInitProvider.getEncryptionKeyForVMTurboInstance();
         JwtBuilder jwtBuilder = Jwts.builder()
                 .setSubject(userName)
                 .claim(IP_ADDRESS_CLAIM, ipAddress)
                 .claim(IAuthorizationVerifier.ROLE_CLAIM, roles)
                 .claim(UUID_CLAIM, uuid)
+                .claim(PROVIDER_CLAIM, provider)
                 .compressWith(CompressionCodecs.GZIP)
                 .signWith(SignatureAlgorithm.ES256, privateKey);
         // any scopes, does the user have?
@@ -239,48 +159,6 @@ public class AuthProvider {
         String compact = jwtBuilder.compact();
 
         return new JWTAuthorizationToken(compact);
-    }
-
-    /**
-     * This method gets the private key that is stored in the dedicated docker volume.
-     *
-     * @return The private key that is stored in the dedicated docker volume.
-     */
-    private synchronized @Nonnull PrivateKey getEncryptionKeyForVMTurboInstance() {
-        if (privateKey_ != null) {
-            return privateKey_;
-        }
-
-        final String location = System.getProperty(VMT_PRIVATE_KEY_DIR_PARAM, VMT_PRIVATE_KEY_DIR);
-        Path encryptionFile = Paths.get(location + "/" + VMT_PRIVATE_KEY_FILE);
-        try {
-            if (Files.exists(encryptionFile)) {
-                byte[] keyBytes = Files.readAllBytes(encryptionFile);
-                String cipherText = new String(keyBytes, CHARSET_CRYPTO);
-                privateKey_ = JWTKeyCodec.decodePrivateKey(CryptoFacility.decrypt(cipherText));
-                return privateKey_;
-            }
-
-            // We don't have the file or it is of the wrong length.
-            Path outputDir = Paths.get(location);
-            if (!Files.exists(outputDir)) {
-                Files.createDirectories(outputDir);
-            }
-
-            KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-            String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
-            String publicKeyEncoded = JWTKeyCodec.encodePublicKey(keyPair);
-
-            // Persist
-            Files.write(encryptionFile,
-                        CryptoFacility.encrypt(privateKeyEncoded).getBytes(CHARSET_CRYPTO));
-            keyValueStore_.put(IAuthStore.KV_KEY, publicKeyEncoded);
-            privateKey_ = keyPair.getPrivate();
-        } catch (IOException e) {
-            throw new SecurityException(e);
-        }
-
-        return privateKey_;
     }
 
     /**
@@ -306,38 +184,27 @@ public class AuthProvider {
     }
 
     /**
-     * Retrieves the value for the key from the KV store.
+     * Compose the key path for the given user in external group, which will look like:
+     * "groupusers/{groupName}/{userName}".
      *
-     * @param key The key.
-     * @return The Optional value.
+     * @param externalGroup name of the external group
+     * @param userName name of user in the given external group
+     * @return key for the user in external group
      */
-    private Optional<String> getKVValue(final @Nonnull String key) {
-        synchronized (storeLock_) {
-            return keyValueStore_.get(key);
-        }
+    private String composeExternalGroupUserInfoKey(final @Nonnull String externalGroup,
+                                                   final @Nonnull String userName) {
+        return PREFIX_GROUP_USERS + externalGroup.toUpperCase() + "/" + userName.toUpperCase();
     }
 
     /**
-     * Puts the value for the key into the KV store.
+     * Compose the key path for the external group which keeps users belonging to the group, which
+     * will look like: "groupusers/{groupName}/".
      *
-     * @param key   The key.
-     * @param value The value.
+     * @param externalGroup name of the external group
+     * @return key for the external group where all belonging users are kept
      */
-    private void putKVValue(final @Nonnull String key, final @Nonnull String value) {
-        synchronized (storeLock_) {
-            keyValueStore_.put(key, value);
-        }
-    }
-
-    /**
-     * Removes the value for the key in the KV store.
-     *
-     * @param key The key.
-     */
-    private void removeKVKey(final @Nonnull String key) {
-        synchronized (storeLock_) {
-            keyValueStore_.remove(key);
-        }
+    private String composeExternalGroupUsersInfoKey(final @Nonnull String externalGroup) {
+        return PREFIX_GROUP_USERS + externalGroup.toUpperCase() + "/";
     }
 
     /**
@@ -351,47 +218,14 @@ public class AuthProvider {
      */
     public boolean checkAdminInit() throws SecurityException {
         // Make sure we have initialized the site secret.
-        getEncryptionKeyForVMTurboInstance();
         // The file contains the flag that specifies whether admin user has been initialized.
-        final String location = System.getProperty(VMT_PRIVATE_KEY_DIR_PARAM, VMT_PRIVATE_KEY_DIR);
-        Path encryptionFile = Paths.get(location + "/" + VMT_INIT_KEY_FILE);
-        try {
-            if (Files.exists(encryptionFile)) {
-                byte[] keyBytes = Files.readAllBytes(encryptionFile);
-                String cipherText = new String(keyBytes, CHARSET_CRYPTO);
-                String token = CryptoFacility.decrypt(cipherText);
-                Optional<String> key = keyValueStore_.get(IAuthStore.KV_KEY);
-                if (!key.isPresent()) {
-                    throw new SecurityException("The public key is unavailable");
-                }
-                final Jws<Claims> claims =
-                        Jwts.parser().setSigningKey(JWTKeyCodec.decodePublicKey(key.get()))
-                            .parseClaimsJws(token);
-                final String status = (String)claims.getBody().get(CLAIM);
-                // Check subject.
-                if (!INIT_SUBJECT.equals(claims.getBody().getSubject())) {
-                    throw new SecurityException(
-                            "The admin instantiation status has been tampered with.");
-                }
-                // Check status validity
-                if (!"true".equals(status) && !"false".equals(status)) {
-                    throw new SecurityException(
-                            "The admin instantiation status has been tampered with.");
-                }
-                return Boolean.parseBoolean(status);
-            } else {
-                logger_.info("The admin user hasn't been initialized yet.");
-            }
-            return false;
-        } catch (IOException e) {
-            throw new SecurityException(e);
-        }
+        return authInitProvider.checkAdminInit();
     }
 
     /**
-     * Initializes an admin user.
+     * Initializes an admin user and creates predefined external groups for all roles in XL.
      * When the XL first starts up, there is no user defined in the XL.
-     * The first required step is to instantiate an admin user.
+     * The first required step is to instantiate an admin user and creates predefined external groups for all roles in XL.
      * This should only be called once. If it is called more than once, this method will return
      * {@code false}.
      *
@@ -404,29 +238,21 @@ public class AuthProvider {
                              final @Nonnull String password)
             throws SecurityException {
         // Make sure we have initialized the site secret.
-        getEncryptionKeyForVMTurboInstance();
-        final String location = System.getProperty(VMT_PRIVATE_KEY_DIR_PARAM, VMT_PRIVATE_KEY_DIR);
-        Path encryptionFile = Paths.get(location + "/" + VMT_INIT_KEY_FILE);
-        try {
-            if (Files.exists(encryptionFile)) {
+        if (authInitProvider.initAdmin(userName, password)) {
+            try {
+                String adminUser = addImpl(AuthUserDTO.PROVIDER.LOCAL, userName, password,
+                        ImmutableList.of(ADMINISTRATOR), null);
+                createPredefinedExternalGroups();
+                return !adminUser.isEmpty();
+            } catch (IllegalArgumentException e) {
                 return false;
             }
-
-            String compact = Jwts.builder()
-                                 .setSubject(INIT_SUBJECT)
-                                 .claim(CLAIM, "true")
-                                 .compressWith(CompressionCodecs.GZIP)
-                                 .signWith(SignatureAlgorithm.ES256, privateKey_)
-                                 .compact();
-
-            // Persist the intialization status.
-            Files.write(encryptionFile,
-                        CryptoFacility.encrypt(compact).getBytes(CHARSET_CRYPTO));
-            return addImpl(AuthUserDTO.PROVIDER.LOCAL, userName, password,
-                           ImmutableList.of("ADMINISTRATOR"), null);
-        } catch (IOException e) {
-            throw new SecurityException(e);
         }
+        return false;
+    }
+
+    private void createPredefinedExternalGroups() {
+        PREDEFINED_SECURITY_GROUPS_SET.forEach(securityGroup -> addSecurityGroupImpl(securityGroup));
     }
 
     /**
@@ -434,11 +260,12 @@ public class AuthProvider {
      *
      * @param info     The user info.
      * @param password The password.
+     * @param ipAddress IP address.
      * @return The JWTAuthorizationToken if successful.
      * @throws AuthenticationException In case of error authenticating AD user.
      */
     private @Nonnull JWTAuthorizationToken authenticateADUser(final @Nonnull UserInfo info,
-                                                              final @Nonnull String password)
+            final @Nonnull String password, final @Nonnull String ipAddress)
             throws AuthenticationException {
         reloadSSOConfiguration();
         try {
@@ -448,7 +275,7 @@ public class AuthProvider {
             throw new AuthenticationException(e);
         }
         logger_.info("AUDIT::SUCCESS: Success authenticating user: " + info.userName);
-        return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups);
+        return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups, ipAddress, info.provider);
     }
 
 
@@ -462,7 +289,8 @@ public class AuthProvider {
     private @Nonnull JWTAuthorizationToken authorizeSAMLUser(final @Nonnull UserInfo info,
                                                              final @Nonnull String ipaddress) {
         logger_.info("AUDIT::SUCCESS: Success authorizing user: " + info.userName);
-        return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups, ipaddress);
+        return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups, ipaddress,
+                info.provider);
     }
 
     /**
@@ -470,11 +298,12 @@ public class AuthProvider {
      *
      * @param userName The user name.
      * @param password The password.
+     * @param ipAddress IP address.
      * @return The JWTAuthorizationToken if successful.
      * @throws AuthenticationException In case we failed to authenticate user against SSO group.
      */
     private @Nonnull JWTAuthorizationToken authenticateADGroup(final @Nonnull String userName,
-                                                               final @Nonnull String password)
+            final @Nonnull String password, final @Nonnull String ipAddress)
             throws AuthenticationException {
         // Get the LDAP servers we can query.  If there are none, there's no point in going on.
         try {
@@ -485,13 +314,10 @@ public class AuthProvider {
                 SecurityGroupDTO userGroup = ssoUtil.authenticateUserInGroup(userName, password, ldapServers);
                 if (userGroup != null) {
                     logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
-                    String uuid = ssoUsersToUuid_.get(userName);
-                    if (uuid == null) {
-                        uuid = String.valueOf(IdentityGenerator.next());
-                        ssoUsersToUuid_.put(userName, uuid);
-                    }
+                    // persist user in external group if it's not added before
+                    final String uuid = addExternalGroupUser(userGroup.getDisplayName(), userName);
                     return generateToken(userName, uuid, ImmutableList.of(userGroup.getRoleName()),
-                            userGroup.getScopeGroups());
+                            userGroup.getScopeGroups(), ipAddress, AuthUserDTO.PROVIDER.LDAP);
                 }
             }
             throw new AuthenticationException("Unable to authenticate the user " + userName);
@@ -501,32 +327,56 @@ public class AuthProvider {
         }
     }
 
-
     /**
      * Authorize the SAML user by external group membership.
      *
      * @param userName The user name.
      * @param externalGroupName The external group name.
+     * @param ipAddress the IP address that the user logged on from
      * @return The JWTAuthorizationToken if successful.
-     * @throws AuthenticationException In case we failed to authenticate user against external group.
+     * @throws AuthorizationException In case we failed to authenticate user against external group.
      */
-    private @Nonnull JWTAuthorizationToken authorizeSAMLGroup(final @Nonnull String userName,
-                                                               final @Nonnull String externalGroupName,
-                                                               final @Nonnull String ipAddress     )
-            throws AuthorizationException {
-            reloadSSOConfiguration();
-            return ssoUtil.authorizeSAMLUserInGroup(userName, externalGroupName).map(externalGroup -> {
-                        logger_.info(AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER + userName);
-                        String uuid = ssoUsersToUuid_.get(userName);
-                        if (uuid == null) {
-                            uuid = String.valueOf(IdentityGenerator.next());
-                            ssoUsersToUuid_.put(userName, uuid);
-                        }
-                        return generateToken(userName, uuid, ImmutableList.of(externalGroup.getRoleName()),
-                                externalGroup.getScopeGroups(), ipAddress);
-                    }
-            ).orElseThrow(() -> new AuthorizationException(UNABLE_TO_AUTHORIZE_THE_USER
-                    + userName + WITH_GROUP + externalGroupName));
+    private @Nonnull JWTAuthorizationToken authorizeSAMLGroup(
+        final @Nonnull String userName,
+        final @Nonnull String externalGroupName,
+        final @Nonnull String ipAddress) throws AuthorizationException {
+
+        reloadSSOConfiguration();
+        return ssoUtil.authorizeSAMLUserInGroup(userName, externalGroupName).map(externalGroup -> {
+                logger_.info(AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER + userName);
+                // persist user in external group if it's not added before
+                final String uuid = addExternalGroupUser(externalGroupName, userName);
+                return generateToken(userName, uuid, ImmutableList.of(externalGroup.getRoleName()),
+                    externalGroup.getScopeGroups(), ipAddress, AuthUserDTO.PROVIDER.LDAP);
+            }
+        ).orElseThrow(() -> new AuthorizationException(UNABLE_TO_AUTHORIZE_THE_USER
+            + userName + WITH_GROUP + externalGroupName));
+    }
+
+    /**
+     * Authorize the SAML user by external groups membership.
+     *
+     * @param userName The user name.
+     * @param externalGroupNames The external group names.
+     * @param ipAddress the IP address that the user logged on from
+     * @return The JWTAuthorizationToken if successful.
+     * @throws AuthorizationException In case we failed to authenticate user against external group.
+     */
+    private @Nonnull JWTAuthorizationToken authorizeSAMLGroups(
+        final @Nonnull String userName,
+        final @Nonnull List<String> externalGroupNames,
+        final @Nonnull String ipAddress) throws AuthorizationException {
+
+        reloadSSOConfiguration();
+        return ssoUtil.authorizeSAMLUserInGroups(userName, externalGroupNames).map(externalGroup -> {
+                logger_.info(AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER + userName);
+                // persist user in external group if it's not added before
+                final String uuid = addExternalGroupUser(externalGroup.getDisplayName(), userName);
+                return generateToken(userName, uuid, ImmutableList.of(externalGroup.getRoleName()),
+                    externalGroup.getScopeGroups(), ipAddress, AuthUserDTO.PROVIDER.LDAP);
+            }
+        ).orElseThrow(() -> new AuthorizationException(UNABLE_TO_AUTHORIZE_THE_USER
+            + userName + WITH_GROUP + externalGroupNames));
     }
 
     /**
@@ -541,43 +391,7 @@ public class AuthProvider {
     public @Nonnull JWTAuthorizationToken authenticate(final @Nonnull String userName,
                                                        final @Nonnull String password)
             throws AuthenticationException, SecurityException {
-        // Try local users first.
-        Optional<String> json = getKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LOCAL,
-                                                              userName));
-        if (!json.isPresent()) {
-            json = getKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LDAP, userName));
-        }
-
-        if (json.isPresent()) {
-            try {
-                String jsonData = json.get();
-                UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
-                // Check the authentication.
-                if (!info.unlocked) {
-                    logger_.warn("AUDIT::FAILURE:AUTH: Account is locked: " + userName);
-                    throw new AuthenticationException("AUDIT::NEGATIVE: Account is locked");
-                }
-                if (AuthUserDTO.PROVIDER.LOCAL.equals(info.provider)) {
-                    if (!CryptoFacility.checkSecureHash(info.passwordHash, password)) {
-                        logger_.warn("AUDIT::FAILURE:AUTH: Invalid credentials provided for user: " + userName);
-                        throw new AuthenticationException("AUDIT::NEGATIVE: The User Name or Password is Incorrect");
-                    }
-                    logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
-                    return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups);
-                } else {
-                    return authenticateADUser(info, password);
-                }
-            } catch (AuthenticationException e) {
-                // prevent next catch clause from wrapping this exception; all paths here
-                // log the authentication failure
-                throw e;
-            } catch (Exception e) {
-                logger_.error("AUDIT::FAILURE:AUTH: Error authenticating user: " + userName);
-                throw new SecurityException("Authentication failed", e);
-            }
-        }
-        // use group-based authentication
-        return authenticateADGroup(userName, password);
+        return authenticate(userName, password, "UNKNOWN IP");
     }
 
     /**
@@ -594,24 +408,18 @@ public class AuthProvider {
                                                        final @Nonnull String password,
                                                        final @Nonnull String ipAddress)
             throws AuthenticationException, SecurityException {
-        // Try local users first.
-        Optional<String> json = getKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LOCAL,
-                                                              userName));
-        if (!json.isPresent()) {
-            json = getKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LDAP, userName));
-        }
-
-        if (json.isPresent()) {
+        // Try persisted users first.
+        final Optional<UserInfo> userInfoOptional = retrievePersistedUser(userName);
+        if (userInfoOptional.isPresent()) {
             try {
-                String jsonData = json.get();
-                UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
+                final UserInfo info = userInfoOptional.get();
                 // Check the authentication.
                 if (!info.unlocked) {
                     logger_.warn("AUDIT::FAILURE:AUTH: Account is locked: " + userName);
                     throw new AuthenticationException("AUDIT::NEGATIVE: Account is locked");
                 }
                 if (AuthUserDTO.PROVIDER.LOCAL.equals(info.provider)) {
-                    if (!CryptoFacility.checkSecureHash(info.passwordHash, password)) {
+                    if (!HashAuthUtils.checkSecureHash(info.passwordHash, password)) {
                         // removed "Hash mismatch" to avoid leaking internal authentication algorithm
                         logger_.warn("AUDIT::FAILURE:AUTH: Invalid credentials provided for user: " + userName);
                         throw new AuthenticationException("AUDIT::NEGATIVE: " +
@@ -619,9 +427,10 @@ public class AuthProvider {
                     }
 
                     logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
-                    return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups, ipAddress);
+                    return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups,
+                            ipAddress, info.provider);
                 } else {
-                    return authenticateADUser(info, password);
+                    return authenticateADUser(info, password, ipAddress);
                 }
             } catch (AuthenticationException e) {
                 // prevent next clause from wrapping this exception. All paths here have already
@@ -632,15 +441,43 @@ public class AuthProvider {
                 throw new SecurityException("Authentication failed", e);
             }
         }
-        return authenticateADGroup(userName, password);
+        return authenticateADGroup(userName, password, ipAddress);
     }
 
+    /**
+     * Try to retrieve persisted user, which includes local and external user.
+     *
+     * @param userName user name.
+     * @return UserInfo if found the matched user.
+     */
+    private Optional<UserInfo> retrievePersistedUser(@Nonnull String userName) {
+        Optional<UserInfo> allowedUser = Optional.empty();
+        if (userPolicy.isLocalUserLoginAllowed()) {
+            allowedUser = getKVValue(composeUserInfoKey(PROVIDER.LOCAL, userName)).map(
+                    jsonData -> GSON.fromJson(jsonData, UserInfo.class));
+        }
+        if (!allowedUser.isPresent() && userPolicy.isADUserLoginAllowed()) {
+            allowedUser = getKVValue(composeUserInfoKey(PROVIDER.LDAP, userName)).map(
+                    jsonData -> GSON.fromJson(jsonData, UserInfo.class));
+        }
+
+        // Although in AD_ONLY mode, local user is NOT allowed to login,
+        // but when AD is not available, local admin user is allowed.
+        if (!allowedUser.isPresent() && !userPolicy.isLocalUserLoginAllowed()) {
+            reloadSSOConfiguration();
+            allowedUser = userPolicy.getAllowedUserToLoginInRecoveryMode(ssoUtil.isADAvailable(),
+                    () -> getKVValue(composeUserInfoKey(PROVIDER.LOCAL, userName)).map(
+                            jsonData -> GSON.fromJson(jsonData, UserInfo.class))
+                            .filter(userInfo -> roleMatched(userInfo.roles, ADMINISTRATOR)));
+        }
+        return allowedUser;
+    }
 
     /**
      * Authenticates the user when IP address is available.
      *
      * @param userName The user name.
-     * @param groupName The password.
+     * @param groupName The group name.
      * @param ipAddress The user's IP address.
      * @return The JWTAuthorizationToken if successful.
      * @throws AuthorizationException In case of error authenticating the user.
@@ -648,12 +485,29 @@ public class AuthProvider {
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
     public @Nonnull JWTAuthorizationToken authorize(final @Nonnull String userName,
-                                                       final @Nonnull String groupName,
-                                                       final @Nonnull String ipAddress)
+            final @Nonnull String groupName,
+            final @Nonnull String ipAddress)
             throws SecurityException, AuthorizationException {
         return authorizeSAMLGroup(userName, groupName, ipAddress);
     }
 
+    /**
+     * Authenticates the user when IP address is available.
+     *
+     * @param userName The user name.
+     * @param groupNames The group names.
+     * @param ipAddress The user's IP address.
+     * @return The JWTAuthorizationToken if successful.
+     * @throws AuthorizationException In case of error authenticating the user.
+     * @throws SecurityException       In case of an internal error while authorizing an user.
+     */
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    public @Nonnull JWTAuthorizationToken authorize(final @Nonnull String userName,
+                                                       final @Nonnull List<String> groupNames,
+                                                       final @Nonnull String ipAddress)
+            throws SecurityException, AuthorizationException {
+        return authorizeSAMLGroups(userName, groupNames, ipAddress);
+    }
 
     /**
      * Authorize SAML user.
@@ -692,6 +546,42 @@ public class AuthProvider {
     }
 
     /**
+     * Validate that all of the groups are acceptable, if the user is a "shared" user.
+     *
+     * @param roles the list of roles the user has
+     * @param scopeGroups the list of scope group ids to validate
+     * @throws SecurityException if the system can't support scope validation
+     * @throws IllegalArgumentException if the scope is invalid.
+     */
+    protected void validateScopeGroups(final @Nonnull List<String> roles, final @Nullable List<Long> scopeGroups)
+        throws SecurityException, IllegalArgumentException {
+        // validate the scope groups, if the user is in a "shared" role.
+        if (CollectionUtils.isNotEmpty(scopeGroups) && UserScopeUtils.containsSharedRole(roles)) {
+            if (! groupServiceClient.isPresent()) {
+                logger_.warn("Cannot validate Shared user group -- validation is disabled.");
+                throw new SecurityException("Cannot validate Shared user group -- validation is disabled.");
+            }
+            GroupServiceBlockingStub groupClient = groupServiceClient.get();
+            Iterator<Grouping> groups = groupClient.getGroups(GetGroupsRequest.newBuilder()
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                            .addAllId(scopeGroups).build())
+                            .build());
+
+            while (groups.hasNext()) {
+                Collection<ApiEntityType> entityTypes = GroupProtoUtil.getEntityTypes(groups.next());
+                final Set<String> groupEntityTypes = entityTypes
+                                .stream()
+                                .map(ApiEntityType::apiStr)
+                                .collect(Collectors.toSet());
+                if (entityTypes.size() == 0 || !UserScopeUtils.SHARED_USER_ENTITY_TYPES.containsAll(groupEntityTypes)) {
+                    // invalid group assignment
+                    throw new IllegalArgumentException("Shared users can only be scoped to groups of VM's or Applications!");
+                }
+            }
+        }
+    }
+
+    /**
      * Adds the user.
      * Used by the {@link #initAdmin(String, String)} and
      * {@link #add(AuthUserDTO.PROVIDER, String, String, List, List)}.
@@ -701,39 +591,77 @@ public class AuthProvider {
      * @param password  The password.
      * @param roleNames The roles.
      * @param scopeGroups The group id's in the user scope (if any).
-     * @return The {@code true} iff successful.
+     * @return The uuid of the user that was added, or empty string if it fails.
      * @throws SecurityException In case of an error parsing or decrypting the data.
      */
-    private boolean addImpl(final @Nonnull AuthUserDTO.PROVIDER provider,
+    private String addImpl(final @Nonnull AuthUserDTO.PROVIDER provider,
                             final @Nonnull String userName,
                             final @Nonnull String password,
                             final @Nonnull List<String> roleNames,
                             final @Nullable List<Long> scopeGroups)
-            throws SecurityException {
+            throws SecurityException, IllegalArgumentException {
         Optional<String> json = getKVValue(composeUserInfoKey(provider, userName));
         if (json.isPresent()) {
-            logger_.error("AUDIT::FAILURE:EXISTING: Error adding existing user: " + userName);
-            return false;
+            throw new IllegalArgumentException("A user with name " + userName + " already exists.");
         }
+
+        validateScopeGroups(roleNames, scopeGroups);
 
         try {
             UserInfo info = new UserInfo();
             info.provider = provider;
             info.userName = userName;
             if (AuthUserDTO.PROVIDER.LOCAL.equals(provider)) {
-                info.passwordHash = CryptoFacility.secureHash(password);
+                info.passwordHash = HashAuthUtils.secureHash(password);
             }
             info.uuid = String.valueOf(IdentityGenerator.next());
             info.unlocked = true;
-            info.roles = roleNames;
+            // ensure role are upper case for any I/O operations, here is saving to Consul.
+            info.roles = roleNames.stream().map(String::toUpperCase).collect(Collectors.toList());
             info.scopeGroups = scopeGroups;
             putKVValue(composeUserInfoKey(provider, userName), GSON.toJson(info));
             logger_.info("AUDIT::SUCCESS: Success adding user: " + userName);
-            return true;
+            return info.uuid;
         } catch (Exception e) {
             logger_.error("Error adding user", e);
             logger_.error("AUDIT::FAILURE:AUTH: Error adding user: " + userName);
-            return false;
+            return "";
+        }
+    }
+
+    /**
+     * Adds the user in the given external group. The scope or role for this user is not saved
+     * since it should always come from the external group and it may change.
+     *
+     * @param externalGroup The external group name.
+     * @param userName The user name.
+     * @return The uuid of the user that was added, or empty string if it fails.
+     * @throws SecurityException In case of an error parsing or decrypting the data.
+     */
+    private String addExternalGroupUser(@Nonnull String externalGroup,
+                                        @Nonnull String userName) throws SecurityException {
+        final String externalGroupUserInfoKey = composeExternalGroupUserInfoKey(externalGroup, userName);
+        Optional<String> json = getKVValue(externalGroupUserInfoKey);
+        if (json.isPresent()) {
+            // user has already been added, return the uuid directly
+            UserInfo info = GSON.fromJson(json.get(), UserInfo.class);
+            return info.uuid;
+        }
+
+        try {
+            UserInfo info = new UserInfo();
+            // this is needed to show correct login provider for api "/me", otherwise it shows LOCAL
+            info.provider = AuthUserDTO.PROVIDER.LDAP;
+            info.userName = userName;
+            info.uuid = String.valueOf(IdentityGenerator.next());
+            info.unlocked = true;
+            putKVValue(externalGroupUserInfoKey, GSON.toJson(info));
+            logger_.info("AUDIT::SUCCESS: Success adding user {} in external group {} ", userName, externalGroup);
+            return info.uuid;
+        } catch (Exception e) {
+            logger_.error("Error adding user {} in external group {} ", userName, externalGroup);
+            logger_.error("AUDIT::FAILURE:AUTH: Error adding user {} in external group {} ", userName, externalGroup);
+            return "";
         }
     }
 
@@ -743,20 +671,77 @@ public class AuthProvider {
      * @return The list of all users.
      * @throws SecurityException In case of an error listing users.
      */
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public @Nonnull List<AuthUserDTO> list() throws SecurityException {
         Map<String, String> users;
         synchronized (storeLock_) {
             users = keyValueStore_.getByPrefix(PREFIX);
         }
+        // ensure role are upper case for any I/O operations, here is retrieving from Consul.
+        return users.values().stream()
+            .map(jsonData -> {
+                UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
+                return new AuthUserDTO(info.provider, info.userName, null, null,
+                    info.uuid, null, info.roles.stream().map(String::toUpperCase)
+                        .collect(Collectors.toList()), info.scopeGroups);
+            })
+            .filter(authUserDTO -> mayAlterUserWithRoles(authUserDTO.getRoles()))
+            .collect(Collectors.toList());
+    }
 
-        List<AuthUserDTO> list = new ArrayList<>();
-        for (String jsonData : users.values()) {
-            UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
-            AuthUserDTO dto = new AuthUserDTO(info.provider, info.userName, null, null, info.uuid, null,
-                                              info.roles, info.scopeGroups);
-            list.add(dto);
+    /**
+     * Find the username for the given user oid.
+     *
+     * @param userOid oid of the user to look for
+     * @return optional username if it exists, or empty
+     */
+    public Optional<String> findUsername(long userOid) {
+        final String userUuid = Long.toString(userOid);
+        // try to find from local/ldap/saml users
+        Optional<String> username = findUsername(userUuid, PREFIX);
+        if (username.isPresent()) {
+            return username;
         }
-        return list;
+        // if not found, also try to find from the external group users
+        return findUsername(userUuid, PREFIX_GROUP_USERS);
+    }
+
+    /**
+     * Find the username for the given user oid, from the given folder.
+     *
+     * @param userUuid string id of the user to look for
+     * @param kvPrefix kv prefix of the folder to look for users in
+     * @return optional username if it exists, or empty
+     */
+    private Optional<String> findUsername(@Nonnull String userUuid,
+                                          @Nonnull String kvPrefix) {
+        Map<String, String> users;
+        synchronized (storeLock_) {
+            users = keyValueStore_.getByPrefix(kvPrefix);
+        }
+        return users.values().stream()
+                .map(jsonData -> GSON.fromJson(jsonData, UserInfo.class))
+                .filter(userInfo -> StringUtils.equals(userInfo.uuid, userUuid))
+                .map(userInfo -> userInfo.userName)
+                .findFirst();
+    }
+
+    /**
+     * Get oids of all the persisted users which belong to the given external group.
+     *
+     * @param externalGroupName name of the external group to get users
+     * @return list of user oids
+     */
+    @Nonnull
+    private List<Long> getUserIdsInExternalGroup(@Nonnull String externalGroupName) {
+        final Map<String, String> users;
+        synchronized (storeLock_) {
+            users = keyValueStore_.getByPrefix(composeExternalGroupUsersInfoKey(externalGroupName));
+        }
+        return users.values().stream()
+                .map(jsonData -> GSON.fromJson(jsonData, UserInfo.class))
+                .map(userInfo -> Long.valueOf(userInfo.uuid))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -767,17 +752,32 @@ public class AuthProvider {
      * @param password  The password.
      * @param roleNames The roles.
      * @param scopeGroups The entity groups in the user scope, if any.
-     * @return The {@code true} iff successful.
+     * @return The uuid of the user that was added or an empty string if it fails.
      * @throws SecurityException In case of an error adding the user.
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public boolean add(final @Nonnull AuthUserDTO.PROVIDER provider,
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
+    public String add(final @Nonnull AuthUserDTO.PROVIDER provider,
                        final @Nonnull String userName,
                        final @Nonnull String password,
                        final @Nonnull List<String> roleNames,
                        final @Nullable List<Long> scopeGroups)
             throws SecurityException {
+        // only administrators may create another administrator user
+        validateRoles(roleNames);
         return addImpl(provider, userName, password, roleNames, scopeGroups);
+
+
+    }
+
+    private void validateRoles(@Nonnull List<String> roleNames) {
+        if (!mayAlterUserWithRoles(roleNames)) {
+            throw new SecurityException("Only a user with ADMINISTRATOR role user may create " +
+                    "another user with ADMINISTRATOR role.");
+        }
+
+        if (!areValidRoles(roleNames)) {
+            throw new SecurityException("Invalid role: " + roleNames);
+        }
     }
 
     /**
@@ -801,44 +801,35 @@ public class AuthProvider {
             logger_.error("AUDIT::FAILURE:UNKNOWN: Error modifying unknown user: " +
                           userName);
             return false;
-        }
+        } else {
+            final String jsonData = json.get();
+            final UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
+            // check to see if the requesting user is allowed to change the password for the given user
+            if (!changePasswordAllowed(info)) {
+                logger_.error("AUDIT::FAILURE:AUTH: Cannot change Password - not owner " +
+                        "or administrator: " + userName);
+                throw new SecurityException("Cannot change Password - not owner or administrator");
+            }
 
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (!userName.equals(auth.getPrincipal())) {
-            boolean administrator = false;
-            for (GrantedAuthority ga : auth.getAuthorities()) {
-                if ("ROLE_ADMINISTRATOR".equals(ga.getAuthority())) {
-                    administrator = true;
-                    break;
+            try {
+                // Check the authentication.
+                // We add this bypass, since MT does not provide the existing password.
+                if (password != null && !HashAuthUtils.checkSecureHash(info.passwordHash, password)) {
+                    throw new SecurityException("AUDIT::NEGATIVE: Password mismatch");
                 }
+                // Update password if necessary.
+                if (passwordNew.isEmpty()) {
+                    throw new SecurityException("Empty new password");
+                }
+                info.passwordHash = HashAuthUtils.secureHash(passwordNew);
+                // Update KV store.
+                putKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LOCAL, userName), GSON.toJson(info));
+                logger_.info("AUDIT::SUCCESS: Success modifying user: " + userName);
+                return true;
+            } catch (SecurityException e) {
+                logger_.error("AUDIT::FAILURE:AUTH: Error setting password for " + userName);
+                throw e;
             }
-
-            if (!administrator) {
-                logger_.error("AUDIT::FAILURE:AUTH: Not owner or administrator: " + userName);
-                throw new SecurityException("Not owner or administrator");
-            }
-        }
-
-        try {
-            String jsonData = json.get();
-            UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
-            // Check the authentication.
-            // We add this bypass, since MT does not provide the existing password.
-            if (password != null && !CryptoFacility.checkSecureHash(info.passwordHash, password)) {
-                throw new SecurityException("AUDIT::NEGATIVE: Password mismatch");
-            }
-            // Update password if necessary.
-            if (passwordNew.isEmpty()) {
-                throw new SecurityException("Empty new password");
-            }
-            info.passwordHash = CryptoFacility.secureHash(passwordNew);
-            // Update KV store.
-            putKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LOCAL, userName), GSON.toJson(info));
-            logger_.info("AUDIT::SUCCESS: Success modifying user: " + userName);
-            return true;
-        } catch (SecurityException e) {
-            logger_.error("AUDIT::FAILURE:AUTH: Error setting password for " + userName);
-            throw e;
         }
     }
 
@@ -858,7 +849,7 @@ public class AuthProvider {
      * @return The {@code true} iff successful.
      * @throws SecurityException In case of an error replacing user's roles.
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public ResponseEntity<String> setRoles(final @Nonnull AuthUserDTO.PROVIDER provider,
                                            final @Nonnull String userName,
                                            final @Nonnull List<String> roleNames,
@@ -869,6 +860,10 @@ public class AuthProvider {
             logger_.error("AUDIT::FAILURE:UNKNOWN: Error modifying unknown user: " + userName);
             return new ResponseEntity<>("Error modifying unknown user: " + userName, HttpStatus.BAD_REQUEST);
         }
+        if (!areValidRoles(roleNames)) {
+            logger_.error("AUDIT::FAILURE:INVALID ROLE: Error modifying user: {} with role: {}", userName, roleNames);
+            return new ResponseEntity<>("Error modifying user: " + userName + " with invalid role: " + roleNames, HttpStatus.BAD_REQUEST);
+        }
 
         final UserInfo info = GSON.fromJson(json.get(), UserInfo.class);
         // Don't allow modifying role for the last local admin user
@@ -876,14 +871,32 @@ public class AuthProvider {
         synchronized (storeLock_) {
             allUsers = keyValueStore_.getByPrefix(PREFIX);
         }
-        if (isLastLocalAdminUser(info, allUsers) && !CollectionUtils.isEqualCollection(info.roles, roleNames)) {
-            logger_.error("AUDIT::Don't allow modifying role for last local admin user: " + userName);
-            return new ResponseEntity<>("Not allowed to modify role for last local administrator user: "
-                + userName, HttpStatus.FORBIDDEN);
+        // don't allow change administrator role, if it's the last local admin user
+        if (isLastLocalAdminUser(info, allUsers) && !roleMatched(roleNames, ADMINISTRATOR)) {
+            logger_.error("AUDIT::Don't allow modifying role for last local admin user: " +
+                userName);
+            return new ResponseEntity<>("Not allowed to modify role for last local " +
+                "administrator user: " + userName, HttpStatus.FORBIDDEN);
+        }
+
+        // Don't allow SITE_ADMIN users to modify ADMINISTRATOR users
+        if (!mayAlterUserWithRoles(info.roles)) {
+            logger_.error("AUDIT::Don't allow SITE_ADMIN user to modify role for admin user: " +
+                userName);
+            return new ResponseEntity<>("SITE_ADMIN not allowed to modify role for " +
+                "administrator user: " + userName, HttpStatus.FORBIDDEN);
         }
 
         try {
-            info.roles = roleNames;
+            validateScopeGroups(roleNames, scopeGroups);
+        } catch (IllegalArgumentException iae) {
+            // any user-actionable problems would come back as illegal argument exceptions
+            return new ResponseEntity(iae.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+
+        try {
+            // ensure role are upper case for any I/O operations, here is saving to Consul.
+            info.roles = roleNames.stream().map(String::toUpperCase).collect(Collectors.toList());
             info.scopeGroups = scopeGroups;
             // Update KV store.
             putKVValue(composeUserInfoKey(provider, userName), GSON.toJson(info));
@@ -899,11 +912,11 @@ public class AuthProvider {
      * Removes the user.
      *
      * @param uuid The user's UUID or name.
-     * @return {@code true} iff successful.
+     * @return {@code Optional<AuthUserDTO>} iff successful.
      * @throws SecurityException In case of an error deleting the user.
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public boolean remove(final @Nonnull String uuid) throws SecurityException {
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
+    public Optional<AuthUserDTO> remove(final @Nonnull String uuid) throws SecurityException {
         // Look for the correct user.
         Map<String, String> users;
         synchronized (storeLock_) {
@@ -922,22 +935,30 @@ public class AuthProvider {
         if (infoFound == null) {
             logger_.error("AUDIT::FAILURE:UNKNOWN: Error removing unknown user: " +
                           uuid);
-            return false;
+            return Optional.empty();
+        }
+
+        // Don't allow a SITE_ADMIN user to remove an ADMINISTRATOR user
+        if (!mayAlterUserWithRoles(infoFound.roles)) {
+            logger_.error("AUDIT::FAILURE:UNKNOWN: SITE_ADMIN user may not remove ADMINISTRATOR : " +
+                uuid);
+            return Optional.empty();
         }
 
         // Don't allow removing the last local admin user.
         if (isLastLocalAdminUser(infoFound, users)) {
             logger_.error("AUDIT::Don't allow to remove last local admin user: " + uuid);
-            return false;
+            return Optional.empty();
         }
 
         try {
             removeKVKey(composeUserInfoKey(infoFound.provider, infoFound.userName));
             logger_.info("AUDIT::SUCCESS: Success removing user: " + uuid);
-            return true;
+            return Optional.of(new AuthUserDTO(infoFound.provider, infoFound.userName, null, null, infoFound.uuid, null,
+                infoFound.roles, infoFound.scopeGroups));
         } catch (Exception e) {
             logger_.error("AUDIT::FAILURE:AUTH: Error removing user: " + uuid);
-            return false;
+            return Optional.empty();
         }
     }
 
@@ -948,8 +969,12 @@ public class AuthProvider {
      * @return {@code true} iff successful.
      * @throws SecurityException In case of an error locking the user.
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public boolean lock(final @Nonnull AuthUserDTO dto) throws SecurityException {
+        if (!mayAlterUserWithRoles(dto.getRoles())) {
+            throw new SecurityException("SITE_ADMIN may not lock ADMINISTRATOR user: " +
+                dto.getUser());
+        }
         return setUserLockStatus(dto, true);
     }
 
@@ -960,8 +985,12 @@ public class AuthProvider {
      * @return {@code true} iff successful.
      * @throws SecurityException In case of an error unlocking the user.
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public boolean unlock(final @Nonnull AuthUserDTO dto) throws SecurityException {
+        if (!mayAlterUserWithRoles(dto.getRoles())) {
+            throw new SecurityException("SITE_ADMIN may not unlock ADMINISTRATOR user: " +
+                dto.getUser());
+        }
         return setUserLockStatus(dto, false);
     }
 
@@ -1045,7 +1074,7 @@ public class AuthProvider {
      * @return The list of Active Directory DTOs.
      * @throws SecurityException In case we couldn't retrieve the list of the active directories.
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public @Nonnull
     List<ActiveDirectoryDTO> getActiveDirectories() throws SecurityException {
         Optional<String> json = getKVValue(PREFIX_AD);
@@ -1069,7 +1098,7 @@ public class AuthProvider {
      * @param inputDTO The Active Directory representation.
      * @return The Active Directory DTO.
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public @Nonnull ActiveDirectoryDTO createActiveDirectory(final @Nonnull ActiveDirectoryDTO inputDTO) {
         String domain = inputDTO.getDomainName() == null ? "" : inputDTO.getDomainName();
         String url = createLoginProviderURI(inputDTO.getLoginProviderURI(), inputDTO.isSecure());
@@ -1142,7 +1171,7 @@ public class AuthProvider {
      *
      * @return The list of SSO group objects.
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public @Nonnull List<SecurityGroupDTO> getSecurityGroups() {
         Map<String, String> ssoGroups;
         synchronized (storeLock_) {
@@ -1163,7 +1192,7 @@ public class AuthProvider {
      * @param adGroupInputDto The description of an SSO group to be created.
      * @return The {@link SecurityGroupDTO} object.
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public @Nullable
     SecurityGroupDTO createSecurityGroup(final @Nonnull SecurityGroupDTO adGroupInputDto) {
         final String adGroupName = adGroupInputDto.getDisplayName();
@@ -1172,11 +1201,17 @@ public class AuthProvider {
             throw new SecurityException("Creating active directory group which already exists: " + adGroupName);
         }
 
+        return addSecurityGroupImpl(adGroupInputDto);
+    }
+
+    private SecurityGroupDTO addSecurityGroupImpl(@Nonnull final SecurityGroupDTO adGroupInputDto) {
+        String adGroupName = adGroupInputDto.getDisplayName();
         try {
             ssoUtil.putSecurityGroup(adGroupName, adGroupInputDto);
+            // ensure role are upper case for any I/O operations, here is saving to Consul.
             SecurityGroupDTO g = new SecurityGroupDTO(adGroupName,
                 adGroupInputDto.getType(),
-                adGroupInputDto.getRoleName(),
+                adGroupInputDto.getRoleName().toUpperCase(),
                 adGroupInputDto.getScopeGroups());
             putKVValue(composeExternalGroupInfoKey(adGroupName), GSON.toJson(g));
             return g;
@@ -1191,7 +1226,7 @@ public class AuthProvider {
      * @param adGroupInputDto The Active Directory group creation request.
      * @return The {@link SecurityGroupDTO} indicating success.
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public @Nullable
     SecurityGroupDTO updateSecurityGroup(final @Nonnull SecurityGroupDTO adGroupInputDto) {
         final String adGroupName = adGroupInputDto.getDisplayName();
@@ -1202,9 +1237,10 @@ public class AuthProvider {
 
         try {
             // recreate this object with type, role name and scope groups from the input param
+            // ensure role are upper case for any I/O operations, here is saving to Consul.
             SecurityGroupDTO g = new SecurityGroupDTO(adGroupName,
                 adGroupInputDto.getType(),
-                adGroupInputDto.getRoleName(),
+                adGroupInputDto.getRoleName().toUpperCase(),
                 adGroupInputDto.getScopeGroups());
             putKVValue(composeExternalGroupInfoKey(adGroupName), GSON.toJson(g));
             return g;
@@ -1219,7 +1255,7 @@ public class AuthProvider {
      * @param groupName The group name.
      * @return {@code true} iff the group existed before this call.
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
     public @Nonnull Boolean deleteSecurityGroup(final @Nonnull String groupName) {
         Optional<String> json = getKVValue(composeExternalGroupInfoKey(groupName));
         if (!json.isPresent()) {
@@ -1234,6 +1270,40 @@ public class AuthProvider {
             throw new SecurityException("Error retrieving external group");
         }
     }
+
+    /**
+     * Deletes the group, and also handle the widgetsets owned by users in this group by
+     * transferring them to current user.
+     *
+     * @param groupName The group name.
+     * @return {@code true} iff deleting group and transferring widgetsets successfully
+     */
+    @PreAuthorize("hasAnyRole('ADMINISTRATOR', 'SITE_ADMIN')")
+    public Boolean deleteSecurityGroupAndTransferWidgetsets(final @Nonnull String groupName) {
+        final Boolean result = deleteSecurityGroup(groupName);
+        try {
+            // transfer all the widgetsets owned by users belonging to the external group to current user
+            Optional<Long> currentUserOid = SAMLUserUtils.getAuthUserDTO()
+                    .map(AuthUserDTO::getUuid)
+                    .map(Long::valueOf);
+            if (!currentUserOid.isPresent()) {
+                // this should not happen, as it should not arrive here if no user logged in
+                logger_.error("No user found in context, unable to transfer widgetsets owned by" +
+                        " users in group: {}", groupName);
+                return false;
+            }
+            widgetsetDbStore.transferOwnership(getUserIdsInExternalGroup(groupName), currentUserOid.get());
+
+            // we should also delete the node starts with "/groupusers/groupName/", which contains
+            // all the users belonging to this external group
+            removeKVKeysWithPrefix(composeExternalGroupUsersInfoKey(groupName));
+            return result;
+        } catch (Exception e) {
+            throw new SecurityException("Error transferring widgetsets from users in external " +
+                    "group: " + groupName + ", " + e.getMessage());
+        }
+    }
+
 
     /**
      * The internal user information structure.
@@ -1268,8 +1338,7 @@ public class AuthProvider {
      * 2. replace uuid (String) to uuid (long).<p>
      * Similar to the #1, just keeping the variable 'uuid' instead of changing it to oid.</p>
      */
-    @VisibleForTesting
-    static class UserInfo {
+    public static class UserInfo {
         AuthUserDTO.PROVIDER provider;
 
         String userName;
@@ -1283,17 +1352,24 @@ public class AuthProvider {
         List<Long> scopeGroups;
 
         boolean unlocked;
+
+        public boolean isAdminUser() {
+            return roles.stream().anyMatch(role -> role.equalsIgnoreCase(ADMINISTRATOR));
+        }
     }
 
     /**
      * Test if there is only one local admin user.
      *
-     * @param users the list of user
+     * @param userInfo the requested user information.
+     * @param users the list of user.
      * @return true if there is only one local user has ADMINISTRATOR role.
      */
-    private boolean isLastLocalAdminUser(@Nonnull final UserInfo userInfo,
+    boolean isLastLocalAdminUser(@Nonnull final UserInfo userInfo,
                                          @Nonnull final Map<String, String> users) {
-        if (userInfo.roles.contains(UserRole.ADMINISTRATOR.name()) // the user the admin user
+
+        if (roleMatched(userInfo.roles, ADMINISTRATOR)
+                // the user the admin user
                 && userInfo.provider.equals(PROVIDER.LOCAL)) { // the provider is local
             List<UserInfo> userInfoList = new ArrayList<>();
             for (String jsonData : users.values()) {
@@ -1302,10 +1378,12 @@ public class AuthProvider {
             }
             long administratorCount = userInfoList.stream()
                     .filter(user -> user.provider.equals(PROVIDER.LOCAL)
-                            && user.roles.contains(UserRole.ADMINISTRATOR.name()))
+                            && roleMatched(user.roles, ADMINISTRATOR))
                     .count();
             return administratorCount == 1;
         }
         return false;
     }
+
+
 }

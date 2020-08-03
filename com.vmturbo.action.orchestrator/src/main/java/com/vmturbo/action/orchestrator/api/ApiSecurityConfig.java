@@ -2,15 +2,16 @@ package com.vmturbo.action.orchestrator.api;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-
+import org.springframework.security.web.firewall.DefaultHttpFirewall;
 
 /**
  * Configure security for the REST API Dispatcher here.
  * This specifies permissions required:
  * <ul>
- *   <li>/api/v2/** - API - no authentication
+ *   <li>/api/v3/** - API - no authentication
  * </ul>
  */
 @Configuration
@@ -21,6 +22,13 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         http.csrf().disable();
         http.authorizeRequests()
             .antMatchers("/**").permitAll();
+    }
+
+    @Override
+    public void configure(WebSecurity web) throws Exception {
+        super.configure(web);
+        // avoid using default StrictHttpFirewall from Spring
+        web.httpFirewall(new DefaultHttpFirewall());
     }
 }
 

@@ -1,0 +1,105 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]ApiSecurityConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]PlanOrchestratorDBConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]cpucapacity[/\\]CpuCapacityRpcService.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]deployment[/\\]profile[/\\]DeploymentProfileConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]deployment[/\\]profile[/\\]DeploymentProfileDaoImpl.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]deployment[/\\]profile[/\\]DeploymentProfileInfoConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]deployment[/\\]profile[/\\]DeploymentProfileRpcService.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]diagnostics[/\\]PlanOrchestratorDiagnosticsConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]market[/\\]PlanProjectedTopologyListener.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]migration[/\\]V_01_00_00__PURGE_ALL_PLANS.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]DiscoveredNotSupportedOperationException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]IntegrityException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]NoSuchObjectException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanDao.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanDaoImpl.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanInstanceCompletionListener.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanInstanceConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanInstanceQueue.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanMetricsListener.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanProgressListener.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanReservedInstanceClient.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanRpcService.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanRpcServiceUtil.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanStatusListener.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]project[/\\]PlanProjectDaoImpl.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]project[/\\]PlanProjectInfoConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]project[/\\]PlanProjectInfoNotFoundException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]project[/\\]PlanProjectNotFoundException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]project[/\\]PlanProjectRpcService.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]project[/\\]ProjectPlanPostProcessor.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]project[/\\]ProjectPlanPostProcessorRegistry.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]project[/\\]headroom[/\\]SystemLoadCalculatedProfile.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]repository[/\\]RepositoryConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]reservation[/\\]ConstraintInfoCollectionConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]reservation[/\\]ReservationConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]reservation[/\\]ReservationDao.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]reservation[/\\]ReservationDaoImpl.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]reservation[/\\]ReservationManager.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]reservation[/\\]ReservationPlacementHandler.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]reservation[/\\]ReservationRpcService.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]reservation[/\\]ReservationStatusConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]reservation[/\\]ReservationTemplateCollectionConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scenario[/\\]ScenarioConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scenario[/\\]ScenarioDao.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scenario[/\\]ScenarioInfoConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scenario[/\\]ScenarioRpcService.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scenario[/\\]ScenarioScopeAccessChecker.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scheduled[/\\]PlanDeletionSchedulerConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scheduled[/\\]PlanDeletionTask.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scheduled[/\\]PlanProjectScheduler.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scheduled[/\\]PlanProjectSchedulerConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scheduled[/\\]PlanSchedule.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scheduled[/\\]SystemPlanProjectLoader.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]DiscoveredTemplateDeploymentProfileDaoImpl.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]DiscoveredTemplateDeploymentProfileRpcService.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]TemplateInfoConverter.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]TemplateSpecParser.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]TemplateSpecRpcService.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]TemplatesConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]TemplatesDaoImpl.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]TemplatesMapper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]TemplatesRpcService.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]exceptions[/\\]DuplicateTemplateException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]exceptions[/\\]IllegalTemplateOperationException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]exceptions[/\\]NoMatchingTemplateSpecException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]db[/\\]migration[/\\]V2_13__remove_resize_for_vms.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]db[/\\]migration[/\\]V2_16__convert_max_utilization_to_setting_override.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]DatabaseSchemaIT.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]cpucapacity[/\\]CpuCapacitylRpcTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]deployment[/\\]profile[/\\]DeploymentProfileRpcServiceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanDaoImplTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanProgressListenerTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanReservedInstanceClientTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanRpcServiceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanRpcServiceUtilTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]plan[/\\]PlanTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]project[/\\]PlanProjectDaoImplTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]project[/\\]PlanProjectRpcServiceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]project[/\\]ProjectPlanPostProcessorRegistryTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]project[/\\]headroom[/\\]SystemLoadCalculatedProfileTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]reservation[/\\]ReservationDaoImplTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]reservation[/\\]ReservationPlacementHandlerTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]reservation[/\\]ReservationRpcServiceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scenario[/\\]ScenarioRpcServiceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scenario[/\\]ScenarioScopeAccessCheckerTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]scheduled[/\\]PlanProjectSchedulerTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]DiscoveredTemplateDeploymentProfileDaoImplTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]TemplateSpecParserTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]TemplateSpecRpcServiceTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]TemplatesDaoImplTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]TemplatesMapperTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]TemplatesRpcTest.java" />
+</suppressions>

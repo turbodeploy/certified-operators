@@ -1,0 +1,57 @@
+{
+  "entityType": "CONTAINER_POD",
+  "id":"5e791c52-899a-4fa9-a8d7-b2cbef5a8fcb",
+  "displayName":"kube-system/calico-node-wtqqg",
+  "commoditiesSold": [
+    {
+      "commodityType": "VCPU",
+      "used":88.90161955428,
+      "capacity":10655.112,
+      "peak":88.90161955428,
+      "resizable":false
+    },
+    {
+      "commodityType": "VMEM",
+      "used":67704,
+      "capacity":1.6426004e+07,
+      "peak":67704,
+      "resizable":false
+    }
+  ],
+  "commoditiesBought": [
+    {
+      "providerId":"3fff7fea-e84a-484a-864e-faadc51b8e7d",
+      "bought": [
+        {
+          "commodityType": "MEM"
+        },
+        {
+          "commodityType": "CPU"
+        }
+      ],
+      "providerType": "VIRTUAL_MACHINE",
+      "actionEligibility": {
+        "movable":false
+      }
+    },
+    {
+      "providerId": "k8s-vdc-0af3c427-9043-44fe-ac00-6ce2940c6e52",
+      "bought": [
+        {
+          "commodityType": "CPU_ALLOCATION",
+          "key": "k8s-vdc-0af3c427-9043-44fe-ac00-6ce2940c6e52",
+          "used":88.90161955428
+        }
+      ],
+      "providerType": "VIRTUAL_DATACENTER",
+      "actionEligibility": {
+        "movable":false
+      }
+    }
+  ],
+  "actionEligibility": {
+    "suspendable": false,
+    "cloneable":false
+  },
+  "powerState": "POWERED_ON"
+}

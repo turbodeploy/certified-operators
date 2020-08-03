@@ -17,7 +17,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.client.RestTemplate;
@@ -31,6 +30,8 @@ import com.vmturbo.api.component.external.api.mapper.LicenseMapper;
 import com.vmturbo.api.dto.license.LicenseApiDTO;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.serviceinterfaces.ILicenseService;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
@@ -50,6 +51,8 @@ public class LicenseService implements ILicenseService {
      * The HTTP accept header.
      */
     private static final List<MediaType> HTTP_ACCEPT = ImmutableList.of(MediaType.APPLICATION_JSON);
+    private static final String FAILED_TO_PARSE_POTENTIAL_MALICIOUS_LICENSE_FILE =
+            "Failed to parse potential malicious license file";
     /**
      * The logger.
      */
@@ -192,6 +195,14 @@ public class LicenseService implements ILicenseService {
                             .addAllLicenseDTO(licenseDTOS)
                             .build())
                     .getLicenseDTOList();
+            final String licenseFileName = licenseDTOS.stream()
+                .map(LicenseDTO::getFilename)
+                .findFirst()
+                .orElse("");
+            AuditLog.newEntry(AuditAction.ADD_LICENSE,
+                "Turbonomic license added", true)
+                .targetName(licenseFileName)
+                .audit();
         }
 
         // return the set of licenses that were added
@@ -213,15 +224,27 @@ public class LicenseService implements ILicenseService {
     @Override
     public boolean deleteLicense(final String s) {
         logger_.info("Deleting license {}", s);
-        return licenseManagerService.removeLicense(RemoveLicenseRequest.newBuilder()
+        final boolean isSuccessful =  licenseManagerService.removeLicense(RemoveLicenseRequest.newBuilder()
                 .setUuid(s)
                 .build()).getWasRemoved();
+        AuditLog.newEntry(AuditAction.DELETE_LICENSE,
+            "Turbonomic license deletion", isSuccessful)
+            .targetName(s)
+            .audit();
+        return isSuccessful;
     }
 
     @Override
-    public LicenseApiDTO deserializeLicenseToLicenseDTO(final InputStream inputStream, final String s) {
+    public LicenseApiDTO deserializeLicenseToLicenseDTO(final InputStream inputStream,
+            final String s) {
         try {
             return LicenseDeserializer.deserialize(inputStream, s);
+        } catch (SecurityException e) {
+            AuditLog.newEntry(AuditAction.ADD_LICENSE,
+                    FAILED_TO_PARSE_POTENTIAL_MALICIOUS_LICENSE_FILE, false)
+                    .targetName(s)
+                    .audit();
+            throw new SecurityException(FAILED_TO_PARSE_POTENTIAL_MALICIOUS_LICENSE_FILE);
         } catch (IOException ioe) {
             // this is how we're handling this in OM. The LicenseController is streaming the
             // results, and I'm assuming the empty LicenseApiDTO is part of the expected results.

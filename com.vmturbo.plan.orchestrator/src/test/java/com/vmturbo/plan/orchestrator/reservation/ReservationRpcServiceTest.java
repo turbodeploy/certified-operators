@@ -2,37 +2,29 @@ package com.vmturbo.plan.orchestrator.reservation;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.verify;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Sets;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Sets;
-
-import io.grpc.stub.StreamObserver;
-
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.CreateReservationRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
@@ -41,14 +33,12 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationByIdRequ
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Test cases for {@link ReservationRpcService}.
@@ -64,6 +54,8 @@ public class ReservationRpcServiceTest {
 
     private PlanRpcService planRpcService;
 
+    private ReservationManager reservationManager;
+
     private ReservationRpcService reservationRpcService;
 
     private ReservationServiceBlockingStub reservationServiceBlockingStub;
@@ -73,6 +65,19 @@ public class ReservationRpcServiceTest {
     private Reservation testReservation = Reservation.newBuilder()
             .setId(123)
             .setName("test-reservation")
+            .setStatus(ReservationStatus.UNFULFILLED)
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                            .setCount(1L)
+                            .setTemplateId(234L)))
+            .build();
+
+    private Reservation testReservationWithConstraint = Reservation.newBuilder()
+            .setId(124)
+            .setName("test-reservation-withConstraint")
+            .setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
+                    .addReservationConstraintInfo(ReservationConstraintInfo
+                            .newBuilder().setConstraintId(123L)))
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setCount(1L)
@@ -81,12 +86,11 @@ public class ReservationRpcServiceTest {
 
     @Before
     public void setup() throws Exception {
-        planDao = Mockito.mock(PlanDao.class);
         templatesDao = Mockito.mock(TemplatesDao.class);
         reservationDao = Mockito.mock(ReservationDao.class);
-        planRpcService = Mockito.mock(PlanRpcService.class);
-        reservationRpcService = new ReservationRpcService(planDao, templatesDao, reservationDao,
-                planRpcService);
+        reservationManager = Mockito.mock(ReservationManager.class);
+        reservationRpcService = new ReservationRpcService(templatesDao,
+                reservationDao, reservationManager);
         grpcTestServerReservation = GrpcTestServer.newServer(reservationRpcService);
         grpcTestServerReservation.start();
         reservationServiceBlockingStub =
@@ -96,34 +100,6 @@ public class ReservationRpcServiceTest {
     @After
     public void tearDown() {
         grpcTestServerReservation.close();
-    }
-
-    @Test
-    public void testInitialPlacement() throws Exception {
-        final ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
-                .addChanges(ScenarioChange.newBuilder()
-                        .setTopologyAddition(TopologyAddition.newBuilder()
-                                .setTemplateId(234L)))
-                .build();
-        final InitialPlacementRequest request = InitialPlacementRequest.newBuilder()
-                .setScenarioInfo(scenarioInfo)
-                .build();
-
-        final StreamObserver<InitialPlacementResponse> mockObserver =
-                Mockito.mock(StreamObserver.class);
-        final PlanInstance planInstance = PlanInstance.newBuilder()
-                .setPlanId(1L)
-                .setStatus(PlanStatus.RUNNING_ANALYSIS)
-                .build();
-        Mockito.when(planDao.createPlanInstance(Mockito.any(), Mockito.any())).thenReturn(planInstance);
-        Mockito.when(templatesDao.getTemplatesCount(Mockito.anySet()))
-                .thenReturn(1L);
-        reservationServiceBlockingStub.initialPlacement(request);
-
-        Mockito.verify(planDao, Mockito.times(1))
-                .createPlanInstance(Mockito.any(), Mockito.any());
-        Mockito.verify(planRpcService, Mockito.times(1))
-                .runPlan(Mockito.any(), Mockito.any());
     }
 
     @Test
@@ -140,30 +116,59 @@ public class ReservationRpcServiceTest {
     public void testGetReservationById() {
         final GetReservationByIdRequest request = GetReservationByIdRequest.newBuilder()
                 .setReservationId(123)
+                .setApiCallBlock(false)
                 .build();
         Optional<Reservation> reservationOptional = Optional.of(testReservation);
-        Mockito.when(reservationDao.getReservationById(123)).thenReturn(reservationOptional);
+        Mockito.when(reservationDao.getReservationById(123, false)).thenReturn(reservationOptional);
         Reservation reservation = reservationServiceBlockingStub.getReservationById(request);
         assertEquals(reservation, reservationOptional.get());
     }
 
     @Test
     public void testCreateReservation() {
-        final DateTime today = DateTime.now(DateTimeZone.UTC);
-        final DateTime nextMonth = today.plusMonths(1);
+        final Date today = new Date();
+        LocalDateTime ldt = today.toInstant()
+                        .atOffset(ZoneOffset.UTC).toLocalDateTime();
+        final Date nextMonth = Date.from(ldt.plusMonths(1)
+                        .atOffset(ZoneOffset.UTC).toInstant());
         final CreateReservationRequest request = CreateReservationRequest.newBuilder()
                 .setReservation(testReservation)
                 .build();
         final Reservation createdReservation = Reservation.newBuilder(testReservation)
                 .setId(123)
-                .setStartDate(today.getMillis())
-                .setExpirationDate(nextMonth.getMillis())
+                .setStartDate(today.getTime())
+                .setExpirationDate(nextMonth.getTime())
                 .build();
         Mockito.when(reservationDao.createReservation(testReservation)).thenReturn(createdReservation);
+        Mockito.when(reservationManager.intializeReservationStatus(createdReservation)).thenReturn(createdReservation);
         Mockito.when(templatesDao.getTemplatesCount(Mockito.anySet()))
                 .thenReturn(1L);
         Reservation reservation = reservationServiceBlockingStub.createReservation(request);
         assertEquals(reservation, createdReservation);
+    }
+
+    /**
+     * Dont create reservation when the constraint id is invalid.
+     */
+    @Test
+    public void testCreateReservationError() {
+        final Date today = new Date();
+        LocalDateTime ldt = today.toInstant()
+                .atOffset(ZoneOffset.UTC).toLocalDateTime();
+        final Date nextMonth = Date.from(ldt.plusMonths(1)
+                .atOffset(ZoneOffset.UTC).toInstant());
+        final CreateReservationRequest request = CreateReservationRequest.newBuilder()
+                .setReservation(testReservationWithConstraint)
+                .build();
+        Mockito.when(reservationManager.isConstraintIdValid(Mockito.any())).thenReturn(false);
+        verify(reservationDao, Mockito.times(0)).createReservation(Mockito.any());
+        Mockito.when(templatesDao.getTemplatesCount(Mockito.anySet()))
+                .thenReturn(1L);
+        try {
+            reservationServiceBlockingStub.createReservation(request);
+        } catch (Exception e) {
+            assertEquals("INVALID_ARGUMENT: constraint Ids are invalid", e.getMessage());
+        }
     }
 
     @Test
@@ -229,10 +234,4 @@ public class ReservationRpcServiceTest {
         assertEquals(2L, Iterators.size(results));
     }
 
-    @Test
-    public void testPlacementSettingOverride() {
-        final List<ScenarioChange> scenarioChangeList =
-                reservationRpcService.createPlacementActionSettingOverride();
-        assertEquals(7, scenarioChangeList.size());
-    }
 }

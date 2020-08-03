@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -13,31 +14,33 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.hateoas.Link;
-import org.springframework.hateoas.mvc.ControllerLinkBuilder;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.tools.Longs;
+import org.springframework.hateoas.Link;
+import org.springframework.hateoas.mvc.ControllerLinkBuilder;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ConstraintsMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.SearchMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.TagsMapper;
@@ -46,11 +49,13 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
-import com.vmturbo.api.component.external.api.util.action.SearchUtil;
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
+import com.vmturbo.api.constraints.PlacementOptionApiDTO;
 import com.vmturbo.api.controller.GroupsController;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -61,51 +66,68 @@ import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.RelationType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
+import com.vmturbo.api.pagination.EntityPaginationRequest;
+import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IEntitiesService;
-import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.EntityConstraints;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraint;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsRequest;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.EntityConstraintsResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacements;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsRequest;
+import com.vmturbo.common.protobuf.repository.EntityConstraints.PotentialPlacementsResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
-import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.components.common.setting.SettingDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 public class EntitiesService implements IEntitiesService {
     // these two constants are used to create hateos links for getEntitiesByUuid only.
@@ -115,9 +137,7 @@ public class EntitiesService implements IEntitiesService {
     private final static String UUID = "{uuid}";
     private final static String REPLACEME = "#REPLACEME";
 
-    public final static String PRICE_INDEX_COMMODITY = "priceIndex";
-
-    Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     private final ActionsServiceBlockingStub actionOrchestratorRpcService;
 
@@ -127,17 +147,13 @@ public class EntitiesService implements IEntitiesService {
 
     private final SupplyChainFetcherFactory supplyChainFetcher;
 
-    private final PaginationMapper paginationMapper;
-
-    private final SearchServiceBlockingStub searchServiceRpc;
-
     private final GroupServiceBlockingStub groupServiceClient;
 
     private final EntityAspectMapper entityAspectMapper;
 
-    private final TopologyProcessor topologyProcessor;
-
     private final SeverityPopulator severityPopulator;
+
+    private final PriceIndexPopulator priceIndexPopulator;
 
     private final StatsService statsService;
 
@@ -149,22 +165,32 @@ public class EntitiesService implements IEntitiesService {
 
     private final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub;
 
-    private final SettingServiceBlockingStub settingServiceBlockingStub;
-
     private final SettingsMapper settingsMapper;
 
-    private final SearchUtil searchUtil;
+    private final ActionSearchUtil actionSearchUtil;
 
     private final RepositoryApi repositoryApi;
+
+    private final EntitySettingQueryExecutor entitySettingQueryExecutor;
+
+    private final EntityConstraintsServiceBlockingStub entityConstraintsRpcService;
+
+    private final PolicyServiceBlockingStub policyRpcService;
+
+    private final ThinTargetCache thinTargetCache;
+
+    private final PaginationMapper paginationMapper;
+
+    private final ServiceEntityMapper serviceEntityMapper;
 
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
             ImmutableSet.of(
-                    UIEntityType.CHASSIS.getValue(),
-                    UIEntityType.DATACENTER.getValue(),
-                    UIEntityType.DISKARRAY.getValue(),
-                    UIEntityType.LOGICALPOOL.getValue(),
-                    UIEntityType.STORAGECONTROLLER.getValue());
+                    ApiEntityType.CHASSIS.apiStr(),
+                    ApiEntityType.DATACENTER.apiStr(),
+                    ApiEntityType.DISKARRAY.apiStr(),
+                    ApiEntityType.LOGICALPOOL.apiStr(),
+                    ApiEntityType.STORAGECONTROLLER.apiStr());
 
     /**
      * When traversing the entities in a supply chain in the UI, the breadcrumb is
@@ -179,60 +205,69 @@ public class EntitiesService implements IEntitiesService {
      */
     private static final Map<String, Integer> BREADCRUMB_ENTITY_PRECEDENCE_MAP =
             ImmutableMap.of(
-                    UIEntityType.REGION.getValue(), 1,
-                    UIEntityType.AVAILABILITY_ZONE.getValue(), 2,
-                    UIEntityType.DATACENTER.getValue(), 2,
-                    UIEntityType.CHASSIS.getValue(), 2,
+                    ApiEntityType.REGION.apiStr(), 1,
+                    ApiEntityType.AVAILABILITY_ZONE.apiStr(), 2,
+                    ApiEntityType.DATACENTER.apiStr(), 2,
+                    ApiEntityType.CHASSIS.apiStr(), 2,
                     ConstraintType.CLUSTER.toString(), 3);
 
+    /**
+     * The breadcrumb entities we are interested in when traversing entities that
+     * belong to a cluster.
+     */
     private static final Set<String> BREADCRUMB_ENTITIES_TO_FETCH =
-            new HashSet<String>(Arrays.asList(
-                    UIEntityType.REGION.getValue(),
-                    UIEntityType.AVAILABILITY_ZONE.getValue(),
-                    UIEntityType.DATACENTER.getValue(),
-                    UIEntityType.CHASSIS.getValue(),
-                    UIEntityType.PHYSICAL_MACHINE.getValue()));
+            new HashSet<>(Arrays.asList(
+                    ApiEntityType.REGION.apiStr(),
+                    ApiEntityType.AVAILABILITY_ZONE.apiStr(),
+                    ApiEntityType.DATACENTER.apiStr(),
+                    ApiEntityType.CHASSIS.apiStr(),
+                    ApiEntityType.PHYSICAL_MACHINE.apiStr()));
 
     public EntitiesService(
-            @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
-            @Nonnull final ActionSpecMapper actionSpecMapper,
-            final long realtimeTopologyContextId,
-            @Nonnull final SupplyChainFetcherFactory supplyChainFetcher,
-            @Nonnull final PaginationMapper paginationMapper,
-            @Nonnull final SearchServiceBlockingStub searchServiceRpc,
-            @Nonnull final GroupServiceBlockingStub groupServiceClient,
-            @Nonnull final EntityAspectMapper entityAspectMapper,
-            @Nonnull final TopologyProcessor topologyProcessor,
-            @Nonnull final SeverityPopulator severityPopulator,
-            @Nonnull final StatsService statsService,
-            @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
-            @Nonnull final UuidMapper uuidMapper,
-            @Nonnull final StatsHistoryServiceBlockingStub statsHistoryService,
-            @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
-            @Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
-            @Nonnull final SettingsMapper settingsMapper,
-            @Nonnull final SearchUtil searchUtil,
-            @Nonnull final RepositoryApi repositoryApi) {
-
+        @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
+        @Nonnull final ActionSpecMapper actionSpecMapper,
+        final long realtimeTopologyContextId,
+        @Nonnull final SupplyChainFetcherFactory supplyChainFetcher,
+        @Nonnull final GroupServiceBlockingStub groupServiceClient,
+        @Nonnull final EntityAspectMapper entityAspectMapper,
+        @Nonnull final SeverityPopulator severityPopulator,
+        @Nonnull final PriceIndexPopulator priceIndexPopulator,
+        @Nonnull final StatsService statsService,
+        @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
+        @Nonnull final UuidMapper uuidMapper,
+        @Nonnull final StatsHistoryServiceBlockingStub statsHistoryService,
+        @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
+        @Nonnull final SettingsMapper settingsMapper,
+        @Nonnull final ActionSearchUtil actionSearchUtil,
+        @Nonnull final RepositoryApi repositoryApi,
+        final EntitySettingQueryExecutor entitySettingQueryExecutor,
+        @Nonnull final EntityConstraintsServiceBlockingStub entityConstraintsRpcService,
+        @Nonnull final PolicyServiceBlockingStub policyRpcService,
+        @Nonnull final ThinTargetCache thinTargetCache,
+        @Nonnull final PaginationMapper paginationMapper,
+        @Nonnull final ServiceEntityMapper serviceEntityMapper) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.supplyChainFetcher = Objects.requireNonNull(supplyChainFetcher);
-        this.paginationMapper = Objects.requireNonNull(paginationMapper);
-        this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
         this.settingPolicyServiceBlockingStub = Objects.requireNonNull(settingPolicyServiceBlockingStub);
-        this.settingServiceBlockingStub = Objects.requireNonNull(settingServiceBlockingStub);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
-        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
+        this.priceIndexPopulator = Objects.requireNonNull(priceIndexPopulator);
         this.statsService = Objects.requireNonNull(statsService);
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.statsHistoryService = Objects.requireNonNull(statsHistoryService);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
-        this.searchUtil = Objects.requireNonNull(searchUtil);
+        this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.entitySettingQueryExecutor = entitySettingQueryExecutor;
+        this.entityConstraintsRpcService = entityConstraintsRpcService;
+        this.policyRpcService = policyRpcService;
+        this.thinTargetCache = thinTargetCache;
+        this.paginationMapper = Objects.requireNonNull(paginationMapper);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
     }
 
     @Override
@@ -240,7 +275,7 @@ public class EntitiesService implements IEntitiesService {
         final ServiceEntityApiDTO result = new ServiceEntityApiDTO();
         result.add(
             generateLinkTo(
-                ControllerLinkBuilder.methodOn(MarketsController.class).getEntitiesByMarketUuid(REPLACEME),
+                ControllerLinkBuilder.methodOn(MarketsController.class).getEntitiesByMarketUuid(REPLACEME, null, null, null, true),
                 "Market Entities"));
         result.add(
             generateLinkTo(
@@ -253,16 +288,18 @@ public class EntitiesService implements IEntitiesService {
     @Nonnull
     public ServiceEntityApiDTO getEntityByUuid(@Nonnull String uuid, boolean includeAspects)
             throws Exception {
+        if (!uuidMapper.fromUuid(uuid).isEntity()) {
+            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
+                    "Should be a numeric entity id.", uuid));
+        }
         // get information about this entity from the repository
-        final long oid = Long.valueOf(uuid);
-        final TopologyEntityDTO entityAsTopologyEntityDTO = searchUtil.getTopologyEntityDTO(oid);
-        final ServiceEntityApiDTO result =
-            ServiceEntityMapper.toServiceEntityApiDTO(
-                entityAsTopologyEntityDTO,
-                includeAspects ? entityAspectMapper : null);
-
-        // fetch information about the discovering target
-        result.setDiscoveredBy(searchUtil.fetchDiscoveringTarget(entityAsTopologyEntityDTO));
+        final long oid = uuidMapper.fromUuid(uuid).oid();
+        final SingleEntityRequest req = repositoryApi.entityRequest(oid);
+        if (includeAspects) {
+            req.useAspectMapper(entityAspectMapper);
+        }
+        final ServiceEntityApiDTO result = req.getSE()
+            .orElseThrow(() -> new UnknownObjectException(uuid));
 
         // fetch all consumers
         try {
@@ -291,55 +328,10 @@ public class EntitiesService implements IEntitiesService {
         // fetch entity severity
         severityPopulator.populate(realtimeTopologyContextId, Collections.singletonList(result));
 
-        // fetch price index
-        fetchAndSetPriceIndex(oid, result);
+        // populate price index
+        priceIndexPopulator.populateRealTimeEntities(Collections.singletonList(result));
 
         return result;
-    }
-
-    private void fetchAndSetPriceIndex(final long oid, final ServiceEntityApiDTO result) {
-        try {
-            // fetch the first page of stats for this entity
-            final GetEntityStatsResponse entityStatsResponse =
-                statsHistoryService.getEntityStats(
-                    GetEntityStatsRequest.newBuilder()
-                        .setScope(
-                            EntityStatsScope.newBuilder()
-                                .setEntityList(EntityList.newBuilder().addEntities(oid)).build())
-                        .setFilter(
-                            StatsFilter.newBuilder()
-                                .addCommodityRequests(
-                                    CommodityRequest.newBuilder()
-                                        .setCommodityName(PRICE_INDEX_COMMODITY).build())
-                                .build())
-                        .build());
-
-            // read the first stats snapshot, if it exists
-            if (entityStatsResponse.getEntityStatsCount() == 0 ||
-                    entityStatsResponse.getEntityStats(0).getStatSnapshotsCount() == 0) {
-                throw new OperationFailedException("No entity stats were returned");
-            }
-            if (entityStatsResponse.getEntityStats(0).getOid() != oid) {
-                throw
-                    new OperationFailedException(
-                        "Erroneous stat record; refers to oid " +
-                            entityStatsResponse.getEntityStats(0).getOid());
-            }
-            result.setPriceIndex(
-                entityStatsResponse
-                    .getEntityStats(0).getStatSnapshots(0).getStatRecordsList().stream()
-                    .filter(x -> x.getName().equals(PRICE_INDEX_COMMODITY))
-                    .findAny()
-                    .map(StatRecord::getCurrentValue)
-                    .orElseThrow(() -> new OperationFailedException("Cannot find price index")));
-        } catch (StatusRuntimeException | OperationFailedException e) {
-            // fetching price index failed
-            // there will be no price index in the result
-            // the failure will otherwise be ignored
-            logger.warn(
-                "Cannot get the price index of entity with id {} and name {}: {}",
-                () -> oid, result::getDisplayName, e::toString);
-        }
     }
 
     @Override
@@ -374,39 +366,53 @@ public class EntitiesService implements IEntitiesService {
     public ActionPaginationResponse getActionsByEntityUuid(String uuid,
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
-        return
-            searchUtil.getActionsByEntityUuids(
-                Collections.singleton(Long.valueOf(uuid)), inputDto, paginationRequest);
+        return actionSearchUtil.getActionsByScope(uuidMapper.fromUuid(uuid), inputDto,
+                paginationRequest);
     }
 
+    /**
+     * Return the Action information given the id for the action.
+     *
+     * @param uuid        uuid of the entity
+     * @param actionUuid  uuid of the action
+     * @param detailLevel the level of Action details to be returned
+     * @return
+     * @throws Exception
+     */
     @Override
     @Nonnull
-    public ActionApiDTO getActionByEntityUuid(@Nonnull String uuid, @Nonnull String aUuid)
+    public ActionApiDTO getActionByEntityUuid(@Nonnull final String uuid,
+                                              @Nonnull final String actionUuid,
+                                              @Nullable final ActionDetailLevel detailLevel)
             throws Exception {
+        if (!uuidMapper.fromUuid(uuid).isEntity()) {
+            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
+                    "Should be a numeric entity id.", uuid));
+        }
+        long oid = uuidMapper.fromUuid(actionUuid).oid();
         final ActionApiDTO result;
         try {
             // get the action object from the action orchestrator
             // and translate it to an ActionApiDTO object
             result =
-                actionSpecMapper.mapActionSpecToActionApiDTO(
-                    actionOrchestratorRpcService
-                        .getAction(
-                            SingleActionRequest.newBuilder()
-                                .setActionId(Long.valueOf(aUuid))
-                                .setTopologyContextId(realtimeTopologyContextId)
-                                .build())
-                        .getActionSpec(),
-                    realtimeTopologyContextId);
+                    actionSpecMapper.mapActionSpecToActionApiDTO(
+                            actionOrchestratorRpcService
+                                    .getAction(
+                                            SingleActionRequest.newBuilder()
+                                                    .setActionId(oid)
+                                                    .setTopologyContextId(realtimeTopologyContextId)
+                                                    .build())
+                                    .getActionSpec(),
+                            realtimeTopologyContextId,
+                            detailLevel);
         } catch (StatusRuntimeException e) {
             throw ExceptionMapper.translateStatusException(e);
         }
         // check if the passed in entity uuid is related to the action
         if (!isRelatedAction(uuid, result)) {
             throw new IllegalArgumentException(String.format("Entity %s in the query is not " +
-                "related to the action %s.", uuid, aUuid));
+                    "related to the action %s.", uuid, actionUuid));
         }
-        // add discovering targets to all entities associated with the action object
-        searchUtil.populateActionApiDTOWithTargets(result);
         return result;
     }
 
@@ -425,40 +431,20 @@ public class EntitiesService implements IEntitiesService {
      */
     @Override
     public List<SettingsManagerApiDTO> getSettingsByEntityUuid(String uuid, boolean includePolicies) throws Exception {
-        GetEntitySettingsRequest request =
-                GetEntitySettingsRequest.newBuilder()
-                        .setSettingFilter(EntitySettingFilter.newBuilder()
-                                .addEntities(Long.valueOf(uuid))
-                                .setIncludeSettingPolicies(includePolicies)
-                                .build())
-                        .build();
+        final ApiId id = uuidMapper.fromUuid(uuid);
+        final List<SettingsManagerApiDTO> retMgrs =
+            entitySettingQueryExecutor.getEntitySettings(id, includePolicies);
+        return retMgrs;
+    }
 
-        final Optional<SettingsForEntity> entitySettings = SettingDTOUtil.flattenEntitySettings(
-            settingPolicyServiceBlockingStub.getEntitySettings(request))
-                .filter(settingsForEntity -> settingsForEntity.hasEntityId()
-                    && settingsForEntity.getEntityId()==Long.valueOf(uuid))
-                .findFirst();
+    @Override
+    public SettingApiDTO getSettingByEntity(final String s, final String s1, final String s2) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
 
-        if (!entitySettings.isPresent()) {
-            return Collections.emptyList();
-        }
-
-        // Mapping from SettingSpecName -> List of settings of that spec type.
-        Map<String, List<SettingToPolicyName>> settingSpecNameToSettingsMap =
-                entitySettings.get().getSettingsList()
-                        .stream()
-                        .collect(Collectors.groupingBy(settingToPolicyName ->
-                                settingToPolicyName.getSetting().getSettingSpecName()));
-
-        final Iterable<SettingSpec> specIt = () -> settingServiceBlockingStub.searchSettingSpecs(
-                SearchSettingSpecsRequest.newBuilder()
-                        .addAllSettingSpecName(settingSpecNameToSettingsMap.keySet())
-                        .build());
-
-        final Map<String, SettingSpec> specs = StreamSupport.stream(specIt.spliterator(), false)
-                .collect(Collectors.toMap(SettingSpec::getName, Function.identity()));
-
-        return settingsMapper.toManagerDtos(settingSpecNameToSettingsMap, specs);
+    @Override
+    public List<? extends SettingApiDTO<?>> getSettingsByEntityAndManager(final String s, final String s1) throws Exception {
+        throw ApiUtils.notImplementedInXL();
     }
 
     @Override
@@ -467,6 +453,26 @@ public class EntitiesService implements IEntitiesService {
         return statsService.getStatsByEntityQuery(uuid, inputDto);
     }
 
+    /**
+     * Get a list of breadcrumb trail for an entity.
+     * Scan the supply chain of this entity and determine if it belongs to a cluster. If so, insert
+     * the cluster entity into the list of breadcrumbs.
+     *
+     * Steps:
+     * 1. If the input entity is below the host in the supply chain (e.g DC/Chassis/Storage etc..),
+     *    there is no cluster to fetch. So just return the entity.
+     * 2. If the input entity is a Storage Device, check if it belongs to a Storage Cluster.
+     * 3. If the input entity is equal to or above virtual machine, check if it belongs to a
+     *    virtual machine cluster (e.g., containers belong to k8s cluster).
+     * 4. Otherwise, check if the input entity belongs to a physical machine cluster.
+     *
+     * Note: If the entity belongs to both virtual machine cluster and physical machine cluster,
+     *       only virtual machine cluster will be inserted into the list of breadcrumbs.
+     *
+     * @param uuid the uuid of the input entity
+     * @return A list of sorted breadcrumbs entities
+     * @throws Exception
+     */
     @Override
     public List<BaseApiDTO> getGroupsByUuid(String uuid,
                                             Boolean path) throws Exception {
@@ -475,87 +481,212 @@ public class EntitiesService implements IEntitiesService {
             throw ApiUtils.notImplementedInXL();
         }
 
-        // Steps:
-        // Get the supply chain for this entity.
-        // If this entity is above the host in the supply-chain, then get the host it is connected to.
-        // From the hostId, get the Cluster that the host belongs to.
-        // If entity is Storage Device, check if it belongs to a Storage Cluster.
-        // For entities below the host(e.g DC/Chassis/Storage etc..), there is no cluster
-        // to fetch. So just return the entity.
-
-        long entityOid = Long.valueOf(uuid);
+        // Get the input entity
+        long entityOid = uuidMapper.fromUuid(uuid).oid();
         Optional<ServiceEntityApiDTO> entityApiDTO =
-                repositoryApi.getServiceEntitiesById(
-                        ServiceEntitiesRequest.newBuilder(ImmutableSet.of(entityOid))
-                                .build())
-                .getOrDefault(entityOid, Optional.empty());
-
+                repositoryApi.entityRequest(entityOid).getSE();
 
         if (!entityApiDTO.isPresent()) {
             logger.warn("No entity dto found for entity with oid: {}", entityOid);
             return Collections.emptyList();
         }
 
-        long oidToQuery = 1;
-        List<BaseApiDTO> result = new ArrayList<>();
-        result.add(entityApiDTO.get());
+        // The input entity cannot be a part of any cluster.
+        if (NON_CLUSTER_ENTITY_TYPES.contains(entityApiDTO.get().getClassName())) {
+            return Lists.newArrayList(entityApiDTO.get());
+        }
 
-        // Skip supply-chain call for entities which are not consumers(direct/in-direct) of host(PM).
-        if (entityApiDTO.get().getClassName().equals(UIEntityType.STORAGE.getValue())) {
-            oidToQuery = entityOid;
-        } else if (!NON_CLUSTER_ENTITY_TYPES.contains(entityApiDTO.get().getClassName())) {
+        // The input entity is a storage device.
+        // Skip supply-chain call for storage as it is not a consumer(direct/in-direct) of any
+        // physical machine or virtual machine.
+        if (entityApiDTO.get().getClassName().equals(ApiEntityType.STORAGE.apiStr())) {
+            List<BaseApiDTO> result = Lists.newArrayList();
+            getClusterApiDTO(entityOid).ifPresent(result::add);
+            result.add(entityApiDTO.get());
+            sortBreadCrumbResult(result);
+            return result;
+        }
 
-            // We are only interested in entities of type : in BREADCRUMB_ENTITIES_TO_FETCH
-            // type of the input entity.
-            Set<String> entityTypesToFetch = new HashSet<>(BREADCRUMB_ENTITIES_TO_FETCH);
-            entityTypesToFetch.add(entityApiDTO.get().getClassName());
+        // We are only interested in entities of type defined in BREADCRUMB_ENTITIES_TO_FETCH.
+        Set<String> entityTypesToFetch = new HashSet<>(BREADCRUMB_ENTITIES_TO_FETCH);
 
-            final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
-                    .topologyContextId(realtimeTopologyContextId)
-                    .addSeedUuids(Lists.newArrayList(uuid))
-                    .entityTypes(entityTypesToFetch.stream().collect(Collectors.toList()))
-                    .includeHealthSummary(false)
-                    .entityDetailType(EntityDetailType.entity)
-                    .fetch();
+        // We need to find out if the input entity belongs to any virtual machine cluster.
+        // We only fetch virtual machine entities from the supply chain if the input entity
+        // is equal to or above the virtual machine in the supply chain. This will not introduce
+        // much overhead, as the seed for supply chain generation in this case starts from
+        // virtual machine and above.
+        if (!BREADCRUMB_ENTITIES_TO_FETCH.contains(entityApiDTO.get().getClassName()) &&
+            !entityApiDTO.get().getClassName().equals(ApiEntityType.VIRTUAL_DATACENTER.apiStr())) {
+            entityTypesToFetch.add(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        }
+        // Add the input entity type itself.
+        entityTypesToFetch.add(entityApiDTO.get().getClassName());
 
-            final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
-                    supplyChain.getSeMap().entrySet().stream()
-                            .map(Entry::getValue)
-                            .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().values().stream())
-                            .collect(Collectors.toMap(apiDTO -> Long.valueOf(apiDTO.getUuid()), Function.identity()));
-
-            // Remove PM(Host) entity type from the result if the entity being searched for is not PM.
-            result = serviceEntityMap.values()
-                    .stream()
+        // Fetch the supply chain with entities of interest.
+        final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
+                .topologyContextId(realtimeTopologyContextId)
+                .addSeedUuids(Lists.newArrayList(uuid))
+                .entityTypes(Lists.newArrayList(entityTypesToFetch))
+                .includeHealthSummary(false)
+                .entityDetailType(EntityDetailType.entity)
+                .fetch();
+        // Create an unmodifiable serviceEntityMap
+        final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
+                supplyChain.getSeMap().values().stream()
+                    .flatMap(supplyChainEntryDTO ->
+                             supplyChainEntryDTO.getInstances().values().stream())
+                    // Drop VDC entities unless it is the same as the input entity.
+                    // We do this now because VDC entity is not needed to get a cluster.
                     .filter(serviceEntityApiDTO ->
-                            !UIEntityType.PHYSICAL_MACHINE.getValue().equals(serviceEntityApiDTO.getClassName())
-                                    || entityApiDTO.get().getClassName().equals(UIEntityType.PHYSICAL_MACHINE.getValue()))
-                    .collect(Collectors.toList());
+                            !ApiEntityType.VIRTUAL_DATACENTER.apiStr().equals(serviceEntityApiDTO.getClassName())
+                            || uuid.equals(serviceEntityApiDTO.getUuid()))
+                    .collect(Collectors.toMap(apiDTO -> {
+                        try {
+                            return uuidMapper.fromUuid(apiDTO.getUuid()).oid();
+                        } catch (OperationFailedException e) {
+                            throw new IllegalArgumentException(
+                                    String.format("The uuid %s can not be mapped to oid",
+                                            apiDTO.getUuid()), e);
+                        }
+                    }, Function.identity()));
 
-            // Find the oid of the Host the entity is connected to.
-            for (Entry<Long, ServiceEntityApiDTO> entry : serviceEntityMap.entrySet()) {
-                ServiceEntityApiDTO serviceEntityApiDTO = entry.getValue();
-                if (serviceEntityApiDTO.getClassName().equals(UIEntityType.PHYSICAL_MACHINE.getValue())) {
-                    oidToQuery = Long.valueOf(serviceEntityApiDTO.getUuid());
-                }
-            }
+        // Check if the input entity belongs to a Virtual Machine Cluster.
+        List<BaseApiDTO> result = getVirtualMachineClusterBreadCrumbs(entityApiDTO.get(),
+                serviceEntityMap);
+        if (!result.isEmpty()) {
+            return result;
         }
 
-        // fetch the hostId/storageId -> ClusterName from Group component.
-        if (oidToQuery != 0) {
-            GetClusterForEntityResponse response =
-                    groupServiceClient.getClusterForEntity(GetClusterForEntityRequest.newBuilder()
-                            .setEntityId(oidToQuery)
-                            .build());
-            if (response.hasCluster()) {
-                final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
-                serviceEntityApiDTO.setDisplayName(GroupProtoUtil.getGroupDisplayName(response.getCluster()));
-                serviceEntityApiDTO.setUuid(Long.toString(response.getCluster().getId()));
-                serviceEntityApiDTO.setClassName(ConstraintType.CLUSTER.name());
-                // Insert the clusterRecord before the Entity record.
-                result.add(serviceEntityApiDTO);
+        // If not, then check if it belongs to a Physical Machine Cluster
+        return getClusterBreadCrumbs(entityApiDTO.get(), serviceEntityMap);
+    }
+
+    /**
+     * Get the list of breadcrumbs entities if the input entity belongs to a physical machine
+     * cluster.
+     *
+     * @param entityApiDTO the input entity
+     * @param serviceEntityMap a map of entities that are on the supply chain of the input entity
+     *
+     * @return A list of breadcrumbs entities including the physical machine cluster that
+     * the input entity belongs to.
+     * @throws OperationFailedException if there is any error mapping the scope.
+     */
+    private List<BaseApiDTO> getClusterBreadCrumbs(ServiceEntityApiDTO entityApiDTO,
+            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap) throws OperationFailedException {
+        List<BaseApiDTO> result = serviceEntityMap.values()
+                .stream()
+                // Remove VM entity from the result unless the input entity is the same VM.
+                .filter(serviceEntityApiDTO ->
+                        !ApiEntityType.VIRTUAL_MACHINE.apiStr().equals(serviceEntityApiDTO.getClassName())
+                        || entityApiDTO.getUuid().equals(serviceEntityApiDTO.getUuid()))
+                // Remove PM(Host) entity from the result unless the input entity is the same PM.
+                .filter(serviceEntityApiDTO ->
+                        !ApiEntityType.PHYSICAL_MACHINE.apiStr().equals(serviceEntityApiDTO.getClassName())
+                        || entityApiDTO.getUuid().equals(serviceEntityApiDTO.getUuid()))
+                .collect(Collectors.toList());
+        // Find the oid of the Host the entity is connected to.
+        for (Entry<Long, ServiceEntityApiDTO> entry : serviceEntityMap.entrySet()) {
+            ServiceEntityApiDTO serviceEntityApiDTO = entry.getValue();
+            if (serviceEntityApiDTO.getClassName().equals(ApiEntityType.PHYSICAL_MACHINE.apiStr())) {
+                long oidToQuery = uuidMapper.fromUuid(serviceEntityApiDTO.getUuid()).oid();
+                getClusterApiDTO(oidToQuery).ifPresent(result::add);
+                // We found the cluster that the PM belongs to, break out of the loop.
+                break;
             }
         }
+        sortBreadCrumbResult(result);
+        return result;
+    }
+
+    /**
+     * Get the list of breadcrumbs entities if the input entity belongs to a virtual machine
+     * cluster.
+     *
+     * @param entityApiDTO the input entity
+     * @param serviceEntityMap a map of entities that are on the supply chain of the input entity
+     *
+     * @return An empty list if the input entity does not belong to any virtual machine cluster.
+     * Otherwise, return a list of breadcrumbs entities including the virtual machine cluster that
+     * the input entity belongs to.
+     */
+    private List<BaseApiDTO> getVirtualMachineClusterBreadCrumbs(ServiceEntityApiDTO entityApiDTO,
+            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap) {
+        List<BaseApiDTO> result = Lists.newArrayList();
+        if (BREADCRUMB_ENTITIES_TO_FETCH.contains(entityApiDTO.getClassName()) ||
+                entityApiDTO.getClassName().equals(ApiEntityType.VIRTUAL_DATACENTER.apiStr())) {
+            // The input entity is below virtual machine.
+            // Return an empty list.
+            return result;
+        }
+        // Find the oid of the Virtual Machine to which the input entity is connected
+        // either directly or indirectly, then call the group service to find the Virtual
+        // Machine cluster that the Virtual Machine belongs to.
+        serviceEntityMap.entrySet()
+                .stream()
+                .filter(entry ->
+                        entry.getValue().getClassName().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
+                .findFirst()
+                .ifPresent(entry ->
+                        getClusterApiDTO(entry.getKey())
+                                .ifPresent(result::add));
+        if (result.isEmpty()) {
+            // This entity does not belong to any virtual machine cluster.
+            // Return an empty list.
+            return result;
+        }
+        // This entity belongs to a virtual machine cluster.
+        // Complete the list of breadcrumbs.
+        result.addAll(serviceEntityMap.values()
+                .stream()
+                // Drop the physical machine entity.
+                .filter(e -> !ApiEntityType.PHYSICAL_MACHINE.apiStr().equals(e.getClassName()))
+                // Drop the virtual machine entity if input entity is not a virtual machine.
+                // Only keep the virtual machine entity when the input entity itself is a virtual
+                // machine.
+                // For example, we may generate the following breadcrumbs:
+                // 1. The input entity is a kubernetes container
+                //    [DataCenter]/[VM Cluster]/[Container]
+                // 2. The input entity is a kubernetes node (i.e., a VM)
+                //    [DataCenter]/[VM Cluster]/[VM]
+                .filter(e -> !ApiEntityType.VIRTUAL_MACHINE.apiStr().equals(e.getClassName())
+                        || entityApiDTO.getClassName().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
+                .collect(Collectors.toList()));
+        // Sort the order.
+        sortBreadCrumbResult(result);
+        return result;
+    }
+
+    /**
+     * Call the group service to query the cluster that the object belongs to.
+     * @param oidToQuery the oid of the entity
+     * @return The group DTO with a cluster constraint.
+     */
+    private Optional<ServiceEntityApiDTO> getClusterApiDTO(long oidToQuery) {
+        GetGroupsForEntitiesResponse response =
+                groupServiceClient.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
+                        .addEntityId(oidToQuery)
+                        .addGroupType(GroupType.COMPUTE_HOST_CLUSTER)
+                        .setLoadGroupObjects(true)
+                        .build());
+        // Response should contain 0 or 1 cluster for this entity
+        if (response.getGroupsCount() > 0) {
+            final GroupDTO.Grouping cluster = response.getGroups(0);
+            final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
+            serviceEntityApiDTO.setDisplayName(cluster.getDefinition().getDisplayName());
+            serviceEntityApiDTO.setUuid(Long.toString(cluster.getId()));
+            serviceEntityApiDTO.setClassName(ConstraintType.CLUSTER.name());
+            // Insert the clusterRecord before the Entity record.
+            return Optional.of(serviceEntityApiDTO);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Sort the list of breadcrumbs entities based on predefined order.
+     * @param result the list to sort
+     */
+    private void sortBreadCrumbResult(List<BaseApiDTO> result) {
         // the UI breadcrumb path is of the form:
         // DataCenterName|ChassisName/ClusterName/EntityName
         // For Cloud, we use Region in-place of Cluster and the path is of the form:
@@ -565,7 +696,6 @@ public class EntitiesService implements IEntitiesService {
                 BREADCRUMB_ENTITY_PRECEDENCE_MAP.getOrDefault(dto1.getClassName(), Integer.MAX_VALUE)
                         .compareTo(BREADCRUMB_ENTITY_PRECEDENCE_MAP.getOrDefault(dto2.getClassName(),
                                 Integer.MAX_VALUE)));
-        return result;
     }
 
     @Override
@@ -601,9 +731,30 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<TagApiDTO> getTagsByEntityUuid(final String s) throws Exception {
-        return
-            TagsMapper.convertTagsToApi(
-                    searchUtil.getTopologyEntityDTO(Long.valueOf(s)).getTags().getTagsMap());
+        if (!(uuidMapper.fromUuid(s).isEntity() || uuidMapper.fromUuid(s).isGroup())) {
+            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
+                    "Should be a numeric entity id.", s));
+        }
+        final ApiId apiId = uuidMapper.fromUuid(s);
+        long oid = apiId.oid();
+        final Map<String, TagValuesDTO> tagsMap = new HashMap<>();
+        if (apiId.isGroup()) {
+            final GetTagsRequest tagsRequest =
+                    GetTagsRequest.newBuilder().addGroupId(oid).build();
+            final GetTagsResponse tagsForGroups =
+                    groupServiceClient.getTags(tagsRequest);
+            final Tags tags = tagsForGroups.getTagsMap().get(oid);
+            if (tags != null) {
+                tagsMap.putAll(tags.getTagsMap());
+            }
+        } else {
+            tagsMap.putAll(repositoryApi.entityRequest(oid)
+                    .getEntity()
+                    .orElseThrow(() -> new UnknownObjectException(s))
+                    .getTags()
+                    .getTagsMap());
+        }
+        return TagsMapper.convertTagsToApi(tagsMap);
     }
 
     @Override
@@ -633,9 +784,15 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<SettingsPolicyApiDTO> getSettingPoliciesByEntityUuid(String uuid) throws Exception {
+        if (!uuidMapper.fromUuid(uuid).isEntity()) {
+            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
+                    "Should be a numeric entity id.", uuid));
+        }
+        long oid = uuidMapper.fromUuid(uuid).oid();
         GetEntitySettingPoliciesRequest request =
                 GetEntitySettingPoliciesRequest.newBuilder()
-                        .setEntityOid(Long.valueOf(uuid))
+                        .addEntityOidList(Long.valueOf(uuid))
+                        .setIncludeInactive(true)
                         .build();
 
         GetEntitySettingPoliciesResponse response =
@@ -645,13 +802,36 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public Map<String, EntityAspect> getAspectsByEntityUuid(String uuid) throws UnauthorizedObjectException, UnknownObjectException {
-        return entityAspectMapper.getAspectsByEntity(getTopologyEntityDTO(uuid));
+    public Map<String, EntityAspect> getAspectsByEntityUuid(String uuid)
+            throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException,
+            ConversionException, InterruptedException {
+        if (!uuidMapper.fromUuid(uuid).isEntity()) {
+            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
+                    "Should be a numeric entity id.", uuid));
+        }
+        long oid = uuidMapper.fromUuid(uuid).oid();
+        final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(oid)
+            .getFullEntity()
+            .orElseThrow(() -> new UnknownObjectException(uuid));
+        return entityAspectMapper.getAspectsByEntity(entityDTO)
+            .entrySet().stream()
+            .collect(Collectors.toMap(entry -> entry.getKey().getApiName(), Entry::getValue));
     }
 
     @Override
-    public EntityAspect getAspectByEntityUuid(String uuid, String aspectTag) throws UnauthorizedObjectException, UnknownObjectException {
-        return entityAspectMapper.getAspectByEntity(getTopologyEntityDTO(uuid), aspectTag);
+    public EntityAspect getAspectByEntityUuid(String uuid, String aspectTag)
+            throws UnauthorizedObjectException, UnknownObjectException, OperationFailedException,
+            ConversionException, InterruptedException {
+        if (!uuidMapper.fromUuid(uuid).isEntity()) {
+            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
+                    "Should be a numeric entity id.", uuid));
+        }
+        long oid = uuidMapper.fromUuid(uuid).oid();
+        AspectName aspectName = AspectName.fromString(aspectTag);
+        final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(oid)
+            .getFullEntity()
+            .orElseThrow(() -> new UnknownObjectException(uuid));
+        return entityAspectMapper.getAspectByEntity(entityDTO, aspectName);
     }
 
     @Override
@@ -676,99 +856,153 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public List<ConstraintApiDTO> getConstraintsByEntityUuid(String uuid) throws Exception {
-
-        final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
-                .topologyContextId(realtimeTopologyContextId)
-                .addSeedUuids(Lists.newArrayList(uuid))
-                .includeHealthSummary(false)
-                .entityDetailType(EntityDetailType.entity)
-                .fetch();
-
-        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = supplyChain.getSeMap().entrySet().stream()
-                .map(Entry::getValue)
-                .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().values().stream())
-                .collect(Collectors.toMap(apiDTO -> Long.valueOf(apiDTO.getUuid()), Function.identity()));
-
-        Optional<String> myEntityType = getEntityType(uuid, supplyChain);
-        // Get the consumers of this entity.
-        final Set<String> consumerOids = new HashSet<>();
-        if (myEntityType.isPresent()) {
-            SupplychainEntryDTO supplychainEntryDTO = supplyChain.getSeMap().get(myEntityType.get());
-            if (supplychainEntryDTO != null) {
-                Set<String> consumerTypes = supplychainEntryDTO.getConnectedConsumerTypes();
-                if (consumerTypes != null){
-                    consumerOids.addAll(consumerTypes.stream()
-                            .map(type -> supplyChain.getSeMap().get(type))
-                            .filter(Objects::nonNull)
-                            .map(dto -> dto.getInstances())
-                            .filter(Objects::nonNull)
-                            .flatMap(serviceEntityApiMap -> serviceEntityApiMap.keySet().stream())
-                            .collect(Collectors.toSet()));
-                }
-            }
+        if (!uuidMapper.fromUuid(uuid).isEntity()) {
+            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
+                    "Should be a numeric entity id.", uuid));
         }
 
-        // Now query repo to get the TopologyEntityDTO for the current entity and its consumers.
-        List<ConstraintApiDTO> constraintApiDtos = new ArrayList<>();
-        List<String> oidsToQuery = new ArrayList<>();
-        oidsToQuery.addAll(consumerOids);
-        oidsToQuery.add(uuid);
+        long oid = uuidMapper.fromUuid(uuid).oid();
+        final EntityConstraintsResponse response = entityConstraintsRpcService.getConstraints(
+            EntityConstraintsRequest.newBuilder().setOid(oid).build());
+        String discoveringTargets = response.getDiscoveringTargetIdsList().stream()
+            .map(targetId -> thinTargetCache.getTargetInfo(targetId))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .filter(thinTargetInfo -> !thinTargetInfo.isHidden())
+            .map(thinTargetInfo -> thinTargetInfo.probeInfo().type())
+            .distinct()
+            .collect(Collectors.joining(", "));
 
-        // The constraints are embedded in the commodities. We have to fetch the TopologyEntityDTO
-        // to get the commodities info.
-        Map<Long, TopologyEntityDTO> entityDtos =
-                getTopologyEntityDTOs(oidsToQuery).stream()
-                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        final List<ConstraintApiDTO> constraintApiDtos = new ArrayList<>(response.getEntityConstraintCount());
+        for (EntityConstraint entityConstraint : response.getEntityConstraintList()) {
+            ConstraintApiDTO constraintApiDTO = new ConstraintApiDTO();
 
-        // We don't have to query the providers as we already have the provider info inside
-        // the commoditiesBought object.
-        // We don't support fully parity with classic. We just populate the ConstraintType(CommodityDTO.Type)
-        // and the ConstraintKey(CommodityDTO.Key)
-        constraintApiDtos.addAll(ConstraintsMapper.createConstraintApiDTOs(
-                Collections.singletonList(entityDtos.get(Long.valueOf(uuid))),
-                serviceEntityMap, RelationType.bought));
-        constraintApiDtos.addAll(ConstraintsMapper.createConstraintApiDTOs(
-                consumerOids.stream()
-                        .map(consumerOid -> entityDtos.get(Long.valueOf(consumerOid)))
-                        .collect(Collectors.toList()),
-                serviceEntityMap, RelationType.sold));
+            constraintApiDTO.setEntityType(ApiEntityType.fromType(entityConstraint.getEntityType()).apiStr());
+
+            // We only care about RelationType.bought.
+            constraintApiDTO.setRelation(RelationType.bought);
+
+            constraintApiDTO.setNumPotentialEntities(entityConstraint.getNumPotentialPlacements());
+
+            final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
+            serviceEntityApiDTO.setDisplayName(entityConstraint.getCurrentPlacement().getDisplayName());
+            constraintApiDTO.setRelatedEntities(Collections.singletonList(serviceEntityApiDTO));
+
+            final List<PlacementOptionApiDTO> placementOptionApiDTOs =
+                new ArrayList<>(entityConstraint.getPotentialPlacementsCount());
+            List<Long> policyIdsToFetch = entityConstraint.getPotentialPlacementsList().stream()
+                .map(PotentialPlacements::getCommodityType)
+                .filter(c -> c.getType() == CommodityType.SEGMENTATION_VALUE
+                    || isCommodityTypeEligibleForMerge(c))
+                .filter(c -> c.hasKey())
+                .map(c -> Longs.tryParse(c.getKey()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+            Map<Long, Policy> policies = Maps.newHashMap();
+            if (!policyIdsToFetch.isEmpty()) {
+                policyRpcService.getPolicies(PolicyRequest.newBuilder()
+                    .addAllPolicyIds(policyIdsToFetch).build())
+                    .forEachRemaining(policy -> policies.put(
+                        policy.getPolicy().getId(), policy.getPolicy()));
+            }
+
+            for (PotentialPlacements potentialPlacement : entityConstraint.getPotentialPlacementsList()) {
+                final PlacementOptionApiDTO placementOptionApiDTO = new PlacementOptionApiDTO();
+                String source = discoveringTargets;
+
+                placementOptionApiDTO.setConstraintType(ClassicEnumMapper.getCommodityString(
+                    CommodityType.forNumber(potentialPlacement.getCommodityType().getType())));
+                placementOptionApiDTO.setKey(potentialPlacement.getCommodityType().getKey());
+
+                placementOptionApiDTO.setNumPotentialEntities(potentialPlacement.getNumPotentialPlacements());
+
+                final BaseApiDTO baseApiDTO = new BaseApiDTO();
+                baseApiDTO.setDisplayName(initializeScopeDisplayName(potentialPlacement));
+                TopologyDTO.CommodityType cType = potentialPlacement.getCommodityType();
+                boolean isTurboConstraint = false;
+                if (cType.getType() == CommodityType.SEGMENTATION_VALUE || isCommodityTypeEligibleForMerge(cType)) {
+                    Long policyId = Longs.tryParse(potentialPlacement.getCommodityType().getKey());
+                    if (policyId != null && policies.containsKey(policyId)) {
+                        baseApiDTO.setDisplayName(policies.get(policyId).getPolicyInfo().getName());
+                        if (!policies.get(policyId).hasTargetId()) {
+                            // it is a policy created in Turbonomic, so it is a turbonomic constraint
+                            isTurboConstraint = true;
+
+                        }
+                    }
+                }
+                placementOptionApiDTO.setScope(baseApiDTO);
+                // Only set the target if the constraint is not created in Turbo.
+                // If the constraint is created in Turbo, then don't set the target. The UI by
+                // default will show "Turbonomic" as the source of the constraint
+                if (!isTurboConstraint) {
+                    TargetApiDTO target = new TargetApiDTO();
+                    target.setType(source);
+                    placementOptionApiDTO.setTarget(target);
+                }
+
+                placementOptionApiDTOs.add(placementOptionApiDTO);
+            }
+            constraintApiDTO.setPlacementOptions(placementOptionApiDTOs);
+
+            constraintApiDtos.add(constraintApiDTO);
+        }
         return constraintApiDtos;
     }
 
+    private boolean isCommodityTypeEligibleForMerge(TopologyDTO.CommodityType commodityType) {
+        return (commodityType.getType() == CommodityType.CLUSTER_VALUE
+            || (commodityType.getType() == CommodityType.STORAGE_CLUSTER_VALUE
+            && TopologyDTOUtil.isRealStorageClusterCommodityKey(commodityType.getKey()))
+            || commodityType.getType() == CommodityType.DATACENTER_VALUE
+            || commodityType.getType() == CommodityType.ACTIVE_SESSIONS_VALUE);
+    }
+
+    private String initializeScopeDisplayName(PotentialPlacements potentialPlacementRecord) {
+        if (!StringUtils.isEmpty(potentialPlacementRecord.getScopeDisplayName())) {
+            return potentialPlacementRecord.getScopeDisplayName();
+        } else {
+            return ActionDTOUtil.getCommodityDisplayName(potentialPlacementRecord.getCommodityType());
+        }
+    }
+
     @Override
-    public List<ServiceEntityApiDTO> getPotentialEntitiesByEntity(String uuid, ConstraintApiInputDTO inputDto) throws Exception {
-        throw ApiUtils.notImplementedInXL();
-    }
-
-    /**
-     * Get TopologyEntityDTO based on provided oid.
-     */
-    private List<TopologyEntityDTO> getTopologyEntityDTOs(@Nonnull List<String> uuids)
-            throws UnknownObjectException {
-
-        List<TopologyEntityDTO> entities = searchServiceRpc.searchTopologyEntityDTOs(
-                SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addAllEntityOid(uuids.stream()
-                                .map(Long::valueOf)
-                                .collect(Collectors.toList()))
-                        .build()).getTopologyEntityDtosList();
-        return entities;
-    }
-
-    /**
-     * Get TopologyEntityDTO based on provided oid.
-     */
-    private TopologyEntityDTO getTopologyEntityDTO(@Nonnull String uuid) throws UnknownObjectException {
-        List<TopologyEntityDTO> entityDtos =
-                getTopologyEntityDTOs(Collections.singletonList(uuid));
-
-        if (entityDtos.size() > 1) {
-            throw new UnknownObjectException("Found " + entityDtos.size() + " entities of same id: " + uuid);
+    public EntityPaginationResponse getPotentialEntitiesByEntity(String uuid, ConstraintApiInputDTO inputDto,
+                                                                 EntityPaginationRequest paginationRequest) throws Exception {
+        if (!uuidMapper.fromUuid(uuid).isEntity()) {
+            throw new IllegalArgumentException(String.format("%s is illegal argument. " +
+                "Should be a numeric entity id.", uuid));
         }
-        if (entityDtos.size() == 0) {
-            throw new UnknownObjectException("Entity: " + uuid + " not found");
+
+        final PotentialPlacementsRequest.Builder request =
+            PotentialPlacementsRequest.newBuilder()
+                .setOid(uuidMapper.fromUuid(uuid).oid())
+                .setRelationType(EntityConstraints.RelationType.BOUGHT)
+                .addAllCommodityType(inputDto.getPlacementOptions().stream()
+                    .filter(option -> !"".equals(option.getKey()))
+                    .map(option -> TopologyDTO.CommodityType.newBuilder()
+                        .setType(ClassicEnumMapper.commodityType(option.getConstraintType()).getNumber())
+                        .setKey(option.getKey()).build())
+                    .collect(Collectors.toList()))
+                .setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
+
+        if (inputDto.getEntityTypeFilter() != null) {
+            // TODO: Add a mapper for API EntityType enum (OM-60615)
+            request.addPotentialEntityTypes(ApiEntityType.fromString(
+                inputDto.getEntityTypeFilter().getDisplayName()).typeNumber());
         }
-        return entityDtos.get(0);
+
+        final PotentialPlacementsResponse response =
+            entityConstraintsRpcService.getPotentialPlacements(request.build());
+
+        final List<ServiceEntityApiDTO> nextPage = serviceEntityMapper.toServiceEntityApiDTO(
+            response.getEntitiesList());
+
+        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
+            .map(nextCursor -> paginationRequest.nextPageResponse(
+                nextPage, nextCursor, response.getPaginationResponse().getTotalRecordCount()))
+            .orElseGet(() -> paginationRequest.finalPageResponse(
+                nextPage, response.getPaginationResponse().getTotalRecordCount()));
     }
 
     private static Link generateLinkTo(@Nonnull Object invocationValue, @Nonnull String relation) {
@@ -794,20 +1028,10 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull TraversalDirection traversalDirection,
             @Nonnull Consumer<List<BaseApiDTO>> code)
             throws StatusRuntimeException {
-        final List<TopologyEntityDTO> neighbors =
-            searchServiceRpc.searchTopologyEntityDTOs(
-                    SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addSearchParameters(SearchMapper.neighbors(oid, traversalDirection))
-                        .build())
-                .getTopologyEntityDtosList();
-        code.accept(
-            neighbors.stream()
-                .map(t -> {
-                    final BaseApiDTO baseApiDTO = new BaseApiDTO();
-                    ServiceEntityMapper.setBasicFields(baseApiDTO, t);
-                    return baseApiDTO;
-                })
-                .collect(Collectors.toList())
+        final Stream<MinimalEntity> neighbors = repositoryApi.newSearchRequest(
+            SearchProtoUtil.neighbors(oid, traversalDirection)).getMinimalEntities();
+        code.accept(neighbors.map(ServiceEntityMapper::toBasicEntity)
+            .collect(Collectors.toList())
         );
     }
 

@@ -4,8 +4,8 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -13,31 +13,36 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.web.bind.annotation.PathVariable;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-
-import io.grpc.StatusRuntimeException;
-
+import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
+import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification;
+import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.SearchMapper;
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
+import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -48,28 +53,20 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
-import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
@@ -86,24 +83,6 @@ import com.vmturbo.topology.processor.api.dto.InputField;
  **/
 public class TargetsService implements ITargetsService {
 
-    /**
-     * Indicates that validation is still in progress by the topology processor.
-     */
-    @VisibleForTesting
-    static final String TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS = "Validation in progress";
-
-    /**
-     * Indicates that validation has successfully completed in the topology processor.
-     */
-    @VisibleForTesting
-    static final String TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS = "Validated";
-
-    /**
-     * Indicates that validation has successfully completed in the topology processor.
-     */
-    @VisibleForTesting
-    static final String TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS = "Discovery in progress";
-
     @VisibleForTesting
     static final String UI_VALIDATING_STATUS = "VALIDATING";
 
@@ -111,8 +90,7 @@ public class TargetsService implements ITargetsService {
      * The UI string constant for the "VALIDATED" state of a target.
      * Should match what's defined in the UI in stringUtils.js
      */
-    @VisibleForTesting
-    static final String UI_VALIDATED_STATUS = "Validated";
+    private static final String UI_VALIDATED_STATUS = "Validated";
 
     /**
      * The display name of the category for all targets that are not functional.
@@ -129,21 +107,9 @@ public class TargetsService implements ITargetsService {
     @VisibleForTesting
     static final Map<String, String> TARGET_STATUS_MAP =
             new ImmutableMap.Builder<String, String>()
-                    .put(TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, UI_VALIDATING_STATUS)
-                    .put(TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS, UI_VALIDATED_STATUS)
-                    .put(TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, UI_VALIDATING_STATUS)
-                    .build();
-
-    /**
-     * The probe categorys that we should hide and prevent users to create that kind of target on UI.
-     *
-     * TODO: We should define the hidden flag in each ProbeInfo instead of hard code here..
-     */
-    @VisibleForTesting
-    static final Set<String> HIDDEN_PROBE_CATEGORIES =
-            new ImmutableSet.Builder<String>()
-                    .add(ProbeCategory.BILLING.getCategory())
-                    .add(ProbeCategory.STORAGE_BROWSING.getCategory())
+                    .put(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, UI_VALIDATING_STATUS)
+                    .put(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS, UI_VALIDATED_STATUS)
+                    .put(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, UI_VALIDATING_STATUS)
                     .build();
 
     /**
@@ -151,15 +117,12 @@ public class TargetsService implements ITargetsService {
      */
     @VisibleForTesting
     static final String UNKNOWN_TARGET_STATUS = "UNKNOWN";
-    /**
-     * Probe types that requires the public cloud feautre in the license
-     */
-    static Set<SDKProbeType> publicCloudProbes = new HashSet<>(Arrays.asList(SDKProbeType.AWS,SDKProbeType.AZURE));
+
     /**
      * This is currently required because the SDK probes have
      * the category field inconsistently cased
      */
-    public static final ImmutableBiMap<String, String> USER_FACING_CATEGORY_MAP = ImmutableBiMap
+    private static final ImmutableBiMap<String, String> USER_FACING_CATEGORY_MAP = ImmutableBiMap
             .<String, String>builder()
             .put("STORAGE", "Storage")
             .put("HYPERVISOR", "Hypervisor")
@@ -171,6 +134,15 @@ public class TargetsService implements ITargetsService {
     static final String TARGET = "Target";
 
     private static final ZoneOffset ZONE_OFFSET = OffsetDateTime.now().getOffset();
+
+    /**
+     * Target status set that contains non-failed validation status from topology processor, including
+     * "Validated", "Validation in progress" and "Discovery in progress".
+     */
+    private static final Set<String> NON_VALIDATION_FAILED_STATUS_SET = ImmutableSet.of(
+        StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS,
+        StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS,
+        StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
 
     private final Logger logger = LogManager.getLogger();
 
@@ -188,28 +160,34 @@ public class TargetsService implements ITargetsService {
 
     private final ApiComponentTargetListener apiComponentTargetListener;
 
-    private final SearchServiceBlockingStub searchServiceRpc;
-
-    private final SeverityPopulator severityPopulator;
-
     private final ActionSpecMapper actionSpecMapper;
 
     private final ActionsServiceBlockingStub actionOrchestratorRpc;
 
+    private final ActionSearchUtil actionSearchUtil;
+
     private final long realtimeTopologyContextId;
 
+    private final ApiWebsocketHandler apiWebsocketHandler;
+
+    private final RepositoryApi repositoryApi;
+
+    private final boolean allowTargetManagement;
+
     public TargetsService(@Nonnull final TopologyProcessor topologyProcessor,
-                          @Nonnull final Duration targetValidationTimeout,
-                          @Nonnull final Duration targetValidationPollInterval,
-                          @Nonnull final Duration targetDiscoveryTimeout,
-                          @Nonnull final Duration targetDiscoveryPollInterval,
-                          @Nullable final LicenseCheckClient licenseCheckClient,
-                          @Nonnull final ApiComponentTargetListener apiComponentTargetListener,
-                          @Nonnull final SearchServiceBlockingStub searchServiceRpc,
-                          @Nonnull final SeverityPopulator severityPopulator,
-                          @Nonnull final ActionSpecMapper actionSpecMapper,
-                          @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
-                          final long realtimeTopologyContextId) {
+            @Nonnull final Duration targetValidationTimeout,
+            @Nonnull final Duration targetValidationPollInterval,
+            @Nonnull final Duration targetDiscoveryTimeout,
+            @Nonnull final Duration targetDiscoveryPollInterval,
+            @Nullable final LicenseCheckClient licenseCheckClient,
+            @Nonnull final ApiComponentTargetListener apiComponentTargetListener,
+            @Nonnull final RepositoryApi repositoryApi,
+            @Nonnull final ActionSpecMapper actionSpecMapper,
+            @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
+            @Nonnull final ActionSearchUtil actionSearchUtil,
+            final long realtimeTopologyContextId,
+            @Nonnull final ApiWebsocketHandler apiWebsocketHandler,
+            final boolean allowTargetManagement) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.targetValidationTimeout = Objects.requireNonNull(targetValidationTimeout);
         this.targetValidationPollInterval = Objects.requireNonNull(targetValidationPollInterval);
@@ -217,13 +195,15 @@ public class TargetsService implements ITargetsService {
         this.targetDiscoveryPollInterval = Objects.requireNonNull(targetDiscoveryPollInterval);
         this.licenseCheckClient = licenseCheckClient;
         this.apiComponentTargetListener = Objects.requireNonNull(apiComponentTargetListener);
-        this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
-        this.severityPopulator = Objects.requireNonNull(severityPopulator);
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
+        this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
+        this.allowTargetManagement = allowTargetManagement;
         logger.debug("Created TargetsService with topology processor instance {}",
-                        topologyProcessor);
+                topologyProcessor);
     }
 
     /**
@@ -231,44 +211,68 @@ public class TargetsService implements ITargetsService {
      * associated probe for each target. This is a blocking call that makes network requests of the
      * Topology-Processor.
      *
+     * @param environmentType optional filter according to an environment type:
+     *                        <ul>
+     *                        <li>if this parameter is {@code null} or {@link EnvironmentType#HYBRID},
+     *                            no filtering happens (all targets are returned).</li>
+     *                        <li>if this parameter is {@link EnvironmentType#UNKNOWN},
+     *                            no target is returned.</li>
+     *                        <li>if this parameter is {@link EnvironmentType#CLOUD},
+     *                            only targets coming from public cloud probes are returned</li>
+     *                        <li>if this parameter is {@link EnvironmentType#ONPREM},
+     *                            only targets <i>not</i> coming from public cloud probes are returned</li>
+     *                        </ul>
      * @return a List of {@link TargetApiDTO} containing the uuid of the target, plus the info from
      *         the related probe.
-     * @throws Exception if there is a communication error or an error in processing in the
-     *             topology-processor
      */
     @Override
+    @Nonnull
     public List<TargetApiDTO> getTargets(@Nullable final EnvironmentType environmentType) {
-        logger.debug("Get all targets");
         try {
-            // No Cloud target supported yet, if the user ask for only Cloud, return empty
-            if (environmentType != null && environmentType == EnvironmentType.CLOUD) {
-                return new ArrayList<>();
-            }
-
             final Set<TargetInfo> targets = topologyProcessor.getAllTargets();
-            final List<TargetApiDTO> answer = targets.stream()
-                    .filter(removeHiddenTargets())
-                    .map(targetInfo -> {
-                        try {
-                            return mapTargetInfoToDTO(targetInfo);
-                        } catch (CommunicationException e) {
-                            throw new CommunicationError(e);
-                        }
-                    })
-                    .collect(Collectors.toList());
-            return answer;
+            final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
+            return targets.stream()
+                .filter(target -> environmentTypeFilter(target, environmentType, probeMap))
+                .filter(target -> !target.isHidden())
+                .map(targetInfo -> createTargetDtoWithRelationships(targetInfo, targets, probeMap))
+                .collect(Collectors.toList());
         } catch (CommunicationException e) {
             throw new RuntimeException("Error getting targets list", e);
         }
     }
 
     /**
-     * Filter the targets list which we do not want to show users.
+     * Check if a target matches an environmentType.
      *
-     * @return Predicate<TargetInfo> True if the target is not hidden
+     * @param target target to check
+     * @param envType environment type
+     * @param probeMap map of probeInfo objects indexed by probeId
+     * @return true if target matches environmentType, false otherwise
      */
-    private Predicate<TargetInfo> removeHiddenTargets() {
-        return targetInfo -> !targetInfo.isHidden();
+    private boolean environmentTypeFilter(final TargetInfo target, EnvironmentType envType, @Nonnull final Map<Long, ProbeInfo> probeMap) {
+        try {
+            if (envType == EnvironmentType.CLOUD || envType == EnvironmentType.ONPREM) {
+                // gather the other info for this target, based on the related probe
+                final long probeId = target.getProbeId();
+                final ProbeInfo probeInfo = probeMap.get(probeId);
+                if (probeInfo == null) {
+                    return false;
+                }
+                boolean isPublicCloud = GroupMapper.CLOUD_ENVIRONMENT_PROBE_TYPES.contains(probeInfo.getType());
+
+                // return true if and only if isPublicCloud agrees with the parameter
+                // this means:
+                    // if envType is CLOUD then return all targets coming from public cloud probes
+                    // if envType is ONPREM then return all other targets
+                return isPublicCloud == (envType == EnvironmentType.CLOUD);
+            } else {
+                // if the parameter is not there, or if it is HYBRID, no filtering should happen
+                // if the parameter is UNKNOWN, all targets should be filtered out
+                return envType == null || envType == EnvironmentType.HYBRID;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error setting environment filters", e);
+        }
     }
 
     /**
@@ -279,16 +283,16 @@ public class TargetsService implements ITargetsService {
      * @param uuid the unique ID for the target
      * @return an {@link TargetApiDTO} containing the uuid of the target, plus the info from the
      *         related probe.
-     * @throws Exception if there is a communication error or an error in processing in the
-     *             topology-processor
      */
     @Override
+    @Nonnull
     public TargetApiDTO getTarget(@PathVariable("uuid") String uuid) throws UnknownObjectException {
         logger.debug("Get target {}", uuid);
         // assumes target uuid's are long's in XL
         long targetId = Long.valueOf(uuid);
         try {
-            return mapTargetInfoToDTO(topologyProcessor.getTarget(targetId));
+            return createTargetDtoWithRelationships(
+                    topologyProcessor.getTarget(targetId), Collections.emptySet(), getProbeIdToProbeInfoMap());
         } catch (TopologyProcessorException e) {
             throw new UnknownObjectException(e);
         } catch (CommunicationException e) {
@@ -301,10 +305,9 @@ public class TargetsService implements ITargetsService {
      * makes network requests of the Topology-Processor
      *
      * @return a List of information {@link TargetApiDTO} about each probe known to the system.
-     * @throws Exception if there is a communication error or an error in processing in the
-     *             topology-processor
      */
     @Override
+    @Nonnull
     public List<TargetApiDTO> getProbes() {
         logger.debug("Get all probes");
         final Set<ProbeInfo> probes;
@@ -316,7 +319,7 @@ public class TargetsService implements ITargetsService {
         final List<TargetApiDTO> answer = new ArrayList<>(probes.size());
         for (ProbeInfo probeInfo : probes) {
             try {
-                if (isProbeLicensed(probeInfo) && !isProbeHidden(probeInfo)) {
+                if (isProbeLicensed(probeInfo) && isProbeExternallyVisible(probeInfo)) {
                     answer.add(mapProbeInfoToDTO(probeInfo));
                 }
             } catch (FieldVerificationException e) {
@@ -325,6 +328,16 @@ public class TargetsService implements ITargetsService {
             }
         }
         return answer;
+    }
+
+    private boolean isProbeExternallyVisible(ProbeInfo probeInfo) {
+        switch (probeInfo.getCreationMode()) {
+            case DERIVED:
+            case INTERNAL:
+                return false;
+            default:
+                return true;
+        }
     }
 
     /**
@@ -343,52 +356,10 @@ public class TargetsService implements ITargetsService {
      */
     private boolean isProbeLicensed(ProbeInfo probeInfo) {
         if (licenseCheckClient == null) return true;
-
-        // check if the probe is available according to the license data.
-        //This set should be overwritten once OM-31984  will be implemented
-        ProbeCategory category = ProbeCategory.create(probeInfo.getCategory());
-        SDKProbeType probeType = SDKProbeType.create(probeInfo.getType());
-        switch (category) {
-            case APPLICATION_SERVER :
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.APP_CONTROL);
-            case CLOUD_MANAGEMENT:
-                if (publicCloudProbes.contains(probeType)) {
-                    return licenseCheckClient.isFeatureAvailable(LicenseFeature.PUBLIC_CLOUD);
-                }
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.CLOUD_TARGETS);
-            case DATABASE_SERVER:
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.APP_CONTROL);
-            case FABRIC:
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.FABRIC);
-            case GUEST_OS_PROCESSES:
-                if (probeType == SDKProbeType.APPDYNAMICS || probeType == SDKProbeType.DYNATRACE) {
-                    return licenseCheckClient.isFeatureAvailable(LicenseFeature.APP_CONTROL);
-                }
-                //Docker isn't supported in XL yet. We need to make sure this category will correspond to its implementation
-                if (probeType == SDKProbeType.DOCKER ) {
-                    return licenseCheckClient.isFeatureAvailable(LicenseFeature.CONTAINER_CONTROL);
-                }
-            case NETWORK:
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.NETWORK_CONTROL);
-            case STORAGE:
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.STORAGE);
-        }
-        // default behavior is that the probe is licensed.
-        return true;
+        if (!probeInfo.getLicense().isPresent()) return true;
+        Optional<ProbeLicense> licenseCategory = ProbeLicense.create(probeInfo.getLicense().get());
+        return licenseCategory.map(licenseCheckClient::isFeatureAvailable).orElse(true);
     }
-
-    /**
-     * Check the if the probe category should be hidden on UI and we should prevent users createing such
-     * kind of target.
-     *
-     * @param probeInfo the ProbeInfo to check.
-     * @return true, if the probe is hidden from users.
-     */
-    private boolean isProbeHidden(ProbeInfo probeInfo) {
-        final String category = probeInfo.getCategory();
-        return HIDDEN_PROBE_CATEGORIES.contains(category);
-    }
-
 
     /**
      * Return information about all the Actions related to the entities discovered by
@@ -397,28 +368,15 @@ public class TargetsService implements ITargetsService {
      * @param uuid the unique ID for the target
      * @param actionApiInputDTO dto used to filter the list of Actions
      * @return a List of {@link ActionApiDTO}
-     * @throws Exception
+     * @throws Exception should not happen
      */
     @Override
-    public List<ActionApiDTO> getActionsByTargetUuid(final String uuid, final ActionApiInputDTO actionApiInputDTO) throws Exception {
-        final List<ServiceEntityApiDTO> serviceEntityList =  getEntitiesByTargetUuid(uuid);
-        // Preparing entities uuid set to be passed to the action filter.
-        final Set<Long> uuidSet = serviceEntityList.stream()
-            .map(ServiceEntityApiDTO::getUuid)
-            .map(Long::parseLong)
-            .collect(Collectors.toSet());
+    public List<ActionApiDTO> getActionsByTargetUuid(final String uuid, final ActionApiInputDTO actionApiInputDTO)
+            throws Exception {
+        final Set<Long> uuidSet = getTargetEntityIds(Long.valueOf(uuid));
         final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
-            actionApiInputDTO, Optional.of(uuidSet));
-        final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
-            FilteredActionRequest.newBuilder()
-                .setTopologyContextId(realtimeTopologyContextId)
-                .setFilter(filter)
-                .build());
-        final List<ActionApiDTO> result = actionSpecMapper.mapActionSpecsToActionApiDTOs(
-            response.getActionsList().stream()
-                .map(ActionOrchestratorAction::getActionSpec)
-                .collect(Collectors.toList()), realtimeTopologyContextId);
-        return result;
+                                            actionApiInputDTO, Optional.of(uuidSet), null);
+        return actionSearchUtil.callActionServiceWithNoPagination(filter);
     }
 
     /**
@@ -430,8 +388,7 @@ public class TargetsService implements ITargetsService {
      */
     @Override
     public List<ServiceEntityApiDTO> getEntitiesByTargetUuid(final String uuid) throws Exception {
-        TargetApiDTO targetDTO = getTarget(uuid);
-        return getTargetEntities(targetDTO);
+        return getTargetEntities(getTarget(uuid));
     }
 
     /**
@@ -456,6 +413,9 @@ public class TargetsService implements ITargetsService {
         logger.debug("Add target {}", probeType);
         Objects.requireNonNull(probeType);
         Objects.requireNonNull(inputFields);
+        Preconditions.checkState(allowTargetManagement,
+                "Targets management public APIs are not allowed in integration mode");
+
         // create a target
         try {
             final Collection<ProbeInfo> probes = topologyProcessor.getAllProbes();
@@ -467,7 +427,7 @@ public class TargetsService implements ITargetsService {
             } else {
                 throw new OperationFailedException("Could not find probe by type " + probeType);
             }
-            final TargetData newtargetData = new NewTargetData(inputFields);
+            final TargetData newtargetData = new NewTargetData(probeType, inputFields);
             try {
                 // store the target number to determine if to send notification to UI.
                 final int targetSizeBeforeValidation = topologyProcessor.getAllTargets().size() ;
@@ -488,11 +448,12 @@ public class TargetsService implements ITargetsService {
                 // if validation is successful and this is the first target, listen to the results
                 // and send notification to UI
                 if (validatedTargetInfo != null &&
-                        TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS.equals(validatedTargetInfo.getStatus()) &&
+                        StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS.equals(validatedTargetInfo.getStatus()) &&
                         targetSizeBeforeValidation == 0) {
                     apiComponentTargetListener.triggerBroadcastAfterNextDiscovery();
                 }
-                return mapTargetInfoToDTO(validatedTargetInfo);
+                return createTargetDtoWithRelationships(
+                        validatedTargetInfo, Collections.emptySet(), getProbeIdToProbeInfoMap());
             } catch (TopologyProcessorException e) {
                 throw new OperationFailedException(e);
             }
@@ -538,6 +499,7 @@ public class TargetsService implements ITargetsService {
      *             TopologyProcessorException if there is an error getting the target information.
      */
     @Override
+    @Nonnull
     public TargetApiDTO executeOnTarget(@Nonnull String uuid, @Nullable Boolean validate,
                                         @Nullable Boolean rediscover)
             throws OperationFailedException, UnauthorizedObjectException,
@@ -555,19 +517,18 @@ public class TargetsService implements ITargetsService {
             // There is no point in running a discovery when validation has just immediately failed.
             boolean shouldDiscover = rediscover != null && rediscover &&
                 result.map(targetDto -> targetDto.getStatus() != null &&
-                    targetDto.getStatus().equals(TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS))
+                    targetDto.getStatus().equals(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS))
                 .orElse(true);
 
             if (shouldDiscover) {
                 result = Optional.of(discoverTargetSynchronously(targetId));
             }
 
-            // Because mapTargetInfoToDTO throws an exception, using the if else instead
-            // of map().OrElse idiom on the optional.
             if (result.isPresent()) {
-                return mapTargetInfoToDTO(result.get());
+                return createTargetDtoWithRelationships(result.get(), Collections.emptySet(), getProbeIdToProbeInfoMap());
             } else {
-                return mapTargetInfoToDTO(topologyProcessor.getTarget(targetId));
+                return createTargetDtoWithRelationships(
+                        topologyProcessor.getTarget(targetId), Collections.emptySet(), getProbeIdToProbeInfoMap());
             }
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
@@ -593,11 +554,18 @@ public class TargetsService implements ITargetsService {
             @Nonnull Collection<InputFieldApiDTO> inputFields)
             throws OperationFailedException, UnauthorizedObjectException, InterruptedException {
         logger.debug("Edit target {}", uuid);
+        Preconditions.checkState(allowTargetManagement,
+                "Targets management public APIs are not allowed in integration mode");
         long targetId = Long.valueOf(uuid);
         final TargetData updatedTargetData = new NewTargetData(inputFields);
         try {
+            TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
+            if (targetInfo.isReadOnly()) {
+                throw new OperationFailedException(
+                        "Target " + targetId + " cannot be changed through public APIs.");
+            }
             topologyProcessor.modifyTarget(targetId, updatedTargetData);
-            return mapTargetInfoToDTO(topologyProcessor.getTarget(targetId));
+            return createTargetDtoWithRelationships(targetInfo, Collections.emptySet(), getProbeIdToProbeInfoMap());
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
         } catch (TopologyProcessorException e) {
@@ -609,13 +577,13 @@ public class TargetsService implements ITargetsService {
      * Remove a target given the uuid. Note this is a blocking operation.
      *
      * @param uuid the ID of the target to be removed
-     * @return true iff the target was removed; false otherwise.
-     * @throws Exception if some extraordinary exception occurs.
      */
     @Override
-    public void deleteTarget(String uuid) throws UnknownObjectException {
+    public void deleteTarget(@Nonnull String uuid) throws UnknownObjectException {
         logger.debug("Delete target {}", uuid);
         long targetId = Long.valueOf(uuid);
+        Preconditions.checkState(allowTargetManagement,
+                "Targets management public APIs are not allowed in integration mode");
         try {
             topologyProcessor.removeTarget(targetId);
         } catch (CommunicationException e) {
@@ -625,13 +593,11 @@ public class TargetsService implements ITargetsService {
         }
     }
 
-
     @Nonnull
     @Override
     public List<WorkflowApiDTO> getWorkflowsByTarget(@Nonnull String uuid) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
-
 
     /**
      * Populate a Map from probe id to probe info for all known probes in order to facilitate lookup
@@ -646,12 +612,41 @@ public class TargetsService implements ITargetsService {
     }
 
     /**
+     * Populate a Map from target id to target info for all known targets in order to facilitate lookup
+     * by target id.
+     *
+     * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
+     * made an API call, otherwise an empty set.
+     * @return a Map from target Id to targetInfo for all known targets.
+     * @throws CommunicationException if there is a problem making the REST API call
+     */
+    private Map<String, TargetInfo> getTargetIdToTargetInfoMap(
+                                    @Nonnull final Set<TargetInfo> allTargetInfos)
+            throws CommunicationException {
+        Set<TargetInfo> scopedTargetInfos = allTargetInfos.isEmpty() ?
+                topologyProcessor.getAllTargets() : allTargetInfos;
+        return Maps.uniqueIndex(
+                scopedTargetInfos, targetInfo -> String.valueOf(targetInfo.getId()));
+    }
+
+    /**
      * Define a class to hold the TargetData used to call targetsRestClient.addTarget(). There is
      * currently no convenient way to do that...but there is a JIRA item OM-10644 to remedy this.
      */
     private static class NewTargetData implements TargetData {
 
+        private static final String IS_STORAGE_BROWSING_ENABLED = "isStorageBrowsingEnabled";
         private final Set<AccountValue> accountData;
+        // Is it a VC probe? And is VC storage browsing filed NOT set?
+        private final BiFunction<String, Collection<InputFieldApiDTO>, Boolean> isVCStorageBrowsingNotSet =
+            (probeType, inputFields) -> SDKProbeType.VCENTER.getProbeType().equals(probeType) &&
+                !inputFields.stream().anyMatch(field -> IS_STORAGE_BROWSING_ENABLED.equals(field.getName()));
+
+        private static final InputFieldApiDTO storageBrowsingDisabledDTO = new InputFieldApiDTO();
+        static {
+            storageBrowsingDisabledDTO.setName(IS_STORAGE_BROWSING_ENABLED);
+            storageBrowsingDisabledDTO.setValue("false");
+        }
 
         /**
          * Initialize the accountData Set from a List of InputFieldApiDTO's. We use the inputField name
@@ -666,11 +661,49 @@ public class TargetsService implements ITargetsService {
         NewTargetData(Collection<InputFieldApiDTO> inputFields) {
             accountData = inputFields.stream().map(inputField -> {
                 return new InputField(inputField.getName(),
-                                inputField.getValue(),
-                                // TODO: fix type mismatch between InputFieldApiDTO.groupProperties and
-                                // TargetRESTAPI.TargetSpec.InputField.groupProperties
-                                // until then...return empty Optional
-                                Optional.empty());
+                    inputField.getValue(),
+                    // TODO: fix type mismatch between InputFieldApiDTO.groupProperties and
+                    // TargetRESTAPI.TargetSpec.InputField.groupProperties
+                    // until then...return empty Optional
+                    Optional.empty());
+            }).collect(Collectors.toSet());
+        }
+
+        /**
+         * Initialize the accountData Set from a List of InputFieldApiDTO's. We use the inputField name
+         * and value to build the new AccountData value to describe the target.
+         * <p>
+         * Note: "isStorageBrowsingEnabled" filed is introduce recently, and if users continue to use
+         * old API script to create VC target (without specifying this filed), VC browsing will be enabled by default.
+         * But UI shows VC browsing disabled (since target info doesn't have this filed). To address this problem,
+         * if this filed is not set when creating VC target, it will be added with value set to "false".
+         * So probe and UI are consistent.
+         * </p>
+         * <p>Warning: The GroupProperties of the InputFieldApiDTO is ignored for now, since there is a
+         * mismatch between the InputFieldApiDTO ({@code List<String>)}) and the
+         * InputField.groupProperties ({@code List<List<String>>}).
+         *
+         * @param probeType probe type
+         * @param inputFields a list of {@ref InputFieldApiDTO} to use to initialize the accountData
+         */
+        NewTargetData(@Nonnull final String probeType, final Collection<InputFieldApiDTO> inputFields) {
+            final Set<InputFieldApiDTO> inputFieldApiDTOList;
+            if (isVCStorageBrowsingNotSet.apply(probeType, inputFields)) {
+                // if input fields don't include the newly added "isStorageBrowsingEnabled" filed,
+                // e.g. calling from API, set it to "false",  so probe and UI are consistent.
+                inputFieldApiDTOList = Sets.newHashSet(inputFields);
+                inputFieldApiDTOList.add(storageBrowsingDisabledDTO);
+            } else {
+                inputFieldApiDTOList = ImmutableSet.copyOf(inputFields);
+            }
+
+            accountData = inputFieldApiDTOList.stream().map(inputField -> {
+                return new InputField(inputField.getName(),
+                    inputField.getValue(),
+                    // TODO: fix type mismatch between InputFieldApiDTO.groupProperties and
+                    // TargetRESTAPI.TargetSpec.InputField.groupProperties
+                    // until then...return empty Optional
+                    Optional.empty());
             }).collect(Collectors.toSet());
         }
 
@@ -694,7 +727,7 @@ public class TargetsService implements ITargetsService {
     private TargetApiDTO mapProbeInfoToDTO(ProbeInfo probeInfo) throws FieldVerificationException {
         TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(Long.toString(probeInfo.getId()));
-        targetApiDTO.setCategory(getUserFacingCategoryString(probeInfo));
+        targetApiDTO.setCategory(getUserFacingCategoryString(probeInfo.getUICategory()));
         targetApiDTO.setType(probeInfo.getType());
         targetApiDTO.setIdentifyingFields(probeInfo.getIdentifyingFields());
         List<InputFieldApiDTO> inputFields =
@@ -773,10 +806,48 @@ public class TargetsService implements ITargetsService {
     @VisibleForTesting
     TargetInfo validateTargetSynchronously(final long targetId)
         throws CommunicationException, TopologyProcessorException, InterruptedException {
+        try {
+            topologyProcessor.validateTarget(targetId);
+            TargetInfo targetInfo = pollForTargetStatus(targetId, targetValidationTimeout,
+                targetValidationPollInterval, StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
+            // If target status is not validated or in progress from topology processor, the target
+            // validation fails. Send failed validation message to UI.
+            if (!NON_VALIDATION_FAILED_STATUS_SET.contains(targetInfo.getStatus())) {
+                String statusDescription = targetInfo.getStatus() == null ? "Target validation failed." :
+                    targetInfo.getStatus();
+                TargetNotification targetNotification =
+                    buildTargetValidationNotification(targetId, statusDescription);
+                apiWebsocketHandler.broadcastTargetValidationNotification(targetNotification);
 
-        topologyProcessor.validateTarget(targetId);
-        return pollForTargetStatus(targetId, targetValidationTimeout,
-                targetValidationPollInterval, TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
+            }
+            return targetInfo;
+        } catch (CommunicationException | TopologyProcessorException | InterruptedException e) {
+            // If there's any exception when validating the target, send failed validation message to UI.
+            TargetNotification targetNotification =
+                buildTargetValidationNotification(targetId, "Validation failed due to interruption or communication error.");
+             apiWebsocketHandler.broadcastTargetValidationNotification(targetNotification);
+            throw e;
+        }
+
+    }
+
+    /**
+     * Build a TargetNotification with NOT_VALIDATED status and failed validation description.
+     *
+     * @param targetId          The ID of the target.
+     * @param statusDescription Description of the failed validation.
+     * @return Notification related to a single target with NOT_VALIDATED status.
+     */
+    private TargetNotification buildTargetValidationNotification(final long targetId,
+                                                                 @Nonnull String statusDescription) {
+        TargetStatusNotification statusNotification = TargetStatusNotification.newBuilder()
+            .setStatus(TargetStatus.NOT_VALIDATED)
+            .setDescription(statusDescription)
+            .build();
+        return TargetNotification.newBuilder()
+            .setStatusNotification(statusNotification)
+            .setTargetId(String.valueOf(targetId))
+            .build();
     }
 
     /**
@@ -803,7 +874,7 @@ public class TargetsService implements ITargetsService {
 
         topologyProcessor.discoverTarget(targetId);
         return pollForTargetStatus(targetId, targetDiscoveryTimeout,
-                targetDiscoveryPollInterval, TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+                targetDiscoveryPollInterval, StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
     }
 
     /**
@@ -840,21 +911,96 @@ public class TargetsService implements ITargetsService {
     }
 
     /**
+     * Creates a {@link TargetApiDTO} instance from information in a {@link TargetInfo} object
+     * by mapProbeInfoToDTO() and sets the "derived targets" attribute of the target.
+     *
+     * @param targetInfo the {@link TargetInfo} structure returned from the Topology-Processor.
+     * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
+     * made an API call, otherwise an empty set.
+     * @param probeMap A map of probeInfo indexed by probeId.
+     * @return a {@link TargetApiDTO} containing the target information and its derived targets
+     * relationships.
+     */
+    private TargetApiDTO createTargetDtoWithRelationships(@Nonnull final TargetInfo targetInfo,
+                                                 @Nonnull final Set<TargetInfo> allTargetInfos,
+                                                 @Nonnull final Map<Long, ProbeInfo> probeMap) {
+
+        try {
+            TargetApiDTO targetApiDTO = mapTargetInfoToDTO(targetInfo, probeMap);
+            targetApiDTO.setDerivedTargets(
+                convertDerivedTargetInfosToDtos(targetInfo.getDerivedTargetIds().stream()
+                    .map(String::valueOf).collect(Collectors.toList()), allTargetInfos, probeMap));
+            return targetApiDTO;
+        } catch (CommunicationException e) {
+            throw new CommunicationError(e);
+        }
+    }
+
+    /**
+     * Creates a List of {@link TargetApiDTO}s to be set as the derived targets of
+     * their parent target.
+     *
+     * @param derivedTargetIds a List of derived target's ids that associated with a parent target.
+     * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
+     * made an API call, otherwise an empty set.
+     * @param probeMap A map of probeInfo objects indexed by probeId.
+     * @return List of {@link TargetApiDTO}s containing the target information from their
+     * {@link TargetInfo}s.
+     */
+    private List<TargetApiDTO> convertDerivedTargetInfosToDtos(
+                                @Nonnull final List<String> derivedTargetIds,
+                                @Nonnull final Set<TargetInfo> allTargetInfos,
+                                @Nonnull final Map<Long, ProbeInfo> probeMap) {
+        if (derivedTargetIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        final Map<String, TargetInfo> targetInfosByTargetId;
+        try {
+            targetInfosByTargetId = getTargetIdToTargetInfoMap(allTargetInfos);
+        } catch (CommunicationException e) {
+            throw new CommunicationError(e);
+        }
+        List<TargetApiDTO> derivedTargetsDtos = Lists.newArrayList();
+        derivedTargetIds.forEach(targetId -> {
+            TargetInfo targetInfo = targetInfosByTargetId.get(targetId);
+            if (targetInfo != null) {
+                if (targetInfo.isHidden()) {
+                    logger.debug("Skip the conversion of a hidden derived target: {}", targetId);
+                } else {
+                    try {
+                        derivedTargetsDtos.add(mapTargetInfoToDTO(targetInfo, probeMap));
+                    } catch (CommunicationException e) {
+                        throw new CommunicationError(e);
+                    }
+                }
+            } else {
+                logger.warn(
+                    "Derived Target {} no longer exists, but appears as a derived target in the " +
+                            "target store", targetId);
+            }
+        });
+        return derivedTargetsDtos;
+    }
+
+    /**
      * Create a {@link TargetApiDTO} instance from information in a {@link TargetInfo} object. This
      * includes the probeId, handled here, and other details based on the {@link ProbeInfo}, which
      * are added to the result {@link TargetApiDTO} by mapProbeInfoToDTO().
      *
      * @param targetInfo the {@link TargetInfo} structure returned from the Topology-Processor
+     * @param probeMap a map of probeInfo indexed by probeId
      * @return a {@link TargetApiDTO} containing the target information from the given TargetInfo
      * @throws RuntimeException since you may not return a checked exception within a lambda
      *             expression
      */
-    private TargetApiDTO mapTargetInfoToDTO(@Nonnull final TargetInfo targetInfo)
+    private TargetApiDTO mapTargetInfoToDTO(@Nonnull final TargetInfo targetInfo,
+                                            @Nonnull final Map<Long, ProbeInfo> probeMap)
             throws CommunicationException {
         Objects.requireNonNull(targetInfo);
         final TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(Long.toString(targetInfo.getId()));
         targetApiDTO.setStatus(mapStatusToApiDTO(targetInfo));
+        targetApiDTO.setReadonly(targetInfo.isReadOnly());
 
         if (targetInfo.getLastValidationTime() != null) {
             // UI requires Offset date time. E.g.: 2019-01-28T20:31:04.302Z
@@ -868,7 +1014,6 @@ public class TargetsService implements ITargetsService {
 
         // gather the other info for this target, based on the related probe
         final long probeId = targetInfo.getProbeId();
-        final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
         final ProbeInfo probeInfo = probeMap.get(probeId);
 
         // The probeInfo object of targets should always be present because it is stored in Consul
@@ -884,7 +1029,7 @@ public class TargetsService implements ITargetsService {
                     .collect(Collectors.toList()));
         } else {
             targetApiDTO.setType(probeInfo.getType());
-            targetApiDTO.setCategory(getUserFacingCategoryString(probeInfo));
+            targetApiDTO.setCategory(getUserFacingCategoryString(probeInfo.getUICategory()));
 
             final Map<String, AccountValue> accountValuesByName = targetInfo.getAccountData()
                     .stream()
@@ -908,16 +1053,14 @@ public class TargetsService implements ITargetsService {
                         + errorFields + " in probe with id: " + probeInfo.getId());
             }
 
+            targetApiDTO.setDisplayName(targetInfo.getDisplayName());
+
             final List<InputFieldApiDTO> inputFields = probeInfo.getAccountDefinitions().stream()
                     .map(this::accountDefEntryToInputField)
                     .map(inputFieldDTO -> {
                         final AccountValue value = accountValuesByName.get(inputFieldDTO.getName());
                         if (value != null) {
-                            final String valueString = value.getStringValue();
-                            inputFieldDTO.setValue(valueString);
-                            if (TargetData.TARGET_ADDRESS_KEYS.contains(inputFieldDTO.getName())) {
-                                targetApiDTO.setDisplayName(valueString);
-                            }
+                            inputFieldDTO.setValue(value.getStringValue());
                         }
                         return inputFieldDTO;
                     })
@@ -938,6 +1081,14 @@ public class TargetsService implements ITargetsService {
         inputFieldDTO.setValueType(convert(entry.getValueType()));
         inputFieldDTO.setDefaultValue(entry.getDefaultValue());
         inputFieldDTO.setDescription(entry.getDescription());
+        inputFieldDTO.setAllowedValues(entry.getAllowedValues());
+        inputFieldDTO.setVerificationRegex(entry.getVerificationRegex());
+        if (entry.getDependencyField().isPresent()) {
+            final Pair<String, String> dependencyKey = entry.getDependencyField().get();
+            inputFieldDTO.setDependencyKey(dependencyKey.getFirst());
+            inputFieldDTO.setDependencyValue(dependencyKey.getSecond());
+        }
+
         return inputFieldDTO;
     }
 
@@ -991,12 +1142,11 @@ public class TargetsService implements ITargetsService {
      * regarding uppercase/lowercase, etc. This maps the known problem category strings into
      * more user-friendly names.
      *
-     * @param probeInfo the probe to map the category for
+     * @param category the probe category
      * @return a user-friendly string for the probe category (for the problem categories we know of).
      */
-    private String getUserFacingCategoryString(final ProbeInfo probeInfo) {
-        return USER_FACING_CATEGORY_MAP.getOrDefault(probeInfo.getCategory(),
-                probeInfo.getCategory());
+    private String getUserFacingCategoryString(final String category) {
+        return USER_FACING_CATEGORY_MAP.getOrDefault(category, category);
     }
 
     /**
@@ -1025,68 +1175,28 @@ public class TargetsService implements ITargetsService {
      * Gets the entities that belong to the given target
      * @param targetDTO The TargetApiDTO object
      * @return A list of ServiceEntityApiDTO of the target's entities
-     * @throws OperationFailedException
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     private List<ServiceEntityApiDTO> getTargetEntities(TargetApiDTO targetDTO)
-                throws OperationFailedException{
+                throws ConversionException, InterruptedException {
         final String targetUuid = targetDTO.getUuid();
         final String targetType = targetDTO.getType();
 
         // targetIdToProbeType is needed to fill discoveredBy attribute of the entities.
         Map<Long, String> targetIdToProbeType = new HashMap<>();
         targetIdToProbeType.put(Long.parseLong(targetUuid), targetType);
-        List<ServiceEntityApiDTO> targetEntities = getTargetEntities(targetUuid).stream()
-            .map(entity -> SearchMapper.seDTO(entity, targetIdToProbeType))
-            .collect(Collectors.toList());
-
-        // Severity isn't part of searchEntities response, hence the following line.
-        severityPopulator.populate(realtimeTopologyContextId, targetEntities);
-
-        return targetEntities;
+        return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                    SearchProtoUtil.discoveredBy(Long.parseLong(targetUuid)))
+                .build())
+            .getSEList();
     }
 
-    /**
-     * Gets the entities that belong to the given target.
-     *
-     * @param targetUuid uuid of the target
-     * @return A list of ServiceEntityApiDTO of the target's entities
-     * @throws OperationFailedException
-     */
-    public List<Search.Entity> getTargetEntities(@Nonnull String targetUuid)
-            throws OperationFailedException{
-        final PropertyFilter filter = PropertyFilter.newBuilder()
-            .setPropertyName("targetIds")
-            .setListFilter(ListFilter.newBuilder()
-                .setStringFilter(StringFilter.newBuilder()
-                    .setStringPropertyRegex(targetUuid)
-                    .build())
-                .build())
-            .build();
-
-        // Passing a PaginationParameters without limit defaults to 100. Since setting it
-        // is mandatory, passing a very big limit because we need the entire response.
-        final SearchEntitiesRequest request = SearchEntitiesRequest.newBuilder()
-            .addSearchParameters(SearchParameters.newBuilder().setStartingFilter(filter)
-                .build())
-            .setPaginationParams(PaginationParameters.newBuilder().setLimit(Integer.MAX_VALUE)
-                .build())
-            .build();
-        try {
-            return searchServiceRpc.searchEntities(request).getEntitiesList();
-        } catch (StatusRuntimeException e) {
-            throw new OperationFailedException("Retrieval of target entities failed", e);
-        }
-    }
-
-    /**
-     * Check if the object related to the given uuid is a target.
-     */
-    public boolean isTarget(@Nonnull String uuid) {
-        try {
-            topologyProcessor.getTarget(Long.valueOf(uuid));
-            return true;
-        } catch (CommunicationException | TopologyProcessorException | NumberFormatException e) {
-            return false;
-        }
+    @Nonnull
+    private Set<Long> getTargetEntityIds(long targetId) {
+        return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                                                    SearchProtoUtil.discoveredBy(targetId))
+                                                .build())
+                        .getOids();
     }
 }

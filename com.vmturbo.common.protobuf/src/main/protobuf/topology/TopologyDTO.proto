@@ -4,10 +4,11 @@ package topology;
 option java_package = "com.vmturbo.common.protobuf.topology";
 
 import "common/EnvironmentTypeEnum.proto";
-import "plan/PlanDTO.proto";
+import "plan/PlanProject.proto";
 import "CloudCostDTO.proto";
 import "CommonDTO.proto";
 import "tag/Tag.proto";
+import "ncm/Matrix.proto";
 
 // Different entity types may have additional configuration options that get discovered by the
 // SDK. We could represent these options as part of the loose-form entity properties, but it
@@ -30,6 +31,12 @@ message TypeSpecificInfo {
         DiskArrayInfo disk_array = 71;
         LogicalPoolInfo logical_pool = 72;
         StorageControllerInfo storage_controller = 73;
+        DesktopPoolInfo desktop_pool = 74;
+        BusinessUserInfo business_user = 75;
+        RegionInfo region = 76;
+        WorkloadControllerInfo workload_controller = 77;
+        DatabaseTierInfo database_tier = 78;
+        DatabaseServerTierInfo database_server_tier = 79;
     }
 
     message ApplicationInfo {
@@ -56,6 +63,31 @@ message TypeSpecificInfo {
 
         // display name of all of the networks that connected to the VM.
         repeated string connected_networks = 6;
+
+        // The licensing model of the VM (license included in compute price vs. BYOL)
+        optional .common_dto.EntityDTO.LicenseModel license_model = 7 [default = LICENSE_INCLUDED];
+
+        // Information about the drivers that this VM has
+        optional DriverInfo driverInfo = 8;
+
+        // Architecure of the VM
+        optional Architecture architecture = 9;
+
+        // Virtualization Type of the VM
+        optional VirtualizationType virtualizationType = 10;
+
+        // If present, info about any read-only locks that might prevent VM action execution.
+        optional string locks = 11;
+
+        // Whether the VM memory is allocated dynamically
+        optional bool dynamic_memory = 12;
+
+        message DriverInfo {
+            // Does the VM have driver for Elastic Network adapter? It is an AWS specific driver.
+            optional bool hasEnaDriver = 1;
+            // Does the VM have driver for NVMe? It is an AWS specific driver.
+            optional bool hasNvmeDriver = 2;
+        }
     }
 
     // Properties unique to a PhysicalMachine in the model
@@ -80,6 +112,9 @@ message TypeSpecificInfo {
 
         // The CPU Core MHz on the host
         optional int32 cpu_core_mhz = 7;
+
+        // Disk Groups for vSAN storages
+        repeated .common_dto.EntityDTO.DiskGroupData diskGroup = 8;
     }
 
     message BusinessAccountInfo {
@@ -88,13 +123,39 @@ message TypeSpecificInfo {
         // the target for master BA), but sub BAs are not added as targets. So we need this field to
         // indicate whether there is an associated target for this BA (equivalent to that whether
         // entities for this BA are discovered or not)
-        optional bool has_associated_target = 1 [default = false];
+        // THIS FIELD HAS BEEN DEPRECATED IN FAVOR OF associated_target_id
+        optional bool obsolete_has_associated_target = 1 [deprecated = true];
+
+        // The OID of the target that discovered the entities in this BusinessAccount if one exists.
+        optional int64 associated_target_id = 5;
+
+        // The account id used by the third party provider.  For example, for Azure this would be
+        // the subscription ID.
+        optional string account_id = 2;
+
+        // A list of provider specific account attributes that are used to identify the pricing
+        // applied to an account.  For example, Azure uses offer ID and enrollment number.
+        repeated .common_dto.PricingIdentifier pricing_identifiers = 3;
+
+        // Flag to indicate RI support status.
+        optional bool riSupported = 4;
+    }
+
+    // Specific data for region
+    message RegionInfo {
+
+        // region should have a geo data info
+        optional GeoDataInfo geo_data = 1;
     }
 
     // specific data for compute tier
     message ComputeTierInfo {
         // An identifier for matching compute tiers that belong to the same family.
         optional string family = 1;
+
+        // Quota family is the group that comprises of profiles that count towards the usage limit for
+        // a defined category imposed on a Business Account.
+        optional string quota_family = 15;
 
         // Specifies the dedicated storage configuration state for the compute tier.
         // Market uses this to decide whether or not to combine IOThroughput and NetThroughput that
@@ -109,6 +170,59 @@ message TypeSpecificInfo {
         // In our internal mode, we defined the coupon to be NFU * 4. For example, "nano" has a NFU
         // of 0.25, so its coupon size is 0.25 * 4 = 1.
         optional int32 num_coupons = 3;
+
+        // Specifies the number of cores that the tier has
+        // This is used for license price calculation (since not all templates are used by VMs)
+        optional int32 num_cores = 4;
+
+        // Information about the types of customers this compute tier can support
+        optional SupportedCustomerInfo supported_customer_info = 5;
+
+        message SupportedCustomerInfo {
+            // Can the template only support VMs which have driver for ENA?
+            optional bool supportsOnlyEnaVms = 1;
+            // Can the template only support VMs which have driver for NVMe?
+            optional bool supportsOnlyNVMeVms = 2;
+            // The architectures of VMs that are supported by this compute tier.
+            repeated Architecture supportedArchitectures = 3;
+            // The virtualization type of VMs that are supported by this compute tier.
+            repeated VirtualizationType supportedVirtualizationTypes = 4;
+        }
+
+        //Number of Ephemeral disks supported by this tier
+        optional int32 num_instance_disks = 6;
+        //Size of each Ephemeral disk supported by this tier in GB
+        optional int32 instance_disk_size_gb = 7;
+        //disk type of Ephemeral storage
+        optional common_dto.EntityDTO.InstanceDiskType instance_disk_type = 8;
+
+        //property to determine if this computeTier supports burstable CPUs.
+        optional bool burstableCPU = 9;
+    }
+
+    message DatabaseTierInfo {
+        // Edition type of the specified database engine
+        optional string edition = 1;
+        // license model of database server; e.g. BYOL or license included
+        optional string family = 2;
+    }
+
+    message DatabaseServerTierInfo {
+        // license model of database server; e.g. BYOL or license included
+        optional string family = 1;
+    }
+
+    // Architectures
+    enum Architecture {
+        BIT_32 = 0;
+        BIT_64 = 1;
+        ARM_64 = 2;
+    }
+
+    // Virtualization types
+    enum VirtualizationType {
+        HVM = 0;
+        PVM = 1;
     }
 
     message DatabaseInfo {
@@ -131,16 +245,35 @@ message TypeSpecificInfo {
     // specific data for virtual volume
     message VirtualVolumeInfo {
         // float iops capacity of volume needed for cost calculations
-        optional float storage_access_capacity = 1;
+        // The field is deprecated because the value is now carried in the sold commodity
+        optional float storage_access_capacity = 1 [deprecated = true];
 
         // float storage capacity (MB) of volume needed for cost calculations
-        optional float storage_amount_capacity = 2;
+        // The field is deprecated because the value is now carried in the sold commodity
+        optional float storage_amount_capacity = 2 [deprecated = true];
 
         // String identifying the replication type needed for cost calculations
         optional .common_dto.EntityDTO.VirtualVolumeData.RedundancyType redundancy_type = 3;
 
         // List of files for VC storage browsing.
         repeated .common_dto.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor files = 4;
+
+        // string snapshot ID of volume needed for entity details
+        optional string snapshotId = 5;
+
+        // Volume attachment state. It is set to IN_USE only in particular cases like AWS volume.
+        // In other cases, the attachment state will be deduced based on the association with VM.
+        optional .common_dto.EntityDTO.VirtualVolumeData.AttachmentState attachment_state = 6;
+
+        // Boolean encryption enabled on volume
+        optional bool encryption = 7;
+
+        // Boolean ephemeral storage
+        optional bool isEphemeral = 8;
+
+        // float IO throughput capacity (MiB/s) needed for cost calculations
+        // The field is deprecated because the value is now carried in the sold commodity
+        optional float io_throughput_capacity = 9 [deprecated = true];
     }
 
     // specific data for a Storage entity
@@ -154,6 +287,18 @@ message TypeSpecificInfo {
         // boolean that marks a storage connected with isLocalSupported true from mediation and is connected
         // to just 1 PM as local
         optional bool is_local = 3;
+
+        // boolean indicating that wasted storage actions should not be generated for this storage
+        // this is set to true for storages where storage browsing is disabled for at least one
+        // discovering target.
+        // note: no longer used any more, since such files have been cleared before broadcast
+        optional bool ignore_wasted_files = 4 [default = false, deprecated = true];
+
+        // vSAN storage policy
+        optional .common_dto.EntityDTO.StorageData.StoragePolicy policy = 5;
+
+        // storage raw capacity
+        optional .common_dto.EntityDTO.StorageData.RawCapacity rawCapacity = 6;
     }
 
     // specific data for a disk array
@@ -169,6 +314,288 @@ message TypeSpecificInfo {
     // specific data for a storage controller
     message StorageControllerInfo {
         optional DiskTypeInfo disk_type_info = 1;
+    }
+
+    //specific data for a desktop pools
+    message DesktopPoolInfo {
+
+        // how desktops are allocated to users
+        optional .common_dto.EntityDTO.DesktopPoolData.DesktopPoolAssignmentType assignment_type = 1;
+
+        // defines when the desktops are created
+        optional .common_dto.EntityDTO.DesktopPoolData.DesktopPoolProvisionType provision_type = 2;
+
+        // type (engine) of a desktop created in the pool
+        optional .common_dto.EntityDTO.DesktopPoolData.DesktopPoolCloneType clone_type = 3;
+
+        // Desktop pools give users remote access to virtual machine-based desktops.
+        // Desktop pools use a virtual machine template or snapshot
+        // to create a pool of identical virtual machines.
+        // A separate virtual machine is created for the user when connected to the desktop pool
+        // using a virtual machine template or snapshot.
+        oneof clone_source_reference {
+
+            // reference to the virtual machine used to create a pool of identical virtual machines
+            VmWithSnapshot vm_with_snapshot = 4;
+
+            // id of a virtual machine template used to create a pool of identical virtual machines
+            int64 template_reference_id = 5;
+        }
+
+        // reference to the virtual machine used to create a pool of identical virtual machines
+        message VmWithSnapshot {
+
+            // id of a virtual machine snapshot used to create a pool of identical virtual machines
+            required int64 vm_reference_id = 1;
+
+            // reference to a snapshot used to create desktops
+            optional string snapshot = 2;
+        }
+    }
+
+     // specific data for a business user
+    message BusinessUserInfo {
+
+        // Map of the VM id to the session duration
+        map<int64, int64> vm_oid_to_session_duration = 1;
+    }
+
+    // Specific data for Workload Controller entity types. These come
+    // in various flavors captured by the enclosed oneof.
+    message WorkloadControllerInfo {
+        oneof controller_type {
+            CronJobInfo cron_job_info = 1;
+            CustomControllerInfo custom_controller_info = 2;
+            DaemonSetInfo daemon_set_info = 3;
+            DeploymentInfo deployment_info = 4;
+            JobInfo job_info = 5;
+            ReplicaSetInfo replica_set_info = 6;
+            ReplicationControllerInfo replication_controller_info = 7;
+            StatefulSetInfo stateful_set_info = 8;
+        }
+    }
+
+    message CronJobInfo {
+        // CronJob specific data goes here.
+    }
+
+    message CustomControllerInfo {
+        // Type of a custom controller. For example, "DeploymentConfig" for an Openshift DeploymentConfig.
+        optional string custom_controller_type = 1;
+    }
+
+    message DaemonSetInfo {
+        // DaemonSet specific data goes here.
+    }
+
+    message DeploymentInfo {
+        // Deployment specific data goes here.
+    }
+
+    message JobInfo {
+        // Job specific data goes here.
+    }
+
+    message ReplicaSetInfo {
+        // ReplicaSet specific data goes here.
+    }
+
+    message ReplicationControllerInfo {
+        // ReplicationController specific data goes here.
+    }
+
+    message StatefulSetInfo {
+        // StatefulSet specific data goes here.
+    }
+}
+
+// A batch of Partial Entities.
+//
+// When returning a stream, it is more efficient to batch the entities into chunks, instead of
+// returning each entity individual.
+message PartialEntityBatch {
+    repeated PartialEntity entities = 1;
+}
+
+// When components request entity information from the repository they typically don't need all
+// fields of an entity. In fact, they usually need just a few fields. In large topologies it is
+// very wasteful to return full DTOs (which can be several kB in size) when we only need a few
+// bytes of information. In the future we will have a generic mechanism for components to specify
+// exactly the fields they need. For now, the "Partial Entity" is the placeholder to achieve
+// a similar result, with more hard-coding :) This is the place for components to specify their
+// own type, with the subset of the TopologyEntityDTO that the component needs for its
+// computation.
+message PartialEntity {
+
+    // These line up with the message types declared below.
+    enum Type {
+        // The following are "generic" detail levels.
+        FULL = 1;
+        MINIMAL = 2;
+        WITH_CONNECTIONS = 5;
+
+        // The following are component-specific.
+        // Some components require fairly specific subsets of the TopologyEntityDTO, and it would be
+        // too confusing and inaccurate to come up with general-sounding terms to represent those
+        // subsets. We opt for clarity.
+        ACTION = 10;
+        API = 11;
+        HEADROOM_PLAN = 12;
+    }
+
+    // A minimal entity contains just the bare essentials.
+    message MinimalEntity {
+        required int64 oid = 1;
+
+        optional string display_name = 2;
+
+        optional int32 entity_type = 3;
+
+        optional .common.EnvironmentType environment_type = 4;
+
+        repeated int64 discovering_target_ids = 5;
+
+        optional .topology.EntityState entity_state = 6 [default = POWERED_ON];
+    }
+
+    // The entity, as well as the entitie
+    message EntityWithConnections {
+        required int64 oid = 1;
+
+        optional string display_name = 2;
+
+        optional int32 entity_type = 3;
+
+        // The entities this entity is connected to.
+        repeated TopologyEntityDTO.ConnectedEntity connected_entities = 10;
+    }
+
+    // Contains the fields required by the action orchestrator to calculate action modes.
+    message ActionPartialEntity {
+        required int64 oid = 1;
+
+        optional string display_name = 2;
+
+        optional int32 entity_type = 3;
+
+        repeated int64 discovering_target_ids = 4;
+
+        // The oid of the primary provider
+        // If an entity has only one provider, then that is the primary provider.
+        // If an entity has multiple providers, then which provider is the primary one depends on the type of entity.
+        // Check TopologyDTOUtil::getPrimaryProviderIndex
+        optional int64 primary_provider_id = 5;
+
+        // Contains the commodities the action orchestrator needs.
+        repeated int32 comm_types_with_hot_replace = 10;
+
+        // Type specific info
+        optional ActionEntityTypeSpecificInfo type_specific_info = 11;
+
+        // The entities this entity is connected to.
+        repeated TopologyEntityDTO.ConnectedEntity connected_entities = 12;
+
+        // The action orchestrator only needs certain fields from the TypeSpecificInfo of a
+        // topology entity. We outline those fields here. This significantly reduces the memory
+        // impact of loading ActionPartialEntities into the Action Orchestrator.
+        message ActionEntityTypeSpecificInfo {
+
+            oneof type {
+                ActionVirtualMachineInfo virtual_machine = 1;
+                ActionPhysicalMachineInfo physical_machine = 2;
+                ActionComputeTierInfo compute_tier = 3;
+                ActionStorageInfo storage = 4;
+            }
+
+            message ActionComputeTierInfo {
+                optional string family = 1;
+                optional string quota_family = 15;
+                optional int32 num_cores = 12;
+                optional .topology.TypeSpecificInfo.ComputeTierInfo.SupportedCustomerInfo supported_customer_info = 5;
+            }
+
+            message ActionVirtualMachineInfo {
+                optional .topology.TypeSpecificInfo.VirtualMachineInfo.DriverInfo driver_info = 1;
+                optional .topology.TypeSpecificInfo.Architecture architecture = 2;
+                optional string locks = 3;
+                optional .topology.TypeSpecificInfo.VirtualizationType virtualization_type = 4;
+            }
+
+            message ActionPhysicalMachineInfo {
+                // The CPU Core MHz on the host
+                optional int32 cpu_core_mhz = 7;
+            }
+
+            message ActionStorageInfo {
+                optional .common_dto.EntityDTO.StorageType storage_type = 1;
+            }
+
+        }
+    }
+
+    // Contains the fields required by the API for conversion to the external API's entities.
+    //
+    // Note - the API sometimes requires the full entity, but this is the detail level that will
+    // work in most of the API's use cases.
+    message ApiPartialEntity {
+        required int64 oid = 1;
+
+        optional string display_name = 2;
+
+        required int32 entity_type = 3;
+
+        optional .common.EnvironmentType environment_type = 4;
+
+        optional .topology.EntityState entity_state = 5 [default = POWERED_ON];
+
+        optional .tag.Tags tags = 10;
+
+        // only used for real time market where the topology graph is available, otherwise it
+        // would be expensive to get
+        repeated RelatedEntity consumers = 19;
+
+        repeated RelatedEntity providers = 20;
+
+        repeated RelatedEntity connected_to = 22;
+
+        map<int64, PerTargetEntityInformation> discovered_target_data = 23;
+
+        message RelatedEntity {
+
+            required int64 oid = 1;
+
+            optional int32 entity_type = 2;
+
+            // Currently this is populated only for realtime, since we don't need this information
+            // for plan API calls
+            // TODO: when this field is populated for plans, changes in ArangoDB will be required as well
+            optional string display_name = 3;
+        }
+    }
+
+    // Contains the fields required by cluster headroom plan.
+    message HeadroomPlanPartialEntity {
+        required int64 oid = 1;
+
+        optional string display_name = 2;
+
+        required int32 entity_type = 3;
+
+        optional .topology.EntityState entity_state = 4 [default = POWERED_ON];
+
+        // list of commodities sold, which can be found in PlanDTOUtil
+        repeated CommoditySoldDTO commodity_sold = 5;
+    }
+
+    // The type of the entity.
+    // The index should align with the Type value.
+    oneof type {
+        .topology.TopologyEntityDTO full_entity = 1;
+        MinimalEntity minimal = 2;
+        EntityWithConnections with_connections = 4;
+
+        ActionPartialEntity action = 10;
+        ApiPartialEntity api = 11;
     }
 }
 
@@ -247,6 +674,12 @@ message TopologyEntityDTO {
         // the list of movable types in AnalysisUtil.
         optional bool movable = 4;
 
+        // Whether the group of commodities bought can be started on a one provider.
+        optional bool startable = 6 [default = true];
+
+        // Whether this entity is scalable.
+        optional bool scalable = 7 [default = true];
+
         // id of the volume which is associated with this set of bought commodities, it is used to
         // support volumes in the cloud
         optional int64 volume_id = 5;
@@ -293,6 +726,23 @@ message TopologyEntityDTO {
         // Whether the entity is in "control" state -- there are moves occurring on the entity so that
         // it can not move, clone, suspend, accept entities move into or out of itself
         optional bool controllable = 8 [default = true];
+
+        // Whether a trader's provider should clone when the trader clones
+        optional bool provider_must_clone = 9;
+
+        // Whether the Market can delete this entity. Default is true.
+        // If false, Market will not generate Delete Actions.
+        optional bool deletable = 10 [default = true];
+
+        // If true, it means we can consider resize up
+        // and down for entity.
+        optional bool is_eligible_for_scale = 11 [default = true];
+
+        // Whether the trader is a daemon. Entities that cannot move off of their supplier and have
+        // no meaning if moved off of that supplier are called daemons.  Daemons are identified by
+        // the probes.  In Classic applications with type GuestLoad are also considered daemons,
+        // even though the probes that create them do not currently mark them as daemons.
+        optional bool daemon = 12 [default = false];
     }
 
     optional Origin origin = 10;
@@ -331,7 +781,10 @@ message TopologyEntityDTO {
         //
         // The id of at least one target will always be in this list.
         // No guarantees are made about the order of the targets in the list.
-        repeated int64 discovering_target_ids = 1;
+        // deprecated in favor of discovered_target_data
+        // please note that this deprecation/extension does not affect discovering_target_ids in
+        // MinimalEntity/ActionPartialEntity/Group.DiscoveredOrigin, but does affect ApiPartialEntity
+        repeated int64 discovering_target_ids = 1 [deprecated = true];
 
         // The time that the data for this entity was last updated.
         //
@@ -345,6 +798,10 @@ message TopologyEntityDTO {
         // The time is in "computer time" and not necessarily UTC, however, times on TopologyEntityDTOs
         // are comparable. See documentation in Java's System#currentTimeMillis() for further details.
         optional int64 last_updated_time = 2;
+
+        // non-empty map of target oid to related discovery information,
+        // for all targets that contribute into entity (send the information)
+        map<int64, PerTargetEntityInformation> discovered_target_data = 3;
     }
 
     // an entity that was created via a Placement reservation. Has a reference to it's reservation
@@ -392,17 +849,19 @@ message TopologyEntityDTO {
     // complexity. We don't seem to need it yet, so leaving it out.
     message Replaced {
         required int64 plan_id = 1; // the plan calling for the entity's replacement
+        optional int64 replacement_id = 2; // new entity that is replacing the target entity
     }
 
     // List of entities that are topologically connected with the entity that this probuf defines.
     repeated ConnectedEntity connected_entity_list = 12;
 
     // This message defines a topological connection between 2 entities.
-    // This relationship is unidirectional, the semantic depends on the ConnectionType itself.
     // This message needs to be used only to represent a topological relationship where the 2
-    // entities are connected to each other, but they are not trading any resources between them;
-    // for relationship where there is a consumer->provider semantic need, you need to use the above
-    // "commodities_bought_from_providers" field.
+    // entities are connected to each other, but they are not trading any resources between them.
+    //
+    // A connection between two entities A and B will appear only once in the broadcast,
+    // either as one of the connections of A or as one of the connections of B. Which one
+    // is used depends on the type of the connection.
     message ConnectedEntity {
 
         // Id of the entity on the other side of the connection
@@ -411,34 +870,86 @@ message TopologyEntityDTO {
         // Type of the entity on the other side of the connection
         optional int32 connected_entity_type = 2;
 
-        // Type of connection that this message is representing. different types means different
-        // semantics
+        // Type of connection that this message is representing.
         optional ConnectionType connection_type = 3;
 
-        // Type of connection that this message is representing. different types means different
+        // Type of connection that this message is representing. Different types means different
         // semantics
         enum ConnectionType {
-
-            // Normal connection is a basic topology connection, where 2 entities are physically or
-            // virtually connected. This means that from each one of those entities we should be able to
-            // see the connection and navigate to the other one.
-            // There is no well-defined direction in this connection, but given that we want to represent
-            // only unidirectional connections, this means that the direction to be used here is a
-            // convention decided by the author/code that will generate this dto (but it should be
-            // consistent across the topology).
-            // Example: the connection from pm to storage can be defined in both directions, but
-            // we decided that will always be from pm -> storage.
+            // Normal connection is a basic topology connection between two entities,
+            // which only serves the purpose of traversability from the one to the other.
+            // No other more precise semantics is implied.
+            //
+            // There is no direction in this connection; it should be understood as symmetrical.
+            // Examples of normal connections:
+            // (a) the connection between a compute tier and a storage tier
+            // (b) the connection between a VM and a virtual volume
+            // (c) the connection between a virtual volume and the availability zone it resides in
+            //     (changing the semantics of this case is to be deferred for the future)
+            //
+            // In the topology broadcast, the connection appears only on one of the
+            // records of the two connected entities.
+            // (a) The connection between compute and storage tier
+            //     appears in the compute tier record
+            // (b) the connection between VM and volume appears in the VM record
+            // (c) the connection between volume and zone appears in the volume record
             NORMAL_CONNECTION = 1;
 
-            // Owns connection is used where 2 entities not only are topologically connected, but
-            // in addition, the entity defined in this protobuf is the owner of the entity at the other
-            // side of the connection.
-            // This relationship is unidirectional and the semantic is owner -> owned (or master -> slave).
-            // This relationship can in the future drive behaviors like:
-            // - when the master is deleted, delete also all the slaves
-            // - group all the slaves by master
-            // - aggregate slaves stats/metrics by master
+            // Ownership is used when two entities not only are topologically connected,
+            // but, in addition, one of the entities (the owned entity) cannot meaningfully exist
+            // without the other (the owner). Examples of ownerships:
+            // (a) Business accounts own workloads in the cloud (e.g., VMs, DBs)
+            //     and applications
+            // (b) Business accounts can own sub-accounts
+            // (c) Regions own availability zones
+            // (d) Cloud services own tiers
+            //
+            // The relationship is directional and should never form circles.
+            // Each entity can have at most one owner.
+            //
+            // In the topology broadcast, the connection appears always in the record of the owner.
             OWNS_CONNECTION = 2;
+
+            // Aggregation is a directional relationship between two entities, the "aggregator"
+            // and the "aggregated entity". It denotes a notion of containment (e.g.,
+            // the aggregated can be understood to be "inside" the aggregator), but it is less
+            // strict than ownership, in two ways:
+            // (a) An entity can have more than one aggregator
+            // (b) An aggregated entity can exist meaningfully without its aggregator(s)
+            // Aggregation should not form circles in the topology.
+            //
+            // Examples of aggregation:
+            // (a) Availability zones aggregate cloud workloads
+            // (b) In the absence of availability zones (e.g., Azure), regions aggregate cloud workloads
+            // (c) Regions aggregate tiers
+            // (d) Datacenters aggregate storage and PMs
+            //
+            // Attention!  In the topology broadcast, the connection appears always in the record of the
+            // *aggregated entity*. This is the opposite of the convention that we use for ownership.
+            // The reason for this inconsistent convention has to do with the memory efficiency
+            // of the Market and the Cost component, which use TopologyEntityDTO objects directly
+            // in their logic. Note that this is also the reverse of the SDK AGGREGATES_CONNECTION
+            // connection type.
+            AGGREGATED_BY_CONNECTION = 3;
+
+            // Controlling is a directional relationship between two entities, the "controller"
+            // and the "controlled entity".The semantics of a CONTROLLED_BY_CONNECTION are that the
+            // "controlled" entities participate in the market and the market generates the action on these
+            // "controlled" entities, but the action is actually executed on the "controller" entity.
+            // The controller contains the information like size, number of instances.
+            // When entities are controlled by controller:
+            // 1. A controller may maintain the "desired state" for the controlled entities and will continuously
+            // drive the controlled entities toward that desired state. Executing an action on the controlled entity
+            // without adjusting the controller's desired state is futile because the controller will change the entity back.
+            // 2. Often controlled entities are created as identical replicas specified by a configuration
+            // known to and managed by the controller. When the market generates actions for these replicas, they may be
+            // merged together on the controller where they are executed to minimize disruption and to make the actions
+            // more understandable to the user in the UI.
+            // Examples of Controls:
+            // (a) WorkloadController controls the ContainerSpec
+            // (b) AWS Auto-scaling-group controls the individual VMs under it
+            // (c) Azure ScaleSet controls the individual VMs under it
+            CONTROLLED_BY_CONNECTION = 4;
         }
     }
 
@@ -475,7 +986,47 @@ message TopologyEntityDTO {
             // There is a mismatch between the local ID used by an entity to address another
             // entity, and that entity's self-declared local ID.
             INCONSISTENT_KEY = 5;
+
+            // An entity with a normal connection to another entity that does not exist.
+            INVALID_NORMAL_CONNECTION = 6;
+
+            // An entity with an owns connection to another entity that does not exist.
+            INVALID_OWNS_CONNECTION = 7;
+
+            // An entity with an aggregated by connection to another entity that does not exist.
+            INVALID_AGGREGATED_BY_CONNECTION = 8;
+
+            // An entity with an controlled by connection to another entity that does not exist.
+            INVALID_CONTROLLED_BY_CONNECTION = 9;
         }
+    }
+}
+
+// related information for the target that discovers the entity
+message PerTargetEntityInformation {
+    // identifier for the entity as vendor sees it ("local name")
+    // to be retained and passed to action execution, needs not be set
+    optional string vendor_id = 1;
+}
+
+// The Topology Extension.
+// Due to the fact that Action Merging/Action Conversion is tied to a particular Topology, the need for Topology Extensions arises.
+// The Action Merging/Action Conversion is discovered by a probe, and is valid for a lifetime of a topology, which that particular discovery is a part of.
+// We have to preserve the Action Merging/Action Conversion specs, so that any Plans for that topology will generate same types of actions as a real-time Market.
+// By same type of action we mean that if actions would be merged/converted in a real-time Market, they would be merged/converted when running a Plan over
+// the same Topology.
+// So, essentially, the Topology Extension is something that is tied to a Topology, has the lifetime of that Topology, yet not a part of Topology.
+// The Communication Matrix (Communication Topology) and Action Merging/Conversion data serve as examples.
+message TopologyExtension {
+    oneof extension {
+        Matrix matrix = 1;
+    }
+    // The Network Topology extension.
+    message Matrix {
+        repeated OverlayVertex vertices = 1;
+        repeated OverlayEdge edges = 2;
+        repeated UnderlayStruct underlay = 3;
+        repeated ConsumerToProvider consumer_to_provider = 4;
     }
 }
 
@@ -497,8 +1048,15 @@ message Topology {
     };
     // Message to hold real data of the topology - it is the chunk
     message Data {
-        // The entities in the topology
-        repeated TopologyEntityDTO entities = 1;
+        // The segments in the topology
+        repeated DataSegment entities = 3;
+    }
+    // Data segment
+    message DataSegment {
+        oneof data_segment {
+            TopologyEntityDTO entity = 1;
+            TopologyExtension extension = 2;
+        }
     }
     // Message to appear at the very end of topology broadcast
     message End {
@@ -583,11 +1141,15 @@ message TopologyInfo {
 
     // types of analyses to run with this topology
     repeated AnalysisType analysis_type = 7;
+
+    // Scope's Entity Type (can be one of the values in .common_dto.EntityDTO.EntityType)
+    optional int32 scope_entity_type = 8;
 }
 
 enum AnalysisType {
     MARKET_ANALYSIS = 0;
     WASTED_FILES = 1;
+    BUY_RI_IMPACT_ANALYSIS = 2;
 }
 
 // Information specific to a topology generated for the purpose of a plan.
@@ -595,8 +1157,12 @@ message PlanTopologyInfo {
     // The type of the plan project that initiated the topology broadcast.
     optional plan.PlanProjectType plan_project_type = 1 [default = USER];
 
-    // The type of the plan initiated.
+    // The type of the plan initiated. For example, the plan_type could be OPTIMIZE_CLOUD_PLAN.
     optional string plan_type = 2;
+
+    // The sub-type of the plan initiated. For example, the plan_sub_type could be the specific
+    // optimize cloud plan type (like OPTIMIZE_CLOUD__RIBUY_ONLY)
+    optional string plan_sub_type = 3;
 }
 
 enum EntityState {
@@ -662,15 +1228,13 @@ message CommodityBoughtDTO {
     optional bool active = 4 [default = true];
 
     // A scale factor to multiply this commodity by before analysis, if present
-    optional double scaling_factor = 5;
+    optional double scaling_factor = 5 [default = 1];
 
-    // A historical value which is used in conjunction to the used value to calculate a
-    // weighted used value
-    optional double historical_used = 6;
+    // A collection of aggregated in different ways history values.
+    optional HistoricalValues historical_used = 6;
 
-    // A historical value which is used in conjunction to the peak value to calculate a
-    // weighted peak value
-    optional double historical_peak = 7;
+    // A collection of aggregated in different ways history peak values.
+    optional HistoricalValues historical_peak = 7;
 
     // The display name for specific commodity like port channel and net throughput.
     optional string display_name = 8;
@@ -680,6 +1244,16 @@ message CommodityBoughtDTO {
     // a port channel may be combined with multiple net throughputs, and these net throughputs are
     // the aggregates.
     repeated string aggregates = 9;
+
+    optional double reserved_capacity = 10 [default = 0.0];
+
+    // The resize target utilization used as a coefficient when resizing commodity quantity.
+    optional double resize_target_utilization = 11 [default = 1.0];
+
+    // Collection of commodity utilization points. The collection contains series of usage points
+    // with given timestamp and interval between points.
+    // Certain probes may send more than one point per discovery request.
+    optional UtilizationData utilizationData = 12;
 }
 
 message CommoditySoldDTO {
@@ -690,11 +1264,12 @@ message CommoditySoldDTO {
 
     optional double peak = 3 [default = 0.0];
 
-    optional double capacity = 4 [default = 100];
+    optional double capacity = 4 [default = 0.0];
 
     optional double effectiveCapacityPercentage = 5 [default = 100];
 
-    optional double reservedCapacity = 6 [default = 0.0];
+    // This field is deprecated - No need to set reservedCapacity for CommoditySoldDTO
+    optional double reservedCapacity = 6 [deprecated = true];
 
     optional bool isResizeable = 7 [default = true];
 
@@ -711,11 +1286,8 @@ message CommoditySoldDTO {
     // related to resize increment
     optional float capacity_increment = 11 [default = 1.0];
 
-    // The historic max value(within the data retention period)
-    optional double max_quantity = 12;
-
     // A scale factor to multiply this commodity by before analysis, if present
-    optional double scaling_factor = 13;
+    optional double scaling_factor = 13 [default = 1];
 
     // The min amount resource can be provided to consumer
     optional double min_amount_for_consumer = 14;
@@ -726,17 +1298,15 @@ message CommoditySoldDTO {
     // The max ratio between this commodity and a base commodity
     optional RatioDependency ratio_dependency = 16;
 
-    // A historical value which is used in conjunction to the used value to calculate a
-    // weighted used value
-    optional double historical_used = 17 [default = 0.0];
+    // A collection of aggregated in different ways history values.
+    optional HistoricalValues historical_used = 17;
 
-    // A historical value which is used in conjunction to the peak value to calculate a
-    // weighted peak value
-    optional double historical_peak = 18 [default = 0.0];
+    // A collection of aggregated in different ways history peak values.
+    optional HistoricalValues historical_peak = 18;
 
     // The resize target utilization. This will be used to resize entities already on cloud or
     // moving to the cloud in cloud migration plans.
-    optional double resize_target_utilization = 19;
+    optional double resize_target_utilization = 19 [default = 1.0];
 
     // for VMem and VCpu include info on hot add/hot remove
     optional HotResizeInfo hot_resize_info = 20;
@@ -750,12 +1320,41 @@ message CommoditySoldDTO {
     // the aggregates.
     repeated string aggregates = 22;
 
+    // Collection of commodity utilization points. The collection contains series of usage points
+    // with given timestamp and interval between points.
+    // Certain probes may send more than one point per discovery request.
+    optional UtilizationData utilizationData = 23;
+
+    // The thresholds (Ex. min/Max) for the commodity.
+    optional Thresholds thresholds = 24;
+
+    // A resold commodity is designed to model situations in which the true source of supply for
+    // that resold commodity is further down the supply chain rather than directly through the entity
+    // providing the commodity. In these cases, the true supplier is responsible for setting the
+    // price of the resold commodity. For a real-life economic analogy, consider the case of buying
+    // a BigMac at McDonald's - the individual restaurant does not get to set the price. Instead,
+    // the price may be set by the franchise based on national or regional prices of its
+    // ingredients along with other factors. Useful in situations where an entity's direct provider
+    // represents more of a logical grouping of entities rather than a proper supplier of resources ie
+    // a Container buying from a ContainerPod.
+    optional bool is_resold = 25;
+
+    // Whether min is a strict constraint. True when consumer must consume amount above min.
+    optional bool check_min_amount_for_consumer = 26 [default = false];
+
+    optional .common_dto.CommodityDTO.RangeDependency range_dependency = 27;
+
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {
         // The type of commodity whose usage will be used as a factor.
         optional CommodityType base_commodity = 1;
         // The ratio which will be used to multiply with base commodity's usage.
-        optional int32 ratio = 2;
+        optional double max_ratio = 2;
+        // The min ratio which will be used to multiply with base commodity's usage.
+        optional double min_ratio = 3;
+        // When consumer consumes amount more than (base amount * max_ratio), whether can directly
+        // increase base amount to achieve max ratio dependency.
+        optional bool increase_base_amount_default_supported = 4 [default = false];
     }
 
     message HotResizeInfo {
@@ -765,6 +1364,15 @@ message CommoditySoldDTO {
         // whether or not this commodity supports hot remove
         optional bool hot_remove_supported = 3 [default = false];
     }
+
+    // Threshold set for the commodity. The min/Max will be used by market to adjust resize actions.
+    message Thresholds {
+        // The min threshold of the commodity. We keep this to adjust the resize down actions.
+        optional double min = 1;
+        // The Max threshold of the commodity. We keep this to adjust the resize up actions.
+        optional double max = 2;
+    }
+
 }
 
 message IpAddress {
@@ -800,12 +1408,103 @@ message DiskTypeInfo {
     optional int64 num_v_series_disks = 5;
 }
 
+// Specific data for geo locations.
+message GeoDataInfo {
+    // latitude coordinates of geo location.
+    required double latitude = 1;
+
+    // longitude coordinates of geo location.
+    required double longitude = 2;
+}
+
+// A message containing the id of a projected topology
+message ProjectedTopologyInfo {
+    optional int64 projected_topology_id = 1;
+}
+
+// Aggregated commodity historical values for analysis.
+// Certain commodities may have more than one kind of a value.
+message HistoricalValues {
+    // Absolute maximum value within retention period.
+    optional double max_quantity = 1;
+
+    // Weighted average with previous utilization - peaks are smoothed out.
+    // The latest point is the most significant one.
+    optional double hist_utilization = 2;
+
+    // Values averaged across equal time periods within a day for specified observation window.
+    repeated double time_slot = 3;
+
+    // Nth percentile of utilizations across specified observation window.
+    optional double percentile = 4;
+}
+
+// Represents a collection of utilization data points.
+message UtilizationData {
+    // Array of data points. The last element in the array refers to the latest point in time.
+    repeated double point = 1;
+
+    // The timestamp of the last (the most recent) point in the array.
+    required int64 lastPointTimestampMs = 2;
+
+    // Interval in milliseconds between 2 consecutive points in the array.
+    required int32 intervalMs = 3;
+}
+
 // A short description of what a topology contains. The description is useful when you are interested
 // in the IDEA of topologies but you don't want to have to read the whole thing!
+//
+// Note - some components may persist this in the database, so changes to this message need to be
+// backwards compatible.
 message TopologySummary {
+
+    // Information about the topology.
     optional TopologyInfo topology_info = 1;
+
+    // Whether or not the topology was successfully broadcast.
+    oneof result {
+        // If the topology broadcast successfully, this can contain additional information.
+        TopologyBroadcastSuccess success = 10;
+
+        // If the topology failed to broadcast, this contains information about why it failed.
+        TopologyBroadcastFailure failure = 11;
+    }
+}
+
+// Notification that a topology was successfully broadcast.
+message TopologyBroadcastSuccess {
     // TBD: a summary of the contents of the topology, including the workload count or the raw
     // data that can be used to derive the workload count, so that we can resolve OM-37431
+}
+
+// Notification that a topology failed to broadcast due to some fatal error during the running
+// of the topology pipeline.
+message TopologyBroadcastFailure {
+    // The description of the error.
+    optional string error_description = 1;
+}
+
+// A summary message containing information about the action plan generated by a market analysis.
+message ActionPlanSummary {
+    optional int64 action_plan_id = 1;
+}
+
+// A message containing the results obtained by the analysis of the market
+message AnalysisSummary {
+    optional ProjectedTopologyInfo projected_topology_info = 1;
+    optional TopologyInfo source_topology_info = 2;
+    optional ActionPlanSummary action_plan_summary = 3;
+}
+
+// A message containing a list of entities that changed state and an id that can be compared with
+// topology ids
+message EntitiesWithNewState {
+    // The entities that changed state
+    repeated TopologyEntityDTO topology_entity = 1;
+
+    // This represent the same incremental id used for topologies. With this we can easily
+    // compare topologies that have been built after the events were detected
+    optional int64 state_change_id = 2;
 }
 
 // A request to assemble the current topology and broadcast it to all listeners for the topology.

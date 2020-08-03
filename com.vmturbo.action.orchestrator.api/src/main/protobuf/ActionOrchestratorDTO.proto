@@ -6,6 +6,8 @@ option java_outer_classname = "ActionMessages";
 
 import "action/ActionDTO.proto";
 import "action/ActionNotificationDTO.proto";
+import "topology/ActionExecution.proto";
+import "ActionExecution.proto";
 
 message ActionOrchestratorNotification {
     // The ID of the notification broadcast this notification belongs to.
@@ -21,3 +23,26 @@ message ActionOrchestratorNotification {
     }
 }
 
+// Message sent by action orchestrator to request action approvals
+message ActionApprovalRequests {
+    // Collection of actions to request approval for
+    repeated .topology.ExecuteActionRequest actions = 1;
+}
+
+// Event of action state changes
+message ActionEvent {
+    // Action the event is associated with
+    required .topology.ExecuteActionRequest actionRequest = 1;
+    // Previous action state - before the event.
+    required .common_dto.ActionResponseState oldState = 2;
+    // New action state - after the event.
+    required .common_dto.ActionResponseState newState = 3;
+    // Timestamp of action event.
+    required int64 timestamp = 4;
+    // Information about who accepted the action.
+    // Maybe accepted :
+    // 1. manually in Turbonomic
+    // 2. automated in Turbonomic
+    // 3. in third-party platform (ServiceNow)
+    optional string acceptedBy = 5;
+}

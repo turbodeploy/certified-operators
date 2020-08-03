@@ -1,11 +1,12 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
-import static com.vmturbo.components.common.utils.StringConstants.RELATION;
-import static com.vmturbo.components.common.utils.StringConstants.RELATION_BOUGHT;
-import static com.vmturbo.components.common.utils.StringConstants.RELATION_SOLD;
+import static com.vmturbo.common.protobuf.utils.StringConstants.RELATION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.RELATION_BOUGHT;
+import static com.vmturbo.common.protobuf.utils.StringConstants.RELATION_SOLD;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -17,6 +18,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.protobuf.MessageOrBuilder;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.CommodityCommonFieldsExtractor;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.StatsUtils.PrecisionEnum;
@@ -26,9 +28,7 @@ import com.vmturbo.api.dto.statistic.PortChannelApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -36,18 +36,18 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
  * Map topology extension data that are related to ports.
  **/
-public class PortsAspectMapper implements IAspectMapper {
+public class PortsAspectMapper extends AbstractAspectMapper {
 
-    private final SearchServiceBlockingStub searchServiceBlockingStub;
+    private final RepositoryApi repositoryApi;
 
-    public PortsAspectMapper(final SearchServiceBlockingStub searchServiceBlockingStub) {
-        this.searchServiceBlockingStub = searchServiceBlockingStub;
+    public PortsAspectMapper(@Nonnull final RepositoryApi repositoryApi) {
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
     }
 
     @Nullable
@@ -131,17 +131,14 @@ public class PortsAspectMapper implements IAspectMapper {
             providerOids.add(commoditiesBoughtFromProvider.getProviderId());
         }
         if (!providerOids.isEmpty()) {
-            final SearchTopologyEntityDTOsResponse providersResponse =
-                searchServiceBlockingStub.searchTopologyEntityDTOs(
-                    SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addAllEntityOid(providerOids).build());
-            // map commodity key -> commodity sold itself
-            providersResponse.getTopologyEntityDtosList().forEach(provider -> {
-                provider.getCommoditySoldListList().forEach(commoditySoldDTO -> {
-                    keyToProviderCommoditySold.putIfAbsent(commoditySoldDTO.getCommodityType(),
-                        commoditySoldDTO);
+            repositoryApi.entitiesRequest(providerOids)
+                .getFullEntities()
+                .forEach(provider -> {
+                    provider.getCommoditySoldListList().forEach(commoditySoldDTO -> {
+                        keyToProviderCommoditySold.putIfAbsent(commoditySoldDTO.getCommodityType(),
+                            commoditySoldDTO);
+                    });
                 });
-            });
         }
     }
 
@@ -156,11 +153,11 @@ public class PortsAspectMapper implements IAspectMapper {
      * @param keyToProviderCommoditySold the map of commodity type and key to the commodity itself.
      */
     private void populatePorts(@Nonnull final List<StatApiDTO> nonAggregatedPorts,
-        @Nonnull final List<PortChannelApiDTO> portChannels,
-        @Nonnull final MessageOrBuilder commodityBoughtOrSold,
-        @Nonnull final Set<String> aggregateKeys,
-        @Nonnull final Map<String, List<MessageOrBuilder>> keyToCommodities,
-        @Nonnull final Map<CommodityType, CommoditySoldDTO> keyToProviderCommoditySold) {
+            @Nonnull final List<PortChannelApiDTO> portChannels,
+            @Nonnull final MessageOrBuilder commodityBoughtOrSold,
+            @Nonnull final Set<String> aggregateKeys,
+            @Nonnull final Map<String, List<MessageOrBuilder>> keyToCommodities,
+            @Nonnull final Map<CommodityType, CommoditySoldDTO> keyToProviderCommoditySold) {
         final String portUnits = CommodityTypeUnits.NET_THROUGHPUT.getUnits();
         final CommodityType commodityTypeAndKey = CommodityCommonFieldsExtractor.getCommodityType(
             commodityBoughtOrSold);
@@ -229,7 +226,7 @@ public class PortsAspectMapper implements IAspectMapper {
      */
     @Nonnull
     private StatApiDTO mapToPort(@Nonnull final MessageOrBuilder commodityBoughtOrSold,
-        @Nonnull final Map<CommodityType, CommoditySoldDTO> keyToProviderCommoditySold) {
+            @Nonnull final Map<CommodityType, CommoditySoldDTO> keyToProviderCommoditySold) {
         final StatApiDTO port = new StatApiDTO();
         final String portUnits = CommodityTypeUnits.NET_THROUGHPUT.getUnits();
         final CommodityType commodityTypeAndKey = CommodityCommonFieldsExtractor.getCommodityType(
@@ -314,7 +311,7 @@ public class PortsAspectMapper implements IAspectMapper {
 
     @Nonnull
     @Override
-    public String getAspectName() {
-        return "portsAspect";
+    public AspectName getAspectName() {
+        return AspectName.PORTS;
     }
 }

@@ -5,36 +5,54 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.junit.Assert;
-import org.junit.Test;
-import org.mockito.Mockito;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
 import io.grpc.Server;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 
+import org.junit.Assert;
+import org.junit.Test;
+import org.mockito.Mockito;
+
+import com.vmturbo.api.component.external.api.mapper.ScheduleMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader;
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.component.external.api.service.SettingsPoliciesService;
 import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.group.service.SettingRpcService;
 import com.vmturbo.group.setting.EnumBasedSettingSpecStore;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
-import com.vmturbo.group.service.SettingRpcService;
 
 /**
  * JUnit test to cover production shipped entity settings transformation in UI.
  */
 public class SettingsMapperIntegrationTest {
+
+    private SettingsPoliciesService settingsPoliciesService = Mockito.mock(
+            SettingsPoliciesService.class);
+
+    // Set of settings that are intentionally hidden from the UI
+    private final Set<String> invisibleSettings = ImmutableSet.of(
+        EntitySettingSpecs.ScalingGroupMembership.getSettingName(),
+        EntitySettingSpecs.VCPURequestUtilization.getSettingName());
 
     /**
      * Test ensures, that all the settings from group component are seen in the UI through the
@@ -44,7 +62,7 @@ public class SettingsMapperIntegrationTest {
      */
     @Test
     public void testSettingsMapping() throws Exception {
-        final SettingSpecStore specStore = new EnumBasedSettingSpecStore();
+        final SettingSpecStore specStore = new EnumBasedSettingSpecStore(false, false);
         final SettingStore settingStore = Mockito.mock(SettingStore.class);
         final SettingRpcService settingRpcService =
             new SettingRpcService(specStore, settingStore);
@@ -58,11 +76,16 @@ public class SettingsMapperIntegrationTest {
         final SettingSpecStyleMapping settingSpecStyleMapping =
                 new SettingSpecStyleMappingLoader("settingSpecStyleTest.json").getMapping();
         final SettingsMapper mapper =
-                new SettingsMapper(channel, settingsManagerMapping, settingSpecStyleMapping);
+                new SettingsMapper(SettingServiceGrpc.newBlockingStub(channel),
+                    GroupServiceGrpc.newBlockingStub(channel),
+                    SettingPolicyServiceGrpc.newBlockingStub(channel),
+                    settingsManagerMapping, settingSpecStyleMapping,
+                    ScheduleServiceGrpc.newBlockingStub(channel), new ScheduleMapper());
         final SettingsService settingService =
                 new SettingsService(SettingServiceGrpc.newBlockingStub(channel),
                         StatsHistoryServiceGrpc.newBlockingStub(channel),
-                        mapper, settingsManagerMapping);
+                        mapper, settingsManagerMapping, settingsPoliciesService,
+                        false, false);
 
         final List<SettingsManagerApiDTO> settingSpecs =
                 settingService.getSettingsSpecs(null, null, false);
@@ -73,13 +96,38 @@ public class SettingsMapperIntegrationTest {
                 .collect(Collectors.toSet());
         final Set<String> enumSettingsNames = Stream.of(EntitySettingSpecs.values())
                 .map(EntitySettingSpecs::getSettingName)
+            .filter(name -> !invisibleSettings.contains(name))
                 .collect(Collectors.toSet());
         enumSettingsNames.addAll(
             Stream.of(GlobalSettingSpecs.values())
                 .map(GlobalSettingSpecs::getSettingName)
                 .collect(Collectors.toSet()));
-        Assert.assertEquals(enumSettingsNames, visibleSettings);
+        enumSettingsNames.addAll(ActionSettingSpecs.getSettingSpecs().stream()
+            .map(SettingSpec::getName)
+            .collect(Collectors.toSet()));
+
+        // remainingGcCapacityUtilization and dbCacheHitRateUtilization
+        // are purposely an invisible settings
+        Assert.assertTrue(enumSettingsNames.remove("remainingGcCapacityUtilization"));
+        Assert.assertTrue(enumSettingsNames.remove("dbCacheHitRateUtilization"));
+
+        // old SLO settings are deprecated - remove them
+        Assert.assertTrue(enumSettingsNames.remove("responseTimeCapacity"));
+        Assert.assertTrue(enumSettingsNames.remove("autoSetResponseTimeCapacity"));
+        Assert.assertTrue(enumSettingsNames.remove("transactionsCapacity"));
+        Assert.assertTrue(enumSettingsNames.remove("autoSetTransactionsCapacity"));
+
+        Assert.assertEquals(testError(enumSettingsNames, visibleSettings), enumSettingsNames, visibleSettings);
 
         server.shutdownNow();
+    }
+
+    private String testError(Set<String> s1, Set<String> s2) {
+        Set<String> missing = Sets.newHashSet(s1);
+        missing.removeAll(s2);
+        Set<String> extra = Sets.newHashSet(s2);
+        extra.removeAll(s1);
+        return String.format("Missing: %s Extra: %s", missing, extra);
+
     }
 }

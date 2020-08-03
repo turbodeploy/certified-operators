@@ -63,6 +63,10 @@ public class ShoppingListInfo {
         return buyerId;
     }
 
+    public Long getSellerId() {
+        return sellerId;
+    }
+
     public Optional<Integer> getSellerEntityType() {
         return Optional.ofNullable(this.sellerEntityType);
     }

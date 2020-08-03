@@ -29,6 +29,7 @@ import com.vmturbo.api.dto.probe.ProbePropertyNameValuePairApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.utils.ApiAttributeValues;
 
 /**
  * Every annotation that start with Api... is about Documentation
@@ -48,7 +49,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
  */
 @Controller
 @RequestMapping("/probes")
-@Api(value = "Probes")
+@Api(tags = ApiAttributeValues.TAGS_INTERNAL, value = "Probes")
 @SwaggerDefinition(tags = {@Tag(name = "Probes", description = "Methods for managing probes and probe properties.")})
 @PreAuthorize("hasAnyRole('ADMINISTRATOR')")
 public class ProbesController {

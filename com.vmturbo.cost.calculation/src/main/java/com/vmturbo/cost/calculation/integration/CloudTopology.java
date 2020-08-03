@@ -9,6 +9,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.group.api.GroupAndMembers;
 
 /**
  * Represents the subset of the topology that lives in the cloud, and provides methods required
@@ -40,6 +41,24 @@ public interface CloudTopology<ENTITY_CLASS> {
     Optional<ENTITY_CLASS> getEntity(final long entityId);
 
     /**
+     * Get the primary tier associated with an entity.
+     * Primary tier is one of Compute tier, database tier, database server tier.
+     * A consumer is connected to exactly one primary tier.
+     * For ex., A VM is connected to one compute tier, but can be connected to multiple storage tiers.
+     * So, storage tiers are not considered primary tiers.
+     *
+     * <p>Only finds the immediately connected primary tier. For example, suppose an APPLICATION
+     * connected to a VM connected to a COMPUTE TIER. Calling this method with the APPLICATION's
+     * ID will return an empty optional.</p>
+     *
+     * @param entityId The ID of the entity.
+     * @return An optional containing the primary tier entity, or an empty optional if the ID is
+     *  not found, or if there is no primary tier directly associated with the entity.
+     */
+    @Nonnull
+    Optional<ENTITY_CLASS> getPrimaryTier(long entityId);
+
+    /**
      * Get the compute tier associated with an entity.
      *
      * Only finds the immediately connected compute tier. For example, suppose an APPLICATION
@@ -68,6 +87,18 @@ public interface CloudTopology<ENTITY_CLASS> {
     Optional<ENTITY_CLASS> getDatabaseTier(final long entityId);
 
     /**
+     * Get the database server tier associated with an entity.
+     *
+     * <p>Only finds the immediately connected database server tier.
+     *
+     * @param entityId The ID of the entity (normally this would be a database server).
+     * @return An optional containing the database server tier entity, or an empty optional if the
+     *  ID is not found, or if there is no database server tier directly associated with the entity.
+     */
+    @Nonnull
+    Optional<ENTITY_CLASS> getDatabaseServerTier(long entityId);
+
+    /**
      * Get the storage tier associated with an entity.
      *
      * Only finds the immediately connected storage tier. For example, suppose a VIRTUAL_MACHINE is
@@ -82,16 +113,16 @@ public interface CloudTopology<ENTITY_CLASS> {
     Optional<ENTITY_CLASS> getStorageTier(final long entityId);
 
     /**
-     * Get the volumes connected to an entity.
+     * Get the volumes attached to an entity.
      *
-     * Only finds the immediately connected volumes.
+     * Only finds the immediately attached volumes.
      *
      * @param entityId The ID of the entity.
-     * @return A collection of volumes connected to the entity, or an empty collection if there
+     * @return A collection of volumes attached to the entity, or an empty collection if there
      *    are none.
      */
     @Nonnull
-    Collection<ENTITY_CLASS> getConnectedVolumes(final long entityId);
+    Collection<ENTITY_CLASS> getAttachedVolumes(long entityId);
 
     /**
      * Get the region associated with an entity.
@@ -170,11 +201,39 @@ public interface CloudTopology<ENTITY_CLASS> {
      * Get all entities of a particular type in the topology.
      */
     @Nonnull
-    List<ENTITY_CLASS> getAllEntitesOfType(int entityType);
+    List<ENTITY_CLASS> getAllEntitiesOfType(int entityType);
 
     /*
      * Get all entities of particular types in the topology.
      */
     @Nonnull
-    List<ENTITY_CLASS> getAllEntitesOfTypes(Set<Integer> entityTypes);
+    List<ENTITY_CLASS> getAllEntitiesOfType(Set<Integer> entityTypes);
+
+    /**
+     * Resolves the RI coverage capacity for an entity. First, the entity state is checked to
+     * verify the entity is in a valid state to be covered by an RI. If the entity state is valid,
+     * the entity's tier is checked for RI capacity (currently, only ComputeTier is supported)
+     * @param entityId The OID of the target entity
+     * @return The RI coverage capacity of the target entity
+     */
+    long getRICoverageCapacityForEntity(long entityId);
+
+    /**
+     * Returns the billing family group of the entity with the provided id.
+     *
+     * @param entityId of the entity for which billing family group is being returned.
+     * @return billing family group of the entity with the provided id.
+     */
+    @Nonnull
+    Optional<GroupAndMembers> getBillingFamilyForEntity(long entityId);
+
+    /**
+     * Get ServiceProvider for provided entity oid.
+     *
+     * @param entityId entity Oid.
+     * @return ServiceProvider
+     */
+    @Nonnull
+    Optional<ENTITY_CLASS> getServiceProvider(long entityId);
+
 }

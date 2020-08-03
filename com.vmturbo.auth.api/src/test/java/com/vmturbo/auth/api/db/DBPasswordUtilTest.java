@@ -14,7 +14,7 @@ import org.springframework.web.client.ResourceAccessException;
 public class DBPasswordUtilTest {
 
     private final int port = 12345;
-    private DBPasswordUtil passwordUtil = new DBPasswordUtil("auth", port, 1);
+    private DBPasswordUtil passwordUtil = new DBPasswordUtil("auth", port, "", 1);
     private final String rootUri = "http://auth:" + port + DBPasswordUtil.SECURESTORAGE_PATH;
     private MockRestServiceServer mockServer =
         MockRestServiceServer.createServer(passwordUtil.getRestTemplate());
@@ -30,18 +30,15 @@ public class DBPasswordUtilTest {
 
     @Test
     public void testGetSqlDbRootPasswordRetry() throws Exception {
+
+        // Set up the 1st call to respond with an exception (unavailable yet)
         mockServer.expect(requestTo(rootUri + DBPasswordUtil.SQL_DB_ROOT_PASSWORD_PATH))
             .andExpect(method(HttpMethod.GET))
             .andRespond(request -> {
-                // Set up the second call to respond with "baz"
-                mockServer.reset();
-                mockServer.expect(requestTo(rootUri + DBPasswordUtil.SQL_DB_ROOT_PASSWORD_PATH))
-                    .andExpect(method(HttpMethod.GET))
-                    .andRespond(withSuccess("baz", MediaType.APPLICATION_JSON_UTF8));
-
                 throw new ResourceAccessException("unavailable");
             });
 
+        // Set up the 2nd call to respond successful, with the  "baz" password
         mockServer.expect(requestTo(rootUri + DBPasswordUtil.SQL_DB_ROOT_PASSWORD_PATH))
             .andExpect(method(HttpMethod.GET))
             .andRespond(withSuccess("baz", MediaType.APPLICATION_JSON_UTF8));

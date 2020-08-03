@@ -638,10 +638,10 @@ public class JsonSemanticDifferTest {
         final String j1 = gson.toJson(vm.build());
 
         vm.getCommoditySoldListBuilderList().get(0)
-            .setMaxQuantity(12.9);
+            .getHistoricalUsedBuilder().setMaxQuantity(12.9);
         final String j2 = gson.toJson(vm.build());
 
-        assertEquals("{\"commoditySoldList\":[{\"commodityType\":{\"key\":\"foo\",\"type\":26[[VCPU]]},++\"maxQuantity\":12.9}]}",
+        assertEquals("{\"commoditySoldList\":[{\"commodityType\":{\"key\":\"foo\",\"type\":26[[VCPU]]},++\"historicalUsed\":{\"maxQuantity\":12.9}}]}",
             new JsonSemanticDiffer().semanticDiff(j1, j2, Verbosity.CHANGES_ONLY_VERBOSITY,
                 FormatRecommendation.COMPACT, 0).diff);
     }

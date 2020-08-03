@@ -1,0 +1,279 @@
+{
+  "entityType": 10,
+  "oid": "73488350794474",
+  "displayName": "astra-vmfs",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 26
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 2600.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "hotResizeInfo": {
+      "hotReplaceSupported": false,
+      "hotAddSupported": false,
+      "hotRemoveSupported": false
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 53
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 2097152.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "hotResizeInfo": {
+      "hotReplaceSupported": false,
+      "hotAddSupported": false
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 56,
+      "key": "VirtualMachine::42377479-e93b-5ee3-210a-fe70b5b69e4d"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "73488350794440",
+    "providerEntityType": 2,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 6
+      },
+      "used": 1024.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 1024.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 51,
+        "key": "PhysicalMachine::Virtual_ESX_564db2e8-ab95-8683-30d6-ffbcc87e828c"
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 59,
+        "key": "StorageCluster::16372722efbc8c6e300346e73f19ee6f7258f81f"
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }],
+    "volumeId": "73488350794519"
+  }, {
+    "providerId": "73488350794452",
+    "providerEntityType": 1,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 50,
+        "key": "VirtualDataCenter::31351b8ce9468fb9cf526dff20b286ec3007484a"
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 2,
+        "key": "VirtualDataCenter::31351b8ce9468fb9cf526dff20b286ec3007484a"
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73488350794449",
+    "providerEntityType": 14,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 36,
+        "key": "Storage::5d260347-3e6cdae4-6bdf-005056b82d61"
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 28
+      },
+      "used": 2600.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 0,
+        "key": "Cluster::c54191bd9566fe9e44fe5588b4fd63ecdc4d5750"
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 47
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 55,
+        "key": "DataCenter::168ae354321ab71f937cf56e08531f56233138a2"
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 33
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 45
+      },
+      "used": 2097152.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 41
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 40
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": "",
+      "reservedCapacity": 0.0
+    }, {
+      "commodityType": {
+        "type": 21
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": "",
+      "reservedCapacity": 0.0
+    }, {
+      "commodityType": {
+        "type": 57,
+        "key": "Network::VM Network"
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 39
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }],
+  "entityState": "POWERED_OFF",
+  "entityPropertyMap": {
+    "numCpus": "1",
+    "VcTgtIdAndInternalName": "b9f37e00bcfa9f332a638671df5bd9f113a6a51d",
+    "targetAddress": "vsphere-dc9.eng.vmturbo.com",
+    "instanceUuid": "5037d1c9-ea91-ef17-5e39-7916f2e74262",
+    "vmHardwareCompatibilityVersion": "vmx-13"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": true,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1590999807913",
+      "discoveredTargetData": {
+        "73488349925440": {
+          "vendorId": "vm-559"
+        }
+      }
+    }
+  },
+  "connectedEntityList": [{
+    "connectedEntityId": "73488350794519",
+    "connectedEntityType": 60,
+    "connectionType": "NORMAL_CONNECTION"
+  }],
+  "tags": {
+  },
+  "typeSpecificInfo": {
+    "virtualMachine": {
+      "guestOsInfo": {
+        "guestOsType": "LINUX",
+        "guestOsName": "CentOS 7 (64-bit)"
+      },
+      "numCpus": 1,
+      "billingType": "ONDEMAND",
+      "connectedNetworks": ["VM Network"],
+      "licenseModel": "LICENSE_INCLUDED",
+      "driverInfo": {
+      }
+    }
+  }
+}

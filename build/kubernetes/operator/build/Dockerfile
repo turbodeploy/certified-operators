@@ -1,12 +1,23 @@
-FROM quay.io/operator-framework/helm-operator:v0.7.0
+FROM quay.io/operator-framework/helm-operator:v0.18.1
+MAINTAINER Endre Sara <endre.sara@turbonomic.com>
 
 # Required OpenShift Labels
-LABEL name="Turbonomic Operator" \
+LABEL name="t8c-operator" \
       vendor="Turbonomic" \
-      version="v7.16.0" \
+      version="v7.22.0" \
       release="1" \
-      summary="This is an example t8c operator." \
-      description="This operator will deploy an instance of t8c with persistent storage."
+      summary="Turbonomic Platform Operator" \
+      description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints." \
+### Required labels above - recommended below
+      url="https://www.turbonomic.com" \
+      run='docker run -tdi --name ${NAME} turbonomic/t8c-operator:7.22' \
+      io.k8s.description="Turbonomic Workload Automation Platform simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints.  " \
+      io.k8s.display-name="Turbonomic Platform Operator" \
+      io.openshift.expose-services="" \
+      io.openshift.tags="turbonomic, Workload Automation Platform"
+
+# Required Licenses
+COPY licenses /licenses
 
 COPY watches.yaml ${HOME}/watches.yaml
 COPY helm-charts/ ${HOME}/helm-charts/

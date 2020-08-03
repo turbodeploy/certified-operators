@@ -1,0 +1,79 @@
+syntax = "proto2";
+package action;
+
+option java_package = "com.vmturbo.common.protobuf.action";
+
+import "action/ActionDTO.proto";
+import "google/protobuf/empty.proto";
+
+message ActionConstraintInfo {
+    // The type of the action constraint info
+    optional ActionConstraintType action_constraint_type = 1;
+
+    // The content of the action constraint info
+    oneof action_constraint_info {
+        CoreQuotaInfo core_quota_info = 2;
+    }
+
+    // The core quota info
+    message CoreQuotaInfo {
+
+        repeated CoreQuotaByBusinessAccount core_quota_by_business_account = 1;
+
+        // This message contains core quota info of a business account.
+        // A business account can appear in many regions. In each region, there's a remaining core
+        // quota associated with each family for this business account.
+        //
+        // The reason that we define business account on top of region is that there are only around
+        // 50 regions in total. However, the number of business accounts can be arbitrary.
+        // If we define region on top of business account, then such a message can be very large.
+        // which may exceed the maximum size of gRPC message.
+        message CoreQuotaByBusinessAccount {
+
+            // The id of the business account
+            optional int64 business_account_id = 1;
+
+            repeated CoreQuotaByRegion core_quota_by_region = 2;
+
+            // This message contains core quota info of a business account in a region.
+            message CoreQuotaByRegion {
+
+                // The id of the region
+                optional int64 region_id = 1;
+
+                // The remaining total core quota of a business account in a region
+                optional int32 total_core_quota = 2;
+
+                repeated CoreQuotaByFamily core_quota_by_family = 3;
+
+                // This message contains core quota info of a business account in a region of a family.
+                message CoreQuotaByFamily {
+
+                    // The name of the family
+                    optional string family = 1;
+
+                    // The value of the remaining core quota of this family
+                    optional int32 quota = 2;
+                }
+            }
+        }
+    }
+}
+
+enum ActionConstraintType {
+    // The action constraint type of CoreQuotaInfo
+    CORE_QUOTA = 1;
+}
+
+// A request to upload ActionConstraintInfo
+message UploadActionConstraintInfoRequest {
+    // A list of ActionConstraintInfo
+    repeated ActionConstraintInfo action_constraint_info = 1;
+}
+
+// This service provides RPCs for CRUD-type operations related to action constraints
+service ActionConstraintsService {
+    // Upload action constraint info
+    rpc UploadActionConstraintInfo(stream UploadActionConstraintInfoRequest) returns
+    (google.protobuf.Empty);
+}

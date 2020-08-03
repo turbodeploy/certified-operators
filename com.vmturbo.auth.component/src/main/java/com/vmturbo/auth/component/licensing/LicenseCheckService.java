@@ -14,14 +14,14 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.util.StringUtils;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.Empty;
 
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.util.StringUtils;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -36,6 +36,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
@@ -48,8 +49,8 @@ import com.vmturbo.licensing.License;
 import com.vmturbo.notification.api.NotificationSender;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Category;
-import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryListener;
+import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 
 /**
  * The LicenseCheckService is a close confederate of the {@link LicenseManagerService}. It's responsibilities
@@ -81,42 +82,44 @@ import com.vmturbo.repository.api.RepositoryListener;
  * *
  */
 public class LicenseCheckService extends LicenseCheckServiceImplBase implements RepositoryListener {
-    static private final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * A special constant LicenseSummary that is returned when there are no licenses.
      */
-    static private final LicenseSummary NO_LICENSES_SUMMARY = LicenseSummary.getDefaultInstance();
+    private static final LicenseSummary NO_LICENSES_SUMMARY = LicenseSummary.getDefaultInstance();
     @VisibleForTesting
     public static final String TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT
-            = "Turbonomic license has expired, please update it";
+            = "Your license has expired, please update it";
 
     @VisibleForTesting
     public static final String LICENSE_HAS_EXPIRED = "License has expired";
 
     @VisibleForTesting
     public static final String LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT
-            = "It’s great to see you're getting so much value from Turbonomic! Your installation of" +
-        " Turbonomic instance %s is currently managing %d active" +
-        " workloads, while your license only covers %d workloads. Don't worry," +
-        " Turbonomic continues to manage all of your workloads without interruption. Unfortunately," +
+            = "It’s great to see you're getting so much value from our product! Your product installation" +
+            " on %s is currently managing %d active workloads, while your license only covers %d workloads. Don't worry," +
+        " we'll continue to manage all of your workloads without interruption. Unfortunately," +
         " you cannot update your version or add new targets until you upgrade your license to cover" +
-        " all your workloads. To add more workloads to your license, contact your Turbonomic Inc." +
+        " all your workloads. To add more workloads to your license, contact your" +
         " sales representative or authorized dealer.";
 
     @VisibleForTesting
     public static final String WORKLOAD_COUNT_IS_OVER_LIMIT = "Workload count is over limit";
 
     @VisibleForTesting
-    public static final String TURBONOMIC_LICENSE_WILL_EXPIRE = "Your Turbonomic license on Turbonomic" +
-        " instance %s will expire tomorrow, %s. To keep using the full power of" +
-        " Turbonomic, be sure to install an updated license. To obtain a license, contact your Turbonomic" +
-        " Inc. sales representative or authorized dealer.";
+    public static final String LICENSE_IS_ABOUT_TO_EXPIRE = "License is about to expire";
 
     @VisibleForTesting
-    public static final String TURBONOMIC_LICENSE_IS_MISSING = "Turbonomic instance %s has no license, " +
-        "or your license has expired. Please install a valid license. To obtain a license, contact " +
-        "your Turbonomic Inc. sales representative or authorized dealer.";
+    public static final String TURBONOMIC_LICENSE_WILL_EXPIRE = "The product license on your" +
+        " instance %s will expire tomorrow, %s. To keep using the full power of" +
+        " this product, be sure to install an updated license. To obtain a license, contact your" +
+        " sales representative or authorized dealer.";
+
+    @VisibleForTesting
+    public static final String TURBONOMIC_LICENSE_IS_MISSING = "Your instance (%s) has no " +
+            "license, or your license has expired. Please install a valid license. To obtain a license, " +
+            "contact your sales representative or authorized dealer.";
 
     @VisibleForTesting
     public static final String LICENSE_IS_MISSING = "License is missing";
@@ -128,7 +131,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     private final SearchServiceBlockingStub searchServiceClient;
 
     @Nonnull
-    private final Repository repositoryListener;
+    private final RepositoryNotificationReceiver repositoryListener;
 
     @Nonnull
     private final LicenseSummaryPublisher licenseSummaryPublisher;
@@ -152,12 +155,13 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
     public LicenseCheckService(@Nonnull final LicenseManagerService licenseManagerService,
                                @Nonnull final SearchServiceBlockingStub searchServiceClient,
-                               @Nonnull final Repository repositoryListener,
+                               @Nonnull final RepositoryNotificationReceiver repositoryListener,
                                @Nonnull final IMessageSender<LicenseSummary> licenseSummarySender,
-                               @Nonnull final IMessageSender<SystemNotification> notificationSender,
+                               @Nonnull final NotificationSender notificationSender,
                                @Nonnull final MailManager mailManager,
                                @Nonnull final Clock clock,
-                               final int numBeforeLicenseExpirationDays) {
+                               final int numBeforeLicenseExpirationDays,
+                               boolean scheduleUpdates) {
         this.licenseManagerService = licenseManagerService;
         // subscribe to the license manager event stream. This will trigger license check updates
         // whenever licenses are added / removed
@@ -168,7 +172,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         // create the license summary publisher
         licenseSummaryPublisher = new LicenseSummaryPublisher(licenseSummarySender);
 
-        this.notificationSender = new NotificationSender(Objects.requireNonNull(notificationSender), clock);
+        this.notificationSender = Objects.requireNonNull(notificationSender);
 
         this.clock = Objects.requireNonNull(clock);
 
@@ -180,7 +184,11 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         repositoryListener.addListener(this);
         // schedule time-based updates. The first update will happen immediately (but on a separate
         // thread), and others will be triggered at the start of a new day.
-        scheduleUpdates();
+        if (scheduleUpdates) {
+            scheduleUpdates();
+        } else {
+            logger.info("Not scheduling daily license check updates");
+        }
     }
 
     /**
@@ -216,7 +224,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     }
 
     /**
-     * Publish a new {@link LicenseSummary}
+     * Publish a new {@link LicenseSummary}.
      *
      * @param newSummary The new license summary to publish.
      */
@@ -269,7 +277,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
      *
      * When the new summary is ready, it will be published for the rest of the system to consume.
      */
-    synchronized private void updateLicenseSummary() {
+    private synchronized void updateLicenseSummary() {
         logger.info("Updating license summary.");
         Collection<LicenseDTO> licenseDTOs = Collections.emptyList();
         try {
@@ -289,6 +297,8 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         }
 
         // we have licenses -- convert them to model licenses, validate them, and merge them together.
+        // we'll use this "combined" license to determine active features and detect invalid license
+        // combinations.
         License aggregateLicense = LicenseDTOUtils.combineLicenses(licenseDTOs);
 
         // get the workload count
@@ -297,7 +307,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         // at this point we have the aggregate license and workload count. Combine them to create
         // the license summary.
         LicenseSummary licenseSummary
-                = LicenseDTOUtils.licenseToLicenseSummary(aggregateLicense, isOverLimit);
+                = LicenseDTOUtils.createLicenseSummary(aggregateLicense, isOverLimit);
         // publish the news!!
         publishNewLicenseSummary(licenseSummary);
     }
@@ -309,7 +319,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
      * @return true if the license is going to expire
      */
     @VisibleForTesting
-    boolean isGoingToExpired(@Nonnull final String expirationDate,
+    boolean isGoingToExpire(@Nonnull final String expirationDate,
                              final int numBeforeLicenseExpirationDays) {
         if (ILicense.PERM_LIC.equals(expirationDate)) {
             return false;
@@ -323,7 +333,8 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
 
     /**
-     * Publish notification to UI and license owner
+     * Publish notification to UI and license owner.
+     *
      * @param isOverLimit is over workload license limit?
      * @param licenseDTOs collection of license DTOs
      * @param aggregateLicense aggregated license
@@ -339,10 +350,10 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
                                 LICENSE_HAS_EXPIRED, license);
                         return;
                     }
-                    if (isGoingToExpired(license.getExpirationDate(), numBeforeLicenseExpirationDays)) {
+                    if (isGoingToExpire(license.getExpirationDate(), numBeforeLicenseExpirationDays)) {
                         final String description = String.format(TURBONOMIC_LICENSE_WILL_EXPIRE,
                                 AuditLogUtils.getLocalIpAddress(), license.getExpirationDate());
-                        notifyLicenseExpiration(description, description, license);
+                        notifyLicenseExpiration(description, LICENSE_IS_ABOUT_TO_EXPIRE, license);
                     }
                     if (isOverLimit) {
                         final String description = String.format(LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT,
@@ -373,47 +384,48 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         switch (license.getCountedEntity()) {
             case VM:
                 logger.debug("Counting active VMs");
-                entityCountRequestBuilder.addSearchParameters(
-                        SearchParameters.newBuilder()
-                                .setStartingFilter(PropertyFilter.newBuilder()
-                                        .setPropertyName("entityType")
-                                        .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("VirtualMachine")
-                                                .build())
+                entityCountRequestBuilder.setSearch(SearchQuery.newBuilder()
+                    .addSearchParameters(SearchParameters.newBuilder()
+                        .setStartingFilter(PropertyFilter.newBuilder()
+                                .setPropertyName("entityType")
+                                .setStringFilter(StringFilter.newBuilder()
+                                        .setStringPropertyRegex("VirtualMachine")
                                         .build())
-                                .addSearchFilter(SearchFilter.newBuilder()
-                                        .setPropertyFilter(PropertyFilter.newBuilder()
-                                                .setPropertyName("state")
-                                                .setStringFilter(StringFilter.newBuilder()
-                                                        .setStringPropertyRegex("ACTIVE"))))
-                                .build());
-                break;
-            case SOCKET:
-                // SOCKET count type is not supported in XL!
-                // just log a warning here, since this should have been picked up in the validation
-                // process.
-                logger.warn("Socket-based licenses are not supported in XL.");
-                break;
-            default:
-                // ditto for any other counted entity type
-                logger.warn("Counted Entity type {} not understood -- will not count workloads",
-                        license.getCountedEntity());
-                break;
-        }
+                                .build())
+                        .addSearchFilter(SearchFilter.newBuilder()
+                                .setPropertyFilter(PropertyFilter.newBuilder()
+                                        .setPropertyName("state")
+                                        .setStringFilter(StringFilter.newBuilder()
+                                                .setStringPropertyRegex("ACTIVE"))))
+                        .build()));
+            break;
+        case SOCKET:
+            // SOCKET count type is not supported in XL!
+            // just log a warning here, since this should have been picked up in the validation
+            // process.
+            logger.warn("Socket-based licenses are not supported in XL.");
+            break;
+        default:
+            // ditto for any other counted entity type
+            logger.warn("Counted Entity type {} not understood -- will not count workloads",
+                    license.getCountedEntity());
+            break;
+    }
 
         // get the appropriate workload count.
         // we're going to check the workload limit here and set a boolean, since it's not
         // flagged in the license objects directly.
         boolean isOverLimit = false;
         CountEntitiesRequest request = entityCountRequestBuilder.build();
-        if (request.getSearchParametersCount() == 0) {
+        if (request.getSearch().getSearchParametersCount() == 0) {
             logger.info("Empty entity count request -- will not request workload count.");
         } else {
             // call using waitForReady -- this is on a worker thread, and we are willing to block
             // until the repository service is up.
             int numInUseEntities = searchServiceClient.withWaitForReady().countEntities(request).getEntityCount();
             logger.debug("Search returned {} entities.", numInUseEntities);
-            isOverLimit = numInUseEntities > license.getNumLicensedEntities();
+
+            isOverLimit = (numInUseEntities > license.getNumLicensedEntities());
             license.setNumInUseEntities(numInUseEntities);
 
             if (isOverLimit) {
@@ -535,7 +547,8 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
         @Override
         protected String describeMessage(@Nonnull final LicenseSummary licenseSummary) {
-            return LicenseSummary.class.getSimpleName() +"[generated "+ licenseSummary.getGenerationDate() +"]";
+            return LicenseSummary.class.getSimpleName()
+                    + "[generated " + licenseSummary.getGenerationDate() + "]";
         }
 
         /**
@@ -546,7 +559,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
          * @param summary the message to send
          * @return our static String key to use for the message.
          */
-        static public String generateMessageKey(LicenseSummary summary) {
+        public static String generateMessageKey(LicenseSummary summary) {
             return LICENSE_SUMMARY_KEY;
         }
 

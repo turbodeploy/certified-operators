@@ -5,24 +5,31 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
+import com.vmturbo.group.api.SettingMessages.SettingNotification;
+import com.vmturbo.group.api.SettingsUpdatesReciever;
 import com.vmturbo.group.group.GroupConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 
 @Configuration
-@Import({SQLDatabaseConfig.class, IdentityProviderConfig.class, GroupConfig.class})
+@Import({GroupComponentDBConfig.class, IdentityProviderConfig.class, GroupConfig.class,
+        BaseKafkaProducerConfig.class, PlanOrchestratorClientConfig.class})
 public class SettingConfig {
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private GroupComponentDBConfig databaseConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -30,15 +37,31 @@ public class SettingConfig {
     @Autowired
     private GroupConfig groupConfig;
 
+    @Autowired
+    private PlanOrchestratorClientConfig planOrchestratorClientConfig;
+
     @Value("${createDefaultSettingPolicyRetryIntervalSec}")
-    private long createDefaultSettingPolicyRetryIntervalSec;
+    public long createDefaultSettingPolicyRetryIntervalSec;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    /**
+     * Feature flag. If it is true then ExecutionSchedule settings are not displayed in UI.
+     */
+    @Value("${hideExecutionScheduleSetting:false}")
+    private boolean hideExecutionScheduleSetting;
+
+    /**
+     * Feature flag. If it is true then ExternalApproval settings are not displayed in UI.
+     */
+    @Value("${hideExternalApprovalOrAuditSettings:false}")
+    private boolean hideExternalApprovalOrAuditSettings;
+
     @Bean
     public SettingSpecStore settingSpecsStore() {
-        return new EnumBasedSettingSpecStore();
+        return new EnumBasedSettingSpecStore(hideExecutionScheduleSetting,
+            hideExternalApprovalOrAuditSettings);
     }
 
     @Bean
@@ -50,26 +73,25 @@ public class SettingConfig {
     public SettingStore settingStore() {
         return new SettingStore(settingSpecsStore(),
                 databaseConfig.dsl(),
-                identityProviderConfig.identityProvider(),
-                settingPolicyValidator());
+                settingPolicyValidator(),
+                new SettingsUpdatesSender(settingMessageSender()));
     }
+
+    /**
+     * BaseKafkaProducerConfig autowired reference.
+     */
+    @Autowired
+    private BaseKafkaProducerConfig baseKafkaProducerConfig;
 
     @Bean
-    public DefaultSettingPolicyCreator defaultSettingPoliciesCreator() {
-        final DefaultSettingPolicyCreator creator =
-                new DefaultSettingPolicyCreator(settingSpecsStore(), settingStore(),
-                        TimeUnit.SECONDS.toMillis(createDefaultSettingPolicyRetryIntervalSec));
-        /*
-         * Asynchronously create the default setting policies.
-         * This is asynchronous so that DB availability doesn't prevent the group component from
-         * starting up.
-         */
-        settingsCreatorThreadPool().execute(creator);
-        return creator;
+    public IMessageSender<SettingNotification> settingMessageSender() {
+        return baseKafkaProducerConfig.kafkaMessageSender()
+                .messageSender(SettingsUpdatesReciever.SETTINGS_UPDATES_TOPIC);
     }
 
+
     @Bean(destroyMethod = "shutdownNow")
-    protected ExecutorService settingsCreatorThreadPool() {
+    public ExecutorService settingsCreatorThreadPool() {
         final ThreadFactory tf =
                 new ThreadFactoryBuilder().setNameFormat("default-settings-creator-%d").build();
         return Executors.newCachedThreadPool(tf);
@@ -93,4 +115,14 @@ public class SettingConfig {
         return new EntitySettingStore(realtimeTopologyContextId, settingStore());
     }
 
+    /**
+     * Listener for plan deletion.
+     *
+     * @return The listener.
+     */
+    @Bean
+    public PlanGarbageDetector settingPlanGarbageDetector() {
+        final SettingPlanGarbageCollector collector = new SettingPlanGarbageCollector(settingStore());
+        return planOrchestratorClientConfig.newPlanGarbageDetector(collector);
+    }
 }

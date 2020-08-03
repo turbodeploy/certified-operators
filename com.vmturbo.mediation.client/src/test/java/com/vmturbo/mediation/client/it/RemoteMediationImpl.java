@@ -2,49 +2,68 @@ package com.vmturbo.mediation.client.it;
 
 import java.time.Clock;
 import java.util.Collection;
-import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang.NotImplementedException;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
 import com.vmturbo.mediation.common.tests.util.SdkProbe;
 import com.vmturbo.mediation.common.tests.util.SdkTarget;
 import com.vmturbo.mediation.common.tests.util.TestConstants;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionApprovalResponse;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionEventDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
+import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
+import com.vmturbo.platform.common.dto.PlanExport.PlanExportDTO;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionErrorsResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionProgress;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResult;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionUpdateStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
-import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.PlanExportResult;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
+import com.vmturbo.platform.sdk.common.util.SDKUtil;
+import com.vmturbo.platform.sdk.probe.TargetOperationException;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
-import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
-import com.vmturbo.topology.processor.operation.Operation;
-import com.vmturbo.topology.processor.operation.OperationManager;
+import com.vmturbo.topology.processor.operation.IOperationManager.OperationCallback;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
+import com.vmturbo.topology.processor.operation.action.ActionMessageHandler.ActionOperationCallback;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionApprovalMessageHandler;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateStateMessageHandler;
+import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
+import com.vmturbo.topology.processor.operation.actionapproval.GetActionStateMessageHandler;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAuditMessageHandler;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationMessageHandler;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.Target;
 
 /**
  * Implementation of {@link IRemoteMediation}, Topology-processor specific.
@@ -54,89 +73,84 @@ public class RemoteMediationImpl implements IRemoteMediation {
     private final RemoteMediation remoteMediation;
     private final ProbeStore probeStore;
 
+    /**
+     * Constructs test remote mediation instance for XL SDK.
+     *
+     * @param remoteMediation XL remote mediation instance
+     * @param probeStore probe store
+     */
     public RemoteMediationImpl(RemoteMediation remoteMediation, ProbeStore probeStore) {
         this.remoteMediation = remoteMediation;
         this.probeStore = probeStore;
     }
 
     @Nonnull
+    private Target createTarget(@Nonnull SdkTarget target) {
+        final Target targetMock = Mockito.mock(Target.class);
+        Mockito.when(targetMock.getSerializedIdentifyingFields()).thenReturn(target.getTargetId());
+        final long probeId = getProbeId(target.getProbe());
+        Mockito.when(targetMock.getProbeId()).thenReturn(probeId);
+        return targetMock;
+    }
+
+    @Nonnull
     @Override
-    public ValidationResponse validateTarget(@Nonnull SdkTarget target) {
+    public ValidationResponse validateTarget(@Nonnull SdkTarget target)
+            throws InterruptedException {
         final ValidationRequest request =
                         ValidationRequest.newBuilder().addAllAccountValue(target.getAccountValues())
                                         .setProbeType(target.getProbe().getType()).build();
-        final long probeId = getProbeId(target.getProbe());
-        final ValidationCaptor captor = new ValidationCaptor();
+        final Target targetMock = createTarget(target);
+        final ValidationCallback callback = new ValidationCallback();
+        final ValidationMessageHandler handler = new ValidationMessageHandler(
+                Mockito.mock(Validation.class), Clock.systemUTC(), TestConstants.TIMEOUT * 1000,
+                callback);
         try {
-            remoteMediation.sendValidationRequest(probeId, request, captor.getHandler());
-            return captor.getResult();
-        } catch (ProbeException | CommunicationException | InterruptedException | ExecutionException e) {
+            remoteMediation.sendValidationRequest(targetMock, request, handler);
+            return callback.getFuture().get(TestConstants.TIMEOUT, TimeUnit.SECONDS);
+        } catch (ProbeException | CommunicationException | ExecutionException | TimeoutException e) {
             throw new RuntimeException("Error during validation", e);
         }
     }
 
     @Nonnull
     @Override
-    public DiscoveryResponse discoverTarget(@Nonnull SdkTarget target) {
+    public DiscoveryResponse discoverTarget(@Nonnull SdkTarget target) throws InterruptedException {
         final DiscoveryRequest request =
                         DiscoveryRequest.newBuilder()
                             .addAllAccountValue(target.getAccountValues())
                             .setDiscoveryType(DiscoveryType.FULL)
                             .setProbeType(target.getProbe().getType())
                             .build();
-        final long probeId = getProbeId(target.getProbe());
-        final DiscoveryCaptor captor = new DiscoveryCaptor();
+        final Target targetMock = createTarget(target);
+        final DiscoveryCallback callback = new DiscoveryCallback();
+        final DiscoveryMessageHandler handler = new DiscoveryMessageHandler(
+                Mockito.mock(Discovery.class), Clock.systemUTC(), TestConstants.TIMEOUT * 1000,
+                callback);
         try {
-            remoteMediation.sendDiscoveryRequest(probeId, request, captor.getHandler());
-            return captor.getResult();
-        } catch (ProbeException | CommunicationException | InterruptedException | ExecutionException e) {
+            remoteMediation.sendDiscoveryRequest(targetMock,
+                request,
+                handler);
+            return callback.getFuture().get(TestConstants.TIMEOUT, TimeUnit.SECONDS);
+        } catch (ProbeException | CommunicationException | ExecutionException | TimeoutException e) {
             throw new RuntimeException("Error during validation", e);
         }
     }
 
     @Override
     public void executeAction(@Nonnull SdkTarget target, @Nonnull ActionExecutionDTO action,
-            @Nonnull ActionResultProcessor progressListener) {
-        final long probeId = getProbeId(target.getProbe());
-        final OperationManager opManager = Mockito.mock(OperationManager.class);
-        Mockito.doAnswer(new Answer() {
-            @Override
-            public Object answer(InvocationOnMock invocation) throws Throwable {
-                final ActionResult result = invocation.getArgumentAt(1, ActionResult.class);
-                progressListener.updateActionItemState(
-                        result.getResponse().getActionResponseState(),
-                        result.getResponse().getResponseDescription(),
-                        result.getResponse().getProgress());
-                return null;
-            }
-        })
-                .when(opManager)
-                .notifyActionResult(Mockito.any(Action.class), Mockito.any(ActionResult.class));
-        Mockito.doAnswer(new Answer() {
-            @Override
-            public Object answer(InvocationOnMock invocation) throws Throwable {
-                final ActionProgress result = invocation.getArgumentAt(1, MediationClientMessage
-                        .class).getActionProgress();
-                progressListener.updateActionItemState(
-                        result.getResponse().getActionResponseState(),
-                        result.getResponse().getResponseDescription(),
-                        result.getResponse().getProgress());
-                return null;
-            }
-        })
-                .when(opManager)
-                .notifyProgress(Mockito.any(Operation.class),
-                        Mockito.any(MediationClientMessage.class));
-        final ActionMessageHandler handler =
-                new ActionMessageHandler(opManager, Mockito.mock(Action.class), Clock.systemUTC(),
-                        TestConstants.TIMEOUT * 1000);
+            @Nonnull ActionResultProcessor progressListener) throws InterruptedException {
+        final Target targetMock = createTarget(target);
+        final ActionCallback callback = new ActionCallback(progressListener);
+        final ActionMessageHandler handler = new ActionMessageHandler(Mockito.mock(Action.class),
+                Clock.systemUTC(), TestConstants.TIMEOUT * 1000, callback);
         try {
-            remoteMediation.sendActionRequest(probeId, ActionRequest.newBuilder()
+            remoteMediation.sendActionRequest(targetMock, ActionRequest.newBuilder()
                     .setActionExecutionDTO(action)
                     .setProbeType(target.getProbe().getType())
                     .addAllAccountValue(target.getAccountValues())
                     .build(), handler);
-        } catch (CommunicationException | InterruptedException | ProbeException e) {
+        } catch (CommunicationException | ProbeException e) {
             throw new RuntimeException("Error performing action on target " + target, e);
         }
     }
@@ -144,28 +158,100 @@ public class RemoteMediationImpl implements IRemoteMediation {
     @Nonnull
     @Override
     public ActionApprovalResponse approveActions(@Nonnull SdkTarget target,
-                                                 @Nonnull Collection<ActionExecutionDTO> actionItems) throws InterruptedException {
-        throw new NotImplementedException("Feature is not implemented for in XL now");
+            @Nonnull Collection<ActionExecutionDTO> actionItems)
+            throws InterruptedException, TargetOperationException {
+        final DefaultOperationCallback<ActionApprovalResponse> callback =
+                new DefaultOperationCallback();
+        final ActionApprovalMessageHandler handler = new ActionApprovalMessageHandler(
+                Mockito.mock(ActionApproval.class), Clock.systemUTC(), TestConstants.TIMEOUT * 1000,
+                callback);
+        final ActionApprovalRequest request = ActionApprovalRequest.newBuilder().addAllAction(
+                actionItems).setTarget(target.createTargetSpec()).build();
+        final Target targetMock = createTarget(target);
+        try {
+            remoteMediation.sendActionApprovalsRequest(targetMock, request, handler);
+            return callback.getFuture().get(TestConstants.TIMEOUT, TimeUnit.SECONDS);
+        } catch (ProbeException | CommunicationException | TimeoutException e) {
+            throw new TargetOperationException(e.getMessage(), e);
+        } catch (ExecutionException e) {
+            throw new TargetOperationException(e.getCause().getMessage(), e.getCause());
+        }
     }
 
     @Nonnull
     @Override
-    public List<ActionErrorDTO> updateActionItemStates(@Nonnull SdkTarget target,
-            @Nonnull Collection<ActionResponse> actionItem) throws InterruptedException {
-        throw new NotImplementedException("Feature is not implemented for in XL now");
+    public ActionErrorsResponse updateActionItemStates(@Nonnull SdkTarget target,
+            @Nonnull Collection<ActionResponse> actionItems)
+            throws InterruptedException, TargetOperationException {
+        final ActionUpdateStateRequest request =
+                ActionUpdateStateRequest.newBuilder().addAllActionState(actionItems).setTarget(
+                        target.createTargetSpec()).build();
+        final DefaultOperationCallback<ActionErrorsResponse> callback =
+                new DefaultOperationCallback<>();
+        final ActionUpdateStateMessageHandler handler = new ActionUpdateStateMessageHandler(
+                Mockito.mock(ActionUpdateState.class), Clock.systemUTC(),
+                TestConstants.TIMEOUT * 1000, callback);
+        final Target targetMock = createTarget(target);
+        try {
+            remoteMediation.sendActionUpdateStateRequest(targetMock, request, handler);
+            return callback.getFuture().get(TestConstants.TIMEOUT, TimeUnit.SECONDS);
+        } catch (ProbeException | CommunicationException | TimeoutException e) {
+            throw new TargetOperationException("Error updating action states", e);
+        } catch (ExecutionException e) {
+            throw new TargetOperationException(e.getCause().getMessage(), e.getCause());
+        }
     }
 
     @Nonnull
     @Override
     public GetActionStateResponse getActionItemStates(@Nonnull SdkTarget target,
-            @Nonnull Collection<Long> actionOids) throws InterruptedException {
-        throw new NotImplementedException("Feature is not implemented for in XL now");
+            @Nonnull Collection<Long> actionOids, boolean retrieveAllUnclosed)
+            throws InterruptedException, TargetOperationException {
+        final GetActionStateRequest request = GetActionStateRequest.newBuilder().addAllActionOid(
+                actionOids).setIncludeAllActionsInTransition(retrieveAllUnclosed).setTarget(
+                target.createTargetSpec()).build();
+        final DefaultOperationCallback<GetActionStateResponse> callback =
+                new DefaultOperationCallback<>();
+        final GetActionStateMessageHandler handler = new GetActionStateMessageHandler(
+                Mockito.mock(GetActionState.class), Clock.systemUTC(),
+                TestConstants.TIMEOUT * 1000, callback);
+        final Target targetMock = createTarget(target);
+        try {
+            remoteMediation.sendGetActionStatesRequest(targetMock, request, handler);
+            return callback.getFuture().get(TestConstants.TIMEOUT, TimeUnit.SECONDS);
+        } catch (ProbeException | CommunicationException | TimeoutException e) {
+            throw new TargetOperationException(e.getMessage(), e);
+        } catch (ExecutionException e) {
+            throw new TargetOperationException(e.getCause().getMessage(), e.getCause());
+        }
     }
 
     @Nonnull
     @Override
-    public Collection<ActionErrorDTO> auditActions(@Nonnull SdkTarget target,
-            @Nonnull Collection<ActionEventDTO> actionEvents) throws InterruptedException {
+    public ActionErrorsResponse auditActions(@Nonnull SdkTarget target,
+            @Nonnull Collection<ActionEventDTO> actionEvents)
+            throws InterruptedException, TargetOperationException {
+        final ActionAuditRequest request = ActionAuditRequest.newBuilder().addAllAction(
+                actionEvents).setTarget(target.createTargetSpec()).build();
+        final DefaultOperationCallback<ActionErrorsResponse> callback =
+                new DefaultOperationCallback<>();
+        final ActionAuditMessageHandler handler = new ActionAuditMessageHandler(
+                Mockito.mock(ActionAudit.class), Clock.systemUTC(),
+                TestConstants.TIMEOUT * 1000, callback);
+        final Target targetMock = createTarget(target);
+        try {
+            remoteMediation.sendActionAuditRequest(targetMock, request, handler);
+            return callback.getFuture().get(TestConstants.TIMEOUT, TimeUnit.SECONDS);
+        } catch (ProbeException | CommunicationException | TimeoutException e) {
+            throw new TargetOperationException(e.getMessage(), e);
+        } catch (ExecutionException e) {
+            throw new TargetOperationException(e.getCause().getMessage(), e.getCause());
+        }
+    }
+
+    @Nonnull
+    @Override
+    public PlanExportResult exportPlan(@Nonnull final SdkTarget target, @Nonnull final PlanExportDTO exportData, @Nonnull final NonMarketEntityDTO planDestination, @Nonnull final PlanExportProgressProcessor progressProcessor) throws InterruptedException {
         throw new NotImplementedException("Feature is not implemented for in XL now");
     }
 
@@ -173,107 +259,110 @@ public class RemoteMediationImpl implements IRemoteMediation {
         return probeStore.getProbeIdForType(probe.getType()).get();
     }
 
+    @Nonnull
+    private static ActionErrorDTO createError(@Nonnull String msg) {
+        return ActionErrorDTO.newBuilder().setActionOid(-1).setMessage(msg).build();
+    }
+
     /**
-     * Class represents special message handler to capture responses from the SDK probe.
+     * Abstract callback for operations.
      *
-     * @param <T> type of message to capture.
+     * @param <R> type of operation result
      */
-    private abstract static class MessageCaptor<T, O extends Operation>  {
+    private static class DefaultOperationCallback<R> implements OperationCallback<R> {
+        private final CompletableFuture<R> future = new CompletableFuture<>();
 
-        private final CompletableFuture<T> future;
-        private final OperationManager operationManager;
-
-        protected MessageCaptor() {
-            future = new CompletableFuture<T>();
-            operationManager = Mockito.mock(OperationManager.class);
-            Mockito.doAnswer(new Answer() {
-                @Override
-                public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                    final String message = invocationOnMock.getArgumentAt(1, String.class);
-                    future.completeExceptionally(new RuntimeException(message));
-                    return null;
-                }
-            })
-                    .when(operationManager)
-                    .notifyOperationCancelled(Mockito.any(Operation.class), Mockito.anyString());
-            Mockito.doAnswer(new Answer() {
-                @Override
-                public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                    final Integer seconds = invocationOnMock.getArgumentAt(1, Integer.class);
-                    future.completeExceptionally(
-                            new RuntimeException("Timed out after " + seconds + " secs")); return
-                            null;
-                }
-            })
-                    .when(operationManager)
-                    .notifyTimeout(Mockito.any(Operation.class), Mockito.anyInt());
+        @Override
+        public void onSuccess(@Nonnull R response) {
+            future.complete(response);
         }
 
-
-        protected OperationManager getOperationManager() {
-            return operationManager;
+        @Override
+        public void onFailure(@Nonnull String error) {
+            future.completeExceptionally(new Exception(error));
         }
 
-        protected CompletableFuture<T> getFuture() {
+        @Nonnull
+        public Future<R> getFuture() {
             return future;
         }
 
-
-        public T getResult() throws InterruptedException, ExecutionException {
-            return future.get();
+        @Nonnull
+        protected CompletableFuture<R> getFutureInternal() {
+            return future;
         }
     }
 
     /**
-     * Validation response message captor.
+     * Operation callback abstraction for operations that translate the failure into a response.
+     *
+     * @param <R> type of an operation response.
      */
-    private static class ValidationCaptor extends MessageCaptor<ValidationResponse, Validation> {
-
-        private IOperationMessageHandler<Validation> handler;
-
-        public ValidationCaptor() {
-            handler = new ValidationMessageHandler(getOperationManager(),
-                    Mockito.mock(Validation.class), Clock.systemUTC(),
-                    TestConstants.TIMEOUT * 1000);
-            final Answer answer = (invocationOnMock) -> {
-                final ValidationResponse result =
-                        invocationOnMock.getArgumentAt(1, ValidationResponse.class);
-                getFuture().complete(result);
-                return null;
-            };
-            Mockito.doAnswer(answer)
-                    .when(getOperationManager())
-                    .notifyValidationResult(Mockito.any(), Mockito.any(ValidationResponse.class));
+    private abstract static class TranslatingOperationCallback<R>
+            extends DefaultOperationCallback<R> {
+        @Override
+        public void onFailure(@Nonnull String error) {
+            getFutureInternal().complete(transformFailure(error));
         }
 
-        public IOperationMessageHandler<Validation> getHandler() {
-            return handler;
+        @Nonnull
+        protected abstract R transformFailure(@Nonnull String msg);
+    }
+
+    /**
+     * Callback for discovery operation.
+     */
+    private static class DiscoveryCallback extends TranslatingOperationCallback<DiscoveryResponse> {
+        @Nonnull
+        @Override
+        protected DiscoveryResponse transformFailure(@Nonnull String msg) {
+            return DiscoveryResponse.newBuilder()
+                    .addErrorDTO(SDKUtil.createCriticalError(msg))
+                    .build();
         }
     }
 
     /**
-     * Discovery response message captor.
+     * Callback for validation operation.
      */
-    private static class DiscoveryCaptor extends MessageCaptor<DiscoveryResponse, Discovery> {
+    private static class ValidationCallback
+            extends TranslatingOperationCallback<ValidationResponse> {
+        @Nonnull
+        @Override
+        protected ValidationResponse transformFailure(@Nonnull String msg) {
+            return ValidationResponse.newBuilder()
+                    .addErrorDTO(SDKUtil.createCriticalError(msg))
+                    .build();
+        }
+    }
 
-        private IOperationMessageHandler<Discovery> handler;
+    /**
+     * Callback for action execution operation.
+     */
+    private static class ActionCallback implements ActionOperationCallback {
+        private final ActionResultProcessor actionResultProcessor;
 
-        public DiscoveryCaptor() {
-            handler = new DiscoveryMessageHandler(getOperationManager(),
-                    Mockito.mock(Discovery.class), Clock.systemUTC(), TestConstants.TIMEOUT * 1000);
-            final Answer answer = (invocationOnMock) -> {
-                final DiscoveryResponse result =
-                        invocationOnMock.getArgumentAt(1, DiscoveryResponse.class);
-                getFuture().complete(result);
-                return null;
-            };
-            Mockito.doAnswer(answer)
-                    .when(getOperationManager())
-                    .notifyDiscoveryResult(Mockito.any(), Mockito.any(DiscoveryResponse.class));
+        ActionCallback(@Nonnull ActionResultProcessor actionResultProcessor) {
+            this.actionResultProcessor = Objects.requireNonNull(actionResultProcessor);
         }
 
-        public IOperationMessageHandler<Discovery> getHandler() {
-            return handler;
+        @Override
+        public void onActionProgress(@Nonnull ActionProgress actionProgress) {
+            final ActionResponse actionResponse = actionProgress.getResponse();
+            actionResultProcessor.updateActionItemState(actionResponse.getActionResponseState(),
+                    actionResponse.getResponseDescription(), actionResponse.getProgress());
+        }
+
+        @Override
+        public void onSuccess(@Nonnull ActionResult response) {
+            final ActionResponse actionResponse = response.getResponse();
+            actionResultProcessor.updateActionItemState(actionResponse.getActionResponseState(),
+                    actionResponse.getResponseDescription(), actionResponse.getProgress());
+        }
+
+        @Override
+        public void onFailure(@Nonnull String error) {
+            actionResultProcessor.updateActionItemState(ActionResponseState.FAILED, error, 100);
         }
     }
 }

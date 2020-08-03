@@ -3,7 +3,8 @@
         "move": {
             "range":{
                 "step": 5,
-                "labels": ["Performance", "Efficiency"]
+                "labels": ["Performance", "Efficiency"],
+                "customStepValues": [90, 30, 15.5, 7]
             }
         }
     }

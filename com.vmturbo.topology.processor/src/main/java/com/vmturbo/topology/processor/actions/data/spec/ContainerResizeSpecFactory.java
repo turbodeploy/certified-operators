@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.actions.data.spec;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -8,22 +7,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.builders.SDKConstants;
@@ -33,7 +25,7 @@ import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 
 /**
  * Utility class to create a {@link DataRequirementSpec} representing the need to include the UUID
- * of the virtual application (if any) being hosted by the container in the context data for
+ * of the service (if any) being hosted by the container in the context data for
  * container resize actions. This is needed for the Cloud Foundry probe, and possibly others.
  */
 public class ContainerResizeSpecFactory {
@@ -72,18 +64,18 @@ public class ContainerResizeSpecFactory {
                 .addMatchCriteria(actionInfo -> actionInfo.hasResize())
                 .addMatchCriteria(actionInfo -> EntityType.CONTAINER.getNumber() ==
                         actionInfo.getResize().getTarget().getType())
-                .addDataRequirement(SDKConstants.VAPP_UUID, actionInfo ->
-                        getVappUuidForAction(actionInfo).orElse(""))
+                .addDataRequirement(SDKConstants.SERVICE_UUID, actionInfo ->
+                        getServiceUuidForAction(actionInfo).orElse(""))
                 .build();
     }
 
     /**
-     * Get the virtual application UUID (if any) for the container in this resize action
+     * Get the service UUID (if any) for the container in this resize action
      *
      * @param actionInfo a container resize action
-     * @return the virtual application UUID (if any) for the container in this resize action
+     * @return the service UUID (if any) for the container in this resize action
      */
-    private Optional<String> getVappUuidForAction(ActionInfo actionInfo) {
+    private Optional<String> getServiceUuidForAction(ActionInfo actionInfo) {
         // Extract the OID of the container being resized from the ActionInfo
         Optional<Long> containerId = Stream.of(actionInfo)
                 .map(ActionInfo::getResize)
@@ -92,13 +84,13 @@ public class ContainerResizeSpecFactory {
                 .map(ActionEntity::getId)
                 .findFirst();
         if(containerId.isPresent()) {
-            // Search for the virtual application (indirectly) consuming from this container
-            return getVirtualApplicationsConsumingFromContainer(containerId.get()).stream()
+            // Search for the service (indirectly) consuming from this container
+            return getServicesConsumingFromContainer(containerId.get()).stream()
                     // Converting the entity to SDK format allows us to extract the UUID instead
                     // of the OID
                     .map(entity -> topologyToSdkEntityConverter.convertToEntityDTO(entity))
                     .map(EntityDTO::getId)
-                    // If no virtual application is found, that's okay -- not all containers have one
+                    // If no service is found, that's okay -- not all containers have one
                     .findAny();
         }
         return Optional.empty();
@@ -106,47 +98,34 @@ public class ContainerResizeSpecFactory {
 
     /**
      * Helper method to get TopologyEntityDTOs for given search criteria.
-     * This search is for virtual applications that are consuming indirectly from the container
+     * This search is for services that are consuming indirectly from the container
      * whose ID is provided as a parameter. The search uses 2 hops because there will be an
-     * application between the container and the virtual application in the supply chain.
+     * application between the container and the service in the supply chain.
      *
-     * @param containerId the ID of the container whose virtual application(s) should be retrieved
-     * @return a list of virtual applications (indirectly) consuming from the provided container
+     * @param containerId the ID of the container whose service(s) should be retrieved
+     * @return a list of services (indirectly) consuming from the provided container
      */
-    private List<TopologyEntityDTO> getVirtualApplicationsConsumingFromContainer(
+    private List<TopologyEntityDTO> getServicesConsumingFromContainer(
             @Nonnull long containerId) {
-        SearchParameters searchParameter = SearchParameters.newBuilder()
-                // start from container entity oid
-                .setStartingFilter(PropertyFilter.newBuilder()
-                        .setPropertyName(SpecSearchUtil.OID)
-                        .setStringFilter(StringFilter.newBuilder()
-                                .setStringPropertyRegex(Long.toString(containerId))
-                                .setPositiveMatch(true)
-                                .setCaseSensitive(false))
-                        .build())
-                // traverse PRODUCES relationship (Container produces commodities that applications
-                // and virtual applications consume)
-                .addSearchFilter(SearchFilter.newBuilder()
-                        .setTraversalFilter(TraversalFilter.newBuilder()
-                                .setTraversalDirection(TraversalDirection.PRODUCES)
-                                .setStoppingCondition(StoppingCondition.newBuilder()
-                                        // Max of 2 hops - one to reach Application layer and another
-                                        // hop to get from Application to Virtual Application layer.
-                                        .setNumberHops(2).build()))
-                        .build())
-                // find all virtual applications consuming from this entity
-                .addSearchFilter(SearchFilter.newBuilder().setPropertyFilter(
-                        PropertyFilter.newBuilder()
-                                .setPropertyName(SpecSearchUtil.ENTITY_TYPE)
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                        .setValue(EntityType.VIRTUAL_APPLICATION_VALUE)
-                                        .setComparisonOperator(ComparisonOperator.EQ))))
-                .build();
+        final SearchParameters searchParameter = SearchParameters.newBuilder()
+            // start from container entity oid
+            .setStartingFilter(SearchProtoUtil.idFilter(containerId))
+            // traverse PRODUCES relationship (Container produces commodities that applications
+            // and services consume)
+            .addSearchFilter(SearchFilter.newBuilder()
+                .setTraversalFilter(TraversalFilter.newBuilder()
+                    .setTraversalDirection(TraversalDirection.PRODUCES)
+                    .setStoppingCondition(StoppingCondition.newBuilder()
+                        // Max of 2 hops - one to reach Application layer and another
+                        // hop to get from Application to Service layer.
+                        .setNumberHops(2).build()))
+                .build())
+            // find all services consuming from this entity
+            .addSearchFilter(SearchFilter.newBuilder()
+                .setPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.SERVICE_VALUE)))
+            .build();
 
-        return SpecSearchUtil.searchTopologyEntityDTOs(
-                SearchTopologyEntityDTOsRequest.newBuilder()
-                        .addSearchParameters(searchParameter)
-                        .build(),
+        return SpecSearchUtil.searchTopologyEntityDTOs(searchParameter,
                 searchServiceRpc);
     }
 

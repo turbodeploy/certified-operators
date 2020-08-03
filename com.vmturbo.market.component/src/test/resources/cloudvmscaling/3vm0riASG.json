@@ -1,0 +1,198 @@
+{
+  "Contexts": [
+    {
+      "context": {
+        "os": "LINUX",
+        "csp": "AWS",
+        "region": 31,
+        "billingAccount": 1,
+        "tenancy": "DEFAULT"
+      },
+      "Templates": [
+        {
+          "oid": 100001,
+          "name": "t3.nano",
+          "family": "t3",
+          "onDemandCost": [
+            {
+              "compute": 1.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 1
+        },
+        {
+          "oid": 100002,
+          "name": "t3.micro",
+          "family": "t3",
+          "onDemandCost": [
+            {
+              "compute": 2.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 2
+        },
+        {
+          "oid": 100003,
+          "name": "t3.small",
+          "family": "t3",
+          "onDemandCost": [
+            {
+              "compute": 3.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 4
+        },
+        {
+          "oid": 100004,
+          "name": "t3a.nano",
+          "family": "t3a",
+          "onDemandCost": [
+            {
+              "compute": 1.1,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 1
+        },
+        {
+          "oid": 100005,
+          "name": "t3a.micro",
+          "family": "t3a",
+          "onDemandCost": [
+            {
+              "compute": 2.1,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 2
+        },
+        {
+          "oid": 100006,
+          "name": "t3a.small",
+          "family": "t3a",
+          "onDemandCost": [
+            {
+              "compute": 3.1,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 4
+        }
+      ],
+      "VirtualMachines": [
+        {
+          "oid": 2000001,
+          "name": "VM1",
+          "groupName" : 101,
+          "businessAccount": 10,
+          "providers": [
+            100004,
+            100003,
+            100006
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100004,
+          "os": "LINUX"
+        },
+        {
+          "oid": 2000010,
+          "name": "VM2",
+          "count": 2,
+          "groupName" : 101,
+          "businessAccount": 10,
+          "providers": [
+            100001,
+            100004,
+            100005,
+            100003,
+            100006
+          ],
+          "zone": 22,
+          "currentRICoverage": 0,
+          "currentTemplate": 100001,
+          "os": "LINUX"
+        }
+      ],
+      "ReservedInstances": [
+      ],
+      "Matching": [
+        {
+          "VirtualMachine": 2000001,
+          "Template": 100004
+        },
+        {
+          "VirtualMachine": 2000010,
+          "Template": 100004
+        },
+        {
+          "VirtualMachine": 2000011,
+          "Template": 100004
+        }
+      ]
+    }
+  ]
+}

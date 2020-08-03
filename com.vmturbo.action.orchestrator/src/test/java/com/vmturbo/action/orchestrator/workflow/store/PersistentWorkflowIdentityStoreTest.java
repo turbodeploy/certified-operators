@@ -23,60 +23,43 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.flywaydb.core.Flyway;
-import org.jooq.DSLContext;
-import org.jooq.Record;
-import org.jooq.Result;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
+
+import org.jooq.DSLContext;
+import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
+
+import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.PersistentIdentityStore;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class PersistentWorkflowIdentityStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     @Before
     public void setup() {
 
         IdentityGenerator.initPrefix(0);
-
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     /**
@@ -223,31 +206,6 @@ public class PersistentWorkflowIdentityStoreTest {
                 .getValues(WORKFLOW.ID, Long.class);
         assertThat(workflowsRemaining.size(), equalTo(1));
         assertThat(workflowsRemaining.iterator().next(), equalTo(WORKFLOW_2_OID));
-    }
-
-    /**
-     * Test that collecting and restoring work flow identifiers diags.
-     *
-     * @throws DiagnosticsException - should never happen
-     */
-    @Test
-    public void testDiagsCollectAndRestore() throws DiagnosticsException {
-        PersistentWorkflowIdentityStore testIdentityStore = new PersistentWorkflowIdentityStore(dsl);
-        persistBothWorkflowOids();
-        final List<String> diags = testIdentityStore.collectDiags();
-        assertEquals(2, diags.size());
-        // Clean up db before restore
-        dsl.delete(WORKFLOW_OID).execute();
-        testIdentityStore.restoreDiags(diags);
-        final Result<Record> rs = dsl.select()
-                .from(WORKFLOW_OID)
-                .fetch();
-        assertEquals(2, rs.size());
-        assertThat(rs.getValues(WORKFLOW_OID.ID), containsInAnyOrder(WORKFLOW_1_OID, WORKFLOW_2_OID));
-        assertThat(rs.getValues(WORKFLOW_OID.TARGET_ID),
-                containsInAnyOrder(WORKFLOW_1_TARGET_ID, WORKFLOW_2_TARGET_ID));
-        assertThat(rs.getValues(WORKFLOW_OID.EXTERNAL_NAME),
-                containsInAnyOrder(WORKFLOW_1_NAME, WORKFLOW_2_NAME));
     }
 
     /**

@@ -4,22 +4,29 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.Units;
 
 /**
  * An {@link EntityInfoExtractor} for {@link TopologyEntityDTO}, to be used when running the cost
  * library in the cost component.
- *
- * TODO (roman, Aug 16 2018): Move this to the cost component. It's provided here for illustration
- * purposes.
  */
 public class TopologyEntityInfoExtractor implements EntityInfoExtractor<TopologyEntityDTO> {
+
+    private static final Logger logger = LogManager.getLogger();
 
     @Override
     public int getEntityType(@Nonnull final TopologyEntityDTO entity) {
@@ -36,27 +43,29 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         return entity.getDisplayName();
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public EntityState getEntityState(@Nonnull final TopologyEntityDTO entity) {
+        return entity.getEntityState();
+    }
+
     @Nonnull
     @Override
     public Optional<ComputeConfig> getComputeConfig(@Nonnull final TopologyEntityDTO entity) {
-        if (entity.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
-            return Optional.empty();
-        }
-
-        if (!entity.hasTypeSpecificInfo()) {
-            return Optional.empty();
-        }
-
-        if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE &&
-                entity.getTypeSpecificInfo().hasVirtualMachine()) {
+        if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+            && entity.hasTypeSpecificInfo() && entity.getTypeSpecificInfo().hasVirtualMachine()) {
             VirtualMachineInfo vmConfig = entity.getTypeSpecificInfo().getVirtualMachine();
-
             return Optional.of(new ComputeConfig(vmConfig.getGuestOsInfo().getGuestOsType(),
                     vmConfig.getTenancy(),
-                    vmConfig.getBillingType()));
+                    vmConfig.getBillingType(),
+                    vmConfig.getNumCpus(),
+                    vmConfig.getLicenseModel()));
+        } else {
+            return Optional.empty();
         }
-
-        return Optional.empty();
     }
 
     @Nonnull
@@ -75,12 +84,14 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         if (entity.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE) {
             return Optional.empty();
         }
-
         if (entity.getTypeSpecificInfo().hasVirtualVolume()) {
-            VirtualVolumeInfo volumeConfig = entity.getTypeSpecificInfo().getVirtualVolume();
+            final VirtualVolumeInfo volumeConfig = entity.getTypeSpecificInfo().getVirtualVolume();
             return Optional.of(new VirtualVolumeConfig(
-                    volumeConfig.getStorageAccessCapacity(),
-                    volumeConfig.getStorageAmountCapacity()));
+                    getCommodityCapacity(entity, CommodityType.STORAGE_ACCESS),
+                    getCommodityCapacity(entity, CommodityType.STORAGE_AMOUNT),
+                    getCommodityCapacity(entity, CommodityType.IO_THROUGHPUT) / Units.KBYTE,
+                    volumeConfig.getIsEphemeral(),
+                    volumeConfig.hasRedundancyType() ? volumeConfig.getRedundancyType() : null));
         } else {
             return Optional.empty();
         }
@@ -93,31 +104,52 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
             return Optional.empty();
         }
         final ComputeTierInfo tierInfo = entity.getTypeSpecificInfo().getComputeTier();
-        return Optional.of(new ComputeTierConfig(tierInfo.getNumCoupons()));
+        return Optional.of(new ComputeTierConfig(tierInfo.getNumCoupons(), tierInfo.getNumCores(), tierInfo.getBurstableCPU()));
     }
 
     @Override
+    @Nonnull
     public Optional<DatabaseConfig> getDatabaseConfig(
             TopologyEntityDTO entity) {
-        if (entity.getEntityType() != EntityType.DATABASE_SERVER_VALUE ||
-                entity.getEntityType() != EntityType.DATABASE_VALUE) {
-            return Optional.empty();
+        if ((entity.getEntityType() == EntityType.DATABASE_SERVER_VALUE
+            || entity.getEntityType() == EntityType.DATABASE_VALUE)
+            && entity.hasTypeSpecificInfo()) {
+            if (entity.getTypeSpecificInfo().hasDatabase()) {
+                DatabaseInfo dbConfig = entity.getTypeSpecificInfo().getDatabase();
+                return Optional.of(new DatabaseConfig(dbConfig.getEdition(),
+                    dbConfig.getEngine(),
+                    dbConfig.hasLicenseModel() ? dbConfig.getLicenseModel() : null,
+                    dbConfig.hasDeploymentType() ? dbConfig.getDeploymentType() : null));
+            }
         }
-
-        if (!entity.hasTypeSpecificInfo()) {
-            return Optional.empty();
-        }
-
-        if (entity.getTypeSpecificInfo().hasDatabase()) {
-            DatabaseInfo dbConfig = entity.getTypeSpecificInfo().getDatabase();
-            return Optional.of(new DatabaseConfig(dbConfig.getEdition(),
-                                                  dbConfig.getEngine(),
-                                                  dbConfig.getLicenseModel(),
-                                                  dbConfig.getDeploymentType()));
-        }
-
         return Optional.empty();
-
     }
 
+    private static float getCommodityCapacity(
+            @Nonnull final TopologyEntityDTO volume,
+            @Nonnull final CommodityType commodityType) {
+        final Optional<Double> capacity = volume.getCommoditySoldListList().stream()
+                .filter(commodity -> commodity.getCommodityType().getType()
+                        == commodityType.getNumber())
+                .map(CommoditySoldDTO::getCapacity)
+                .findAny();
+        if (!capacity.isPresent() && !isEphemeralVolume(volume)) {
+            // This is not an error for AWS ephemeral (instance store) volumes because they have no
+            // Storage Access and IO Throughput commodities.
+            logger.warn("Missing commodity {} for volume {} (OID: {})", commodityType,
+                    volume.getDisplayName(), volume.getOid());
+        }
+        return capacity.orElse(0D).floatValue();
+    }
+
+    private static boolean isEphemeralVolume(@Nonnull final TopologyEntityDTO volume) {
+        if (!volume.hasTypeSpecificInfo()) {
+            return false;
+        }
+        final TypeSpecificInfo typeSpecificInfo = volume.getTypeSpecificInfo();
+        if (!typeSpecificInfo.hasVirtualVolume()) {
+            return false;
+        }
+        return typeSpecificInfo.getVirtualVolume().getIsEphemeral();
+    }
 }

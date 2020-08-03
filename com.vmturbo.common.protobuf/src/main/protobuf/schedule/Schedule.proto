@@ -1,0 +1,180 @@
+syntax = "proto2";
+package schedule;
+
+option java_package = "com.vmturbo.common.protobuf.schedule";
+option java_outer_classname = "ScheduleProto";
+
+// A definition of generic schedule entity
+// For more info see
+// https://vmturbo.atlassian.net/wiki/spaces/PMTES/pages/1019281789/Feature+Page+-+XL+Schedules
+message Schedule {
+
+    // The id of the Schedule.
+    optional int64 id = 1;
+
+    // The name of the Schedule
+    optional string display_name = 2;
+
+    // The start time of the schedule window (milliseconds since Unix epoch)
+    optional int64 start_time = 3;
+
+    // The end time of the schedule window ((milliseconds since Unix epoch)
+    optional int64 end_time = 4;
+
+    // Next scheduled occurrence, if any
+    optional NextOccurrence next_occurrence = 5;
+
+    // If this schedule is currently active and if so, long it will remain active
+    optional Active active = 8;
+
+    // Recurrence start time
+    optional RecurrenceStart recurrenceStart = 9;
+
+    // Whether the schedule is recurring or applies only once.
+    oneof recurrence {
+        OneTime one_time = 10;
+
+        // Recurrence rule as defined here: https://tools.ietf.org/html/rfc2445#section-4.3.10
+        // Eg. for schedule recurring monthly on the first Monday of every month it will look as follows
+        // FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1;INTERVAL=1;
+        string recur_rule = 14;
+    }
+
+    // The last date (milliseconds since Unix epoch) the schedule is active, if any
+    oneof ending {
+        int64 last_date = 6;
+        Perpetual perpetual = 7;
+    }
+
+    // Timezone id
+    optional string timezone_id = 15;
+
+    // A policy active only once
+    message OneTime {}
+
+    // To mark that a schedule will continue indefinitely without an end date
+    message Perpetual {}
+
+    // Next schedule occurrence, if any
+    message NextOccurrence {
+        optional int64 start_time = 3;
+    }
+
+    // If schedule is active, how long it will remain active
+    message Active {
+        optional int64 remaining_active_time_ms = 1;
+    }
+
+    // If schedule recurrence start has been deferred, new series start time
+    message RecurrenceStart {
+        optional int64 recurrence_start_time = 1;
+    }
+}
+
+// Request to retrieve all schedules
+message GetSchedulesRequest {
+    // Optionally provide ids of schedules to fetch
+    // If not provided, all schedules will be returned
+    repeated int64 oid = 1;
+
+    // Optional UTC reference time timestamp against which next schedule occurrence will be calculated.
+    // If not provided, current system time will be used.
+    optional int64 ref_time = 2;
+}
+
+// Request to retrieve specific schedule by id
+message GetScheduleRequest {
+    // id of the schedule to retrieve
+    optional int64 oid = 1;
+    // Optional UTC reference time timestamp against which next schedule occurrence will be calculated.
+    // If not provided, current system time will be used.
+    optional int64 ref_time = 2;
+}
+
+// Response to retrieve specific schedule
+message GetScheduleResponse {
+    optional Schedule schedule = 1;
+}
+
+// Request to create a schedule
+message CreateScheduleRequest {
+    optional Schedule schedule = 1;
+}
+
+// Created schedule response
+message CreateScheduleResponse {
+    optional Schedule schedule = 1;
+}
+
+// Request to update schedule
+message UpdateScheduleRequest {
+    // id of the schedule to update
+    optional int64 oid = 1;
+    // updated schedule data
+    optional Schedule updated_schedule = 2;
+}
+
+// Updated schedule response
+message UpdateScheduleResponse {
+    optional Schedule schedule = 1;
+}
+
+// Request to delete schedule
+message DeleteScheduleRequest {
+    // id of the schedule to delete
+    optional int64 oid = 1;
+}
+
+// Deleted schedule response
+message DeleteScheduleResponse {
+    optional Schedule schedule = 1;
+}
+
+// Request to bulk delete schedules
+message DeleteSchedulesRequest {
+    // ids of schedules to delete
+    repeated int64 oid = 1;
+}
+
+// Deleted schedules response
+message DeleteSchedulesResponse {
+    // number of deleted schedules
+    optional int32 num_deleted = 1;
+}
+
+// The ScheduleService provides RPC's for CRUD-type operations related to Schedule objects.
+service ScheduleService {
+    // Retrieve all schedules.
+    rpc GetSchedules(GetSchedulesRequest) returns (stream Schedule);
+
+    // Retrieve specific schedule.
+    //
+    // If the schedule is not found, it will not be set in the response.
+    rpc GetSchedule(GetScheduleRequest) returns (GetScheduleResponse);
+
+    // Create a schedule.
+    //
+    // If the schedule is invalid  this will return a INVALID_ARGUMENT status.
+    // If a schedule with the same name already exists, this will return a ALREADY_EXIST status.
+    rpc CreateSchedule(CreateScheduleRequest) returns (CreateScheduleResponse);
+
+    // Update an existing schedule.
+    //
+    // If the schedule is not found, this will return a NOT_FOUND status.
+    // If the updated schedule is invalid, this will return an INVALID_ARGUMENT status.
+    rpc UpdateSchedule(UpdateScheduleRequest) returns (UpdateScheduleResponse);
+
+    // Delete an existing schedule.
+    //
+    // If the schedule is not found, this will return a NOT_FOUND status.
+    // If an attempt is made to delete schedule that is currently assigned to setting policy,
+    // it will return INVALID_ARGUMENT because such schedules ate not allowed to be deleted.
+    rpc DeleteSchedule(DeleteScheduleRequest) returns (DeleteScheduleResponse);
+
+    // Bulk delete existing schedule.
+    //
+    // If the schedule is not found, this will return a NOT_FOUND status.
+    // If an attempt is made to delete schedule that is currently assigned to setting policy,
+    // it will return INVALID_ARGUMENT because such schedules ate not allowed to be deleted.
+    rpc DeleteSchedules(DeleteSchedulesRequest) returns (DeleteSchedulesResponse);
+}

@@ -2,7 +2,6 @@ package com.vmturbo.components.test.performance.history;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -14,11 +13,11 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
@@ -36,12 +35,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
-import com.vmturbo.history.component.api.HistoryComponent;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
+import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.api.MarketKafkaSender;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -54,7 +55,7 @@ public abstract class HistoryPerformanceTest {
     protected MarketNotificationSender marketSender;
     protected TopologyProcessorNotificationSender tpSender;
 
-    protected HistoryComponent historyComponent;
+    protected HistoryComponentNotificationReceiver historyComponent;
     protected IMessageReceiver<HistoryComponentNotification> historyMessageReceiver;
     protected StatsHistoryServiceBlockingStub statsService;
     protected ExecutorService threadPool = Executors.newCachedThreadPool();
@@ -62,6 +63,7 @@ public abstract class HistoryPerformanceTest {
     protected final long SOURCE_TOPOLOGY_ID = 1234;
     protected final long PROJECTED_TOPOLOGY_ID = 5678;
     protected final long CREATION_TIME = System.currentTimeMillis();
+    protected final long ACTION_PLAN_ID = 9123;
 
     protected final TopologyInfo.Builder TOPOLOGY_INFO = TopologyInfo.newBuilder()
         .setTopologyId(SOURCE_TOPOLOGY_ID)
@@ -105,13 +107,13 @@ public abstract class HistoryPerformanceTest {
 
     protected abstract void broadcastSourceTopology(TopologyInfo topologyInfo,
                                                     Collection<TopologyEntityDTO> topoDTOs)
-                        throws CommunicationException, InterruptedException;
+        throws CommunicationException, InterruptedException, OversizedElementException;
 
     public static final long DEFAULT_STATS_TIMEOUT_MINUTES = 10;
 
     @Before
     public void createSenders() {
-        tpSender = TopologyProcessorKafkaSender.create(threadPool, getKafkaMessageProducer());
+        tpSender = TopologyProcessorKafkaSender.create(threadPool, getKafkaMessageProducer(), new MutableFixedClock(1_000_000));
         marketSender = MarketKafkaSender.createMarketSender(getKafkaMessageProducer());
     }
 
@@ -165,7 +167,8 @@ public abstract class HistoryPerformanceTest {
                     .setEntity(entity)
                     .setProjectedPriceIndex(1.0)
                     .setOriginalPriceIndex(2.0)
-                    .build()));
+                    .build()),
+                ACTION_PLAN_ID);
     }
 
     protected void fetchStats(final long topologyContextId){

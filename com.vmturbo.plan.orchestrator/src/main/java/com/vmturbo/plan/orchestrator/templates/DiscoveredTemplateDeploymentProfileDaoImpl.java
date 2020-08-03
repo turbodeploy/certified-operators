@@ -1,6 +1,8 @@
 package com.vmturbo.plan.orchestrator.templates;
 
 import static com.vmturbo.plan.orchestrator.db.Tables.DEPLOYMENT_PROFILE;
+import static com.vmturbo.plan.orchestrator.db.Tables.RESERVATION;
+import static com.vmturbo.plan.orchestrator.db.Tables.RESERVATION_TO_TEMPLATE;
 import static com.vmturbo.plan.orchestrator.db.Tables.TEMPLATE;
 import static com.vmturbo.plan.orchestrator.db.Tables.TEMPLATE_TO_DEPLOYMENT_PROFILE;
 
@@ -16,18 +18,24 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.components.common.utils.ReservationProtoUtil;
+import com.vmturbo.plan.orchestrator.db.tables.records.ReservationRecord;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse.TargetProfileIdentities;
 import com.vmturbo.common.protobuf.plan.TemplateDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.plan.orchestrator.db.tables.records.DeploymentProfileRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateToDeploymentProfileRecord;
+import com.vmturbo.plan.orchestrator.reservation.ReservationStatusConverter;
 
 /**
  * Store discovered templates and deployment profiles into database. And right now,
@@ -39,7 +47,6 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
 
     private final DSLContext dsl;
 
-
     public DiscoveredTemplateDeploymentProfileDaoImpl(@Nonnull final DSLContext dsl) {
         this.dsl = dsl;
     }
@@ -50,13 +57,17 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
      * @param targetMap Map contains all targets discovered templates and deployment profiles.
      * @param orphanedDeploymentProfileMap Contains a list of discovered deployment profile which
      *                                        have no reference template.
+     * @return external to internal identity mapping
      */
-    public void setDiscoveredTemplateDeploymentProfile(
+    public UpdateDiscoveredTemplateDeploymentProfileResponse setDiscoveredTemplateDeploymentProfile(
         @Nonnull Map<Long, TemplateInfoToDeploymentProfileMap> targetMap,
         @Nonnull Map<Long, List<DeploymentProfileInfo>> orphanedDeploymentProfileMap) {
         Set<Long> discoveredTargetIds = targetMap.entrySet().stream()
             .map(Entry::getKey)
             .collect(Collectors.toSet());
+        UpdateDiscoveredTemplateDeploymentProfileResponse.Builder response =
+            UpdateDiscoveredTemplateDeploymentProfileResponse
+                       .newBuilder();
 
         dsl.transaction(configuration -> {
             DSLContext transactionDsl = DSL.using(configuration);
@@ -65,6 +76,20 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
                 .selectFrom(TEMPLATE)
                 .where(TEMPLATE.TARGET_ID.isNotNull().and(TEMPLATE.TARGET_ID.notIn(discoveredTargetIds)))
                 .fetch();
+
+            // Find reservation records that used the templates to be deleted.
+            final List<ReservationRecord> invalidReservationRecords = transactionDsl.selectFrom(
+                    RESERVATION.join(RESERVATION_TO_TEMPLATE)
+                            .on(RESERVATION.ID.eq(RESERVATION_TO_TEMPLATE.RESERVATION_ID))
+                            .and(RESERVATION_TO_TEMPLATE.TEMPLATE_ID.in(buildTemplateIds(missingTargetTemplateRecords))))
+                    .fetch()
+                    .into(RESERVATION);
+            if (!invalidReservationRecords.isEmpty()) {
+                transactionDsl.batchDelete(invalidReservationRecords).execute();
+                logger.warn("Deleted invalidated reservations: {}", invalidReservationRecords.stream()
+                        .map(ReservationRecord::getName).collect(Collectors.toList()));
+            }
+
             final List<DeploymentProfileRecord> missingTargetDeployprofileRecords = transactionDsl
                 .selectFrom(DEPLOYMENT_PROFILE)
                 .where(DEPLOYMENT_PROFILE.TARGET_ID.isNotNull().and(DEPLOYMENT_PROFILE.TARGET_ID.notIn(discoveredTargetIds)))
@@ -74,11 +99,20 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
             transactionDsl.batchDelete(missingTargetDeployprofileRecords).execute();
 
             for (Long targetId : discoveredTargetIds) {
-                setDiscoveredTemplateDeploymentProfileByTarget(targetId, transactionDsl,
-                    targetMap.get(targetId), orphanedDeploymentProfileMap.get(targetId));
+                TemplateInfoToDeploymentProfileMap mapForTarget = targetMap.get(targetId);
+                if (mapForTarget != null && mapForTarget.isDataAvailable()) {
+                    TargetProfileIdentities identities = setDiscoveredTemplateDeploymentProfileByTarget(targetId,
+                        transactionDsl, mapForTarget, orphanedDeploymentProfileMap.get(targetId));
+                    response.addTargetProfileIdentities(identities);
+                }
             }
-
         });
+
+        return response.build();
+    }
+
+    private Set<Long> buildTemplateIds(List<TemplateRecord> missingTargetTemplateRecords) {
+        return missingTargetTemplateRecords.stream().map(TemplateRecord::getId).collect(Collectors.toSet());
     }
 
     /**
@@ -89,8 +123,9 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
      * @param profileMap Contains relationship between templates to list of attached deployment profiles.
      * @param orphanedDeploymentProfile Contains a list of discovered deployment profile which
      *                                        have no reference template.
+     * @return generated identities
      */
-    private void setDiscoveredTemplateDeploymentProfileByTarget(@Nonnull long targetId,
+    private TargetProfileIdentities setDiscoveredTemplateDeploymentProfileByTarget(@Nonnull long targetId,
                                                                 @Nonnull DSLContext transactionDsl,
                                                                 @Nonnull TemplateInfoToDeploymentProfileMap profileMap,
                                                                 @Nonnull List<DeploymentProfileInfo> orphanedDeploymentProfile) {
@@ -107,6 +142,9 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
             setDiscoveredDeploymentProfileByTarget(targetId, transactionDsl, deploymentProfileInfos);
         updateTemplateToDeploymentProfileTable(profileMap, transactionDsl, templateInfoIdMap,
             deploymentProfileIdMap);
+        return TargetProfileIdentities.newBuilder().setTargetOid(targetId)
+                        .putAllProfileIdToOid(templateInfoIdMap)
+                        .putAllDeploymentProfileIdToOid(deploymentProfileIdMap).build();
     }
 
     /**
@@ -129,7 +167,8 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
             .collect(Collectors.toSet());
 
         final List<TemplateRecord> existingRecords = dsl.selectFrom(TEMPLATE)
-            .where(TEMPLATE.TARGET_ID.eq(targetId).and(TEMPLATE.TARGET_ID.isNotNull()))
+            .where(TEMPLATE.TARGET_ID.eq(targetId).and(TEMPLATE.TARGET_ID.isNotNull())
+                .and(TEMPLATE.TYPE.eq(TemplateDTO.Template.Type.DISCOVERED.name())))
             .fetch();
 
         final Set<String> existingTemplateProbeIds = existingRecords.stream()
@@ -338,10 +377,19 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
      */
     public static class TemplateInfoToDeploymentProfileMap {
 
-        private Map<TemplateInfo, List<DeploymentProfileInfo>> templateInfoListMap;
+        private final Map<TemplateInfo, List<DeploymentProfileInfo>> templateInfoListMap;
 
-        public TemplateInfoToDeploymentProfileMap() {
+        private final boolean dataAvailable;
+
+        /**
+         * Create new mapping.
+         *
+         * @param dataAvailable Whether or not the associated target has finished discovering.
+         *                      If false, the map will be empty.
+         */
+        public TemplateInfoToDeploymentProfileMap(final boolean dataAvailable) {
             this.templateInfoListMap = new HashMap<>();
+            this.dataAvailable = dataAvailable;
         }
 
         public void put(TemplateInfo templateInfo, List<DeploymentProfileInfo> deploymentProfileInfos) {
@@ -358,6 +406,10 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
 
         public Set<TemplateInfo> keySet() {
             return templateInfoListMap.keySet();
+        }
+
+        public boolean isDataAvailable() {
+            return dataAvailable;
         }
 
         public void clear() {

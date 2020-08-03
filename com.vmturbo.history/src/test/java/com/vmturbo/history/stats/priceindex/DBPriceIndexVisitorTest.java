@@ -1,126 +1,109 @@
 package com.vmturbo.history.stats.priceindex;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.BUSINESS_ACCOUNT;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE;
+import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_LATEST;
+import static junit.framework.TestCase.assertEquals;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
-import org.jooq.InsertSetMoreStep;
-import org.jooq.Table;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
-
-import com.google.common.collect.ImmutableMap;
+import org.mockito.Captor;
+import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.history.db.BasedbIO.Style;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.db.bulk.BulkLoaderMock;
+import com.vmturbo.history.db.bulk.DbMock;
+import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
+import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
+import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
 import com.vmturbo.history.stats.priceindex.DBPriceIndexVisitor.DBPriceIndexVisitorFactory;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
+/**
+ * Tests for {@link DBPriceIndexVisitor} class.
+ */
 public class DBPriceIndexVisitorTest {
 
+    private static final EntityType VIRTUAL_MACHINE_ENTITY_TYPE = EntityType.named(VIRTUAL_MACHINE).get();
+    private static final EntityType BUSINESS_ACCOUNT_ENTITY_TYPE = EntityType.named(BUSINESS_ACCOUNT).get();
     private HistorydbIO historydbIO = mock(HistorydbIO.class);
+    private DbMock dbMock = new DbMock();
+    private SimpleBulkLoaderFactory loaders = new BulkLoaderMock(dbMock).getFactory();
 
     private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.newBuilder()
-        .setTopologyContextId(777777)
-        .setTopologyId(123)
-        .setCreationTime(1000000)
-        .build();
+            .setTopologyContextId(777777)
+            .setTopologyId(123)
+            .setCreationTime(1000000)
+            .build();
 
-    private final int VM_TYPE = EntityType.VIRTUAL_MACHINE_VALUE;
+    private static final int VM_TYPE = EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
+    private static final int BA_TYPE = EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE;
 
-    private final Table<?> VM_TABLE = com.vmturbo.history.db.EntityType.VIRTUAL_MACHINE.getLatestTable();
+    @Captor
+    private ArgumentCaptor<MarketStatsData> aggregateDataCaptor;
 
+    /**
+     * Create and configure mocks required for tests.
+     */
     @Before
     public void setup() {
+        MockitoAnnotations.initMocks(this);
         when(historydbIO.getEntityType(VM_TYPE))
-            .thenReturn(Optional.of(com.vmturbo.history.db.EntityType.VIRTUAL_MACHINE));
+                .thenReturn(Optional.of(VIRTUAL_MACHINE_ENTITY_TYPE));
+        when(historydbIO.getEntityType(BA_TYPE))
+                .thenReturn(Optional.of(BUSINESS_ACCOUNT_ENTITY_TYPE));
+        when(historydbIO.getMarketStatsRecord(any(MarketStatsData.class), any(TopologyInfo.class)))
+                .thenCallRealMethod();
     }
 
+    /**
+     * Test that data is properly persisted.
+     *
+     * @throws InterruptedException if interrupted
+     */
     @Test
-    public void testPersistChunks() throws VmtDbException {
-        final int chunkSize = 1;
-        final DBPriceIndexVisitor visitor = new DBPriceIndexVisitorFactory(historydbIO, chunkSize)
-            .newVisitor(TOPOLOGY_INFO);
+    public void testPersistChunks() throws InterruptedException {
+        final DBPriceIndexVisitor visitor = new DBPriceIndexVisitorFactory(historydbIO)
+                .newVisitor(TOPOLOGY_INFO, loaders);
 
         final long entityId = 121;
         final double priceIdx = 7;
 
-        final InsertSetMoreStep insert = mock(InsertSetMoreStep.class);
-        when(historydbIO.getCommodityInsertStatement(VM_TABLE)).thenReturn(insert);
-
         visitor.visit(VM_TYPE, EnvironmentType.ON_PREM, ImmutableMap.of(entityId, priceIdx));
-
-        verify(historydbIO).initializeCommodityInsert(StringConstants.PRICE_INDEX,
-            TOPOLOGY_INFO.getCreationTime(),
-            entityId, RelationType.METRICS,
-            null, null, null, null, insert,
-            VM_TABLE);
-        verify(historydbIO).setCommodityValues(StringConstants.PRICE_INDEX, priceIdx,
-            insert, VM_TABLE);
-        verify(historydbIO).execute(Style.FORCED, Collections.singletonList(insert));
-
         visitor.onComplete();
-        // No more inserts.
-        verify(historydbIO, times(0)).execute(anyString(), any());
+        final Collection<VmStatsLatestRecord> records = dbMock.getRecords(VM_STATS_LATEST);
+        assertEquals(1, records.size());
     }
 
+    /**
+     * Test that records are properly persisted with mixed environment types.
+     *
+     * @throws InterruptedException if interrupted
+     */
     @Test
-    public void testPersistChunksLeftOver() throws VmtDbException {
-        // In this test, the chunk size is 2.
-        final int chunkSize = 2;
-        final DBPriceIndexVisitor visitor = new DBPriceIndexVisitorFactory(historydbIO, chunkSize)
-            .newVisitor(TOPOLOGY_INFO);
-
-        final long entityId = 121;
-        final double priceIdx = 7;
-
-        final InsertSetMoreStep insert = mock(InsertSetMoreStep.class);
-        when(historydbIO.getCommodityInsertStatement(VM_TABLE)).thenReturn(insert);
-
-        visitor.visit(VM_TYPE, EnvironmentType.ON_PREM, ImmutableMap.of(entityId, priceIdx));
-
-        verify(historydbIO).initializeCommodityInsert(StringConstants.PRICE_INDEX,
-            TOPOLOGY_INFO.getCreationTime(),
-            entityId, RelationType.METRICS,
-            null, null, null, null, insert,
-            VM_TABLE);
-        verify(historydbIO).setCommodityValues(StringConstants.PRICE_INDEX, priceIdx,
-            insert, VM_TABLE);
-        // Chunk size is 2, and we only add one record. So it should only get inserted after
-        // onComplete.
-        verify(historydbIO, times(0)).execute(anyString(), any());
-
-        visitor.onComplete();
-
-        verify(historydbIO).execute(Style.FORCED, Collections.singletonList(insert));
-    }
-
-    @Test
-    public void testPersistAggregateMixedEnvTypes() throws VmtDbException {
-        final int chunkSize = 2;
-        final DBPriceIndexVisitor visitor = new DBPriceIndexVisitorFactory(historydbIO, chunkSize)
-            .newVisitor(TOPOLOGY_INFO);
+    public void testPersistAggregateMixedEnvTypes() throws InterruptedException {
+        final DBPriceIndexVisitor visitor = new DBPriceIndexVisitorFactory(historydbIO)
+                .newVisitor(TOPOLOGY_INFO, loaders);
 
         final long entityId1 = 121;
         final long entityId2 = 122;
@@ -129,38 +112,20 @@ public class DBPriceIndexVisitorTest {
         final double priceIndex2 = 3;
         final double cloudPriceIndex = 4;
 
-        // Return a mock insert statement just to avoid NPEs.
-        // We won't be verifying the commodity inserts here.
-        final InsertSetMoreStep insert = mock(InsertSetMoreStep.class);
-        when(historydbIO.getCommodityInsertStatement(VM_TABLE)).thenReturn(insert);
-
         visitor.visit(VM_TYPE, EnvironmentType.ON_PREM, ImmutableMap.of(
                 entityId1, priceIndex1,
                 entityId2, priceIndex2));
         visitor.visit(VM_TYPE, EnvironmentType.CLOUD, ImmutableMap.of(
-            cloudEntityId, cloudPriceIndex));
-
-
-        final InsertSetMoreStep insertStatement = mock(InsertSetMoreStep.class);
-        when(historydbIO.getMarketStatsInsertStmt(any(), any())).thenReturn(insertStatement);
+                cloudEntityId, cloudPriceIndex));
 
         visitor.onComplete();
 
-        final ArgumentCaptor<MarketStatsData> aggregateDataCaptor =
-            ArgumentCaptor.forClass(MarketStatsData.class);
+        final Collection<VmStatsLatestRecord> records = dbMock.getRecords(VM_STATS_LATEST);
+        assertThat(records.size(), is(3));
 
-        verify(historydbIO, times(2)).getMarketStatsInsertStmt(aggregateDataCaptor.capture(),
-            eq(TOPOLOGY_INFO));
-        // We always return the same insert statement from the mock,
-        // so it should just be inserted twice.
-        verify(historydbIO).execute(Style.FORCED, Arrays.asList(insertStatement, insertStatement));
-
+        verify(historydbIO, times(2)).getMarketStatsRecord(aggregateDataCaptor.capture(), any());
         final Map<EnvironmentType, MarketStatsData> mktStatsDataByEnvType =
-            aggregateDataCaptor.getAllValues().stream()
-            .collect(Collectors.toMap(MarketStatsData::getEnvironmentType, Function.identity()));
-
-        assertThat(mktStatsDataByEnvType.keySet(),
-            containsInAnyOrder(EnvironmentType.ON_PREM, EnvironmentType.CLOUD));
+                Maps.uniqueIndex(aggregateDataCaptor.getAllValues(), MarketStatsData::getEnvironmentType);
 
         final MarketStatsData onPremMktStats = mktStatsDataByEnvType.get(EnvironmentType.ON_PREM);
         assertThat(onPremMktStats.getPropertySubtype(), is(StringConstants.PRICE_INDEX));
@@ -184,5 +149,23 @@ public class DBPriceIndexVisitorTest {
         assertThat(cloudMktStats.getUsed(), is(cloudPriceIndex));
         assertThat(cloudMktStats.getRelationType(), is(RelationType.METRICS));
     }
+    /**
+     * Make sure that visits with entity types that don't save price index data create not records.
+     *
+     * @throws InterruptedException if interrupted
+     */
+    @Test
+    public void testThatEntityTypesWithoutPersistPriceIndexUseCaseAreSkipped()
+            throws InterruptedException {
+        final DBPriceIndexVisitor visitor = new DBPriceIndexVisitorFactory(historydbIO)
+                .newVisitor(TOPOLOGY_INFO, loaders);
 
+        final long entityId = 121;
+        final double priceIdx = 7;
+
+        visitor.visit(BA_TYPE, EnvironmentType.ON_PREM, ImmutableMap.of(entityId, priceIdx));
+        visitor.onComplete();
+
+        assertThat(dbMock.getTables().size(), is(0));
+    }
 }

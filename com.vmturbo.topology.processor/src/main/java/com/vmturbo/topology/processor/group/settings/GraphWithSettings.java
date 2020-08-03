@@ -14,12 +14,13 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingTo
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.stitching.EntitySettingsCollection;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
- * Represents the conceptual pair of a {@link TopologyGraph} and the set of settings resolved
+ * Represents the conceptual pair of a {@link TopologyGraph<TopologyEntity>} and the set of settings resolved
  * for entities in the graph. Various stages of the {@link TopologyPipeline} after
  * setting resolution need access to settings in order to compute things correctly, and this
  * structure facilitates that.
@@ -32,9 +33,9 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 public class GraphWithSettings {
 
     /**
-     * The {@link TopologyGraph}. This will continue to be mutated by stages in the pipeline.
+     * The {@link TopologyGraph<TopologyEntity>}. This will continue to be mutated by stages in the pipeline.
      */
-    private final TopologyGraph topologyGraph;
+    private final TopologyGraph<TopologyEntity> topologyGraph;
 
     /**
      * The default setting policies in the system, as retrieved during setting resolution.
@@ -57,7 +58,7 @@ public class GraphWithSettings {
      */
     private final Map<Long, EntitySettings> settingsByEntity;
 
-    public GraphWithSettings(@Nonnull final TopologyGraph topologyGraph,
+    public GraphWithSettings(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
                              @Nonnull final Map<Long, EntitySettings> entitySettings,
                              @Nonnull final Map<Long, SettingPolicy> defaultSettingPolicies) {
         this.topologyGraph = Objects.requireNonNull(topologyGraph);
@@ -68,7 +69,7 @@ public class GraphWithSettings {
     }
 
     @Nonnull
-    public TopologyGraph getTopologyGraph() {
+    public TopologyGraph<TopologyEntity> getTopologyGraph() {
         return topologyGraph;
     }
 

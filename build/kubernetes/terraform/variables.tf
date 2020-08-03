@@ -23,7 +23,7 @@ variable "history" {
 }
 
 variable "reporting" {
-  default = true
+  default = false
 }
 
 variable "metron" {
@@ -121,11 +121,19 @@ variable "mssql" {
   default = false
 }
 
+variable "mysql" {
+  default = false
+}
+
 variable "netapp" {
   default = false
 }
 
 variable "netflow" {
+  default = false
+}
+
+variable "nutanix" {
   default = false
 }
 

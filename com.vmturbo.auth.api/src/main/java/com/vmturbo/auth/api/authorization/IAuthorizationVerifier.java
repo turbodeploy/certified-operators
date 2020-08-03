@@ -1,9 +1,9 @@
 package com.vmturbo.auth.api.authorization;
 
 import java.util.Collection;
+
 import javax.annotation.Nonnull;
 
-import com.vmturbo.auth.api.Pair;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
@@ -14,12 +14,17 @@ public interface IAuthorizationVerifier {
     /**
      * The JWT token claim for roles.
      */
-    static final String ROLE_CLAIM = "ROLES";
+    String ROLE_CLAIM = "ROLES";
 
     /**
      * The JWT token claim for scope.
      */
-    static final String SCOPE_CLAIM = "SCOPE";
+    String SCOPE_CLAIM = "SCOPE";
+
+    /**
+     * The JWT token claim for login provider.
+     */
+    String PROVIDER_CLAIM = "PROVIDER";
 
     /**
      * Verifies the validity of the token.

@@ -19,9 +19,10 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
-import com.vmturbo.history.db.TimeFrame;
+import com.vmturbo.components.common.utils.TimeFrameCalculator;
 
 /**
  * Test methods select timeframe and table based on startTime, endTime.
@@ -84,8 +85,8 @@ public class StatsReaderTimeframeTest {
         when(retentionPeriods.dailyRetentionDays()).thenReturn(NUM_RETAINED_DAYS);
         when(retentionPeriodFetcher.getRetentionPeriods()).thenReturn(retentionPeriods);
 
-        final HistoryTimeFrameCalculator timeFrameCalculator =
-                new HistoryTimeFrameCalculator(clock, retentionPeriodFetcher);
+        final TimeFrameCalculator timeFrameCalculator =
+                new TimeFrameCalculator(clock, retentionPeriodFetcher);
 
         final long NOW = clock.millis();
 

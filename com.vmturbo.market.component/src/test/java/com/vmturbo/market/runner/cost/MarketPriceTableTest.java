@@ -1,5 +1,6 @@
 package com.vmturbo.market.runner.cost;
 
+import static com.vmturbo.trax.Trax.trax;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -8,15 +9,17 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import org.junit.Before;
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
@@ -24,14 +27,20 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
 import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -49,34 +58,134 @@ import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList.StorageTi
  */
 public class MarketPriceTableTest {
 
-    private static final long COMPUTE_TIER_ID = 7;
+    private static final long AWS_COMPUTE_TIER_ID = 95348;
+    private static final long AZURE_COMPUTE_TIER_ID = 25387;
+    private static final int NUM_OF_CORES = 4;
 
     private static final long STORAGE_TIER_ID = 77;
 
     private static final long REGION_ID = 8;
 
-    private static final double LINUX_PRICE = 10;
+    // Base Price
+    private static final double LINUX_PRICE = 0.096;
 
-    private static final double SUSE_PRICE_ADJUSTMENT = 5;
+    // Price Adjustments
+    private static final double WINDOWS_PRICE_ADJUSTMENT = 0.092;
+    private static final double WINDOWS_SQL_WEB_PRICE_ADJUSTMENT = 0.02;
+    private static final double RHEL_PRICE_ADJUSTMENT = 0.06;
+
+    private static final long BUSINESS_ACCOUNT_ID = 5;
+
+    // License Prices
+    private static final double WINDOWS_SQL_WEB_LICENSE_PRICE = 0.005;
+    private static final double RHEL_LICENSE_PRICE = 0.006;
+
+    private static final String LINUX = "Linux";
+    private static final String RHEL = "RHEL";
+    private static final String WINDOWS = "Windows";
+    private static final String WINDOWS_WITH_SQL_WEB = "Windows_SQL_Web";
+    private static final boolean BURSTABLE_CPUS = true;
+    private static final boolean NOT_BURSTABLE_CPUS = !BURSTABLE_CPUS;
 
     private static final PriceTable COMPUTE_PRICE_TABLE = PriceTable.newBuilder()
         .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
-            .putComputePricesByTierId(COMPUTE_TIER_ID, ComputeTierPriceList.newBuilder()
-                .setBasePrice(ComputeTierConfigPrice.newBuilder()
-                    .setGuestOsType(OSType.LINUX)
-                    .addPrices(Price.newBuilder()
-                        .setPriceAmount(CurrencyAmount.newBuilder().setAmount(LINUX_PRICE))))
-                .addPerConfigurationPriceAdjustments(ComputeTierConfigPrice.newBuilder()
-                    .setGuestOsType(OSType.SUSE)
-                    .addPrices(Price.newBuilder()
-                        .setPriceAmount(CurrencyAmount.newBuilder().setAmount(SUSE_PRICE_ADJUSTMENT))))
-                .build())
+            .putComputePricesByTierId(AWS_COMPUTE_TIER_ID,
+                createComputeTierPriceList(OSType.LINUX,
+                    Arrays.asList(createComputeTierConfigPrice(OSType.LINUX, LINUX_PRICE),
+                        createComputeTierConfigPrice(OSType.WINDOWS, WINDOWS_PRICE_ADJUSTMENT),
+                        createComputeTierConfigPrice(OSType.RHEL, RHEL_PRICE_ADJUSTMENT))))
+            .putComputePricesByTierId(AZURE_COMPUTE_TIER_ID,
+                createComputeTierPriceList(OSType.LINUX,
+                    Arrays.asList(createComputeTierConfigPrice(OSType.LINUX, LINUX_PRICE),
+                        createComputeTierConfigPrice(OSType.WINDOWS, WINDOWS_PRICE_ADJUSTMENT))))
             .build())
         .build();
 
-    private static final TopologyEntityDTO COMPUTE_TIER = TopologyEntityDTO.newBuilder()
+    /**
+     * Create a ComputeTierConfigPrice instance
+     * @param os the OS for which we want to create a ComputeTierConfigPrice
+     * @param price the dollar/hour price
+     * @return A ComputeTierConfigPrice object with the given fields
+     */
+    private static ComputeTierConfigPrice createComputeTierConfigPrice(OSType os, double price) {
+        return ComputeTierConfigPrice.newBuilder()
+            .setGuestOsType(os)
+            .addPrices(createPrice(price))
+            .build();
+    }
+
+    /**
+     * Create a ComputeTierPriceList instance
+     * @param baseOS the base OS for the price list
+     * @param prices the prices for the price list
+     * @return A ComputeTierPriceList object with the given prices
+     */
+    private static ComputeTierPriceList createComputeTierPriceList(OSType baseOS, List<ComputeTierConfigPrice> prices) {
+        ComputeTierPriceList.Builder computePriceList =  ComputeTierPriceList.newBuilder();
+
+        for (ComputeTierConfigPrice computePrice : prices) {
+            if (computePrice.getGuestOsType() == baseOS) {
+                computePriceList.setBasePrice(computePrice);
+            } else {
+                computePriceList.addPerConfigurationPriceAdjustments(computePrice);
+            }
+        }
+
+        return computePriceList.build();
+    }
+
+    /**
+     * Create a Price instance
+     * @param amount number of dollars
+     * @return A price object with the given fields
+     */
+    private static Price createPrice(double amount) {
+        return Price.newBuilder()
+            .setUnit(Unit.HOURS)
+            .setPriceAmount(CurrencyAmount.newBuilder()
+                .setAmount(amount)
+                .build())
+            .build();
+    }
+
+    /**
+     * Create a CommoditySoldDTO instance
+     * @param os the OS for which we want to create a license commodity
+     * @return A CommoditySoldDTO object for the given OS
+     */
+    private static CommoditySoldDTO createCommoditySoldDTO(String os) {
+        return CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                .setKey(os).build()).build();
+    }
+
+    private static final TopologyEntityDTO AWS_COMPUTE_TIER = TopologyEntityDTO.newBuilder()
         .setEntityType(EntityType.COMPUTE_TIER_VALUE)
-        .setOid(COMPUTE_TIER_ID)
+        .setOid(AWS_COMPUTE_TIER_ID)
+        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(ComputeTierInfo.newBuilder()
+                .setNumCoupons(1)
+                .setNumCores(NUM_OF_CORES)
+                .build())
+            .build())
+        .addCommoditySoldList(createCommoditySoldDTO(LINUX))
+        .addCommoditySoldList(createCommoditySoldDTO(WINDOWS))
+        .addCommoditySoldList(createCommoditySoldDTO(WINDOWS_WITH_SQL_WEB))
+        .addCommoditySoldList(createCommoditySoldDTO(RHEL))
+        .build();
+
+    private static final TopologyEntityDTO AZURE_COMPUTE_TIER = TopologyEntityDTO.newBuilder()
+        .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+        .setOid(AZURE_COMPUTE_TIER_ID)
+        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(ComputeTierInfo.newBuilder()
+                .setNumCoupons(1)
+                .setNumCores(NUM_OF_CORES)
+                .build())
+            .build())
+        .addCommoditySoldList(createCommoditySoldDTO(LINUX))
+        .addCommoditySoldList(createCommoditySoldDTO(WINDOWS))
+        .addCommoditySoldList(createCommoditySoldDTO(WINDOWS_WITH_SQL_WEB))
+        .addCommoditySoldList(createCommoditySoldDTO(RHEL))
         .build();
 
     private static final CommodityType FOO_STORAGE_ACCESS_COMM = CommodityType.newBuilder()
@@ -117,59 +226,242 @@ public class MarketPriceTableTest {
         .setOid(REGION_ID)
         .build();
 
-    private CloudCostData cloudCostData = mock(CloudCostData.class);
+    private CloudCostData<TopologyEntityDTO> cloudCostData = mock(CloudCostData.class);
 
     private CloudTopology<TopologyEntityDTO> topology = mock(CloudTopology.class);
 
-    private EntityInfoExtractor<TopologyEntityDTO> infoExtractor = mock(EntityInfoExtractor.class);
+    private EntityInfoExtractor<TopologyEntityDTO> infoExtractor = new TopologyEntityInfoExtractor();
+
+    private AccountPricingData<TopologyEntityDTO> accountPricingData =
+            mock(AccountPricingData.class);
 
     private DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory =
             mock(DiscountApplicatorFactory.class);
 
     @Before
     public void setup() {
-        when(cloudCostData.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(cloudCostData.getAccountPricingData(BUSINESS_ACCOUNT_ID)).thenReturn(Optional.ofNullable(accountPricingData));
+        when(cloudCostData.getAccountPricingData(BUSINESS_ACCOUNT_ID).get().getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
         when(topology.getEntity(REGION_ID)).thenReturn(Optional.of(REGION));
-        when(topology.getEntity(COMPUTE_TIER_ID)).thenReturn(Optional.of(COMPUTE_TIER));
+        when(topology.getEntity(AWS_COMPUTE_TIER_ID)).thenReturn(Optional.of(AWS_COMPUTE_TIER));
+        when(topology.getEntity(AZURE_COMPUTE_TIER_ID)).thenReturn(Optional.of(AZURE_COMPUTE_TIER));
         when(topology.getEntity(STORAGE_TIER_ID)).thenReturn(Optional.of(STORAGE_TIER));
+        /*initializeAWSLicensePriceTuples();
+        initializeAzureLicensePriceTuples();*/
+    }
+
+    private ComputeTierPriceList getComputePriceList(long tierID) {
+        return cloudCostData.getAccountPricingData(BUSINESS_ACCOUNT_ID).get().getPriceTable().getOnDemandPriceByRegionIdMap().get(REGION_ID)
+            .getComputePricesByTierIdMap().get(tierID);
+    }
+
+    private LicensePriceTuple createLicensePriceTuple(
+        double implicitPrice, double explicitPrice) {
+        LicensePriceTuple licensePriceTuple = Mockito.mock(LicensePriceTuple.class);
+        Mockito.when(licensePriceTuple.getImplicitOnDemandLicensePrice()).thenReturn(implicitPrice);
+        Mockito.when(licensePriceTuple.getExplicitOnDemandLicensePrice()).thenReturn(explicitPrice);
+        return licensePriceTuple;
+    }
+
+    private void initializeAWSLicensePriceTuples(Long businessAccountId) {
+        ComputeTierPriceList priceList = getComputePriceList(AWS_COMPUTE_TIER_ID);
+        LicensePriceTuple emptyLicenseTuple = createLicensePriceTuple(0.0, 0.0);
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.LINUX, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+            .thenReturn(emptyLicenseTuple);
+        LicensePriceTuple windowsLicenseTuple = createLicensePriceTuple(WINDOWS_PRICE_ADJUSTMENT,
+            0.0);
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+            .thenReturn(windowsLicenseTuple);
+        LicensePriceTuple windowsPALicenseTuple = createLicensePriceTuple(
+            WINDOWS_SQL_WEB_PRICE_ADJUSTMENT, 0.0);
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+            .thenReturn(windowsPALicenseTuple);
+        LicensePriceTuple redHatPALicenseTuple = createLicensePriceTuple(RHEL_PRICE_ADJUSTMENT,
+            0.0);
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.RHEL, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+            .thenReturn(redHatPALicenseTuple);
+    }
+
+    private void initializeAzureLicensePriceTuples(Long businessAccountId) {
+        ComputeTierPriceList priceList = getComputePriceList(AZURE_COMPUTE_TIER_ID);
+        LicensePriceTuple emptyLicenseTuple = createLicensePriceTuple(0.0, 0.0);
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.LINUX, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+            .thenReturn(emptyLicenseTuple);
+        LicensePriceTuple windowsLicenseTuple = createLicensePriceTuple(WINDOWS_PRICE_ADJUSTMENT,
+            0.0);
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+            .thenReturn(windowsLicenseTuple);
+        LicensePriceTuple windowsSqlWebPriceTuple = createLicensePriceTuple(WINDOWS_PRICE_ADJUSTMENT,
+            WINDOWS_SQL_WEB_LICENSE_PRICE);
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+            .thenReturn(windowsSqlWebPriceTuple);
+        LicensePriceTuple redHatLpPriceTuple = createLicensePriceTuple(0.0,
+            RHEL_LICENSE_PRICE);
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.RHEL, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
+            .thenReturn(redHatLpPriceTuple);
     }
 
     @Test
-    public void testComputePriceBundleNoDiscount() {
+    public void testAWSComputePriceBundleNoDiscount() {
         final long baId = 7L;
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
             .when(topology).getEntities();
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
-        final ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(COMPUTE_TIER_ID, REGION_ID);
+                infoExtractor);
+
+        AccountPricingData<TopologyEntityDTO> accountPricingData1 =
+                Mockito.mock(AccountPricingData.class);
+        when(accountPricingData1.getDiscountApplicator()).thenReturn(DiscountApplicator.noDiscount());
+        when(accountPricingData1.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData1.getAccountPricingDataOid()).thenReturn(baId);
+        when(cloudCostData.getAccountPricingData(baId))
+                .thenReturn(Optional.of(accountPricingData1));
+        initializeAWSLicensePriceTuples(baId);
+
+        ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(AWS_COMPUTE_TIER, REGION_ID, accountPricingData1);
+
         assertThat(priceBundle.getPrices(), containsInAnyOrder(
-                new ComputePrice(baId, OSType.LINUX, LINUX_PRICE, true),
-                new ComputePrice(baId, OSType.SUSE, LINUX_PRICE + SUSE_PRICE_ADJUSTMENT, false)));
+            new ComputePrice(baId, OSType.LINUX, LINUX_PRICE, true),
+            new ComputePrice(baId, OSType.WINDOWS, LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT,
+                false),
+            new ComputePrice(baId, OSType.WINDOWS_WITH_SQL_WEB, LINUX_PRICE +
+                WINDOWS_SQL_WEB_PRICE_ADJUSTMENT, false),
+            new ComputePrice(baId, OSType.RHEL, LINUX_PRICE + RHEL_PRICE_ADJUSTMENT,
+                false)));
     }
 
     @Test
-    public void testComputePriceBundleWithDiscount() {
+    public void testAzureComputePriceBundleNoDiscount() {
+        final long baId = 7L;
+        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
+            infoExtractor);
+
+        AccountPricingData<TopologyEntityDTO> accountPricingData1 =
+                Mockito.mock(AccountPricingData.class);
+        when(accountPricingData1.getDiscountApplicator()).thenReturn(DiscountApplicator.noDiscount());
+        when(accountPricingData1.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData1.getAccountPricingDataOid()).thenReturn(baId);
+        when(cloudCostData.getAccountPricingData(baId))
+                .thenReturn(Optional.of(accountPricingData1));
+        initializeAzureLicensePriceTuples(baId);
+
+        ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(AZURE_COMPUTE_TIER, REGION_ID, accountPricingData1);
+
+        assertThat(priceBundle.getPrices(), containsInAnyOrder(
+            new ComputePrice(baId, OSType.LINUX, LINUX_PRICE, true),
+            new ComputePrice(baId, OSType.WINDOWS, LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT,
+                false),
+            new ComputePrice(baId, OSType.WINDOWS_WITH_SQL_WEB, LINUX_PRICE +
+                WINDOWS_PRICE_ADJUSTMENT + WINDOWS_SQL_WEB_LICENSE_PRICE, false),
+            new ComputePrice(baId, OSType.RHEL, LINUX_PRICE + RHEL_LICENSE_PRICE,
+                false)));
+    }
+
+    @Test
+    public void testAWSComputePriceBundleWithDiscount() {
         final long noDiscountBaId = 7L;
         final DiscountApplicator<TopologyEntityDTO> noDiscount = DiscountApplicator.noDiscount();
 
         final long discountBaId = 17L;
         final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
-        when(discount.getDiscountPercentage(COMPUTE_TIER_ID)).thenReturn(0.2);
-
-        doReturn(ImmutableMap.of(
-                noDiscountBaId, makeBusinessAccount(noDiscountBaId, noDiscount),
-                discountBaId, makeBusinessAccount(discountBaId, discount)))
-            .when(topology).getEntities();
+        when(discount.getDiscountPercentage(AWS_COMPUTE_TIER_ID)).thenReturn(trax(0.2));
 
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
-        final ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(COMPUTE_TIER_ID, REGION_ID);
-        assertThat(priceBundle.getPrices(), containsInAnyOrder(
+                infoExtractor);
+
+        AccountPricingData<TopologyEntityDTO> accountPricingData1 =
+                Mockito.mock(AccountPricingData.class);
+        when(accountPricingData1.getDiscountApplicator()).thenReturn(noDiscount);
+        when(accountPricingData1.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData1.getAccountPricingDataOid()).thenReturn(noDiscountBaId);
+        when(cloudCostData.getAccountPricingData(noDiscountBaId))
+                .thenReturn(Optional.of(accountPricingData1));
+        initializeAWSLicensePriceTuples(noDiscountBaId);
+
+        AccountPricingData<TopologyEntityDTO> accountPricingData2 =
+                Mockito.mock(AccountPricingData.class);
+        when(accountPricingData2.getDiscountApplicator()).thenReturn(discount);
+        when(accountPricingData2.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData2.getAccountPricingDataOid()).thenReturn(discountBaId);
+        when(cloudCostData.getAccountPricingData(discountBaId))
+                .thenReturn(Optional.of(accountPricingData2));
+        initializeAWSLicensePriceTuples(discountBaId);
+
+        final ComputePriceBundle priceBundle1 = mktPriceTable.getComputePriceBundle(AWS_COMPUTE_TIER, REGION_ID, accountPricingData1);
+
+        final ComputePriceBundle priceBundle2 = mktPriceTable.getComputePriceBundle(AWS_COMPUTE_TIER, REGION_ID, accountPricingData2);
+
+        assertThat(priceBundle1.getPrices(), containsInAnyOrder(
                 new ComputePrice(noDiscountBaId, OSType.LINUX, LINUX_PRICE, true),
-                new ComputePrice(noDiscountBaId, OSType.SUSE, LINUX_PRICE + SUSE_PRICE_ADJUSTMENT, false),
-                new ComputePrice(discountBaId, OSType.LINUX, LINUX_PRICE * 0.8, true),
-                new ComputePrice(discountBaId, OSType.SUSE, (LINUX_PRICE + SUSE_PRICE_ADJUSTMENT) * 0.8, false)
-        ));
+                new ComputePrice(noDiscountBaId, OSType.WINDOWS, LINUX_PRICE +
+                    WINDOWS_PRICE_ADJUSTMENT, false),
+                new ComputePrice(noDiscountBaId, OSType.WINDOWS_WITH_SQL_WEB,
+                    LINUX_PRICE + WINDOWS_SQL_WEB_PRICE_ADJUSTMENT, false),
+                new ComputePrice(noDiscountBaId, OSType.RHEL, LINUX_PRICE +
+                    RHEL_PRICE_ADJUSTMENT, false)));
+
+        assertThat(priceBundle2.getPrices(), containsInAnyOrder(new ComputePrice(discountBaId, OSType.LINUX,
+                        LINUX_PRICE * 0.8, true),
+                new ComputePrice(discountBaId, OSType.WINDOWS,
+                    (LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT) * 0.8, false),
+                new ComputePrice(discountBaId, OSType.WINDOWS_WITH_SQL_WEB,
+                    (LINUX_PRICE + WINDOWS_SQL_WEB_PRICE_ADJUSTMENT) * 0.8, false),
+                new ComputePrice(discountBaId, OSType.RHEL,
+                    (LINUX_PRICE + RHEL_PRICE_ADJUSTMENT) * 0.8, false)));
+
+    }
+
+    @Test
+    public void testAzureComputePriceBundleWithDiscount() {
+        final long noDiscountBaId = 7L;
+        final DiscountApplicator<TopologyEntityDTO> noDiscount = DiscountApplicator.noDiscount();
+
+        final long discountBaId = 17L;
+        final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
+        when(discount.getDiscountPercentage(AZURE_COMPUTE_TIER_ID)).thenReturn(trax(0.2));
+
+        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology, infoExtractor);
+
+        AccountPricingData<TopologyEntityDTO> accountPricingData1 =
+                Mockito.mock(AccountPricingData.class);
+        when(accountPricingData1.getDiscountApplicator()).thenReturn(noDiscount);
+        when(accountPricingData1.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData1.getAccountPricingDataOid()).thenReturn(noDiscountBaId);
+        when(cloudCostData.getAccountPricingData(noDiscountBaId))
+                .thenReturn(Optional.of(accountPricingData1));
+        initializeAzureLicensePriceTuples(noDiscountBaId);
+
+        AccountPricingData<TopologyEntityDTO> accountPricingData2 =
+                Mockito.mock(AccountPricingData.class);
+        when(accountPricingData2.getDiscountApplicator()).thenReturn(discount);
+        when(accountPricingData2.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData2.getAccountPricingDataOid()).thenReturn(discountBaId);
+        when(cloudCostData.getAccountPricingData(discountBaId))
+                .thenReturn(Optional.of(accountPricingData2));
+        initializeAzureLicensePriceTuples(discountBaId);
+
+        final ComputePriceBundle priceBundle1 = mktPriceTable.getComputePriceBundle(AZURE_COMPUTE_TIER, REGION_ID, accountPricingData1);
+
+        final ComputePriceBundle priceBundle2 = mktPriceTable.getComputePriceBundle(AZURE_COMPUTE_TIER, REGION_ID, accountPricingData2);
+
+        assertThat(priceBundle1.getPrices(), containsInAnyOrder(
+                new ComputePrice(noDiscountBaId, OSType.LINUX, LINUX_PRICE, true),
+                new ComputePrice(noDiscountBaId, OSType.WINDOWS, LINUX_PRICE +
+                        WINDOWS_PRICE_ADJUSTMENT, false),
+                new ComputePrice(noDiscountBaId, OSType.WINDOWS_WITH_SQL_WEB,
+                        LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT + WINDOWS_SQL_WEB_LICENSE_PRICE,
+                        false),
+                new ComputePrice(noDiscountBaId, OSType.RHEL, LINUX_PRICE + RHEL_LICENSE_PRICE,
+                        false)));
+
+        assertThat(priceBundle2.getPrices(), containsInAnyOrder(new ComputePrice(discountBaId, OSType.LINUX, LINUX_PRICE * 0.8, true),
+                new ComputePrice(discountBaId, OSType.WINDOWS,
+                        (LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT) * 0.8, false),
+                new ComputePrice(discountBaId, OSType.WINDOWS_WITH_SQL_WEB,
+                        (LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT) * 0.8
+                                + WINDOWS_SQL_WEB_LICENSE_PRICE, false),
+                new ComputePrice(discountBaId, OSType.RHEL,
+                        LINUX_PRICE * 0.8 + RHEL_LICENSE_PRICE, false)));
     }
 
     @Test
@@ -196,42 +488,40 @@ public class MarketPriceTableTest {
                     .build())
                 .build())
             .build();
-        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
-
         final long baId = 7L;
-        doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
-                .when(topology).getEntities();
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
+                infoExtractor);
+        AccountPricingData accountPricingData =
+                new AccountPricingData<>(DiscountApplicator.noDiscount(), priceTable, baId);
         final StoragePriceBundle storagePriceBundle =
-                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
         final StorageTierPriceData[] expectedData = new StorageTierPriceData[]{
                 StorageTierPriceData.newBuilder()
-                    .setBusinessAccountId(baId)
+                    .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                            .setRegionId(REGION_ID).setPrice(10).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
                     // Accumulative price true because we have ranges
                     .setIsAccumulativeCost(true)
                     .setUpperBound(7)
-                    .setPrice(10)
                     .build(),
                 StorageTierPriceData.newBuilder()
-                    .setBusinessAccountId(baId)
+                    .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                            .setRegionId(REGION_ID).setPrice(5).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
                     // Accumulative price true because we have ranges
                     .setIsAccumulativeCost(true)
                     .setUpperBound(10)
-                    .setPrice(5)
                     .build(),
                 StorageTierPriceData.newBuilder()
-                    .setBusinessAccountId(baId)
+                    .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                            .setRegionId(REGION_ID).setPrice(4).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
                     // Accumulative price true because we have ranges
                     .setIsAccumulativeCost(true)
                     .setUpperBound(Double.POSITIVE_INFINITY)
-                    .setPrice(4)
                     .build()};
 
         // The prices for all storage amount commodities should be the same, because the price
@@ -261,33 +551,34 @@ public class MarketPriceTableTest {
                     .build())
                 .build())
             .build();
-        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
 
         final long baId = 7L;
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
                 .when(topology).getEntities();
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
+                infoExtractor);
+        AccountPricingData accountPricingData =
+                new AccountPricingData<>(DiscountApplicator.noDiscount(), priceTable, baId);
         final StoragePriceBundle storagePriceBundle =
-                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
 
         final List<StorageTierPriceData> expectedData = Lists.newArrayList(StorageTierPriceData.newBuilder()
-                .setBusinessAccountId(baId)
+                .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                        .setRegionId(REGION_ID).setPrice(10).build())
                 // Unit price true because it's priced per million-iops.
                 .setIsUnitPrice(true)
                 // Accumulative price true because we have ranges
                 .setIsAccumulativeCost(true)
                 .setUpperBound(7)
-                .setPrice(10)
                 .build(),
                 StorageTierPriceData.newBuilder()
-                        .setBusinessAccountId(baId)
+                        .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                                .setRegionId(REGION_ID).setPrice(5).build())
                         // Unit price true because it's priced per million-iops.
                         .setIsUnitPrice(true)
                         // Accumulative price true because we have ranges
                         .setIsAccumulativeCost(true)
                         .setUpperBound(Double.POSITIVE_INFINITY)
-                        .setPrice(5)
                         .build());
 
         // The prices for all storage amount commodities should be the same, because the price
@@ -312,24 +603,26 @@ public class MarketPriceTableTest {
                     .build())
                 .build())
             .build();
-        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
-
+        when(cloudCostData.getAccountPricingData(BUSINESS_ACCOUNT_ID)).thenReturn(Optional.ofNullable(accountPricingData));
+        when(cloudCostData.getAccountPricingData(BUSINESS_ACCOUNT_ID).get().getPriceTable()).thenReturn(priceTable);
+        when(accountPricingData.getDiscountApplicator()).thenReturn(DiscountApplicator.noDiscount());
         final long baId = 7L;
+        when(accountPricingData.getAccountPricingDataOid()).thenReturn(baId);
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
                 .when(topology).getEntities();
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
+                infoExtractor);
         final StoragePriceBundle storagePriceBundle =
-                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
 
         final StorageTierPriceData expectedData = StorageTierPriceData.newBuilder()
-                .setBusinessAccountId(baId)
+                .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                        .setRegionId(REGION_ID).setPrice(10).build())
                 // Not unit price, because it's a flat cost.
                 .setIsUnitPrice(false)
                 // Not accumulative because we don't have ranges.
                 .setIsAccumulativeCost(false)
                 .setUpperBound(Double.POSITIVE_INFINITY)
-                .setPrice(10)
                 .build();
 
         assertThat(storagePriceBundle.getPrices(FOO_STORAGE_AMOUNT_COMM), contains(expectedData));
@@ -357,34 +650,39 @@ public class MarketPriceTableTest {
                     .build())
                 .build())
             .build();
-        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
 
         final long baId = 7L;
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
                 .when(topology).getEntities();
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
+                infoExtractor);
+        AccountPricingData<TopologyEntityDTO> accountPricingData =
+                Mockito.mock(AccountPricingData.class);
+        when(accountPricingData.getAccountPricingDataOid()).thenReturn(baId);
+        when(accountPricingData.getDiscountApplicator()).thenReturn(DiscountApplicator.noDiscount());
+        when(cloudCostData.getAccountPricingData(baId)).thenReturn(Optional.of(accountPricingData));
+        when(cloudCostData.getAccountPricingData(baId).get().getPriceTable()).thenReturn(priceTable);
         final StoragePriceBundle storagePriceBundle =
-                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
 
         final List<StorageTierPriceData> expectedData = Lists.newArrayList(
             StorageTierPriceData.newBuilder()
-                .setBusinessAccountId(baId)
+                .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                        .setRegionId(REGION_ID).setPrice(10).build())
                 // Not unit price, because it's a flat cost for each range.
                 .setIsUnitPrice(false)
                 // Accumulative price true because we have ranges
                 .setIsAccumulativeCost(true)
                 .setUpperBound(7)
-                .setPrice(10)
                 .build(),
             StorageTierPriceData.newBuilder()
-                .setBusinessAccountId(baId)
+                .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                        .setRegionId(REGION_ID).setPrice(5).build())
                 // Not unit price, because it's a flat cost for each range.
                 .setIsUnitPrice(false)
                 // Accumulative price true because we have ranges
                 .setIsAccumulativeCost(true)
                 .setUpperBound(Double.POSITIVE_INFINITY)
-                .setPrice(5)
                 .build());
 
         // The prices for all storage amount commodities should be the same, because the price
@@ -414,39 +712,41 @@ public class MarketPriceTableTest {
                     .build())
                 .build())
             .build();
-        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
 
         final long baId = 7L;
         // Add a 20% discount for the storage tier.
         final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
-        when(discount.getDiscountPercentage(STORAGE_TIER_ID)).thenReturn(0.2);
-        doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, discount)))
-                .when(topology).getEntities();
+        when(discount.getDiscountPercentage(STORAGE_TIER_ID)).thenReturn(trax(0.2));
 
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
+                infoExtractor);
+        AccountPricingData<TopologyEntityDTO> accountPricingData
+                = Mockito.mock(AccountPricingData.class);
+        when(cloudCostData.getAccountPricingData(baId)).thenReturn(Optional.of(accountPricingData));
+        when(cloudCostData.getAccountPricingData(baId).get().getPriceTable()).thenReturn(priceTable);
+        when(accountPricingData.getDiscountApplicator()).thenReturn(discount);
+        when(accountPricingData.getAccountPricingDataOid()).thenReturn(baId);
         final StoragePriceBundle storagePriceBundle =
-                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
         final List<StorageTierPriceData> expectedData = Lists.newArrayList(
                 StorageTierPriceData.newBuilder()
-                    .setBusinessAccountId(baId)
+                    .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                            .setRegionId(REGION_ID).setPrice(8).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
                     // Accumulative price true because we have ranges
                     .setIsAccumulativeCost(true)
                     .setUpperBound(7)
                     // 20% off $10
-                    .setPrice(8)
                     .build(),
                 StorageTierPriceData.newBuilder()
-                    .setBusinessAccountId(baId)
+                    .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                            .setRegionId(REGION_ID).setPrice(4).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
                     // Accumulative price true because we have ranges
                     .setIsAccumulativeCost(true)
                     .setUpperBound(Double.POSITIVE_INFINITY)
-                    // 20% off $5
-                    .setPrice(4)
                     .build());
 
         // The prices for all storage amount commodities should be the same, because the price
@@ -463,7 +763,8 @@ public class MarketPriceTableTest {
                 .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .setOid(id)
                 .build();
-        doReturn(discountApplicator).when(discountApplicatorFactory).accountDiscountApplicator(id, topology, infoExtractor, cloudCostData);
+        doReturn(discountApplicator).when(discountApplicatorFactory).accountDiscountApplicator(id, topology, infoExtractor,
+                Optional.ofNullable(discountApplicator.getDiscount()));
         return businessAccount;
     }
 }

@@ -1,6 +1,7 @@
 package com.vmturbo.stitching.vcd;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,9 +13,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterRole;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.stitching.ListStringToStringDataDrivenStitchingOperation.ListMembershipStitchingIndex;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingScope;
@@ -52,7 +51,7 @@ import com.vmturbo.stitching.utilities.CopyCommodities;
  *          |  /        |
  *         DC1         DC2
  */
-public class ElasticVDCStitchingOperation implements StitchingOperation<List<String>, String> {
+public class ElasticVDCStitchingOperation implements StitchingOperation<String, String> {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -77,14 +76,14 @@ public class ElasticVDCStitchingOperation implements StitchingOperation<List<Str
     }
 
     @Override
-    public Optional<List<String>> getInternalSignature(
+    public Collection<String> getInternalSignature(
             @Nonnull final StitchingEntity internalEntity) {
-        return Optional.of(internalEntity.getEntityBuilder().getReplacesEntityIdList());
+        return internalEntity.getEntityBuilder().getReplacesEntityIdList();
     }
 
     @Override
-    public Optional<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
-        return Optional.of(externalEntity.getEntityBuilder().getId());
+    public Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
+        return Collections.singleton(externalEntity.getEntityBuilder().getId());
     }
 
     @Nonnull
@@ -221,23 +220,5 @@ public class ElasticVDCStitchingOperation implements StitchingOperation<List<Str
         }
         return VirtualDatacenterRole.PRODUCER.equals(stitchingEntity.getEntityBuilder()
             .getVirtualDatacenterData().getVdcTypeProps().getRole());
-    }
-
-    /**
-     *  We are using replacesEntityId in Elastic VDC as the key, and the List of replacesEntityId as
-     *  value. The replacesEntityId is also the UUID of external VDC entity in VC. According to the
-     *  logic we can simply use {@link ListMembershipStitchingIndex} to build stitching index.
-     *
-     *  external signature        internal signature
-     *  replacesEntityId -&gt; [replacesEntityId, replacesEntityId2]
-     *  replacesEntityId2 -&gt; [replacesEntityId, replacesEntityId2]
-     *
-     *  We find all the external VDC which UUID match the key in the stitching index, and create
-     *  matching pair for the matched internal Elastic VDC and external VDC.
-     */
-    @Nonnull
-    @Override
-    public StitchingIndex<List<String>, String> createIndex(final int expectedSize) {
-        return new ListMembershipStitchingIndex(expectedSize);
     }
 }

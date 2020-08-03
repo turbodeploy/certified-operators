@@ -5,19 +5,19 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
-
-import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportNotification;
 
 /**
@@ -37,6 +37,9 @@ public class ReportingClientConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
+    @Value("${kafkaReceiverTimeoutSeconds:3600}")
+    private int kafkaReceiverTimeoutSeconds;
+
     /**
      * GRPC channel to connect to reporting component's GRPC services.
      *
@@ -44,7 +47,7 @@ public class ReportingClientConfig {
      */
     @Bean
     public Channel reportingChannel() {
-        return GrpcChannelFactory.newChannelBuilder(reportingHost, grpcPort)
+        return ComponentGrpcServer.newChannelBuilder(reportingHost, grpcPort)
                 .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
     }
@@ -66,6 +69,6 @@ public class ReportingClientConfig {
     @Bean
     public ReportingNotificationReceiver reportingNotificationReceiver() {
         return new ReportingNotificationReceiver(reportNotificationIMessageReceiver(),
-                reportingThreadPool());
+                reportingThreadPool(), kafkaReceiverTimeoutSeconds);
     }
 }

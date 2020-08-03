@@ -3,22 +3,25 @@ package com.vmturbo.plan.orchestrator.scheduled;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
+
+import com.google.protobuf.util.JsonFormat;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 import org.springframework.dao.DataAccessResourceFailureException;
 
-import com.google.protobuf.util.JsonFormat;
-
-import com.vmturbo.common.protobuf.plan.PlanDTO;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
 import com.vmturbo.plan.orchestrator.project.PlanProjectInfoNotFoundException;
 import com.vmturbo.plan.orchestrator.project.PlanProjectNotFoundException;
-import com.vmturbo.plan.orchestrator.scheduled.PlanProjectScheduler;
 
 /**
  * This class creates default system plan projects, which are specified in a JSON file.
@@ -54,12 +57,12 @@ public class SystemPlanProjectLoader {
     }
 
     /**
-     * Read the JSON config file and load data into a List of {@link PlanDTO.PlanProjectInfo} objects
+     * Read the JSON config file and load data into a List of {@link PlanProjectOuterClass.PlanProjectInfo} objects
      *
      * @return a list of PlanProjectInfo objects
      */
-    private List<PlanDTO.PlanProjectInfo> getDefaultSystemPlanProjectInfo() {
-        PlanDTO.PlanProjectInfoCollection.Builder collectionBuilder = PlanDTO.PlanProjectInfoCollection.newBuilder();
+    private List<PlanProjectOuterClass.PlanProjectInfo> getDefaultSystemPlanProjectInfo() {
+        PlanProjectOuterClass.PlanProjectInfoCollection.Builder collectionBuilder = PlanProjectOuterClass.PlanProjectInfoCollection.newBuilder();
 
         // open the file and create a reader for it
         try (InputStream inputStream = Thread.currentThread()
@@ -75,7 +78,7 @@ public class SystemPlanProjectLoader {
                     defaultHeadroomPlanProjectJsonFile, e);
         }
 
-        final PlanDTO.PlanProjectInfoCollection planProjectInfoCollection = collectionBuilder.build();
+        final PlanProjectOuterClass.PlanProjectInfoCollection planProjectInfoCollection = collectionBuilder.build();
 
         return planProjectInfoCollection.getPlanProjectInfoList();
     }
@@ -88,20 +91,19 @@ public class SystemPlanProjectLoader {
         waitTillDatabaseComeUp();
 
         // Read the list of system plan projects from the JSON file.
-        List<PlanDTO.PlanProjectInfo> planProjectInfos = getDefaultSystemPlanProjectInfo();
+        List<PlanProjectOuterClass.PlanProjectInfo> planProjectInfos = getDefaultSystemPlanProjectInfo();
 
-        for (PlanDTO.PlanProjectInfo planProjectInfo : planProjectInfos) {
-            PlanDTO.PlanProjectType projectType = planProjectInfo.getType();
-            List<PlanDTO.PlanProject> planProjects = planProjectDao.getPlanProjectsByType(projectType);
+        for (PlanProjectOuterClass.PlanProjectInfo planProjectInfo : planProjectInfos) {
+            PlanProjectOuterClass.PlanProjectType projectType = planProjectInfo.getType();
+            List<PlanProjectOuterClass.PlanProject> planProjects = planProjectDao.getPlanProjectsByType(projectType);
             // Only create the plan project if it does not already exist.
             if (planProjects.isEmpty()) {
                 logger.info("Creating plan project {}.", planProjectInfo.getName());
                 // create the project
                 try {
-                    PlanDTO.PlanProject planProject = planProjectDao.createPlanProject(planProjectInfo);
+                    PlanProjectOuterClass.PlanProject planProject = planProjectDao.createPlanProject(planProjectInfo);
                     planProjectScheduler.setPlanProjectSchedule(planProject.getPlanProjectId());
-                    logger.info("Plan scheduler successfully scheduled plan: {}",
-                            planProjectInfo.getName());
+                    logger.info("Plan scheduler successfully scheduled plan: {}", planProjectInfo.getName());
                 } catch (DataAccessException e) {
                     logger.error("Failed to create system plan project {}: {}",
                             planProjectInfo.getName(), e.getMessage());
@@ -116,6 +118,18 @@ public class SystemPlanProjectLoader {
                 }
             }
         }
+
+        for (PlanProjectOuterClass.PlanProject planProject: planProjectDao.getAllPlanProjects()) {
+            Optional<Long> delayMicros = planProjectScheduler.getPlanProjectSchedule(planProject.getPlanProjectId())
+                    .map(schedule -> schedule.getDelay(TimeUnit.MICROSECONDS));
+            if (delayMicros.isPresent()) {
+                logger.info("Plan Project {} next execution at {}",
+                        planProject.getPlanProjectInfo().getName(),
+                        Instant.now().plus(delayMicros.get(), ChronoUnit.MICROS));
+            } else {
+                logger.info("Plan Project {} not scheduled", planProject.getPlanProjectInfo().getName());
+            }
+        }
     }
 
     /**
@@ -126,7 +140,7 @@ public class SystemPlanProjectLoader {
     private void waitTillDatabaseComeUp() throws InterruptedException {
         for (int i = 0; i < MAX_NUM_OF_DB_CONNEDTION_TESTS; i++) {
             try {
-                planProjectDao.getPlanProjectsByType(PlanDTO.PlanProjectType.CLUSTER_HEADROOM);
+                planProjectDao.getPlanProjectsByType(PlanProjectOuterClass.PlanProjectType.CLUSTER_HEADROOM);
                 break;
             } catch (DataAccessResourceFailureException e) {
                 // the select query failed. Database connection failed.

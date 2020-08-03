@@ -344,6 +344,50 @@ services:
       instance_id: mediation-netapp-1
     restart: always
 
+  mediation-nutanix-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.nutanix.component
+    environment:
+      consul_host: consul
+      component_type: mediation-nutanix
+      instance_id: mediation-nutanix-1
+    restart: always
+
+  mediation-intersightucs-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.intersight.ucs.component
+    environment:
+      consul_host: consul
+      component_type: mediation-intersightucs
+      instance_id: mediation-intersightucs-1
+    restart: always
+
+  mediation-intersighthyperflex-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.intersight.hyperflex.component
+    environment:
+      consul_host: consul
+      component_type: mediation-intersighthyperflex
+      instance_id: mediation-intersighthyperflex-1
+    restart: always
+
+  mediation-intersight-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.intersight.server.component
+    environment:
+      consul_host: consul
+      component_type: mediation-intersight
+      instance_id: mediation-intersight-1
+    restart: always
+
   mediation-ucs-prod:
     extends:
       file: common-services.yml
@@ -534,6 +578,20 @@ services:
       - mediation-awscost:/home/turbonomic/data
     restart: always
 
+  mediation-datadog-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.datadog.component
+    environment:
+      consul_host: consul
+      component_type: mediation-datadog
+      instance_id: mediation-datadog-1
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
+    restart: always
+
   mediation-azure-prod:
     extends:
       file: common-services.yml
@@ -564,6 +622,34 @@ services:
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     volumes:
       - mediation-azurecost:/home/turbonomic/data
+    restart: always
+
+  mediation-azureea-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.azure.ea.component
+    environment:
+      consul_host: consul
+      component_type: mediation-azureea
+      instance_id: mediation-azureea-1
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
+    restart: always
+
+  mediation-azuresp-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.azure.sp.component
+    environment:
+      consul_host: consul
+      component_type: mediation-azuresp
+      instance_id: mediation-azuresp-1
+      # overriding the tmpdir location because the cloud probes download large files to temp, and we
+      # don't want these to go to a memory-backed volume like /tmp
+      MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     restart: always
 
   mediation-azure-volumes-prod:
@@ -613,6 +699,17 @@ services:
       instance_id: mediation-mssql-1
     restart: always
 
+  mediation-mysql-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.database.mysql.component
+    environment:
+      consul_host: consul
+      component_type: mediation-mysql
+      instance_id: mediation-mysql-1
+    restart: always
+
   mediation-actionscript-prod:
     extends:
       file: common-services.yml
@@ -655,6 +752,50 @@ services:
       consul_host: consul
       component_type: mediation-appdynamics
       instance_id: mediation-appdynamics-1
+    restart: always
+
+  mediation-newrelic-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.newrelic.component
+    environment:
+      consul_host: consul
+      component_type: mediation-newrelic
+      instance_id: mediation-newrelic-1
+    restart: always
+
+  mediation-udt-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.udt.component
+    environment:
+      consul_host: consul
+      component_type: mediation-udt
+      instance_id: mediation-udt-1
+    restart: always
+
+  mediation-appinsights-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.appinsights.component
+    environment:
+      consul_host: consul
+      component_type: mediation-appinsights
+      instance_id: mediation-appinsights-1
+    restart: always
+
+  mediation-customdata-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.custom.data.component
+    environment:
+      consul_host: consul
+      component_type: mediation-customdata
+      instance_id: mediation-customdata-1
     restart: always
 
   mediation-dynatrace-prod:

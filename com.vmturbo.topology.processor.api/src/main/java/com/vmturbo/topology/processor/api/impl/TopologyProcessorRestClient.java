@@ -8,11 +8,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.http.RequestEntity;
-
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.RequestEntity;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
@@ -46,13 +46,13 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
 
     private final ProbeRestClient getProbeClient;
 
-    private final TargetRestClient addTargetClient;
+    private final SensitiveDataTargetRestClient addTargetClient;
 
     private final TargetRestClient getTargetClient;
 
     private final NoExceptionsRestClient<GetAllTargetsResponse> getAllTargetsClient;
 
-    private final TargetRestClient updateTargetsClient;
+    private final SensitiveDataTargetRestClient updateTargetsClient;
 
     private final TargetRestClient remoteTargetsClient;
 
@@ -72,13 +72,14 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
 
         getAllProbesClient = new NoExceptionsRestClient<>(GetAllProbes.class);
         getProbeClient = new ProbeRestClient();
-        addTargetClient = new TargetRestClient(HttpStatus.BAD_REQUEST);
+        addTargetClient = new SensitiveDataTargetRestClient(HttpStatus.BAD_REQUEST);
         getTargetClient = new TargetRestClient(HttpStatus.NOT_FOUND);
         getAllTargetsClient = new NoExceptionsRestClient<>(GetAllTargetsResponse.class);
-        updateTargetsClient = new TargetRestClient(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND,
+        updateTargetsClient = new SensitiveDataTargetRestClient(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND,
                         HttpStatus.SERVICE_UNAVAILABLE);
         remoteTargetsClient =
-                        new TargetRestClient(HttpStatus.NOT_FOUND, HttpStatus.SERVICE_UNAVAILABLE);
+                new TargetRestClient(HttpStatus.NOT_FOUND, HttpStatus.SERVICE_UNAVAILABLE,
+                        HttpStatus.FORBIDDEN);
         targetOperationClient = new OperationResultRestClient();
         validateAllClient = new NoExceptionsRestClient<>(ValidateAllResponse.class);
         discoverAllClient = new NoExceptionsRestClient<>(DiscoverAllResponse.class);
@@ -197,6 +198,20 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
         }
     }
 
+    /**
+     * TargetRestClient that omits the body of the request in the message of any
+     * CommunicationExceptions that are generated during execution.
+     */
+    private class SensitiveDataTargetRestClient extends TargetRestClient {
+        SensitiveDataTargetRestClient(HttpStatus... apiStatusCodes) {
+            super(apiStatusCodes);
+        }
+
+        @Override
+        protected String createCommunicationExceptionMessage(final RequestEntity<?> request) {
+            return "Error executing target request " + request.getUrl();
+        }
+    }
     /**
      * Rest client, returning {@link TargetInfo} response.
      */

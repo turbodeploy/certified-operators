@@ -1,23 +1,33 @@
 package com.vmturbo.components.common;
 
-import java.util.Optional;
-
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.core.env.Environment;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
+import com.vmturbo.common.protobuf.logging.LoggingREST.TracingConfigurationServiceController;
+import com.vmturbo.common.protobuf.logging.MemoryMetricsREST.MemoryMetricsServiceController;
+import com.vmturbo.common.protobuf.memory.HeapDumper;
+import com.vmturbo.components.common.config.SpringConfigSource;
+import com.vmturbo.components.common.diagnostics.DiagnosticService;
+import com.vmturbo.components.common.diagnostics.FileFolderZipper;
 import com.vmturbo.components.common.health.DeadlockHealthMonitor;
 import com.vmturbo.components.common.health.MemoryMonitor;
 import com.vmturbo.components.common.logging.LogConfigurationService;
+import com.vmturbo.components.common.logging.MemoryMetricsRpcService;
+import com.vmturbo.components.common.logging.TracingConfigurationRpcService;
 import com.vmturbo.components.common.metrics.ComponentLifespanMetrics;
-import com.vmturbo.components.common.migration.MigrationFramework;
 import com.vmturbo.components.common.migration.MigrationController;
+import com.vmturbo.components.common.migration.MigrationFramework;
+import com.vmturbo.components.common.tracing.TracingManager;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 
@@ -26,22 +36,23 @@ import com.vmturbo.kvstore.KeyValueStoreConfig;
  **/
 @Configuration
 @Import({BaseVmtComponentConfig.DebugSwaggerConfig.class, KeyValueStoreConfig.class,
-        ConsulDiscoveryManualConfig.class})
+        ConsulRegistrationConfig.class})
 public class BaseVmtComponentConfig {
+
+    @Autowired
+    private Environment environment;
 
     @Value("${deadlockCheckIntervalSecs:900}")
     private int deadlockCheckIntervalSecs;
 
-
-    @Value("${maxHealthyUsedMemoryRatio:0.95}")
-    private double maxHealthyUsedMemoryRatio;
-
+    @Value("${enableMemoryMonitor:true}")
+    private boolean enableMemoryMonitor;
 
     /**
      * Required to fill @{...} @Value annotations referencing
      * properties from the diagnostic.properties.
      *
-     * See:
+     * <p>See:
      * https://docs.spring.io/spring/docs/4.2.4.RELEASE/javadoc-api/org/springframework/context/annotation/PropertySource.html
      *
      * @return The configurer.
@@ -49,6 +60,11 @@ public class BaseVmtComponentConfig {
     @Bean
     public static PropertySourcesPlaceholderConfigurer configurer() {
         return new PropertySourcesPlaceholderConfigurer();
+    }
+
+    @Bean
+    public SpringConfigSource configSource() {
+        return new SpringConfigSource(environment);
     }
 
     @Bean
@@ -89,7 +105,7 @@ public class BaseVmtComponentConfig {
     @Bean
     public MemoryMonitor memoryMonitor() {
         // creates a memory monitor that reports unhealthy when old gen seems to be full
-        return new MemoryMonitor(maxHealthyUsedMemoryRatio);
+        return enableMemoryMonitor ? new MemoryMonitor(configSource()) : null;
     }
 
     @Bean
@@ -104,7 +120,14 @@ public class BaseVmtComponentConfig {
 
     @Bean
     public MigrationFramework migrationFramework() {
-        return new MigrationFramework(keyValueStore());
+        final Boolean enableConsulRegistration = EnvironmentUtils
+            .getOptionalEnvProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION)
+            .map(Boolean::parseBoolean)
+            .orElse(true);
+        if (enableConsulRegistration) {
+            return new MigrationFramework(keyValueStore());
+        }
+        return null;
     }
 
     @Bean
@@ -118,8 +141,33 @@ public class BaseVmtComponentConfig {
     }
 
     @Bean
+    public TracingConfigurationRpcService tracingConfigurationRpcService() {
+        return new TracingConfigurationRpcService(TracingManager.get());
+    }
+
+    @Bean
+    public HeapDumper heapDumper() {
+        return new HeapDumper();
+    }
+
+    @Bean
+    public MemoryMetricsRpcService memoryMetricsRpcService() {
+        return new MemoryMetricsRpcService(heapDumper());
+    }
+
+    @Bean
+    public TracingConfigurationServiceController tracingConfigurationServiceController() {
+        return new TracingConfigurationServiceController(tracingConfigurationRpcService());
+    }
+
+    @Bean
     public LogConfigurationServiceController logConfigurationServiceController() {
         return new LogConfigurationServiceController(logConfigurationService());
+    }
+
+    @Bean
+    public MemoryMetricsServiceController memoryMetricsServiceController() {
+        return new MemoryMetricsServiceController(memoryMetricsRpcService());
     }
 
     /**

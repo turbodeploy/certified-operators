@@ -17,29 +17,39 @@ import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreResize
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreSuspendActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.ProvisionActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeVmemDownInBetweenThresholds;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeVmemUpInBetweenThresholds;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.SuspendActionWorkflow;
 
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
-import com.vmturbo.action.orchestrator.store.EntitiesCache;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -49,14 +59,17 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.commons.Units;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -64,31 +77,41 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * given some user settings.
  */
 public class ActionModeCalculator {
+    private static final Map<Integer, EntitySettingSpecs>
+                    PROVIDER_ENTITY_TYPE_TO_MOVE_SETTING_SPECS =
+                    ImmutableMap.of(EntityType.STORAGE_VALUE, EntitySettingSpecs.StorageMove,
+                                    EntityType.DESKTOP_POOL_VALUE,
+                                    EntitySettingSpecs.BusinessUserMove);
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final ActionTranslator actionTranslator;
-
     private final RangeAwareSpecCalculator rangeAwareSpecCalculator;
 
-    private static final ImmutableSet<Integer> nonDisruptiveSettingCommodities = ImmutableSet.of(
-                    CommodityDTO.CommodityType.VCPU_VALUE,
-                    CommodityDTO.CommodityType.VMEM_VALUE);
-
-    public ActionModeCalculator(@Nonnull ActionTranslator actionTranslator) {
-        this.actionTranslator = actionTranslator;
+    /**
+     * Constructs a ActionModeCalculator with the default RangeAwareSpecCalculator.
+     */
+    public ActionModeCalculator() {
         this.rangeAwareSpecCalculator = new RangeAwareSpecCalculator();
     }
 
-    // This is present in case we want to test just ActionModeCalculator without
-    // rangeAwareSpecCalculator. In that case, it cane be mocked if needed.
-    @VisibleForTesting
-    ActionModeCalculator(@Nonnull ActionTranslator actionTranslator,
-                                @Nonnull RangeAwareSpecCalculator rangeAwareSpecCalculator) {
-        this.actionTranslator = actionTranslator;
-        this.rangeAwareSpecCalculator = rangeAwareSpecCalculator;
-    }
-
+    /**
+     * Map from commodity attribute and commodity type to the correct entitySettingSpec. This is
+     * only used for vms, since we have different type of resize based on the commodity and the
+     * attribute.
+     */
+    private static final Map<CommodityAttribute, Map<Integer, EntitySettingSpecs>> VMS_ACTION_MODE_SETTINGS =
+        new ImmutableMap.Builder<CommodityAttribute, Map<Integer, EntitySettingSpecs>>()
+            .put(CommodityAttribute.LIMIT,
+                new ImmutableMap.Builder<Integer, EntitySettingSpecs>()
+                    .put(CommodityType.VCPU.getNumber(), ResizeVcpuUpInBetweenThresholds)
+                    .put(CommodityType.VMEM.getNumber(), ResizeVmemUpInBetweenThresholds)
+                    .build())
+            .put(CommodityAttribute.RESERVED,
+                new ImmutableMap.Builder<Integer, EntitySettingSpecs>()
+                    .put(CommodityType.CPU.getNumber(), ResizeVcpuDownInBetweenThresholds)
+                    .put(CommodityType.MEM.getNumber(), ResizeVmemDownInBetweenThresholds)
+                    .build())
+            .build();
     /**
      * Map from an actionType -> corresponding Workflow Action EntitySettingsSpec if
      * the actionType may be overridden. Used to calculate the action mode for Workflow
@@ -159,24 +182,68 @@ public class ActionModeCalculator {
                     .build();
 
     /**
-     * Get the action mode for a particular action. The action mode is determined by the
-     * settings for the action, or, if the settings are not available, by the system defaults of
+     * Get the action mode and execution schedule for a particular action. The both of these are
+     * determined by the settings for the action, or, if the settings are not available, by the
+     * system defaults of
      * the relevant automation settings.
      *
      * @param action The action to calculate action mode for.
-     * @param entitiesCache The {@link EntitiesCache} to retrieve settings for. May
+     * @param entitiesCache The {@link EntitiesAndSettingsSnapshotFactory} to retrieve settings for. May
      *                            be null.
      *                            TODO (roman, Aug 7 2018): Can we make this non-null? The cache
      *                            should exist as a spring object and be injected appropriately.
-     * @return The {@link ActionMode} to use for the action.
+     * @return The {@link ActionMode} and {@link ActionSchedule} to use for the action.
      */
     @Nonnull
-    public ActionMode calculateActionMode(@Nonnull final ActionView action,
-                @Nullable final EntitiesCache entitiesCache) {
-        final boolean translationSuccess = actionTranslator.translate(action);
-        if (!translationSuccess){
-            return ActionMode.RECOMMEND;
+    ModeAndSchedule calculateActionModeAndExecutionSchedule(@Nonnull final ActionView action,
+                                   @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
+        Optional<ActionMode> workflowMode = calculateWorkflowActionMode(action, entitiesCache);
+
+        if (workflowMode.isPresent()) {
+            return ModeAndSchedule.of(workflowMode.get());
+        } else {
+            ModeAndSchedule supportingLevelActionModeAndSchedule =
+                calculateActionModeFromSupportingLevel(action, entitiesCache);
+            if (action.getRecommendation().getPrerequisiteList().isEmpty()) {
+                return supportingLevelActionModeAndSchedule;
+            } else {
+                return ModeAndSchedule.of(ActionMode.RECOMMEND.compareTo(supportingLevelActionModeAndSchedule.getMode()) < 0
+                    ? ActionMode.RECOMMEND : supportingLevelActionModeAndSchedule.getMode());
+            }
         }
+    }
+
+    /**
+     * Calculate action mode and execution schedule based on support level from probe and target
+     * entity settings.
+     *
+     * @param action an action
+     * @param entitiesCache a nullable entitis and settings snapshot
+     * @return the action mode and execution schedule
+     */
+    @Nonnull
+    private ModeAndSchedule calculateActionModeFromSupportingLevel(
+            @Nonnull final ActionView action,
+            @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
+        switch (action.getRecommendation().getSupportingLevel()) {
+            case UNSUPPORTED:
+            case UNKNOWN:
+                return ModeAndSchedule.of(ActionMode.DISABLED);
+            case SHOW_ONLY:
+                final ActionMode mode = getNonWorkflowActionMode(
+                    action, entitiesCache).getMode();
+                return ModeAndSchedule.of((mode.getNumber() > ActionMode.RECOMMEND_VALUE)
+                    ? ActionMode.RECOMMEND : mode);
+            case SUPPORTED:
+                return getNonWorkflowActionMode(action, entitiesCache);
+            default:
+                throw new IllegalArgumentException("Action SupportLevel is of unrecognized type.");
+        }
+    }
+
+    @Nonnull
+    private ModeAndSchedule getNonWorkflowActionMode(@Nonnull final ActionView action,
+              @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
         Optional<ActionDTO.Action> translatedRecommendation = action.getActionTranslation()
                 .getTranslatedRecommendation();
         if (translatedRecommendation.isPresent()) {
@@ -184,55 +251,347 @@ public class ActionModeCalculator {
             try {
                 final long targetEntityId = ActionDTOUtil.getPrimaryEntityId(actionDto);
 
-                final Map<String, Setting> settingsForTargetEntity = entitiesCache == null ?
-                        Collections.emptyMap() : entitiesCache.getSettingsForEntity(targetEntityId);
+                final Map<String, Setting> settingsForTargetEntity = entitiesCache == null
+                    ? Collections.emptyMap() : entitiesCache.getSettingsForEntity(targetEntityId);
 
                 return specsApplicableToAction(actionDto, settingsForTargetEntity)
-                        .map(spec -> {
-                            final Setting setting = settingsForTargetEntity.get(spec.getSettingName());
-                            if (spec == EntitySettingSpecs.EnforceNonDisruptive) {
-                                // Default is to return most liberal setting because calculateActionMode picks
-                                // the minimum ultimately.
-                                ActionMode mode = ActionMode.AUTOMATIC;
-                                if (setting != null && setting.hasBooleanSettingValue()
-                                        && setting.getBooleanSettingValue().getValue()) {
-                                    Optional<TopologyEntityDTO> entity = entitiesCache.getEntityFromOid(targetEntityId);
-                                    if (entity.isPresent()) {
-                                        mode = applyNonDisruptiveSetting(entity.get(), action.getRecommendation());
-                                    } else {
-                                        logger.error("Entity with id {} not found for non-disruptive setting.",
-                                                        targetEntityId);
-                                    }
-                                }
-                                return mode.name();
-                            } else {
-                                if (setting == null) {
-                                    // If there is no setting for this spec that applies to the target
-                                    // of the action, we use the system default (which comes from the
-                                    // enum definitions).
-                                    return spec.getSettingSpec().getEnumSettingValueType().getDefault();
+                    .map(spec -> {
+                        final Setting setting = settingsForTargetEntity.get(spec.getSettingName());
+                        if (spec == EntitySettingSpecs.EnforceNonDisruptive) {
+                            // Default is to return most liberal setting because calculateActionMode picks
+                            // the minimum ultimately.
+                            ActionMode mode = ActionMode.AUTOMATIC;
+                            if (setting != null && setting.hasBooleanSettingValue()
+                                && setting.getBooleanSettingValue().getValue()) {
+                                Optional<ActionPartialEntity> entity = entitiesCache.getEntityFromOid(targetEntityId);
+                                if (entity.isPresent()) {
+                                    mode = applyNonDisruptiveSetting(entity.get(), action.getRecommendation());
                                 } else {
-                                    // In all other cases, we use the default value from the setting.
-                                    return setting.getEnumSettingValue().getValue();
+                                    logger.error("Entity with id {} not found for non-disruptive setting.",
+                                        targetEntityId);
                                 }
                             }
-                        })
-                        .map(ActionMode::valueOf)
-                        // We're not using a proper tiebreaker because we're comparing across setting specs.
-                        .min(ActionMode::compareTo)
-                        .orElse(ActionMode.RECOMMEND);
+                            return Pair.of(mode, Collections.<Long>emptyList());
+                        } else {
+                            if (setting == null) {
+                                // If there is no setting for this spec that applies to the target
+                                // of the action, we use the system default (which comes from the
+                                // enum definitions).
+                                return Pair.of(ActionMode.valueOf(spec.getSettingSpec().getEnumSettingValueType().getDefault()),
+                                    Collections.<Long>emptyList());
+                            } else {
+                                List<Long> scheduleIds = Collections.emptyList();
+                                final String scheduleSettingSpecName =
+                                    getExecutionWindowSettingSpec(spec);
+
+                                if (scheduleSettingSpecName != null
+                                    && settingsForTargetEntity.containsKey(scheduleSettingSpecName)) {
+                                    scheduleIds = settingsForTargetEntity.get(scheduleSettingSpecName)
+                                            .getSortedSetOfOidSettingValue().getOidsList();
+                                }
+
+                                // In all other cases, we use the default value from the setting.
+                                return Pair.of(ActionMode.valueOf(setting.getEnumSettingValue().getValue()),
+                                    scheduleIds);
+                            }
+                        }
+                    })
+                    // We're not using a proper tiebreaker because we're comparing across setting specs.
+                    .min(Comparator.comparing(Pair::getLeft))
+                    // select the schedule from the list of schedules
+                    .map(p -> getModeAndSchedule(action, p.getLeft(), p.getRight(), entitiesCache))
+                    .orElse(ModeAndSchedule.of(ActionMode.RECOMMEND));
+
             } catch (UnsupportedActionException e) {
                 logger.error("Unable to calculate action mode.", e);
-                return ActionMode.RECOMMEND;
+                return ModeAndSchedule.of(ActionMode.RECOMMEND);
             }
         } else {
-            logger.error("Action {} has no translated recommendation despite successful translation.", action.getId());
-            return ActionMode.RECOMMEND;
+            logger.error("Action {} has no translated recommendation.", action.getId());
+            return ModeAndSchedule.of(ActionMode.RECOMMEND);
         }
     }
 
+    /**
+     * This method gets the selected action mode for an action and list of schedules associated
+     * with action and selects the mode for the action and its schedule.
+     *
+     * @param action the action in question.
+     * @param chosenMode the mode chosen for action based on settings.
+     * @param scheduleIds the schedule ids associates to action.
+     * @param entitiesCache the entities cache.
+     * @return the result mode and schedule.
+     */
+    @Nonnull
+    private ModeAndSchedule getModeAndSchedule(@Nonnull ActionView action,
+                                               @Nonnull ActionMode chosenMode, @Nonnull List<Long> scheduleIds,
+                                               @Nullable EntitiesAndSettingsSnapshot entitiesCache) {
 
-    private ActionMode applyNonDisruptiveSetting(TopologyEntityDTO entity, Action action) {
+        if ((chosenMode != ActionMode.MANUAL && chosenMode != ActionMode.AUTOMATIC
+                && chosenMode != ActionMode.EXTERNAL_APPROVAL) || scheduleIds.isEmpty()
+                || entitiesCache == null) {
+            return ModeAndSchedule.of(chosenMode);
+        }
+
+        logger.debug("Schedules with OIDs `{}` are associated with action `{}`",
+            () -> scheduleIds.stream().map(String::valueOf).collect(Collectors.joining(", ")),
+            () -> action);
+
+        final String acceptedBy =
+            entitiesCache.getAcceptingUserForAction(action.getRecommendationOid()).orElse(null);
+
+        // Select the schedule that we use for the action
+        final ActionSchedule selectedSchedule = createActionSchedule(scheduleIds, chosenMode,
+            entitiesCache, acceptedBy);
+
+        // If we are here it means there are some schedules associated to this action and if
+        // the selected schedule is null it means something has gone wrong. Therefore, we go with
+        // recommend action mode to be on the safe side.
+        if (selectedSchedule == null) {
+            logger.warn("Cannot find any schedule to associate to action `{}`. Setting the mode to "
+                + "`RECOMMEND`.", action);
+            return ModeAndSchedule.of(ActionMode.RECOMMEND);
+        }
+
+        logger.debug("Action schedule `{}` was selected for action `{}`.", () -> selectedSchedule,
+            () -> action);
+
+        // Determine the action mode based on execution schedule
+        final ActionMode selectedMode = selectActionMode(action, chosenMode, selectedSchedule);
+
+        return ModeAndSchedule.of(selectedMode, selectedSchedule);
+    }
+
+    @Nonnull
+    private ActionMode selectActionMode(@Nonnull ActionView action,
+                                        @Nonnull ActionMode chosenMode,
+                                        @Nonnull ActionSchedule actionSchedule) {
+        if (chosenMode == ActionMode.EXTERNAL_APPROVAL) {
+            // we shouldn't change EXTERNAL_APPROVAL mode because it leads to problem with external operations
+            logger.debug("Action mode for action `{}` is `EXTERNAL_APPROVAL`.", action);
+            return ActionMode.EXTERNAL_APPROVAL;
+        }
+        final Long scheduleStartTimestamp = actionSchedule.getScheduleStartTimestamp();
+        final Long scheduleEndTimestamp = actionSchedule.getScheduleEndTimestamp();
+        final ActionMode selectedMode;
+        if (scheduleStartTimestamp == null && scheduleEndTimestamp == null) {
+            logger.debug("Action mode for action `{}` has been set to recommend as the selected "
+                    + "schedule `{}` for the action has next no occurrence.", () -> action,
+                () -> actionSchedule);
+            selectedMode = ActionMode.RECOMMEND;
+        } else if (actionSchedule.isActiveSchedule()) {
+            // If the selected schedule is active and the action is accepted or chosen mode is
+            // automated accept it.
+            if (chosenMode == ActionMode.AUTOMATIC) {
+                logger.info("Setting mode for Action `{}` to `AUTOMATED` as it is in its "
+                    + "execution window `{}`.", action, actionSchedule);
+                selectedMode = ActionMode.AUTOMATIC;
+            } else if (chosenMode == ActionMode.MANUAL && actionSchedule.getAcceptingUser() != null) {
+                logger.debug("Setting mode for Action `{}` to `MANUAL`. It has been accepted "
+                        + "by `{}` and it is in its execution window `{}`.", action,
+                        actionSchedule.getAcceptingUser(), actionSchedule);
+                selectedMode = ActionMode.MANUAL;
+            } else {
+                logger.debug("Setting mode for Action `{}` to `MANUAL`. The action has not been "
+                        + "accepted by a user and it is in its execution window `{}`.", action,
+                        actionSchedule);
+                selectedMode = ActionMode.MANUAL;
+            }
+        } else {
+            if (chosenMode == ActionMode.AUTOMATIC) {
+                logger.debug("Setting the action mode for action `{}` to `RECOMMEND` as there is "
+                    + "an upcoming schedule `{}` for it with the `AUTOMATED` mode.", () -> action,
+                    () -> actionSchedule);
+                selectedMode = ActionMode.RECOMMEND;
+            } else if (actionSchedule.getAcceptingUser() != null)  {
+                logger.debug("Setting the action mode for action `{}` to `RECOMMEND` as there is "
+                    + "an upcoming schedule `{}` with `MANUAL` for it and it has been accepted by"
+                    + " `{}`.", () -> action, () -> actionSchedule, () -> actionSchedule.getAcceptingUser());
+                selectedMode = ActionMode.MANUAL;
+            } else {
+                logger.debug("Setting the action mode for action `{}` to `MANUAL` as there is an "
+                    + "upcoming schedule `{}` with `MANUAL` mode for it.", () -> action,
+                    () -> actionSchedule);
+                selectedMode = ActionMode.MANUAL;
+            }
+        }
+
+        return selectedMode;
+    }
+
+    @Nullable
+    private ActionSchedule createActionSchedule(@Nonnull List<Long> scheduleIds,
+                                                @Nonnull ActionMode chosenMode,
+                                                @Nonnull EntitiesAndSettingsSnapshot entitiesCache,
+                                                @Nullable String acceptingUser) {
+        // Select the closest schedule between the schedules associated to action
+        ScheduleProto.Schedule selectedSchedule = selectClosestSchedule(scheduleIds,
+            entitiesCache.getScheduleMap());
+
+        if (selectedSchedule == null) {
+            return null;
+        }
+
+        // Find the start and time of closest schedule
+        Pair<Long, Long> startAndEndTime = getScheduleStartAndEndTime(selectedSchedule,
+            entitiesCache.getPopulationTimestamp());
+
+        return new ActionSchedule(startAndEndTime.getLeft(), startAndEndTime.getRight(),
+            selectedSchedule.getTimezoneId(), selectedSchedule.getId(), selectedSchedule.getDisplayName(),
+            chosenMode, acceptingUser);
+    }
+
+    @Nullable
+    private ScheduleProto.Schedule selectClosestSchedule(@Nonnull List<Long> scheduleIds,
+                                                         Map<Long, ScheduleProto.Schedule> scheduleMap) {
+        ScheduleProto.Schedule selectedSchedule = null;
+
+        for (long scheduleOid : scheduleIds) {
+            final ScheduleProto.Schedule currentSchedule = scheduleMap.get(scheduleOid);
+
+            // If the schedule cannot found, we log an error message and ignore this schedule
+            if (currentSchedule == null) {
+                logger.error("The schedule with OID {} cannot be found. This schedule will be ignored.",
+                    scheduleOid);
+                continue;
+            }
+
+            if (selectedSchedule == null) {
+                selectedSchedule = currentSchedule;
+                continue;
+            }
+
+            // This is the case where there is an existing schedule that is active has been
+            // selected.
+            if (selectedSchedule.hasActive()) {
+                // If there are more than one schedule which are active we go with the one that
+                // is active longer
+                if (currentSchedule.hasActive()
+                    && currentSchedule.getActive().getRemainingActiveTimeMs()
+                    > selectedSchedule.getActive().getRemainingActiveTimeMs()) {
+                    selectedSchedule = currentSchedule;
+                }
+                continue;
+            }
+
+            // If we are here, it means currently selected schedule is not active and therefore
+            // if current schedule is active we use that as the selected schedule
+            if (currentSchedule.hasActive()) {
+                selectedSchedule = currentSchedule;
+                continue;
+            }
+
+            // If selected schedule and current schedule both have next occurrence go with the
+            // one than it next occurrence is closer.
+            if (selectedSchedule.hasNextOccurrence()) {
+                if (currentSchedule.hasNextOccurrence()
+                    && currentSchedule.getNextOccurrence().getStartTime() < selectedSchedule.getNextOccurrence().getStartTime()) {
+                    selectedSchedule = currentSchedule;
+                }
+
+                continue;
+            }
+
+            // If we are here, it means currently selected schedule does not have next occurrence
+            selectedSchedule = currentSchedule;
+        }
+
+        return selectedSchedule;
+    }
+
+    @Nonnull
+    private Pair<Long, Long> getScheduleStartAndEndTime(@Nonnull ScheduleProto.Schedule schedule,
+                                                        long populationTimeStamp) {
+        final long scheduleOccurrenceDuration =
+            schedule.getEndTime() - schedule.getStartTime();
+
+        // Find next occurrence start and end time
+        final Long scheduleStartTime;
+        final Long scheduleEndTime;
+        if (schedule.hasNextOccurrence()) {
+            scheduleStartTime = schedule.getNextOccurrence().getStartTime();
+        } else {
+            scheduleStartTime = null;
+        }
+
+        if (schedule.hasActive()) {
+            scheduleEndTime =
+                populationTimeStamp + schedule.getActive().getRemainingActiveTimeMs();
+        } else if (schedule.hasNextOccurrence()) {
+            scheduleEndTime = scheduleStartTime + scheduleOccurrenceDuration;
+        } else {
+            scheduleEndTime = null;
+        }
+
+        return Pair.of(scheduleStartTime, scheduleEndTime);
+    }
+
+    @Nullable
+    private String getExecutionWindowSettingSpec(@Nonnull EntitySettingSpecs spec) {
+        return ActionSettingSpecs.getSubSettingFromActionModeSetting(
+            spec.getSettingName(), ActionSettingType.SCHEDULE);
+    }
+
+    /**
+     * This class holds an action mode and schedule.
+     */
+    @Immutable
+    public static class ModeAndSchedule {
+        final ActionMode mode;
+        final ActionSchedule schedule;
+
+        private ModeAndSchedule(@Nonnull ActionMode mode, @Nullable ActionSchedule schedule) {
+            this.mode = mode;
+            this.schedule = schedule;
+        }
+
+        /**
+         * Factory method for actions without schedule.
+         * @param mode the mode for action.
+         * @return The new instance of {@link ModeAndSchedule} object.
+         */
+        @Nonnull
+        public static ModeAndSchedule of(@Nonnull ActionMode mode) {
+            return new ModeAndSchedule(mode, null);
+        }
+
+        /**
+         * Factory method for actions without schedule.
+         * @param mode the mode for action.
+         * @param schedule the schedule for action.
+         * @return The new instance of {@link ModeAndSchedule} object.
+         */
+        @Nonnull
+        public static ModeAndSchedule of(@Nonnull ActionMode mode, @Nonnull ActionSchedule schedule) {
+            return new ModeAndSchedule(mode, schedule);
+        }
+
+        @Nonnull
+        public ActionMode getMode() {
+            return mode;
+        }
+
+        @Nullable
+        public ActionSchedule getSchedule() {
+            return schedule;
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final ModeAndSchedule that = (ModeAndSchedule)o;
+            return mode == that.mode && Objects.equals(schedule, that.schedule);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(mode, schedule);
+        }
+    }
+
+    private ActionMode applyNonDisruptiveSetting(ActionPartialEntity entity, Action action) {
         final ActionTypeCase actionType = action.getInfo().getActionTypeCase();
         // Check for VM Resize.
         if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
@@ -241,16 +600,10 @@ public class ActionModeCalculator {
             final Integer commType = resizeAction.getCommodityType().getType();
 
             // Check applicable commodities.
-            if (nonDisruptiveSettingCommodities.contains(commType)
+            if (ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(commType)
                     && resizeAction.getCommodityAttribute() == CommodityAttribute.CAPACITY) {
-                Optional<CommoditySoldDTO> commoditySold = entity.getCommoditySoldListList().stream()
-                                .filter(commSold -> commType == commSold.getCommodityType().getType())
-                                .findFirst();
-                boolean supportsHotReplace = false;
-                if (commoditySold.isPresent()) {
-                    CommoditySoldDTO commSold = commoditySold.get();
-                    supportsHotReplace = commSold.getHotResizeInfo().getHotReplaceSupported();
-                }
+                boolean supportsHotReplace = entity.getCommTypesWithHotReplaceList().stream()
+                        .anyMatch(type -> type == commType);
 
                 // Check hot replace setting enabled.
                 if (supportsHotReplace) {
@@ -273,7 +626,7 @@ public class ActionModeCalculator {
      * For an action which corresponds to a Workflow Action, e.g. ProvisionActionWorkflow,
      * return the ActionMode of the policy for the related action, e.g. ProvisionAction.
      *
-     * If this is not a Workflow Action, then return Optional.empty()
+     * <p>If this is not a Workflow Action, then return Optional.empty()</p>
      *
      * @param action The action to analyze to see if it is a Workflow Action
      * @param entitySettingsCache the EntitySettings lookaside for the given action
@@ -282,9 +635,9 @@ public class ActionModeCalculator {
      * supported.
      */
     @Nonnull
-    public Optional<ActionMode> calculateWorkflowActionMode(
+    private Optional<ActionMode> calculateWorkflowActionMode(
             @Nonnull final ActionView action,
-            @Nullable final EntitiesCache entitySettingsCache) {
+            @Nullable final EntitiesAndSettingsSnapshot entitySettingsCache) {
         try {
             ActionDTO.Action actionDTO = action.getRecommendation();
             Objects.requireNonNull(actionDTO);
@@ -309,8 +662,8 @@ public class ActionModeCalculator {
             // note: the value of the workflowSettingSpec is the OID of the workflow, only used during
             // execution
             Setting workflowSettingSpec = settingsForActionTarget.get(workflowOverride.getSettingName());
-            if (workflowSettingSpec == null ||
-                    StringUtils.isEmpty(workflowSettingSpec.getStringSettingValue().getValue())) {
+            if (workflowSettingSpec == null
+                    || StringUtils.isEmpty(workflowSettingSpec.getStringSettingValue().getValue())) {
                 return Optional.empty();
             }
 
@@ -334,71 +687,105 @@ public class ActionModeCalculator {
      * For an action which corresponds to a Workflow Action, e.g. ProvisionActionWorkflow,
      * return the ActionMode of the policy for the related action, e.g. ProvisionAction.
      *
-     * If this is not a Workflow Action, then return Optional.empty()
+     * <p>If this is not a Workflow Action, then return an empty map. </p>
      *
-     * @param actionDTO The action to analyze to see if it is a Workflow Action
-     * @param entitySettingsCache the EntitySettings lookaside for the given action
-     * @param actionState the state (or phase) to check for a defined workflow
-     * @return an Optional containing the ActionMode if this is a Workflow Action, or
-     * Optional.empty() if this is not a Workflow Action or the type of the ActionDTO is not
-     * supported.
+     * @param recommendation The action to analyze to see if it is a Workflow Action
+     * @param snapshot the entity settings cache to look up the settings.
+     * @return A map containing the per-action-state workflow settings is this is a workflow action.
+     * Only states that have associated workflow settings will have entries in the map.
+     * An empty map otherwise.
      */
     @Nonnull
-    public static Optional<SettingProto.Setting> calculateWorkflowSetting(
-        @Nonnull final ActionDTO.Action actionDTO,
-        @Nullable final EntitiesCache entitySettingsCache,
-        @Nonnull final ActionState actionState) {
+    public Map<ActionState, SettingProto.Setting> calculateWorkflowSettings(
+            @Nonnull final ActionDTO.Action recommendation,
+            @Nullable final EntitiesAndSettingsSnapshot snapshot) {
         try {
-            Objects.requireNonNull(actionDTO);
-            Objects.requireNonNull(actionState);
-            if (Objects.isNull(entitySettingsCache)) {
-                return Optional.empty();
+            Objects.requireNonNull(recommendation);
+            if (Objects.isNull(snapshot)) {
+                return Collections.emptyMap();
             }
 
             // find the entity which is the target of this action
-            final long actionTargetEntityId = ActionDTOUtil.getPrimaryEntityId(actionDTO);
-
-            // Determine which action type map to use based on the current state of the action
-            final Map<ActionType, EntitySettingSpecs> workflowActionTypeMap;
-            switch (actionState) {
-                case PRE_IN_PROGRESS:
-                    workflowActionTypeMap = PREP_WORKFLOW_ACTION_TYPE_MAP;
-                    break;
-                case IN_PROGRESS:
-                    workflowActionTypeMap = WORKFLOW_ACTION_TYPE_MAP;
-                    break;
-                case POST_IN_PROGRESS:
-                    // POST runs after success or failure
-                    workflowActionTypeMap = POST_WORKFLOW_ACTION_TYPE_MAP;
-                    break;
-                default:
-                    logger.warn("Tried to retrieve workflow setting in an unexpected action "
-                        + "state {}", actionState);
-                    return Optional.empty();
-            }
-
-            // Are there any workflow override settings allowed for this action type?
-            final ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionDTO);
-            final EntitySettingSpecs workflowOverride = workflowActionTypeMap.get(actionType);
-            if (workflowOverride == null) {
-                // workflow overrides are not allowed
-                return Optional.empty();
-            }
-
+            final long actionTargetEntityId = ActionDTOUtil.getPrimaryEntityId(recommendation);
+            final ActionType actionType = ActionDTOUtil.getActionInfoActionType(recommendation);
             // get a map of all the settings (settingName  -> setting) specific to this entity
             final Map<String, Setting> settingsForActionTarget =
-                entitySettingsCache.getSettingsForEntity(actionTargetEntityId);
-
-            // Is there a corresponding setting for this Workflow override for the current entity?
-            // Note: the value of the workflowSettingSpec is the OID of the workflow, only used during
-            // execution.
-            final Setting setting = settingsForActionTarget.get(
-                workflowOverride.getSettingName());
-            return Optional.ofNullable(setting);
+                snapshot.getSettingsForEntity(actionTargetEntityId);
+            return getSettingForState(recommendation, settingsForActionTarget, actionType);
         } catch (UnsupportedActionException e) {
             logger.error("Unable to calculate complex action mode.", e);
-            return Optional.empty();
+            return Collections.emptyMap();
         }
+    }
+
+    @Nonnull
+    private Map<ActionState, String> getActionStateSettings(
+            @Nonnull final ActionDTO.Action recommendation,
+            @Nonnull Map<String, Setting> actionSettings,
+            @Nonnull ActionType actionType) {
+        final Map<ActionState, String> actionStateSettings = new HashMap<>();
+        final EntitySettingSpecs preInProgress = PREP_WORKFLOW_ACTION_TYPE_MAP.get(actionType);
+        if (preInProgress != null) {
+            actionStateSettings.put(ActionState.PRE_IN_PROGRESS, preInProgress.getSettingName());
+        }
+        final EntitySettingSpecs inProgress = WORKFLOW_ACTION_TYPE_MAP.get(actionType);
+        if (inProgress != null) {
+            actionStateSettings.put(ActionState.IN_PROGRESS, inProgress.getSettingName());
+        }
+        final EntitySettingSpecs postInProgress = POST_WORKFLOW_ACTION_TYPE_MAP.get(actionType);
+        if (postInProgress != null) {
+            actionStateSettings.put(ActionState.POST_IN_PROGRESS, postInProgress.getSettingName());
+        }
+
+        getActionModeSettingSpec(recommendation, actionSettings)
+            .ifPresent(actionModeSetting ->
+                addActionModeRelatedSettings(actionModeSetting, actionStateSettings));
+
+        return Collections.unmodifiableMap(actionStateSettings);
+    }
+
+    private void addActionModeRelatedSettings(@Nonnull EntitySettingSpecs actionModeSetting,
+                                              @Nonnull Map<ActionState, String> actionStateSettings) {
+        final String afterExecSettingSpec =
+            ActionSettingSpecs.getSubSettingFromActionModeSetting(actionModeSetting,
+                ActionSettingType.AFTER_EXEC);
+        actionStateSettings.put(ActionState.SUCCEEDED, afterExecSettingSpec);
+        actionStateSettings.put(ActionState.FAILED, afterExecSettingSpec);
+        final String onGenSettingSpec =
+            ActionSettingSpecs.getSubSettingFromActionModeSetting(actionModeSetting,
+                ActionSettingType.ON_GEN);
+        actionStateSettings.put(ActionState.READY, onGenSettingSpec);
+    }
+
+    @Nonnull
+    private Optional<EntitySettingSpecs> getActionModeSettingSpec(
+        @Nonnull final ActionDTO.Action action,
+        @Nonnull Map<String, Setting> settingsForTargetEntity) {
+        return specsApplicableToAction(action, settingsForTargetEntity)
+            // there potentially be setting unrelated to action mode like
+            // EntitySettingSpecs.EnforceNonDisruptive. Take a look at specsApplicableToAction
+            // for more details. Here we only need action mode settings.
+            .filter(ActionSettingSpecs::isActionModeSetting)
+            .findAny();
+    }
+
+    @Nonnull
+    private Map<ActionState, Setting> getSettingForState(
+            @Nonnull final ActionDTO.Action recommendation,
+            @Nonnull Map<String, Setting> actionSettings,
+            @Nonnull ActionType actionType) {
+        final Map<ActionState, String> actionStateSettings = getActionStateSettings(
+            recommendation, actionSettings, actionType);
+        final Map<ActionState, Setting> result = new EnumMap<>(ActionState.class);
+        for (Entry<ActionState, String> settingEntry: actionStateSettings.entrySet()) {
+            final ActionState actionState = settingEntry.getKey();
+            final String settingName = settingEntry.getValue();
+            final Setting settingValue = actionSettings.get(settingName);
+            if (settingValue != null) {
+                result.put(actionState, settingValue);
+            }
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     /**
@@ -410,8 +797,9 @@ public class ActionModeCalculator {
      * @return The stream of applicable {@link EntitySettingSpecs}. This will be a stream of
      *         size one in most cases.
      */
+    @VisibleForTesting
     @Nonnull
-    private Stream<EntitySettingSpecs> specsApplicableToAction(
+    Stream<EntitySettingSpecs> specsApplicableToAction(
             @Nonnull final ActionDTO.Action action, Map<String, Setting> settingsForTargetEntity) {
         final ActionTypeCase type = action.getInfo().getActionTypeCase();
         switch (type) {
@@ -421,25 +809,41 @@ public class ActionModeCalculator {
                 // accompanied by a storage move.
                 return action.getInfo().getMove().getChangesList().stream()
                         .map(provider -> provider.getDestination().getType())
-                        .map(destinationEntityType -> {
-                            if (TopologyDTOUtil.isStorageEntityType(destinationEntityType)) {
-                                return EntitySettingSpecs.StorageMove;
-                            } else {
-                                // TODO (roman, Aug 6 2018): Should we check explicitly for
-                                // physical machine, or are there other valid non-storage destination
-                                // types for move actions?
-                                return EntitySettingSpecs.Move;
-                            }
-                        })
+                        .map(destinationEntityType -> PROVIDER_ENTITY_TYPE_TO_MOVE_SETTING_SPECS
+                                        .getOrDefault(destinationEntityType,
+                                                        EntitySettingSpecs.Move))
                         .distinct();
+            case SCALE:
+                return Stream.of(EntitySettingSpecs.CloudComputeScale);
+            case ALLOCATE:
+                // Allocate actions are not executable and are not configurable by the user
+                return Stream.empty();
             case RECONFIGURE:
                 return Stream.of(EntitySettingSpecs.Reconfigure);
             case PROVISION:
                 return Stream.of(EntitySettingSpecs.Provision);
+            case ATOMICRESIZE:
+                return Stream.of(EntitySettingSpecs.Resize);
             case RESIZE:
+                final Resize resize = action.getInfo().getResize();
+                if (isApplicationComponentHeapCommodity(resize)) {
+                    EntitySettingSpecs spec = resize.getNewCapacity() > resize.getOldCapacity()
+                            ? EntitySettingSpecs.ResizeUpHeap : EntitySettingSpecs.ResizeDownHeap;
+                    return Stream.of(spec);
+                } else if (isDatabaseServerDBMemCommodity(resize)) {
+                    EntitySettingSpecs spec = resize.getNewCapacity() > resize.getOldCapacity()
+                            ? EntitySettingSpecs.ResizeUpDBMem : EntitySettingSpecs.ResizeDownDBMem;
+                    return Stream.of(spec);
+                }
                 Optional<EntitySettingSpecs> rangeAwareSpec = rangeAwareSpecCalculator
-                        .getSpecForRangeAwareCommResize(action.getInfo().getResize(), settingsForTargetEntity);
-                // Return the range aware spec if present. Otherwise return the regular resize spec.
+                        .getSpecForRangeAwareCommResize(resize, settingsForTargetEntity);
+                // Return the range aware spec if present. Otherwise return the regular resize
+                // spec, or if it's a vm the default empty stream, since the only resize action
+                // that should fall into this logic is for vStorages. Resize Vms for vStorage
+                // commodities should always translate to a RECOMMENDED mode .
+                if (isVirtualMachine(resize) && !rangeAwareSpec.isPresent()) {
+                    return Stream.empty();
+                }
                 return Stream.of(rangeAwareSpec.orElse(EntitySettingSpecs.Resize),
                                 EntitySettingSpecs.EnforceNonDisruptive);
             case ACTIVATE:
@@ -454,20 +858,101 @@ public class ActionModeCalculator {
         return Stream.empty();
     }
 
+    /**
+     * It keeps the settings of the range-aware resize.
+     */
     @Value.Immutable
     public interface RangeAwareResizeSettings {
+        /**
+         * Gets the above max automation level.
+         *
+         * @return The above max automation level
+         */
         EntitySettingSpecs aboveMaxThreshold();
-        EntitySettingSpecs belowMinThrewshold();
+
+        /**
+         * Gets the below min automation level.
+         *
+         * @return The below min automation level
+         */
+        EntitySettingSpecs belowMinThreshold();
+
+        /**
+         * Gets the in-range automation level for resize up.
+         *
+         * @return The in-range automation level for the resize up
+         */
         EntitySettingSpecs upInBetweenThresholds();
+
+        /**
+         * Gets the in-range automation level for the resize down.
+         *
+         * @return The in-range automation level for the resize down
+         */
         EntitySettingSpecs downInBetweenThresholds();
+
+        /**
+         * Gets the min threshold of the commodity.
+         *
+         * @return The min threshold of the commodity
+         */
         EntitySettingSpecs minThreshold();
+
+        /**
+         * Gets the max threshold of the commodity.
+         *
+         * @return The max threshold of the commodity
+         */
         EntitySettingSpecs maxThreshold();
     }
 
+    /**
+     * Resize capacity keeps the old and new capacities of a resize action.
+     */
     @Value.Immutable
     interface ResizeCapacity {
+        /**
+         * Gets the existing capacity.
+         *
+         * @return The existing capacity
+         */
         float oldCapacity();
+
+        /**
+         * Gets the new capacity.
+         *
+         * @return The new capacity
+         */
         float newCapacity();
+    }
+
+    /**
+     * Checks if the Resize action has an EntityType and it's a Virtual Machine .
+     * @param resize The {@link Resize} action
+     * @return boolean whether is a vm or not
+     * */
+    private boolean isVirtualMachine(Resize resize) {
+        return resize.getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE;
+    }
+
+    /**
+     * Checks if the Resize action has an EntityType, it's an Application Component and Heap commodity.
+     * @param resize the {@link Resize} action
+     * @return Returns {@code true} if the action has Application Component as a target and Heap commodity
+     */
+    private boolean isApplicationComponentHeapCommodity(Resize resize) {
+        return resize.getTarget().getType() == EntityType.APPLICATION_COMPONENT_VALUE
+            && resize.getCommodityType().getType() == CommodityType.HEAP.getNumber();
+    }
+
+    /**
+     * Checks if the Resize action has an EntityType, it's an Database Server and DBMem commodity.
+     * @param resize The {@link Resize} action
+     * @return Returns {@code true} if the action has Database Server as a target and DBMem commodity
+     * */
+    private boolean isDatabaseServerDBMemCommodity(Resize resize) {
+        return resize.getTarget().getType() == EntityType.DATABASE_SERVER_VALUE
+            && resize.getCommodityType().getType() == CommodityType.DB_MEM.getNumber();
     }
 
     /**
@@ -476,28 +961,29 @@ public class ActionModeCalculator {
      * For ex. vmem / vcpu resize of an on-prem VM.
      */
     private class RangeAwareSpecCalculator {
+        private static final double CAPACITY_COMPARISON_DELTA = 0.001;
         // This map holds the resizeSettings by commodity type per entity type
         private final Map<Integer, Map<Integer, RangeAwareResizeSettings>> resizeSettingsByEntityType =
                 ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, populateResizeSettingsByCommodityForVM());
+
         /**
-         * Gets the spec applicable for range aware commodity resize. Currently VMem and VCpu
+         * Gets the spec applicable for range aware commodity resize. Currently VMem, VCpu
          * resizes of on-prem VMs are considered range aware.
          *
-         * There is a minThreshold and a maxThreshold defined for the commodity resizing.
+         * <p>There is a minThreshold and a maxThreshold defined for the commodity resizing.
          * There are separate automation modes defined for these cases:
          * 1. The new capacity is greater than the maxThreshold
          * 2. The new capacity is lesser than the minThreshold
          * 3. The new capacity is greater than or equal to minThreshold and less than or equal
          *    to maxThreshold, and it is sizing up
          * 4. The new capacity is greater than or equal to minThreshold and less than or equal
-         *    to maxThreshold, and it is sizing down
+         *    to maxThreshold, and it is sizing down</p>
          *
-         * This method will determine if any of these settings apply to the resize action.
+         * <p>This method will determine if any of these settings apply to the resize action.</p>
          *
          * @param resize the resize action
          * @param settingsForTargetEntity A map of the setting name and the setting for this entity
          * @return Optional of the applicable spec. If nothing applies, Optional.empty.
-         * @throws Exception
          */
         @Nonnull
         private Optional<EntitySettingSpecs> getSpecForRangeAwareCommResize(
@@ -530,30 +1016,38 @@ public class ActionModeCalculator {
                         ResizeCapacity resizeCapacity = getCapacityForModeCalculation(resize);
                         float oldCapacity = resizeCapacity.oldCapacity();
                         float newCapacity = resizeCapacity.newCapacity();
-                        // The new capacity is greater than the maxThreshold
-                        if (newCapacity > maxThreshold) {
-                            applicableSpec = Optional.of(resizeSettings.aboveMaxThreshold());
-                        } else if (newCapacity < minThreshold) {
-                            // The new capacity is lesser than the minThreshold
-                            applicableSpec = Optional.of(resizeSettings.belowMinThrewshold());
+                        // Recognize if this is a resize up or down
+                        if (Math.abs(newCapacity - oldCapacity) <= CAPACITY_COMPARISON_DELTA) {
+                            // -Delta <= new capacity - old capacity <= +Delta
+                            logger.error("{}  has a resize action on commodity {}  with same "
+                                    + "old and new capacity -> {}", resize.getTarget().getId(), commType,
+                                resize.getNewCapacity());
+                        } else if (newCapacity > oldCapacity) {
+                            // A resize up action
+                            // initialize applicableSpec to the actionMode for scaling up inbetween thresholds
+                            applicableSpec = Optional.of(resizeSettings.upInBetweenThresholds());
+                            if (oldCapacity >= maxThreshold && newCapacity > maxThreshold) {
+                                // if the currentCapacity is over max and we are scaling up, use setting aboveMax
+                                applicableSpec = Optional.of(resizeSettings.aboveMaxThreshold());
+                            }
                         } else {
-                            if (newCapacity > oldCapacity) {
-                                applicableSpec = Optional.of(resizeSettings.upInBetweenThresholds());
-                            } else if (newCapacity < oldCapacity) {
-                                applicableSpec = Optional.of(resizeSettings.downInBetweenThresholds());
-                            } else {
-                                // new capacity == old capacity
-                                logger.error("{}  has a resize action on commodity {}  with same " +
-                                                "old and new capacity -> {}", resize.getTarget().getId(), commType,
-                                        resize.getNewCapacity());
+                            // A resize down action
+                            // initialize applicableSpec to the actionMode for scaling down inbetween thresholds
+                            applicableSpec = Optional.of(resizeSettings.downInBetweenThresholds());
+                            if (oldCapacity <= minThreshold && newCapacity < minThreshold) {
+                                // if the currentCapacity is below min and we are scaling down, use setting belowMin
+                                applicableSpec = Optional.of(resizeSettings.belowMinThreshold());
                             }
                         }
                     }
                 }
+            } else if (entityType == EntityType.VIRTUAL_MACHINE.getNumber()) {
+                applicableSpec = Optional.ofNullable(VMS_ACTION_MODE_SETTINGS.get(changedAttribute) != null
+                    ? VMS_ACTION_MODE_SETTINGS.get(changedAttribute).get(commType) : null );
             }
             logger.debug("Range aware spec for resizing {} of commodity {} of entity {} is {} ",
                     changedAttribute, commType, resize.getTarget().getId(),
-                    applicableSpec.map(spec -> spec.getSettingName()).orElse("empty"));
+                    applicableSpec.map(EntitySettingSpecs::getSettingName).orElse("empty"));
             return applicableSpec;
         }
 
@@ -605,25 +1099,27 @@ public class ActionModeCalculator {
 
         /**
          * Returns a map of the commodity type to the range aware resize settings applicable to it.
-         * @return
+         *
+         * @return returns a map of the commodity type to the range aware resize settings applicable
+         * to it.
          */
         private Map<Integer, RangeAwareResizeSettings> populateResizeSettingsByCommodityForVM() {
             RangeAwareResizeSettings vCpuSettings = ImmutableRangeAwareResizeSettings.builder()
                     .aboveMaxThreshold(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold)
-                    .belowMinThrewshold(EntitySettingSpecs.ResizeVcpuBelowMinThreshold)
-                    .upInBetweenThresholds(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds)
+                    .belowMinThreshold(EntitySettingSpecs.ResizeVcpuBelowMinThreshold)
+                    .upInBetweenThresholds(ResizeVcpuUpInBetweenThresholds)
                     .downInBetweenThresholds(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds)
                     .maxThreshold(EntitySettingSpecs.ResizeVcpuMaxThreshold)
                     .minThreshold(EntitySettingSpecs.ResizeVcpuMinThreshold).build();
             RangeAwareResizeSettings vMemSettings = ImmutableRangeAwareResizeSettings.builder()
                     .aboveMaxThreshold(EntitySettingSpecs.ResizeVmemAboveMaxThreshold)
-                    .belowMinThrewshold(EntitySettingSpecs.ResizeVmemBelowMinThreshold)
-                    .upInBetweenThresholds(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds)
-                    .downInBetweenThresholds(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds)
+                    .belowMinThreshold(EntitySettingSpecs.ResizeVmemBelowMinThreshold)
+                    .upInBetweenThresholds(ResizeVmemUpInBetweenThresholds)
+                    .downInBetweenThresholds(ResizeVmemDownInBetweenThresholds)
                     .maxThreshold(EntitySettingSpecs.ResizeVmemMaxThreshold)
                     .minThreshold(EntitySettingSpecs.ResizeVmemMinThreshold).build();
             return ImmutableMap.of(CommodityDTO.CommodityType.VCPU_VALUE, vCpuSettings,
-                    CommodityDTO.CommodityType.VMEM_VALUE, vMemSettings);
+                CommodityDTO.CommodityType.VMEM_VALUE, vMemSettings);
         }
     }
 }

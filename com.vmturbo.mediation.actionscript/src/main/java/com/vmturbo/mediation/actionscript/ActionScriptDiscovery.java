@@ -7,14 +7,13 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.FileUtils;
 import org.apache.sshd.client.subsystem.sftp.SftpClient.Attributes;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.mediation.actionscript.ActionScriptsManifest.ActionScriptDeclaration;
 import com.vmturbo.mediation.actionscript.SshUtils.SshRunner;
@@ -62,9 +61,6 @@ public class ActionScriptDiscovery {
     public ValidationResponse validateManifestFile() {
         try (SshRunner runner = new SshRunner(accountValues, null)) {
             return validateManifestFile(runner);
-        } catch (RemoteExecutionException | KeyValidationException e) {
-            ErrorDTO errorDTO = createAndLogErrorDTO(null, "Failed to load Action Scripts Manifest file: " + e.getMessage(), e);
-            return ValidationResponse.newBuilder().addErrorDTO(errorDTO).build();
         }
     }
 
@@ -110,6 +106,9 @@ public class ActionScriptDiscovery {
         final ValidationResponse.Builder response = ValidationResponse.newBuilder();
         if (errorDTO != null) {
             response.addErrorDTO(errorDTO);
+        } else if (manifest.getScripts() == null || manifest.getScripts().isEmpty()) {
+            response.addErrorDTO(
+                createAndLogErrorDTO(null, "Action Scripts Manifest file defines no scripts", null));
         }
         return response.build();
     }
@@ -122,9 +121,6 @@ public class ActionScriptDiscovery {
     public DiscoveryResponse discoverActionScripts() {
         try (SshRunner runner = new SshRunner(accountValues, null)) {
             return discoverActionScripts(runner);
-        } catch (RemoteExecutionException | KeyValidationException e) {
-            ErrorDTO errorDTO = createAndLogErrorDTO(null, "Failed to discover Action Scripts: " + e.getMessage(), e);
-            return DiscoveryResponse.newBuilder().addErrorDTO(errorDTO).build();
         }
     }
 

@@ -1,10 +1,13 @@
 package com.vmturbo.stitching.utilities;
 
-import java.util.Map.Entry;
+import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Message.Builder;
@@ -13,6 +16,7 @@ import com.google.protobuf.MessageOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
+import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.stitching.DTOFieldSpec;
 
@@ -22,6 +26,8 @@ import com.vmturbo.stitching.DTOFieldSpec;
  * and the string "storage_data".
  */
 public class DTOFieldAndPropertyHandler {
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Private constructor since class just provides static utility method
@@ -87,8 +93,11 @@ public class DTOFieldAndPropertyHandler {
     public static Object getFieldFromMessageOrBuilder(@Nonnull final MessageOrBuilder message,
                                                       @Nonnull final String fieldName)
             throws NoSuchFieldException {
-        FieldDescriptor fieldDescriptor = getFieldDescriptor(message, fieldName);
-        return message.getAllFields().getOrDefault(fieldDescriptor, null);
+        final FieldDescriptor fieldDescriptor = getFieldDescriptor(message, fieldName);
+        if (fieldDescriptor.isRepeated() || message.hasField(fieldDescriptor)) {
+            return message.getField(fieldDescriptor);
+        }
+        return null;
     }
 
     /**
@@ -153,7 +162,7 @@ public class DTOFieldAndPropertyHandler {
     public static void setValueToFieldSpec(@Nonnull final Builder builder,
                                            @Nonnull final DTOFieldSpec fieldSpec,
                                            @Nullable Object newValue)
-        throws NoSuchFieldException {
+            throws NoSuchFieldException {
         Builder nxtBuilder = builder;
         for (String fieldName : fieldSpec.getMessagePath()) {
             FieldDescriptor nextField = getFieldDescriptor(nxtBuilder, fieldName);
@@ -166,23 +175,51 @@ public class DTOFieldAndPropertyHandler {
 
     /**
      * Take all the populated fields from one Builder and push them onto the other, overwriting
-     * fields if necessary.
+     * fields if necessary. If patchedFields is not empty, it will only patch those specified
+     * fields, otherwise it will patch all available fields.
      *
      * @param from the MessageOrBuilder to take the fields from
      * @param onto the Builder to write the values onto
+     * @param patchedFields the list of fields to patch, patch all if empty
      */
     public static <T extends Builder> T mergeBuilders(@Nonnull final T from,
-                                     @Nonnull final T onto) {
-        for (Entry<FieldDescriptor, Object> nxtEntry : from.getAllFields().entrySet()) {
-            if (nxtEntry.getValue() instanceof Builder) {
-                Builder ontoBuilder = onto.getFieldBuilder(nxtEntry.getKey());
-                mergeBuilders((Builder) nxtEntry.getValue(), ontoBuilder);
-            } else {
-                onto.setField(nxtEntry.getKey(), nxtEntry.getValue());
-            }
+                                                      @Nonnull final T onto,
+                                                      @Nonnull List<DTOFieldSpec> patchedFields) {
+        if (patchedFields.isEmpty()) {
+            from.getAllFields().forEach(onto::setField);
+        } else {
+            patchedFields.forEach(fieldSpec -> {
+                try {
+                    final Object newValue = DTOFieldAndPropertyHandler.getValueFromFieldSpec(from,
+                        fieldSpec);
+                    if (newValue != null) {
+                        DTOFieldAndPropertyHandler.setValueToFieldSpec(onto, fieldSpec, newValue);
+                    }
+                } catch (NoSuchFieldException e) {
+                    logger.error("Unable to patch field {} with path {} from {} to {}",
+                        fieldSpec.getFieldName(), fieldSpec.getMessagePath(), from, onto, e);
+                }
+            });
         }
         return onto;
     }
+
+    /**
+     * Extract the vendor identifier (legacy 'local name') from entity properties.
+     *
+     * @param entity the entity for which the local name is to be extracted
+     * @return external identity, may be null as probes are only required to provide them
+     *         if they have action execution
+     */
+    @Nullable
+    public static String getVendorId(@Nonnull final EntityDTOOrBuilder entity) {
+        return entity.getEntityPropertiesList().stream()
+            .filter(property -> SDKUtil.DEFAULT_NAMESPACE.equals(property.getNamespace()))
+            .filter(property -> SupplyChainConstants.LOCAL_NAME.equals(property.getName()))
+            .map(EntityProperty::getValue)
+            .findAny().orElse(null);
+    }
+
 }
 
 

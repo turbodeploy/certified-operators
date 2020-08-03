@@ -111,7 +111,7 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
     }
 
     private void processMessage(@Nonnull T message) throws IOException {
-        // Websockets right now do not suppoert message committing
+        // Websockets right now do not support message committing
         listeners.forEach(listener -> listener.accept(message, () -> {}));
     }
 
@@ -160,6 +160,23 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
             return innerConfig.getUserPassword();
         }
 
+        @Override
+        public boolean getSSLTrustAllServerCertificates() {
+            return false;
+        }
+
+        @Nullable
+        @Override
+        public File getSSLTruststoreFile() {
+            return null;
+        }
+
+        @Nullable
+        @Override
+        public String getSSLTruststorePassword() {
+            return null;
+        }
+
         @Nullable
         @Override
         public File getSSLKeystoreFile() {
@@ -170,6 +187,12 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
         @Override
         public String getSSLKeystorePassword() {
             return innerConfig.getSSLKeystorePassword();
+        }
+
+        @Nullable
+        @Override
+        public String getSSLKeystoreKeyPassword() {
+            return null;
         }
 
         @Override

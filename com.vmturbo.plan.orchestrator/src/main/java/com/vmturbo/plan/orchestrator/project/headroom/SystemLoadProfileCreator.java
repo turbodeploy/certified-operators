@@ -1,11 +1,14 @@
 package com.vmturbo.plan.orchestrator.project.headroom;
 
+import java.util.List;
 import java.util.Map;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.Maps;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfile.Operation;
 
 /**
@@ -13,23 +16,30 @@ import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfil
  */
 public class SystemLoadProfileCreator {
 
-    private Group cluster = null;
-    private SystemLoadInfoResponse records = null;
-    private String profileNamePostfix = null;
-    private String profileDisplayNamePostfix = null;
+    private Grouping cluster;
+    private List<SystemLoadRecord> systemLoadRecordList;
+    private String profileNamePostfix;
+    private String profileDisplayNamePostfix;
+    private final Map<Long, String> targetOidToTargetName;
 
     /**
      * Initializes SystemLoadProfileCreator to generate system load profile.
      *
      * @param cluster for which profile needs to be created.
-     * @param records to process for profile creation.
+     * @param systemLoadRecordList to process for profile creation.
      * @param loopbackDays for which history is considered for profile creation.
+     * @param targetOidToTargetName targetOid to targetName map.
      */
-    public SystemLoadProfileCreator(Group cluster, SystemLoadInfoResponse records, int loopbackDays) {
+    public SystemLoadProfileCreator(@Nonnull final Grouping cluster,
+                                    @Nonnull final List<SystemLoadRecord> systemLoadRecordList,
+                                    final int loopbackDays,
+                                    @Nonnull final Map<Long, String> targetOidToTargetName) {
         this.cluster = cluster;
-        this.records = records;
-        profileNamePostfix = String.format("%s_HEADROOM", cluster.getCluster().getName());
-        this.profileDisplayNamePostfix = String.format("%s for last %s days", cluster.getCluster().getName(), loopbackDays);
+        this.systemLoadRecordList = systemLoadRecordList;
+        this.profileNamePostfix = String.format("%s_HEADROOM", cluster.getDefinition().getDisplayName());
+        this.profileDisplayNamePostfix = String.format("%s for last %s days",
+            cluster.getDefinition().getDisplayName(), loopbackDays);
+        this.targetOidToTargetName = targetOidToTargetName;
     }
 
     /**
@@ -40,8 +50,9 @@ public class SystemLoadProfileCreator {
     public Map<Operation, SystemLoadCalculatedProfile> createAllProfiles() {
         Map<Operation, SystemLoadCalculatedProfile> profileMap = Maps.newHashMap();
         for (Operation op : Operation.values()) {
-            SystemLoadCalculatedProfile profile = new SystemLoadCalculatedProfile(op, cluster, records, profileNamePostfix,
-                            profileDisplayNamePostfix);
+            SystemLoadCalculatedProfile profile = new SystemLoadCalculatedProfile(
+                op, cluster, systemLoadRecordList, profileNamePostfix, profileDisplayNamePostfix,
+                targetOidToTargetName);
             profile.createVirtualMachineProfile();
             profileMap.put(op, profile);
         }

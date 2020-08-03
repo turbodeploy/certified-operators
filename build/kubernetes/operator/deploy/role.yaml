@@ -20,8 +20,16 @@ rules:
   - apps
   resources:
   - deployments
+  - statefulsets
+  - replicasets
   verbs:
   - '*'
+- apiGroups:
+  - apps
+  resources:
+  - deployments/finalizers
+  verbs:
+  - update
 - apiGroups:
   - extensions
   resources:
@@ -35,15 +43,21 @@ rules:
   verbs:
   - get
 - apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - secrets
-  verbs:
-  - '*'
-- apiGroups:
   - charts.helm.k8s.io
   resources:
   - '*'
+  verbs:
+  - '*'
+- apiGroups:
+  - networking.istio.io
+  resources:
+  - gateways
+  - virtualservices
+  verbs:
+  - '*'
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
   verbs:
   - '*'

@@ -15,6 +15,7 @@ import com.vmturbo.api.enums.RelationType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -45,13 +46,13 @@ public class ConstraintsMapper {
                 constraintApiDtos.add(constraintApiDTO);
                 constraintApiDTO.setRelation(relationType);
                 if (relationType == RelationType.bought) {
-                    constraintApiDTO.setEntityType(ServiceEntityMapper.toUIEntityType(
-                            commoditiesBoughtFromProvider.getProviderEntityType()));
+                    constraintApiDTO.setEntityType(ApiEntityType.fromType(
+                            commoditiesBoughtFromProvider.getProviderEntityType()).apiStr());
                     constraintApiDTO.setRelatedEntities(Collections.singletonList(
                             serviceEntityApiDTOMap.get(commoditiesBoughtFromProvider.getProviderId())));
                 } else {
-                    constraintApiDTO.setEntityType(ServiceEntityMapper.toUIEntityType(
-                            entityDto.getEntityType()));
+                    constraintApiDTO.setEntityType(ApiEntityType.fromType(
+                            entityDto.getEntityType()).apiStr());
                     constraintApiDTO.setRelatedEntities(Collections.singletonList(
                             serviceEntityApiDTOMap.get(entityDto.getOid())));
                 }

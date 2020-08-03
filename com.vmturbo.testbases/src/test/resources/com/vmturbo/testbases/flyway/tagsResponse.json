@@ -1,0 +1,134 @@
+[
+  {
+    "name": "xl-develop-ci-20200225234426000",
+    "message": "xl-develop-ci-20200225234426000 tag from jenkins-xl-develop-ci-build-1676",
+    "target": "de572170041c3848c71b0117ee6c7d192c166da3",
+    "commit": {
+      "id": "1e0456cd66a59d55880baa974499abb2de0ee6b8",
+      "short_id": "1e0456cd",
+      "title": "OM-55772; RB-37550: Reschedule cluster rollups to 2am instead of 1am daily",
+      "created_at": "2020-02-26T04:44:26.000Z",
+      "parent_ids": [
+        "7ad8d2ff41e307df937725cd528715260b476f6c"
+      ],
+      "message": "OM-55772; RB-37550: Reschedule cluster rollups to 2am instead of 1am daily\n",
+      "author_name": "andy_lowry",
+      "author_email": "andy.lowry@turbonomic.com",
+      "authored_date": "2020-02-26T02:58:12.000Z",
+      "committer_name": "andy_lowry",
+      "committer_email": "andy.lowry@turbonomic.com",
+      "committed_date": "2020-02-26T04:44:26.000Z"
+    },
+    "release": null
+  },
+  {
+    "name": "xl-develop-ci-20200225220646000",
+    "message": "xl-develop-ci-20200225220646000 tag from jenkins-xl-develop-ci-build-1675",
+    "target": "8a4c78a9a611097b4387f4745ea975874e8fd83d",
+    "commit": {
+      "id": "7ad8d2ff41e307df937725cd528715260b476f6c",
+      "short_id": "7ad8d2ff",
+      "title": "OM-55251, RB-37510 - Fixed schedule validation messages",
+      "created_at": "2020-02-26T03:06:46.000Z",
+      "parent_ids": [
+        "29d9834c1c39ad2cbfa32630d74a70319e5afb90"
+      ],
+      "message": "OM-55251, RB-37510 - Fixed schedule validation messages\n",
+      "author_name": "vlad_gaber",
+      "author_email": "vladimir.gaber@turbonomic.com",
+      "authored_date": "2020-02-26T03:06:46.000Z",
+      "committer_name": "vlad_gaber",
+      "committer_email": "vladimir.gaber@turbonomic.com",
+      "committed_date": "2020-02-26T03:06:46.000Z"
+    },
+    "release": null
+  },
+  {
+    "name": "xl-develop-ci-20200225181935000",
+    "message": "xl-develop-ci-20200225181935000 tag from jenkins-xl-develop-ci-build-1674",
+    "target": "6f62690d3c8cdc9ac3b89867223725aa4db692f0",
+    "commit": {
+      "id": "29d9834c1c39ad2cbfa32630d74a70319e5afb90",
+      "short_id": "29d9834c",
+      "title": "OM-55794, RB-37539: Populate CloudAspect with Resource Group",
+      "created_at": "2020-02-25T23:19:35.000Z",
+      "parent_ids": [
+        "b5094b76eeb82c9f910f6714724cd8804ee4c13f"
+      ],
+      "message": "OM-55794, RB-37539: Populate CloudAspect with Resource Group\n",
+      "author_name": "joe_benincasa",
+      "author_email": "joe.benincasa@turbonomic.com",
+      "authored_date": "2020-02-25T23:18:17.000Z",
+      "committer_name": "joe_benincasa",
+      "committer_email": "joe.benincasa@turbonomic.com",
+      "committed_date": "2020-02-25T23:19:35.000Z"
+    },
+    "release": null
+  },
+  {
+    "name": "xl-develop-ci-20200225160813000",
+    "message": "xl-develop-ci-20200225160813000 tag from jenkins-xl-develop-ci-build-1673",
+    "target": "6b99d4a0902b2aaf0a67382444bd4151c5d5f8fa",
+    "commit": {
+      "id": "b5094b76eeb82c9f910f6714724cd8804ee4c13f",
+      "short_id": "b5094b76",
+      "title": "OM-55105,RB-37114 Add Action execution status to ActionApiDTO - API Component",
+      "created_at": "2020-02-25T21:08:13.000Z",
+      "parent_ids": [
+        "6e836be83cd2c8fbdea82002deaa6926d090668e"
+      ],
+      "message": "OM-55105,RB-37114 Add Action execution status to ActionApiDTO - API Component\n",
+      "author_name": "gabriele_maccherani",
+      "author_email": "gabriele.maccherani@turbonomic.com",
+      "authored_date": "2020-02-25T21:08:03.000Z",
+      "committer_name": "gabriele_maccherani",
+      "committer_email": "gabriele.maccherani@turbonomic.com",
+      "committed_date": "2020-02-25T21:08:13.000Z"
+    },
+    "release": null
+  },
+  {
+    "name": "xl-develop-ci-20200225140612000",
+    "message": "xl-develop-ci-20200225140612000 tag from jenkins-xl-develop-ci-build-1672",
+    "target": "16d4f756aab51271ec1108f6aaa19db82cf7aca0",
+    "commit": {
+      "id": "6e836be83cd2c8fbdea82002deaa6926d090668e",
+      "short_id": "6e836be8",
+      "title": "OM-55335, RB-37512 - Fixed API response to get schedule with invalid ID",
+      "created_at": "2020-02-25T19:06:12.000Z",
+      "parent_ids": [
+        "c638c901a33fe3f687c487621feb710d81698aa7"
+      ],
+      "message": "OM-55335, RB-37512 - Fixed API response to get schedule with invalid ID\n",
+      "author_name": "vlad_gaber",
+      "author_email": "vladimir.gaber@turbonomic.com",
+      "authored_date": "2020-02-25T19:06:12.000Z",
+      "committer_name": "vlad_gaber",
+      "committer_email": "vladimir.gaber@turbonomic.com",
+      "committed_date": "2020-02-25T19:06:12.000Z"
+    },
+    "release": null
+  },
+  {
+    "name": "xl-develop-ci-20200225065936000",
+    "message": "xl-develop-ci-20200225065936000 tag from jenkins-xl-develop-ci-build-1669",
+    "target": "beacf91de42b51eb72c3aff5c0172574da82e4b7",
+    "commit": {
+      "id": "25d13b27c4f7a420153f18f09d152e5642e1fd1c",
+      "short_id": "25d13b27",
+      "title": "OM-55599; RB-37502: Harden against port allocation race condition in coponents.common tests",
+      "created_at": "2020-02-25T11:59:36.000Z",
+      "parent_ids": [
+        "f208b1a26f4fba801680d409482f6165e177cd51"
+      ],
+      "message": "OM-55599; RB-37502: Harden against port allocation race condition in coponents.common tests\n",
+      "author_name": "andy_lowry",
+      "author_email": "andy.lowry@turbonomic.com",
+      "authored_date": "2020-02-25T11:59:36.000Z",
+      "committer_name": "andy_lowry",
+      "committer_email": "andy.lowry@turbonomic.com",
+      "committed_date": "2020-02-25T11:59:36.000Z"
+    },
+    "release": null
+  }
+]

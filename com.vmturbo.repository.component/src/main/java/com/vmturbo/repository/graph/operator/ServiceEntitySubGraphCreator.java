@@ -66,13 +66,16 @@ public class ServiceEntitySubGraphCreator {
     private final GraphDatabaseDriver graphDatabaseDriver;
     private final GraphDefinition graphDefinition;
     private final int batchSize;
+    private final int replicaCount;
 
     public ServiceEntitySubGraphCreator(final GraphDatabaseDriver graphDatabaseDriver,
                                         final GraphDefinition graphDefinition,
-                                        final int batchSize) {
+                                        final int batchSize,
+                                        final int replicaCount) {
         this.graphDefinition = Objects.requireNonNull(graphDefinition);
         this.graphDatabaseDriver = Objects.requireNonNull(graphDatabaseDriver);
         this.batchSize = batchSize;
+        this.replicaCount = replicaCount;
     }
 
     /**
@@ -81,24 +84,41 @@ public class ServiceEntitySubGraphCreator {
      * @throws CollectionOperationException
      */
     void init() throws CollectionOperationException {
-        logger.debug("Creating vertex collection: " + graphDefinition.getServiceEntityVertex());
+        logger.debug("Creating vertex collection: {}", graphDefinition.getServiceEntityVertex());
         CollectionParameter paramSeVertexCollection =
-                new CollectionParameter.Builder(graphDefinition.getServiceEntityVertex()).build();
+                new CollectionParameter.Builder(graphDefinition.getServiceEntityVertex())
+                        .replicaCount(replicaCount)
+                        .build();
         graphDatabaseDriver.createCollection(paramSeVertexCollection);
 
-        logger.debug("Creating edge collection: " + graphDefinition.getProviderRelationship());
+        logger.debug("Creating edge collection: {}", graphDefinition.getProviderRelationship());
         CollectionParameter paramSeProvEdgeCollection =
                 new CollectionParameter.Builder(graphDefinition.getProviderRelationship())
-                                           .edge().build();
+                        .replicaCount(replicaCount)
+                        .edge()
+                        .waitForSync()
+                        .build();
         graphDatabaseDriver.createCollection(paramSeProvEdgeCollection);
 
-        logger.debug("Creating supply chain relationship collection: "
-            + ArangoDBExecutor.SUPPLY_CHAIN_RELS_COLLECTION);
+        logger.debug("Creating supply chain relationship collection: {}",
+                ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_RELS_COLLECTION);
         CollectionParameter globalSupplyChainProviderRels =
             new CollectionParameter
-                .Builder(ArangoDBExecutor.SUPPLY_CHAIN_RELS_COLLECTION)
-                .build();
+                    .Builder(ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_RELS_COLLECTION)
+                    .replicaCount(replicaCount)
+                    .waitForSync()
+                    .build();
         graphDatabaseDriver.createCollection(globalSupplyChainProviderRels);
+
+        logger.debug("Creating supply chain relationship collection: {}",
+                ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_ENTITIES_COLLECTION);
+        CollectionParameter globalSupplyChainEntitiesCollection =
+                new CollectionParameter
+                        .Builder(ArangoDBExecutor.GLOBAL_SUPPLY_CHAIN_ENTITIES_COLLECTION)
+                        .replicaCount(replicaCount)
+                        .waitForSync()
+                        .build();
+        graphDatabaseDriver.createCollection(globalSupplyChainEntitiesCollection);
     }
 
     /**

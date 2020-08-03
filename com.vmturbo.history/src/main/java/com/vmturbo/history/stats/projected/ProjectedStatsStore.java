@@ -1,8 +1,8 @@
 package com.vmturbo.history.stats.projected;
 
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
+import com.vmturbo.history.ingesters.live.writers.TopologyCommoditiesProcessor;
 import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 import com.vmturbo.history.stats.projected.TopologyCommoditiesSnapshot.TopologyCommoditiesSnapshotFactory;
 
@@ -76,20 +77,21 @@ public class ProjectedStatsStore {
     /**
      * Get a page of projected entity stats.
      *
-     * @param entities The target entities. Must be non-empty.
-     *                 TODO (roman, Jun 19 2018): It can be expensive to pass around giant sets
-     *                 if we need, for example, all physical machines in the market. We should
-     *                 optimize this use case by allowing a "type" filter.
+     * @param entitiesMap The target entities. Must be non-empty. It's a mapping from seed entity
+     *                    to derived entities, the derived entities may contain the seed entity
+     *                    entity itself or derived entities from seed entity. Stats response will
+     *                    be for each seed entity, but its value will be aggregated on derived
+     *                    entities.
      * @param commodities The commodities to retrieve. Must be non-empty.
      * @param paginationParams {@link EntityStatsPaginationParams} for the page.
      * @return The {@link ProjectedEntityStatsResponse} to return to the client.
      */
     @Nonnull
     public ProjectedEntityStatsResponse getEntityStats(
-                @Nonnull final Set<Long> entities,
-                @Nonnull final Set<String> commodities,
-                @Nonnull final EntityStatsPaginationParams paginationParams) {
-        if (entities.isEmpty()) {
+            @Nonnull final Map<Long, Set<Long>> entitiesMap,
+            @Nonnull final Set<String> commodities,
+            @Nonnull final EntityStatsPaginationParams paginationParams) {
+        if (entitiesMap.isEmpty()) {
             // For now we don't support paginating through all entities. The client is responsible
             // for providing a list of desired entities.
             // However, don't throw an exception because it's possible to request entity stats
@@ -99,7 +101,7 @@ public class ProjectedStatsStore {
                 .build();
         } else if (commodities.isEmpty()) {
             throw new IllegalArgumentException("Must specify at least one commodity for " +
-                    "per-entity stats request.");
+                "per-entity stats request.");
         }
 
         final TopologyCommoditiesSnapshot targetCommodities;
@@ -109,17 +111,16 @@ public class ProjectedStatsStore {
 
         if (targetCommodities == null) {
             return ProjectedEntityStatsResponse.newBuilder()
-                    .setPaginationResponse(PaginationResponse.getDefaultInstance())
-                    .build();
+                .setPaginationResponse(PaginationResponse.getDefaultInstance())
+                .build();
         }
 
         return entityStatsCalculator.calculateNextPage(targetCommodities,
-                statSnapshotCalculator,
-                entities,
-                commodities,
-                paginationParams);
+            statSnapshotCalculator,
+            entitiesMap,
+            commodities,
+            paginationParams);
     }
-
 
     /**
      * Get the snapshot representing projected stats for a given set of entities and commodities.
@@ -160,8 +161,27 @@ public class ProjectedStatsStore {
      * @throws CommunicationException If there are issues connecting to the source of the entities.
      */
     public long updateProjectedTopology(@Nonnull final RemoteIterator<ProjectedTopologyEntity> entities)
-            throws InterruptedException, TimeoutException, CommunicationException {
-        final TopologyCommoditiesSnapshot newCommodities = topoCommSnapshotFactory.createSnapshot(entities, priceIndexSnapshotFactory);
+        throws InterruptedException, TimeoutException, CommunicationException {
+        final TopologyCommoditiesSnapshot newCommodities
+            = topoCommSnapshotFactory.createSnapshot(entities, priceIndexSnapshotFactory);
+        return updateProjectedTopology(newCommodities);
+    }
+
+    /**
+     * Overwrite the projected topology snapshot in the store with a new set of entities.
+     *
+     * <p>This method is used by {@link TopologyCommoditiesProcessor}, which processes projected
+     * live topologies. It takes a partially-built {@link TopologyCommoditiesSnapshot} in the form
+     * of a builder that is ready to build. Our priceIndexSnapshotFactory is required for the build,
+     * so we finish the build here and install the reuslting snapshot.</p>
+     * @param builder partially-built snapshot builder
+     * @return updated project topology
+     */
+    public long updateProjectedTopology(@Nonnull final TopologyCommoditiesSnapshot.Builder builder) {
+        return updateProjectedTopology(builder.build(priceIndexSnapshotFactory));
+    }
+
+    private long updateProjectedTopology(final TopologyCommoditiesSnapshot newCommodities) {
         synchronized (topologyCommoditiesLock) {
             topologyCommodities = newCommodities;
         }
@@ -179,16 +199,18 @@ public class ProjectedStatsStore {
         default ProjectedEntityStatsResponse calculateNextPage(
                 @Nonnull final TopologyCommoditiesSnapshot targetCommodities,
                 @Nonnull final StatSnapshotCalculator statSnapshotCalculator,
-                @Nonnull final Set<Long> targetEntities,
+                @Nonnull final Map<Long, Set<Long>> entitiesMap,
                 @Nonnull final Set<String> commodityNames,
                 @Nonnull final EntityStatsPaginationParams paginationParams) {
             // Get the entity comparator to use.
-            final Comparator<Long> entityComparator = targetCommodities.getEntityComparator(paginationParams);
+            final Comparator<Long> entityComparator = targetCommodities.getEntityComparator(
+                paginationParams, entitiesMap);
 
             // Sort the input entity IDs using the comparator, and apply the pagination parameters
             // (i.e. limit + cursor)
             final int skipCount = paginationParams.getNextCursor().map(Integer::parseInt).orElse(0);
-            final List<Long> nextPageIds = targetEntities.stream()
+            final Set<Long> allRecords = entitiesMap.keySet();
+            final List<Long> nextPageIds = allRecords.stream()
                     .sorted(entityComparator)
                     .skip(skipCount)
                     .limit(paginationParams.getLimit() + 1)
@@ -196,6 +218,7 @@ public class ProjectedStatsStore {
             final ProjectedEntityStatsResponse.Builder responseBuilder =
                     ProjectedEntityStatsResponse.newBuilder();
             final PaginationResponse.Builder paginationRespBuilder = PaginationResponse.newBuilder();
+            paginationRespBuilder.setTotalRecordCount(allRecords.size());
             if (nextPageIds.size() > paginationParams.getLimit()) {
                 nextPageIds.remove(paginationParams.getLimit());
                 paginationRespBuilder.setNextCursor(Integer.toString(skipCount + paginationParams.getLimit()));
@@ -207,7 +230,7 @@ public class ProjectedStatsStore {
                     .map(entityId -> EntityStats.newBuilder()
                             .setOid(entityId)
                             .addStatSnapshots(statSnapshotCalculator.buildSnapshot(
-                                targetCommodities, Collections.singleton(entityId), commodityNames))
+                                targetCommodities, entitiesMap.get(entityId), commodityNames))
                             .build())
                     .forEach(responseBuilder::addEntityStats);
             return responseBuilder.build();

@@ -6,7 +6,7 @@ public class GraphCreatorFixture {
     private final GraphDefinition graphDefinition = new GraphDefinition.Builder()
             .setGraphName("seGraph")
             .setServiceEntityVertex("seVertexCollection")
-            .setProviderRelationship("seProviderEdgeCollection")
+            .setProviderRelationship("seProviderEdgeCol")
             .createGraphDefinition();
 
     public GraphDefinition getGraphDefinition() {

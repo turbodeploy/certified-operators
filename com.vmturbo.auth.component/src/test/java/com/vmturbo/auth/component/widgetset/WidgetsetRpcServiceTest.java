@@ -16,16 +16,16 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
+import com.google.common.collect.Lists;
+
+import io.grpc.StatusRuntimeException;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
-
-import com.google.common.collect.Lists;
-
-import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.auth.api.authorization.jwt.JwtCallCredential;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
@@ -215,7 +215,7 @@ public class WidgetsetRpcServiceTest {
     public void testTransferWidgetset() {
         // Arrange
         final long useridToDelete = 2333L;
-        when(widgetsetStore.transferOwnership(useridToDelete, userOid))
+        when(widgetsetStore.transferOwnership(Collections.singleton(useridToDelete), userOid))
             .thenReturn(Collections.singletonList(WIDGETSET_RECORD_1).iterator());
         // Act
         Iterator<Widgetset> result = widgetsetRpcClient.transferWidgetset(TransferWidgetsetRequest
@@ -229,7 +229,7 @@ public class WidgetsetRpcServiceTest {
             count ++;
         }
         assertEquals(1, count);
-        verify(widgetsetStore).transferOwnership(useridToDelete, userOid);
+        verify(widgetsetStore).transferOwnership(Collections.singleton(useridToDelete), userOid);
         verifyNoMoreInteractions(widgetsetStore);
     }
 

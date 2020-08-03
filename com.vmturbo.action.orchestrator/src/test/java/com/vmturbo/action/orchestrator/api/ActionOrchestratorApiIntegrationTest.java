@@ -4,6 +4,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -17,8 +19,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorNotificationReceiver;
@@ -83,7 +83,7 @@ public class ActionOrchestratorApiIntegrationTest {
         integrationTestServer = new IntegrationTestServer(testName, TestApiServerConfig.class);
         messageReceiver = integrationTestServer.getBean("notificationsChannel");
         actionOrchestrator =
-                new ActionOrchestratorNotificationReceiver(messageReceiver, threadPool);
+                new ActionOrchestratorNotificationReceiver(messageReceiver, threadPool, 0);
 
         notificationSender =
                 integrationTestServer.getBean(ActionOrchestratorNotificationSender.class);
@@ -106,7 +106,7 @@ public class ActionOrchestratorApiIntegrationTest {
     @Test
     public void testNotifyActions() throws Exception {
         final ActionsListener listener = Mockito.mock(ActionsListener.class);
-        actionOrchestrator.addActionsListener(listener);
+        actionOrchestrator.addListener(listener);
 
         final ActionDTO.ActionPlanInfo actionPlanInfo = ActionPlanInfo.newBuilder()
             .setMarket(MarketActionPlanInfo.newBuilder()
@@ -130,7 +130,7 @@ public class ActionOrchestratorApiIntegrationTest {
     @Test
     public void testNotifyProgress() throws Exception {
         final ActionsListener listener = Mockito.mock(ActionsListener.class);
-        actionOrchestrator.addActionsListener(listener);
+        actionOrchestrator.addListener(listener);
 
         ActionProgress actionProgress = ActionProgress.newBuilder()
             .setDescription("progress")
@@ -150,7 +150,7 @@ public class ActionOrchestratorApiIntegrationTest {
     @Test
     public void testNotifySuccess() throws Exception {
         final ActionsListener listener = Mockito.mock(ActionsListener.class);
-        actionOrchestrator.addActionsListener(listener);
+        actionOrchestrator.addListener(listener);
 
         ActionSuccess actionSuccess = ActionSuccess.newBuilder()
             .setSuccessDescription("success")
@@ -168,7 +168,7 @@ public class ActionOrchestratorApiIntegrationTest {
     @Test
     public void testNotifyFailure() throws Exception {
         final ActionsListener listener = Mockito.mock(ActionsListener.class);
-        actionOrchestrator.addActionsListener(listener);
+        actionOrchestrator.addListener(listener);
 
         ActionFailure actionFailure = ActionFailure.newBuilder()
             .setErrorDescription("error")

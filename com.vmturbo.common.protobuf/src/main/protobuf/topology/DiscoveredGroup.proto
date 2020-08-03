@@ -21,11 +21,17 @@ message DiscoveredGroupInfo {
 
     // If the discovered group was interpreted as a cluster, this is the spec for
     // the resulting cluster in the XL system.
-    optional .group.ClusterInfo interpreted_cluster = 2;
+    reserved 2, 3;
+    // optional .group.ClusterInfo interpreted_cluster = 2 [deprecated=true];
 
     // If the discovered group was interpreted as a regular group, this is the spec
     // for the group in the XL system.
-    optional .group.GroupInfo interpreted_group = 3;
+    // optional .group.GroupInfo interpreted_group = 3 [deprecated=true];
+
+    // this is the spec for the interpreted group which is uploaded to group component, this is
+    // intended to replace the fields 2 and 3 above, but 2 and 3 are kept so old format groups
+    // in old diags can be loaded successfully
+    optional .group.DiscoveredGroupsPoliciesSettings.UploadedGroup uploaded_group = 4;
 }
 
 // Represents all the groups discovered by a specific target.

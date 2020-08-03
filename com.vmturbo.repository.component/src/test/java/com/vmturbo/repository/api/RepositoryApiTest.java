@@ -39,7 +39,7 @@ public class RepositoryApiTest {
         threadPool = Executors.newCachedThreadPool();
         final SenderReceiverPair<RepositoryNotification> notificationsChannel =
                 new SenderReceiverPair<>();
-        client = new RepositoryNotificationReceiver(notificationsChannel, threadPool);
+        client = new RepositoryNotificationReceiver(notificationsChannel, threadPool, 0);
         notificationSender = new RepositoryNotificationSender(notificationsChannel);
         listener = Mockito.mock(RepositoryListener.class);
         client.addListener(listener);

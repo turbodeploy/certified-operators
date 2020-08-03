@@ -1,11 +1,19 @@
 package com.vmturbo.reports.component;
 
+import java.sql.SQLException;
 import java.time.Duration;
 
 import javax.sql.DataSource;
 
 import org.flywaydb.core.Flyway;
-import org.mariadb.jdbc.MySQLDataSource;
+import org.jooq.DSLContext;
+import org.jooq.conf.RenderNameStyle;
+import org.jooq.conf.Settings;
+import org.jooq.impl.DefaultConfiguration;
+import org.jooq.impl.DefaultDSLContext;
+import org.jooq.impl.DefaultExecuteListenerProvider;
+import org.mariadb.jdbc.MariaDbDataSource;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,23 +42,20 @@ public class ReportingDbConfig extends SQLDatabaseConfig {
     @Value("${dbSchemaName}")
     private String vmtDbSchema;
 
-
-    @Override
-    public Flyway flyway() {
-        // Migrations are handled in history component instead.
-        return new Flyway();
-    }
-
     @Bean
     public DataSource reportingDatasource() {
-        final MySQLDataSource dataSource = new MySQLDataSource();
-        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort,
+        final MariaDbDataSource dataSource = new MariaDbDataSource();
+        final DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort, authRoute,
                 authRetryDelaySecs);
-
-        dataSource.setUrl(getDbUrl() + '/' + vmtDbSchema);
-        dataSource.setUser(dbUsername);
-        dataSource.setPassword(dbPasswordUtil.getSqlDbRootPassword());
-        return dataSource;
+        try {
+            // getSQLConfigObject().getDbUrl() already contains the path of the given vmtDbSchema.
+            dataSource.setUrl(getSQLConfigObject().getDbUrl());
+            dataSource.setUser(dbUsername);
+            dataSource.setPassword(dbPasswordUtil.getSqlDbRootPassword());
+            return dataSource;
+        } catch (SQLException e) {
+            throw new BeanCreationException("Failed to initialize bean: " + e.getMessage()) ;
+        }
     }
 
     @Bean
@@ -62,5 +67,38 @@ public class ReportingDbConfig extends SQLDatabaseConfig {
             flyway.setLocations(MIGRATIONS_LOCATION);
             return flyway;
         }).migrate();
+    }
+
+    /**
+     * This class is obsoleted. Adding the method to avoid compilation error only.
+     * @return empty string.
+     */
+    @Override
+    public String getDbSchemaName() {
+        return "";
+    }
+
+    /**
+     * Return DSL context used by ReportingDbConfig.
+     *
+     * @return DSL context.
+     */
+    @Bean
+    public DSLContext dsl() {
+        // As reports component is to be refactored, we'll ignore reports component for multi-tenant
+        // database support for now. Here we use root credentials to access database.
+        // TODO: Will need to be modified to support multi-tenant database once reporting is fully
+        // supported.
+        return new DefaultDSLContext(reportingDBConfiguration());
+    }
+
+    private DefaultConfiguration reportingDBConfiguration() {
+        DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
+        jooqConfiguration.set(connectionProvider());
+        jooqConfiguration.set(new Settings().withRenderNameStyle(RenderNameStyle.LOWER));
+        jooqConfiguration.set(new DefaultExecuteListenerProvider(exceptionTranslator()));
+        jooqConfiguration.set(getSQLConfigObject().getSqlDialect());
+
+        return jooqConfiguration;
     }
 }

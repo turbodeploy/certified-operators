@@ -1,46 +1,62 @@
 package com.vmturbo.topology.processor.entity;
 
+import static com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter.entityState;
+
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
-
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
-import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
 
@@ -55,12 +71,18 @@ public class EntityStore {
     /**
      * Map of entityId -> Entity object describing the entity.
      */
-    private Map<Long, Entity> entityMap = new ConcurrentHashMap<>();
+    private final Map<Long, Entity> entityMap = new ConcurrentHashMap<>();
 
     /**
      * Map of targetId -> target-specific entity ID information for the target.
      */
-    private Map<Long, TargetEntityIdInfo> targetEntities = new HashMap<>();
+    private final Map<Long, TargetEntityIdInfo> targetEntities = new HashMap<>();
+
+    /**
+     * Map from targetId to a map of incremental discovered entities ordered by time.
+     */
+    @GuardedBy("topologyUpdateLock")
+    private final Map<Long, TargetIncrementalEntities> targetIncrementalEntities = new HashMap<>();
 
     /**
      * Lock for writes to the repository.
@@ -79,26 +101,69 @@ public class EntityStore {
 
     /**
      * The target store which contains target specific information for the entity.
+     *
+     *  TODO (OM-51214): Remove this dependency to eliminate the circular dependency between
+     * EntityStore and {@link CachingTargetStore}.
+     * We should never acquire the TargetStore lock within this class. And since which methods
+     * are guarded by a lock is implementation-dependent, we really shouldn't be making calls to the
+     * TargetStore from this class at all. We should refactor to remove this dependency altogether.
      */
     private final TargetStore targetStore;
 
     /**
-     * All the probes which support convert layered over to connected to relationship.
+     * Used to send notifications.
      */
-    private static final Set<SDKProbeType> SUPPORTED_CONNECTED_TO_PROBES = ImmutableSet.of(
-        SDKProbeType.AWS, SDKProbeType.AZURE, SDKProbeType.VC_STORAGE_BROWSE);
+    private final TopologyProcessorNotificationSender sender;
+
+    /**
+     * All the probe types which support converting layered over and consists of to connected to relationship.
+     */
+    private static final Set<SDKProbeType> SUPPORTED_CONNECTED_TO_PROBE_TYPES = ImmutableSet.of(
+            SDKProbeType.AWS,
+            SDKProbeType.AWS_BILLING,
+            SDKProbeType.AZURE,
+            SDKProbeType.AZURE_EA,
+            SDKProbeType.AZURE_STORAGE_BROWSE,
+            SDKProbeType.GCP,
+            SDKProbeType.VCENTER,
+            SDKProbeType.VC_STORAGE_BROWSE,
+            SDKProbeType.HYPERV,
+            SDKProbeType.VMM);
+
+    /**
+     * All the probe categories which support converting layered over and consists of to connected to relationship.
+     */
+    private static final Set<ProbeCategory> SUPPORTED_CONNECTED_TO_PROBE_CATEGORIES = ImmutableSet.of(
+        ProbeCategory.CLOUD_NATIVE);
+
+    /**
+     * Mapping from entity type to the list of operations which are performed to apply entities
+     * discovered from incremental discoveries to the full topology.
+     */
+    private static final Map<Integer, List<BiConsumer<EntityDTO.Builder, EntityDTO>>>
+        INCREMENTAL_ENTITY_UPDATE_FUNCTIONS = ImmutableMap.of(
+            EntityType.PHYSICAL_MACHINE_VALUE, ImmutableList.of(
+                (fullEntityBuilder, incrementalEntity) -> {
+                    if (incrementalEntity.hasMaintenance()) {
+                        fullEntityBuilder.setMaintenance(incrementalEntity.getMaintenance());
+                    }
+                })
+    );
 
     public EntityStore(@Nonnull final TargetStore targetStore,
                        @Nonnull final IdentityProvider identityProvider,
+                       @Nonnull final TopologyProcessorNotificationSender sender,
                        @Nonnull final Clock clock) {
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.sender = Objects.requireNonNull(sender);
         this.clock = Objects.requireNonNull(clock);
         targetStore.addListener(new TargetStoreListener() {
             @Override
             public void onTargetRemoved(@Nonnull final Target target) {
                 final long targetId = target.getId();
-                logger.info("Deleting target {} and all related entity data.", targetId);
+                logger.info("Deleting target '{}' ({}) and all related entity data.",
+                        target.getDisplayName(), targetId);
                 EntityStore.this.purgeTarget(targetId, null);
             }
         });
@@ -240,54 +305,116 @@ public class EntityStore {
      */
     @Nonnull
     public StitchingContext constructStitchingContext() {
-        final StitchingContext.Builder builder = StitchingContext.newBuilder(entityMap.size())
-            .setIdentityProvider(identityProvider).setTargetStore(targetStore);
+        final StitchingContext.Builder builder = StitchingContext
+            .newBuilder(entityMap.size(), targetStore)
+            .setIdentityProvider(identityProvider);
         TargetStitchingDataMap stitchingDataMap;
 
         synchronized (topologyUpdateLock) {
             stitchingDataMap = new TargetStitchingDataMap(targetEntities);
 
             // This will populate the stitching data map.
-            entityMap.entrySet().stream()
-                .forEach(entry -> {
-                    final Long oid = entry.getKey();
-                    entry.getValue().getPerTargetInfo().stream()
-                        .map(targetInfoEntry ->
-                            StitchingEntityData.newBuilder(targetInfoEntry.getValue()
-                                .getEntityInfo().toBuilder())
-                                    .oid(oid)
-                                    .targetId(targetInfoEntry.getKey())
-                                    .lastUpdatedTime(getTargetLastUpdatedTime(
-                                        targetInfoEntry.getKey()).orElse(0L))
-                                    .supportsConnectedTo(supportsConnectedTo(
-                                        targetInfoEntry.getKey()))
-                                .build())
-                        .forEach(stitchingDataMap::put);
-                    });
+            entityMap.forEach((oid, entity) ->
+                entity.getPerTargetInfo().stream()
+                    .map(targetInfoEntry -> {
+                        final long targetId = targetInfoEntry.getKey();
+                        // apply changes of cached entities from incremental discovery
+                        final EntityDTO.Builder entityDTO = applyIncrementalChanges(
+                            targetInfoEntry.getValue().getEntityInfo().toBuilder(), oid, targetId);
+                        return StitchingEntityData.newBuilder(entityDTO)
+                            .oid(oid)
+                            .targetId(targetId)
+                            .lastUpdatedTime(getTargetLastUpdatedTime(targetId).orElse(0L))
+                            .supportsConnectedTo(supportsConnectedTo(targetId))
+                            .build();
+                    }).forEach(stitchingDataMap::put));
         }
 
         stitchingDataMap.allStitchingData()
-            .forEach(stitchingEntityData -> builder.addEntity(
-                stitchingEntityData,
-                stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId())
-            ));
+            .forEach(stitchingEntityData -> {
+                try {
+                    builder.addEntity(
+                        stitchingEntityData,
+                        stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId()));
+                } catch (IllegalArgumentException | NullPointerException e) {
+                    // We want to make sure we don't block the whole broadcast if one entity
+                    // encounters an error.
+                    logger.error("Failed to add entity " +
+                        stitchingEntityData + " to stitching context due to error.", e);
+                }
+            });
 
         return builder.build();
     }
 
     /**
-     * Check if the probe type of the given target uses layeredOver and consistsOf in the DTO to
-     * represent normal connectedTo relationships and owns connectedTo relationships respectively
-     * or not. This is used in
+     * Apply cached entities discovered from incremental discoveries to the given EntityDTO.
+     * It takes all incremental responses which happened after last successful full discovery
+     * (older ones have already been cleared once a full discovery finishes), and apply them
+     * in the order of discovery request, the last one wins.
+     *
+     * <p>We don't support adding new entity or deleting existing entity from incremental results
+     * for now. We only support updating partial fields of existing entity, like updating the
+     * maintenance field for host.
+     *
+     * @param entityDTO the builder of the EntityDTO to apply incremental changes on
+     * @param entityOid assigned oid for the entity
+     * @param targetId id of the target where this entity comes from
+     * @return the updated EntityDTO builder
+     */
+    @GuardedBy("topologyUpdateLock")
+    private EntityDTO.Builder applyIncrementalChanges(@Nonnull EntityDTO.Builder entityDTO,
+                                                      long entityOid, long targetId) {
+        final Optional<TargetIncrementalEntities> incrementalEntities = getIncrementalEntities(targetId);
+        if (!incrementalEntities.isPresent()) {
+            // nothing to apply
+            return entityDTO;
+        }
+
+        final List<BiConsumer<EntityDTO.Builder, EntityDTO>> updateFunctions =
+            INCREMENTAL_ENTITY_UPDATE_FUNCTIONS.get(entityDTO.getEntityType().getNumber());
+        if (updateFunctions == null) {
+            // no update functions
+            logger.debug("No incremental update functions provided for entity type {}",
+                entityDTO.getEntityType());
+            return entityDTO;
+        }
+
+        incrementalEntities.get().applyEntitiesInDiscoveryOrder(entityOid,
+            (messageId, incrementalEntity) -> {
+                switch (incrementalEntity.getUpdateType()) {
+                    case UPDATED:
+                    case PARTIAL:
+                        logger.debug("Applying incremental EntityDTO (target: {}, message id: {}):{}",
+                            () -> targetId, () -> messageId, () -> incrementalEntity);
+                        updateFunctions.forEach(updateFunction ->
+                            updateFunction.accept(entityDTO, incrementalEntity));
+                        break;
+                    default:
+                        logger.error("Unsupported update type {} for entity {} from target {}, message id: {}",
+                            incrementalEntity.getUpdateType(), incrementalEntity, targetId, messageId);
+                }
+            });
+
+        return entityDTO;
+    }
+
+    /**
+     * Check if the probe type or probe category of the given target uses layeredOver and consistsOf
+     * in the DTO to represent normal connectedTo relationships and owns connectedTo relationships
+     * respectively or not. This is used in
      * {@link TopologyStitchingGraph#addStitchingData(StitchingEntityData, Map)} to add connected
      * entity. This logic can be removed once EntityDTO itself supports connected relationship.
      *
      * @param targetId the id of the target
-     * @return true if the target is in {@link SUPPORTED_CONNECTED_TO_PROBES} otherwise false
+     * @return true if the target is in {@link #SUPPORTED_CONNECTED_TO_PROBE_TYPES} or
+     * {@link #SUPPORTED_CONNECTED_TO_PROBE_CATEGORIES} otherwise false
      */
     private boolean supportsConnectedTo(long targetId) {
         return targetStore.getProbeTypeForTarget(targetId)
-            .map(SUPPORTED_CONNECTED_TO_PROBES::contains).orElse(false);
+            .map(SUPPORTED_CONNECTED_TO_PROBE_TYPES::contains).orElse(false) ||
+             targetStore.getProbeCategoryForTarget(targetId)
+                 .map(SUPPORTED_CONNECTED_TO_PROBE_CATEGORIES::contains).orElse(false);
     }
 
     /**
@@ -339,17 +466,14 @@ public class EntityStore {
      * @param entityDTOList The list of discovered {@link EntityDTO}s.
      * @return A map from OID to {@link EntityDTO}. If multiple {@link EntityDTO}s map to the
      *         same OID only one of them will appear in this map.
-     * @throws EntitiesValidationException If the input list contains {@link EntityDTO}s that
-     *      contain illegal values that we don't have workarounds for.
-     * @throws IdentityProviderException If during id assignment, those assignments cannot be
+     * @throws IdentityServiceException If during id assignment, those assignments cannot be
      *                                   persisted.
      */
     @Nonnull
     private Map<Long, EntityDTO> assignIdsToEntities(final long probeId,
                                                      final long targetId,
                                                      @Nonnull final List<EntityDTO> entityDTOList)
-        throws IdentityUninitializedException,
-                    IdentityMetadataMissingException, IdentityProviderException {
+        throws IdentityServiceException {
         // There may be duplicate entries (though that's a bug in the probes),
         // and we should deal with that without throwing exceptions.
         final Map<Long, EntityDTO> finalEntitiesById = new HashMap<>();
@@ -371,9 +495,29 @@ public class EntityStore {
         return finalEntitiesById;
     }
 
-    private void insertTargetEntities(final long targetId,
-                                      @Nonnull final Map<Long, EntityDTO> entitiesById) {
+    /**
+     * Insert the entities for the given target into existing store.
+     *
+     * @param targetId id of the target to insert entities for
+     * @param messageId mediation message identifier that is relating the response to the initial
+     *                  request, which is used to indicate relative timing of the discovery order
+     * @param entitiesById map from entity oid to {@link EntityDTO}
+     * @throws TargetNotFoundException if the target can not be found
+     */
+    private void setFullDiscoveryEntities(final long targetId, final int messageId,
+                                      @Nonnull final Map<Long, EntityDTO> entitiesById)
+            throws TargetNotFoundException {
         synchronized (topologyUpdateLock) {
+            // Ensure that the target exists; avoid adding entities for targets that have been removed
+            // TODO (OM-51214): Remove this check when we have better overall synchronization of
+            // target operations. This call would lead to a deadlock if it grabbed the storeLock
+            // while holding the topologyUpdateLock. Currently, TargetStore::getTarget does not
+            // acquire the storeLock, allowing this check to work as a stop-gap.
+            final Optional<Target> target = targetStore.getTarget(targetId);
+            if (!target.isPresent()) {
+                throw new TargetNotFoundException(targetId);
+            }
+
             purgeTarget(targetId,
                     // If the entity is not present in the incoming snapshot, then remove it.
                     (entity) -> !entitiesById.containsKey(entity.getId()));
@@ -436,6 +580,10 @@ public class EntityStore {
                 newEntitiesByLocalId, clock.millis());
             targetEntities.put(targetId, targetIdInfo);
 
+            // clear all incremental responses which are triggered before current successful full discovery
+            getIncrementalEntities(targetId).ifPresent(incrementalEntities ->
+                incrementalEntities.clearEntitiesDiscoveredBefore(messageId));
+
             // Fill in the hosted-by relationships.
             vmToProviderLocalIds.forEach((entityId, localIds) ->
                 localIds.stream()
@@ -471,22 +619,89 @@ public class EntityStore {
      * @param probeId The probe that the target belongs to.
      * @param targetId The target that discovered the entities. Existing entities discovered by this
      *                 target will be purged from the repository.
+     * @param messageId mediation message identifier that is relating the response to the initial
+     *                  request, which is used to indicate relative timing of the discovery order
+     * @param discoveryType type of the discovery
      * @param entityDTOList The discovered {@link EntityDTO} objects.
-     * @throws IdentityUninitializedException If the identity service is uninitialized, and we are
-     *  unable to assign IDs to discovered entities.
-     * @throws IdentityMetadataMissingException if asked to assign an ID to an {@link EntityDTO}
-     *         for which there is no identity metadata.
+     * @throws IdentityServiceException If error occurred assigning OIDs
+     * @throws TargetNotFoundException if no target exists with the provided targetId
      */
-    public void entitiesDiscovered(final long probeId,
-                                   final long targetId,
-                                   @Nonnull final List<EntityDTO> entityDTOList)
-            throws IdentityUninitializedException, IdentityMetadataMissingException,
-                    IdentityProviderException {
-
+    public void entitiesDiscovered(final long probeId, final long targetId, final int messageId,
+        @Nonnull DiscoveryType discoveryType, @Nonnull final List<EntityDTO> entityDTOList)
+            throws IdentityServiceException, TargetNotFoundException {
+        // this applies to all discovery types, since there may be new entities in incremental response
         final Map<Long, EntityDTO> entitiesById =
             assignIdsToEntities(probeId, targetId, entityDTOList);
 
-        insertTargetEntities(targetId, entitiesById);
+        if (discoveryType == DiscoveryType.FULL) {
+            setFullDiscoveryEntities(targetId, messageId, entitiesById);
+        } else if (discoveryType == DiscoveryType.INCREMENTAL) {
+            // Send partial entityDTOs of entity that changed state
+            sendEntitiesWithNewState(entitiesById);
+            // cache the entities from incremental discovery response
+            addIncrementalDiscoveryEntities(targetId, messageId, entitiesById);
+        }
+    }
+
+    private void sendEntitiesWithNewState(Map<Long, EntityDTO> entitiesById) {
+        Builder entitiesWithNewStateBuilder = EntitiesWithNewState.newBuilder();
+        for (Long entityOid: entitiesById.keySet()) {
+            EntityDTO entityDTO = entitiesById.get(entityOid);
+            if (entityDTO.getEntityType() == EntityType.PHYSICAL_MACHINE) {
+                entitiesWithNewStateBuilder.addTopologyEntity(TopologyEntityDTO.newBuilder()
+                    .setOid(entityOid)
+                    .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setEntityState(entityState(entityDTO))
+                    .build());
+            }
+        }
+        if (entitiesWithNewStateBuilder.getTopologyEntityCount() > 0) {
+            entitiesWithNewStateBuilder.setStateChangeId(identityProvider.generateTopologyId());
+            EntitiesWithNewState entitiesWithNewStateMessage = entitiesWithNewStateBuilder.build();
+            try {
+                sender.onEntitiesWithNewState(entitiesWithNewStateMessage);
+            } catch (Exception e) {
+                logger.error("Problem occurred while sending entity state change message {}",
+                    entitiesWithNewStateMessage);
+            }
+        }
+    }
+
+    /**
+     * Add the entities discovered from incremental discovery to the cache.
+     *
+     * @param targetId id of the target to insert entities for
+     * @param messageId mediation message identifier that is relating the response to the initial
+     *                  request, which is used to indicate relative timing of the discovery order
+     * @param entitiesById map from entity oid to {@link EntityDTO}
+     * @throws TargetNotFoundException if the target can not be found
+     */
+    private void addIncrementalDiscoveryEntities(final long targetId, int messageId,
+            @Nonnull final Map<Long, EntityDTO> entitiesById) throws TargetNotFoundException {
+        synchronized (topologyUpdateLock) {
+            final Optional<Target> target = targetStore.getTarget(targetId);
+            if (!target.isPresent()) {
+                throw new TargetNotFoundException(targetId);
+            }
+
+            final Map<Long, EntityDTO> newEntityDTOsByOid = new HashMap<>(entitiesById.size());
+            final Set<String> localIds = new HashSet<>(entitiesById.size());
+            // sanity check for duplicate local ids in response, which indicates a bug in probe
+            entitiesById.forEach((entityOid, entityDTO) -> {
+                final String localId = entityDTO.getId();
+                if (localIds.contains(entityDTO.getId())) {
+                    logger.error("Duplicate local ID {} for entity {} and {}, keeping the first one",
+                        localId, newEntityDTOsByOid.get(entityOid), entityDTO);
+                } else {
+                    localIds.add(entityDTO.getId());
+                    newEntityDTOsByOid.put(entityOid, entityDTO);
+                }
+            });
+
+            // add to incremental cache
+            targetIncrementalEntities.computeIfAbsent(targetId, k -> new TargetIncrementalEntities())
+                .addEntities(messageId, newEntityDTOsByOid);
+        }
     }
 
     /**
@@ -498,11 +713,16 @@ public class EntityStore {
      * discovered by multiple targets.
      *
      * @param targetId the ID of the target with which the entities are associated
+     * @param lastUpdatedTime unused. entity lastUpdatedTime will be set to the current clock time
      * @param restoredMap a map from entity OID to entity
+     * @throws TargetNotFoundException if no target exists with the provided targetId
      */
-    public void entitiesRestored(long targetId, long lastUpdatedTime, Map<Long, EntityDTO> restoredMap) {
+    public void entitiesRestored(long targetId, long lastUpdatedTime,
+                                 Map<Long, EntityDTO> restoredMap) throws TargetNotFoundException {
         logger.info("Restoring {} entities for target {}", restoredMap.size(), targetId);
-        insertTargetEntities(targetId, restoredMap);
+        // the messageId doesn't matter here, since there will not be any incremental discoveries
+        // after loading diags
+        setFullDiscoveryEntities(targetId, 0, restoredMap);
     }
 
     /**
@@ -552,6 +772,109 @@ public class EntityStore {
 
         public long getLastUpdatedTime() {
             return lastUpdatedTime;
+        }
+    }
+
+    /**
+     * Get the cached entities for a target discovered from incremental discoveries.
+     *
+     * @param targetId id of the target to get incremental entities for
+     * @return optional incremental entities, or empty if not any
+     */
+    @VisibleForTesting
+    public synchronized Optional<TargetIncrementalEntities> getIncrementalEntities(long targetId) {
+        return Optional.ofNullable(targetIncrementalEntities.get(targetId));
+    }
+
+    /**
+     * Contains entities discovered from incremental discovery ordered by discovery.
+     */
+    @ThreadSafe
+    public static class TargetIncrementalEntities {
+
+        /**
+         * Map from entity oid to an ordered map of incremental entities by message id.
+         */
+        private final Map<Long, TreeMap<Integer, EntityDTO>> orderedIncrementalEntities = new TreeMap<>();
+
+        /**
+         * Add the given entities and related discovery message id to the cache. If a discovery
+         * happens later, it will have larger message id.
+         *
+         * @param messageId mediation message identifier that is relating the response to the initial
+         *                  request, which is used to indicate relative timing of the discovery order
+         * @param entitiesById map of entities
+         */
+        public synchronized void addEntities(int messageId, @Nonnull Map<Long, EntityDTO> entitiesById) {
+            entitiesById.forEach((oid, entity) ->
+                orderedIncrementalEntities.computeIfAbsent(oid, k -> new TreeMap<>())
+                    .put(messageId, entity));
+        }
+
+        /**
+         * Clear all entities which are discovered before the given messageId.
+         *
+         * @param messageId mediation message identifier that is relating the response to the initial
+         *                  request, which is used to indicate relative timing of the discovery order
+         */
+        public synchronized void clearEntitiesDiscoveredBefore(int messageId) {
+            orderedIncrementalEntities.values().forEach(orderedEntities ->
+                orderedEntities.headMap(messageId).clear());
+        }
+
+        /**
+         * Apply all the incremental changes for a given entity, in the order of discovery request.
+         *
+         * @param entityOid oid of the entity to apply incremental changes to
+         * @param operation the operation that applies incremental changes to full entity dto
+         */
+        public synchronized void applyEntitiesInDiscoveryOrder(long entityOid,
+                @Nonnull BiConsumer<Integer, EntityDTO> operation) {
+            final TreeMap<Integer, EntityDTO> entityInDiscoveryOrder =
+                orderedIncrementalEntities.get(entityOid);
+            if (entityInDiscoveryOrder != null) {
+                entityInDiscoveryOrder.forEach(operation);
+            }
+        }
+
+        /**
+         * Get all the incremental EntityDTOs for a given entity, ordered by discovery request.
+         * This is only used for testing purpose.
+         *
+         * @param entityOid oid of the entity to get incremental dtos for
+         * @return incremental entities (EntityDTO by message id) ordered by discovery request.
+         */
+        @VisibleForTesting
+        public synchronized SortedMap<Integer, EntityDTO> getEntitiesInDiscoveryOrder(long entityOid) {
+            final TreeMap<Integer, EntityDTO> entityInDiscoveryOrder =
+                orderedIncrementalEntities.get(entityOid);
+            if (entityInDiscoveryOrder == null) {
+                return Collections.emptySortedMap();
+            }
+            return new TreeMap<>(entityInDiscoveryOrder);
+        }
+
+        /**
+         * Get a map where each message id is mapped to the corresponding incremental EntityDTOs.
+         *
+         * @return the map
+         */
+        public synchronized LinkedHashMap<Integer, Collection<EntityDTO>> getEntitiesByMessageId() {
+            final LinkedHashMap<Integer, Collection<EntityDTO>> messageIdToEntityDtos =
+                new LinkedHashMap<>();
+            for (TreeMap<Integer, EntityDTO> messageIdToEntity : orderedIncrementalEntities.values()) {
+                for (Integer messageId : messageIdToEntity.keySet()) {
+                    if (messageIdToEntityDtos.containsValue(messageId)) {
+                        Collection<EntityDTO> currentEntityDTOs = messageIdToEntityDtos.get(messageId);
+                        currentEntityDTOs.add(messageIdToEntity.get(messageId));
+                        messageIdToEntityDtos.put(messageId,currentEntityDTOs);
+                    } else {
+                        messageIdToEntityDtos.put(messageId,
+                            Collections.singletonList(messageIdToEntity.get(messageId)));
+                    }
+                }
+            }
+            return messageIdToEntityDtos;
         }
     }
 

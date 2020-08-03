@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.jooq.DSLContext;
 import org.slf4j.Logger;
@@ -22,7 +23,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.proactivesupport.DataMetricGauge;
-import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * DAO backed by RDBMS to hold action history.
@@ -55,8 +55,10 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
      * Constructs action history DAO.
      *
      * @param dsl database access context
+     * @param actionModeCalculator calculates action mode
      */
-    public ActionHistoryDaoImpl(@Nonnull final DSLContext dsl, @Nonnull ActionModeCalculator actionModeCalculator) {
+    public ActionHistoryDaoImpl(@Nonnull final DSLContext dsl,
+            @Nonnull ActionModeCalculator actionModeCalculator) {
         this.dsl = Objects.requireNonNull(dsl);
         this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
     }
@@ -73,10 +75,14 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
             final long actionId,
             @Nonnull final ActionDTO.Action recommendation,
             final long realtimeTopologyContextId,
-            @Nonnull final LocalDateTime recommedationTime,
+            @Nonnull final LocalDateTime recommendationTime,
             @Nonnull final ActionDecision decision,
             @Nonnull final ExecutionStep executionStep,
-            @Nonnull final int currentState) {
+            @Nonnull final int currentState,
+            @Nullable final byte[] actionDetailData,
+            @Nullable final Long associatedAccountId,
+            @Nullable final Long associatedResourceGroupId,
+            long recommendationOid) {
         final LocalDateTime curTime = LocalDateTime.now();
         String userName = SecurityConstant.USER_ID_CTX_KEY.get();
         if (userName == null) {
@@ -87,11 +93,14 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
                 curTime, curTime,
                 realtimeTopologyContextId,
                 recommendation,
-                recommedationTime,
+                recommendationTime,
                 decision,
                 executionStep,
                 currentState,
-                userName);
+                userName,
+                actionDetailData,
+                associatedAccountId, associatedResourceGroupId,
+                recommendationOid);
         dsl.newRecord(ACTION_HISTORY, actionHistory).store();
         return actionHistory;
     }
@@ -118,14 +127,17 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
     }
 
     private ActionView mapDbActionHistoryToAction(final ActionHistoryRecord actionHistory) {
-        return new Action(
-                new SerializationState(
-                        actionHistory.getId(),
-                        actionHistory.getRecommendation(),
-                        actionHistory.getRecommendationTime(),
-                        actionHistory.getActionDecision(),
-                        actionHistory.getExecutionStep(),
-                        ActionDTO.ActionState.forNumber(actionHistory.getCurrentState()),
-                        new ActionTranslation(actionHistory.getRecommendation())), actionModeCalculator);
+        return new Action(new SerializationState(
+            actionHistory.getId(),
+            actionHistory.getRecommendation(),
+            actionHistory.getRecommendationTime(),
+            actionHistory.getActionDecision(),
+            actionHistory.getExecutionStep(),
+            ActionDTO.ActionState.forNumber(actionHistory.getCurrentState()),
+            new ActionTranslation(actionHistory.getRecommendation()),
+            actionHistory.getAssociatedAccountId(),
+            actionHistory.getAssociatedResourceGroupId(),
+            actionHistory.getActionDetailData(),
+            actionHistory.getRecommendationOid()), actionModeCalculator);
     }
 }

@@ -1,7 +1,9 @@
 package com.vmturbo.plan.orchestrator.scheduled;
 
+import java.time.LocalTime;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -14,16 +16,14 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.scheduling.support.CronTrigger;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioDao;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Spring Configuration for deletion of old/expired plans.
@@ -34,14 +34,14 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Import({GroupClientConfig.class,
          PlanConfig.class,
          ScenarioConfig.class,
-         SQLDatabaseConfig.class})
+        PlanOrchestratorDBConfig.class})
 public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
 
     @Autowired
-    private SQLDatabaseConfig dbConfig;
+    private PlanOrchestratorDBConfig dbConfig;
 
     @Autowired
     private PlanDao planDao;
@@ -50,11 +50,12 @@ public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
     private ScenarioDao scenarioDao;
 
     /**
-     * Plan deletion schedule. It uses the standard cron time format.
-     * For more see {@link org.springframework.scheduling.support.CronSequenceGenerator}
+     * Time to run plan deletion every day.
+     *
+     * <p>Required format: HH:MM[:SS]</p>
      */
-    @Value("${planDeletionSchedule}")
-    private String planDeletionSchedule;
+    @Value("${planDeletionTime:02:00}")
+    private String planDeletionTime;
 
     /** This parameter is used to control the batch size for deleting old plans.
      *  Currently this just limits the number of old planIDs fetched from the DB.
@@ -79,11 +80,17 @@ public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
     }
 
     /**
-     * Create a trigger based on the deletion schedule defined in the configuration property.
+     * Create a trigger based on the plan deletion time defined in the configuration property.
+
      * @return a {@link CronTrigger} which will implement the schedule for plan deletion.
      */
-    public CronTrigger cronTrigger() {
-        return new CronTrigger(planDeletionSchedule);
+    private CronTrigger cronTrigger() {
+        LocalTime time = LocalTime.parse(planDeletionTime);
+        final int hour = time.getHour();
+        final int minute = time.getMinute();
+        final int second = time.getSecond();
+        String cronSpec = String.format("%d %d %d * * *", second, minute, hour);
+        return new CronTrigger(cronSpec);
     }
 
     @Override

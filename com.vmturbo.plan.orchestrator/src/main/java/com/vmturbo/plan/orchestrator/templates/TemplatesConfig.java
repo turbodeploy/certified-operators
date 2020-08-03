@@ -10,10 +10,11 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTOREST.DiscoveredTempl
 import com.vmturbo.common.protobuf.plan.TemplateDTOREST.TemplateServiceController;
 import com.vmturbo.common.protobuf.plan.TemplateDTOREST.TemplateSpecServiceController;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
+import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
 
 @Configuration
-@Import({SQLDatabaseConfig.class, GlobalConfig.class})
+@Import({PlanOrchestratorDBConfig.class, GlobalConfig.class, DeploymentProfileConfig.class})
 public class TemplatesConfig {
 
     @Value("${templateSpecFile}")
@@ -22,11 +23,23 @@ public class TemplatesConfig {
     @Value("${defaultTemplatesFile}")
     private String defaultTemplatesFile;
 
+    /**
+     * The default is 60 after a cursory test. The optimal size for a single chunk in gRPC is
+     * 16-64KB. A template with all fields initialized and a single field is around 256 bytes,
+     * which we can take to be the lower bound on the template size. Multiplying the lower bound
+     * by 60 gives around 16KB.
+     */
+    @Value("${getTemplatesChunkSize:60}")
+    private int getTemplatesChunkSize;
+
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private PlanOrchestratorDBConfig databaseConfig;
 
     @Autowired
     private GlobalConfig globalConfig;
+
+    @Autowired
+    private DeploymentProfileConfig deploymentProfileConfig;
 
     @Bean
     public TemplateSpecParser templateSpecParser() {
@@ -46,7 +59,9 @@ public class TemplatesConfig {
 
     @Bean
     public TemplatesRpcService templatesService() {
-        return new TemplatesRpcService(templatesDao());
+        return new TemplatesRpcService(templatesDao(),
+                deploymentProfileConfig.deploymentProfileDao(),
+                databaseConfig.reservationDao(), getTemplatesChunkSize);
     }
 
     @Bean

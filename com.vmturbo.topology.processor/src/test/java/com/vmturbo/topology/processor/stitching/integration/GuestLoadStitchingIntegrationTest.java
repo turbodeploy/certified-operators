@@ -15,10 +15,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
+
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
@@ -28,16 +27,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityField;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityOid;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
-import com.vmturbo.stitching.StringToStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.StringToStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
@@ -63,7 +60,7 @@ public class GuestLoadStitchingIntegrationTest extends StitchingIntegrationTest 
         testGuestLoadStitching(getDataDrivenGuestLoadStitchingOperations());
     }
 
-    private List<StitchingOperation<?, ?>> getDataDrivenGuestLoadStitchingOperations() {
+    private static List<StitchingOperation<?, ?>> getDataDrivenGuestLoadStitchingOperations() {
         EntityField idField = EntityField.newBuilder().setFieldName("id").build();
         EntityOid oid = EntityOid.newBuilder().build();
         MatchingData internalMatchingData = MatchingData.newBuilder()
@@ -71,32 +68,27 @@ public class GuestLoadStitchingIntegrationTest extends StitchingIntegrationTest 
         MatchingData externalMatchingData = MatchingData.newBuilder()
                 .setMatchingEntityOid(oid).build();
         MatchingMetadata guestLoadMatchingMetadata = MatchingMetadata.newBuilder()
-                .addMatchingData(internalMatchingData).setReturnType(ReturnType.STRING)
+                .addMatchingData(internalMatchingData)
                 .addExternalEntityMatchingProperty(externalMatchingData)
-                .setExternalEntityReturnType(ReturnType.STRING)
                 .build();
 
         final MergedEntityMetadata guestLoadVMMergeEntityMetadata =
                 MergedEntityMetadata.newBuilder().mergeMatchingMetadata(guestLoadMatchingMetadata)
-                        .addAllCommoditiesSold(soldCommoditiesFromVMToApp)
+                        .addAllCommoditiesSoldMetadata(soldCommoditiesFromVMToApp)
                         .build();
         final MergedEntityMetadata guestLoadAppMergeEntityMetadata =
                 MergedEntityMetadata.newBuilder().mergeMatchingMetadata(guestLoadMatchingMetadata)
-                        .addAllCommoditiesSold(soldCommoditiesFromApp)
+                        .addAllCommoditiesSoldMetadata(soldCommoditiesFromApp)
                         .addAllCommoditiesBought(boughtCommoditiesFromAppToVM)
                         .build();
 
-        return ImmutableList.of(
-                new StringToStringDataDrivenStitchingOperation(
-                        new StringToStringStitchingMatchingMetaDataImpl(EntityType.VIRTUAL_MACHINE,
-                                guestLoadVMMergeEntityMetadata), Sets.newHashSet(
-                                        ProbeCategory.HYPERVISOR)),
-                new StringToStringDataDrivenStitchingOperation(
-                        new StringToStringStitchingMatchingMetaDataImpl(EntityType.APPLICATION,
-                                guestLoadAppMergeEntityMetadata), Sets.newHashSet(
-                                        ProbeCategory.HYPERVISOR))
-                );
+        return ImmutableList.of(createDataDrivenStitchingOperation(guestLoadVMMergeEntityMetadata,
+                        EntityType.VIRTUAL_MACHINE, ProbeCategory.HYPERVISOR),
+                        createDataDrivenStitchingOperation(guestLoadAppMergeEntityMetadata,
+                                        EntityType.APPLICATION_COMPONENT, ProbeCategory.HYPERVISOR));
     }
+
+
 
     private void testGuestLoadStitching(List<StitchingOperation<?, ?>>
                                                 guestLoadStitchingOperationsToTest)
@@ -236,11 +228,13 @@ public class GuestLoadStitchingIntegrationTest extends StitchingIntegrationTest 
         );
     }
 
-    private static Collection<CommodityType> soldCommoditiesFromApp =
-            ImmutableList.of(CommodityType.TRANSACTION, CommodityType.SLA_COMMODITY);
+    private static Collection<CommoditySoldMetadata> soldCommoditiesFromApp = ImmutableList.of(
+        CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.TRANSACTION).build(),
+        CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.SLA_COMMODITY).build());
 
-    private static Collection<CommodityType> soldCommoditiesFromVMToApp =
-            ImmutableList.of(CommodityType.VMEM, CommodityType.VCPU);
+    private static Collection<CommoditySoldMetadata> soldCommoditiesFromVMToApp = ImmutableList.of(
+        CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.VMEM).build(),
+        CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.VCPU).build());
 
     private static Collection<CommodityBoughtMetadata> boughtCommoditiesFromAppToVM =
             ImmutableList.of(CommodityBoughtMetadata.newBuilder()

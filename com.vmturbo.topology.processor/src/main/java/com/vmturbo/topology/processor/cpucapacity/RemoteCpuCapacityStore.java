@@ -7,6 +7,9 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,8 +44,8 @@ public class RemoteCpuCapacityStore implements CpuCapacityStore {
      */
     private static final long SCALE_FACTOR_CACHE_MAX_SIZE = 1000L;
 
-    public RemoteCpuCapacityStore(@Nonnull final CpuCapacityServiceBlockingStub cpuCapacityServiceBlockingStub,
-                                  final int scaleFactorCacheTimeoutHr) {
+    RemoteCpuCapacityStore(@Nonnull final CpuCapacityServiceBlockingStub cpuCapacityServiceBlockingStub,
+                           final int scaleFactorCacheTimeoutHr) {
         this.cpuCapacityServiceBlockingStub = cpuCapacityServiceBlockingStub;
         scaleFactorCache = CacheBuilder.newBuilder()
                 .expireAfterWrite(scaleFactorCacheTimeoutHr, TimeUnit.HOURS)
@@ -69,7 +72,6 @@ public class RemoteCpuCapacityStore implements CpuCapacityStore {
     @Override
     public Optional<Double> getScalingFactor(@Nonnull final String cpuModel) {
         Objects.requireNonNull(cpuModel);
-
         try {
             return scaleFactorCache.get(cpuModel, () -> {
                 final CpuModelScaleFactorResponse scaleFactors = cpuCapacityServiceBlockingStub
@@ -80,7 +82,16 @@ public class RemoteCpuCapacityStore implements CpuCapacityStore {
         } catch (ExecutionException e) {
             logger.error("Error fetching CPU Model for: " + cpuModel, e);
             return Optional.empty();
+        } catch (RuntimeException e) {
+            if (e instanceof StatusRuntimeException) {
+                // This is a gRPC StatusRuntimeException
+                Status status = ((StatusRuntimeException)e).getStatus();
+                logger.warn("Unable to fetch CPU model for {}: {} caused by {}.",
+                        cpuModel, status.getDescription(), status.getCause());
+            } else {
+                logger.error("Error fetching CPU Model for {}. ", cpuModel, e);
+            }
+            return Optional.empty();
         }
-
     }
 }

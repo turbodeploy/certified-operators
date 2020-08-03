@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -17,7 +18,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 
 public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
 
-    private static final DatabaseEdition TEST_DATABASE_EDITION = DatabaseEdition.ORACLE_ENTERPRISE;
+    private static final DatabaseEdition TEST_DATABASE_EDITION = DatabaseEdition.ENTERPRISE;
     private static final DatabaseEngine TEST_DATABASE_ENGINE = DatabaseEngine.MARIADB;
     private static final DeploymentType TEST_DEPLOYMENT_TYPE = DeploymentType.MULTI_AZ;
     private static final LicenseModel TEST_LICENSE_MODEL = LicenseModel.BRING_YOUR_OWN_LICENSE;
@@ -46,5 +47,7 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
         assertEquals(TEST_DATABASE_EDITION.name(), dbAspect.getDbEdition());
         assertEquals(TEST_DATABASE_ENGINE.name(), dbAspect.getDbEngine());
         assertEquals(TEST_DATABASE_VERSION, dbAspect.getDbVersion());
+        assertEquals(TEST_LICENSE_MODEL.name(), dbAspect.getLicenseModel());
+        assertEquals(TEST_DEPLOYMENT_TYPE.name(), dbAspect.getDeploymentType());
     }
 }

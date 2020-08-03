@@ -2,6 +2,8 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+annotations: {}
+
 replicaCount: 1
 
 image:
@@ -9,17 +11,30 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
-java:
-  options: ""
+livenessFailureThreshold: 1440
+
+env:
+  - name: component_type
+    value: history
+  - name: instance_id
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+  - name: instance_ip
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+  - name: clustermgr_host
+    value: clustermgr
+  - name: clustermgr_port
+    value: "8080"
+  - name: kafkaServers
+    value: kafka:9092
+  - name: logging.level.com.vmturbo.history
+    value: info
 
 resources:
   limits:
     memory: 4Gi
   requests:
     memory: 786Mi
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}

@@ -8,6 +8,17 @@ import "common/Pagination.proto";
 import "group/GroupDTO.proto";
 import "setting/Setting.proto";
 import "topology/TopologyDTO.proto";
+import "common/EnvironmentTypeEnum.proto";
+
+// Restricts all commodities returned by a request.
+message GlobalFilter {
+    // If non-empty, return only statistics related to the specified entity types.
+    repeated string related_entity_type = 1;
+
+    // If present, return only statistics related to this specific environment type.
+    // If not present or UNKNOWN, return statistics related to all environment types.
+    optional .common.EnvironmentType environment_type = 2;
+}
 
 message GetAveragedEntityStatsRequest {
     // The entities to gather stats for. These could be the IDs of individual entities, a plan,
@@ -17,23 +28,44 @@ message GetAveragedEntityStatsRequest {
     // The filter to apply to the stats. If not set, retrieve all stats.
     optional StatsFilter filter = 2;
 
-    // The entity type to restrict stats to; if not set, include all entity types
-    optional string relatedEntityType = 3;
+    // The global filter to apply to all commodities in the request.
+    // This is only relevant when the input is the entire market.
+    optional GlobalFilter global_filter = 3;
 }
 
 // The scope for an entity stats query.
 message EntityStatsScope {
-    message EntityList {
-        // If empty, return no results.
-        repeated int64 entities = 1;
-    }
-
     oneof scope {
         // Scope the entity stats request to a specific list of entities.
         EntityList entity_list = 1;
 
         // Scope the entity stats request to entities of a specific type.
         int32 entity_type = 2;
+
+        // Scope the entity stats request to a list of entity groups
+        EntityGroupList entity_group_list = 3;
+    }
+
+    message EntityList {
+        // list of entities oids. if empty, return no results.
+        repeated int64 entities = 1;
+    }
+
+    message EntityGroupList {
+        // list of entity groups, each containing seed entity and list of derived entities
+        repeated EntityGroup groups = 1;
+    }
+
+    // A group of entities, which contains seed entity and derived entities
+    // for example: the seed_entity can be a datacenter, and the derived entities can be a list of
+    // PMs in that datacenter
+    message EntityGroup {
+        // oid of the seed entity to get stats for
+        optional int64 seed_entity = 1;
+
+        // member entities derived from seed entity, if set it will aggregate stats on members;
+        // if empty, it will get stat for seed entity.
+        repeated int64 entities = 2;
     }
 }
 
@@ -61,12 +93,47 @@ message GetEntityStatsResponse {
     optional common.PaginationResponse pagination_response = 10;
 }
 
-message ClusterStatsRequest {
+// Request made from the plan component to the history component
+// to fetch headroom stats.
+message ClusterStatsRequestForHeadroomPlan {
     // The ID of the cluster to retrieve stats from.
     optional int64 cluster_id = 1;
 
     // The filter to apply to the stats. If not set, retrieve all stats.
     optional StatsFilter stats = 2;
+}
+
+// Get cluster stats
+message ClusterStatsRequest {
+    // The IDs of the cluster to retrieve stats from.
+    // If empty, then the request concerns all clusters
+    // in the topology
+    repeated int64 cluster_ids = 1;
+
+    // The filter to apply to the stats. If not set, retrieve all stats.
+    optional StatsFilter stats = 2;
+
+    // The pagination parameters outlying the sort order, and previous cursor (if any).
+    // If not set, use the default instance of PaginationParameters. The backend
+    // will enforce a default ordering and limit, and retrieve the first page.
+    optional common.PaginationParameters pagination_params = 10;
+}
+
+// Chunk containing a list of entity stats
+message EntityStatsChunk {
+    // the stats snapshots requested grouped by cluster
+    repeated EntityStats snapshots = 1;
+}
+
+// Response with cluster stats
+message ClusterStatsResponse {
+    oneof type {
+        // the stats snapshots requested grouped by cluster
+        EntityStatsChunk snapshots_chunk = 1;
+
+        // The response containing the cursor to retrieve the next page of results.
+        common.PaginationResponse pagination_response = 10;
+    }
 }
 
 // The stats filter represents the restrictions to apply to stats before returning them.
@@ -82,6 +149,13 @@ message StatsFilter {
     optional int64 start_date = 3;
 
     optional int64 end_date = 4;
+
+    // force data to be returned only for explicitly specified rollup period (specified in milliseconds)
+    // this is not an enum (latest/hourly/daily/monthly) to decouple from history implementation
+    optional int64 rollup_period = 5;
+
+    // Request projected headroom or not.
+    optional bool requestProjectedHeadroom = 6 [default = false];
 
     // Specify the commodity to fetch along with filters and grouping
     message CommodityRequest {
@@ -120,10 +194,42 @@ message ProjectedStatsRequest {
     repeated string commodity_name = 2;
 }
 
+// Request for GetMostRecentStat rpc
+message GetMostRecentStatRequest {
+    // name of commodity for which stat is requested. E.g. StorageAmount.
+    optional string commodity_name = 1;
+    // key of the commodity for which stat is requested. E.g. vol-0d4bca84.
+    optional string commodity_key = 2 [deprecated = true];
+    // entity type for which the stat is requested. E.g. VirtualMachine.
+    optional string entity_type = 3;
+    // oid of the provider of the commodity for which the stat is being requested.
+    optional string provider_id = 4;
+}
+
+// Response for GetMostRecentStat rpc
+message GetMostRecentStatResponse {
+    // date of the most recent stat
+    optional uint64 snapshot_date = 1;
+    // historical epoch of the stat
+    optional StatHistoricalEpoch epoch = 2;
+    // name of the entity to which the stat belongs
+    optional string entity_display_name = 3;
+    // uuid of the entity to which the stat belongs
+    optional uint64 entity_uuid = 4;
+}
+
+// Historical epoch to which a stat may belong. For example, if a stat was retrieved from an hourly
+// table, then the StatHistoricalEpoch would be HOUR.
+enum StatHistoricalEpoch {
+    HOUR = 1;
+    DAY = 2;
+    MONTH = 3;
+}
+
 // Request for per-entity stats from the latest projected topology.
 message ProjectedEntityStatsRequest {
     // The entities to gather stats for. If empty, get them for the whole topology!
-    repeated int64 entities = 1;
+    optional EntityStatsScope scope = 1;
 
     // The commodities to retrieve.
     repeated string commodity_name = 2;
@@ -150,16 +256,13 @@ message ProjectedEntityStatsResponse {
 message StatSnapshot {
 
     // the actual snapshot_date for this response
-    optional string snapshot_date = 1;
-
-    // the oldest date of the request time window
-    optional uint64 start_date = 2;
-
-    // the most recent date of the request time window
-    optional uint64 end_date = 3;
+    optional uint64 snapshot_date = 1;
 
     // the individual stat_records collected; if the input was a group, these values will be averaged over the group
     repeated StatRecord stat_records = 4;
+
+    // the type of time period that this snapshot represents
+    optional StatEpoch stat_epoch = 5;
 
     // an individual stats value - e.g. commodies, etc. - from the xx_stats_zz tables.
     message StatRecord {
@@ -202,18 +305,73 @@ message StatSnapshot {
         // relation for the stat: (see RelationType in com.vmturbo.reports.db and
         // StatsMapper in com.vmturbo.api.component))
         // "Commodities", "CommoditiesBought", "CommoditiesFromAttributes"
-        //  (e.g., priceIndex, numVCPUs, etc.), and "plan"
+        //  (e.g., priceIndex, numVCPUs, etc.)
         optional string relation = 12;
+
+        // the entity type for the commodity returned; e.g. to distinguish the "CPUAllocation"
+        // commodity sold by a VirtualDataCenter from the same commodity name ("CPUAllocation")
+        // sold by a PhysicalMachine
+        optional string related_entity_type = 13;
+
+        // hist utilization values of the commodity (e.g. Percentile, Timeslot)
+        repeated HistUtilizationValue hist_utilization_value = 14;
+
+        // Describes historical aggregation value of one type
+        message HistUtilizationValue {
+            // Type of the history utilization value
+            // Please, consider com.vmturbo.components.common.HistoryUtilizationType enumeration
+            // Its apiParameterName values are potential candidates for this value
+            // Right now there are "percentile" and "timeslot" values
+            // These strings are passed in from API requests as special "group by"
+            // values and get returned in the same form.
+            required string type = 1;
+            // Aggregated value for that specific history utilization type
+            required StatValue usage = 2;
+            // Capacity recorded for history utilization value.
+            required StatValue capacity = 3;
+        }
 
         // statistics for a given value over time
         message StatValue {
+            // The highest observed value within a period. If the StatValue object represents the
+            // value of a group of commodities, max is the highest max value within the group.
             optional float max = 1;
+
+            // The smallest observed value within a period. If the StatValue object represents the
+            // value of a group of commodities, min is the smallest min value within the group.
             optional float min = 2;
+
+            // The average observed value within a period. If the StatValue object represents the
+            // value of a group of commodities, avg is the average of avg values within the group.
             optional float avg = 3;
+
+            // Sum of all avg values within a group.
+            // If the StatValue represents the stats of one commodity, total = avg.
             optional float total = 4;
 
+            // Sum of all max values within a group.
+            // If the StatValue represents the stats of one commodity, total_max = max.
+            optional float total_max = 5;
+
+            // Sum of all min values within a group.
+            // If the StatValue represents the stats of one commodity, total_min = min.
+            optional float total_min = 6;
         }
     }
+}
+
+// Describes a type of time period
+enum StatEpoch {
+    // Real time historical
+    HISTORICAL = 1;
+    // Latest real time
+    CURRENT = 2;
+    // Real time projected
+    PROJECTED = 3;
+    // Plan source topology.
+    PLAN_SOURCE = 4;
+    // Plan projected topology.
+    PLAN_PROJECTED = 5;
 }
 
 message EntityStats {
@@ -225,16 +383,6 @@ message ProjectedStatsResponse {
     // The response for projected stats contains at most one snapshot,
     // because there is only one projection.
     optional StatSnapshot snapshot = 1;
-}
-
-// Request sent to the Stats Service when it is time to compute roll-up stats for clusters.
-message ClusterRollupRequest {
-    // The list of clusters for which stats roll-up should be calculated.
-    repeated .group.Group clustersToRollup = 1;
-}
-
-message ClusterRollupResponse {
-    // nothing to return
 }
 
 message DeletePlanStatsRequest{
@@ -274,6 +422,15 @@ message SaveClusterHeadroomRequest {
 
     // Headroom information for Storage.
     optional CommodityHeadroom storage_headroom_info = 6;
+
+    // The number of Hosts in the cluster at the time of this request.
+    optional int64 numHosts = 7;
+
+    // The number of Storages in the cluster at the time of this request.
+    optional int64 numStorages = 8;
+
+    // Growth in number of VMs for this cluster project monthly.
+    optional int64 monthlyVMGrowth = 9;
 }
 
 message SaveClusterHeadroomResponse {
@@ -329,20 +486,63 @@ message EntityCommoditiesMaxValues {
 }
 
 message GetEntityCommoditiesMaxValuesRequest {
-    // List of entity types whose commodity sold max values has to be fetched.
-    repeated int32 entityTypes = 1;
+    // Entity Type whose commodity sold max value will be fetched.
+    optional int32 entityType = 1;
+
+    // List of commodity types whose max used value will be fetched.
+    repeated int32 commodityTypes = 2;
+}
+
+// Request for commodity capacity values
+message GetEntityCommoditiesCapacityValuesRequest {
+
+    required string commodityTypeName = 1;
+
+    repeated EntityUuidAndType entityUuidAndTypeSet = 2;
+}
+
+// Entity uuid and type
+message EntityUuidAndType {
+
+    required int64 entityUuid = 1;
+
+    required int32 entityType = 2;
+}
+
+// Response of commodity capacity values
+message GetEntityCommoditiesCapacityValuesResponse {
+
+    repeated EntityToCommodityTypeCapacity entitiesToCommodityTypeCapacity = 1;
+}
+
+// Mapping a entity to a commodity type with the capacity
+message EntityToCommodityTypeCapacity {
+
+    required int64 entityUuid = 1;
+
+    required topology.CommodityType commodityType = 2;
+
+    required double capacity = 3;
 }
 
 // Request for system load info.
 message SystemLoadInfoRequest {
-    // The ID of the cluster
-    optional int64 cluster_id = 1;
+    // A list of "cluster ids" - each cluster id is a request for a list of system load records.
+    repeated int64 cluster_id = 1;
 }
 
 // Response for system load info.
 message SystemLoadInfoResponse {
+    // The ID of the cluster this response pertains to.
+    optional int64 cluster_id = 1;
+
     // List of system load records.
-    repeated SystemLoadRecord record = 1;
+    repeated SystemLoadRecord record = 2;
+
+    // If the system load records for this cluster id could not be retrieved, this is a description
+    // of the error/reason. We use this instead of the regular error mechanism because
+    // the failure for a single cluster id should not fail the entire call.
+    optional string error = 10;
 }
 
 // Info contained in each record of the table system_load.
@@ -416,6 +616,28 @@ message GetEntityIdToEntityTypeMappingResponse {
     map<int64, common_dto.EntityDTO.EntityType> entityIdToEntityTypeMap = 1;
 }
 
+message GetPercentileCountsRequest {
+    // unset to request whole observation window
+    optional int64 start_timestamp = 1;
+    // chunk size for streaming
+    required int32 chunk_size = 2;
+}
+
+message SetPercentileCountsResponse {
+}
+
+message PercentileChunk {
+    // these two entries have to be redundant, repeated in each chunk
+    // to make use of server and client-side grpc streaming and avoid re-serializing
+
+    // unset to mark whole observation window
+    optional int64 start_timestamp = 1;
+    // length of a window for which these counts were calculated in seconds
+    required int64 period = 2;
+    // payload
+    required bytes content = 3;
+}
+
 // the gRPC API entry points for the Stats service
 service StatsHistoryService {
 
@@ -426,7 +648,10 @@ service StatsHistoryService {
     rpc GetEntityStats(GetEntityStatsRequest) returns (GetEntityStatsResponse);
 
     //Get stats filtered by certain options and average over all desired entities in the cluser.
-    rpc GetClusterStats(ClusterStatsRequest) returns (stream StatSnapshot);
+    rpc GetClusterStats(ClusterStatsRequest) returns (stream ClusterStatsResponse);
+
+    // Get cluster stats for headroom plan, e.g. number of VMs.
+    rpc GetClusterStatsForHeadroomPlan(ClusterStatsRequestForHeadroomPlan) returns (stream StatSnapshot);
 
     // Get stats from the latest projected topology.
     // Will return a response with no data if the stats service
@@ -437,10 +662,6 @@ service StatsHistoryService {
     // Will return a response for each entity with no data if the stats service
     // doesn't have any projected stats.
     rpc GetProjectedEntityStats(ProjectedEntityStatsRequest) returns (ProjectedEntityStatsResponse);
-
-    // Trigger a cluster-rollup computation for the given clusters.
-    // Will return no significant data.
-    rpc ComputeClusterRollup(ClusterRollupRequest) returns (ClusterRollupResponse);
 
     // Save values computed by the headroom plan in the cluster statistics table, where it can
     // be retrieved alongside other stats.
@@ -468,10 +689,28 @@ service StatsHistoryService {
     // for all entities of the given entity type.
     rpc GetEntityCommoditiesMaxValues(GetEntityCommoditiesMaxValuesRequest) returns (stream EntityCommoditiesMaxValues);
 
+    // Getting the commodity capacity values from the stats table, the returned capcity vallue is the
+    // max value from the last 7 days
+    rpc GetEntityCommoditiesCapacityValues(GetEntityCommoditiesCapacityValuesRequest) returns (stream GetEntityCommoditiesCapacityValuesResponse);
+
     // Get the system load information for a specific slice (cluster)
-    rpc GetSystemLoadInfo(SystemLoadInfoRequest) returns (SystemLoadInfoResponse);
+    rpc GetSystemLoadInfo(SystemLoadInfoRequest) returns (stream SystemLoadInfoResponse);
 
     // Get the entityId and the corresponding entityType.
     // NOTE: This rpc call is used for a specific upgrade use case. DON'T USE THIS FOR OTHER SCENARIOS.
     rpc GetEntityIdToEntityTypeMapping(GetEntityIdToEntityTypeMappingRequest) returns (GetEntityIdToEntityTypeMappingResponse);
+
+    // Get the historical utilization data for the passed entities scope.
+    // Ignore the time range parameter and return 1 point per commodity.
+    // Historical utilizations to be returned in current_value field of statistics records.
+    rpc GetHistUtilization(GetEntityStatsRequest) returns (GetEntityStatsResponse);
+
+    // Get the percentile counts for the passed start timestamp or entire observation window
+    rpc GetPercentileCounts (GetPercentileCountsRequest) returns (stream PercentileChunk);
+
+    // Store the percentile counts for the passed start timestamp or entire observation window
+    rpc SetPercentileCounts (stream PercentileChunk) returns (SetPercentileCountsResponse);
+
+    // Get the most recent stat for a commodity from the hourly, daily or monthly tables
+    rpc GetMostRecentStat (GetMostRecentStatRequest) returns (GetMostRecentStatResponse);
 }

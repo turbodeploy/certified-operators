@@ -1,59 +1,62 @@
 package com.vmturbo.market.topology.conversions;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.Maps;
+import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
-import com.vmturbo.market.topology.conversions.ReservedInstanceAggregate.ReservedInstanceKey;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * This class is responsible for converting all the RI related data into groups that are
- * distinguished by a unique set of keys
+ * distinguished by a unique set of keys.
  *
  */
-public class ReservedInstanceAggregator {
+class ReservedInstanceAggregator {
 
     private static final Logger logger = LogManager.getLogger();
 
     // contains the all the ReservedInstanceData returned by the costProbe
-    CloudCostData cloudCostData;
+    private final CloudCostData<TopologyEntityDTO> cloudCostData;
 
-    Map<Long, TopologyEntityDTO> topology;
+    private final Map<Long, TopologyEntityDTO> topology;
 
     // Map of riBoughtId to ReservedInstanceData
-    Map<Long, ReservedInstanceData> riDataMap = new HashMap<>();
+    private final Map<Long, ReservedInstanceData> riDataMap = new HashMap<>();
 
-    // This map contains a list of providers that exists in every computeTier family
-    Map<String, List<TopologyEntityDTO>> familyToComputeTiers;
-
-    // Map of Reserved instance key to {@link ReservedInstanceAggregate} objects
-    Map<ReservedInstanceKey, ReservedInstanceAggregate> riAggregates;
+    private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
     ReservedInstanceAggregator(@Nonnull CloudCostData cloudCostData,
-            @Nonnull Map<Long, TopologyEntityDTO> topology) {
-        riAggregates = Maps.newHashMap();
-        familyToComputeTiers = new HashMap<>();
+                               @Nonnull Map<Long, TopologyEntityDTO> topology,
+                               @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
         this.cloudCostData = cloudCostData;
         this.topology = topology;
+        this.cloudTopology = cloudTopology;
     }
 
     /**
@@ -61,104 +64,174 @@ public class ReservedInstanceAggregator {
      * distinguishing attributes. ComputeTiers are then segregated by family and we find the largest
      * computeTier in each family for every distinct ReservedInstanceAggregate that was created.
      *
+     * @param topologyInfo from which the RIs are to be aggregated.
+     * @return collection of ReservedInstanceAggregate instances.
      */
-    public Collection<ReservedInstanceAggregate> aggregate(@Nonnull TopologyInfo topologyInfo) {
-        // aggregate RIs into distinct ReservedInstanceAggregate objects based on RIKey
-        boolean success = aggregateRis(topologyInfo);
-
-        if (success) {
-            // seperate compuTiers by family
-            segregateComputeTiersByFamily();
-
-            // assign the largest computeTier for each ReservedInstanceAggregate
-            updateRiAggregateWithLargestComputeTier();
-        }
-        return riAggregates.values();
-    }
-
-    /**
-     * Iterate over {@link ReservedInstanceData} object and create {@link ReservedInstanceAggregate}
-     * objects containing related set of RIs
-     *
-     */
-    boolean aggregateRis(@Nonnull TopologyInfo topologyInfo) {
-        boolean success = false;
-        Collection<ReservedInstanceData> riCollection;
+    Collection<ReservedInstanceAggregate> aggregate(@Nonnull TopologyInfo topologyInfo) {
+        final Collection<ReservedInstanceData> riCollection;
+        // If Market analysis takes into account the Bought RI recommendations, the Buy RI
+        // impact analysis won't be run and vice-versa.
         if (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
-                .equals(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)) {
+                        .equals(StringConstants.OPTIMIZE_CLOUD_PLAN)
+            && !topologyInfo.getAnalysisTypeList().contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS)) {
             // get buy RI and existing RI
             riCollection = cloudCostData.getAllRiBought();
         } else {
             riCollection = cloudCostData.getExistingRiBought();
         }
+
+        // family name to list of compute tiers sorted in descending order
+        final Map<String, List<TopologyEntityDTO>> familyToComputeTiers = topology.values().stream()
+                .filter(dto -> dto.getEntityType() == EntityType.COMPUTE_TIER_VALUE)
+                .collect(Collectors.groupingBy(dto -> dto.getTypeSpecificInfo()
+                        .getComputeTier().getFamily(), Collectors.toList()));
+        familyToComputeTiers.values()
+                .forEach(tiers -> tiers.sort(Comparator.comparingInt(
+                        (TopologyEntityDTO t) -> t.getTypeSpecificInfo()
+                                .getComputeTier()
+                                .getNumCoupons()).reversed()));
+        final Map<ReservedInstanceKey, ReservedInstanceAggregate> riAggregates
+                = new HashMap<>();
+        final Map<Long, Double> couponsUsedByRi = cloudCostData.getFilteredRiCoverageByEntityId().values()
+                .stream().map(Cost.EntityReservedInstanceCoverage::getCouponsCoveredByRiMap)
+                .flatMap(map -> map.entrySet().stream())
+                .collect(Collectors.toMap(Entry::getKey, Entry::getValue, Double::sum));
+        logger.trace("Coupons used by RI map dump: {}", () -> couponsUsedByRi);
         for (ReservedInstanceData riData : riCollection) {
+            final long businessAccountId = riData.getReservedInstanceBought()
+                    .getReservedInstanceBoughtInfo().getBusinessAccountId();
+            final Optional<GroupAndMembers> billingFamilyGroup =
+                    cloudTopology.getBillingFamilyForEntity(businessAccountId);
             if (riData.isValid(topology)) {
-                riDataMap.put(riData.getReservedInstanceBought().getId(), riData);
-                ReservedInstanceAggregate riAggregate = new ReservedInstanceAggregate(riData, topology);
-                riAggregates.putIfAbsent(riAggregate.getRiKey(), riAggregate);
-                riAggregate = riAggregates.get(riAggregate.getRiKey());
-                riAggregate.addConstituentRi(riData);
-                success = true;
+                final String family = topology.get(riData.getReservedInstanceSpec()
+                        .getReservedInstanceSpecInfo().getTierId()).getTypeSpecificInfo()
+                        .getComputeTier().getFamily();
+                final long billingFamilyId = billingFamilyGroup.map(bfg -> bfg.group().getId())
+                        .orElse(businessAccountId);
+                final ReservedInstanceKey riKey =
+                        new ReservedInstanceKey(riData, family, billingFamilyId);
+                final Optional<TopologyEntityDTO> computeTier = findComputeTier(riKey, riData,
+                        familyToComputeTiers);
+                if (computeTier.isPresent()) {
+                    final long riBoughtId = riData.getReservedInstanceBought().getId();
+                    riDataMap.put(riBoughtId, riData);
+                    final ReservedInstanceAggregate riAggregate =
+                            riAggregates.computeIfAbsent(riKey, key -> {
+                                final ReservedInstanceScopeInfo reservedInstanceScopeInfo =
+                                        riData.getReservedInstanceBought()
+                                                .getReservedInstanceBoughtInfo()
+                                                .getReservedInstanceScopeInfo();
+                                final Set<Long> applicableBusinessAccounts = new HashSet<>();
+                                if (reservedInstanceScopeInfo.getShared()) {
+                                    applicableBusinessAccounts.addAll(
+                                            billingFamilyGroup.map(GroupAndMembers::members)
+                                                    .orElse(Collections.singleton(
+                                                            businessAccountId)));
+                                } else {
+                                    applicableBusinessAccounts.addAll(
+                                            reservedInstanceScopeInfo.getApplicableBusinessAccountIdList());
+                                }
+
+                                final Set<TopologyEntityDTO> computeTiersInScope = riKey.isInstanceSizeFlexible() ?
+                                        ImmutableSet.copyOf(
+                                                getComputeTiersByFamily(riKey.getFamily(), familyToComputeTiers)) :
+                                        Collections.singleton(computeTier.get());
+
+                                return new ReservedInstanceAggregate(riData,
+                                        riKey,
+                                        computeTier.get(),
+                                        computeTiersInScope,
+                                        applicableBusinessAccounts);
+                            });
+                    final double usedCoupons = couponsUsedByRi.getOrDefault(riBoughtId, 0d);
+                    logger.trace("Adding constituent RI: {} with usedCoupons: {} to RI Aggregate:" +
+                                    " {}", riData::getReservedInstanceBought, () -> usedCoupons,
+                            riAggregate::getDisplayName);
+                    riAggregate.addConstituentRi(riData, usedCoupons);
+                } else {
+                    logger.warn("Compute Tier not found for RI with spec: {}, bought info: {}",
+                            riData.getReservedInstanceSpec(),
+                            riData.getReservedInstanceBought());
+                }
             }
         }
-        return success;
+        return riAggregates.values();
     }
 
     /**
-     * Iterate over all the computeTiers in the topology sent to the market and segregate every
-     * computeTier that belonged to a specific family into groups
+     * Find a computeTier for the RI. If the RI is instance size flexible, then the computeTier must
+     * belong to the same region as the RI. If the RI is non-instance size flexible, then the
+     * computeTier must be the RI's computeTier.
      *
+     * @param riKey of the RI for which the computeTier is being found.
+     * @param riData of the RI for which the computeTier is being found.
+     * @param familyToComputeTiers sorted list of compute tiers by family.
+     * @return computeTier if found, otherwise empty Optional.
      */
-    void segregateComputeTiersByFamily() {
-        for (TopologyDTO.TopologyEntityDTO dto : topology.values()) {
-            if (dto.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
-                String family = dto.getTypeSpecificInfo().getComputeTier().getFamily();
-                familyToComputeTiers.putIfAbsent(family, new ArrayList<>());
-                familyToComputeTiers.get(family).add(dto);
-            }
-        }
-        // sort the entities in a family by coupon count for optimization
-        CouponCountComparator comparator = new CouponCountComparator();
-        for (List<TopologyEntityDTO> tiersOfFamily : familyToComputeTiers.values()) {
-            Collections.sort(tiersOfFamily, comparator);
-        }
+    private Optional<TopologyEntityDTO> findComputeTier(final ReservedInstanceKey riKey,
+                                                        final ReservedInstanceData riData,
+                                                        final Map<String,
+            List<TopologyEntityDTO>> familyToComputeTiers) {
+        return riKey.isInstanceSizeFlexible() ? findComputeTierForSizeFlexibleRi(riKey,
+                familyToComputeTiers) : findComputeTierForNonSizeFlexibleRi(riData);
     }
 
     /**
-     * Associate every {@link ReservedInstanceAggregate} with the largest computeTier in that family
-     * within the constraints of the right region or zone
+     * Returns the largest computeTier that belongs to the same region and family as the RI.
      *
+     * @param riKey for which the computeTier is being sought.
+     * @param familyToComputeTiers sorted list of compute tiers by family.
+     * @return the largest computeTier that belongs to the same region and family as the RI,
+     * empty Optional if none found in the familyToComputeTiers map.
      */
-    void updateRiAggregateWithLargestComputeTier() {
-        for (ReservedInstanceAggregate riAggregate : riAggregates.values()) {
-            ReservedInstanceKey key = riAggregate.getRiKey();
-            List<TopologyEntityDTO> computeTiers = familyToComputeTiers.get(key.getFamily());
-            if (computeTiers == null) {
-                logger.error("We have an RI belonging to " + key.getFamily() + ", but no computeTiers " +
-                        "belonging to the same family were in this topology");
-            }
-            computeTiers.stream().forEach(computeTier -> riAggregate.checkAndUpdateLargestTier(computeTier, key));
+    private Optional<TopologyEntityDTO> findComputeTierForSizeFlexibleRi(
+            final ReservedInstanceKey riKey,
+            Map<String, List<TopologyEntityDTO>> familyToComputeTiers) {
+        // check if the computeTier is in the same region as the RI
+        return Optional.ofNullable(getComputeTiersByFamily(riKey.getFamily(), familyToComputeTiers))
+                .flatMap(computerTiers -> computerTiers.stream()
+                        .filter(tier -> TopologyDTOUtil.areEntitiesConnected(tier,
+                                riKey.getRegionId())).findFirst());
+        // TODO(OM-50112): check if the computeTier is in the zone (if applicable)
+    }
+
+    private List<TopologyEntityDTO> getComputeTiersByFamily(final String family, final Map<String,
+            List<TopologyEntityDTO>> familyToComputeTiers) {
+        final List<TopologyEntityDTO> computeTiers = familyToComputeTiers.get(family);
+        if (computeTiers == null) {
+            logger.error("We have an RI belonging to {} but no computeTiers belonging to the " +
+                    "same family were in this topology", family);
         }
+        return computeTiers;
     }
 
     /**
-     * Comparator to sort computeTiers based on the number of coupons
+     * Returns the computeTier corresponding to the RI's computeTier.
      *
+     * @param riData for which the computeTier is being sought.
+     * @return the computeTier corresponding to the RI's computeTier, empty Optional is none
+     * found in the topology map.
      */
-    static class CouponCountComparator implements Comparator<TopologyEntityDTO> {
+    private Optional<TopologyEntityDTO> findComputeTierForNonSizeFlexibleRi(
+            final ReservedInstanceData riData) {
+        return Optional.ofNullable(getComputeTierById(riData.getReservedInstanceSpec()
+                .getReservedInstanceSpecInfo()
+                .getTierId()));
+    }
 
-        @Override
-        public int compare(TopologyEntityDTO tier1, TopologyEntityDTO tier2) {
-            return tier2.getTypeSpecificInfo().getComputeTier().getNumCoupons() -
-                    tier1.getTypeSpecificInfo().getComputeTier().getNumCoupons();
+    private TopologyEntityDTO getComputeTierById(final long computeTierId) {
+        final TopologyEntityDTO computeTier = topology.get(computeTierId);
+        if (computeTier == null) {
+            logger.error("We have a constituent RI with computeTier id {} but it is not found in " +
+                    "the topology.", computeTierId);
         }
+        return computeTier;
     }
 
     /**
      * @return the mapping between the riId and the {@link ReservedInstanceData}
-     *
      */
-    public Map<Long, ReservedInstanceData> getRIDataMap() {
+    Map<Long, ReservedInstanceData> getRIDataMap() {
         return riDataMap;
     }
 }

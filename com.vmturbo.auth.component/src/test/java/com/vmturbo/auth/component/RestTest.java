@@ -1,5 +1,7 @@
 package com.vmturbo.auth.component;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -12,6 +14,7 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 
 import org.junit.Assert;
@@ -74,7 +77,11 @@ import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
+import com.vmturbo.auth.api.usermgmt.AuthorizeUserInGroupsInputDTO;
+import com.vmturbo.auth.api.usermgmt.AuthorizeUserInputDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.policy.UserPolicy;
+import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.store.AuthProvider;
 import com.vmturbo.kvstore.IPublicKeyStore;
@@ -124,7 +131,8 @@ public class RestTest {
     /**
      * The K/V local auth store.
      */
-    private static AuthProvider authStore = new AuthProvider(kvStore);
+    private static AuthProvider authStore = new AuthProvider(kvStore, null,
+            () -> System.getProperty("com.vmturbo.kvdir"), null, new UserPolicy(LoginPolicy.ALL));
 
     /**
      * The verifier.
@@ -224,18 +232,23 @@ public class RestTest {
     }
 
     private String constructAddDTO(int suffix) {
+        // ideally we should use Parameterized test, but we already have Spring Runner, so
+        // we just randomly change to role to upper case or lower case.
         AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + suffix,
                                           constructPassword(suffix), "1.1.1.1", null, null,
-                                          ImmutableList.of("ADMINISTRATOR", "USER"), null);
+                                          ImmutableList.of(new Random().nextBoolean() ? ADMINISTRATOR.toUpperCase()
+                                                  : ADMINISTRATOR.toLowerCase(), OBSERVER), null);
         // For debigging purposes.
         String json = GSON.toJson(dto, AuthUserDTO.class);
         return json;
     }
 
+
     private String constructAddSSODTO(int suffix) {
         AuthUserDTO dto = new AuthUserDTO(PROVIDER.LDAP, "user" + suffix,
                 constructPassword(suffix), "1.1.1.1", null, null,
-                ImmutableList.of("ADMINISTRATOR", "USER"), null);
+                ImmutableList.of(new Random().nextBoolean() ? ADMINISTRATOR.toUpperCase()
+                        : ADMINISTRATOR.toLowerCase(), OBSERVER), null);
         // For debigging purposes.
         String json = GSON.toJson(dto, AuthUserDTO.class);
         return json;
@@ -279,8 +292,8 @@ public class RestTest {
     private MockHttpServletRequestBuilder postAddSSOGroup() {
 
         SecurityGroupDTO activeDirectorySecurityGroupDTO = new SecurityGroupDTO("group",
-                "group",
-                "administrator");
+                "group", new Random().nextBoolean() ? ADMINISTRATOR.toUpperCase()
+                        : ADMINISTRATOR.toLowerCase());
         String jsonGroup = GSON.toJson(activeDirectorySecurityGroupDTO, SecurityGroupDTO.class);
 
         return post("/users/ad/groups")
@@ -308,8 +321,43 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(0))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user0", result);
+        validateAddUserResult(result);
         SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
+    /**
+     * Verify invalid role will throw security exception.
+     * @throws Exception security exception.
+     */
+    @Test
+    public void testAddInvalidRole() throws Exception {
+
+        String json = GSON.toJson(new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user",
+                "1", "1.1.1.1", null, null,
+                ImmutableList.of("invalid_role"), null), AuthUserDTO.class);
+
+
+        logon("ADMINISTRATOR");
+        String result = mockMvc.perform(post("/users/add")
+                .content(json)
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().is4xxClientError())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
+    /**
+     * Validate that the add user result is a oid which is a string with a long number.
+     * @param result from calling post to add a new user.
+     */
+    private void validateAddUserResult(String result) {
+        Assert.assertNotNull(result);
+        Assert.assertFalse(result.isEmpty());
+        Long value = Long.parseLong(result);
+        Assert.assertTrue(value > 0);
     }
 
     @Test
@@ -328,7 +376,7 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(1))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user1", result);
+       validateAddUserResult(result);
 
         // The authenticate call does not require any prior authentication.
         SecurityContextHolder.getContext().setAuthentication(null);
@@ -345,11 +393,11 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(2))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user2", result);
+       validateAddUserResult(result);
 
         AuthUserDTO userToModify = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + 2,
                                                       constructPassword(2), null, null, null,
-                                                      ImmutableList.of("ADMINISTRATOR", "USER"), null);
+                                                      ImmutableList.of(ADMINISTRATOR, "USER"), null);
         AuthUserModifyDTO dto = new AuthUserModifyDTO(userToModify, "password1_" + 2);
 
         String json = GSON.toJson(dto, AuthUserModifyDTO.class);
@@ -385,10 +433,10 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(12))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user12", result);
+        validateAddUserResult(result);
 
         AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + 12, null,
-                                          ImmutableList.of("ADMIN", "USER2"));
+                                          ImmutableList.of(ADMINISTRATOR, OBSERVER));
         String json = GSON.toJson(dto, AuthUserDTO.class);
 
         mockMvc.perform(put("/users/setroles")
@@ -403,7 +451,7 @@ public class RestTest {
                         .andExpect(status().isOk())
                         .andReturn().getResponse().getContentAsString();
         JWTAuthorizationToken token = new JWTAuthorizationToken(result);
-        verifier.verify(token, ImmutableList.of("ADMIN", "USER2"));
+        verifier.verify(token, ImmutableList.of(ADMINISTRATOR, OBSERVER));
 
         // delete all other admin users except user11
         String allUsersJson = mockMvc.perform(get("/users")).andReturn().getResponse().getContentAsString();
@@ -415,7 +463,7 @@ public class RestTest {
         }
         // expect security exception if trying to change role for last admin user
         dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user11", null,
-            ImmutableList.of("ADMIN", "USER2"));
+            ImmutableList.of(OBSERVER));
         json = GSON.toJson(dto, AuthUserDTO.class);
         mockMvc.perform(put("/users/setroles")
             .content(json)
@@ -432,7 +480,7 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(25))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user25", result);
+        validateAddUserResult(result);
 
         AuthUserDTO dto = new AuthUserDTO("user" + 25, null, ImmutableList.of("ADMIN", "USER2"));
         String json = GSON.toJson(dto, AuthUserDTO.class);
@@ -447,12 +495,31 @@ public class RestTest {
         SecurityContextHolder.getContext().setAuthentication(null);
     }
 
+    /**
+     * Verify changing to invalid role will throw security exception.
+     *
+     * @throws Exception security exception.
+     */
+    @Test
+    public void testSetRolesInvalidRole() throws Exception {
+        logon("ADMINISTRATOR");
+        AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + 25, null,
+                ImmutableList.of("INVALID ROLE"));
+        String json = GSON.toJson(dto, AuthUserDTO.class);
+        mockMvc.perform(put("/users/setroles")
+                .content(json)
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().is4xxClientError());
+        SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
     @Test
     public void testDelete() throws Exception {
         logon("ADMINISTRATOR");
         String result = mockMvc.perform(postAdd(3))
                 .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user3", result);
+        validateAddUserResult(result);
         // Create another local admin user
         mockMvc.perform(postAdd(4))
                 .andReturn().getResponse().getContentAsString();
@@ -486,7 +553,7 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(4))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user4", result);
+        validateAddUserResult(result);
 
         String gson = constructLockDTO(4);
         mockMvc.perform(put("/users/lock")
@@ -511,7 +578,7 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(5))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user5", result);
+        validateAddUserResult(result);
 
         String gson = constructLockDTO(5);
         mockMvc.perform(put("/users/lock")
@@ -595,34 +662,41 @@ public class RestTest {
         String result = mockMvc.perform(postAddSSO(11))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user11", result);
+        validateAddUserResult(result);
 
         // The authenticate call does not require any prior authentication.
         //SecurityContextHolder.getContext().setAuthentication(null);
+        final AuthorizeUserInputDTO dto = new AuthorizeUserInputDTO("user11", null, "1.1.1.1");
 
-        mockMvc.perform(get("/users/authorize/user11/10.10.10.1")
+        String json = GSON.toJson(dto, AuthorizeUserInputDTO.class);
+        mockMvc.perform(post("/users/authorize")
+                .content(json)
+                .contentType(RET_TYPE)
                 .accept(RET_TYPE))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
+
         SecurityContextHolder.getContext().setAuthentication(null);
     }
 
-    // Negative path
-    @Test
+    /**
+     *  Negative path, test it will reject invalid user.
+     */
+    @Test(expected = NestedServletException.class)
     public void testAuthorizeInvalidUser() throws Exception {
         // The logon is here to work around the issue with the WebSecurity setup.
         logon("ADMINISTRATOR");
-        String result = mockMvc.perform(postAddSSO(1))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user1", result);
+        final AuthorizeUserInputDTO dto =
+                new AuthorizeUserInputDTO("wronguser", null, "1.1.1.1");
 
-        // The authorization call require valid JWT token with administrator role
-        SecurityContextHolder.getContext().setAuthentication(null);
-        mockMvc.perform(get("/users/authorize/user1/10.10.10.1")
+        String json = GSON.toJson(dto, AuthorizeUserInputDTO.class);
+        mockMvc.perform(post("/users/authorize")
+                .content(json)
+                .contentType(RET_TYPE)
                 .accept(RET_TYPE))
                 .andExpect(status().is4xxClientError())
                 .andReturn().getResponse().getContentAsString();
+        SecurityContextHolder.getContext().setAuthentication(null);
     }
 
     // Happy path
@@ -637,7 +711,13 @@ public class RestTest {
         result = mockMvc.perform(postAddSSOGroup())
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        mockMvc.perform(get("/users/authorize/user1/group/10.10.10.1")
+        AuthorizeUserInputDTO dto =
+                new AuthorizeUserInputDTO("user1", "group", "1.1.1.1");
+
+        String json = GSON.toJson(dto, AuthorizeUserInputDTO.class);
+        mockMvc.perform(post("/users/authorize")
+                .content(json)
+                .contentType(RET_TYPE)
                 .accept(RET_TYPE))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
@@ -659,12 +739,85 @@ public class RestTest {
         result = mockMvc.perform(postAddSSOGroup())
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
+
         try {
-            // pass group1, wrong group
-            mockMvc.perform(get("/users/authorize/user1/group1/10.10.10.1")
+            AuthorizeUserInputDTO dto =
+                    new AuthorizeUserInputDTO("user1", "group1", "1.1.1.1");
+
+            String json = GSON.toJson(dto, AuthorizeUserInputDTO.class);
+            mockMvc.perform(post("/users/authorize")
+                    .content(json)
+                    .contentType(RET_TYPE)
                     .accept(RET_TYPE))
                     .andExpect(status().is4xxClientError())
                     .andReturn().getResponse().getContentAsString();
+
+        } finally {
+            SecurityContextHolder.getContext().setAuthentication(null);
+            // clean security groups so it doesn't affect other tests
+            authStore.deleteSecurityGroup("group");
+        }
+    }
+
+    /**
+     * Happy path - verify authorizing multiple external groups.
+     *
+     * @throws Exception if exception is thrown.
+     */
+    @Test
+    public void testAuthorizeUserWithExternalGroups() throws Exception {
+        // The logon is here to work around the issue with the WebSecurity setup.
+        logon("ADMINISTRATOR");
+        String result = mockMvc.perform(postAddSSO())
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        result = mockMvc.perform(postAddSSOGroup())
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        AuthorizeUserInGroupsInputDTO dto =
+                new AuthorizeUserInGroupsInputDTO("user1", new String[] {"group"}, "1.1.1.1");
+
+        String json = GSON.toJson(dto, AuthorizeUserInGroupsInputDTO.class);
+        mockMvc.perform(post("/users/authorize/groups")
+                .content(json)
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        SecurityContextHolder.getContext().setAuthentication(null);
+        // clean security groups so it doesn't affect other tests
+        authStore.deleteSecurityGroup("group");
+    }
+
+    /**
+     * Negative path to verify authorizing multiple external groups.
+     * Note the Authorization exception is wrapped by NestedServletException.
+     */
+    @Test(expected = NestedServletException.class)
+    public void testAuthorizeUserWithInvalidExternalGroups() throws Exception {
+        // The logon is here to work around the issue with the WebSecurity setup.
+        logon("ADMINISTRATOR");
+        String result = mockMvc.perform(postAddSSO())
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        result = mockMvc.perform(postAddSSOGroup())
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        try {
+            AuthorizeUserInGroupsInputDTO dto =
+                    new AuthorizeUserInGroupsInputDTO("user1", new String[] {"group1"}, "1.1.1.1");
+
+            String json = GSON.toJson(dto, AuthorizeUserInGroupsInputDTO.class);
+            mockMvc.perform(post("/users/authorize/groups")
+                    .content(json)
+                    .contentType(RET_TYPE)
+                    .accept(RET_TYPE))
+                    .andExpect(status().is4xxClientError())
+                    .andReturn().getResponse().getContentAsString();
+
         } finally {
             SecurityContextHolder.getContext().setAuthentication(null);
             // clean security groups so it doesn't affect other tests

@@ -55,7 +55,7 @@ public class PaginationMapperTest {
         final ActionPaginationRequest paginationRequest =
                 new ActionPaginationRequest(null, null, true, ActionOrderBy.NAME.name());
         final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
-        assertThat(params.getOrderBy().getAction(), is(OrderBy.ActionOrderBy.ACTION_TYPE));
+        assertThat(params.getOrderBy().getAction(), is(OrderBy.ActionOrderBy.ACTION_NAME));
     }
 
     @Test
@@ -72,6 +72,14 @@ public class PaginationMapperTest {
                 new ActionPaginationRequest(null, null, true, ActionOrderBy.SAVINGS.name());
         final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getOrderBy().getAction(), is(OrderBy.ActionOrderBy.ACTION_SAVINGS));
+    }
+
+    @Test
+    public void testActionOrderByCreationDate() throws InvalidOperationException {
+        final ActionPaginationRequest paginationRequest =
+            new ActionPaginationRequest(null, null, true, ActionOrderBy.CREATION_DATE.name());
+        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        assertThat(params.getOrderBy().getAction(), is(OrderBy.ActionOrderBy.ACTION_RECOMMENDATION_TIME));
     }
 
     @Test

@@ -7,17 +7,16 @@ import javax.annotation.Nonnull;
 
 import com.arangodb.ArangoDBException;
 import com.arangodb.entity.BaseDocument;
+import com.arangodb.model.DocumentCreateOptions;
 
 import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
-import com.vmturbo.repository.exception.GraphDatabaseExceptions.GlobalSupplyChainProviderRelsException;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
 import com.vmturbo.repository.topology.GlobalSupplyChainRelationships;
-import com.vmturbo.repository.topology.TopologyDatabase;
 
 /**
  * The executor abstracts away the actual graph database backend.
@@ -26,20 +25,45 @@ public interface GraphDBExecutor {
 
     /**
      * Insert a new document into a given collection and database.
+     *
      * @param newDocument The document that will be stored.
-     * @param database The collection in which the document will be stored.
-     * @param database The database in which the document will be stored.
+     * @param collection The collection in which the document will be stored.
+     * @param documentCreateOptions Document create options.
+     * @throws ArangoDBException For any problem communicating with the database.
      */
     void insertNewDocument(final @Nonnull BaseDocument newDocument,
-                                   String collection, String database) throws GlobalSupplyChainProviderRelsException;
+                           String collection,
+                           final DocumentCreateOptions documentCreateOptions) throws ArangoDBException;
+
+    /**
+     * Insert a new document into a given collection and database.
+     *
+     * @param pojo The pojo to store in the db.
+     * @param collection The collection in which the document will be stored.
+     * @param documentCreateOptions Document create options.
+     * @throws ArangoDBException For any problem communicating with the database.
+     */
+    <T> void insertNewDocument(final @Nonnull T pojo,
+                               String collection,
+                               final DocumentCreateOptions documentCreateOptions) throws ArangoDBException;
+
+    /**
+     * Insert a new document into a given collection and database.
+     *
+     * @param key The key of the document to fetch.
+     * @param collection The collection in which the document will be stored.
+     * @throws ArangoDBException For any problem communicating with the database.
+     */
+    public BaseDocument getDocument(final String key,
+                                    String collection) throws ArangoDBException;
+
 
     /**
      * Get relationship for the supply chain.
-     * *
-     * @param database The database in which the supply chain relationships will be found.
+     *
      * @return a map containing the relationship definition.
      */
-    GlobalSupplyChainRelationships getSupplyChainRels(TopologyDatabase database);
+    GlobalSupplyChainRelationships getSupplyChainRels();
 
     /**
      * Compute a supply chain.
@@ -74,4 +98,12 @@ public interface GraphDBExecutor {
             @Nonnull String databaseName,
             @Nonnull String vertexCollection,
             @Nonnull SearchTagsRequest request) throws ArangoDBException;
+
+    /**
+     * Get Arango database name where the query command will be executed.
+     *
+     * @return Arango database name where the query command will be executed.
+     */
+    String getArangoDatabaseName();
+
 }

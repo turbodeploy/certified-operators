@@ -7,12 +7,13 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.Channel;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import io.grpc.Channel;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
@@ -65,8 +66,8 @@ public class HistoryPlanPerformanceTest extends HistoryPerformanceTest {
                 "HistoryPerformanceTest");
         historyMessageReceiver = HistoryMessageReceiver.create(messageConsumer);
         historyComponent =
-                new HistoryComponentNotificationReceiver(historyMessageReceiver, threadPool);
-        historyComponent.addStatsListener(statsListener);
+                new HistoryComponentNotificationReceiver(historyMessageReceiver, threadPool, 0);
+        historyComponent.addListener(statsListener);
         messageConsumer.start();
 
         final Channel historyChannel = componentTestRule.getCluster().newGrpcChannel("history");

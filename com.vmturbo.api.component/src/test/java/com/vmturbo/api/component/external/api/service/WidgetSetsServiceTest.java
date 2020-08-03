@@ -11,6 +11,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -58,6 +59,7 @@ public class WidgetSetsServiceTest {
     private static final String WIDGETSET_CATEGORY_2 = "category2";
     private static final String WIDGETSET_SCOPETYPE_2 = "scopetype2";
     private static final String WIDGETSET_NOT_FOUND_UUID = "9999";
+    private static final String USER_NAME = "user1";
 
     private WidgetsMoles.WidgetsetsServiceMole widgetsetsserviceSpy =
             spy(new WidgetsMoles.WidgetsetsServiceMole());
@@ -86,9 +88,11 @@ public class WidgetSetsServiceTest {
 
     /**
      * Initialize widgetset store with two widgetsets.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Before
-    public void setup() {
+    public void setup() throws Exception {
 
         // set up a unique prefix for IDs generated here
         IdentityGenerator.initPrefix(1);
@@ -110,9 +114,13 @@ public class WidgetSetsServiceTest {
         widgetset2.setScopeType(WIDGETSET_SCOPETYPE_2);
         widgetset2.setWidgets(ImmutableList.of(widget2));
 
-        when(widgetsetMapper.toUiWidgetset(widgetsetProto1)).thenReturn(widgetset1);
-        when(widgetsetMapper.toUiWidgetset(widgetsetProto2)).thenReturn(widgetset2);
-
+        when(widgetsetMapper.toUiWidgetset(Collections.singleton(widgetsetProto1)))
+                .thenReturn(Collections.singleton(widgetset1));
+        when(widgetsetMapper.toUiWidgetset(Collections.singleton(widgetsetProto2)))
+                .thenReturn(Collections.singleton(widgetset2));
+        final List<Widgets.Widgetset> argList = Lists.newArrayList(widgetsetProto1, widgetsetProto2);
+        when(widgetsetMapper.toUiWidgetset(argList))
+                .thenReturn(Lists.newArrayList(widgetset1, widgetset2));
         // initialize test instance
         widgetSetsService = new WidgetSetsService(WidgetsetsServiceGrpc.newBlockingStub(
                 grpcServer.getChannel()), widgetsetMapper);
@@ -120,9 +128,11 @@ public class WidgetSetsServiceTest {
 
     /**
      * Test that we can retrieve the full widgetset list.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testGetFullWidgetsetList() {
+    public void testGetFullWidgetsetList() throws Exception {
         // Arrange
         when(widgetsetsserviceSpy.getWidgetsetList(anyObject()))
                 .thenReturn(Lists.newArrayList(widgetsetProto1, widgetsetProto2));
@@ -199,7 +209,7 @@ public class WidgetSetsServiceTest {
         // Act
         WidgetsetApiDTO created = widgetSetsService.createWidgetset(newWidgetset);
         // Assert
-        verify(widgetsetMapper).toUiWidgetset(widgetsetProto2);
+        verify(widgetsetMapper).toUiWidgetset(Collections.singleton(widgetsetProto2));
         assertThat(created, is(widgetset2));
 
     }
@@ -230,7 +240,7 @@ public class WidgetSetsServiceTest {
                 updatedWidgetset);
 
         // Assert
-        verify(widgetsetMapper).toUiWidgetset(widgetsetProto2);
+        verify(widgetsetMapper).toUiWidgetset(Collections.singleton(widgetsetProto2));
         assertThat(updatedAnswer, is(widgetset2));
     }
 
@@ -297,7 +307,7 @@ public class WidgetSetsServiceTest {
     public void testTransferWidgetset() throws Exception {
         // Arrange
         // Act
-        widgetSetsService.transferWidgetsets(WIDGETSET_UUID_1);
+        widgetSetsService.transferWidgetsets(WIDGETSET_UUID_1, USER_NAME);
         // Assert
         verify(widgetsetsserviceSpy).transferWidgetset(TransferWidgetsetRequest.newBuilder()
             .setRemovedUserid(WIDGETSET_UUID_1).build());

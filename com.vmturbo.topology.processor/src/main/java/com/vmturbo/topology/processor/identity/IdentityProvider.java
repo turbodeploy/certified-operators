@@ -6,7 +6,8 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -24,7 +25,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
  * <p>ID assignment for targets, probes, discoveries, actions etc. also
  * happens here.
  */
-public interface IdentityProvider extends Diagnosable {
+public interface IdentityProvider extends DiagsRestorable {
 
     /**
      * Get the target ID for the target described by a given spec.
@@ -53,15 +54,11 @@ public interface IdentityProvider extends Diagnosable {
      *         in the input are guaranteed to have an ID - for example, if the probe that discovered
      *         an entity didn't provide identity metadata for the entity type, the entity won't get
      *         an ID.
-     * @throws IdentityUninitializedException If the initialization of the identity provider
-     *      is not complete.
-     * @throws IdentityMetadataMissingException if asked to assign an ID to an {@link EntityDTO}
-     *         for which there is no identity metadata.
-     * @throws IdentityProviderException if unable to persist the generated entity identities.
+     * @throws IdentityServiceException if unable to fetch or persist the generated entity
+     *         identities.
      */
-    Map<Long, EntityDTO> getIdsForEntities(long probeId,
-            @Nonnull List<EntityDTO> entityDTOs)
-            throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException;
+    Map<Long, EntityDTO> getIdsForEntities(long probeId, @Nonnull List<EntityDTO> entityDTOs)
+            throws IdentityServiceException;
 
     /**
      * Get an entity ID for a clone of an entity in the topology.

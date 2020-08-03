@@ -25,31 +25,31 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.google.common.collect.Sets;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import com.google.gson.stream.JsonReader;
-
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.market.MarketDebug.AnalysisInput;
 import com.vmturbo.common.protobuf.market.MarketDebug.GetAnalysisInfoResponse;
 import com.vmturbo.common.protobuf.market.MarketDebugREST;
 import com.vmturbo.common.protobuf.market.MarketDebugREST.MarketDebugServiceController.MarketDebugServiceResponse;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -57,11 +57,18 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.group.api.GroupMemberRetriever;
+import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
+import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
-import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
+import com.vmturbo.market.topology.conversions.TierExcluder;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -117,6 +124,14 @@ public class AnalysisDebuggingTest {
 
     private GroupServiceMole groupServiceMole = spy(new GroupServiceMole());
 
+    private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
+
+    private ConsistentScalingHelperFactory consistentScalingHelperFactory =
+            mock(ConsistentScalingHelperFactory.class);
+
+    private InitialPlacementFinder initialPlacementFinder =
+            mock(InitialPlacementFinder.class);
+
     private final TopologyInfo topoInfo = TopologyInfo.newBuilder().setTopologyContextId(1000l).build();
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(groupServiceMole);
@@ -134,6 +149,7 @@ public class AnalysisDebuggingTest {
 
     @Before
     public void setup() {
+        when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
         IdentityGenerator.initPrefix(0);
     }
 
@@ -239,10 +255,12 @@ public class AnalysisDebuggingTest {
     @Nonnull
     private Analysis analysisFromInput(@Nonnull final AnalysisInput analysisInput) {
         AnalysisConfig.Builder analysisConfig = AnalysisConfig.newBuilder(analysisInput.getQuoteFactor(),
-            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             analysisInput.getSuspensionThrottlingPerCluster() ? SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT,
                     analysisInput.getSettingsMap())
                 .setIncludeVDC(analysisInput.getIncludeVdc())
+                .setUseQuoteCacheDuringSNM(analysisInput.getUseQuoteCacheDuringSnm())
+                .setReplayProvisionsForRealTime(analysisInput.getReplayProvisionsForRealTime())
                 .setRightsizeLowerWatermark(analysisInput.getRightSizeLowerWatermark())
                 .setRightsizeUpperWatermark(analysisInput.getRightSizeUpperWatermark());
         if (analysisInput.hasMaxPlacementsOverride()) {
@@ -253,20 +271,23 @@ public class AnalysisDebuggingTest {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator(topoInfo)).thenReturn(cloudCostCalculator);
+        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
+        when(cloudCostCalculatorFactory.newCalculator(topoInfo, any())).thenReturn(cloudCostCalculator);
 
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
-        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
         final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
             mock(WastedFilesAnalysisFactory.class);
+        final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
+                mock(BuyRIImpactAnalysisFactory.class);
 
         final Analysis analysis = new Analysis(analysisInput.getTopologyInfo(),
             Sets.newHashSet(analysisInput.getEntitiesList()),
-            GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            new GroupMemberRetriever(GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel())),
             Clock.systemUTC(),
             analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-            wastedFilesAnalysisFactory);
+            wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
+                mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory, initialPlacementFinder);
         return analysis;
     }
 

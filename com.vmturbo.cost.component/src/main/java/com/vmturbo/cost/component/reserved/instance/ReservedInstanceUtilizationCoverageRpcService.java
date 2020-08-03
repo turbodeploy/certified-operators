@@ -1,37 +1,46 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import java.time.Instant;
-import java.util.concurrent.TimeUnit;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
+import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
+
+import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsResponse;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceImplBase;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
+import com.vmturbo.cost.component.reserved.instance.filter.PlanProjectedEntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 
 /**
- * A rpc service for get reserved instance utilization and coverage stats.
+ * A RPC service for getting reserved instance utilization and coverage statistics.
  */
 public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInstanceUtilizationCoverageServiceImplBase {
 
@@ -43,53 +52,91 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
 
     private final ProjectedRICoverageAndUtilStore projectedRICoverageStore;
 
+    private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
+
+    private final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore;
+
     private final TimeFrameCalculator timeFrameCalculator;
 
-    private static final int PROJECTED_STATS_TIME_IN_FUTURE_HOURS = 1;
+    private final long realtimeTopologyContextId;
 
+    /**
+     * Constructor for ReservedInstanceUtilizationCoverageRpcService. The parameters are the shared
+     * data structures or unique instances created at startup.
+     *
+     * @param reservedInstanceUtilizationStore
+     *     The instance of ReservedInstanceUtilizationStore
+     * @param reservedInstanceCoverageStore
+     *     The instance of ReservedInstanceCoverageStore
+     * @param projectedRICoverageStore
+     *     The instance of ProjectedRICoverageStore
+     * @param entityReservedInstanceMappingStore
+     *     The instance of EntityReservedInstanceMappingStore
+     * @param planProjectedRICoverageAndUtilStore
+     *     The instance of PlanProjectedRICoverageAndUtilStore
+     * @param timeFrameCalculator
+     *     The instance of TimeFrameCalculator
+     * @param realtimeTopologyContextId realtime topology context ID
+     */
     public ReservedInstanceUtilizationCoverageRpcService(
             @Nonnull final ReservedInstanceUtilizationStore reservedInstanceUtilizationStore,
             @Nonnull final ReservedInstanceCoverageStore reservedInstanceCoverageStore,
             @Nonnull final ProjectedRICoverageAndUtilStore projectedRICoverageStore,
-            @Nonnull final TimeFrameCalculator timeFrameCalculator) {
+            @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
+            @Nonnull final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore,
+            @Nonnull final TimeFrameCalculator timeFrameCalculator,
+            final long realtimeTopologyContextId) {
         this.reservedInstanceUtilizationStore = reservedInstanceUtilizationStore;
         this.reservedInstanceCoverageStore = reservedInstanceCoverageStore;
         this.projectedRICoverageStore = projectedRICoverageStore;
+        this.entityReservedInstanceMappingStore =
+                        Objects.requireNonNull(entityReservedInstanceMappingStore);
+        this.planProjectedRICoverageAndUtilStore = Objects.requireNonNull(planProjectedRICoverageAndUtilStore);
         this.timeFrameCalculator = timeFrameCalculator;
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Override
     public void getReservedInstanceUtilizationStats(
             GetReservedInstanceUtilizationStatsRequest request,
             StreamObserver<GetReservedInstanceUtilizationStatsResponse> responseObserver) {
-        if (!request.hasStartDate() || !request.hasEndDate()) {
+        if (request.hasStartDate() != request.hasEndDate()) {
             logger.error("Missing start date and end date for query reserved instance utilization stats!");
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Must provide start date " +
                     "and end date for query reserved instance utilization stats").asException());
+            return;
         }
 
         try {
-            final Optional<RegionFilter> regionFilter = request.hasRegionFilter()
-                    ? Optional.of(request.getRegionFilter())
-                    : Optional.empty();
-            final Optional<AvailabilityZoneFilter> azFilter = request.hasRegionFilter()
-                    ? Optional.of(request.getAvailabilityZoneFilter())
-                    : Optional.empty();
-            final Optional<AccountFilter> accountFilter = request.hasRegionFilter()
-                    ? Optional.of(request.getAccountFilter())
-                    : Optional.empty();
-            final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
             final ReservedInstanceUtilizationFilter filter =
-                    createReservedInstanceUtilizationFilter(regionFilter, azFilter, accountFilter,
-                            request.getStartDate(), request.getEndDate(), timeFrame);
+                    createReservedInstanceUtilizationFilter(request);
             final List<ReservedInstanceStatsRecord> statRecords =
                     reservedInstanceUtilizationStore.getReservedInstanceUtilizationStatsRecords(filter);
-            float usedCouponsTotal = (float)getProjectedRICoverageCouponTotal();
-            statRecords.add(ReservedInstanceUtil.createRIStatsRecord(
-                        statRecords.isEmpty() ? usedCouponsTotal : statRecords.get(statRecords.size()-1).getCapacity().getTotal(),
-                        usedCouponsTotal,
-                        request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS)));
-            GetReservedInstanceUtilizationStatsResponse response =
+
+            final long currentTime = System.currentTimeMillis();
+            if (shouldAddLatestStats(currentTime, request.getStartDate(), request.getEndDate())) {
+                final Collection<ReservedInstanceStatsRecord> latestStats =
+                        reservedInstanceUtilizationStore.getReservedInstanceUtilizationStatsRecords(
+                                filter.toLatestFilter());
+                statRecords.addAll(latestStats);
+                logger.trace("Adding latest RI utilization stats: {}", () -> latestStats);
+            }
+
+            if (request.hasTopologyContextId() && request.getTopologyContextId() != realtimeTopologyContextId) {
+                final List<ReservedInstanceStatsRecord> statsRecords = planProjectedRICoverageAndUtilStore
+                                .getPlanReservedInstanceUtilizationStatsRecords(request.getTopologyContextId(),
+                                        filter.getRegionFilter().getRegionIdList());
+                if (!CollectionUtils.isEmpty(statsRecords)) {
+                    statRecords.add(statsRecords.get(0));
+                }
+            } else {
+                // Add projected RI Utilization point
+                        projectedRICoverageStore.getReservedInstanceUtilizationStats(
+                                filter, request.getIncludeBuyRiUtilization(), request.getEndDate())
+                                .ifPresent(statRecords::add);
+
+            }
+            final GetReservedInstanceUtilizationStatsResponse response =
                     GetReservedInstanceUtilizationStatsResponse.newBuilder()
                             .addAllReservedInstanceStatsRecords(statRecords)
                             .build();
@@ -106,35 +153,45 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
     public void getReservedInstanceCoverageStats(
             GetReservedInstanceCoverageStatsRequest request,
             StreamObserver<GetReservedInstanceCoverageStatsResponse> responseObserver) {
-        if (!request.hasStartDate() || !request.hasEndDate()) {
+        // The start and end date need to both be set, or both be unset.
+        // Both unset means "look for most recent stats".
+        if (request.hasStartDate() != request.hasEndDate()) {
             logger.error("Missing start date and end date for query reserved instance coverage stats!");
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Must provide start date " +
                     " and end date for query reserved instance coverage stats").asException());
+            return;
         }
         try {
-            final Optional<RegionFilter> regionFilter = request.hasRegionFilter()
-                        ? Optional.of(request.getRegionFilter())
-                        : Optional.empty();
-            final Optional<AvailabilityZoneFilter> azFilter = request.hasRegionFilter()
-                    ? Optional.of(request.getAvailabilityZoneFilter())
-                    : Optional.empty();
-            final Optional<AccountFilter> accountFilter = request.hasRegionFilter()
-                    ? Optional.of(request.getAccountFilter())
-                    : Optional.empty();
-            final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
             final ReservedInstanceCoverageFilter filter =
-                    createReservedInstanceCoverageFilter(regionFilter, azFilter, accountFilter,
-                            request.getStartDate(), request.getEndDate(), timeFrame);
-            final List<ReservedInstanceStatsRecord> statRecords =
-                    reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(filter);
-            float usedCouponsTotal = (float)getProjectedRICoverageCouponTotal();
-            // Instead of again computing the total capacity stats for the projected stats, we use the one from the last record
-            // as it should be the same.
-            statRecords.add(ReservedInstanceUtil.createRIStatsRecord(
-                        statRecords.isEmpty() ? usedCouponsTotal : statRecords.get(statRecords.size()-1).getCapacity().getTotal(),
-                        usedCouponsTotal,
-                        request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS)));
-            GetReservedInstanceCoverageStatsResponse response =
+                    createReservedInstanceCoverageFilter(request);
+            final List<ReservedInstanceStatsRecord> statRecords = reservedInstanceCoverageStore
+                .getReservedInstanceCoverageStatsRecords(filter);
+
+            // Add latest RI Coverage point
+            final long currentTime = System.currentTimeMillis();
+            if (shouldAddLatestStats(currentTime, request.getStartDate(), request.getEndDate())) {
+                final Collection<ReservedInstanceStatsRecord> latestStats =
+                        reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(
+                                filter.toLatestFilter());
+                statRecords.addAll(latestStats);
+                logger.trace("Adding latest RI coverage stats: {}", () -> latestStats);
+            }
+
+            if (request.hasTopologyContextId() && request.getTopologyContextId() != realtimeTopologyContextId) {
+                final List<ReservedInstanceStatsRecord> statsRecords = planProjectedRICoverageAndUtilStore
+                                .getPlanReservedInstanceCoverageStatsRecords(request.getTopologyContextId(),
+                                        filter.getRegionFilter().getRegionIdList());
+                if (!CollectionUtils.isEmpty(statsRecords)) {
+                    statRecords.add(statsRecords.get(0));
+                }
+            } else {
+                // Add projected RI Coverage point
+                projectedRICoverageStore.getReservedInstanceCoverageStats(
+                        filter, request.getIncludeBuyRiCoverage(), request.getEndDate())
+                        .ifPresent(statRecords::add);
+            }
+
+            final GetReservedInstanceCoverageStatsResponse response =
                     GetReservedInstanceCoverageStatsResponse.newBuilder()
                             .addAllReservedInstanceStatsRecords(statRecords)
                             .build();
@@ -147,37 +204,92 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
         }
     }
 
+    private boolean shouldAddLatestStats(final long currentTime, final long startTime,
+                                         final long endTime) {
+        return currentTime >= startTime && currentTime <= endTime;
+    }
+
+    @Override
+    public void getEntityReservedInstanceCoverage(GetEntityReservedInstanceCoverageRequest request,
+                    StreamObserver<GetEntityReservedInstanceCoverageResponse> responseObserver) {
+        try {
+            logger.debug("Request for Entity RI coverage: {}", request);
+            EntityReservedInstanceMappingFilter filter = EntityReservedInstanceMappingFilter
+                    .newBuilder()
+                    .entityFilter(request.getEntityFilter())
+                    .build();
+
+            ReservedInstanceCoverageFilter reservedInstanceCoverageFilter = ReservedInstanceCoverageFilter
+                    .newBuilder()
+                    .entityFilter(request.getEntityFilter())
+                    .build();
+
+            final Map<Long, Set<Coverage>> riCoverageByEntity = entityReservedInstanceMappingStore
+                    .getRICoverageByEntity(filter);
+
+            final Map<Long, Double> entitiesCouponCapacity = reservedInstanceCoverageStore
+                    .getEntitiesCouponCapacity(reservedInstanceCoverageFilter);
+
+            final Map<Long, EntityReservedInstanceCoverage> retCoverage = entitiesCouponCapacity.entrySet()
+                    .stream()
+                    .map(capacityEntry -> {
+                        long entityOid = capacityEntry.getKey();
+                        int capacity = capacityEntry.getValue().intValue();
+
+                        final Map<Long, Double> riCoverage =
+                                riCoverageByEntity.getOrDefault(entityOid, Collections.emptySet())
+                                        .stream()
+                                        .collect(ImmutableMap.toImmutableMap(
+                                                Coverage::getReservedInstanceId,
+                                                Coverage::getCoveredCoupons,
+                                                Double::sum));
+
+                        return EntityReservedInstanceCoverage.newBuilder()
+                                .setEntityId(entityOid)
+                                .setEntityCouponCapacity(capacity)
+                                .putAllCouponsCoveredByRi(riCoverage)
+                                .build();
+                    }).collect(ImmutableMap.toImmutableMap(
+                            EntityReservedInstanceCoverage::getEntityId,
+                            Function.identity()));
+
+            logger.debug("Retrieved and returning RI coverage for {} entities.",
+                            retCoverage.size());
+            responseObserver.onNext(GetEntityReservedInstanceCoverageResponse.newBuilder()
+                            .putAllCoverageByEntityId(retCoverage).build());
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            responseObserver.onError(Status.INTERNAL.withDescription(
+                            "Failed to retrieve RI coverage from DB: " + e.getLocalizedMessage())
+                            .asException());
+        }
+    }
+
     /**
      * Create {@link ReservedInstanceUtilizationFilter} based on input different filters and
      * timestamp.
      *
-     * @param regionFilter region id filters.
-     * @param azFilter availability zone id filters.
-     * @param accountFilter account id filters.
-     * @param startDateMillis start date timestamp.
-     * @param endDateMillis end date timestamp.
+     * @param request The {@link GetReservedInstanceUtilizationStatsRequest}.
      * @return a {@link ReservedInstanceUtilizationFilter}.
      */
     private ReservedInstanceUtilizationFilter createReservedInstanceUtilizationFilter(
-            @Nonnull final Optional<RegionFilter> regionFilter,
-            @Nonnull final Optional<AvailabilityZoneFilter> azFilter,
-            @Nonnull final Optional<AccountFilter> accountFilter,
-            final long startDateMillis,
-            final long endDateMillis,
-            final TimeFrame timeFrame) {
-        final ReservedInstanceUtilizationFilter.Builder filterBuilder = ReservedInstanceUtilizationFilter.newBuilder();
-        if (regionFilter.isPresent()) {
-            regionFilter.get().getRegionIdList().forEach(filterBuilder::addRegionId);
+            @Nonnull final GetReservedInstanceUtilizationStatsRequest request) {
+
+        final ReservedInstanceUtilizationFilter.Builder filterBuilder = ReservedInstanceUtilizationFilter.newBuilder()
+                .regionFilter(request.getRegionFilter())
+                .accountFilter(request.getAccountFilter())
+                .availabilityZoneFilter(request.getAvailabilityZoneFilter());
+
+        if (request.hasStartDate()) {
+            filterBuilder.startDate(Instant.ofEpochMilli(request.getStartDate()));
+
+            final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
+            filterBuilder.timeFrame(timeFrame);
         }
-        if (azFilter.isPresent()) {
-            azFilter.get().getAvailabilityZoneIdList().forEach(filterBuilder::addAvailabilityZoneId);
+
+        if (request.hasEndDate()) {
+            filterBuilder.endDate(Instant.ofEpochMilli(request.getEndDate()));
         }
-        if (accountFilter.isPresent()) {
-            accountFilter.get().getAccountIdList().forEach(filterBuilder::addBusinessAccountId);
-        }
-        filterBuilder.setStartDateMillis(startDateMillis);
-        filterBuilder.setEndDateMillis(endDateMillis);
-        filterBuilder.setTimeFrame(timeFrame);
         return filterBuilder.build();
     }
 
@@ -185,67 +297,58 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
      * Create {@link ReservedInstanceCoverageFilter} based on input different filters and
      * timestamp.
      *
-     * @param regionFilter region id filters.
-     * @param azFilter availability zone id filters.
-     * @param accountFilter account id filters.
-     * @param startDateMillis start date timestamp.
-     * @param endDateMillis end date timestamp.
+     * @param request The {@link GetReservedInstanceCoverageStatsRequest}.
      * @return a {@link ReservedInstanceCoverageFilter}.
      */
-    private ReservedInstanceCoverageFilter createReservedInstanceCoverageFilter(
-            @Nonnull final Optional<RegionFilter> regionFilter,
-            @Nonnull final Optional<AvailabilityZoneFilter> azFilter,
-            @Nonnull final Optional<AccountFilter> accountFilter,
-            final long startDateMillis,
-            final long endDateMillis,
-            final TimeFrame timeFrame) {
-        final ReservedInstanceCoverageFilter.Builder filterBuilder = ReservedInstanceCoverageFilter.newBuilder();
-        if (regionFilter.isPresent()) {
-            regionFilter.get().getRegionIdList().forEach(filterBuilder::addRegionId);
+    private ReservedInstanceCoverageFilter createReservedInstanceCoverageFilter(GetReservedInstanceCoverageStatsRequest request) {
+        final ReservedInstanceCoverageFilter.Builder filterBuilder = ReservedInstanceCoverageFilter.newBuilder()
+                .regionFilter(request.getRegionFilter())
+                .accountFilter(request.getAccountFilter())
+                .availabilityZoneFilter(request.getAvailabilityZoneFilter())
+                .entityFilter(request.getEntityFilter());
+
+        if (request.hasStartDate()) {
+            filterBuilder.startDate(Instant.ofEpochMilli(request.getStartDate()));
+
+            final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
+            filterBuilder.timeFrame(timeFrame);
+
         }
-        if (azFilter.isPresent()) {
-            azFilter.get().getAvailabilityZoneIdList().forEach(filterBuilder::addAvailabilityZoneId);
+
+        if (request.hasEndDate()) {
+            filterBuilder.endDate(Instant.ofEpochMilli(request.getEndDate()));
+
         }
-        if (accountFilter.isPresent()) {
-            accountFilter.get().getAccountIdList().forEach(filterBuilder::addBusinessAccountId);
-        }
-        filterBuilder.setStartDateMillis(startDateMillis);
-        filterBuilder.setEndDateMillis(endDateMillis);
-        filterBuilder.setTimeFrame(timeFrame);
+
         return filterBuilder.build();
     }
 
-    /**
-     * Add one extra {@link ReservedInstanceStatsRecord} into list, and its stats value is exactly
-     * same as the latest reserved instance stats record value, but its snapshot time should be
-     * the current timestamp.
-     *
-     * @param records a list of {@link ReservedInstanceStatsRecord}.
-     * @return a list of {@link ReservedInstanceStatsRecord} contains one extra stats record.
-     */
-    private List<ReservedInstanceStatsRecord> addLatestRIStats(
-            @Nonnull final List<ReservedInstanceStatsRecord> records) {
-        if (records.isEmpty()) {
-            return Collections.emptyList();
+    @Override
+    public void getProjectedEntityReservedInstanceCoverageStats(
+                    Cost.GetProjectedEntityReservedInstanceCoverageRequest request,
+                    StreamObserver<Cost.GetProjectedEntityReservedInstanceCoverageResponse> responseObserver) {
+        final ReservedInstanceCoverageFilter filter = ReservedInstanceCoverageFilter.newBuilder()
+                .entityFilter(request.getEntityFilter())
+                .topologyContextId(request.getTopologyContextId())
+                .build();
+        Long topologyContextId = request.getTopologyContextId();
+        final Map<Long, EntityReservedInstanceCoverage> retCoverage;
+        if (!Objects.equals(realtimeTopologyContextId, topologyContextId)) {
+            PlanProjectedEntityReservedInstanceMappingFilter planProjectedRICoverageByEntityFilter = PlanProjectedEntityReservedInstanceMappingFilter
+                .newBuilder()
+                .entityFilter(request.getEntityFilter())
+                .topologyContextId(topologyContextId)
+                .build();
+            retCoverage = planProjectedRICoverageAndUtilStore.getPlanProjectedRiCoverage(
+                topologyContextId,
+                planProjectedRICoverageByEntityFilter);
+        } else {
+            retCoverage = projectedRICoverageStore.getScopedProjectedEntitiesRICoverages(filter);
         }
-        records.sort(Comparator.comparingLong(ReservedInstanceStatsRecord::getSnapshotDate));
-        final long currentTimeMillis = Instant.now().toEpochMilli();
-        ReservedInstanceStatsRecord lastRIStatsRecord = records.get(records.size() - 1);
-        if (lastRIStatsRecord.getSnapshotDate() != currentTimeMillis) {
-            final ReservedInstanceStatsRecord newCurrentRIStatsRecord =
-                    ReservedInstanceStatsRecord.newBuilder(lastRIStatsRecord)
-                            .setSnapshotDate(currentTimeMillis)
-                            .build();
-            records.add(newCurrentRIStatsRecord);
-        }
-        return records;
-    }
-
-    private double getProjectedRICoverageCouponTotal() {
-        return projectedRICoverageStore.getAllProjectedEntitiesRICoverages()
-            .values().stream()
-            .flatMap(map -> map.values().stream())
-            .mapToDouble(i -> i)
-            .sum();
+        final Cost.GetProjectedEntityReservedInstanceCoverageResponse response =
+                        Cost.GetProjectedEntityReservedInstanceCoverageResponse.newBuilder()
+                                        .putAllCoverageByEntityId(retCoverage).build();
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
     }
 }

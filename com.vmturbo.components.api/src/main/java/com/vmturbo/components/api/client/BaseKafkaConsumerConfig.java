@@ -6,11 +6,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.components.api.BaseKafkaConfig;
+import com.vmturbo.components.api.localbus.LocalBus;
 
 /**
- * Base Kafka client configuration. This confuguration should be imported from Srpring context in
- * order to create connsumer bean. Consumer bean should be in only one instance (singleton)
- * accross the component.
+ * Base Kafka client configuration. This configuration should be imported from Spring context in
+ * order to create consumer bean. Consumer bean should be in only one instance (singleton)
+ * across the component.
  */
 @Configuration
 public class BaseKafkaConsumerConfig extends BaseKafkaConfig {
@@ -18,7 +19,7 @@ public class BaseKafkaConsumerConfig extends BaseKafkaConfig {
     /**
      * Kafka consumer group id.
      */
-    @Value("${instance_id}")
+    @Value("${consumer_group:${component_type}}")
     private String consumerGroup;
 
     /**
@@ -28,12 +29,17 @@ public class BaseKafkaConsumerConfig extends BaseKafkaConfig {
      */
     @Bean
     @Lazy
-    public KafkaMessageConsumer kafkaConsumer() {
-        return new KafkaMessageConsumer(bootstrapServer(), consumerGroup);
+    public IMessageReceiverFactory kafkaConsumer() {
+        if (useLocalBus()) {
+            return LocalBus.getInstance();
+        } else {
+            return new KafkaMessageConsumer(bootstrapServer(), consumerGroup, kafkaNamespacePrefix());
+        }
+
     }
 
     @Bean
     public KafkaConsumerStarter startKafka() {
-        return new KafkaConsumerStarter();
+        return new KafkaConsumerStarter(useLocalBus());
     }
 }

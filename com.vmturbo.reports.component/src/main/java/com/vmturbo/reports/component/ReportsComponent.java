@@ -1,14 +1,12 @@
 package com.vmturbo.reports.component;
 
-import java.util.Optional;
+import java.util.Collections;
+import java.util.List;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
+import io.grpc.BindableService;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,19 +44,18 @@ public class ReportsComponent extends BaseVmtComponent {
                         reportingConfig.dbConfig().dataSource()::getConnection));
     }
 
+    /**
+     * Starts the component.
+     *
+     * @param args The mandatory arguments.
+     */
     public static void main(String[] args) {
         startContext(ReportsComponent.class);
     }
 
-    @Override
     @Nonnull
-    protected Optional<io.grpc.Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        // Monitor for server metrics with prometheus.
-        final MonitoringServerInterceptor monitoringInterceptor =
-            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
-
-        return Optional.of(builder
-            .addService(ServerInterceptors.intercept(reportingConfig.reportingService(), monitoringInterceptor))
-            .build());
+    @Override
+    public List<BindableService> getGrpcServices() {
+        return Collections.singletonList(reportingConfig.reportingService());
     }
 }

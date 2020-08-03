@@ -1,10 +1,12 @@
 package com.vmturbo.api.component.external.api.util;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -13,10 +15,13 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.mapper.TemplateMapper;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateSpecsRequest;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByIdsRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc.TemplateSpecServiceBlockingStub;
 
@@ -27,20 +32,20 @@ import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc.TemplateSpecServ
 public class TemplatesUtils {
     public static final String PROFILE = "Profile";
     // compute
-    public static final String CPU_CONSUMED_FACTOR = "cpuConsumedFactor";
-    public static final String CPU_SPEED = "cpuSpeed";
-    public static final String IO_THROUGHPUT = "ioThroughput";
-    public static final String IO_THROUGHPUT_SIZE = "ioThroughputSize";
-    public static final String MEMORY_CONSUMED_FACTOR = "memoryConsumedFactor";
     public static final String MEMORY_SIZE = "memorySize";
     public static final String NUM_OF_CPU = "numOfCpu";
-    public static final String NUM_OF_CORES = "numOfCores";
-    public static final String NETWORK_THROUGHPUT = "networkThroughput";
-    public static final String NETWORK_THROUGHPUT_SIZE = "networkThroughputSize";
+    private static final String CPU_CONSUMED_FACTOR = "cpuConsumedFactor";
+    private static final String CPU_SPEED = "cpuSpeed";
+    private static final String IO_THROUGHPUT = "ioThroughput";
+    private static final String IO_THROUGHPUT_SIZE = "ioThroughputSize";
+    private static final String MEMORY_CONSUMED_FACTOR = "memoryConsumedFactor";
+    private static final String NUM_OF_CORES = "numOfCores";
+    private static final String NETWORK_THROUGHPUT = "networkThroughput";
+    private static final String NETWORK_THROUGHPUT_SIZE = "networkThroughputSize";
     // storage
-    public static final String DISK_IOPS = "diskIops";
     public static final String DISK_SIZE = "diskSize";
-    public static final String DISK_CONSUMED_FACTOR = "diskConsumedFactor";
+    private static final String DISK_IOPS = "diskIops";
+    private static final String DISK_CONSUMED_FACTOR = "diskConsumedFactor";
 
     public static Set<String> allowedComputeStats = Sets
         .newHashSet(NUM_OF_CPU, NUM_OF_CORES, CPU_SPEED, CPU_CONSUMED_FACTOR, MEMORY_SIZE,
@@ -73,19 +78,41 @@ public class TemplatesUtils {
      * @return A Map which key is template id and value is {@link TemplateApiDTO}.
      */
     public Map<Long, TemplateApiDTO> getTemplatesMapByIds(@Nonnull final Set<Long> templateIds) {
-        GetTemplatesByIdsRequest templatesByIdsRequest = GetTemplatesByIdsRequest.newBuilder()
-            .addAllTemplateIds(templateIds)
-            .build();
-        Iterable<Template> templates = () -> templateService.getTemplatesByIds(templatesByIdsRequest);
-        GetTemplateSpecsRequest templateSpecRequest = GetTemplateSpecsRequest.getDefaultInstance();
-        Iterable<TemplateSpec> templateSpecs = () -> templateSpecService.getTemplateSpecs(templateSpecRequest);
-        Map<Long, TemplateSpec> templateSpecMap = StreamSupport.stream(templateSpecs.spliterator(), false)
-            .collect(Collectors.toMap(entry -> entry.getId(), Function.identity()));
+        if (templateIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
 
-        return StreamSupport.stream(templates.spliterator(), false)
-            .collect(Collectors.toMap(Template::getId,
-                template -> templateMapper.mapToTemplateApiDTO(template,
-                    templateSpecMap.get(template.getTemplateInfo().getTemplateSpecId()))));
+        return getTemplates(GetTemplatesRequest.newBuilder()
+                .setFilter(TemplatesFilter.newBuilder()
+                    .addAllTemplateIds(templateIds))
+                .build())
+            .collect(Collectors.toMap(apiDto -> Long.parseLong(apiDto.getUuid()), Function.identity()));
+    }
+
+    /**
+     * Get all templates that match the provided request.
+     *
+     * @param templatesRequest The request to send to the template service.
+     * @return A stream of the matching templates, converted to {@link TemplateApiDTO}s.
+     */
+    @Nonnull
+    public Stream<TemplateApiDTO> getTemplates(@Nonnull final GetTemplatesRequest templatesRequest) {
+        final GetTemplateSpecsRequest templateSpecRequest = GetTemplateSpecsRequest.getDefaultInstance();
+        final Iterable<TemplateSpec> templateSpecs = () -> templateSpecService.getTemplateSpecs(templateSpecRequest);
+        final Map<Long, TemplateSpec> templateSpecMap = StreamSupport.stream(templateSpecs.spliterator(), false)
+            .collect(Collectors.toMap(TemplateSpec::getId, Function.identity()));
+
+        return TemplateProtoUtil.flattenGetResponse(templateService.getTemplates(templatesRequest.toBuilder()
+                // Ensure we include the deployment profiles in the returned data.
+                .setIncludeDeploymentProfiles(true)
+                .build()))
+            .map(template -> {
+                final TemplateApiDTO templateApiDTO = templateMapper.mapToTemplateApiDTO(
+                    template.getTemplate(),
+                    templateSpecMap.get(template.getTemplate().getTemplateInfo().getTemplateSpecId()),
+                    template.getDeploymentProfileList());
+                return templateApiDTO;
+            });
     }
 
     /**
@@ -96,11 +123,15 @@ public class TemplatesUtils {
      * @return set of Templates.
      */
     public Set<Template> getTemplatesByIds(@Nonnull final Set<Long> templateIds) {
-        GetTemplatesByIdsRequest templatesByIdsRequest = GetTemplatesByIdsRequest.newBuilder()
-            .addAllTemplateIds(templateIds)
+        if (templateIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+        GetTemplatesRequest templatesByIdsRequest = GetTemplatesRequest.newBuilder()
+            .setFilter(TemplatesFilter.newBuilder()
+                .addAllTemplateIds(templateIds))
             .build();
-        Iterable<Template> templates = () -> templateService.getTemplatesByIds(templatesByIdsRequest);
-        return StreamSupport.stream(templates.spliterator(), false)
+        return TemplateProtoUtil.flattenGetResponse(templateService.getTemplates(templatesByIdsRequest))
+            .map(SingleTemplateResponse::getTemplate)
             .collect(Collectors.toSet());
     }
 }

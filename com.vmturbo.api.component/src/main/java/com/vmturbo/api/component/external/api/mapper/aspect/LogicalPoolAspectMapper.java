@@ -4,6 +4,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.LogicalPoolInfo;
 
@@ -28,7 +29,7 @@ public class LogicalPoolAspectMapper extends DiskCommonAspectMapper {
 
     @Nonnull
     @Override
-    public String getAspectName() {
-        return "logicalPoolAspect";
+    public AspectName getAspectName() {
+        return AspectName.STORAGE;
     }
 }

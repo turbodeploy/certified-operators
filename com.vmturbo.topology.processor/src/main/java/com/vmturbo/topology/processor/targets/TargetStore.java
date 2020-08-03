@@ -7,8 +7,10 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -18,7 +20,7 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
 /**
  * Interface for CRUD operations on registered targets.
  */
-public interface TargetStore {
+public interface TargetStore extends RequiresDataInitialization {
 
     String TARGET_KV_STORE_PREFIX = "targets/";
 
@@ -38,7 +40,7 @@ public interface TargetStore {
      * @return The name of the target, or an empty optional if the target is not found or has no name.
      */
     @Nonnull
-    Optional<String> getTargetAddress(final long targetId);
+    Optional<String> getTargetDisplayName(long targetId);
 
     /**
      * Retrieve all stored targets.
@@ -79,9 +81,11 @@ public interface TargetStore {
      * update the current one with non-identifier fields data, or create new derived target.
      *
      * @param targetSpecs List of target information.
+     * @param parentTargetId The id of the parent target of the derived targets in the targetSpecs.
      * @throws IdentityStoreException If fetching target identity attributes failed.
      */
-    void createOrUpdateDerivedTargets(@Nonnull final List<TargetSpec> targetSpecs)
+    void createOrUpdateDerivedTargets(@Nonnull List<TargetSpec> targetSpecs,
+                                      long parentTargetId)
             throws IdentityStoreException;
 
     /**
@@ -159,4 +163,12 @@ public interface TargetStore {
      * @return SDKProbeType for the target if it exists
      */
     Optional<SDKProbeType> getProbeTypeForTarget(long targetId);
+
+    /**
+     * Get the probe category for a given target id.
+     *
+     * @param targetId the id of the target to get probe type for
+     * @return ProbeCategory for the target if it exists
+     */
+    Optional<ProbeCategory> getProbeCategoryForTarget(long targetId);
 }

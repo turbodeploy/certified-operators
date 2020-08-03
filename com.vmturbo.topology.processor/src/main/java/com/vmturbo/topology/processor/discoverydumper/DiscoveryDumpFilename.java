@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.discoverydumper;
 
 import java.io.File;
-import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -28,7 +27,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
  */
 public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> {
 
-    private static final String GZIP_FILE_SUFFIX = ".gz";
+    private static final String LZ4ZIP_FILE_SUFFIX = ".lz4";
 
     /**
      * This is the information that a discovery dump name should contain:
@@ -44,12 +43,7 @@ public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> 
      */
     private final String filenameBinary;
     private final String filenameText;
-
-    /**
-     * The date format used for timestamps
-     */
-    public final static DateFormat dateFormat =
-        new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss.SSS");
+    private static final String dateFormatPattern = "yyyy.MM.dd.HH.mm.ss.SSS";
 
     /**
      * extensions of binary and text dump files resp.
@@ -78,8 +72,8 @@ public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> 
         this.timestamp = (Date)Objects.requireNonNull(timestamp).clone();
         this.discoveryType = Objects.requireNonNull(discoveryType);
         final String genericFileName =
-            sanitizedTargetName + "-" + dateFormat.format(timestamp) + "-" +
-            discoveryType.name() + ".";
+            sanitizedTargetName + "-" + new SimpleDateFormat(dateFormatPattern).format(timestamp) + "-"
+                + discoveryType.name() + ".";
         filenameBinary = genericFileName + BINARY_EXTENSION;
         filenameText = genericFileName + TEXT_EXTENSION;
     }
@@ -114,15 +108,15 @@ public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> 
      *
      * @param dumpDirectory the directory in which discovery dumps are written.
      * @param isText decides whether to return the text or the binary format file.
-     * @param isGZipped whether the file will be gzipped, and therefore have a suffix appended to the name
+     * @param isL4ipped whether the file will be gzipped, and therefore have a suffix appended to the name
      * @return a {@link File} object that corresponds to the discovery file created by the information
      *         in the current object, given the dumping directory and the format.
      */
     @Nonnull
-    public File getFile(@Nonnull File dumpDirectory, boolean isText, boolean isGZipped) {
+    public File getFile(@Nonnull File dumpDirectory, boolean isText, boolean isL4ipped) {
         String fileName = isText ? filenameText : filenameBinary;
-        if (isGZipped) {
-            fileName += GZIP_FILE_SUFFIX;
+        if (isL4ipped) {
+            fileName += LZ4ZIP_FILE_SUFFIX;
         }
         return
             new File(Objects.requireNonNull(dumpDirectory), fileName);
@@ -154,7 +148,7 @@ public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> 
         // retrieve timestamp
         final Date timeStamp;
         try {
-            timeStamp = dateFormat.parse(filenameSections[1]);
+            timeStamp = new SimpleDateFormat(dateFormatPattern).parse(filenameSections[1]);
         } catch (ParseException e) {
             // filename does not have a valid timestamp
             return null;
@@ -162,8 +156,8 @@ public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> 
 
         // split third part into discovery type and extension, after stripping possible gzipe extension
         String lastFilenameSection = filenameSections[2];
-        if (lastFilenameSection.endsWith(GZIP_FILE_SUFFIX)) {
-            lastFilenameSection = lastFilenameSection.substring(0, lastFilenameSection.length() - GZIP_FILE_SUFFIX.length());
+        if (lastFilenameSection.endsWith(LZ4ZIP_FILE_SUFFIX)) {
+            lastFilenameSection = lastFilenameSection.substring(0, lastFilenameSection.length() - LZ4ZIP_FILE_SUFFIX.length());
         }
         final String[] splitType = lastFilenameSection.split("\\.");
         if (splitType.length != 2) {

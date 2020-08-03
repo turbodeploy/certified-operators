@@ -1,6 +1,8 @@
 package com.vmturbo.group.service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -10,22 +12,26 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.StringJoiner;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.DSLContext;
-import org.jooq.exception.DataAccessException;
-import org.jooq.impl.DSL;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.Table;
 
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
+import org.springframework.jdbc.BadSqlGrammarException;
+import org.springframework.util.StopWatch;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -33,471 +39,289 @@ import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateNestedGroupRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateNestedGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCriteriaCase;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.SelectionCriteriaCase;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
-import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.Groupings;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateNestedGroupRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateNestedGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
+import com.vmturbo.common.protobuf.search.SearchFilterResolver;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
-import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
-import com.vmturbo.group.group.EntityToClusterMapping;
-import com.vmturbo.group.group.GroupStore;
-import com.vmturbo.group.group.GroupStore.GroupNotClusterException;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.group.group.DiscoveredGroupHash;
+import com.vmturbo.group.group.GroupMembersPlain;
+import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
-import com.vmturbo.group.policy.PolicyStore;
-import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
-import com.vmturbo.group.setting.SettingStore;
+import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.policy.DiscoveredPlacementPolicyUpdater;
+import com.vmturbo.group.service.TransactionProvider.Stores;
+import com.vmturbo.group.setting.DiscoveredSettingPoliciesUpdater;
+import com.vmturbo.group.stitching.GroupStitchingContext;
+import com.vmturbo.group.stitching.GroupStitchingManager;
+import com.vmturbo.group.stitching.StitchingGroup;
+import com.vmturbo.group.stitching.StitchingResult;
+import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.proactivesupport.DataMetricHistogram;
 
+/**
+ * Implementation of group component services.
+ */
 public class GroupRpcService extends GroupServiceImplBase {
 
-    private final Logger logger = LogManager.getLogger();
+    private static final DataMetricHistogram GROUPS_BY_ID_SIZE_COUNTER =
+            DataMetricHistogram.builder()
+                    .withName("group_rpc_get_groups_response_size")
+                    .withHelp("Number of groups requested to be loaded from Group RPC service within one request.")
+                    .withBuckets(1, 10, 100, 1000, 10000, 100000, 1000000)
+                    .build()
+                    .register();
 
-    private final GroupStore groupStore;
+
+    private final Logger logger = LogManager.getLogger();
 
     private final TemporaryGroupCache tempGroupCache;
 
     private final SearchServiceBlockingStub searchServiceRpc;
 
-    private final EntityToClusterMapping entityToClusterMapping;
-
-    private final DSLContext dslContext;
-
-    private final PolicyStore policyStore;
-
-    private final SettingStore settingStore;
-
     private final UserSessionContext userSessionContext;
 
-    public GroupRpcService(@Nonnull final GroupStore groupStore,
-                           @Nonnull final TemporaryGroupCache tempGroupCache,
-                           @Nonnull final SearchServiceBlockingStub searchServiceRpc,
-                           @Nonnull final EntityToClusterMapping entityToClusterMapping,
-                           @Nonnull final DSLContext dslContext,
-                           @Nonnull final PolicyStore policyStore,
-                           @Nonnull final SettingStore settingStore,
-                           @Nonnull final UserSessionContext userSessionContext) {
-        this.groupStore = Objects.requireNonNull(groupStore);
+    private final GroupStitchingManager groupStitchingManager;
+    private final IdentityProvider identityProvider;
+
+    private final TargetSearchServiceBlockingStub targetSearchService;
+    private final DiscoveredSettingPoliciesUpdater settingPolicyUpdater;
+    private final DiscoveredPlacementPolicyUpdater placementPolicyUpdater;
+    private final GrpcTransactionUtil grpcTransactionUtil;
+    private final GroupPermit groupRequestPermits;
+    private final long groupLoadTimeoutMs;
+
+    /**
+     * Constructs group gRPC service.
+     *
+     * @param tempGroupCache temporary groups cache to store temp groups
+     * @param searchServiceRpc search gRPC service client to resolve dynamic groups
+     * @param userSessionContext user session context
+     * @param groupStitchingManager groups stitching manager
+     * @param transactionProvider transaction provider
+     * @param identityProvider identity provider to assign OIDs to user groups
+     * @param targetSearchService target search service for dynamic groups
+     * @param settingPolicyUpdater updater for the discovered setting policies
+     * @param placementPolicyUpdater updater for the discovered placement policies
+     * @param groupLoadPermits size of group batch used to retrieve groups from the DB
+     * @param groupLoadTimeoutSec timeout to await for permits to load groups from DAO. If
+     *         this timeout expires, {@link #getGroupsByIds(IGroupStore, List, StreamObserver,
+     *         StopWatch, boolean)} will return a error.
+     */
+    public GroupRpcService(@Nonnull final TemporaryGroupCache tempGroupCache,
+            @Nonnull final SearchServiceBlockingStub searchServiceRpc,
+            @Nonnull final UserSessionContext userSessionContext,
+            @Nonnull final GroupStitchingManager groupStitchingManager,
+            @Nonnull TransactionProvider transactionProvider,
+            @Nonnull IdentityProvider identityProvider,
+            @Nonnull TargetSearchServiceBlockingStub targetSearchService,
+            @Nonnull DiscoveredSettingPoliciesUpdater settingPolicyUpdater,
+            @Nonnull DiscoveredPlacementPolicyUpdater placementPolicyUpdater,
+            int groupLoadPermits, long groupLoadTimeoutSec) {
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
-        this.entityToClusterMapping = Objects.requireNonNull(entityToClusterMapping);
-        this.dslContext = Objects.requireNonNull(dslContext);
-        this.policyStore = Objects.requireNonNull(policyStore);
-        this.settingStore = Objects.requireNonNull(settingStore);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
-    }
-
-    @Override
-    public void createGroup(GroupInfo groupInfo, StreamObserver<CreateGroupResponse> responseObserver) {
-        logger.info("Creating a group: {}", groupInfo);
-
-        try {
-            if (userSessionContext.isUserScoped()) {
-                // verify that the members of the new group would all be in scope
-                UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(), getNormalGroupMembers(groupInfo));
-            }
-            final Group createdGroupOpt = groupStore.newUserGroup(groupInfo);
-            responseObserver.onNext(CreateGroupResponse.newBuilder()
-                    .setGroup(createdGroupOpt)
-                    .build());
-            responseObserver.onCompleted();
-        } catch (DataAccessException | DuplicateNameException e) {
-            logger.error("Failed to create group: {}", groupInfo, e);
-            responseObserver.onError(Status.ABORTED.withDescription(e.getLocalizedMessage())
-                    .asRuntimeException());
+        this.groupStitchingManager = Objects.requireNonNull(groupStitchingManager);
+        this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.targetSearchService = Objects.requireNonNull(targetSearchService);
+        this.settingPolicyUpdater = Objects.requireNonNull(settingPolicyUpdater);
+        this.placementPolicyUpdater = Objects.requireNonNull(placementPolicyUpdater);
+        this.grpcTransactionUtil = new GrpcTransactionUtil(transactionProvider, logger);
+        if (groupLoadPermits <= 0) {
+            throw new IllegalArgumentException(
+                    "Group load permits size must be a positive value, found: " + groupLoadPermits);
         }
+        this.groupRequestPermits = new GroupPermit(groupLoadPermits);
+        if (groupLoadTimeoutSec <= 0) {
+            throw new IllegalArgumentException(
+                    "Group load timeout must be a positive value, found: " + groupLoadTimeoutSec);
+        }
+        this.groupLoadTimeoutMs = groupLoadTimeoutSec * 1000;
     }
 
     @Override
-    public void createNestedGroup(final CreateNestedGroupRequest request,
-                                  final StreamObserver<CreateNestedGroupResponse> responseObserver) {
-        if (!request.hasGroupInfo()) {
+    public void countGroups(GetGroupsRequest request,
+            StreamObserver<CountGroupsResponse> responseObserver) {
+        if (!request.hasGroupFilter()) {
             responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("No group info present.").asException());
+                    .withDescription("No group filter is present.").asException());
             return;
         }
+        grpcTransactionUtil.executeOperation(responseObserver, (stores) -> {
+            final Collection<Long> listOfGroups = getGroupIds(stores.getGroupStore(), request);
+            responseObserver.onNext(
+                    CountGroupsResponse.newBuilder().setCount(listOfGroups.size()).build());
+            responseObserver.onCompleted();
+        });
+    }
 
-        final NestedGroupInfo groupInfo = request.getGroupInfo();
-        if (userSessionContext.isUserScoped()) {
-            // verify that all members of the nested groups will fit in the scope.
-            UserScopeUtils.checkAccess(userSessionContext,
-                getNestedGroupMembers(request.getGroupInfo(), true));
+    @Override
+    public void getGroups(GetGroupsRequest request,
+            StreamObserver<Grouping> responseObserver) {
+        if (!request.hasGroupFilter()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("No group filter is present.").asException());
+            return;
         }
+        grpcTransactionUtil.executeOperation(responseObserver, stores -> {
+            getListOfGroups(stores.getGroupStore(), request, responseObserver);
+        });
+    }
 
-        // If the group has a static selection criteria, verify that all the underlying groups
-        // exist.
-        if (groupInfo.getSelectionCriteriaCase() == SelectionCriteriaCase.STATIC_GROUP_MEMBERS) {
-            final Map<Long, Optional<Group>> results =
-                groupStore.getGroups(groupInfo.getStaticGroupMembers().getStaticMemberOidsList());
-            for (Long memberId : groupInfo.getStaticGroupMembers().getStaticMemberOidsList()) {
-                if (!results.getOrDefault(memberId, Optional.empty()).isPresent()) {
-                    responseObserver.onError(Status.INVALID_ARGUMENT
-                        .withDescription("Group " + memberId + " does not exist.")
-                        .asException());
-                    return;
+    private Collection<Long> getGroupIds(@Nonnull IGroupStore groupStore,
+            @Nonnull GetGroupsRequest request) {
+        final GroupFilters.Builder filter = GroupFilters.newBuilder();
+        if (request.hasGroupFilter()) {
+            filter.addGroupFilter(request.getGroupFilter());
+        }
+        return groupStore.getGroupIds(filter.build());
+    }
+
+    private void getListOfGroups(@Nonnull IGroupStore groupStore, GetGroupsRequest request,
+            StreamObserver<Grouping> observer)
+            throws StoreOperationException, InterruptedException {
+        final StopWatch stopWatch = new StopWatch("GetListOfGroups");
+        stopWatch.start("replace group filter");
+        final boolean resolveGroupBasedFilters =
+            request.getReplaceGroupPropertyWithGroupMembershipFilter();
+        stopWatch.stop();
+        stopWatch.start("get group ids");
+        final Collection<Long> groupIds = getGroupIds(groupStore, request);
+        stopWatch.stop();
+        stopWatch.start("apply user scope");
+        final Set<Long> requestedIds = new HashSet<>(request.getGroupFilter().getIdList());
+        final List<Long> filteredIds = new ArrayList<>(groupIds.size());
+        for (long groupId: groupIds) {
+            if (userScopeFilter(groupId, requestedIds, request.getScopesList(), groupStore)) {
+                filteredIds.add(groupId);
+            }
+        }
+        stopWatch.stop();
+        GROUPS_BY_ID_SIZE_COUNTER.observe((double)filteredIds.size());
+        try {
+            getGroupsByIds(groupStore, filteredIds, observer, stopWatch, resolveGroupBasedFilters);
+        } catch (TimeoutException e) {
+            throw new StoreOperationException(Status.RESOURCE_EXHAUSTED,
+                    "Timed out while quering the DB for groups", e);
+        }
+        observer.onCompleted();
+        logger.debug(stopWatch::prettyPrint);
+    }
+
+    private void getGroupsByIds(@Nonnull IGroupStore groupStore, @Nonnull List<Long> oids,
+            @Nonnull StreamObserver<Grouping> observer, @Nonnull StopWatch stopWatch,
+            boolean resolveGroupBasedFilters) throws InterruptedException, TimeoutException {
+        logger.debug("Trying to load {} groups by OIDs", oids::size);
+        int processed = 0;
+        while (processed < oids.size()) {
+            stopWatch.start("Waiting for permits");
+            int permits = groupRequestPermits.acquire(oids.size() - processed, groupLoadTimeoutMs);
+            try {
+                stopWatch.stop();
+                logger.debug("Querying for the next {} groups starting from {}", permits, processed);
+                final List<Long> sublist = oids.subList(processed, processed + permits);
+                stopWatch.start("get groups by ids: " + permits);
+                final Collection<Grouping> filteredGroups = groupStore.getGroupsById(sublist);
+                stopWatch.stop();
+                stopWatch.start("replace group properties filter");
+                final Collection<Grouping> groupsResult;
+                if (resolveGroupBasedFilters) {
+                    groupsResult = filteredGroups.stream()
+                            .map(group -> replaceGroupPropertiesWithGroupMembershipFilter(groupStore,
+                                    group))
+                            .collect(Collectors.toSet());
+                } else {
+                    groupsResult = filteredGroups;
                 }
+                groupsResult.forEach(observer::onNext);
+                stopWatch.stop();
+                processed += permits;
+            } finally {
+                groupRequestPermits.release(permits);
             }
         }
-
-        try {
-            final Group group = groupStore.newUserNestedGroup(groupInfo);
-            responseObserver.onNext(CreateNestedGroupResponse.newBuilder()
-                .setGroup(group)
-                .build());
-            responseObserver.onCompleted();
-        } catch (DataAccessException | DuplicateNameException e) {
-            logger.error("Failed to create group: {}", groupInfo, e);
-            responseObserver.onError(Status.ABORTED.withDescription(e.getLocalizedMessage())
-                .asException());
-        }
     }
 
-    @Override
-    public void createTempGroup(final CreateTempGroupRequest request,
-                                  final StreamObserver<CreateTempGroupResponse> responseObserver) {
-        if (!request.hasGroupInfo()) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("No group info present.").asException());
-            return;
-        }
-
-        // check scope access if not a global temp group
-        TempGroupInfo groupInfo = request.getGroupInfo();
-        if (!groupInfo.getIsGlobalScopeGroup() && groupInfo.hasMembers()) {
-            UserScopeUtils.checkAccess(userSessionContext, groupInfo.getMembers().getStaticMemberOidsList());
-        }
-
-        try {
-            final Group group = tempGroupCache.create(groupInfo);
-            responseObserver.onNext(CreateTempGroupResponse.newBuilder()
-                    .setGroup(group)
-                    .build());
-            responseObserver.onCompleted();
-        } catch (InvalidTempGroupException e) {
-            logger.error("Failed to create temporary group", e);
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(e.getMessage()).asException());
-        }
-    }
-
-    @Override
-    public void getGroup(GroupID gid, StreamObserver<GetGroupResponse> responseObserver) {
-        if (!gid.hasId()) {
-            final String errMsg = "Invalid GroupID input for get a group: No group ID specified";
-            logger.error(errMsg);
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
-            return;
-        }
-
-        logger.debug("Attempting to retrieve group: {}", gid);
-
-        try {
-            Optional<Group> group = getGroupWithId(gid.getId());
-            // Patrick - removing this check, as it's preventing retrieval of data for plans. We will
-            // re-enable this with OM-44360
-            /*
-            if (userSessionContext.isUserScoped() && group.isPresent()) {
-                // verify that the members of the new group would all be in scope
-                UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(), getNormalGroupMembers(group.get(), true));
-            }
-            */
-            GetGroupResponse.Builder builder = GetGroupResponse.newBuilder();
-            group.ifPresent(builder::setGroup);
-            responseObserver.onNext(builder.build());
-            responseObserver.onCompleted();
-        } catch (DataAccessException e) {
-            logger.error("Failed to retrieve group: {}", gid, e);
-            responseObserver.onError(Status.INTERNAL
-                .withDescription(e.getLocalizedMessage()).asException());
-        }
-    }
-
-    private Optional<Group> getGroupWithId(Long groupId) {
-        // Try the temporary group cache first because it's much faster.
-        Optional<Group> group = tempGroupCache.get(groupId);
-        if (!group.isPresent()) {
-            group = groupStore.get(groupId);
-        }
-        return group;
-    }
-
-    /**
-     * Check if the user has access to the group identified by Id. A user has access to the group by
-     * default, but if the user is a "scoped" user, they will only have access to the group if all
-     * members of the group are in the user's scope.
-     *
-     * This method will trigger a {@link UserAccessScopeException} if the group exists and the user
-     * does not have access to it, otherwise it will return quietly.
-     *
-     * @param groupId the group id to check
-     *
-     */
-    private void checkUserAccessToGroup(Long groupId) {
-        if (! userHasAccessToGroup(groupId)) {
-            throw new UserAccessScopeException("User does not have access to group "+ groupId);
-        }
-    }
-
-    /**
-     * Check if the user has access to the group identified by Id. A user has access to the group by
-     * default, but if the user is a "scoped" user, they will only have access to the group if all
-     * members of the group are in the user's scope, or if the group itself is explicitly in the user's
-     * scope groups. (in the case of a group that no longer exists)
-     *
-     * TODO: move this to a helper class that could be shared by PolicyRpcService and GroupRpcService.
-     * This would mean moving getGroupById() and getNormalGroupMembers() as well though.
-     *
-     * @param groupId the group id to check access for
-     * @return true, if the user definitely has access to the group. false, if not.
-     */
-    public boolean userHasAccessToGroup(long groupId) {
-        if (! userSessionContext.isUserScoped()) {
-            return true;
-        }
-        // if the user scope groups contains the group id directly, we don't even need to expand the
-        // group.
-        EntityAccessScope entityAccessScope = userSessionContext.getUserAccessScope();
-        if (entityAccessScope.getScopeGroupIds().contains(groupId)) {
-            return true;
-        }
-        Optional<Group> optionalGroup = getGroupWithId(groupId);
-        if (optionalGroup.isPresent()) {
-            // check membership
-            return entityAccessScope.contains(getNormalGroupMembers(optionalGroup.get(), true));
-        } else {
-            // the group does not exist any more - we'll return false to be safe, although it is
-            // possible that the user had access when the group did exist.
-            return false;
-        }
-    }
-
-    @Override
-    public void getGroups(GetGroupsRequest request, StreamObserver<Group> responseObserver) {
-        logger.trace("Get all user groups");
-
-        boolean resolveClusterFilters = request.hasResolveClusterSearchFilters() &&
-            request.getResolveClusterSearchFilters();
-
-        final Set<Long> requestedIds = new HashSet<>(request.getIdList());
+    private boolean userScopeFilter(long groupId, @Nonnull Set<Long> requestedIds,
+            @Nonnull List<Long> scopes, @Nonnull IGroupStore groupStore) throws StoreOperationException {
         // if the user is scoped, set up a filter to restrict the results based on their scope.
+        // if the request contains scopes limit, set up a filter to restrict the results based on it.
         // if the request is for "all" groups: we will filter results and only return accessible ones.
         // If the request was for a specific set of groups: we will use a filter that will throw an
         // access exception if any groups are deemed "out of scope".
-        Predicate<Group> userScopeFilter = userSessionContext.isUserScoped()
-                ? requestedIds.isEmpty()
-                    ? group -> userSessionContext.getUserAccessScope().contains(getNormalGroupMembers(group, true))
-                    : group -> UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(group, true))
-                : group -> true;
-        try {
-            final boolean requestTempGroups = request.getTypeFilterList().contains(Type.TEMP_GROUP);
-            // Only return temp groups if explicitly requested.
-            final Stream<Group> tempGroupStream = requestTempGroups ?
-                    tempGroupCache.getAll().stream() : Stream.empty();
-            // Return non-temp groups, unless the user ONLY requested temp groups.
-            // TODO: if specific group ids were requested, consider getting a stream of only those
-            // groups from the group store rather than all, if the number of groups gets very large.
-            final Stream<Group> otherGroupStream =
-                requestTempGroups && request.getTypeFilterCount() == 1 ?
-                    Stream.empty() : groupStore.getAll().stream();
-            List<Group> responseGroups = Stream.concat(tempGroupStream, otherGroupStream)
-
-                    .filter(group -> requestedIds.isEmpty() || requestedIds.contains(group.getId()))
-                    .filter(group -> !request.hasOriginFilter() ||
-                            group.getOrigin().equals(request.getOriginFilter()))
-                    .filter(group -> request.getTypeFilterList().isEmpty() ||
-                            request.getTypeFilterList().contains(group.getType()))
-                    .filter(group ->
-                            matchFilters(request.getPropertyFilters().getPropertyFiltersList(), group))
-                    .filter(group -> !request.hasClusterFilter() ||
-                            GroupProtoUtil.clusterFilterMatcher(group, request.getClusterFilter()))
-                    .map(group -> resolveClusterFilters ? resolveClusterFilters(group) : group)
-                    .filter(userScopeFilter)
-                    .collect(Collectors.toList());
-
-            responseGroups.forEach(responseObserver::onNext);
-            responseObserver.onCompleted();
-        } catch (RuntimeException e) {
-            logger.error("Failed to query group store for group definitions.", e);
-            responseObserver.onError(Status.INTERNAL.withDescription(e.getLocalizedMessage())
-                    .asException());
-        }
-    }
-
-    @Override
-    public void updateNestedGroup(UpdateNestedGroupRequest request,
-                                  StreamObserver<UpdateNestedGroupResponse> responseObserver) {
-        if (!request.hasGroupId() || !request.hasNewGroupInfo()) {
-            final String errMsg = "Invalid GroupID input for group update: No group ID specified";
-            logger.error(errMsg);
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
-            return;
+        if (!userSessionContext.isUserScoped() && scopes.isEmpty()) {
+            return true;
         }
 
-        logger.info("Updating a group: {}", request);
-
+        final Collection<Long> members = getGroupMembers(groupStore, Collections.singleton(groupId), true);
+        boolean result = true;
+        // filter by user scopes
         if (userSessionContext.isUserScoped()) {
-            // verify the user has access to the group they are trying to modify
-            checkUserAccessToGroup(request.getGroupId());
-            // verify the modified version would fit in scope too
-            UserScopeUtils.checkAccess(userSessionContext, getNestedGroupMembers(request.getNewGroupInfo(), true));
+            if (requestedIds.isEmpty()) {
+                result = userSessionContext.getUserAccessScope().contains(members);
+            } else {
+                // trigger an access denied exception if an requested id is inaccessible
+                // if user is not scoped, just not return it, no need to throw exception
+                result = UserScopeUtils.checkAccess(userSessionContext, members);
+            }
+        }
+        // filter by limited scopes in request to ensure all results are within those scopes
+        if (!scopes.isEmpty()) {
+            result = result && userSessionContext.getAccessScope(scopes).contains(members);
         }
 
-        try {
-            Group newGroup = groupStore.updateUserNestedGroup(request.getGroupId(), request.getNewGroupInfo());
-            final UpdateNestedGroupResponse res = UpdateNestedGroupResponse.newBuilder()
-                .setUpdatedGroup(newGroup)
-                .build();
-            responseObserver.onNext(res);
-            responseObserver.onCompleted();
-        } catch (ImmutableGroupUpdateException e) {
-            logger.error("Failed to update group {} due to error: {}",
-                request.getGroupId(), e.getLocalizedMessage());
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription(e.getLocalizedMessage()).asException());
-        } catch (GroupNotFoundException e) {
-            logger.error("Failed to update group {} because it doesn't exist.",
-                request.getGroupId(), e.getLocalizedMessage());
-            responseObserver.onError(Status.NOT_FOUND
-                .withDescription(e.getLocalizedMessage()).asException());
-        } catch (DataAccessException | DuplicateNameException e) {
-            logger.error("Failed to update group " + request.getGroupId(), e);
-            responseObserver.onError(Status.INTERNAL
-                .withDescription(e.getLocalizedMessage()).asException());
-        }
-    }
-
-    @Override
-    public void updateGroup(UpdateGroupRequest request,
-                            StreamObserver<UpdateGroupResponse> responseObserver) {
-        if (!request.hasId() || !request.hasNewInfo()) {
-            final String errMsg = "Invalid GroupID input for group update: No group ID specified";
-            logger.error(errMsg);
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
-            return;
-        }
-
-        logger.info("Updating a group: {}", request);
-
-        if (userSessionContext.isUserScoped()) {
-            // verify the user has access to the group they are trying to modify
-            checkUserAccessToGroup(request.getId());
-            // verify the modified version would fit in scope too
-            UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(request.getNewInfo()));
-        }
-
-        try {
-            Group newGroup = groupStore.updateUserGroup(request.getId(), request.getNewInfo());
-            final UpdateGroupResponse res = UpdateGroupResponse.newBuilder()
-                    .setUpdatedGroup(newGroup)
-                    .build();
-            responseObserver.onNext(res);
-            responseObserver.onCompleted();
-        } catch (ImmutableGroupUpdateException e) {
-            logger.error("Failed to update group {} due to error: {}",
-                    request.getId(), e.getLocalizedMessage());
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription(e.getLocalizedMessage()).asException());
-        } catch (GroupNotFoundException e) {
-            logger.error("Failed to update group {} because it doesn't exist.",
-                    request.getId(), e.getLocalizedMessage());
-            responseObserver.onError(Status.NOT_FOUND
-                .withDescription(e.getLocalizedMessage()).asException());
-        } catch (DataAccessException | DuplicateNameException e) {
-            logger.error("Failed to update group " + request.getId(), e);
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription(e.getLocalizedMessage()).asException());
-        }
-    }
-
-    /**
-     * Update the cluster headroom template ID for a cluster.
-     *
-     * @param request The request object contains the Group ID and the template ID.
-     * @param responseObserver response observer
-     */
-    @Override
-    public void updateClusterHeadroomTemplate(final UpdateClusterHeadroomTemplateRequest request,
-                                              final StreamObserver<UpdateClusterHeadroomTemplateResponse> responseObserver) {
-        if (!request.hasGroupId() || !request.hasClusterHeadroomTemplateId()) {
-            final String errMsg = "Group ID or cluster headroom template ID is missing.";
-            logger.error(errMsg);
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
-            return;
-        }
-
-        logger.info("Updating cluster headroom template ID for group {}", request.getGroupId());
-
-        // ensure the user has access to the template group
-        checkUserAccessToGroup(request.getGroupId());
-
-        try {
-            Group updatedGroup = groupStore.updateClusterHeadroomTemplate(request.getGroupId(),
-                    request.getClusterHeadroomTemplateId());
-            final UpdateClusterHeadroomTemplateResponse response =
-                    UpdateClusterHeadroomTemplateResponse.newBuilder()
-                            .setUpdatedGroup(updatedGroup)
-                            .build();
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-        } catch (GroupNotFoundException e) {
-            logger.error("Failed to update group {} because it doesn't exist.",
-                    request.getGroupId(), e.getLocalizedMessage());
-            responseObserver.onError(Status.NOT_FOUND
-                    .withDescription(e.getLocalizedMessage()).asException());
-        } catch (GroupNotClusterException e) {
-            logger.error("Failed to update cluster headroom template ID for group {} because " +
-                    "this group is not a cluster. ");
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(e.getLocalizedMessage()).asException());
-        } catch (DataAccessException e) {
-            logger.error("Failed to update group " + request.getGroupId(), e);
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription(e.getLocalizedMessage()).asException());
-        }
-
-        super.updateClusterHeadroomTemplate(request, responseObserver);
+        return result;
     }
 
     @Override
     public void deleteGroup(GroupID gid, StreamObserver<DeleteGroupResponse> responseObserver) {
+        grpcTransactionUtil.executeOperation(responseObserver,
+                stores -> deleteGroup(stores, gid, responseObserver));
+    }
+
+    private void deleteGroup(@Nonnull Stores stores, GroupID gid,
+            StreamObserver<DeleteGroupResponse> responseObserver) throws StoreOperationException {
         if (!gid.hasId()) {
             final String errMsg = "Invalid GroupID input for delete a group: No group ID specified";
             logger.error(errMsg);
@@ -507,238 +331,170 @@ public class GroupRpcService extends GroupServiceImplBase {
 
         final long groupId = gid.getId();
 
-        checkUserAccessToGroup(groupId);
+        checkUserAccessToGrouping(stores.getGroupStore(), groupId);
 
         logger.info("Deleting a group: {}", groupId);
-        final Optional<Group> group = tempGroupCache.delete(groupId);
+        final Optional<Grouping> group = tempGroupCache.deleteGrouping(groupId);
         if (group.isPresent()) {
             // If the group was a temporary group, it shouldn't have been in any policies, so
             // we don't need to do any other work.
             responseObserver.onNext(DeleteGroupResponse.newBuilder().setDeleted(true).build());
             responseObserver.onCompleted();
         } else {
-            try {
-                groupStore.deleteUserGroup(gid.getId());
-                responseObserver.onNext(DeleteGroupResponse.newBuilder().setDeleted(true).build());
-                responseObserver.onCompleted();
-            } catch (ImmutableGroupUpdateException e) {
-                logger.error("Failed to update group {} due to error: {}",
-                        gid.getId(), e.getLocalizedMessage());
-                responseObserver.onError(Status.INVALID_ARGUMENT
-                        .withDescription(e.getLocalizedMessage()).asException());
-            } catch (GroupNotFoundException e) {
-                logger.error("Failed to update group {} because it doesn't exist.",
-                        gid.getId(), e.getLocalizedMessage());
-                responseObserver.onError(Status.NOT_FOUND
-                        .withDescription(e.getLocalizedMessage()).asException());
-            } catch (DataAccessException e) {
-                logger.error("Failed to delete group " + gid, e);
-                responseObserver.onError(Status.INTERNAL.withDescription(e.getLocalizedMessage())
-                        .asException());
-            } catch (PolicyDeleteException e) {
-                logger.error("Failed to delete attached policies for " + gid, e);
-                responseObserver.onError(Status.INTERNAL.withDescription(e.getLocalizedMessage())
-                        .asException());
-            }
+            stores.getPlacementPolicyStore()
+                    .deletePoliciesForGroupBeingRemoved(Collections.singleton(groupId));
+            stores.getGroupStore().deleteGroup(gid.getId());
+            responseObserver.onNext(DeleteGroupResponse.newBuilder().setDeleted(true).build());
+            responseObserver.onCompleted();
         }
+    }
+
+    private GetMembersResponse makeMembersResponse(final long groupId, Set<Long> members) {
+        members.remove(groupId);
+        final GetMembersResponse response = GetMembersResponse.newBuilder()
+                .setGroupId(groupId)
+                .addAllMemberId(members)
+                .build();
+        return response;
     }
 
     @Override
     public void getMembers(final GroupDTO.GetMembersRequest request,
-                           final StreamObserver<GroupDTO.GetMembersResponse> responseObserver) {
-        if (!request.hasId()) {
+            final StreamObserver<GroupDTO.GetMembersResponse> responseObserver) {
+        grpcTransactionUtil.executeOperation(responseObserver,
+                (stores) -> getMembers(stores.getGroupStore(), request, responseObserver));
+    }
+
+    private void getMembers(@Nonnull IGroupStore groupStore,
+            final GroupDTO.GetMembersRequest request,
+            final StreamObserver<GroupDTO.GetMembersResponse> responseObserver)
+            throws StoreOperationException {
+        if (request.getIdCount() == 0) {
             final String errMsg = "Group ID is missing for the getMembers request";
             logger.error(errMsg);
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
+            responseObserver.onError(
+                    Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
             return;
         }
 
-        final long groupId = request.getId();
-        Optional<Group> optGroupInfo;
-        try {
-            // Check temp group cache first, because it's faster.
-            optGroupInfo = tempGroupCache.get(groupId);
-            if (!optGroupInfo.isPresent()) {
-                optGroupInfo = groupStore.get(groupId);
-            }
-        } catch (DataAccessException e) {
-            logger.error("Failed to get group: " + groupId, e);
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription(e.getLocalizedMessage()).asRuntimeException());
-            return;
-        }
-
-        if (optGroupInfo.isPresent()) {
-            final Group group = optGroupInfo.get();
-            final GetMembersResponse resp;
-            List<Long> members = getNormalGroupMembers(group, false);
+        final Collection<Grouping> tmpGroups = request.getIdList()
+                .stream()
+                .map(tempGroupCache::getGrouping)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+        for (Grouping group: tmpGroups) {
+            final Set<Long> members = getGroupMembers(groupStore, group.getDefinition(),
+                    request.getExpandNestedGroups());
             // verify the user has access to all of the group members before returning any of them.
             if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
-                if (group.getType() == Type.NESTED_GROUP) {
-                    // Need to get the expanded members.
-                    UserScopeUtils.checkAccess(userSessionContext, getNormalGroupMembers(group, true));
+                if (!request.getExpandNestedGroups()) {
+                    // Need to use the expanded members for checking access, if we didn't already fetch them
+                    UserScopeUtils.checkAccess(userSessionContext,
+                            getGroupMembers(groupStore, group.getDefinition(), true));
                 } else {
                     UserScopeUtils.checkAccess(userSessionContext, members);
                 }
             }
             // return members
-            logger.debug("Returning group ({}) with {} members", groupId, members.size());
-            resp = GetMembersResponse.newBuilder()
-                    .setMembers(Members.newBuilder()
-                            .addAllIds(members))
-                    .build();
-
-            responseObserver.onNext(resp);
-            responseObserver.onCompleted();
-        } else if (!request.getExpectPresent()){
-            logger.debug("Did not find group with id {} ; this may be expected behavior", groupId);
-            responseObserver.onNext(GetMembersResponse.getDefaultInstance());
-            responseObserver.onCompleted();
-        } else {
-            final String errMsg = "Cannot find a group with id " + groupId;
-            logger.error(errMsg);
-            responseObserver.onError(Status.NOT_FOUND.withDescription(errMsg).asRuntimeException());
+            logger.trace("Returning group ({}) with {} members", group.getId(), members.size());
+            responseObserver.onNext(makeMembersResponse(group.getId(), members));
         }
-    }
-
-    /**
-     * Given a {@link Group} object, return it's list of members.
-     *
-     * @param group the {@link Group} to check
-     * @param expandNested If true, expand nested groups recursively.
-     * @return a list of member oids.
-     */
-    private List<Long> getNormalGroupMembers(Group group, final boolean expandNested) {
-        switch (group.getType()) {
-            case CLUSTER:
-                return group.getCluster().getMembers().getStaticMemberOidsList();
-            case GROUP:
-                return getNormalGroupMembers(group.getGroup());
-            case TEMP_GROUP:
-                return group.getTempGroup().getMembers().getStaticMemberOidsList();
-            case NESTED_GROUP:
-                return getNestedGroupMembers(group.getNestedGroup(), expandNested);
-            default:
-                throw new IllegalStateException("Invalid group returned.");
-        }
-    }
-
-    /**
-     * Get the members of a nested group.
-     *
-     * @param nestedGroupInfo Description of the nested group.
-     * @param getLeafMembers If true, return the leaf members (i.e. the entities). If false,
-     *                       return the immediate members (i.e. the groups).
-     * @return The list of requested members.
-     */
-                                                        @Nonnull
-    private List<Long> getNestedGroupMembers(@Nonnull final NestedGroupInfo nestedGroupInfo,
-                                                        final boolean getLeafMembers) {
-        switch (nestedGroupInfo.getSelectionCriteriaCase()) {
-            case STATIC_GROUP_MEMBERS:
-                final Map<Long, Optional<Group>> groupsById =
-                    groupStore.getGroups(nestedGroupInfo.getStaticGroupMembers().getStaticMemberOidsList());
-                if (getLeafMembers) {
-                    return groupsById.values().stream()
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .filter(group -> {
-                            if (group.getType() != Type.CLUSTER) {
-                                // Right now we only support nested groups of clusters.
-                                logger.warn("Nested group {} has non-cluster member group {} " +
-                                        "(id: {}, type: {}). Ignoring it when expanding members.",
-                                    nestedGroupInfo.getName(), GroupProtoUtil.getGroupName(group),
-                                    group.getId(), group.getType());
-                                return false;
-                            } else {
-                                return true;
-                            }
-                        })
-                        // Right now this call is non-recursive, because we don't support nested groups of
-                        // nested groups. If we do support it in the future we should handle cycles and
-                        // potential stack overflows - probably with an iterative instead of recursive
-                        // approach.
-                        .flatMap(group -> getNormalGroupMembers(group, getLeafMembers).stream())
-                        .collect(Collectors.toList());
-                } else {
-                    // Just return the members.
-                    return groupsById.entrySet().stream()
-                        .filter(entry -> entry.getValue().isPresent())
-                        .map(Entry::getKey)
-                        .collect(Collectors.toList());
-                }
-            case PROPERTY_FILTER_LIST:
-                final Stream<Group> groupStream;
-                if (nestedGroupInfo.getTypeCase() == TypeCase.CLUSTER) {
-                    groupStream = groupStore.getAll().stream()
-                        .filter(group -> group.getType() == Group.Type.CLUSTER)
-                        .filter(cluster -> cluster.getCluster().getClusterType() == nestedGroupInfo.getCluster());
-                } else {
-                    groupStream = Stream.empty();
-                }
-                return groupStream
-                    .filter(g ->
-                            matchFilters(nestedGroupInfo.getPropertyFilterList().getPropertyFiltersList(), g))
-                    .map(Group::getId)
-                    .collect(Collectors.toList());
-            default:
-                throw new IllegalArgumentException("Invalid nested group selection criteria: " +
-                    nestedGroupInfo.getSelectionCriteriaCase());
-        }
-    }
-
-    /**
-     * Given a {@link GroupInfo} object, return the list of members in the group. This includes
-     * resolution of dynamic groups.
-     *
-     * @param groupInfo
-     * @return
-     */
-    private List<Long> getNormalGroupMembers(GroupInfo groupInfo) {
-        if (groupInfo.hasStaticGroupMembers()) {
-            return groupInfo.getStaticGroupMembers().getStaticMemberOidsList();
-        } else {
-            // resolve a dynamic group
-            final List<SearchParameters> searchParameters
-                    = groupInfo.getSearchParametersCollection().getSearchParametersList();
-
-            // Convert any ClusterMemberFilters to static set member checks based
-            // on current group membership info
-            Search.SearchEntityOidsRequest.Builder searchRequestBuilder =
-                    Search.SearchEntityOidsRequest.newBuilder();
-            for (SearchParameters params : searchParameters) {
-                searchRequestBuilder.addSearchParameters(resolveClusterFilters(params));
+        // Real (non-temporary groups)
+        final Set<Long> realGroupIds = new HashSet<>(request.getIdList());
+        realGroupIds.removeAll(Collections2.transform(tmpGroups, Grouping::getId));
+        if (request.getExpectPresent()) {
+            final Set<Long> existingRealGroups = groupStore.getExistingGroupIds(realGroupIds);
+            if (!realGroupIds.equals(existingRealGroups)) {
+                realGroupIds.removeAll(existingRealGroups);
+                final String errMsg = "Cannot find groups with ids " + realGroupIds;
+                logger.error(errMsg);
+                responseObserver.onError(
+                        Status.NOT_FOUND.withDescription(errMsg).asRuntimeException());
+                return;
             }
-            final Search.SearchEntityOidsRequest searchRequest = searchRequestBuilder.build();
-            final Search.SearchEntityOidsResponse searchResponse = searchServiceRpc.searchEntityOids(searchRequest);
-            return searchResponse.getEntitiesList();
         }
+        for (Long groupId: realGroupIds) {
+            try {
+                final Set<Long> members = getGroupMembers(groupStore, Collections.singleton(groupId),
+                    request.getExpandNestedGroups());
+                // verify the user has access to all of the group members before returning any of them.
+                if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
+                    if (!request.getExpandNestedGroups()) {
+                        // Need to use the expanded members for checking access, if we didn't already fetch them
+                        UserScopeUtils.checkAccess(userSessionContext,
+                            getGroupMembers(groupStore, Collections.singleton(groupId), true));
+                    } else {
+                        UserScopeUtils.checkAccess(userSessionContext, members);
+                    }
+                }
+                // return members
+                logger.trace("Returning group ({}) with {} members", groupId, members.size());
+                responseObserver.onNext(makeMembersResponse(groupId, members));
+            } catch (StoreOperationException | RuntimeException e) {
+                // We don't want a failure to retrieve the members of one group to result in a failure
+                // to retrieve members of all groups.
+                // In the future it might be worth it to try to detect database connection issues
+                // here, and NOT retry in that case.
+                logger.error("Failed to retrieve members for group " + groupId, e);
+            }
+        }
+        responseObserver.onCompleted();
     }
 
-
-    /**
-     *  {@inheritDoc}
-     * @param request
-     * @param responseObserver
-     */
     @Override
-    public void getClusterForEntity(final GroupDTO.GetClusterForEntityRequest request,
-                           final StreamObserver<GroupDTO.GetClusterForEntityResponse> responseObserver) {
-
-        if (!request.hasEntityId()) {
-            final String errMsg = "EntityID is missing for the getClusterForEntity request";
-            logger.error(errMsg);
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
+    public void getGroupsForEntities(GetGroupsForEntitiesRequest request,
+            StreamObserver<GetGroupsForEntitiesResponse> responseObserver) {
+        if (request.getEntityIdCount() == 0) {
+            responseObserver.onNext(GetGroupsForEntitiesResponse.getDefaultInstance());
+            responseObserver.onCompleted();
             return;
         }
+        if (userSessionContext.isUserScoped()) {
+            UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(),
+                    request.getEntityIdList());
+        }
+        grpcTransactionUtil.executeOperation(responseObserver,
+                (stores) -> getGroupForEntity(stores.getGroupStore(), request, responseObserver));
+    }
 
-        GetClusterForEntityResponse.Builder response = GetClusterForEntityResponse.newBuilder();
-        long clusterId = entityToClusterMapping.getClusterForEntity(request.getEntityId());
-        if (clusterId > 0) {
-            Optional<Group> group = groupStore.get(clusterId);
-            if (group.isPresent() && group.get().hasCluster()){
-                response.setCluster(group.get());
+    private void getGroupForEntity(@Nonnull IGroupStore groupStore,
+            @Nonnull GetGroupsForEntitiesRequest request,
+            @Nonnull StreamObserver<GetGroupsForEntitiesResponse> responseObserver)
+            throws StoreOperationException {
+        final Map<Long, Set<Long>> staticGroupsPerEntity =
+                groupStore.getStaticGroupsForEntities(request.getEntityIdList(),
+                        request.getGroupTypeList());
+        final Map<Long, Set<Long>> filteredGroups;
+        if (!userSessionContext.isUserScoped()) {
+            filteredGroups = staticGroupsPerEntity;
+        } else {
+            filteredGroups = new HashMap<>(staticGroupsPerEntity.size());
+            for (Entry<Long, Set<Long>> entityGroups : staticGroupsPerEntity.entrySet()) {
+                final Set<Long> filtered = new HashSet<>(entityGroups.getValue().size());
+                for (Long staticGroup : entityGroups.getValue()) {
+                    //  User have access to group if has access to all group members
+                    if (userHasAccessToGrouping(groupStore, staticGroup)) {
+                        filtered.add(staticGroup);
+                    }
+                }
+                filteredGroups.put(entityGroups.getKey(), filtered);
             }
+        }
+        final GetGroupsForEntitiesResponse.Builder response =
+                GetGroupsForEntitiesResponse.newBuilder();
+        for (Entry<Long, Set<Long>> entityGroups : filteredGroups.entrySet()) {
+            final Groupings groupings =
+                    Groupings.newBuilder().addAllGroupId(entityGroups.getValue()).build();
+            response.putEntityGroup(entityGroups.getKey(), groupings);
+        }
+        if (request.getLoadGroupObjects()) {
+            final Set<Long> groupIds = filteredGroups.values()
+                    .stream()
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
+            final Collection<Grouping> groups = groupStore.getGroupsById(groupIds);
+            response.addAllGroups(groups);
         }
         responseObserver.onNext(response.build());
         responseObserver.onCompleted();
@@ -746,265 +502,874 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     /**
      * {@inheritDoc}
-     *
      */
     @Override
     public StreamObserver<DiscoveredGroupsPoliciesSettings> storeDiscoveredGroupsPoliciesSettings(
             final StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver) {
 
-        return new StreamObserver<DiscoveredGroupsPoliciesSettings>() {
-
-            final Map<String, Long> allGroupsMap = new HashMap<>();
-            // Mapping from TargetId -> List of ClusterInfos
-            // We assume that there are no duplicate clusterInfos. We could have used a set.
-            // But hashing a complex object like clusterInfos will be expensive.
-            final Map<Long, List<ClusterInfo>> targetIdToClusterInfosMap = new HashMap<>();
-
-            @Override
-            public void onNext(final DiscoveredGroupsPoliciesSettings record) {
-                try {
-                    if (!record.hasTargetId()) {
-                        responseObserver.onError(Status.INVALID_ARGUMENT
-                                .withDescription("Request must have a target ID.").asException());
-                        return;
-                    }
-                    final long targetId = record.getTargetId();
-                    final Map<String, Long> groupsMap = new HashMap<>();
-                    // Update everything in a single transaction.
-                    dslContext.transaction(configuration -> {
-                        final DSLContext transactionContext = DSL.using(configuration);
-                        groupsMap.putAll(groupStore.updateTargetGroups(transactionContext,
-                                targetId,
-                                record.getDiscoveredGroupList(),
-                                record.getDiscoveredClusterList()));
-                        policyStore.updateTargetPolicies(transactionContext,
-                                targetId,
-                                record.getDiscoveredPolicyInfosList(), groupsMap);
-                        settingStore.updateTargetSettingPolicies(transactionContext,
-                                targetId,
-                                record.getDiscoveredSettingPoliciesList(), groupsMap);
-
-                    });
-                    // successfully updated the DB. Now add it to the records that needs to
-                    // be added to the index.
-                    allGroupsMap.putAll(groupsMap);
-                    targetIdToClusterInfosMap.computeIfAbsent(targetId,
-                            k -> new ArrayList<>()).addAll(record.getDiscoveredClusterList());
-
-                } catch (DataAccessException e) {
-                    logger.error("Failed to store discovered collections due to a database query error.", e);
-                    responseObserver.onError(Status.INTERNAL
-                            .withDescription(e.getLocalizedMessage()).asException());
-                }
-            }
-
-            @Override
-            public void onError(final Throwable t) {
-                logger.error("Error uploading discovered non-entities for target {}", t);
-            }
-
-            @Override
-            public void onCompleted() {
-                // Update the entityId -> clusterId Index
-                // The index clears its state during every update.
-                // That's why we add to the index here for all successfully updated records.
-                entityToClusterMapping.updateEntityClusterMapping(createClusterIdToClusterInfoMapping());
-                responseObserver.onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());
-                responseObserver.onCompleted();
-            }
-
-            private Map<Long, ClusterInfo> createClusterIdToClusterInfoMapping() {
-                Map<Long, ClusterInfo> clusterIdToClusterInfoMap = new HashMap<>();
-                targetIdToClusterInfosMap.forEach((targetId, clusterInfos) -> {
-                            clusterInfos.forEach(clusterInfo -> {
-                                String clusterName =
-                                        GroupProtoUtil.discoveredIdFromName(clusterInfo, targetId);
-                                long clusterId = allGroupsMap.getOrDefault(clusterName, 0L);
-                                if (clusterId == 0L) {
-                                    // Skip this cluster as we couldn't find the clusterId.
-                                    logger.warn("Can't get clusterId for cluster {}, targetId:{}",
-                                            clusterInfo, targetId);
-                                    return;
-                                }
-                                clusterIdToClusterInfoMap.put(clusterId, clusterInfo);
-                            });
-                        });
-                return clusterIdToClusterInfoMap;
-            }
-        };
+        return new DiscoveredGroupsPoliciesSettingsStreamObserver(responseObserver);
     }
 
     @Override
     public void getTags(GetTagsRequest request, StreamObserver<GetTagsResponse> responseObserver) {
-        try {
+        grpcTransactionUtil.executeOperation(responseObserver, (stores) -> {
+            final Map<Long, Map<String, Set<String>>> tagsToGroups =
+                    stores.getGroupStore().getTags(request.getGroupIdList());
+            final Map<Long, Tags> tagsMap = tagsToGroups.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(Entry::getKey, el -> Tags.newBuilder()
+                            .putAllTags(el.getValue()
+                                    .entrySet()
+                                    .stream()
+                                    .collect(Collectors.toMap(Entry::getKey,
+                                            tag -> TagValuesDTO.newBuilder()
+                                                    .addAllValues(tag.getValue())
+                                                    .build())))
+                            .build()));
             responseObserver.onNext(
-                GetTagsResponse.newBuilder()
-                    .setTags(groupStore.getTags())
-                    .build());
+                    GetTagsResponse.newBuilder().putAllTags(tagsMap).build());
             responseObserver.onCompleted();
-        } catch (DataAccessException e) {
-            logger.error("Data access exception while fetching group tags", e);
-            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
-        }
+        });
     }
 
+    @Override
+    public void getOwnersOfGroups(GetOwnersRequest request,
+            StreamObserver<GetOwnersResponse> responseObserver) {
+        grpcTransactionUtil.executeOperation(responseObserver, stores -> {
+            final List<Long> groupIdList = request.getGroupIdList();
+            if (groupIdList != null) {
+                final Set<Long> ownersForGroups = stores.getGroupStore()
+                        .getOwnersOfGroups(request.getGroupIdList(), request.getGroupType());
+                responseObserver.onNext(
+                        GetOwnersResponse.newBuilder().addAllOwnerId(ownersForGroups).build());
+            }
+
+            responseObserver.onCompleted();
+        });
+    }
+
+
     /**
-     * Given a group, transform any dynamic clusterMembershipFilters it contains into StringFilters
-     * that express the cluster membership filter statically.
+     * Given a group, transform any dynamic filters based on group properties it contains into StringFilters
+     * that express the group membership filter statically.
      *
-     * @param group the group to resolve cluster filters for
-     * @return A new group containing the changes if there were any cluster membership filters to
+     * @param group the group to resolve group property filters for
+     * @param groupStore group store to use
+     * @return A new group containing the changes if there were any group with property based filters to
      * transform. If not, the original group is returned.
      */
-    private Group resolveClusterFilters(Group group) throws DataAccessException {
-        final GroupInfo groupInfo = group.getGroup();
-        if (groupInfo.hasStaticGroupMembers()) {
+    private Grouping replaceGroupPropertiesWithGroupMembershipFilter(
+            @Nonnull IGroupStore groupStore, @Nonnull Grouping group) {
+        final GroupDefinition groupDefinition = group.getDefinition();
+        if (!groupDefinition.hasEntityFilters()) {
             return group; // not a dynamic group -- return original group
         }
-
-        final List<SearchParameters> searchParameters
-                = groupInfo.getSearchParametersCollection().getSearchParametersList();
-        // check if there are any cluster membership filters in the search params
-        if (!searchParameters.stream()
+        final GroupComponentSearchFilterResolver filterResolver =
+                new GroupComponentSearchFilterResolver(targetSearchService, groupStore);
+        Grouping.Builder newGrouping = Grouping.newBuilder(group);
+        newGrouping.getDefinitionBuilder()
+            .getEntityFiltersBuilder().clearEntityFilter();
+        for (EntityFilter entityFilter : groupDefinition.getEntityFilters().getEntityFilterList()) {
+            final List<SearchParameters> searchParameters
+                = entityFilter.getSearchParametersCollection().getSearchParametersList();
+            // check if there are any group property filters in the search params
+            if (!searchParameters.stream()
                 .anyMatch(params -> params.getSearchFilterList().stream()
-                        .anyMatch(SearchFilter::hasClusterMembershipFilter))) {
-            return group; // no cluster filters inside -- return original group
+                    .anyMatch(SearchFilter::hasGroupFilter))) {
+                newGrouping.getDefinitionBuilder().getEntityFiltersBuilder()
+                    .addEntityFilter(entityFilter);
+                continue; // no group property filters inside -- return original group
+            }
+
+            // we have group property filters to resolve -- rebuild the group with the resolved
+            // filters
+            logger.debug("Resolving group property filters for {}",
+                group.getDefinition().getDisplayName());
+            final List<SearchParameters> searchParamsBuilder = new ArrayList<>();
+            for (SearchParameters params : searchParameters) {
+                searchParamsBuilder.add(filterResolver.resolveExternalFilters(params));
+            }
+
+            newGrouping.getDefinitionBuilder().getEntityFiltersBuilder()
+                .addEntityFilter(EntityFilter.newBuilder(entityFilter)
+                    .clearSearchParametersCollection()
+                    .setSearchParametersCollection(GroupDTO.SearchParametersCollection.newBuilder()
+                        .addAllSearchParameters(searchParamsBuilder)));
         }
-        // we have cluster membership filters to resolve -- rebuild the group with the resolved
-        // filters
-        logger.debug("Resolving cluster filters for {}", group.getGroup().getName());
-        Group.Builder groupBuilder = Group.newBuilder(group);
-        SearchParametersCollection.Builder searchParamsBuilder = groupBuilder.getGroupBuilder()
-                .getSearchParametersCollectionBuilder()
-                .clearSearchParameters();
-        for (SearchParameters params : searchParameters) {
-            searchParamsBuilder.addSearchParameters(resolveClusterFilters(params));
-        }
-        return groupBuilder.build();
+
+        return newGrouping.build();
     }
 
-    /**
-     * Provided an input SearchParameters object, resolve any cluster membership filters contained
-     * inside and return a new SearchParameters object with the resolved filters. If there are no
-     * cluster membership filters inside, return the original object.
-     *
-     * @param searchParameters A SearchParameters object that may contain cluster filters.
-     * @return A SearchParameters object that has had any cluster filters in it resolved. Will be the
-     * original object if there were no group filters inside.
-     */
-    SearchParameters resolveClusterFilters(SearchParameters searchParameters)
-            throws DataAccessException {
-        // return the original object if no cluster member filters inside
-        if (!searchParameters.getSearchFilterList().stream()
-                .anyMatch(SearchFilter::hasClusterMembershipFilter)) {
-            return searchParameters;
-        }
-        // We have one or more Cluster Member Filters to resolve. Rebuild the SearchParameters.
-        SearchParameters.Builder searchParamBuilder = SearchParameters.newBuilder(searchParameters);
-        // we will rebuild the search filters, resolving any cluster member filters we encounter.
-        searchParamBuilder.clearSearchFilter();
-        for (SearchFilter sf : searchParameters.getSearchFilterList()) {
-            searchParamBuilder.addSearchFilter(convertClusterMemberFilter(sf));
-        }
-
-        return searchParamBuilder.build();
+    @Override
+    public void createGroup(@Nonnull CreateGroupRequest request,
+            @Nonnull StreamObserver<CreateGroupResponse> responseObserver) {
+        grpcTransactionUtil.executeOperation(responseObserver,
+                stores -> createGroup(stores.getGroupStore(), request, responseObserver));
     }
 
-    /**
-     * Convert a cluster member filter to a static property filter. If the input filter does not
-     * contain a cluster member filter, the input filter will be returned, unchanged.
-     *
-     * @param inputFilter The ClusterMemberFilter to convert.
-     * @return A new SearchFilter with any ClusterMemberFilters converted to property filters. If
-     * there weren't any ClusterMemberFilters to convert, the original filter is returned.
-     */
-    private SearchFilter convertClusterMemberFilter(SearchFilter inputFilter)
-            throws DataAccessException {
-        if (! inputFilter.hasClusterMembershipFilter()) {
-            return inputFilter;
+    private void createGroup(@Nonnull IGroupStore groupStore, @Nonnull CreateGroupRequest request,
+            @Nonnull StreamObserver<CreateGroupResponse> responseObserver)
+            throws StoreOperationException {
+        try {
+            validateCreateGroupRequest(groupStore, request);
+        } catch (InvalidGroupDefinitionException e) {
+            logger.error("Group {} is not valid.", request.getGroupDefinition(), e);
+            responseObserver.onError(
+                            Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
+            return;
         }
-        // this has a cluster membership filter -- resolve plz
-        // We are only supporting cluster lookups in this filter. Theoretically we could call
-        // back to getMembers() to get generic group resolution, which would be more flexible,
-        // but has the huge caveat of allowing circular references to happen. We'll stick to
-        // just handling clusters here and open it up later, when/if needed.
-        final PropertyFilter clusterSpecifierFilter =
-                inputFilter.getClusterMembershipFilter().getClusterSpecifier();
-        logger.debug("Resolving ClusterMemberFilter {}", clusterSpecifierFilter);
-        final Set<Long> matchingClusterMembers =
-            groupStore.getAll().stream()
-                .filter(group -> matchFilter(clusterSpecifierFilter, group))
-                .filter(Group::hasCluster) // only clusters plz
-                .map(Group::getCluster)
-                .flatMap(clusterInfo -> clusterInfo.getMembers().getStaticMemberOidsList().stream())
-                .collect(Collectors.toSet());
-        // build the replacement filter - a regex against /^oid1$|^oid2$|.../
-        StringJoiner sj = new StringJoiner("$|^","^","$");
-        matchingClusterMembers.forEach(oid -> sj.add(oid.toString()));
 
-        SearchFilter searchFilter = SearchFilter.newBuilder()
-                .setPropertyFilter(PropertyFilter.newBuilder()
-                        .setPropertyName("oid")
-                        .setStringFilter(StringFilter.newBuilder()
-                                .setStringPropertyRegex(sj.toString())))
+        logger.info("Creating group {}", request.getGroupDefinition().getDisplayName());
+
+        final GroupDefinition groupDef = request.getGroupDefinition();
+
+        Grouping createdGroup = null;
+
+        final Set<MemberType> expectedTypes = findGroupExpectedTypes(groupStore, groupDef);
+
+        if (groupDef.getIsTemporary()) {
+            if (groupDef.hasOptimizationMetadata()
+                            && !groupDef.getOptimizationMetadata().getIsGlobalScope()) {
+                UserScopeUtils.checkAccess(userSessionContext,
+                        getGroupMembers(groupStore, groupDef, true));
+            }
+
+            try {
+                createdGroup = tempGroupCache.create(groupDef, request.getOrigin(), expectedTypes);
+            } catch (InvalidTempGroupException e) {
+                final String errorMsg = String.format("Failed to create group: %s as it is invalid. exception: %s.",
+                                groupDef, e.getLocalizedMessage());
+                logger.error(errorMsg, e);
+                responseObserver.onError(Status.ABORTED.withDescription(errorMsg)
+                        .asRuntimeException());
+                return;
+            }
+        } else {
+            final boolean supportsMemberReverseLookup =
+                            determineMemberReverseLookupSupported(groupDef);
+
+            if (userSessionContext.isUserScoped()) {
+                // verify that the members of the new group would all be in scope
+                UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(),
+                                getGroupMembers(groupStore, groupDef, true));
+            }
+
+            long groupOid = identityProvider.next();
+            groupStore.createGroup(groupOid, request.getOrigin(), groupDef, expectedTypes,
+                                    supportsMemberReverseLookup);
+            createdGroup = Grouping.newBuilder()
+                .setId(groupOid)
+                .setDefinition(groupDef)
+                .addAllExpectedTypes(expectedTypes)
+                .setSupportsMemberReverseLookup(supportsMemberReverseLookup)
                 .build();
-        return searchFilter;
+        }
+
+        responseObserver.onNext(CreateGroupResponse.newBuilder()
+                            .setGroup(createdGroup)
+                            .build());
+        responseObserver.onCompleted();
+
     }
 
+    private void validateCreateGroupRequest(@Nonnull final IGroupStore groupStore,
+                                            @Nonnull final CreateGroupRequest request)
+                    throws InvalidGroupDefinitionException {
+        if (!request.hasGroupDefinition()) {
+            throw new InvalidGroupDefinitionException("No group definition is present.");
+        }
 
-    private boolean matchFilters(@Nonnull List<PropertyFilter> filters, @Nonnull Group group) {
-        return filters.stream().allMatch(filter -> matchFilter(filter, group));
+        if (!request.hasOrigin()) {
+            throw new InvalidGroupDefinitionException("No origin definition is present.");
+        }
+
+        validateGroupDefinition(groupStore, request.getGroupDefinition());
+
     }
 
-    private boolean matchFilter(@Nonnull PropertyFilter filter, @Nonnull Group group) {
-        if (filter.getPropertyName().equals(StringConstants.DISPLAY_NAME_ATTR) && filter.hasStringFilter()) {
-            // filter according to property name
-            return GroupProtoUtil.nameFilterMatches(
-                       GroupProtoUtil.getGroupDisplayName(group), filter.getStringFilter());
-        } else if (filter.getPropertyName().equals(StringConstants.TAGS_ATTR) && filter.hasMapFilter()) {
-            // filter according to tags
+    @Override
+    public void updateGroup(@Nonnull UpdateGroupRequest request,
+            @Nonnull StreamObserver<UpdateGroupResponse> responseObserver) {
+        grpcTransactionUtil.executeOperation(responseObserver,
+                stores -> updateGroup(stores.getGroupStore(), request, responseObserver));
+    }
 
-            // get tags from group object
-            final Tags tags;
-            switch (group.getInfoCase()) {
-                case GROUP:
-                    tags = group.getGroup().getTags();
-                    break;
-                case CLUSTER:
-                    tags = group.getCluster().getTags();
-                    break;
-                default:
-                    return false;
+    private void updateGroup(@Nonnull IGroupStore groupStore, @Nonnull UpdateGroupRequest request,
+            @Nonnull StreamObserver<UpdateGroupResponse> responseObserver)
+            throws StoreOperationException {
+        if (!request.hasId()) {
+            final String errMsg = "Invalid GroupID input for group update: No group ID specified";
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                            .withDescription(errMsg)
+                            .asException());
+            return;
+        }
+
+        if (!request.hasNewDefinition()) {
+            final String errMsg =
+                "Invalid new group definition for group update: No group definition is provided";
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                            .withDescription(errMsg)
+                            .asException());
+            return;
+        }
+
+        final GroupDefinition groupDefinition = request.getNewDefinition();
+
+        try {
+            validateGroupDefinition(groupStore, groupDefinition);
+        } catch (InvalidGroupDefinitionException e) {
+            logger.error("Group {} is not valid.", groupDefinition, e);
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription(e.getMessage()).asException());
+            return;
+        }
+
+        logger.info("Updating a group: {}", request);
+
+        if (userSessionContext.isUserScoped()) {
+            // verify the user has access to the group they are trying to modify
+            checkUserAccessToGrouping(groupStore, request.getId());
+            // verify the modified version would fit in scope too
+            UserScopeUtils.checkAccess(userSessionContext,
+                            getGroupMembers(groupStore, groupDefinition, true));
+        }
+
+        final boolean supportsMemberReverseLookup =
+                        determineMemberReverseLookupSupported(groupDefinition);
+
+        final Set<MemberType> expectedTypes = findGroupExpectedTypes(groupStore, groupDefinition);
+        final Grouping newGroup =
+                groupStore.updateGroup(request.getId(), groupDefinition, expectedTypes,
+                        supportsMemberReverseLookup);
+        final UpdateGroupResponse res =
+                UpdateGroupResponse.newBuilder().setUpdatedGroup(newGroup).build();
+        responseObserver.onNext(res);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getGroup(@Nonnull GroupID request,
+            @Nonnull StreamObserver<GetGroupResponse> responseObserver) {
+        grpcTransactionUtil.executeOperation(responseObserver,
+                stores -> getGroup(stores.getGroupStore(), request, responseObserver));
+    }
+
+    private void getGroup(@Nonnull IGroupStore groupStore, @Nonnull GroupID request,
+                    @Nonnull StreamObserver<GetGroupResponse> responseObserver) {
+        if (!request.hasId()) {
+            final String errMsg = "Invalid GroupID input for get a group: No group ID specified";
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+            return;
+        }
+
+        logger.debug("Attempting to retrieve group: {}", request);
+
+        try {
+            Optional<Grouping> group = getGroupById(groupStore, request.getId());
+            // Patrick - removing this check, as it's preventing retrieval of data for plans. We will
+            // re-enable this with OM-44360
+            /*
+            if (userSessionContext.isUserScoped() && group.isPresent()) {
+                // verify that the members of the new group would all be in scope
+                UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(), getGroupMembers(group.get()));
             }
+            */
+            GetGroupResponse.Builder builder = GetGroupResponse.newBuilder();
+            group.ifPresent(builder::setGroup);
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            final String errorMsg = String.format("Failed to retrieve group: %s due to data access error: %s",
+                            request.getId(), e.getLocalizedMessage());
+            logger.error(errorMsg, e);
+            responseObserver.onError(Status.INTERNAL
+                .withDescription(errorMsg).asRuntimeException());
+        }
+    }
 
-            // get map filter and validate
-            final MapFilter mapFilter = filter.getMapFilter();
-            if (!mapFilter.hasKey()) {
-                throw new IllegalArgumentException("Tags filter without a key: " + mapFilter);
+    @Nonnull
+    private Optional<Grouping> getGroup(@Nonnull IGroupStore groupStore, long groupId) {
+        final Collection<Grouping> groups = groupStore.getGroupsById(Collections.singleton(groupId));
+        if (groups.isEmpty()) {
+            return Optional.empty();
+        } else {
+            return Optional.of(groups.iterator().next());
+        }
+    }
+
+    @Nonnull
+    private Optional<Grouping> getGroupById(@Nonnull IGroupStore groupStore, long groupId) {
+        // Check the temporary groups cache first
+        Optional<Grouping> group = tempGroupCache.getGrouping(groupId);
+        if (!group.isPresent()) {
+            return getGroup(groupStore, groupId);
+        }
+        return group;
+    }
+
+    @Nonnull
+    @VisibleForTesting
+    Set<MemberType> findGroupExpectedTypes(@Nonnull IGroupStore groupStore,
+            @Nonnull GroupDefinition groupDefinition) {
+        final Set<MemberType> memberTypes = new HashSet<>();
+
+        switch (groupDefinition.getSelectionCriteriaCase()) {
+            case STATIC_GROUP_MEMBERS:
+                final List<StaticMembersByType> staticMembers = groupDefinition.getStaticGroupMembers()
+                                .getMembersByTypeList();
+                final Set<Long> groupIds = new HashSet<>();
+                final Set<GroupType> groupTypes = new HashSet<>();
+                final Set<Integer> entityTypes = new HashSet<>();
+
+                for (final StaticMembersByType member : staticMembers) {
+                    switch (member.getType().getTypeCase()) {
+                        case ENTITY:
+                            entityTypes.add(member.getType().getEntity());
+                            break;
+                        case GROUP:
+                            groupTypes.add(member.getType().getGroup());
+                            groupIds.addAll(member.getMembersList());
+                            break;
+                        default:
+                            logger.error("Unexpected member type `{}` in group definition `{}`",
+                                            member.getType().getTypeCase(), groupDefinition);
+                    }
+                }
+
+                if (!groupIds.isEmpty()) {
+                    // We need to look up the expected types from GroupStore
+                    final Collection<Grouping> nestedGroups = groupStore.getGroups(
+                            GroupFilter.newBuilder().addAllId(groupIds).build());
+                    for (final Grouping nestedGroup : nestedGroups) {
+                        for (MemberType memberType : nestedGroup.getExpectedTypesList()) {
+                            switch (memberType.getTypeCase()) {
+                                case ENTITY:
+                                    entityTypes.add(memberType.getEntity());
+                                    break;
+                                case GROUP:
+                                    groupTypes.add(memberType.getGroup());
+                                    break;
+                                default:
+                                    logger.error("Unexpected member type `{}` in group definition `{}`",
+                                                    memberType.getTypeCase(), groupDefinition);
+                            }
+                        }
+                    }
+                }
+
+                entityTypes
+                        .stream()
+                        .map(entityType -> MemberType.newBuilder().setEntity(entityType).build())
+                        .forEach(memberTypes::add);
+
+                groupTypes
+                    .stream()
+                    .map(groupType -> MemberType.newBuilder().setGroup(groupType).build())
+                    .forEach(memberTypes::add);
+                break;
+            case ENTITY_FILTERS:
+                final List<EntityFilter> filterList = groupDefinition
+                                .getEntityFilters().getEntityFilterList();
+
+                 filterList
+                        .stream()
+                        .map(EntityFilter::getEntityType)
+                        .distinct()
+                        .map(entityType -> MemberType
+                                            .newBuilder().setEntity(entityType).build())
+                        .forEach(memberTypes::add);
+                 break;
+            case GROUP_FILTERS:
+                // If the group type is dynamic group of groups we currently cannot determine the type
+                // expected in the group so we return empty list
+                break;
+            case SELECTIONCRITERIA_NOT_SET:
+                logger.error("Member selection criteria has not been set in group definition `{}`",
+                                groupDefinition);
+                break;
+            default:
+                logger.error("Unexpected selection criteria `{}` in group definition `{}`",
+                                groupDefinition.getSelectionCriteriaCase(), groupDefinition);
+        }
+
+        return memberTypes;
+    }
+
+    private boolean determineMemberReverseLookupSupported(@Nonnull GroupDefinition groupDefinition) {
+        // We currently only support reverse lookup for on-level (i.e., not a group of group)
+        // static groups.
+        return (groupDefinition.getSelectionCriteriaCase()
+                        == SelectionCriteriaCase.STATIC_GROUP_MEMBERS)
+                    && groupDefinition.getStaticGroupMembers()
+                        .getMembersByTypeList()
+                        .stream()
+                        .map(StaticMembersByType::getType)
+                        .map(MemberType::getTypeCase)
+                        .allMatch(type -> type == MemberType.TypeCase.ENTITY);
+    }
+
+    @Nonnull
+    private Set<Long> getEntities(@Nonnull EntityFilters entityFilters, @Nonnull IGroupStore groupStore) {
+        final List<EntityFilter> filterList = entityFilters.getEntityFilterList();
+        final Set<Long> memberOids = new HashSet<>();
+        for (EntityFilter entityFilter : filterList) {
+            if (!entityFilter.hasSearchParametersCollection()) {
+                logger.error("Search parameter collection is not present in group entity filters `{}`",
+                        entityFilters);
             }
+            // resolve a dynamic group
+            final List<SearchParameters> searchParameters
+                    = entityFilter.getSearchParametersCollection().getSearchParametersList();
 
-            // get corresponding tag values (empty list if the tag key is not present)
-            final List<String> tagValues =
-                    Optional.ofNullable(tags.getTagsMap().get(mapFilter.getKey()))
-                        .map(x -> (List<String>)x.getValuesList())
-                        .orElse(Collections.emptyList());
+            // Convert any ClusterMemberFilters to static set member checks based
+            // on current group membership info
+            final List<SearchParameters> finalParams = new ArrayList<>(searchParameters.size());
+            final SearchFilterResolver searchFilterResolver =
+                    new GroupComponentSearchFilterResolver(targetSearchService, groupStore);
+            for (SearchParameters params : searchParameters) {
+                finalParams.add(searchFilterResolver.resolveExternalFilters(params));
+            }
+            try {
+                final SearchQuery.Builder query = SearchQuery.newBuilder()
+                    .addAllSearchParameters(finalParams)
+                    .setLogicalOperator(entityFilter.getLogicalOperator());
 
-            if (mapFilter.hasRegex()) {
-                // regular expression mapping: there should be one value in tagValues
-                // that matches the pattern mapFilter.getRegex()
-                final Pattern pattern = Pattern.compile(mapFilter.getRegex());
-                return
-                    tagValues.stream().anyMatch(v -> pattern.matcher(v).matches()) ==
-                    mapFilter.getPositiveMatch();
+                if (entityFilter.getEntityType() == CommonDTO.EntityDTO
+                            .EntityType.BUSINESS_ACCOUNT.getNumber()) {
+                    // Dynamic group of accounts should only include those accounts that have an
+                    // associated target
+                    query.addSearchParameters(SearchProtoUtil.makeSearchParameters(
+                        SearchProtoUtil.entityTypeFilter(ApiEntityType.BUSINESS_ACCOUNT))
+                        .addSearchFilter(SearchFilter.newBuilder()
+                            .setPropertyFilter(SearchProtoUtil.associatedTargetFilter())
+                            .build())
+                        .build());
+                }
+
+                final Search.SearchEntityOidsResponse searchResponse =
+                    searchServiceRpc.searchEntityOids(SearchEntityOidsRequest.newBuilder()
+                        .setSearch(query)
+                        .build());
+
+                memberOids.addAll(searchResponse.getEntitiesList());
+            } catch (StatusRuntimeException e) {
+                logger.error("Error resolving filter {}. Error: {}. Some members may be missing.",
+                    entityFilter, e.getMessage());
+            }
+        }
+        return memberOids;
+    }
+
+    /**
+     * Method returns a set of entity members for a specified groups collection.
+     *
+     * @param groupStore group store to use
+     * @param groupIds ids of groups to get members for
+     * @param expandNestedGroups whether to expand nested groups
+     * @return members of the specified groups.
+     * @throws StoreOperationException if exception occurred operating with a group store
+     */
+    @Nonnull
+    private Set<Long> getGroupMembers(@Nonnull IGroupStore groupStore,
+            @Nonnull Collection<Long> groupIds, boolean expandNestedGroups)
+            throws StoreOperationException {
+        final long startTime = System.currentTimeMillis();
+        final Set<Long> memberOids = new HashSet<>();
+        final GroupMembersPlain members = groupStore.getMembers(groupIds, expandNestedGroups);
+        memberOids.addAll(members.getEntityIds());
+        if (!expandNestedGroups) {
+            memberOids.addAll(members.getGroupIds());
+        }
+        for (EntityFilters entityFilters : members.getEntityFilters()) {
+            memberOids.addAll(getEntities(entityFilters, groupStore));
+        }
+        logger.debug("Retrieving members for groups {} (recursion: {}) took {}ms", groupIds,
+                expandNestedGroups, System.currentTimeMillis() - startTime);
+        return memberOids;
+    }
+
+    @Nonnull
+    private Set<Long> getGroupMembers(@Nonnull IGroupStore groupStore,
+            @Nonnull GroupDefinition groupDefinition, boolean expandNestedGroups)
+            throws StoreOperationException {
+        final long startTime = System.currentTimeMillis();
+        final Set<Long> memberOids = new HashSet<>();
+
+        switch (groupDefinition.getSelectionCriteriaCase()) {
+            case STATIC_GROUP_MEMBERS: {
+                final List<StaticMembersByType> staticMembers =
+                        groupDefinition.getStaticGroupMembers().getMembersByTypeList();
+                final Set<Long> groupIds = new HashSet<>();
+
+                for (final StaticMembersByType member : staticMembers) {
+                    switch (member.getType().getTypeCase()) {
+                        case ENTITY:
+                            memberOids.addAll(member.getMembersList());
+                            break;
+                        case GROUP:
+                            groupIds.addAll(member.getMembersList());
+                            break;
+                        default:
+                            logger.error("Unexpected member type `{}` in group definition `{}`",
+                                    member.getType().getTypeCase(), groupDefinition);
+                    }
+                }
+
+                if (expandNestedGroups) {
+                    memberOids.addAll(getGroupMembers(groupStore, groupIds, true));
+                } else {
+                    memberOids.addAll(groupIds);
+                }
+                break;
+            }
+            case ENTITY_FILTERS:
+                memberOids.addAll(getEntities(groupDefinition.getEntityFilters(), groupStore));
+                break;
+           case GROUP_FILTERS:
+               final GroupFilters groupFilters = groupDefinition.getGroupFilters();
+               final Collection<Long> groupIds = groupStore.getGroupIds(groupFilters);
+               if (expandNestedGroups) {
+                   memberOids.addAll(getGroupMembers(groupStore, groupIds, expandNestedGroups));
+               } else {
+                   memberOids.addAll(groupIds);
+               }
+               break;
+           case SELECTIONCRITERIA_NOT_SET:
+               logger.error("Member selection criteria has not been set in group definition `{}`",
+                               groupDefinition);
+               break;
+           default:
+               logger.error("Unexpected selection criteria `{}` in group definition `{}`",
+                               groupDefinition.getSelectionCriteriaCase(), groupDefinition);
+        }
+        logger.debug("Retrieving anonymous group members took {}ms",
+                System.currentTimeMillis() - startTime);
+        return memberOids;
+    }
+
+    /**
+     * Check if the user has access to the group identified by Id. A user has access to the group by
+     * default, but if the user is a "scoped" user, they will only have access to the group if all
+     * members of the group are in the user's scope.
+     * This method will trigger a {@link UserAccessScopeException} if the group exists and the user
+     * does not have access to it, otherwise it will return quietly.
+     *
+     * @param groupStore group store to use
+     * @param groupId the group id to check
+     * @throws StoreOperationException if error occurred while processing group data
+     */
+    private void checkUserAccessToGrouping(@Nonnull IGroupStore groupStore, long groupId)
+            throws StoreOperationException {
+        if (!userHasAccessToGrouping(groupStore, groupId)) {
+            throw new UserAccessScopeException("User does not have access to group " + groupId);
+        }
+    }
+
+    /**
+     * Check if the user has access to the group identified by Id. A user has access to the group by
+     * default, but if the user is a "scoped" user, they will only have access to the group if all
+     * members of the group are in the user's scope, or if the group itself is explicitly in the user's
+     * scope groups. (in the case of a group that no longer exists)
+     *
+     * @param groupId the group id to check access for
+     * @param groupStore group store to use
+     * @return true, if the user definitely has access to the group. false, if not.
+     * @throws StoreOperationException if some error occurred while operating with stores
+     */
+    public boolean userHasAccessToGrouping(@Nonnull IGroupStore groupStore, long groupId)
+            throws StoreOperationException {
+        if (!userSessionContext.isUserScoped()) {
+            return true;
+        }
+        // if the user scope groups contains the group id directly, we don't even need to expand the
+        // group.
+        final EntityAccessScope entityAccessScope = userSessionContext.getUserAccessScope();
+        if (entityAccessScope.getScopeGroupIds().contains(groupId)) {
+            return true;
+        }
+        // check membership
+        return entityAccessScope.contains(
+                getGroupMembers(groupStore, Collections.singleton(groupId), true));
+    }
+
+    @VisibleForTesting
+    void validateGroupDefinition(@Nonnull final IGroupStore groupStore,
+                                 @Nonnull GroupDefinition groupDefinition)
+                throws InvalidGroupDefinitionException {
+
+        if (!groupDefinition.hasDisplayName()
+                        || StringUtils.isEmpty(groupDefinition.getDisplayName())) {
+            throw new InvalidGroupDefinitionException("Group display name is blank or not set.");
+        }
+
+        switch (groupDefinition.getSelectionCriteriaCase()) {
+            case STATIC_GROUP_MEMBERS:
+                if (groupDefinition.getStaticGroupMembers().getMembersByTypeList().isEmpty()) {
+                    throw new InvalidGroupDefinitionException(
+                                    "No static member list has been set.");
+                }
+                break;
+            case ENTITY_FILTERS:
+                final List<EntityFilter> filterList =
+                                groupDefinition.getEntityFilters().getEntityFilterList();
+                if (filterList.isEmpty()) {
+                    throw new InvalidGroupDefinitionException(
+                                    "No filter has been set for dynamic entity group.");
+                }
+                for (EntityFilter entityFilter : filterList) {
+                    if (!entityFilter.hasSearchParametersCollection()
+                                    || entityFilter.getSearchParametersCollection()
+                                                    .getSearchParametersList().isEmpty()) {
+                        throw new InvalidGroupDefinitionException(
+                                        "Dynamic entities group filter has a filter with no criteria.");
+                    }
+                }
+                break;
+            case GROUP_FILTERS:
+                if (groupDefinition.getGroupFilters().getGroupFilterList().isEmpty()) {
+                    throw new InvalidGroupDefinitionException(
+                                    "No filter has been set for dynamic group of group.");
+                }
+                // If using a group filter, make sure the filter is valid. The most notable type
+                // of invalid group is a group with an invalid regex. This is tricky to validate,
+                // because MySQL has different REQEX validation criteria than Java's native regex.
+                // Instead, we check that running this group filter against the GroupStore produces
+                // some results (even if empty).
+                try {
+                    groupStore.getGroupIds(groupDefinition.getGroupFilters());
+                } catch (BadSqlGrammarException e) {
+                    // This is a particular exception that gets thrown if the regexes in the group
+                    // filter are invalid by MySQL standards.
+                    //
+                    // Other DataAccessExceptions (e.g. if there is an error connecting to the DB)
+                    // will propagate upwards, and won't lead to an INVALID_ARGUMENT return code.
+                    throw new InvalidGroupDefinitionException("Group filter invalid: " + e.getSQLException().getMessage());
+                }
+                break;
+            case SELECTIONCRITERIA_NOT_SET:
+                throw new InvalidGroupDefinitionException("Selection criteria is not set.");
+            default:
+                throw new InvalidGroupDefinitionException(
+                                "Unsupported selection criteria has been set.");
+        }
+    }
+
+    @Nonnull
+    private DiscoveredGroup createDiscoveredGroup(@Nonnull IGroupStore groupStore,
+            @Nonnull StitchingGroup src) {
+        final GroupDefinition groupDefinition = src.buildGroupDefinition();
+        final Set<MemberType> expectedMembers = findGroupExpectedTypes(groupStore, groupDefinition);
+        return new DiscoveredGroup(src.getOid(), groupDefinition, src.getSourceId(),
+                src.getTargetIds(), expectedMembers,
+                determineMemberReverseLookupSupported(groupDefinition));
+    }
+
+    @Nonnull
+    private Table<Long, String, Long> createGroupIdTable(@Nonnull StitchingResult stitchingResult) {
+        final ImmutableTable.Builder<Long, String, Long> builder = ImmutableTable.builder();
+        for (StitchingGroup stitchingGroup : stitchingResult.getGroupsToAddOrUpdate()) {
+            for (long targetId : stitchingGroup.getTargetIds()) {
+                builder.put(targetId, GroupProtoUtil.createIdentifyingKey(
+                        stitchingGroup.getGroupDefinition().getType(),
+                        stitchingGroup.getSourceId()), stitchingGroup.getOid());
+            }
+        }
+        return builder.build();
+    }
+
+    /**
+     * An exception thrown when the {@link GroupDefinition} describing a group is illegal.
+     */
+    @VisibleForTesting
+    static class InvalidGroupDefinitionException extends Exception {
+
+        InvalidGroupDefinitionException(String message) {
+            super(message);
+        }
+
+    }
+
+    /**
+     * A stream observer which stores all groups/policies uploaded from topology processor,
+     * performs stitching operations and save to db.
+     */
+    private class DiscoveredGroupsPoliciesSettingsStreamObserver implements
+            StreamObserver<DiscoveredGroupsPoliciesSettings> {
+
+        private final StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver;
+
+        private final Map<Long, Collection<DiscoveredPolicyInfo>> policiesByTarget = new HashMap<>();
+        private final Map<Long, Collection<DiscoveredSettingPolicyInfo>> settingPoliciesByTarget = new HashMap<>();
+        private final GroupStitchingContext groupStitchingContext = new GroupStitchingContext();
+
+        /**
+         * Constructor for {@link DiscoveredGroupsPoliciesSettingsStreamObserver}.
+         *
+         * @param responseObserver the observer which notifies client of any result
+         */
+        DiscoveredGroupsPoliciesSettingsStreamObserver(
+                StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver) {
+            this.responseObserver = responseObserver;
+        }
+
+        @Override
+        public void onNext(final DiscoveredGroupsPoliciesSettings record) {
+            if (!record.hasTargetId()) {
+                responseObserver.onError(Status.INVALID_ARGUMENT
+                        .withDescription("Request must have a target ID.").asException());
+                return;
+            }
+            final long targetId = record.getTargetId();
+            if (record.getDataAvailable()) {
+                groupStitchingContext.setTargetGroups(targetId, record.getProbeType(),
+                        record.getUploadedGroupsList());
+                policiesByTarget.put(targetId, record.getDiscoveredPolicyInfosList());
+                logger.debug("Target {} reported following setting policies: {}", () -> targetId,
+                        () -> record.getDiscoveredSettingPoliciesList()
+                                .stream()
+                                .map(DiscoveredSettingPolicyInfo::getName)
+                                .collect(Collectors.joining(",", "[", "]")));
+                settingPoliciesByTarget.put(targetId, record.getDiscoveredSettingPoliciesList());
             } else {
-                // exact matching: the lists mapFilter.getValuesList() and tagValues
-                // must have a non-empty intersection
-                return
-                    Collections.disjoint(mapFilter.getValuesList(), tagValues) !=
-                    mapFilter.getPositiveMatch();
+                groupStitchingContext.addUndiscoveredTarget(targetId);
             }
         }
 
-        throw new IllegalArgumentException("Invalid filter for groups: " + filter);
+        @Override
+        public void onError(final Throwable t) {
+            logger.error("Error uploading discovered non-entities", t);
+        }
+
+        @Override
+        public void onCompleted() {
+            grpcTransactionUtil.executeOperation(responseObserver, this::onCompleted);
+        }
+
+        private void onCompleted(@Nonnull Stores stores) throws StoreOperationException {
+            // stitch all groups, e.g. merge same groups from different targets into one
+            final StitchingResult stitchingResult =
+                    groupStitchingManager.stitch(stores.getGroupStore(), groupStitchingContext);
+            final List<DiscoveredGroup> groupsToAdd = new ArrayList<>();
+            final List<DiscoveredGroup> groupsToUpdate = new ArrayList<>();
+            final List<Long> unchangedGroups = new ArrayList<>();
+            for (StitchingGroup group: stitchingResult.getGroupsToAddOrUpdate()) {
+                final DiscoveredGroup discoveredGroup = createDiscoveredGroup(
+                        stores.getGroupStore(), group);
+                if (group.isNewGroup()) {
+                    groupsToAdd.add(discoveredGroup);
+                } else {
+                    final byte[] existingHash = group.getExistingHash();
+                    final byte[] actualHash = DiscoveredGroupHash.hash(discoveredGroup);
+                    if (Arrays.equals(existingHash, actualHash)) {
+                        unchangedGroups.add(group.getOid());
+                    } else {
+                        groupsToUpdate.add(discoveredGroup);
+                    }
+                }
+            }
+            logger.info("Got {} new groups, {} for update, {} unchanged and {} to delete",
+                    groupsToAdd.size(), groupsToUpdate.size(), unchangedGroups.size(),
+                    stitchingResult.getGroupsToDelete().size());
+            logger.debug("The following {} groups will not be updated as they are not changed: {}",
+                    unchangedGroups::size, unchangedGroups::toString);
+            // First, we need to remove setting policies and placement policies for the groups
+            // that are removed. After the groups are removed themselves, a link between groups
+            // and policies will be lost
+            stores.getPlacementPolicyStore()
+                    .deletePoliciesForGroupBeingRemoved(stitchingResult.getGroupsToDelete());
+            stores.getGroupStore()
+                    .updateDiscoveredGroups(groupsToAdd, groupsToUpdate,
+                            stitchingResult.getGroupsToDelete());
+            final Table<Long, String, Long> allGroupsMap = createGroupIdTable(stitchingResult);
+
+            placementPolicyUpdater.updateDiscoveredPolicies(stores.getPlacementPolicyStore(),
+                    policiesByTarget, allGroupsMap, groupStitchingContext.getUndiscoveredTargets());
+            settingPolicyUpdater.updateSettingPolicies(stores.getSettingPolicyStore(),
+                    settingPoliciesByTarget, allGroupsMap, groupStitchingContext.getUndiscoveredTargets());
+            responseObserver.onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        }
+    }
+
+    /**
+     * Special case of semaphore. It is able to acquire any available permits, when requested
+     * permits is more the existing permits.
+     */
+    private static class GroupPermit {
+        private int permits;
+        private final Object lock = new Object();
+        private final Logger logger = LogManager.getLogger();
+
+        /**
+         * Consctucts semaphore with the initial value of permits.
+         * @param permits initial number of permits
+         */
+        GroupPermit(int permits) {
+            if (permits <= 0) {
+                throw new IllegalArgumentException("Number of permits must be positive");
+            }
+            logger.debug("Created a groups request semaphore with {} permits", permits);
+            this.permits = permits;
+        }
+
+        /**
+         * Acquire no more then a specified number of permits. If there is not enough permits
+         * in the pool (requested is larger then existing) all the existing permits are returned.
+         *
+         * @param requested requested number of permits to acquire
+         * @param timeoutMs timeout to await if no permits are available
+         * @return number of actually acquired permits
+         * @throws InterruptedException if current thread interrupted waiting for permits
+         * @throws TimeoutException if time is out when awaiting for any permits
+         */
+        public int acquire(int requested, long timeoutMs)
+                throws InterruptedException, TimeoutException {
+            if (requested <= 0) {
+                throw new IllegalArgumentException("Number of requested permits must be positive");
+            }
+            final long startTime = System.currentTimeMillis();
+            synchronized (lock) {
+                while (true) {
+                    if (permits > 0) {
+                        final int retVal = Math.min(permits, requested);
+                        permits -= retVal;
+                        logger.trace(
+                                "Successfully acquired {} permits. {} permits are still available",
+                                retVal, permits);
+                        return retVal;
+                    } else {
+                        final long timeToWait = timeoutMs + startTime - System.currentTimeMillis();
+                        logger.trace("No permits available. Waiting for {}ms...", timeToWait);
+                        if (timeToWait < 0) {
+                            throw new TimeoutException("Timed out while waiting for permits");
+                        }
+                        lock.wait(timeToWait);
+                    }
+                }
+            }
+        }
+
+        /**
+         * Releases the specified number of permits.
+         *
+         * @param permits number of permits to release
+         */
+        public void release(int permits) {
+            synchronized (lock) {
+                this.permits += permits;
+                lock.notifyAll();
+            }
+            logger.trace("Successfully released {} permits. Total available permits became {}",
+                    permits, this.permits);
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + "[" + permits + "]";
+        }
     }
 }

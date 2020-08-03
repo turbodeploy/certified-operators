@@ -1,16 +1,5 @@
 package com.vmturbo.topology.processor.conversions;
 
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.APPLICATION_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.BUSINESS_ACCOUNT_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.COMPUTE_TIER_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.DISK_ARRAY_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.LOGICAL_POOL_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.PHYSICAL_MACHINE_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.STORAGE_CONTROLLER_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.STORAGE_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.VIRTUAL_MACHINE_DATA;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase.VIRTUAL_VOLUME_DATA;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -20,34 +9,43 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.tag.Tag;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.RatioDependency;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -55,57 +53,85 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VCpuData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VMemData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityDataCase;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.TagValues;
+import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
+import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.utilities.CopyActionEligibility;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.BusinessUserMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.ComputeTierInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.DatabaseServerTierInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.DatabaseTierInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.DesktopPoolInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.DiskArrayInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.LogicalPoolInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.PhysicalMachineInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.RegionInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.StorageControllerInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.StorageInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.TypeSpecificInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualMachineInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualVolumeInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.WorkloadControllerInfoMapper;
+import com.vmturbo.topology.processor.stitching.ResoldCommodityCache;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
- * Convert entity DTOs produced by SDK probes to topology processor's entity DTOs
+ * Convert entity DTOs produced by SDK probes to topology processor's entity DTOs.
  */
 public class SdkToTopologyEntityConverter {
 
     /**
-     * Map from an {@link EntityDataCase} to a {@link TypeSpecificInfoMapper} instance  that will
+     * Map from an {@link EntityType} to a {@link TypeSpecificInfoMapper} instance  that will
      * extract the relevent data from an @link EntityDTO} and populate a {@link TypeSpecificInfo}.
      *
      * This map has placeholders in comments for the full set of TypeSpecificInfo we may want for the future
      */
-    private static final Map<EntityDataCase, TypeSpecificInfoMapper> TYPE_SPECIFIC_INFO_MAPPERS =
-            ImmutableMap.<EntityDataCase, TypeSpecificInfoMapper>builder()
-                    .put(APPLICATION_DATA, new ApplicationInfoMapper())
-                    .put(BUSINESS_ACCOUNT_DATA, new BusinessAccountInfoMapper())
-                    .put(COMPUTE_TIER_DATA, new ComputeTierInfoMapper())
+    private static final Map<EntityType, TypeSpecificInfoMapper> TYPE_SPECIFIC_INFO_MAPPERS =
+            ImmutableMap.<EntityType, TypeSpecificInfoMapper>builder()
+                    .put(EntityType.APPLICATION, new ApplicationInfoMapper())
+                    .put(EntityType.APPLICATION_COMPONENT, new ApplicationInfoMapper())
+                    // Databases get their type-specific info sent via application data
+                    .put(EntityType.DATABASE_SERVER, new ApplicationInfoMapper())
+                    .put(EntityType.DATABASE, new ApplicationInfoMapper())
+                    .put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountInfoMapper())
+                    .put(EntityType.REGION, new RegionInfoMapper())
+                    .put(EntityType.COMPUTE_TIER, new ComputeTierInfoMapper())
+                    .put(EntityType.DATABASE_TIER, new DatabaseTierInfoMapper())
+                    .put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierInfoMapper())
                     // CONTAINER_DATA
                     // CONTAINER_POD_DATA
-                    .put(PHYSICAL_MACHINE_DATA, new PhysicalMachineInfoMapper())
+                    .put(EntityType.PHYSICAL_MACHINE, new PhysicalMachineInfoMapper())
                     // PROCESSOR_POOL_DATA
                     // RESERVED_INSTANCE_DATA
-                    .put(STORAGE_DATA, new StorageInfoMapper())
-                    .put(DISK_ARRAY_DATA, new DiskArrayInfoMapper())
-                    .put(LOGICAL_POOL_DATA, new LogicalPoolInfoMapper())
-                    .put(STORAGE_CONTROLLER_DATA, new StorageControllerInfoMapper())
+                    .put(EntityType.STORAGE, new StorageInfoMapper())
+                    .put(EntityType.DISK_ARRAY, new DiskArrayInfoMapper())
+                    .put(EntityType.LOGICAL_POOL, new LogicalPoolInfoMapper())
+                    .put(EntityType.STORAGE_CONTROLLER, new StorageControllerInfoMapper())
                     // VIRTUAL_APPLICATION_DATA
                     // VIRTUAL_DATACENTER_DATA
-                    .put(VIRTUAL_MACHINE_DATA, new VirtualMachineInfoMapper())
-                    .put(VIRTUAL_VOLUME_DATA, new VirtualVolumeInfoMapper())
+                    .put(EntityType.VIRTUAL_MACHINE, new VirtualMachineInfoMapper())
+                    .put(EntityType.VIRTUAL_VOLUME, new VirtualVolumeInfoMapper())
+                    .put(EntityType.DESKTOP_POOL, new DesktopPoolInfoMapper())
+                    .put(EntityType.BUSINESS_USER, new BusinessUserMapper())
+                    .put(EntityType.WORKLOAD_CONTROLLER, new WorkloadControllerInfoMapper())
                     .build();
 
-    private static Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =
+    private static final Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =
                     Sets.newHashSet(CommodityDTO.CommodityType.DSPM_ACCESS, CommodityDTO.CommodityType.DATASTORE);
+
+    private static Set<CommodityDTO.CommodityType> reservedCommodityType =
+        Sets.newHashSet(CommodityDTO.CommodityType.CPU, CommodityDTO.CommodityType.MEM,
+                        CommodityDTO.CommodityType.VCPU, CommodityDTO.CommodityType.VMEM);
+
+    private static final Set<EntityType> suspendableEntityTypes = Sets.newHashSet(EntityType.BUSINESS_APPLICATION,
+            EntityType.APPLICATION_SERVER, EntityType.APPLICATION, EntityType.APPLICATION_COMPONENT,
+            EntityType.DATABASE_SERVER, EntityType.DATABASE, EntityType.SERVICE);
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -114,6 +140,12 @@ public class SdkToTopologyEntityConverter {
     // All probes using tags should be modified
     public static final String TAG_NAMESPACE = "VCTAGS";
 
+    /**
+     * Property to use for sending the discovering target id.  This is used by
+     * BusinessAccountInfoMapper to set the discovering target id for some business accounts.
+     */
+    public static final String DISCOVERING_TARGET_ID = "discoveringTargetId";
+
     private SdkToTopologyEntityConverter() {}
 
     private static int type(CommonDTO.EntityDTOOrBuilder dto) {
@@ -121,6 +153,13 @@ public class SdkToTopologyEntityConverter {
     }
 
     private static int type(CommonDTO.CommodityDTOOrBuilder dto) {
+        final UICommodityType uiCommType = UICommodityType.fromType(dto.getCommodityType().getNumber());
+        if (uiCommType.sdkType() == CommodityDTO.CommodityType.UNKNOWN && dto.getCommodityType() != CommodityDTO.CommodityType.UNKNOWN) {
+            // This is not a fatal error because we don't use UICommodityType everywhere
+            // (in particular, history is using a different way of formatting commodity names),
+            // but should be fixed ASAP.
+            logger.error("Commodity type {} not supported by UICommodityType.", dto.getCommodityType());
+        }
         return dto.getCommodityType().getNumber();
     }
 
@@ -146,10 +185,12 @@ public class SdkToTopologyEntityConverter {
      * Convert one probe entity DTO to one topology entity DTO.
      *
      * @param entity probe entity DTO.
+     * @param resoldCommodityCache cache to look up which commodities are resold.
      * @return topology entity DTOs.
      */
     public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(
-        @Nonnull final TopologyStitchingEntity entity) {
+            @Nonnull final TopologyStitchingEntity entity,
+            @Nonnull final ResoldCommodityCache resoldCommodityCache) {
         final CommonDTO.EntityDTOOrBuilder dto = entity.getEntityBuilder();
 
         final int entityType = type(dto);
@@ -159,15 +200,28 @@ public class SdkToTopologyEntityConverter {
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
         final boolean isShopTogether = dto.getConsumerPolicy().getShopsTogether();
         final boolean isControllable = dto.getConsumerPolicy().getControllable();
+        final boolean isProviderMustClone = dto.getConsumerPolicy().getProviderMustClone();
+        final boolean isDeletable = dto.getConsumerPolicy().getDeletable();
         final boolean isMonitored = dto.getMonitored();
         final Map<String, TagValuesDTO> entityTags = extractTags(dto);
 
         List<TopologyDTO.CommoditySoldDTO> soldList = entity.getTopologyCommoditiesSold().stream()
             .map(commoditySold -> {
-                TopologyDTO.CommoditySoldDTO.Builder builder = newCommoditySoldDTOBuilder(commoditySold.sold);
+                TopologyDTO.CommoditySoldDTO.Builder builder =
+                    newCommoditySoldDTOBuilder(commoditySold.sold);
                 if (commoditySold.accesses != null) {
                     builder.setAccesses(commoditySold.accesses.getOid());
                 }
+
+                // Set the "isResold" flag on the commodity based on information originally passed in the
+                // supply chain. "isResold" will be true if at least one discovering target marked it
+                // as resold. Note that we purposely ignore key. If we have a use case where we need
+                // to consider matching keys, we may need this flag on the actual CommoditySold in the SDK
+                // rather than on the supply chain.
+                entity.getDiscoveringTargetIds().forEach(targetId ->
+                    resoldCommodityCache.getIsResold(
+                        targetId, entityType, commoditySold.sold.getCommodityType().getNumber())
+                        .ifPresent(isResold -> builder.setIsResold(builder.getIsResold() || isResold)));
                 return builder.build();
             }).collect(Collectors.toList());
 
@@ -181,19 +235,30 @@ public class SdkToTopologyEntityConverter {
                             CommoditiesBoughtFromProvider.newBuilder()
                                 .setProviderId(entry.getKey().getOid())
                                 .addAllCommodityBought(commodityBought.getBoughtList().stream()
-                                    .map(SdkToTopologyEntityConverter::newCommodityBoughtDTO)
+                                    .map(commDTO -> newCommodityBoughtDTO(commDTO,
+                                        entry.getKey().getCommoditiesSold()))
                                     .collect(Collectors.toList()))
                                 .setProviderEntityType(entry.getKey().getEntityType().getNumber());
                         Long volumeId = commodityBought.getVolumeId();
                         if (volumeId != null) {
                             cbBuilder.setVolumeId(volumeId);
                         }
+                        // Transfer the action eligibility settings from the
+                        // TopologyStitchingEntity's CommoditiesBought (if they were set)
+                        // to the TopologyEntityDTO's CommoditiesBoughtFromProvider
+                        CopyActionEligibility.transferActionEligibilitySettingsFromCommoditiesBought(
+                                commodityBought, cbBuilder);
+
                         return cbBuilder.build();
-                    }))
+                    })
+                )
                 .collect(Collectors.toList());
 
-        // create the list of connected-to entities
-        List<ConnectedEntity> connectedEntities = entity.getConnectedToByType().entrySet().stream()
+        // Create a Set of connected-to entities.
+        // Here we use a Set because the same stitchingEntity can appear multiple times in the
+        // connected entity set, e.g. one business account can be discovered by multiple targets.
+        // We only need to keep one.
+        Set<ConnectedEntity> connectedEntities = entity.getConnectedToByType().entrySet().stream()
                 .flatMap(entry -> entry.getValue().stream()
                         .map(stitchingEntity ->
                                 // create a ConnectedEntity to represent this connection
@@ -203,12 +268,19 @@ public class SdkToTopologyEntityConverter {
                                                 .getNumber())
                                         .setConnectionType(entry.getKey())
                                         .build()))
-                .collect(Collectors.toList());
+                .collect(Collectors.toSet());
 
+        final Set<StitchingEntity> aggregatedEntities = entity.getConnectedFromByType()
+                .getOrDefault(ConnectionType.AGGREGATED_BY_CONNECTION, Collections.emptySet());
+        final Set<StitchingEntity> owners = entity.getConnectedFromByType()
+                .getOrDefault(ConnectionType.OWNS_CONNECTION, Collections.emptySet());
+        final Set<StitchingEntity> controlledEntities = entity.getConnectedFromByType()
+            .getOrDefault(ConnectionType.CONTROLLED_BY_CONNECTION, Collections.emptySet());
         // Copy properties map from probe DTO to topology DTO
         // TODO: Support for namespaces and proper handling of duplicate properties (see
         // OM-20545 for description of probe expectations related to duplicate properties).
         Map<String, String> entityPropertyMap = dto.getEntityPropertiesList().stream()
+            .filter(SdkToTopologyEntityConverter::entityPropertyFilter)
             .collect(Collectors.toMap(EntityProperty::getName, EntityProperty::getValue,
                 (valueA, valueB) -> {
                     logger.warn("Duplicate entity property with values \"{}\", \"{}" +
@@ -219,29 +291,16 @@ public class SdkToTopologyEntityConverter {
 
         // Add properties of related data to the entity property map - using reflection
         Lists.newArrayList(
+                // TODO (roman, Jan 31 2020) OM-55033 Get rid of application data.
+                // Only used in GuestLoadAppStitchingOperation.
                 dto.getApplicationData(),
+                // TODO (roman, Jan 31 2020) OM-55034: Get rid of these three.
+                // Only used in StorageAccessCapacityPostStitchingOperation.
                 dto.getDiskArrayData(),
-                dto.getPhysicalMachineData(),
-                dto.getPhysicalMachineRelatedData(),
-                dto.getStorageControllerRelatedData(),
-                dto.getReplacementEntityData(),
-                dto.getStorageData(),
-                dto.getVirtualDatacenterData(),
-                dto.getVirtualMachineData(),
-                dto.getProcessorPoolData(),
                 dto.getStorageControllerData(),
-                dto.getLogicalPoolData(),
-                dto.getVirtualApplicationData(),
-                dto.getProcessorPoolData(),
-                dto.getReservedInstanceData(),
-                dto.getContainerPodData(),
-                dto.getContainerData(),
-                dto.getBusinessAccountData(),
-                dto.getComputeTierData(),
-                dto.getVirtualVolumeData()
+                dto.getLogicalPoolData()
         ).forEach(
             data -> data.getAllFields().forEach(
-                // TODO: Lists, such as VirtualDatacenterData.VmUuidList are also converted to String
                 (f, v) -> entityPropertyMap.put(f.getFullName(), v.toString())
             )
         );
@@ -255,26 +314,58 @@ public class SdkToTopologyEntityConverter {
             entityPropertyMap.put("local", String.valueOf(isLocalStorage(entity)));
         }
 
+        if (dto.hasBusinessAccountData()) {
+            entityPropertyMap.put(DISCOVERING_TARGET_ID, String.valueOf(entity.getTargetId()));
+        }
+
         TypeSpecificInfo info = mapToTypeSpecificInfo(dto, entityPropertyMap);
+
+        // Check the ActionEligibility in the entity DTO and if values
+        // for suspend and provision actions are supplied, else leave them unset
+        Optional<Boolean> suspendable = Optional.empty();
+        Optional<Boolean> cloneable = Optional.empty();
+        if (dto.hasActionEligibility()) {
+            CommonDTO.EntityDTO.ActionEligibility  actionEligibility = dto.getActionEligibility();
+
+            // Keep the suspendable setting from the entityDTO
+            if (actionEligibility.hasSuspendable()) {
+                suspendable = Optional.of(actionEligibility.getSuspendable());
+            }
+
+            // Keep the provisionable setting from the entityDTO
+            if (actionEligibility.hasCloneable()) {
+                cloneable = Optional.of(actionEligibility.getCloneable());
+            }
+        }
+        Optional<Boolean> isDaemon = getDaemonSetting(dto);
+
+        // Calculate suspendable flag if no info is provided from ActionEligibility
+        if (!suspendable.isPresent()) {
+            suspendable = calculateSuspendabilityWithStitchingEntity(entity);
+        }
 
         // Either monitored or controllable is false, set XL controllable to false.
         // Explanations: some probes still send "Monitored = false", but XL doesn't have "Monitored" property,
         // given the the semantic is the same, setting XL controllable to false.
         // When probes send "Controllable = false", set XL controllable to false.
         final TopologyEntityDTO.Builder retBuilder = newTopologyEntityDTO(
-            entityType,
-            entity.getOid(),
-            displayName,
-            soldList,
-            boughtList,
-            connectedEntities,
-            entityState,
-            entityPropertyMap,
-            entityTags,
-            availableAsProvider,
-            isShopTogether,
-            isControllable(isControllable, isMonitored),
-            calculateSuspendabilityWithStitchingEntity(entity)
+                entityType,
+                entity.getOid(),
+                displayName,
+                soldList,
+                boughtList,
+                connectedEntities,
+                entityState,
+                entityPropertyMap,
+                entityTags,
+                availableAsProvider,
+                isShopTogether,
+                isControllable(isControllable, isMonitored),
+                isProviderMustClone,
+                isDeletable,
+                suspendable,
+                cloneable,
+                isDaemon
         );
 
         retBuilder.setTypeSpecificInfo(info);
@@ -289,6 +380,44 @@ public class SdkToTopologyEntityConverter {
     }
 
     /**
+     * Extract the daemon setting from the entity DTO.  This setting can either come directly from
+     * the probe, or can be set if entity is a GuestLoad.
+     * @param entityDTO entity DTO to check
+     * @return Optional.empty if the setting is not present. Optional.of(false) if the setting is
+     * present and set to false.  Optional.of(true) if the setting is present and set to true or if
+     * the entity is a GuestLoad Application.
+     */
+    private static Optional<Boolean> getDaemonSetting(final EntityDTOOrBuilder entityDTO) {
+        /*
+         * If the consumer policy exists and has a daemon setting, we need Optional.of to indicate
+         * that the setting was explicitly set.
+         */
+        boolean daemonSetting = false;
+        boolean daemonSettingPresent = entityDTO.getConsumerPolicy().hasDaemon();
+        if (daemonSettingPresent) {
+            daemonSetting = entityDTO.getConsumerPolicy().getDaemon();
+        }
+        if (!daemonSetting && entityDTO.hasApplicationData()) {
+            daemonSetting |= entityDTO.getApplicationData().getType().equals("GuestLoad");
+        }
+        return daemonSettingPresent || daemonSetting
+            ? Optional.of(daemonSetting)
+            : Optional.empty();
+    }
+
+    /**
+     * Check if we'll keep this property or not.
+     * {@code true} means keep it. {@code false} means don't keep it.
+     *
+     * @param property the property we need to check
+     * @return keep this property or not
+     */
+    static boolean entityPropertyFilter(@Nonnull final EntityProperty property) {
+        return !(SupplyChainConstants.LOCAL_NAME.equals(property.getName()) ||
+            property.getName().startsWith(StringConstants.CORE_QUOTA_PREFIX));
+    }
+
+    /**
      * Map the entity-specific data contained in an {@link EntityDTO} to a
      * {@link TypeSpecificInfo} object that can be embedded into a {@link TopologyEntityDTO}.
      *
@@ -300,7 +429,7 @@ public class SdkToTopologyEntityConverter {
             @Nonnull final CommonDTO.EntityDTOOrBuilder sdkEntity,
             @Nonnull final Map<String, String> entityPropertyMap) {
         Objects.requireNonNull(sdkEntity, "sdkEntity parameter must not be null");
-        return Optional.ofNullable(TYPE_SPECIFIC_INFO_MAPPERS.get(sdkEntity.getEntityDataCase()))
+        return Optional.ofNullable(TYPE_SPECIFIC_INFO_MAPPERS.get(sdkEntity.getEntityType()))
                 .map(mapper -> mapper.mapEntityDtoToTypeSpecificInfo(sdkEntity, entityPropertyMap))
                 .orElse(TypeSpecificInfo.getDefaultInstance());
     }
@@ -323,6 +452,9 @@ public class SdkToTopologyEntityConverter {
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
         final boolean isShopTogether =  dto.getConsumerPolicy().getShopsTogether();
         final boolean isControllable = dto.getConsumerPolicy().getControllable();
+        final boolean isProviderMustClone = dto.getConsumerPolicy().getProviderMustClone();
+        final Optional<Boolean> isDaemon = getDaemonSetting(dto);
+        final boolean isDeletable = dto.getConsumerPolicy().getDeletable();
         final boolean isMonitored = dto.getMonitored();
         final Map<String, TagValuesDTO> entityTags = extractTags(dto);
 
@@ -353,8 +485,13 @@ public class SdkToTopologyEntityConverter {
             CommoditiesBoughtFromProvider.Builder cbBuilder = CommoditiesBoughtFromProvider.newBuilder()
                     .setProviderId(providerOid)
                     .addAllCommodityBought(commodityBought.getBoughtList().stream()
-                            .map(SdkToTopologyEntityConverter::newCommodityBoughtDTO)
+                            // pass empty stream as this method is only used for unit test
+                            .map(commDTO -> newCommodityBoughtDTO(commDTO, Stream.empty()))
                             .collect(Collectors.toList()));
+            // Transfer the action eligibility settings from the SDK EntityDTO's CommodityBought (if they were set)
+            // to the TopologyEntityDTO's CommoditiesBoughtFromProvider
+            CopyActionEligibility.transferActionEligibilitySettingsFromEntityDTO(
+                                                                        commodityBought, cbBuilder);
 
             // TODO: Right now, we not guarantee that commodity bought will always have provider entity
             // type. In order to implement that, we need to have additional check that if commodity bought
@@ -383,18 +520,13 @@ public class SdkToTopologyEntityConverter {
                         valueA, valueB, oid, displayName);
                     return valueA;
                 }));
+        entityPropertyMap.remove(SupplyChainConstants.LOCAL_NAME);
 
         // Add properties of related data to the entity property map - using reflection
         Lists.newArrayList(
                 dto.getApplicationData(),
                 dto.getDiskArrayData(),
-                dto.getPhysicalMachineData(),
-                dto.getPhysicalMachineRelatedData(),
-                dto.getStorageControllerRelatedData(),
-                dto.getReplacementEntityData(),
-                dto.getStorageData(),
-                dto.getVirtualDatacenterData(),
-                dto.getVirtualMachineData()
+                dto.getStorageControllerRelatedData()
         ).forEach(
                 data -> data.getAllFields().forEach(
                         // TODO: Lists, such as VirtualDatacenterData.VmUuidList are also converted to String
@@ -404,6 +536,31 @@ public class SdkToTopologyEntityConverter {
 
         if (dto.hasOrigin()) {
             entityPropertyMap.put("origin", dto.getOrigin().toString()); // TODO: DISCOVERED/PROXY use number?
+        }
+
+        TypeSpecificInfo info = mapToTypeSpecificInfo(dto, entityPropertyMap);
+
+        // Check the ActionEligibility in the entity DTO and if the values
+        // for suspend and provision actions are supplied, else leave them unset
+        Optional<Boolean> suspendable = Optional.empty();
+        Optional<Boolean> cloneable = Optional.empty();
+        if (dto.hasActionEligibility()) {
+            CommonDTO.EntityDTO.ActionEligibility actionEligibility = dto.getActionEligibility();
+
+            // Keep the suspendable setting from the entityDTO
+            if (actionEligibility.hasSuspendable()) {
+                suspendable = Optional.of(actionEligibility.getSuspendable());
+            }
+
+            // Keep the provisionable setting from the entityDTO
+            if (actionEligibility.hasCloneable()) {
+                cloneable = Optional.of(actionEligibility.getCloneable());
+            }
+        }
+
+        // Calculate suspendable flag if no info is provided from ActionEligibility
+        if (!suspendable.isPresent()) {
+            suspendable = calculateSuspendability(dto);
         }
 
         // Either monitored or controllable is false, set XL controllable to false.
@@ -418,70 +575,31 @@ public class SdkToTopologyEntityConverter {
                 boughtList,
                 // pass empty list since connection can not be retrieved from single EntityDTO
                 // and this is only used by existing tests for non-cloud topology
-                Collections.emptyList(),
+                Collections.emptySet(),
                 entityState,
                 entityPropertyMap,
                 entityTags,
                 availableAsProvider,
                 isShopTogether,
                 isControllable(isControllable, isMonitored),
-                calculateSuspendability(dto)
+                isProviderMustClone,
+                isDeletable,
+                suspendable,
+                cloneable,
+                isDaemon
         );
 
-        retBuilder.setTypeSpecificInfo(mapToTypeSpecificInfo(dto, entityPropertyMap));
+        retBuilder.setTypeSpecificInfo(info);
         return retBuilder;
     }
 
-    @VisibleForTesting
-    static boolean isControllable(final boolean isControllable, final boolean isMonitored) {
-        return isControllable && isMonitored;
-    }
-
-    private static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(
-            int entityType,
-            long oid,
-            String displayName,
-            List<TopologyDTO.CommoditySoldDTO> soldList,
-            List<CommoditiesBoughtFromProvider> boughtList,
-            List<ConnectedEntity> connectedToList,
-            TopologyDTO.EntityState entityState,
-            Map<String, String> entityPropertyMap,
-            Map<String, TagValuesDTO> entityTags,
-            boolean availableAsProvider,
-            boolean isShopTogether,
-            boolean isControllable,
-            Optional<Boolean> suspendable
-        ) {
-        AnalysisSettings.Builder analysisSettingsBuilder =
-            TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
-                .setShopTogether(isShopTogether)
-                .setControllable(isControllable)
-                .setIsAvailableAsProvider(availableAsProvider);
-        if (suspendable.isPresent()) {
-            boolean suspendableValue = suspendable.get();
-            analysisSettingsBuilder.setSuspendable(suspendableValue);
-
-            // If it is an application, set cloneable value to same as suspendable value
-            // to represent horizontal scalability.
-            if (entityType == EntityType.APPLICATION_VALUE) {
-                analysisSettingsBuilder.setCloneable(suspendableValue);
-            }
-        }
-
-        return TopologyDTO.TopologyEntityDTO.newBuilder()
-            .setEntityType(entityType)
-            .setOid(oid)
-            .setDisplayName(displayName)
-            .setEntityState(entityState)
-            .setAnalysisSettings(analysisSettingsBuilder)
-            .putAllEntityPropertyMap(entityPropertyMap)
-            .setTags(Tags.newBuilder().putAllTags(entityTags).build())
-            .addAllCommoditySoldList(soldList)
-            .addAllCommoditiesBoughtFromProviders(boughtList)
-            .addAllConnectedEntityList(connectedToList);
-    }
-
-    private static TopologyDTO.EntityState entityState(EntityDTOOrBuilder entityDTO) {
+    /**
+     * Convert one probe entity DTO state to one topology entity DTO state.
+     *
+     * @param entityDTO probe entity DTO..
+     * @return topology entity DTO.
+     */
+    public static TopologyDTO.EntityState entityState(EntityDTOOrBuilder entityDTO) {
         TopologyDTO.EntityState entityState = TopologyDTO.EntityState.UNKNOWN;
 
         // retrieve entity state from dto
@@ -515,18 +633,96 @@ public class SdkToTopologyEntityConverter {
         return entityState;
     }
 
-    private static TopologyDTO.CommodityBoughtDTO newCommodityBoughtDTO(CommonDTO.CommodityDTOOrBuilder commDTO) {
+    @VisibleForTesting
+    static boolean isControllable(final boolean isControllable, final boolean isMonitored) {
+        return isControllable && isMonitored;
+    }
+
+    private static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(
+            int entityType,
+            long oid,
+            String displayName,
+            List<TopologyDTO.CommoditySoldDTO> soldList,
+            List<CommoditiesBoughtFromProvider> boughtList,
+            Set<ConnectedEntity> connectedToList,
+            TopologyDTO.EntityState entityState,
+            Map<String, String> entityPropertyMap,
+            Map<String, TagValuesDTO> entityTags,
+            boolean availableAsProvider,
+            boolean isShopTogether,
+            boolean isControllable,
+            boolean isProviderMustClone,
+            boolean isDeletable,
+            Optional<Boolean> suspendable,
+            Optional<Boolean> cloneable,
+            Optional<Boolean> isDaemon
+        ) {
+        AnalysisSettings.Builder analysisSettingsBuilder =
+            TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
+                .setShopTogether(isShopTogether)
+                .setControllable(isControllable)
+                .setProviderMustClone(isProviderMustClone)
+                .setIsAvailableAsProvider(availableAsProvider)
+                .setDeletable(isDeletable);
+
+        // Check if the suspend and provision values are supplied
+        if (suspendable.isPresent()) {
+            boolean suspendableValue = suspendable.get();
+            analysisSettingsBuilder.setSuspendable(suspendableValue);
+
+            // If it is an application, set cloneable value to same as suspendable value
+            // to represent horizontal scalability.
+            if (entityType == EntityType.APPLICATION_VALUE
+                    || entityType == EntityType.APPLICATION_COMPONENT_VALUE) {
+                analysisSettingsBuilder.setCloneable(suspendableValue);
+            }
+        }
+
+        cloneable.ifPresent(analysisSettingsBuilder::setCloneable);
+        isDaemon.ifPresent(analysisSettingsBuilder::setDaemon);
+
+        final TopologyEntityDTO.Builder result =
+                TopologyDTO.TopologyEntityDTO.newBuilder()
+                        .setEntityType(entityType)
+                        .setOid(oid)
+                        .setDisplayName(displayName)
+                        .setEntityState(entityState)
+                        .setAnalysisSettings(analysisSettingsBuilder)
+                        .putAllEntityPropertyMap(entityPropertyMap)
+                        .setTags(Tags.newBuilder().putAllTags(entityTags).build())
+                        .addAllCommoditySoldList(soldList)
+                        .addAllCommoditiesBoughtFromProviders(boughtList)
+                        .addAllConnectedEntityList(connectedToList);
+
+        return result;
+    }
+
+    private static TopologyDTO.CommodityBoughtDTO newCommodityBoughtDTO(
+            @Nonnull CommonDTO.CommodityDTOOrBuilder commDTO,
+            @Nonnull Stream<CommodityDTO.Builder> providerSoldCommodities) {
         final TopologyDTO.CommodityBoughtDTO.Builder retCommBoughtBuilder =
             TopologyDTO.CommodityBoughtDTO.newBuilder()
                 .setCommodityType(commodityType(commDTO))
-                .setUsed(commDTO.getUsed())
-                .setPeak(commDTO.getPeak())
                 .setActive(commDTO.getActive())
                 .setDisplayName(commDTO.getDisplayName())
                 .addAllAggregates(commDTO.getPropMapList().stream()
                     .filter(prop -> prop.getName().equals(SDKConstants.AGGREGATES))
                     .flatMap(prop -> prop.getValuesList().stream())
                     .collect(Collectors.toList()));
+
+        setUsedAndPeakForBoughtCommodity(retCommBoughtBuilder, commDTO, providerSoldCommodities);
+
+        // Only set reservedCapacity for specific commodityType
+        if (reservedCommodityType.contains(commDTO.getCommodityType())) {
+            retCommBoughtBuilder.setReservedCapacity(commDTO.getReservation());
+        }
+        if (commDTO.hasUtilizationData()) {
+            CommonDTO.CommodityDTO.UtilizationData data = commDTO.getUtilizationData();
+            retCommBoughtBuilder.setUtilizationData(UtilizationData.newBuilder()
+                            .setIntervalMs(data.getIntervalMs())
+                            .setLastPointTimestampMs(data.getLastPointTimestampMs())
+                            .addAllPoint(data.getPointList()));
+        }
         return retCommBoughtBuilder.build();
     }
 
@@ -534,16 +730,13 @@ public class SdkToTopologyEntityConverter {
         @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
 
         if (commDTO.getPeak() < 0) {
-            logger.error("Peak quantity = {} for commodity type {}", commDTO.getPeak(), commDTO.getCommodityType());
+            logger.error("Peak quantity = {} for commodity type {}", commDTO.getPeak(),
+                commDTO.getCommodityType());
         }
 
         final TopologyDTO.CommoditySoldDTO.Builder retCommSoldBuilder =
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(commodityType(commDTO))
-                .setUsed(commDTO.getUsed())
-                .setPeak(commDTO.getPeak())
-                .setCapacity(commDTO.getCapacity())
-                .setReservedCapacity(commDTO.getReservation())
                 .setIsThin(commDTO.getThin())
                 .setActive(commDTO.getActive())
                 .setIsResizeable(commDTO.getResizable())
@@ -552,6 +745,16 @@ public class SdkToTopologyEntityConverter {
                     .filter(prop -> prop.getName().equals(SDKConstants.AGGREGATES))
                     .flatMap(prop -> prop.getValuesList().stream())
                     .collect(Collectors.toList()));
+        // retain mediation values here, EntityValidator may change later
+        if (commDTO.hasCapacity()) {
+            retCommSoldBuilder.setCapacity(commDTO.getCapacity());
+        }
+        if (commDTO.hasUsed()) {
+            retCommSoldBuilder.setUsed(adjustedUsed(commDTO));
+        }
+        if (commDTO.hasPeak()) {
+            retCommSoldBuilder.setPeak(adjustedPeak(commDTO));
+        }
 
         if (commDTO.hasLimit() && (commDTO.getLimit() > 0)
                 && commDTO.hasCapacity() && (commDTO.getCapacity() > 0)) {
@@ -586,15 +789,34 @@ public class SdkToTopologyEntityConverter {
         if (commDTO.hasMinAmountForConsumer()) {
             retCommSoldBuilder.setMinAmountForConsumer(commDTO.getMinAmountForConsumer());
         }
-        if (commDTO.hasRatioDependency()) {
-            retCommSoldBuilder.setRatioDependency(TopologyDTO.CommoditySoldDTO.RatioDependency.newBuilder()
-                .setBaseCommodity(TopologyDTO.CommodityType.newBuilder()
-                    .setType(commDTO.getRatioDependency().getBaseCommodity().getNumber())
-                    .build())
-                .setRatio(commDTO.getRatioDependency().getRatio())
-                .build());
+        if (commDTO.hasCheckMinAmountForConsumer()) {
+            retCommSoldBuilder.setCheckMinAmountForConsumer(commDTO.getCheckMinAmountForConsumer());
         }
-
+        if (commDTO.hasRangeDependency()) {
+            retCommSoldBuilder.setRangeDependency(commDTO.getRangeDependency());
+        }
+        if (commDTO.hasRatioDependency()) {
+            RatioDependency.Builder ratioDependencyBuilder = TopologyDTO.CommoditySoldDTO.RatioDependency.newBuilder()
+                    .setBaseCommodity(TopologyDTO.CommodityType.newBuilder()
+                            .setType(commDTO.getRatioDependency().getBaseCommodity().getNumber())
+                            .build())
+                    .setMaxRatio(commDTO.getRatioDependency().getMaxRatio());
+            if (commDTO.getRatioDependency().hasMinRatio()) {
+                ratioDependencyBuilder.setMinRatio(commDTO.getRatioDependency().getMinRatio());
+            }
+            if (commDTO.getRatioDependency().hasIncreaseBaseAmountDefaultSupported()) {
+                ratioDependencyBuilder.setIncreaseBaseAmountDefaultSupported(
+                        commDTO.getRatioDependency().getIncreaseBaseAmountDefaultSupported());
+            }
+            retCommSoldBuilder.setRatioDependency(ratioDependencyBuilder.build());
+        }
+        if (commDTO.hasUtilizationData()) {
+            CommonDTO.CommodityDTO.UtilizationData data = commDTO.getUtilizationData();
+            retCommSoldBuilder.setUtilizationData(UtilizationData.newBuilder()
+                            .setIntervalMs(data.getIntervalMs())
+                            .setLastPointTimestampMs(data.getLastPointTimestampMs())
+                            .addAllPoint(data.getPointList()));
+        }
         if (commDTO.getCommodityType() == CommodityDTO.CommodityType.VCPU && commDTO.hasVcpuData()) {
             VCpuData vCPUData = commDTO.getVcpuData();
             retCommSoldBuilder.setHotResizeInfo(HotResizeInfo.newBuilder()
@@ -632,6 +854,92 @@ public class SdkToTopologyEntityConverter {
         return builder.build();
     }
 
+    /**
+     * Adjusted value of commodity used, based on whether 'used' is a percentage or not.
+     *
+     * @param commDTO the sold commodity to get used value for.
+     * @return the adjusted value for given sold commodity
+     */
+    private static double adjustedUsed(
+            @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
+        // missing capacity to be processed by EntityValidator
+        if (commDTO.getIsUsedPct() && commDTO.hasCapacity()) {
+            return commDTO.getUsed() * commDTO.getCapacity() / 100;
+        } else {
+            logger.trace("Capacity is unset, unable to calculate pct used for {}", () -> commDTO);
+            return commDTO.getUsed();
+        }
+    }
+
+    /**
+     * Adjusted value of commodity peak, based on whether 'peak' is a percentage or not.
+     *
+     * @param commDTO the sold commodity to get peak value for.
+     * @return the adjusted value for given sold commodity
+     */
+    private static double adjustedPeak(
+            @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
+        // missing capacity to be processed by EntityValidator
+        if (commDTO.getIsPeakPct() && commDTO.hasCapacity()) {
+            return commDTO.getPeak() * commDTO.getCapacity() / 100;
+        } else {
+            logger.trace("Capacity is unset, unable to calculate pct peak for {}", () -> commDTO);
+            return commDTO.getPeak();
+        }
+    }
+
+    /**
+     * Set the used and peak value for the bought commodity.
+     * If the peak or used are percentage based then calculate the respective value(s)
+     * based on capacity of the corresponding sold commodity.
+     *
+     * @param builder builder for topology bought commodity
+     * @param commDTO the commodity to get used/peak values for
+     * @param providerSoldCommodities stream of sold commodities on provider side
+     */
+    private static void setUsedAndPeakForBoughtCommodity(
+            @Nonnull TopologyDTO.CommodityBoughtDTO.Builder builder,
+            @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO,
+            @Nonnull Stream<CommodityDTO.Builder> providerSoldCommodities) {
+        if (!commDTO.hasUsed() && !commDTO.hasPeak()) {
+            return;
+        }
+        // if used and peak are not percentage based, return the values immediately
+        if (!commDTO.getIsUsedPct() && !commDTO.getIsPeakPct()) {
+            if (commDTO.hasUsed()) {
+                builder.setUsed(commDTO.getUsed());
+            }
+            if (commDTO.hasPeak()) {
+                builder.setPeak(commDTO.getPeak());
+            }
+            return;
+        }
+
+        // Find the corresponding sold commodity
+        Optional<CommodityDTO.Builder> commSold = providerSoldCommodities
+            .filter(soldComm -> soldComm.getCommodityType() == commDTO.getCommodityType() &&
+                    StringUtils.equals(soldComm.getKey(), commDTO.getKey()))
+            .findAny();
+
+        if (!commSold.isPresent()) {
+            logger.error("No matching sold commodity of type {} and key {} on provider, " +
+                            "using percentage for used ({}) and peak ({}) values",
+                    commDTO.getCommodityType(), commDTO.getKey(),
+                    commDTO.getUsed(), commDTO.getPeak());
+        }
+        double factor = commSold
+                .filter(CommodityDTO.Builder::hasCapacity)
+                .map(CommodityDTO.Builder::getCapacity)
+                .map(capacity -> capacity / 100)
+                .orElse(1.0);
+        if (commDTO.hasUsed()) {
+            builder.setUsed(commDTO.getIsUsedPct() ? commDTO.getUsed() * factor : commDTO.getUsed());
+        }
+        if (commDTO.hasPeak()) {
+            builder.setPeak(commDTO.getIsPeakPct() ? commDTO.getPeak() * factor : commDTO.getPeak());
+        }
+    }
+
     private static CommodityType commodityType(CommonDTO.CommodityDTOOrBuilder commDTO) {
         final CommodityType.Builder commodityTypeBuilder = CommodityType.newBuilder()
                 .setType(type(commDTO));
@@ -661,7 +969,7 @@ public class SdkToTopologyEntityConverter {
      * @return the uuid part of the key
      */
     public static String keyToUuid(String key) {
-        return key.split(ActionDTOUtil.COMMODITY_KEY_SEPARATOR,2)[1];
+        return key.split(ActionDTOUtil.COMMODITY_KEY_SEPARATOR, 2)[1];
     }
 
     /**
@@ -700,12 +1008,7 @@ public class SdkToTopologyEntityConverter {
     @VisibleForTesting
     static Optional<Boolean> calculateSuspendabilityWithStitchingEntity(
             @Nonnull final TopologyStitchingEntity entity) {
-        if (entity.getEntityType() == EntityType.BUSINESS_APPLICATION ||
-                entity.getEntityType() == EntityType.VIRTUAL_APPLICATION ||
-                entity.getEntityType() == EntityType.APPLICATION_SERVER ||
-                entity.getEntityType() == EntityType.APPLICATION ||
-                entity.getEntityType() == EntityType.DATABASE_SERVER ||
-                entity.getEntityType() == EntityType.DATABASE) {
+        if  (suspendableEntityTypes.contains(entity.getEntityType()))  {
             return Optional.of(checkAppSuspendability(entity));
         }
         return (entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED &&
@@ -716,14 +1019,14 @@ public class SdkToTopologyEntityConverter {
 
     /**
      * An application is considered suspendable only if it was a discovered entity and
-     * its consumer is a vApp with multiple providers and with any level of measured utilization.
+     * its consumer is a service with multiple providers and with any level of measured utilization.
      * @param entity is Application.
      * @return true if can be suspended.
      */
     private static boolean checkAppSuspendability(TopologyStitchingEntity entity) {
         return entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED &&
                 entity.getConsumers().stream()
-                        .anyMatch(consumer -> consumer.getEntityType() == EntityType.VIRTUAL_APPLICATION &&
+                        .anyMatch(consumer -> consumer.getEntityType() == EntityType.SERVICE &&
                         consumer.getProviders().size() > 1) &&
                 entity.getCommoditiesSold()
                         .anyMatch(commodity -> ((commodity.getCommodityType() == CommodityDTO.CommodityType.TRANSACTION ||
@@ -820,5 +1123,42 @@ public class SdkToTopologyEntityConverter {
                             .addValues(entityProperty.getValue());
                 });
         return result;
+    }
+
+    /**
+     * Convert tags related to group.
+     *
+     * @param groupDTO group dto being converted
+     * @return the {@link Tag.Tags} object if the group has tags and empty otherwise.
+     */
+    @Nonnull
+    public static Optional<Tag.Tags> convertGroupTags(@Nonnull final CommonDTO.GroupDTO groupDTO) {
+        final Map<String, TagValuesDTO> groupTags = new HashMap<>();
+        // Add tags in the tags map such as resource group tags
+        if (groupDTO.getTagsMap() != null && groupDTO.getTagsMap().size() > 0) {
+            for (Entry<String, TagValues> entry : groupDTO.getTagsMap().entrySet()) {
+                final TagValuesDTO tagValuesDTO =
+                    TagValuesDTO.newBuilder().addAllValues(entry.getValue().getValueList()).build();
+                groupTags.put(entry.getKey(), tagValuesDTO);
+            }
+            logger.trace("Tags `{}` were discovered in the tags map of discovered group `{}`.",
+                () -> Joiner.on(",").withKeyValueSeparator("=").join(groupTags),
+                () -> groupDTO.getDisplayName());
+        } else {
+            // Add VCTAGS
+            groupTags.putAll(SdkToTopologyEntityConverter.extractTags(groupDTO.getEntityPropertiesList())
+                .entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
+                    entry -> entry.getValue().build())));
+            logger.trace("Tags `{}` were discovered in the VCTAGS of discovered group `{}`.",
+                () -> Joiner.on(",").withKeyValueSeparator("=").join(groupTags),
+                () -> groupDTO.getDisplayName());
+        }
+
+        if (groupTags.size() > 0) {
+            return Optional.of(Tag.Tags.newBuilder().putAllTags(groupTags).build());
+        }
+
+        logger.trace("No tags were found for group `{}`", () -> groupDTO.getDisplayName());
+        return Optional.empty();
     }
 }

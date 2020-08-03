@@ -1,118 +1,188 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
 
-	<parent>
-		<groupId>com.vmturbo</groupId>
-		<artifactId>com.vmturbo.components</artifactId>
-		<version>7.17.0-SNAPSHOT</version>
-		<relativePath>../com.vmturbo.components</relativePath>
-	</parent>
+    <parent>
+        <groupId>com.vmturbo</groupId>
+        <artifactId>com.vmturbo.components</artifactId>
+        <version>7.22.6-SNAPSHOT</version>
+        <relativePath>../com.vmturbo.components</relativePath>
+    </parent>
 
-	<artifactId>com.vmturbo.mediation.client</artifactId>
-	<description>Mediation client parent project</description>
+    <artifactId>com.vmturbo.mediation.client</artifactId>
+    <description>Mediation client parent project</description>
 
-	<build>
-		<pluginManagement>
-			<plugins>
-				<plugin>
-					<groupId>org.apache.maven.plugins</groupId>
-					<artifactId>maven-surefire-plugin</artifactId>
-					<configuration>
-						<!-- Use parallel test execution in order to reduce test times. Some
-							of tests are using Thread.sleep() to mimic timeouts, so it is possible to
-							accelerate tests even on 1 CPU core -->
-						<parallel>classesAndMethods</parallel>
-						<threadCount>1</threadCount>
-						<systemPropertyVariables>
-							<!-- User property to route logs from log4j into different log files
-								from different JVMs -->
-							<forkNumber>test-fork-${surefire.forkNumber}</forkNumber>
-						</systemPropertyVariables>
-					</configuration>
-				</plugin>
-				<plugin>
-					<groupId>org.apache.maven.plugins</groupId>
-					<artifactId>maven-failsafe-plugin</artifactId>
-				</plugin>
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <!-- Use parallel test execution in order to reduce test times. Some
+                            of tests are using Thread.sleep() to mimic timeouts, so it is possible to
+                            accelerate tests even on 1 CPU core -->
+                        <parallel>classesAndMethods</parallel>
+                        <threadCount>1</threadCount>
+                        <systemPropertyVariables>
+                            <!-- User property to route logs from log4j into different log files
+                                from different JVMs -->
+                            <forkNumber>test-fork-${surefire.forkNumber}</forkNumber>
+                        </systemPropertyVariables>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-checkstyle-plugin</artifactId>
+                    <configuration>
+                        <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                    </configuration>
+                </plugin>
             </plugins>
-		</pluginManagement>
-	</build>
+        </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-mediation-bootstrap</id>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <phase>prepare-package</phase>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/bootstrap</outputDirectory>
+                            <useBaseVersion>false</useBaseVersion>
+                            <stripVersion>true</stripVersion>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.mediation.client.bootstrap</artifactId>
+                                    <version>${project.version}</version>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.spotify</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <configuration>
+                    <entryPoint>["/entrypoint.sh", "bootstrap/com.vmturbo.mediation.client.bootstrap.jar"]</entryPoint>
+                    <resources>
+                        <resource>
+                            <targetPath>/lib</targetPath>
+                            <directory>${project.build.directory}</directory>
+                        </resource>
+                        <resource>
+                            <targetPath>/lib</targetPath>
+                            <directory>${project.build.directory}/lib</directory>
+                        </resource>
+                        <resource>
+                            <targetPath>/bootstrap</targetPath>
+                            <directory>${project.build.directory}/bootstrap</directory>
+                        </resource>
+                        <resource>
+                            <targetPath>/swagger</targetPath>
+                            <directory>${project.build.directory}/generated-docs/swagger</directory>
+                        </resource>
+                    </resources>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.github.kongchen</groupId>
+                <artifactId>swagger-maven-plugin</artifactId>
+                <configuration>
+                    <apiSources>
+                        <apiSource>
+                            <locations>
+                                <location>com.vmturbo.common.protobuf.logging</location>
+                                <location>com.vmturbo.components.common</location>
+                            </locations>
+                        </apiSource>
+                    </apiSources>
+                </configuration>
+            </plugin>
 
-	<dependencies>
-		<dependency>
-			<groupId>com.vmturbo</groupId>
-			<artifactId>com.vmturbo.platform.sdk.probe</artifactId>
-			<exclusions>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>com.vmturbo</groupId>
-			<artifactId>com.vmturbo.mediation.common</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>com.vmturbo</groupId>
-			<artifactId>com.vmturbo.communication</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>com.google.guava</groupId>
-			<artifactId>guava</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>commons-lang</groupId>
-			<artifactId>commons-lang</artifactId>
-			<exclusions>
-				<exclusion>
-					<artifactId>servlet-api</artifactId>
-					<groupId>javax.servlet</groupId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>com.vmturbo</groupId>
-			<artifactId>topology-processor</artifactId>
-			<scope>test</scope>
-		</dependency>
+        </plugins>
+    </build>
 
-		<!-- test dependencies -->
-		<!-- To run websockets in embedded server -->
-		<dependency>
-			<groupId>org.eclipse.jetty.websocket</groupId>
-			<artifactId>websocket-server</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<!-- To run websockets client -->
-		<dependency>
-			<groupId>org.eclipse.jetty.websocket</groupId>
-			<artifactId>websocket-client</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.eclipse.jetty.websocket</groupId>
-			<artifactId>javax-websocket-server-impl</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.logging.log4j</groupId>
-			<artifactId>log4j-slf4j-impl</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>com.vmturbo</groupId>
-			<artifactId>com.vmturbo.mediation.common</artifactId>
-			<type>test-jar</type>
-			<version>${vmturbo.mt.branch.version}</version>
-			<scope>test</scope>
-		</dependency>
+    <dependencies>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.platform.sdk.probe</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>log4j</groupId>
+                    <artifactId>log4j</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.communication</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>commons-lang</groupId>
+            <artifactId>commons-lang</artifactId>
+            <exclusions>
+                <exclusion>
+                    <artifactId>servlet-api</artifactId>
+                    <groupId>javax.servlet</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>topology-processor</artifactId>
+            <scope>test</scope>
+        </dependency>
 
-		<dependency>
-			<!-- this artifact is added only to ensure build order to build the
+        <!-- test dependencies -->
+        <!-- To run websockets in embedded server -->
+        <dependency>
+            <groupId>org.eclipse.jetty.websocket</groupId>
+            <artifactId>websocket-server</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty.websocket</groupId>
+            <artifactId>javax-websocket-server-impl</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.common</artifactId>
+            <type>test-jar</type>
+            <version>${vmturbo.mt.branch.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <!-- this artifact is added only to ensure build order to build the
             bootstrap project before any mediation components -->
-			<groupId>com.vmturbo</groupId>
-			<artifactId>com.vmturbo.mediation.client.bootstrap</artifactId>
-			<scope>test</scope>
-		</dependency>
-	</dependencies>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.client.bootstrap</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 </project>

@@ -1,24 +1,31 @@
 package com.vmturbo.stitching;
 
-import static com.vmturbo.platform.sdk.common.util.SDKProbeType.*;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.stitching.billing.AwsBillingBusinessAccountStitchingOperation;
+import com.vmturbo.stitching.billing.AwsBillingStitchingOperation;
 import com.vmturbo.stitching.cloudfoundry.CloudFoundryVMStitchingOperation;
+import com.vmturbo.stitching.compute.IaasVMStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
-import com.vmturbo.stitching.compute.IaasVMStitchingOperation;
 import com.vmturbo.stitching.vcd.ElasticVDCStitchingOperation;
 import com.vmturbo.stitching.vcd.VcdVMStitchingOperation;
+import com.vmturbo.stitching.vdi.DesktopPoolMasterImageStitchingOperation;
+import com.vmturbo.stitching.vdi.VDIPMStitchingOperation;
+import com.vmturbo.stitching.vdi.VDIStorageStitchingOperation;
+import com.vmturbo.stitching.vdi.VDIVDCStitchingOperation;
+import com.vmturbo.stitching.vdi.VDIVMStitchingOperation;
 
 /**
  * A library of stitching operations. Maps probe type and category to operations that to be used for
@@ -50,7 +57,7 @@ public class StitchingOperationLibrary {
             case HYPERVISOR:
                 return Collections.emptyList();
             case CLOUD_MANAGEMENT:
-                if (probeType.equals(VCD.getProbeType())) {
+                if (probeType.equals(SDKProbeType.VCD.getProbeType())) {
                     return Arrays.asList(new VcdVMStitchingOperation(),
                             new ElasticVDCStitchingOperation());
                 }
@@ -72,6 +79,10 @@ public class StitchingOperationLibrary {
             case ORCHESTRATOR:
                 return Collections.emptyList();
             case HYPERCONVERGED:
+                if (probeType.equals(SDKProbeType.INTERSIGHT_UCS.getProbeType())) {
+                    return Arrays.asList(new FabricChassisStitchingOperation(),
+                            new FabricPMStitchingOperation());
+                }
                 return Collections.emptyList();
             case PAAS:
                 if (probeType.equals(SDKProbeType.CLOUD_FOUNDRY.getProbeType())) {
@@ -83,6 +94,19 @@ public class StitchingOperationLibrary {
                 return Collections.emptyList();
             case CUSTOM:
                 return Collections.emptyList();
+            case BILLING:
+                if (probeType.equals(SDKProbeType.AWS_BILLING.getProbeType())) {
+                    return Arrays.asList(new AwsBillingStitchingOperation(),
+                        new AwsBillingBusinessAccountStitchingOperation());
+                }
+                return Collections.emptyList();
+            case VIRTUAL_DESKTOP_INFRASTRUCTURE:
+                return ImmutableList.of(
+                        new VDIVMStitchingOperation(),
+                        new VDIStorageStitchingOperation(),
+                        new VDIPMStitchingOperation(),
+                        new VDIVDCStitchingOperation(),
+                        new DesktopPoolMasterImageStitchingOperation());
             default:
                 logger.warn("Unknown probe type {} and category {}.", probeType, probeCategory);
                 return Collections.emptyList();

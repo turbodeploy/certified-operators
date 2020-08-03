@@ -1,0 +1,216 @@
+{
+  "entityType": 2,
+  "oid": "73488350794443",
+  "displayName": "DC9-vsanDatastore (Astra)",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::Virtual_ESX_4238e2ce-54ca-5a35-4d2e-0096dcb83745"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73488350794450",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 6
+    },
+    "used": 2048.0,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 59,
+      "key": "StorageCluster::16372722efbc8c6e300346e73f19ee6f7258f81f"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 22
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 8
+    },
+    "used": 3508.0,
+    "peak": 0.0,
+    "capacity": 21736.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 64
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::Virtual_ESX_564db2e8-ab95-8683-30d6-ffbcc87e828c"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73488350794449",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 51,
+      "key": "HCI - Replacing hp-esx79.eng.vmturbo.com::73488372040528"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73488372040528",
+    "active": true,
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "73488350794437",
+    "providerEntityType": 11,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 60,
+        "key": "DiskArray-522b383c0267e1a6-9063bcfe8fa205cd"
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73488350794449",
+    "providerEntityType": 14,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 6
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 6144.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73488350794450",
+    "providerEntityType": 14,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 6
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 16384.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "VcTgtIdAndInternalName": "c06b892ab96b6c79ad1485b58ae9dc22c7af8cb1"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1590997084967",
+      "discoveredTargetData": {
+        "73488349925440": {
+          "vendorId": "datastore-553"
+        }
+      }
+    }
+  },
+  "edit": {
+    "replaced": {
+      "planId": "214225860393008",
+      "replacementId": "73488372040480"
+    }
+  },
+  "tags": {
+  },
+  "typeSpecificInfo": {
+    "storage": {
+      "storageType": "VSAN",
+      "isLocal": false,
+      "policy": {
+        "redundancy": "RAID1",
+        "failuresToTolerate": 1,
+        "spaceReservationPct": 0
+      },
+      "rawCapacity": {
+        "capacity": "21736",
+        "free": "18228",
+        "uncommitted": "6495"
+      }
+    }
+  }
+}

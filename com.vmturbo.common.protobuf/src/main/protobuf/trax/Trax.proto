@@ -1,0 +1,271 @@
+syntax = "proto2";
+package common;
+
+option java_package = "com.vmturbo.common.protobuf.trax";
+
+// TRAX stands for "TRAcking eXtensions" and can be used to track details of computations made
+// with the Trax library. Example:
+//
+// Java code:
+// final TraxNumber sub = trax(1.0, "a")
+//      .minus(2.0, "b", "This number comes from customer-specific rate card")
+//      .compute("sub");
+// final TraxNumber div = trax(4.0, "d").dividedBy(6.0, "e").compute("div");
+// final TraxNumber min = Trax.min(sub, div).compute("min");
+//
+// And the output with DEBUG verbosity configured for the topic.
+// assertEquals(
+//      "-1[min] = min(-1[sub], 0.666667[div])\n" +
+//      "├── -1[sub] = 1[a] - 2[b]\n" +
+//      "│   ├── 1[a]\n" +
+//      "│   └── 2[b]\n" +
+//      "└── 0.666667[div] = 4[d] / 6[e]\n" +
+//      "    ├── 4[d]\n" +
+//      "    └── 6[e]\n",
+//      min.calculationStack());
+
+// Configurations for topics set via the SetConfiguration RPC will remain in place until:
+// 1. They are overwritten by a new configuration.
+//    Rules for overriding: Suppose I set configuration-1 for topics "foo" and "bar"
+//                          If I then override configuration-1 for "foo" only with
+//                          configuration-2, "bar" will retain configuration-1.
+// 2. The service instance is restarted (Trax configurations are not persisted).
+// 3. If a limit is provided and that limit expires.
+message TraxTopicConfiguration {
+    // The configured calculation tracking verbosity.
+    enum Verbosity {
+        // Do not capture any calculation details. This is the typical configuration and has
+        // minimal performance impact.
+        OFF = 10;
+
+        // Capture only the value and names of calculations and their sub-elements.
+        // Has some memory and computation costs, but provides most of the details
+        // necessary to understand how a particular number was computed.
+        DEBUG = 20;
+
+        // Capture the value and name of a calculation along with additional details.
+        // By default, details include the file name and line number of the piece of
+        // code responsible for a calculation. Has additional memory and compute
+        // impact beyond that required for DEBUG.
+        TRACE = 30;
+    }
+
+    // The verbosity configured for this topic.
+    optional Verbosity verbosity = 2 [default = OFF];
+
+    // When printing the value of calculations in a calculation stack, this is the maximum
+    // number of decimal places that will be logged for this topic.
+    optional uint32 max_decimal_places = 3 [default = 6];
+}
+
+// Use to limit the calculations tracked when tracking calculations for a particular
+// topic or set of topics.
+message TrackingLimit {
+    // Enable calculation tracking for a limited time period.
+    // Once a time period in minutes elapses after the configuration for a topic
+    // is set, the calculation tracking for that topic is once again disabled
+    // (the configuration for the topic will be dropped so that Verbosity will return to OFF).
+    message TrackingTimeLimit {
+        optional uint32 time_limit_minutes = 1 [default = 60];
+    }
+
+    // Track calculations for a given number of calculations. A call to Trax.track()
+    // for the given topic results in one use. Once the number of uses reaches
+    // the number set via this limit, calculation tracking is disabled
+    // (the configuration for the topic will be dropped so that Verbosity will return to OFF.
+    //
+    // If a track call includes multiple topics that the same limit applies to, the
+    // call consumes only a single use.
+    message TrackingUseLimit {
+        optional uint32 max_calculations_to_track = 1 [default=100];
+    }
+
+    // A TrackingThrottlingLimit will never be exhausted, but every time a Trax#track
+    // call is made for a topic associated with this limit, it will perform a coin
+    // flip weighted so that over time, the expected number of calculations tracked per
+    // day will eventually reach an equilibrium around the
+    // target_calculations_tracked_per_day.
+    //
+    // The throttling limit works by making a calculation more likely to be tracked if no
+    // calculations have been tracked for the topic in a while, and becoming less likely
+    // to track every time an additional calculation is tracked. Note that this design
+    // makes it likely that if the throughput of Trax#track calls is steady, the messages
+    // will be spread out over time. If the throughput is bursty, there may be clusters
+    // of messages as the odds build up and then throttle back when a cluster of Trax#track
+    // call is made.
+    message TrackingThrottlingLimit {
+        // The target number of calculations that the limit will attempt to track per day.
+        // Because we cannot control the number of Trax#track calls actually made for a
+        // topic, this number is not guaranteed. Also, as described above because the limit
+        // works in a probabilistic fashion, we attempt to orient the expected value of
+        // calculations tracked to the target, so it will rarely be exactly at the target.
+        optional uint32 target_calculations_tracked_per_day = 1 [default = 24];
+    }
+
+    oneof limit_type {
+        // Limit by time
+        TrackingTimeLimit time_limit = 1;
+
+        // Limit by number of uses
+        TrackingUseLimit use_limit = 2;
+
+        // A limit that throttles the number of uses to prevent too many calculations
+        // from being tracked in a short period of time.
+        TrackingThrottlingLimit throttling_limit = 3;
+    }
+}
+
+// Contains information about how much of a limit remains until the topic will
+// be dropped and verbosity will return to OFF.
+message TrackingLimitRemainder {
+    message TrackingTimeLimitRemainder {
+        optional uint64 expiration_timestamp = 1;
+
+        // The human-readable time at which the configuration will expire and the topic will return to
+        // an OFF verbosity.
+        optional string human_readable_expiration_time = 2;
+
+        // The number of seconds remaining until the configuration expires and the topic
+        // returns to an OFF verbosity. Add the remaining_minutes to remaining_minutes
+        // for the total remaining time.
+        optional double remaining_seconds = 3;
+
+        // How many minutes the time limit was originally configured for.
+        // Note that this is the original configuration and as the limit ages this
+        // original number does not change.
+        optional uint32 original_time_limit_minutes = 4;
+    }
+
+    message TrackingUseLimitRemainder {
+        // The number of uses originally configured. This number does not decrease
+        // as calls to Trax.track are made.
+        optional uint32 original_use_limit = 1;
+
+        // The number of uses remaining for the topic. Each time a call to Trax.track
+        // is made this number drops by 1. When it reaches 0, the topic will return
+        // to an OFF verbosity.
+        optional uint32 remaining_use_limit = 2;
+    }
+
+    message TrackingThrottlingLimitRemainder {
+        // The target number of calculations tracked per day.
+        optional uint32 target_calculations_tracked_per_day = 1;
+
+        // The actual average number of calculations tracked per day.
+        // This number is calculated over the entire time that the limit has been in place.
+        // So for example, if the throttling limit has permitted 300 calculations
+        // to be tracked over a total of 3 days, this number will be 100.
+        optional double average_calculations_tracked_per_day = 2;
+
+        // The total number of calculation tracking requests made to this limit.
+        optional uint64 total_calculation_tracking_attempts = 3;
+
+        // The time at which this limit most recently permitted a calculation to be tracked.
+        optional string human_readable_last_calculation_tracked_time = 4;
+
+        // The time at which this limit was originally created.
+        optional string human_readable_creation_time = 5;
+    }
+
+    // There is no limit to the amount of time or number of uses we will track this
+    // topic for.
+    message TrackingNoLimitRemainder {
+
+    }
+
+    oneof limit_remainder_type {
+        // Limit by time
+        TrackingTimeLimitRemainder time_limit = 1;
+
+        // Limit by number of uses
+        TrackingUseLimitRemainder use_limit = 2;
+
+        TrackingThrottlingLimitRemainder throttling_limit = 3;
+
+        // Do not limit
+        TrackingNoLimitRemainder no_limit = 100;
+    }
+}
+
+// A request to configure a Trax topic.
+message TraxConfigurationRequest {
+    // The name of the topics that this configuration applies to.
+    // Empty string topic names are not permitted.
+    //
+    // Topic names are case sensitive. Duplicates in this list are merged down to unique elements.
+    repeated string topic_names = 1;
+
+    // Configuration for a topic.
+    optional TraxTopicConfiguration topic_configuration = 2;
+
+    // If no limit is provided, no limit is used. That is, the configuration will remain
+    // until it is overwritten or the service is restarted. Note that the same limit will be shared
+    // between all topics named in the configuration request. That is, if I set a use limit of 5 uses
+    // for the topics "foo" and "bar", and then issue a Trax#track("foo") call, then the limit
+    // for BOTH "foo" and "bar" is now 4.
+    optional TrackingLimit tracking_limit = 3;
+}
+
+// A listing describing the current configuration for a topic.
+message TraxConfigurationItem {
+    // The names of the topics that this configuration applies to.
+    repeated string topic_names = 1;
+
+    // Configuration for a topic.
+    optional TraxTopicConfiguration topic_configuration = 2;
+
+    // If no limit remainder is returned, the configuration is understood to be
+    // unlimited and will remain in place until overwritten or the service
+    // is restarted.
+    optional TrackingLimitRemainder limit_remainder = 3;
+}
+
+// A request to list the current trax configurations.
+message TraxConfigurationListingRequest {
+
+}
+
+// A request to clear specific trax configurations.
+message ClearConfigurationsRequest {
+    repeated string topic_names = 1;
+}
+
+// A response to a request to clear specific trax configurations.
+message ClearConfigurationsResponse {
+    // The names of the topics that were actually cleared. If a topic name is not included
+    // even though it was requested, it indicates that topic name was not actually cleared.
+    repeated string cleared_topic_names = 1;
+}
+
+// A request to clear all trax configurations.
+message ClearAllConfigurationsRequest {
+
+}
+
+// Response to a request to clear all configurations.
+message ClearAllConfigurationsResponse {
+    // The number of configurations that were cleared.
+    optional uint32 configuration_clear_count = 1;
+}
+
+// Interfaces to inspect and/or modify Trax computation tracking configurations.
+service TraxConfigurationService {
+    // Configure a Trax topic.
+    // Configurations for a topic set via the SetConfiguration RPC will remain in place until:
+    // 1. They are overwritten by a new configuration.
+    // 2. The service instance is restarted (Trax configurations are not persisted).
+    // 3. If a limit is provided and that limit expires.
+    rpc SetConfiguration(TraxConfigurationRequest) returns (TraxConfigurationItem);
+
+    // List all Trax topic configurations.
+    // Configurations that have been exhausted are not listed because they are dropped.
+    rpc ListConfigurations(TraxConfigurationListingRequest) returns (stream TraxConfigurationItem);
+
+    // Clear all Trax topic configurations.
+    // Returns the number of configurations that were cleared.
+    rpc ClearConfigurations(ClearConfigurationsRequest) returns (ClearConfigurationsResponse);
+
+    // Clear all Trax topic configurations.
+    // Returns the number of configurations that were cleared.
+    rpc ClearAllConfigurations(ClearAllConfigurationsRequest) returns (ClearAllConfigurationsResponse);
+}

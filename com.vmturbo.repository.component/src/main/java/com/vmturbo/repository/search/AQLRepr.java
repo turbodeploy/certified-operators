@@ -18,12 +18,13 @@ import org.slf4j.LoggerFactory;
 import com.github.jknack.handlebars.Template;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
+
 import javaslang.collection.List;
 import javaslang.control.Option;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
-import com.vmturbo.repository.constant.RepoObjectType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.graph.executor.AQL;
 import com.vmturbo.repository.graph.executor.AQLs;
 import com.vmturbo.repository.search.Filter.Type;
@@ -148,7 +149,7 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
                 .put("comparisonOperator", Filter.getAqlForComparisonOperator(
                         verticesCondition.getNumConnectedVertices().getComparisonOperator()))
                 .put("numConnectedVertices", verticesCondition.getNumConnectedVertices().getValue())
-                .put("entityType", RepoObjectType.mapEntityType(verticesCondition.getEntityType()))
+                .put("entityType", ApiEntityType.fromType(verticesCondition.getEntityType()))
                 .put("pagination", pagination.map(AQLPagination::toAQLString).orElse(""))
                 .build();
         return AQLs.of(applyTemplate(template, ctx).getOrElse(""), bindVars);

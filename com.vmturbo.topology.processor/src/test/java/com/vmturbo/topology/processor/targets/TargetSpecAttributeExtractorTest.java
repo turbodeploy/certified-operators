@@ -4,9 +4,12 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Optional;
 import java.util.Set;
 
+import org.apache.logging.log4j.LogManager;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -22,12 +25,13 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
  */
 public class TargetSpecAttributeExtractorTest {
 
-    public static final String PROBE_ID_NAME = "probeId";
-    public static final long PROBE_ID = 666;
-    public static final String ADDR_NAME = "address";
-    public static final String ADDR = "1.2.3.4";
+    private static final String PROBE_TYPE_IDENTIFIER = "probeType";
+    private static final String PROBE_TYPE_NAME = "myProbeType";
+    private static final String ADDR_NAME = "address";
+    private static final String ADDR = "AA-1.2.3.4";
 
     private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
+    private final org.apache.logging.log4j.Logger logger = LogManager.getLogger();
 
     /**
      * Test that the WorkflowInfo external name and target id fields are extracted into the
@@ -36,16 +40,17 @@ public class TargetSpecAttributeExtractorTest {
     @Test
     public void testExtractAttributes() {
         // arrange
-        ProbeInfo probe = ProbeInfo.newBuilder().setProbeType("probeType").setProbeCategory("probeCategory")
-                .addTargetIdentifierField(ADDR_NAME).build();
+        ProbeInfo probe = ProbeInfo.newBuilder().setProbeType(PROBE_TYPE_NAME).setProbeCategory("probeCategory")
+                .addTargetIdentifierField(ADDR_NAME).setUiProbeCategory("probeCategory").build();
         TargetSpec testItem = TargetSpec.newBuilder()
-                .setProbeId(PROBE_ID)
-                .addAccountValue(AccountValue.newBuilder().setKey(ADDR_NAME).setStringValue(ADDR))
-                .build();
+            .setProbeId(1L)
+            .addAccountValue(AccountValue.newBuilder().setKey(ADDR_NAME).setStringValue(ADDR))
+            .build();
         // a workflow has two identifying attributes:  name and targetId
         IdentityMatchingAttribute nameAttr = new IdentityMatchingAttribute(
-                PROBE_ID_NAME, Long.toString(PROBE_ID));
-        IdentityMatchingAttribute targetAttr = new IdentityMatchingAttribute(ADDR_NAME, ADDR);
+            PROBE_TYPE_IDENTIFIER, PROBE_TYPE_NAME);
+        IdentityMatchingAttribute targetAttr = new IdentityMatchingAttribute(ADDR_NAME,
+                ADDR.toLowerCase());
         TargetSpecAttributeExtractor extractorToTest = new TargetSpecAttributeExtractor(probeStore);
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probe));
         // act

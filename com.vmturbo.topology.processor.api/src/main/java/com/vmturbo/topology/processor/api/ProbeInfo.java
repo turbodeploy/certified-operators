@@ -1,8 +1,11 @@
 package com.vmturbo.topology.processor.api;
 
 import java.util.List;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
+
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 
 /**
  * Represents probe information.
@@ -31,6 +34,29 @@ public interface ProbeInfo {
      */
     @Nonnull
     String getCategory();
+
+    /**
+     * Returns probe UI category.
+     *
+     * @return probe ui category
+     */
+    @Nonnull
+    String getUICategory();
+
+    /**
+     * Returns probe license.
+     *
+     * @return probe license
+     */
+    Optional<String> getLicense();
+
+    /**
+     * The creation mode of the probe.
+     *
+     * @return true if the probe is hidden in the UI.
+     */
+    @Nonnull
+    CreationMode getCreationMode();
 
     /**
      * Returns account definitions list for this probe.

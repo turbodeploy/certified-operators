@@ -99,6 +99,9 @@ message PolicyInfo {
 
             // Merge datacenter workloads (a datacenter is a group of physical machines).
             DATACENTER = 2;
+
+            // Merge desktop pool entities
+            DESKTOP_POOL = 3;
         }
 
         optional MergeType merge_type = 1;
@@ -131,8 +134,12 @@ message PolicyInfo {
     }
 }
 
-message PolicyRequest {
+message SinglePolicyRequest {
     optional int64 policy_id = 1;
+}
+
+message PolicyRequest {
+    repeated int64 policy_ids = 1;
 }
 
 message PolicyResponse {
@@ -170,8 +177,8 @@ message PolicyDeleteResponse {
 }
 
 service PolicyService {
-    rpc GetPolicy(PolicyRequest) returns (PolicyResponse) {}
-    rpc GetAllPolicies(PolicyRequest) returns (stream PolicyResponse) {}
+    rpc GetPolicy(SinglePolicyRequest) returns (PolicyResponse) {}
+    rpc GetPolicies(PolicyRequest) returns (stream PolicyResponse) {}
     rpc CreatePolicy(PolicyCreateRequest) returns (PolicyCreateResponse) {}
     rpc EditPolicy(PolicyEditRequest) returns (PolicyEditResponse) {}
     rpc DeletePolicy(PolicyDeleteRequest) returns (PolicyDeleteResponse) {}

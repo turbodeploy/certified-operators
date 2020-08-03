@@ -7,6 +7,8 @@ import "CloudCostDTO.proto";
 import "common/Pagination.proto";
 import "CommonDTO.proto";
 import "topology/TopologyDTO.proto";
+import "stats/Stats.proto";
+import "cca/CloudCommitmentAnalysis.proto";
 
 // Top down Cloud account expense discovered by the billing probe, associated with a specific account
 message AccountExpenses {
@@ -16,11 +18,12 @@ message AccountExpenses {
     // account expenses info to store service and tier expenses
     optional AccountExpensesInfo account_expenses_info = 2;
 
-    // The timestamp at which the expense is received by Cost component.
-    // Note: It should be the timestamp that the expenses were generated.
-    // But currently probe doesn't have this information in it's DTO.
-    // The time is in epoch milliseconds.
-    optional int64 expense_received_timestamp = 3;
+    // The epoch milliseconds of the date at which the services/tiers were used.
+    // Since all the expenses should be from yesterday and the minimal time frame is DAY,
+    // all the expenses should have the same usage date.
+    // The timestamp is from the first second of the day, for example:
+    // 1575158400 = Sunday, December 1, 2019 12:00:00 AM (UTC)
+    optional int64 expenses_date = 3;
 
     // Service and tier level account expense information. An account could have many service
     // and tier level expenses.
@@ -92,6 +95,20 @@ message ReservedInstanceBought {
         // The coupons information of the reserved instance.
         optional ReservedInstanceBoughtCoupons reserved_instance_bought_coupons = 8;
 
+        // Reserved instance display name.
+        optional string display_name = 9;
+
+        // Reservation order ID. Currently it is used by Azure only.
+        optional string reservation_order_id = 10;
+
+        // Information about the scope within RI can be applied.
+        optional ReservedInstanceScopeInfo reserved_instance_scope_info = 11;
+
+        optional ReservedInstanceDerivedCost reserved_instance_derived_cost = 12;
+
+        // The end milliseconds since epoch for RI bought.
+        optional int64 end_time = 13;
+
         message ReservedInstanceBoughtCost {
             // The upfront one-time cost of the Reserved Instance.
             optional common_dto.CurrencyAmount fixed_cost = 1;
@@ -101,6 +118,19 @@ message ReservedInstanceBought {
 
             // Hourly cost for reserved instance, regardless of usageCost.
             optional common_dto.CurrencyAmount recurring_cost_per_hour = 3;
+        }
+
+        // Holds costs derived from RI attributes and other data (including the price tables).
+        // Attributes of this message should not be expected to be set on upload to the cost
+        // component and may not be a stored value (e.g. on-demand rate is queried dynamically
+        // at request time)
+        message ReservedInstanceDerivedCost {
+
+            // The up front + recurring costs of the RI, amortized over the term
+            optional common_dto.CurrencyAmount amortized_cost_per_hour = 1;
+
+            // The equivalent hourly on demand cost for the Reserved Instance.
+            optional common_dto.CurrencyAmount on_demand_rate_per_hour = 2;
         }
 
         // Coupons is a our internal way compare different instance types in a family. For example,
@@ -120,6 +150,22 @@ message ReservedInstanceBought {
             // from the entity's RI coverage, and it should be equal to the sum of its consumers
             // coupons. The SDK probe will not set this field when discovering real time topology.
             optional double number_of_coupons_used = 2;
+        }
+
+        // Information about the scope within RI can be applied.
+        // Azure RIs can be either shared or single scoped. If RI is shared it can be applied to
+        // several accounts in the billing family. These accounts are listed in
+        // applicable_business_account_id field.
+        // AWS RIs can also be shared or single scoped. However AWS shared RIs are the most common.
+        // Currently we do not support single scope AWS RIs. So for AWS "shared" is always true.
+        message ReservedInstanceScopeInfo {
+            // Defines whether RI can be used by all accounts in the billing family.
+            optional bool shared = 1 [default = true];
+
+            // List of accounts that RI can be applied to. In case of single scoped (non-shared)
+            // RI the list cannot contain more than one account ID. If this list is empty for
+            // shared RI it means the RI can be applied to all accounts in the billing family.
+            repeated int64 applicable_business_account_id = 2;
         }
     }
 }
@@ -153,6 +199,14 @@ message ReservedInstanceSpecInfo {
 
     // The region id of the reserved instance.
     optional int64 region_id = 5;
+
+    // The property that determines if the RI is applicable to workloads running any platform or to
+    // the workloads running the same platform as the RI's platform.
+    optional bool platform_flexible = 6 [default = false];
+
+    // The property defining whether RI is applicable to workloads in different tiers of the same
+    // template family.
+    optional bool size_flexible = 7 [default = false];
 }
 
 // The RI coverage of a particular entity and projected RI coverage after market.
@@ -162,18 +216,25 @@ message EntityReservedInstanceCoverage {
     optional int64 entity_id = 1;
 
     // A map of:
-    // RI ID -> # coupons covered by the RI.
-    //
-    // The total amount of coupons the entity requires is stored on the compute tier the
-    // entity is buying from. For example, if VM #1 is buying from m4.nano, and m4.nano has
-    // 1 coupon, VM #1 will require a total of 1 coupon.
+    // RI ID -> # coupons covered by the RI for the entity. It is possible for
+    // an RI to provide coupons to more than one entity or for an entity to
+    // consume coupons from more than one RI.
     //
     // For an explanation of coupons see: TypeSpecificInfo.ComputeTierInfo.
     map<int64, double> coupons_covered_by_ri = 10;
+
+    // The number of coupons of the compute tier on which this entity is residing or it is going to
+    // reside on (in case of projected).
+    optional int32 entity_coupon_capacity = 11;
+
+    // The number of coupons covered by BuyRI instances. This is applicable to only the projected
+    // topology, in which BuyRIImpactAnalysis allocated buy RI instances on the projected topology
+    // to estimate potential savings from buy RI recommendations
+    map<int64, double> coupons_covered_by_buy_ri = 12;
 }
 
-// Actual message that gets sent across the wire from market component
-// containing projected ri coverage of entities in topology.
+// Message broadcast from the market component representing the after actions/projected
+// ri coverage of entities in topology.
 message ProjectedEntityReservedInstanceCoverage {
     // The ID of the projected topology the cost is for.
     optional int64 projected_topology_id = 1;
@@ -206,25 +267,37 @@ message ProjectedEntityReservedInstanceCoverage {
 
 
 // A message used to retrieve account expenses.
-message ExpenseRequest {
-    // A filter to be applied to the account expense retrieved. If no filter is supplied
-    // all account expenses are returned.
-    optional ExpenseQueryFilter filter = 1;
+message GetCurrentAccountExpensesRequest {
+    // When scoping to a specific business account / billing family / group of accounts, then
+    // "scope" should contain all the relevant account OIDs in specific_accounts.
+    // If this is global scope (cloud page) then the scope should be set to all_accounts = true.
+    optional AccountExpenseQueryScope scope = 1;
+}
 
-    // The pagination parameters for the request.
-    // If not set, the service will use the default sort order and limit.
-    optional common.PaginationParameters pagination_params = 2;
+message AccountExpenseQueryScope {
+    message IdList {
+        repeated int64 account_ids = 1;
+    }
+
+    // Using a oneof to prevent accidentally asking for "all" with an empty ID list on
+    // the client. We've been hit by those bugs multiple times, and each time it's a
+    // high-priority performance issue.
+    oneof scope {
+        // A list of specific account IDs to get expenses for.
+        // If the list is empty, returns no expenses.
+        IdList specific_accounts = 1;
+
+        // Get expenses for ALL account IDs in the latest uploaded expenses.
+        bool all_accounts = 2;
+    }
 }
 
 // Response to the expense request
-message ExpenseResponse {
+message GetCurrentAccountExpensesResponse {
     // The list of account expense.
     // The length of this list will not exceed the limit set in the request pagination parameters.
     // The account expense will be ordered according to the order in the request pagination parameters.
     repeated AccountExpenses account_expense = 1;
-
-    // The response message containing pagination-related response parameters.
-    optional common.PaginationResponse pagination_response = 2;
 }
 
 // A message used to retrieve discounts.
@@ -232,27 +305,6 @@ message GetDiscountRequest {
     // A filter to be applied to the discount retrieved. If no filter is supplied
     // all account discounts are returned.
     optional DiscountQueryFilter filter = 1;
-}
-
-// A filter to be supplied with expense queries.
-// The conditions in the query filter will be AND-ed together, so only
-// expenses that match all of them will be returned.
-message ExpenseQueryFilter {
-    // There are two types of filters.
-    // - Account filter: used to filter account
-    // - Cloud service filter: used to filter Cloud service
-
-    // Include only expenses in the given accounts. It's optional and return all expenses if empty.
-    repeated int64 associated_account_id = 1;
-
-    // Include only expenses in the given Cloud service. It's optional and return all expenses if empty.
-    repeated int64 associated_cloud_service_id = 2;
-
-    // date range for the request; dates are epoch longs, e.g. Unix Timestamp
-    // We currently require both start_date and end_date to be not null.
-    optional int64 start_date = 3;
-
-    optional int64 end_date = 4;
 }
 
 // A filter to be supplied with discount queries.
@@ -312,13 +364,23 @@ message UpdateDiscountResponse {
     optional Discount updated_discount = 1;
 }
 
+// delete plan costs request
+message DeletePlanEntityCostsRequest {
+    optional int64 plan_id = 1;
+}
+
+// delete plan entity costs response
+message DeletePlanEntityCostsResponse {
+    optional bool deleted = 1;
+}
+
 // Discount associated with a specific business account.
 // Customers negotiate discounts with Cloud Vendors:
 // * Enterprise Program Discount [AWS]
 // * Enterprise Agreement [Azure]
 // Entity costs in Turbonomic should reflect what the customer actually pays.
 // All discounts to be entered by user [Cannot be discovered].
-// It's one to one mapping between busniess account and discount.
+// It's one to one mappserviceng between busniess account and discount.
 // Discount is assumed on global region basis. We could extend it to support tier-level if needed.
 message Discount {
     // The oid for the discount
@@ -384,6 +446,8 @@ message EntityCost {
 
         // Hourly rate for Cloud entity
         optional common_dto.CurrencyAmount amount = 2;
+
+        optional CostSource costSource = 3;
     }
 }
 
@@ -441,7 +505,7 @@ enum CostCategory {
 
     // Represents the licensing related costs associated with an entity.
     // For example OS pricing, application licensing, DB licenses and so on.
-    LICENSE = 3;
+    ON_DEMAND_LICENSE = 3;
 
     // Represents the RI compute cost associated with an entity.
     // i.e. how much of the total entity compute cost is being contributed by RI.
@@ -451,6 +515,22 @@ enum CostCategory {
     // Represents the spot instance cost associated with an entity.
     SPOT = 5;
 
+    // Represents the license costs associated with the RI coverage of a workload
+    RESERVED_LICENSE = 6;
+
+}
+
+// The cost source represents the source of the cost in the cost category. For example the on Demand Compute cost
+// may have an on demand rate source and an RI discounted rate source.
+enum CostSource {
+
+    ON_DEMAND_RATE = 1;
+
+    RI_INVENTORY_DISCOUNT = 2;
+
+    BUY_RI_DISCOUNT = 3;
+
+    UNCLASSIFIED = 4;
 }
 
 // A request containing a snapshot of cost data to be stored by the cost service.
@@ -480,7 +560,7 @@ message UploadRIDataRequest {
     optional int64 created_time = 11;
 
     // the topology id this upload is associated with. It will always be a realtime topology.
-    optional int64 topology_id = 1;
+    optional int64 topology_context_id = 1;
 
     // The set of Reserved Instance configurations that have been purchased or are available.
     repeated ReservedInstanceSpec reserved_instance_specs = 3;
@@ -488,8 +568,11 @@ message UploadRIDataRequest {
     // The set of RI bought by the customer.
     repeated ReservedInstanceBought reserved_instance_bought = 4;
 
-    // The entity - RI coverage data
+    // Entity level reserved instance coverages.
     repeated EntityRICoverageUpload reserved_instance_coverage = 5;
+
+    // Account level reserved instance coverages.
+    repeated AccountRICoverageUpload account_level_reserved_instance_coverage = 6;
 
     // Contains the relationship about which service entity is covered by what reserved instance and
     // how many coupons are covered by each different reserved instance.
@@ -512,6 +595,15 @@ message UploadRIDataRequest {
         repeated Coverage coverage = 3;
 
         message Coverage {
+            //Enumeration defining the sources which contribute to RI coverage for an entity.
+            enum RICoverageSource {
+                //Indicates that the RI Coverage information for an entity comes from the bill.
+                BILLING = 0;
+
+                //Indicates that the RI Coverage information for an entity comes from other sources such as the RI Allocator.
+                SUPPLEMENTAL_COVERAGE_ALLOCATION = 1;
+            }
+
             // The id of reserved instance.
             optional int64 reserved_instance_id = 1;
 
@@ -521,7 +613,25 @@ message UploadRIDataRequest {
 
             // The number of coupons covered by the reserve instance.
             optional double covered_coupons = 3;
+
+            // The RI Coverage source for the entity
+            optional RICoverageSource ri_coverage_source = 4;
+
+            // Usage start UTC timestamp in milliseconds.
+            optional int64 usage_start_timestamp = 5;
+
+            // Usage end UTC timestamp in milliseconds.
+            optional int64 usage_end_timestamp = 6;
         }
+    }
+
+    // Coverage of an account by reserved instances.
+    message AccountRICoverageUpload {
+        // The account ID.
+        optional int64 account_id = 1;
+
+        // Coverage by reserved instances.
+        repeated EntityRICoverageUpload.Coverage coverage = 2;
     }
 }
 
@@ -552,6 +662,21 @@ message AvailabilityZoneFilter {
 message AccountFilter {
     // A list of account ids need to filter by.
     repeated int64 account_id = 1;
+    // describes the semantics of the passed account Ids.
+    optional AccountFilterType account_filter_type = 2 [default = PURCHASED_BY];
+
+    enum  AccountFilterType {
+        PURCHASED_BY = 0;
+        USED_BY = 1;
+        USED_AND_PURCHASED_BY = 2;
+    }
+}
+
+
+
+message RiFilter {
+    // A list of RI IDs to filter by, for e.g., RIs to be included in plans.
+    repeated int64 ri_id = 1;
 }
 
 message EntityFilter {
@@ -564,23 +689,48 @@ message EntityTypeFilter {
     repeated int32 entity_type_id = 1;
 }
 
-// A request to get reserved instance bought by some filter condition. If provider more than one
+message ReservedInstanceBoughtFilter {
+    optional bool exclusion_filter = 1 [default = false];
+    repeated int64 ri_bought_id = 2;
+}
+
+// A request to get reserved instance bought by some filter condition. If provided more than one
 // different filter type, it will perform AND logic.
 message GetReservedInstanceBoughtByFilterRequest {
-    // get reserved instance bought filter by region ids.
     optional RegionFilter region_filter = 1;
-
-    // get reserved instance bought filter by availability zone ids.
-    optional AvailabilityZoneFilter availability_zone_filter = 2;
-
-    // get reserved instance bought filter by account ids.
+    optional AvailabilityZoneFilter zone_filter = 2;
     optional AccountFilter account_filter = 3;
+    optional bool include_undiscovered = 4 [default = true];
 }
 
 // A response contains a list reserved instance bought.
 message GetReservedInstanceBoughtByFilterResponse {
     // A list of reserved instance bought.
     repeated ReservedInstanceBought reserved_instance_boughts = 1;
+}
+
+message GetReservedInstanceBoughtForAnalysisRequest {
+    // Basic information about topology.
+    // If a topology context ID is not specified, the realtime context ID will be used to
+    // resolve RIs in scope
+    required .topology.TopologyInfo topology_info = 1;
+}
+
+message GetReservedInstanceBoughtForScopeRequest {
+    // If the topology is to be scoped, the OIDs specified here seed the scoping expansion.
+    repeated int64 scope_seed_oids = 5;
+}
+
+// This response contains a list reserved instance bought by topology.
+message GetReservedInstanceBoughtForAnalysisResponse {
+    // A list of reserved instance bought.
+    repeated ReservedInstanceBought reserved_instance_bought = 1;
+}
+
+// This response contains a list reserved instance bought by topology.
+message GetReservedInstanceBoughtForScopeResponse {
+    // A list of reserved instance bought.
+    repeated ReservedInstanceBought reserved_instance_bought = 1;
 }
 
 // A request to get Buy reserved instances by some filter condition. If there is more than one
@@ -594,6 +744,9 @@ message GetBuyReservedInstancesByFilterRequest {
 
     // get buy reserved instance recommendations filter by account ids.
     optional AccountFilter account_filter = 3;
+
+    // buy ri ids.
+    repeated int64 buy_ri_id = 4;
 }
 
 // A response contains a list of buy RIs represented as reserved instance bought.
@@ -618,6 +771,54 @@ message GetReservedInstanceBoughtCountRequest {
 message GetReservedInstanceBoughtCountResponse {
     // A map which key is computer tier id, the value is the count of reserved instance bought.
     map<int64, int64> reserved_instance_count_map = 1;
+}
+
+// Response contains ri bought count map by tier id
+message GetReservedInstanceBoughtCountByTemplateResponse {
+    // A map where key is the tier id and value is the number of the RIs bought for the tier id
+    map<int64, int64> reserved_instance_count_map = 1;
+}
+
+// A request to get plan reserved instance bought count map.
+message GetPlanReservedInstanceBoughtCountRequest {
+    // get reserved instance bought filter by plan id.
+    optional int64 plan_id = 1;
+}
+
+// Response contains plan ri bought count map by tier name
+message GetPlanReservedInstanceBoughtCountByTemplateResponse {
+    // A map where key is the tier id and value is the number of the RIs bought for the tier id
+    map<int64, int64> reserved_instance_count_map = 1;
+}
+
+// A request to get reserved instance bought by some filter condition. If both region
+// and availability zone filters are provided, they will be OR'd. EIther filter
+// will be AND'd with the account filter (if configured)
+message GetPlanReservedInstanceBoughtRequest {
+    optional int64 planId = 1;
+}
+
+// A request to get RIs by id, for e.g. the user selected RIs to be included in the plan.
+message GetReservedInstanceBoughtByIdRequest {
+    // get reserved instance bought filter by included RI ids.
+    optional RiFilter ri_filter = 1;
+}
+
+// This response contains a list of reserved instance bought by Id.
+message GetReservedInstanceBoughtByIdResponse {
+    repeated ReservedInstanceBought reserved_instance_bought = 1;
+}
+
+// A request to get RI cost stats for both current and projected RIs.
+message GetPlanReservedInstanceCostStatsRequest {
+    optional int64 planId = 1;
+    // if include buyRI = true - add ri Buy recommendation data to projected snapshot.
+    optional bool include_buy_ri = 2 [default = false];
+}
+
+// A response with RIs cost stats.
+message GetPlanReservedInstanceCostStatsResponse {
+    repeated ReservedInstanceCostStat stats = 1;
 }
 
 // A request to get reserved instance specs
@@ -650,6 +851,13 @@ message GetReservedInstanceUtilizationStatsRequest {
     // get reserved instance utilization stats filter by account ids.
     optional AccountFilter account_filter = 5;
 
+    // whether utilization of Buy RI instances should be included in the
+    // projected utilization stats returned
+    optional bool include_buy_ri_utilization = 6 [default = false];
+
+    // get reserved instance utilization stats by topology context id
+    optional uint64 topology_context_id = 7;
+
 }
 
 // A response of reserved instance utilization stats.
@@ -676,6 +884,13 @@ message GetReservedInstanceCoverageStatsRequest {
     optional AccountFilter account_filter = 5;
 
     optional EntityFilter entity_filter = 6;
+
+    // whether coverage from BuyRI instances should be included in the
+    // projected coverage stat returned.
+    optional bool include_buy_ri_coverage = 7 [default = false];
+
+    // get reserved instance coverage stats by topology context id
+    optional uint64 topology_context_id = 8;
 }
 
 // A response of reserved instance coverage stats.
@@ -721,41 +936,93 @@ message GetCloudExpenseStatsRequest {
     // A property names to aggregate stats over, as in an SQL 'group by' clause.
     optional GroupByType group_by = 5;
 
+    // When scoping to a specific business account / billing family / group of accounts, then
+    // "scope" should contain all the relevant account OIDs in specific_accounts.
+    // If this is global scope (cloud page) then the scope should be set to all_accounts = true.
+    optional AccountExpenseQueryScope scope = 6;
+
     enum GroupByType {
         // Cloud service provider
         CSP = 1;
 
-        // Target
-        TARGET = 2;
+        // Business Account
+        BUSINESS_UNIT = 2;
 
         // Cloud Service
-        CLOUD_SERVICE =3;
+        CLOUD_SERVICE = 3;
     }
+}
+
+message CostCategoryFilter {
+    optional bool exclusion_filter = 1 [default = false];
+    repeated CostCategory cost_category = 2;
 }
 
 // A request to get bottom up Cloud cost stats
 message GetCloudCostStatsRequest {
+
+    repeated CloudCostStatsQuery cloud_cost_stats_query = 1;
+}
+
+message CloudCostStatsQuery {
+
     // The start date of the request
-    optional uint64 start_date = 1;
+    // If the start date is set and the end date is not set, we will only get the latest stats.
+    optional int64 query_id = 1;
 
     // The end date of the request
-    optional uint64 end_date = 2;
+    // If the end date is set and the start date is not set, we will only get the latest stats.
+    optional uint64 start_date = 2;
 
     // Entity ids filter, return all entities if not set
-    optional EntityFilter entity_filter = 3;
+    optional uint64 end_date = 3;
+
+    // Whether or not to request projected bottom-up costs.
+    //
+    // Note - this will add the projected stats to any historical stats specified by the
+    // start_date and end_date parameters. There is no way to get ONLY the projected stats.
+    optional bool request_projected = 4;
+
+    // Entity ids filter, return all entities if not set
+    optional EntityFilter entity_filter = 5;
 
     // Cost category filter, return all entities if not set
-    optional CostCategory cost_category_filter = 4;
+    optional CostCategoryFilter cost_category_filter = 6;
 
     // Entity type filter, could be VM or APP, return all entities if not set
-    optional EntityTypeFilter entity_type_filter = 5;
+    optional EntityTypeFilter entity_type_filter = 7;
 
     // A property names to aggregate stats over, as in an SQL 'group by' clause.
-    optional GroupByType group_by = 6;
+    repeated GroupBy group_by = 8;
 
-    enum GroupByType {
-        // Cloud Cost Component
-        COSTCOMPONENT = 1;
+    // Filter associated cost based on its source, return cost from all sources if empty.
+    optional CostSourceFilter cost_source_filter = 9;
+
+    // get entity cost filtered by region ids.
+    optional RegionFilter region_filter = 10;
+
+    // get entity cost filtered by availability zone ids.
+    optional AvailabilityZoneFilter availability_zone_filter = 11;
+
+    // get entity cost filtered by account ids.
+    optional AccountFilter account_filter = 12;
+
+    // get entity cost filter by topology context id
+    optional uint64 topology_context_id = 13;
+
+    enum GroupBy {
+        COST_CATEGORY = 1;
+        ENTITY = 2;
+        ENTITY_TYPE = 3;
+    }
+
+    // The filter used for filtering cost items in a cost query.
+    message CostSourceFilter {
+        // If true the cost sources specified will be excluded. If false, only the cost items that are
+        // in cost sources will be returned.
+        optional bool exclusion_filter = 1 [default = false];
+        // The cost source types that will be used for filtering based on the exclusion filter.
+        repeated CostSource cost_sources = 2;
     }
 }
 
@@ -769,10 +1036,13 @@ message GetCloudCostStatsResponse {
 // Cloud cost stat record, used for both top down and bottom up
 message CloudCostStatRecord {
     // the actual snapshot_date for this response
-    optional string snapshot_date = 1;
+    optional int64 snapshot_date = 1;
 
     // the individual stat_records collected
     repeated StatRecord stat_records = 2;
+
+    //this the query id used in CloudCostStatsQuery to uniquely identity a query in the list.
+    optional uint64 query_id = 3;
 
     // an individual stats value.
     message StatRecord {
@@ -794,6 +1064,9 @@ message CloudCostStatRecord {
 
         // Stat value
         optional StatValue values = 7;
+
+        // Cost source
+        optional CostSource cost_source = 8;
 
         // Contains the detail value of stats record, such as, max, min, avg, total value.
         message StatValue {
@@ -818,12 +1091,23 @@ message SetBuyRIAnalysisScheduleResponse {
 }
 
 message GetEntityReservedInstanceCoverageRequest {
-    // At the time of this writing we always want
-    // the coverage for all entities. If that changes,
-    // we can add additional filters here.
+    // Filter by a list of Entities.
+    optional EntityFilter entity_filter = 1;
 }
 
 message GetEntityReservedInstanceCoverageResponse {
+    // A map from entity ID to the reserved instance coverage for that entity.
+    map<int64, EntityReservedInstanceCoverage> coverage_by_entity_id = 1;
+}
+
+message GetProjectedEntityReservedInstanceCoverageRequest {
+    // Filter by a list of Entities.
+    optional EntityFilter entity_filter = 1;
+    // The topology from which to retrieve RI coverage
+    optional int64 topologyContextId = 2;
+}
+
+message GetProjectedEntityReservedInstanceCoverageResponse {
     // A map from entity ID to the reserved instance coverage for that entity.
     map<int64, EntityReservedInstanceCoverage> coverage_by_entity_id = 1;
 }
@@ -845,18 +1129,54 @@ message StartBuyRIAnalysisRequest {
     repeated int64 accounts = 5;
 
     // the RI purchase profile
-    optional RIPurchaseProfile purchaseProfile = 6;
+    optional RIPurchaseProfile purchaseProfile = 6 [deprecated = true];
+
+    // the RI purchase profile by CloudType string
+    map<string, RIPurchaseProfile> purchase_profile_by_cloudtype = 7;
+
+    // the demand type
+    optional common_dto.DemandType demandType = 8;
 }
+
+message GetTierPriceForEntitiesRequest{
+    repeated int64 oids = 1;
+    optional CostCategory costCategory = 2;
+    optional int64 topologyContextId = 3;
+}
+
+message GetTierPriceForEntitiesResponse{
+    map <int64, common_dto.CurrencyAmount> before_tier_price_by_entity_oid = 1;
+    map <int64, common_dto.CurrencyAmount> after_tier_price_by_entity_oid = 2;
+}
+
+
 // the RI purchase profile for buy RI recommendations
 message RIPurchaseProfile {
     // the reserved instance type. The type of RIs which will be suggested in the Buy RI results
     optional common_dto.ReservedInstanceType riType = 1;
-
-    // the purchase date of the RI
-    optional int64 purchaseDate = 2;
 }
 
 message StartBuyRIAnalysisResponse {
+}
+
+message GetRIBuyContextRequest {
+    optional string actionId = 1;
+}
+
+message DeleteRIBuyContextDataRequest {
+    optional int64 topologyContextId = 1;
+}
+
+message DeleteRIBuyContextDataResponse {
+    optional bool deleted = 1;
+}
+
+message DeletePlanReservedInstanceStatsRequest {
+    optional int64 topologyContextId = 1;
+}
+
+message DeletePlanReservedInstanceStatsResponse {
+    optional bool deleted = 1;
 }
 
 // A service for getting reserved instance bought
@@ -868,14 +1188,27 @@ service ReservedInstanceBoughtService {
     rpc GetReservedInstanceBoughtByFilter(GetReservedInstanceBoughtByFilterRequest) returns
     (GetReservedInstanceBoughtByFilterResponse);
 
+    // Get RIs for Analysis, if RI analysis is done in Market - we should include bought RIs too
+    rpc GetReservedInstanceBoughtForAnalysis(GetReservedInstanceBoughtForAnalysisRequest) returns
+        (GetReservedInstanceBoughtForAnalysisResponse);
+
+    // Get reserved instance by specified scope for plans to determine possible RIs within a
+    // configured scope for a RT
+    rpc GetReservedInstanceBoughtForScope(GetReservedInstanceBoughtForScopeRequest) returns
+        (GetReservedInstanceBoughtForScopeResponse);
+
+    // Get reserved instance count in the users inventory by template type
+    rpc GetReservedInstanceBoughtCountByTemplateType(GetReservedInstanceBoughtCountRequest) returns
+    (GetReservedInstanceBoughtCountByTemplateResponse);
+
     // Get the reserved instance bought count map which key is computer tier id, value is the count of
     // reserved instance bought.
     rpc GetReservedInstanceBoughtCount(GetReservedInstanceBoughtCountRequest) returns
     (GetReservedInstanceBoughtCountResponse);
 
-    // Get the per-entity RI coverage information - how much of an entity is covered by which RIs.
-    rpc GetEntityReservedInstanceCoverage(GetEntityReservedInstanceCoverageRequest) returns
-    (GetEntityReservedInstanceCoverageResponse);
+    // Get the reserved instance bought by id.
+    rpc GetReservedInstanceBoughtById(GetReservedInstanceBoughtByIdRequest) returns
+    (GetReservedInstanceBoughtByIdResponse);
 }
 
 // A service for getting reserved instance spec.
@@ -900,6 +1233,14 @@ service ReservedInstanceUtilizationCoverageService {
     // Get the reserved instance coverage stats.
     rpc GetReservedInstanceCoverageStats(GetReservedInstanceCoverageStatsRequest)
     returns(GetReservedInstanceCoverageStatsResponse);
+
+    // Get the per-entity RI coverage information - how much of an entity is covered by which RIs.
+    rpc GetEntityReservedInstanceCoverage(GetEntityReservedInstanceCoverageRequest) returns
+    (GetEntityReservedInstanceCoverageResponse);
+
+    // Get the projected reserved instance coverage stats.
+    rpc GetProjectedEntityReservedInstanceCoverageStats(GetProjectedEntityReservedInstanceCoverageRequest)
+    returns(GetProjectedEntityReservedInstanceCoverageResponse);
 }
 
 // A service for buy reserved instance analysis.
@@ -912,9 +1253,33 @@ service BuyRIAnalysisService {
     rpc StartBuyRIAnalysis(StartBuyRIAnalysisRequest) returns (StartBuyRIAnalysisResponse);
 }
 
+// A service for getting plan reserved instance
+service PlanReservedInstanceService {
+    // Get reserved instance bought by some filter condition, such as filter by region, availability zones
+    // or account.
+    rpc GetPlanReservedInstanceBought(GetPlanReservedInstanceBoughtRequest) returns
+    (GetReservedInstanceBoughtByFilterResponse);
+
+    // Get reserved instance count in the users inventory by template type for the plan
+    rpc GetPlanReservedInstanceBoughtCountByTemplateType(GetPlanReservedInstanceBoughtCountRequest) returns
+    (GetPlanReservedInstanceBoughtCountByTemplateResponse);
+
+    // Delete plan reserved instance stats
+    rpc DeletePlanReservedInstanceStats(DeletePlanReservedInstanceStatsRequest) returns
+    (DeletePlanReservedInstanceStatsResponse);
+
+    rpc InsertPlanReservedInstanceBought(UploadRIDataRequest) returns
+    (UploadRIDataResponse);
+
+    // Get plan reserved instance cost stats
+    rpc GetPlanReservedInstanceCostStats(GetPlanReservedInstanceCostStatsRequest) returns
+    (GetPlanReservedInstanceCostStatsResponse);
+}
 
 // A service responsible for getting information about cost information in Cloud.
 service CostService {
+
+    rpc GetTierPriceForEntities (GetTierPriceForEntitiesRequest) returns (GetTierPriceForEntitiesResponse);
 
     // Get account discounts by associated account ids
     rpc GetDiscounts(GetDiscountRequest) returns (stream Discount);
@@ -931,10 +1296,83 @@ service CostService {
     rpc UpdateDiscount(UpdateDiscountRequest) returns (UpdateDiscountResponse);
 
     // Get bottom up Cloud cost stats
-    rpc GetCloudCostStats(GetCloudCostStatsRequest) returns (GetCloudCostStatsResponse);
+    rpc GetCloudCostStats(GetCloudCostStatsRequest) returns (stream GetCloudCostStatsResponse);
 
     // Get information about account expense
     rpc GetAccountExpenseStats(GetCloudExpenseStatsRequest) returns (GetCloudCostStatsResponse);
+
+    rpc GetCurrentAccountExpenses(GetCurrentAccountExpensesRequest) returns (GetCurrentAccountExpensesResponse);
+
+    // Delete plan entity costs
+    rpc DeletePlanEntityCosts(DeletePlanEntityCostsRequest) returns (DeletePlanEntityCostsResponse);
+}
+
+// Stats Request Time Window with options for start_date and end_date.
+message StatsRequestTimeWindow {
+    message TimeWindow {
+        optional int64 start_date = 1;
+        optional int64 end_date = 2;
+    }
+
+    optional TimeWindow time_window = 1;
+    // if query_latest = true send bought RI info with current snapshot time. if false no current snapshot data is sent
+    optional bool query_latest = 2 [default = false];
+}
+
+// projectedRI = true && include buy RI = true - send projected snapshopt with bought RI info + ri buy info
+// projectedRI = true && include buy RI = false - send projected snapshot with bought RI info only.
+// projectedRI = false && include buy RI = true - do not send projected snapshot info.
+// projectedRI = false && include buy RI = false - do not send projected snapshot info.
+
+message GetReservedInstanceCostStatsRequest {
+    optional StatsRequestTimeWindow time_window = 1;
+    // if include projected = true - build projected snapshot with latest bought RI info
+    optional bool include_projected = 2 [default = false];
+    // if include buyRI = true - add ri Buy recommendation data to projected snapshot.
+    optional bool include_buy_ri = 3 [default = false];
+
+    // get buy reserved instance recommendations filter by topology context id
+    optional int64 topology_context_id = 4;
+
+    // get buy reserved instance recommendations filter by region ids.
+    optional RegionFilter region_filter = 5;
+
+    // ggetTierPriceForEntitieset buy reserved instance recommendations filter by account ids.
+    optional AccountFilter account_filter = 6;
+
+    optional AvailabilityZoneFilter availability_zone_filter = 7;
+
+    optional GroupBy group_by = 8;
+
+    enum GroupBy {
+        // if GroupBY = NONE, you will get individual costs for RIs in scope.
+        NONE = 0;
+        // if GroupBy = Snapshot, you will get aggregated costs of all RIs in scope.
+        SNAPSHOT_TIME = 1;
+    }
+}
+
+message GetReservedInstanceCostStatsResponse {
+    repeated ReservedInstanceCostStat stats = 1;
+}
+
+// Structure representing the RI Cost Stat obtained from ReservedInstanceCostService.
+message ReservedInstanceCostStat {
+    // Snapshot time for the requested stat
+    required uint64 snapshot_time = 1;
+    // RI oid. Will be null if request is grouped by SNAPSHOT_TIME.
+    optional int64 reserved_instance_oid = 2;
+    // Total RI Fixed Cost. This cost takes the number of RIs of a specific type into account. (count * individualRIFixedCost)
+    optional double fixed_cost = 3;
+    // Total RI Recurring Cost. This cost takes the number of RIs of a specific type into account. (count * individualRIRecurringCost)
+    optional double recurring_cost = 4;
+    // Total RI Amortized Cost. This cost takes the number of RIs of a specific type into account. (count * individualRIAmortizedCost)
+    optional double amortized_cost = 5;
+}
+
+// A service responsible for getting the RI Cost Stats for both current and projected RIs.
+service ReservedInstanceCostService {
+    rpc GetReservedInstanceCostStats(GetReservedInstanceCostStatsRequest) returns (GetReservedInstanceCostStatsResponse);
 }
 
 service RIAndExpenseUploadService {
@@ -945,4 +1383,37 @@ service RIAndExpenseUploadService {
     rpc UploadRIData(UploadRIDataRequest) returns (UploadRIDataResponse);
 
     rpc GetRIDataChecksum(GetRIDataChecksumRequest) returns (ChecksumResponse);
+}
+
+message riBuyDemandStats {
+    // the actual snapshot_date for this response
+    optional uint64 snapshot_date = 1;
+
+    repeated stats.StatSnapshot statSnapshots = 2;
+}
+
+service RIBuyContextFetchService {
+    // Get buy RIs by some filter condition, such as filter by topology context id, region, business account.
+    rpc GetRIBuyContextData(GetRIBuyContextRequest) returns (riBuyDemandStats);
+
+    // Deletes the data corresponding to context topology id from action_context table.
+    rpc DeleteRIBuyContextData(DeleteRIBuyContextDataRequest)
+        returns (DeleteRIBuyContextDataResponse);
+}
+
+
+message StartCloudCommitmentAnalysisRequest {
+    optional cca.CloudCommitmentAnalysisConfig analysis_config = 1;
+}
+
+message StartCloudCommitmentAnalysisResponse {
+    optional cca.CloudCommitmentAnalysisInfo cloud_commitment_analysis_info = 1;
+}
+
+service CloudCommitmentAnalysisService {
+
+    // Start an analysis, based on the configuration provided in the request. The response will
+    // return a unique identifier for the analysis, in order to check the status.
+    rpc StartCloudCommitmentAnalysis(StartCloudCommitmentAnalysisRequest)
+    returns (StartCloudCommitmentAnalysisResponse);
 }

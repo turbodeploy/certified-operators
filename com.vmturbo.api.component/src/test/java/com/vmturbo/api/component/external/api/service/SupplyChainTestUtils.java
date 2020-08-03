@@ -1,6 +1,15 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyListOf;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anySetOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -10,13 +19,53 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.EntityDetailType;
+import com.vmturbo.api.enums.EntityState;
+import com.vmturbo.api.enums.EnvironmentType;
 
 public class SupplyChainTestUtils {
     public SupplyChainTestUtils() {
+    }
+
+    /**
+     * Create a mock {@link SupplychainApiDTOFetcherBuilder} and attach it to the input
+     * {@link SupplyChainFetcherFactory}.
+     *
+     * @param factoryMock The factory. This should be a mockito mock.
+     * @return The {@link SupplychainApiDTOFetcherBuilder}. This will also be returned by
+     *         the input factory's {@link SupplyChainFetcherFactory#newApiDtoFetcher()}
+     */
+    @Nonnull
+    public SupplychainApiDTOFetcherBuilder mockApiDtoBuilder(SupplyChainFetcherFactory factoryMock) {
+        SupplychainApiDTOFetcherBuilder supplyChainFetcherOperationBuilderMock =
+            mock(SupplychainApiDTOFetcherBuilder.class);
+        when(supplyChainFetcherOperationBuilderMock.entityTypes(anyListOf(String.class)))
+            .thenReturn(supplyChainFetcherOperationBuilderMock);
+        when(supplyChainFetcherOperationBuilderMock.entityStates(anyListOf(EntityState.class)))
+                .thenReturn(supplyChainFetcherOperationBuilderMock);
+        when(supplyChainFetcherOperationBuilderMock.topologyContextId(anyLong()))
+            .thenReturn(supplyChainFetcherOperationBuilderMock);
+        when(supplyChainFetcherOperationBuilderMock.addSeedUuids(anySetOf(String.class)))
+            .thenReturn(supplyChainFetcherOperationBuilderMock);
+        when(supplyChainFetcherOperationBuilderMock.apiEnvironmentType(any(EnvironmentType.class)))
+            .thenReturn(supplyChainFetcherOperationBuilderMock);
+        when(supplyChainFetcherOperationBuilderMock.entityDetailType(any(EntityDetailType.class)))
+            .thenReturn(supplyChainFetcherOperationBuilderMock);
+        when(supplyChainFetcherOperationBuilderMock.aspectsToInclude(any(Collection.class)))
+            .thenReturn(supplyChainFetcherOperationBuilderMock);
+        when(supplyChainFetcherOperationBuilderMock.entityAspectMapper(any(EntityAspectMapper.class)))
+            .thenReturn(supplyChainFetcherOperationBuilderMock);
+        when(supplyChainFetcherOperationBuilderMock.includeHealthSummary(anyBoolean()))
+            .thenReturn(supplyChainFetcherOperationBuilderMock);
+        when(factoryMock.newApiDtoFetcher()).thenReturn(supplyChainFetcherOperationBuilderMock);
+        return supplyChainFetcherOperationBuilderMock;
     }
 
     public ServiceEntityApiDTO createServiceEntityApiDTO(long id) {

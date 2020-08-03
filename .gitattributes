@@ -1,4 +1,17 @@
 * text=auto !eol
+*.yml            text eol=lf
+*.json           text eol=lf
+*.properties     text eol=lf
+*.sh             text eol=lf
+*.sql            text eol=lf
+*.md             text eol=lf
+*.config         text eol=lf
+*.conf           text eol=lf
+*.cnf            text eol=lf
+*.conf.template  text eol=lf
+*.profile        text eol=lf
+Dockerfile       text eol=lf
+
 build/.env -text
 build/VMTurbo.spec -text
 build/build_rpm.sh -text
@@ -835,6 +848,7 @@ com.vmturbo.history/src/test/resources/topology/hp-esx_pm_dto.json -text
 com.vmturbo.history/src/test/resources/topology/tak_test1_vm_dto.json -text
 com.vmturbo.history/src/test/resources/topology/test-topo-1.json.zip -text
 com.vmturbo.history/src/test/resources/topology/test2_app_without_provider_dto.json -text
+com.vmturbo.history.schema/src/main/resources/db/migration/*.sql -text
 com.vmturbo.kvstore/pom.xml -text
 com.vmturbo.kvstore/src/main/java/com/vmturbo/kvstore/ConsulKeyValueStore.java -text
 com.vmturbo.kvstore/src/main/java/com/vmturbo/kvstore/KeyValueStore.java -text
@@ -1512,6 +1526,7 @@ kafka/docker/Dockerfile -text
 kafka/docker/log4j.properties -text
 kafka/docker/rsyslog.conf -text
 kafka/docker/start-kafka -text
+kafka/docker/kafka.profile -text
 kafka/pom.xml -text
 persistence/README -text
 persistence/Rakefile -text

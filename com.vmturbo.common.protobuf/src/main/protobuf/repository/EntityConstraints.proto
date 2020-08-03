@@ -1,0 +1,111 @@
+syntax = "proto2";
+
+package repository;
+
+option java_package = "com.vmturbo.common.protobuf.repository";
+
+import "topology/TopologyDTO.proto";
+import "common/Pagination.proto";
+import "action/ActionDTO.proto";
+
+// The relation type of the constraint. We only care about BOUGHT.
+enum RelationType {
+    BOUGHT = 1;
+}
+
+message EntityConstraint {
+    // The entity type of the constraint.
+    // If entity is a VM and relation type is BOUGHT, then entity type can be PM or storage.
+    optional int32 entityType = 1;
+
+    // The relation type of the constraint.
+    optional RelationType relationType = 2;
+
+    // Number of potential placements.
+    optional int32 numPotentialPlacements = 3;
+
+    // Current placement. If entity is a VM, then current placement can be a PM.
+    optional CurrentPlacement currentPlacement = 4;
+
+    // Potential placements.
+    repeated PotentialPlacements potentialPlacements = 5;
+}
+
+// Current placement.
+message CurrentPlacement {
+    // Oid of the current placement.
+    optional int64 oid = 1;
+
+    // Display name of the current placement.
+    optional string displayName = 2;
+}
+
+// Potential placement.
+message PotentialPlacements {
+    // The commodity constraint.
+    optional topology.CommodityType commodityType = 1;
+
+    // Number of potential placements.
+    optional int32 numPotentialPlacements = 2;
+
+    // The scope that the potential placements are in.
+    optional string scopeDisplayName = 3;
+}
+
+message EntityConstraintsRequest {
+    // Oid of the entity.
+    optional int64 oid = 1;
+}
+
+message EntityConstraintsResponse {
+    // A list of entity constraints.
+    repeated EntityConstraint entityConstraint = 1;
+
+    // Discovering target ids.
+    repeated int64 discoveringTargetIds = 2;
+}
+
+message PotentialPlacementsRequest {
+    // Oid of the entity.
+    optional int64 oid = 1;
+
+    // The relation type of the constraint.
+    optional RelationType relationType = 2;
+
+    // We only search for potential placement in entities of these types
+    repeated int32 potentialEntityTypes = 3;
+
+    // A list of commodity constraints.
+    repeated topology.CommodityType commodityType = 4;
+
+    optional common.PaginationParameters pagination_params = 5;
+}
+
+message PotentialPlacementsResponse {
+
+    message MatchedEntity {
+        optional int64 oid = 1;
+
+        optional string display_name = 2;
+
+        optional int32 entity_type = 3;
+
+        optional .topology.EntityState entity_state = 4 [default = POWERED_ON];
+
+        optional .action.Severity severity = 5;
+
+        map<int64, .topology.PerTargetEntityInformation> discovered_target_data = 6;
+    }
+
+    // A list of matched entities.
+    repeated MatchedEntity entities = 1;
+
+    optional common.PaginationResponse pagination_response = 2;
+}
+
+service EntityConstraintsService {
+    // A service that is used to get constraints by entity oid.
+    rpc GetConstraints(EntityConstraintsRequest) returns (EntityConstraintsResponse);
+
+    rpc GetPotentialPlacements(PotentialPlacementsRequest) returns (PotentialPlacementsResponse);
+}

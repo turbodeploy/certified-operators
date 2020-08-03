@@ -2,6 +2,7 @@ package com.vmturbo.auth.component.widgetset;
 
 import static com.vmturbo.auth.component.store.db.Tables.WIDGETSET;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -9,6 +10,8 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.ws.rs.NotFoundException;
+
+import com.google.common.collect.Lists;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
@@ -22,8 +25,6 @@ import org.jooq.exception.InvalidResultException;
 import org.jooq.exception.NoDataFoundException;
 import org.jooq.exception.TooManyRowsException;
 import org.jooq.impl.DSL;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.common.protobuf.widgets.Widgets;
@@ -225,12 +226,12 @@ public class WidgetsetDbStore implements IWidgetsetStore {
     }
 
     @Override
-    public Iterator<WidgetsetRecord> transferOwnership(long fromUserOid, long toUserOid) {
+    public Iterator<WidgetsetRecord> transferOwnership(Collection<Long> fromUserOids, long toUserOid) {
         final List<WidgetsetRecord> records = Lists.newArrayList();
         dsl.transaction(configuration -> {
             DSLContext transactionDsl = DSL.using(configuration);
             Result<WidgetsetRecord> dbRecordToTransfer = transactionDsl.selectFrom(WIDGETSET)
-                .where(WIDGETSET.OWNER_OID.eq(fromUserOid))
+                .where(WIDGETSET.OWNER_OID.in(fromUserOids))
                 .fetch();
             dbRecordToTransfer.forEach(widgetsetRecord -> {
                 widgetsetRecord.setOwnerOid(toUserOid);

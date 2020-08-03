@@ -42,16 +42,20 @@ public class ActionItemDTOValidator {
     public static void validateRequest(@Nonnull final ActionItemDTO actionItem)
             throws ValidationError {
         switch (actionItem.getActionType()) {
-            case MOVE:case CHANGE:
+            case MOVE:
+            case CHANGE:
                 validateMove(actionItem);
                 break;
-            case RIGHT_SIZE: case RESIZE:
+            case RIGHT_SIZE:
+            case RESIZE:
                 validateResize(actionItem);
                 break;
             case START:
+            case ADD_PROVIDER:
                 validateStart(actionItem);
                 break;
             case SUSPEND:
+            case DELETE:
                 validateSuspend(actionItem);
                 break;
             default:

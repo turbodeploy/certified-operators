@@ -2,11 +2,21 @@ package com.vmturbo.auth.component.services;
 
 import java.net.URLDecoder;
 import java.util.List;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,13 +24,11 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
+import com.vmturbo.auth.api.usermgmt.AuthorizeUserInGroupsInputDTO;
+import com.vmturbo.auth.api.usermgmt.AuthorizeUserInputDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.component.store.AuthProvider;
 
@@ -61,7 +69,7 @@ public class AuthUsersController {
      * @return The user resource URL if successful.
      * @throws Exception In case of an error adding user.
      */
-    @ApiOperation(value = "Initialize admin user")
+    @ApiOperation(value = "Initialize admin user and create predefined external groups for all roles in XL")
     @RequestMapping(path = "initAdmin",
                     method = RequestMethod.POST,
                     consumes = {MediaType.APPLICATION_JSON_VALUE},
@@ -136,59 +144,53 @@ public class AuthUsersController {
                 .getCompactRepresentation();
     }
 
-
     /**
-     * Authorize the SAML user with IP address.
-     * Due to bug in Spring boot, we have to use "{ipaddress:.+}", instead of "{ipaddress}"
-     * {@see <a href="https://jira.springsource.org/browse/SPR-6164"/>}
+     * Authorize the external user with IP address.
      *
-     * @param userName The user name.
-     * @param groupName The user group.
-     * @param ipAddress The user IP address.
+     * @param userInputDTO The user input DTO
      * @return The compact representation of the Authorization Token if successful.
      * @throws Exception In case of an error adding user.
      */
     @ApiOperation(value = "Authorize user")
-    @RequestMapping(value = "/authorize/{userName}/{groupName}/{ipaddress:.+}",
-            method = RequestMethod.GET,
+    @RequestMapping(path = "authorize", method = RequestMethod.POST,
+            consumes = {MediaType.APPLICATION_JSON_VALUE},
             produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public @Nonnull String authorize(
-            @ApiParam(value = "The user name", required = true)
-            @PathVariable("userName") String userName,
-            @ApiParam(value = "The user group",
-                    required = true)
-            @PathVariable("groupName") String groupName,
-            @ApiParam(value = "The user ip address",
-                    required = true)
-            @PathVariable("ipaddress") String ipAddress)
-            throws Exception {
-        return targetStore_.authorize(URLDecoder.decode(userName, "UTF-8"),
-                URLDecoder.decode(groupName, "UTF-8"), ipAddress).getCompactRepresentation();
+    public @Nonnull
+    String authorize(@RequestBody AuthorizeUserInputDTO userInputDTO) throws Exception {
+
+        final String externalGroup = userInputDTO.getGroup();
+        if (StringUtils.isEmpty(externalGroup)) {
+            return targetStore_.authorize(userInputDTO.getUser(), userInputDTO.getIpAddress())
+                    .getCompactRepresentation();
+        }
+        return targetStore_.authorize(userInputDTO.getUser(), externalGroup,
+                userInputDTO.getIpAddress()).getCompactRepresentation();
     }
 
     /**
-     * Authorize the SAML the user with IP address.
-     * Due to bug in Spring boot, we have to use "{ipaddress:.+}", instead of "{ipaddress}"
-     * {@see <a href="https://jira.springsource.org/browse/SPR-6164"/>}
+     * Authorize the external user with multiple groups.
      *
-     * @param userName The user name.
-     * @param ipAddress The user IP address.
+     * @param userInputDTO The user input DTO
      * @return The compact representation of the Authorization Token if successful.
      * @throws Exception In case of an error adding user.
      */
     @ApiOperation(value = "Authorize user")
-    @RequestMapping(value = "/authorize/{userName}/{ipaddress:.+}",
-            method = RequestMethod.GET,
+    @RequestMapping(path = "authorize/groups", method = RequestMethod.POST,
+            consumes = {MediaType.APPLICATION_JSON_VALUE},
             produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public @Nonnull String authorize(
-            @ApiParam(value = "The user name", required = true)
-            @PathVariable("userName") String userName,
-            @PathVariable("ipaddress") String ipAddress)
-            throws Exception {
-        return targetStore_.authorize(URLDecoder.decode(userName, "UTF-8"),
-                 ipAddress).getCompactRepresentation();
+    public @Nonnull
+    String authorizeGroups(@RequestBody AuthorizeUserInGroupsInputDTO userInputDTO) throws Exception {
+
+        final String[] externalGroups = userInputDTO.getGroup();
+        if (externalGroups == null) {
+            return targetStore_.authorize(userInputDTO.getUser(), userInputDTO.getIpAddress())
+                    .getCompactRepresentation();
+        }
+        return targetStore_.authorize(userInputDTO.getUser(),
+                ImmutableList.copyOf(Lists.newArrayList(externalGroups)),
+                userInputDTO.getIpAddress()).getCompactRepresentation();
     }
 
     /**
@@ -219,11 +221,17 @@ public class AuthUsersController {
                     consumes = {MediaType.APPLICATION_JSON_VALUE},
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public @Nonnull String addUser(@RequestBody AuthUserDTO dto) throws Exception {
-        boolean success = targetStore_.add(dto.getProvider(), dto.getUser(),
-                                           dto.getPassword(), dto.getRoles(), dto.getScopeGroups());
-        if (success) {
-            return "users://" + dto.getUser();
+    public @Nonnull ResponseEntity<String> addUser(@RequestBody AuthUserDTO dto) throws Exception {
+        try {
+            String userUuid = targetStore_.add(dto.getProvider(), dto.getUser(),
+                dto.getPassword(), dto.getRoles(), dto.getScopeGroups());
+            if (!userUuid.isEmpty()) {
+                // return the uuid of the newly created user
+                return new ResponseEntity<>( userUuid, HttpStatus.OK);
+            }
+        } catch (Exception e) {
+            return new ResponseEntity<>(e.getMessage(),
+                HttpStatus.FORBIDDEN);
         }
         throw new SecurityException("Unable to add user: " + dto.getUser());
     }
@@ -281,13 +289,15 @@ public class AuthUsersController {
                     method = RequestMethod.DELETE,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public void removeUser(
+    public AuthUserDTO removeUser(
             @ApiParam(value = "The user UUID", required = true)
             @PathVariable("uuid") String uuid)
             throws Exception {
-        boolean success = targetStore_.remove(uuid);
-        if (!success) {
+        final Optional<AuthUserDTO> authUserDTO = targetStore_.remove(uuid);
+        if (!authUserDTO.isPresent()) {
             throw new SecurityException("Unable to remove user: " + uuid);
+        } else {
+            return authUserDTO.get();
         }
     }
 
@@ -419,6 +429,6 @@ public class AuthUsersController {
     public Boolean deleteSSOGroup(
             @ApiParam(value = "The name of Active Directory group", required = true)
             @PathVariable("groupName") String groupName) throws Exception {
-        return targetStore_.deleteSecurityGroup(groupName);
+        return targetStore_.deleteSecurityGroupAndTransferWidgetsets(groupName);
     }
 }

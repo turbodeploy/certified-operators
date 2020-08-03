@@ -55,6 +55,20 @@ public interface ISecureStore {
     @Nonnull String getRootSqlDBPassword();
 
     /**
+     * Retrieves the SQL database root username.
+     *
+     * @return The database root username.
+     */
+    @Nonnull String getRootSqlDBUsername();
+
+    /**
+     * Retrieves the Postgres database root username.
+     *
+     * @return The Postgres database root username.
+     */
+    @Nonnull String getPostgresRootUsername();
+
+    /**
      * Sets the SQL database root password.
      *
      * @param existingPassword The existing root database password.

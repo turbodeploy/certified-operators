@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -27,6 +28,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import org.junit.Test;
+import org.mockito.Matchers;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
@@ -42,10 +44,9 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.Commodit
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityField;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.stitching.ListStringToListStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.ListStringToListStringStitchingMatchingMetaDataImpl;
+import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
+import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.TopologyEntity;
@@ -53,6 +54,7 @@ import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingIntegrationTest;
@@ -62,7 +64,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory.ConfigurableStitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.Target;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
  * Attempt to simulate a basic storage stitching operation.
@@ -79,24 +81,29 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
         final Map<Long, EntityDTO> hypervisorEntities =
                 sdkDtosFromFile(getClass(), "protobuf/messages/vcenter_data.json.zip", 1L);
 
-        addEntities(hypervisorEntities, vcTargetId);
-
-        setOperationsForProbe(vcProbeId, Collections.emptyList());
-
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
                 preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore,
                 cpuCapacityStore);
         final Target netAppTarget = mock(Target.class);
+        final Target vcTarget = mock(Target.class);
         when(netAppTarget.getId()).thenReturn(netAppTargetId);
 
         when(targetStore.getProbeTargets(netAppProbeId))
                 .thenReturn(Collections.singletonList(netAppTarget));
+        when(targetStore.getTarget(netAppTargetId))
+            .thenReturn(Optional.of(netAppTarget));
+        when(targetStore.getTarget(vcTargetId))
+            .thenReturn(Optional.of(vcTarget));
+
+        addEntities(hypervisorEntities, vcTargetId);
+
+        setOperationsForProbe(vcProbeId, Collections.emptyList());
 
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
         stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
-        final TopologyGraph topoGraph = TopologyGraph.newGraph(stitchingContext.constructTopology());
+        final TopologyGraph<TopologyEntity> topoGraph = TopologyEntityTopologyGraphCreator.newGraph(stitchingContext.constructTopology());
 
-        final TopologyGraph otherGraph = TopologyGraph.newGraph(entityStore.constructTopology());
+        final TopologyGraph<TopologyEntity> otherGraph = TopologyEntityTopologyGraphCreator.newGraph(entityStore.constructTopology());
 
         final Map<Long, TopologyEntityDTO> stitchedEntities = topoGraph.entities()
                 .map(TopologyEntity::getTopologyEntityDtoBuilder)
@@ -136,15 +143,15 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
         MatchingData storageMatchingData = MatchingData.newBuilder()
                 .setMatchingField(externalNames).build();
         MatchingMetadata storageMatchingMetadata = MatchingMetadata.newBuilder()
-                .addMatchingData(storageMatchingData).setReturnType(ReturnType.LIST_STRING)
+                .addMatchingData(storageMatchingData)
                 .addExternalEntityMatchingProperty(storageMatchingData)
-                .setExternalEntityReturnType(ReturnType.LIST_STRING).build();
+                .build();
         final MergedEntityMetadata storageMergeEntityMetadata =
                 MergedEntityMetadata.newBuilder().mergeMatchingMetadata(storageMatchingMetadata)
                         .addAllCommoditiesBought(storageBoughtCommodityData)
                         .build();
-        return new ListStringToListStringDataDrivenStitchingOperation(
-                new ListStringToListStringStitchingMatchingMetaDataImpl(EntityType.STORAGE,
+        return new StringsToStringsDataDrivenStitchingOperation(
+                new StringsToStringsStitchingMatchingMetaData(EntityType.STORAGE,
                         storageMergeEntityMetadata), Sets.newHashSet(ProbeCategory.HYPERVISOR));
     }
 
@@ -192,9 +199,6 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
         final Map<Long, EntityDTO> hypervisorEntities =
                 sdkDtosFromFile(getClass(), "protobuf/messages/vcenter_data.json.zip", storageEntities.size() + 1L);
 
-        addEntities(storageEntities, netAppTargetId);
-        addEntities(hypervisorEntities, vcTargetId);
-
         setOperationsForProbe(netAppProbeId,
                 Collections.singletonList(storageStitchingOperationToTest));
         setOperationsForProbe(vcProbeId, Collections.emptyList());
@@ -205,18 +209,29 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
         final Target netAppTarget = mock(Target.class);
         when(netAppTarget.getId()).thenReturn(netAppTargetId);
 
+        // Default targetStore to return empty
+        when(targetStore.getTarget(Matchers.anyLong()))
+            .thenReturn(Optional.empty());
+
         when(targetStore.getProbeTargets(netAppProbeId))
                 .thenReturn(Collections.singletonList(netAppTarget));
+        when(targetStore.getTarget(netAppTargetId))
+            .thenReturn(Optional.of(netAppTarget));
         final Target vcTarget = mock(Target.class);
         when(vcTarget.getId()).thenReturn(vcTargetId);
 
         when(targetStore.getProbeTargets(vcProbeId))
                 .thenReturn(Collections.singletonList(vcTarget));
+        when(targetStore.getTarget(vcTargetId))
+            .thenReturn(Optional.of(vcTarget));
 
         when(probeStore.getProbeIdsForCategory(ProbeCategory.STORAGE))
                 .thenReturn(Collections.singletonList(netAppProbeId));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))
                 .thenReturn(Collections.singletonList(vcProbeId));
+
+        addEntities(storageEntities, netAppTargetId);
+        addEntities(hypervisorEntities, vcTargetId);
 
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
         final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
@@ -263,7 +278,7 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
 
         final IStitchingJournal<TopologyEntity> postStitchingJournal = journal.childJournal(
                 new TopologyEntitySemanticDiffer(journal.getJournalOptions().getVerbosity()));
-        stitchingManager.postStitch(new GraphWithSettings(TopologyGraph.newGraph(topology),
+        stitchingManager.postStitch(new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology),
                 Collections.emptyMap(), Collections.emptyMap()), postStitchingJournal);
     }
  }

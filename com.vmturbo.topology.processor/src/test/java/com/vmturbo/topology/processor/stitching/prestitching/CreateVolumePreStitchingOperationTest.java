@@ -7,6 +7,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -129,12 +130,14 @@ public class CreateVolumePreStitchingOperationTest {
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(Probes.defaultProbe));
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(probeId1, Arrays.asList(
             new InputField("password", "ThePassValue", Optional.empty()),
-            new InputField("user", "theUserName", Optional.empty())));
+            new InputField("user", "theUserName", Optional.empty()),
+            new InputField("targetId", "targetId", Optional.empty())));
         final Target target = new Target(targetId1, probeStore, spec.toDto(), false);
         Mockito.doReturn(Optional.of(target)).when(targetStore).getTarget(targetId1);
+        Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
 
-        StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(3)
-            .setTargetStore(targetStore).setIdentityProvider(identityProvider);
+        StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(3, targetStore)
+            .setIdentityProvider(identityProvider);
 
         Map<String, StitchingEntityData> stitchingEntityDataMap = ImmutableMap.of(
             vmEntity1.getLocalId(), vmEntity1,

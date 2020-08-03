@@ -12,17 +12,20 @@ import org.junit.Test;
 
 import junit.framework.TestCase;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
-import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 public class GroupProtoUtilTest {
 
@@ -32,10 +35,34 @@ public class GroupProtoUtilTest {
 
     private static final String NOT_MATCHING_NAME = "test 2";
 
+    private static final String REGEX_CASE_INSENSITIVE = ".*test.*";
+
+    private static final String MATCHING_NAME_WITH_CAPITAL_LETTER = "Test 2";
+
     @Test
     public void testNameMatches() {
         TestCase.assertTrue(GroupProtoUtil.nameFilterMatches(MATCHING_NAME,
                 StringFilter.newBuilder().setStringPropertyRegex(REGEX).build()));
+    }
+
+    // If the filter set case sensitive to true, marching should be case sensitive.
+    @Test
+    public void testNameMatchesWithCaseSensitiveTrue() {
+        TestCase.assertFalse(GroupProtoUtil.nameFilterMatches(MATCHING_NAME_WITH_CAPITAL_LETTER,
+            StringFilter.newBuilder()
+                .setCaseSensitive(true)
+                .setStringPropertyRegex(REGEX_CASE_INSENSITIVE)
+                .build()));
+    }
+
+    // If the filter set case sensitive to false, marching should be case insensitive.
+    @Test
+    public void testNameMatchesWithCaseSensitiveFalse() {
+        TestCase.assertTrue(GroupProtoUtil.nameFilterMatches(MATCHING_NAME_WITH_CAPITAL_LETTER,
+            StringFilter.newBuilder()
+                .setCaseSensitive(false)
+                .setStringPropertyRegex(REGEX_CASE_INSENSITIVE)
+                .build()));
     }
 
     @Test
@@ -104,39 +131,91 @@ public class GroupProtoUtilTest {
         Assert.assertTrue(expected.containsAll(result));
     }
 
+    /**
+     * Test that identifying key is created correctly for uploaded group.
+     */
     @Test
-    public void testGroupDTODiscoveredId() {
-        final CommonDTO.GroupDTO group = CommonDTO.GroupDTO.newBuilder()
-            .setGroupName("foo")
-            .setEntityType(EntityType.PHYSICAL_MACHINE)
-            .build();
-
-        long targetId = 111L;
-        Assert.assertEquals("foo-PHYSICAL_MACHINE" + "-" + String.valueOf(targetId),
-                GroupProtoUtil.discoveredIdFromName(group, targetId));
+    public void testCreateIdentifyingKeyForUploadedGroup() {
+        UploadedGroup group = UploadedGroup.newBuilder()
+                .setSourceIdentifier("foo")
+                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR))
+                .build();
+        Assert.assertEquals(GroupType.REGULAR_VALUE + "-foo",
+                GroupProtoUtil.createIdentifyingKey(group));
     }
 
+    /**
+     * Test that identifying key is created correctly for sdk group.
+     */
     @Test
-    public void testGroupInfoDiscoveredId() {
-        final GroupInfo group = GroupInfo.newBuilder()
-            .setName("foo")
-            .setEntityType(EntityType.STORAGE_VALUE)
-            .build();
-
-        long targetId = 111L;
-        Assert.assertEquals("foo-STORAGE" + "-" + String.valueOf(targetId),
-                GroupProtoUtil.discoveredIdFromName(group, targetId));
+    public void testCreateIdentifyingKeyForSdkGroup() {
+        GroupDTO group = GroupDTO.newBuilder()
+                .setGroupName("foo")
+                .setGroupType(GroupType.RESOURCE)
+                .build();
+        Assert.assertEquals(GroupType.RESOURCE_VALUE + "-foo",
+                GroupProtoUtil.createIdentifyingKey(group));
     }
 
-    @Test
-    public void testClusterInfoDiscoveredId() {
-        final ClusterInfo group = ClusterInfo.newBuilder()
-            .setName("foo")
-            .setClusterType(Type.COMPUTE)
-            .build();
+    /**
+     * Test that when isGroupOfClusters is called with a dto that doesn't have a definition, an
+     * IllegalArgumentException is being thrown.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testIsGroupOfClustersWithoutDefinition() {
+        // GIVEN
+        final Grouping grouping = Grouping.newBuilder().build();
 
-        long targetId = 111L;
-        Assert.assertEquals("foo-PHYSICAL_MACHINE" + "-" + String.valueOf(targetId),
-                GroupProtoUtil.discoveredIdFromName(group, targetId));
+        // WHEN
+        GroupProtoUtil.isGroupOfClusters(grouping);
+
+        // THEN
+        //exception is being thrown
+    }
+
+    /**
+     * Test that when isGroupOfClusters is called with a dto that contains a group of clusters, it
+     * returns true.
+     */
+    @Test
+    public void testIsGroupOfClustersForGroupOfClusters() {
+        // GIVEN
+        final Grouping grouping = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setGroup(GroupType.COMPUTE_HOST_CLUSTER)
+                                                .build())
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+
+        // THEN
+        assertTrue(GroupProtoUtil.isGroupOfClusters(grouping));
+    }
+
+    /**
+     * Test that when isGroupOfClusters is called with a dto that contains a cluster, it
+     * returns false.
+     */
+    @Test
+    public void testIsGroupOfClustersForCluster() {
+        // GIVEN
+        final Grouping grouping = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setEntity(14)
+                                                .build())
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+
+        // THEN
+        assertFalse(GroupProtoUtil.isGroupOfClusters(grouping));
     }
 }

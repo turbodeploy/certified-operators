@@ -3,12 +3,13 @@ package com.vmturbo.api.component.external.api.service;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 import io.grpc.StatusRuntimeException;
 
@@ -42,14 +43,12 @@ public class WorkflowsService implements IWorkflowsService {
 
     /**
      * {@inheritDoc}
-     * @throws UnknownObjectException if the target for any of the returned workflows cannot be
-     * found; should not happen
      * @throws IllegalArgumentException if the 'apiWorkflowType' specified is invalid.
      */
     @Override
     @Nonnull
     public List<WorkflowApiDTO> getWorkflows(@Nullable OrchestratorType apiWorkflowType)
-            throws UnknownObjectException, IllegalArgumentException {
+            throws IllegalArgumentException {
         List<WorkflowApiDTO> answer = Lists.newArrayList();
         final FetchWorkflowsRequest.Builder fetchWorkflowsBuilder = FetchWorkflowsRequest.newBuilder();
         // should we filter the workflows by Type?
@@ -60,20 +59,19 @@ public class WorkflowsService implements IWorkflowsService {
         // fetch the workflows
         WorkflowDTO.FetchWorkflowsResponse workflowsResponse = workflowServiceRpc
                 .fetchWorkflows(fetchWorkflowsBuilder.build());
-        // set up a mapping to cache the OID -> TargetApiDTO to reduce the Target lookups
-        // from what we know now, there will likely be a very small number of Orchestration
-        // targets - most likely only one, so this cache will be very efficient
-        Map<Long, TargetApiDTO> workflowTargets = Maps.newHashMap();
+        // set up a map to cache the OID -> TargetApiDTO to reduce the Target lookups
+        final Map<Long, TargetApiDTO> targetMap = targetsService.getTargets(null).stream()
+            .collect(Collectors.toMap(
+                targetApiDTO -> Long.valueOf(targetApiDTO.getUuid()),
+                Function.identity()));
+
         for (WorkflowDTO.Workflow workflow : workflowsResponse.getWorkflowsList()) {
-            long workflowTargetOid = workflow.getWorkflowInfo().getTargetId();
+            final long workflowTargetOid = workflow.getWorkflowInfo().getTargetId();
             // check the local store for the corresponding targetApiDTO
-            TargetApiDTO targetApiDTO = workflowTargets.get(workflowTargetOid);
-            // as this call throws an exception, we cannot use 'computeIfAbsent()'
+            TargetApiDTO targetApiDTO = targetMap.get(workflowTargetOid);
             if (targetApiDTO == null) {
-                // fetch the target information
-                targetApiDTO = targetsService.getTarget(Long.toString(workflowTargetOid));
-                // store it for reuse
-                workflowTargets.put(workflowTargetOid, targetApiDTO);
+                // Workflows with no valid target should not be included in the response
+                continue;
             }
             WorkflowApiDTO dto = workflowMapper.toUiWorkflowApiDTO(workflow, targetApiDTO);
             answer.add(dto);

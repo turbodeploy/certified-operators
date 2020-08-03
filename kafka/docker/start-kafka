@@ -17,7 +17,6 @@ kafka_bin=/opt/kafka/bin/kafka-server-start.sh
 
 /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
-#export KAFKA_OPTS="-Djava.net.preferIPv4Stack=true"
 if [ -n "$CURRENT_KAFKA_VERSION" ]; then
     KAFKA_PARAMS="$KAFKA_PARAMS --override inter.broker.protocol.version=$CURRENT_KAFKA_VERSION"
 fi
@@ -46,6 +45,12 @@ else
     # KAFKA_PARAMS="$KAFKA_PARAMS --override listeners=PLAINTEXT://:$KAFKA_INTERNAL_PORT"
     KAFKA_PARAMS="$KAFKA_PARAMS --override listeners=INTERNAL://:$KAFKA_INTERNAL_PORT"
 fi
+
+if [ -z "$KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS" ]; then
+    # we'll default zookeeper timeout to 18 seconds now, which is also the new default in kafka 2.5.0+
+    KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS="18000"
+fi
+
 # Set a default retention period to 24 hours for now. TODO: refine this setting per-topic based
 # our topic-specific needs.
 KAFKA_PARAMS="$KAFKA_PARAMS --override log.retention.hours=$KAFKA_LOG_RETENTION_HRS"
@@ -53,17 +58,21 @@ KAFKA_PARAMS="$KAFKA_PARAMS --override log.retention.hours=$KAFKA_LOG_RETENTION_
 KAFKA_PARAMS="$KAFKA_PARAMS --override message.max.bytes=$KAFKA_MAX_MESSAGE_BYTES"
 # set the broker default message timestamp type
 KAFKA_PARAMS="$KAFKA_PARAMS --override log.message.timestamp.type=LogAppendTime"
+# override the zookeeper session timeout. This should help us with noisy / resource-congested environments.
+KAFKA_PARAMS="$KAFKA_PARAMS --override zookeeper.session.timeout.ms=$KAFKA_ZOOKEEPER_SESSION_TIMEOUT_MS"
 
-# Autoconfigure the max java heap based on container limit
-# Specifically for Kafka, we are using a high container mem limit, in order to benefit from the OS page cache.
-# This max heap percentage is based on data that we saw while monitoring the process.
-# 5.12% on a 20000 mem limit corresponds to a 1024mb for heap.
-KAFKA_HEAP_OPTS="-Xms16m -Xss512k -XX:MaxRAMPercentage=10.0"
+# turn off auto-created topics
+KAFKA_PARAMS="$KAFKA_PARAMS --override auto.create.topics.enable=false"
 
 echo Executing kafka with options: $KAFKA_PARAMS | $LOGGER_COMMAND
 
 # disable GC logging in order, as we do not have any space to write it.
 export KAFKA_GC_LOG_OPTS=" "
+
+# move out the old data directory if exist
+if [ -d /home/kafka/data/data ]; then
+  mv /home/kafka/data/data /home/kafka/data.old
+fi
 
 exec $kafka_bin $KAFKA_SERVER_CONFIG $KAFKA_PARAMS > >($LOGGER_COMMAND) 2>&1
 

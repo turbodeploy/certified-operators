@@ -5,19 +5,20 @@ import static org.hamcrest.Matchers.contains;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.Lists;
+
+import io.grpc.Channel;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -26,9 +27,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.google.common.collect.Lists;
-
-import io.grpc.Channel;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
@@ -49,15 +47,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.component.DockerEnvironment;
-import com.vmturbo.history.component.api.HistoryComponent;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.StatsListener;
@@ -77,7 +74,7 @@ public class HistoryStatPaginationSysTest {
     protected MarketNotificationSender marketSender;
     protected TopologyProcessorNotificationSender tpSender;
 
-    protected HistoryComponent historyComponent;
+    protected HistoryComponentNotificationReceiver historyComponent;
     protected IMessageReceiver<HistoryComponentNotification> historyMessageReceiver;
     protected StatsHistoryServiceBlockingStub statsService;
     protected ExecutorService threadPool = Executors.newCachedThreadPool();
@@ -103,23 +100,28 @@ public class HistoryStatPaginationSysTest {
                 "HistoryPerformanceTest");
         historyMessageReceiver = HistoryMessageReceiver.create(messageConsumer);
         historyComponent =
-                new HistoryComponentNotificationReceiver(historyMessageReceiver, threadPool);
-        historyComponent.addStatsListener(statsListener);
+                new HistoryComponentNotificationReceiver(historyMessageReceiver, threadPool, 0);
+        historyComponent.addListener(statsListener);
         messageConsumer.start();
 
         final Channel historyChannel = componentTestRule.getCluster().newGrpcChannel("history");
         statsService = StatsHistoryServiceGrpc.newBlockingStub(historyChannel);
 
         final KafkaMessageProducer messageProducer = componentTestRule.getKafkaMessageProducer();
-        tpSender = TopologyProcessorKafkaSender.create(threadPool, messageProducer);
+        tpSender = TopologyProcessorKafkaSender.create(threadPool, messageProducer, new MutableFixedClock(1_000_000));
         marketSender = MarketKafkaSender.createMarketSender(messageProducer);
     }
 
     private static final double CAPACITY = 10_000.0;
 
 
+    /**
+     * Test paging through lots of stats.
+     *
+     * @throws Exception To satisfy compiler.
+     */
     @Test
-    public void testPaginateThroughStats() throws CommunicationException, InterruptedException, TimeoutException, ExecutionException {
+    public void testPaginateThroughStats() throws Exception {
         final long topologyContextId = ComponentUtils.REALTIME_TOPOLOGY_CONTEXT;
         final List<TopologyEntityDTO> entities = Lists.newArrayList(
                 createNewEntity(1L, EntityType.PHYSICAL_MACHINE_VALUE,
@@ -167,7 +169,8 @@ public class HistoryStatPaginationSysTest {
                 // Entity ID = price index.
                 .setProjectedPriceIndex(entity.getOid())
                 .build())
-            .collect(Collectors.toList()));
+            .collect(Collectors.toList()),
+            4L);
 
 
         logger.info("Waiting for stats to be available...");

@@ -18,11 +18,15 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang.StringUtils;
+
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
@@ -71,6 +75,11 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     private final Map<ConnectionType, Set<StitchingEntity>> connectedFrom = new IdentityHashMap<>();
 
+    /**
+     * Indicates that this is a proxy object that should be removed if it doesn't get stitched.
+     */
+    private final boolean removeIfUnstitched;
+
     public TopologyStitchingEntity(@Nonnull final StitchingEntityData stitchingEntityData) {
         this(stitchingEntityData.getEntityDtoBuilder(),
             stitchingEntityData.getOid(),
@@ -87,6 +96,18 @@ public class TopologyStitchingEntity implements StitchingEntity {
         this.targetId = targetId;
         this.lastUpdatedTime = lastUpdatedTime;
         this.mergeInformation = null;
+        removeIfUnstitched = !entityBuilder.getKeepStandalone()
+            && EntityOrigin.PROXY == entityBuilder.getOrigin();
+    }
+
+    @Nonnull
+    @Override
+    public Collection<String> getPropertyValues(@Nonnull String name) {
+        return entityBuilder.getEntityPropertiesList().stream()
+                        .filter(p -> Objects.equals(p.getName(), name))
+                        .map(EntityProperty::getValue)
+                        .filter(StringUtils::isNotBlank)
+                        .collect(Collectors.toSet());
     }
 
     @Nonnull
@@ -153,8 +174,11 @@ public class TopologyStitchingEntity implements StitchingEntity {
         copy.connectedFrom.putAll(connectedFrom);
 
         // Copy merge information
-        getMergeInformation().forEach(mergeInfo -> copy.addMergeInformation(
-            new StitchingMergeInformation(mergeInfo.getOid(), mergeInfo.getTargetId(), mergeInfo.getError())));
+        getMergeInformation().forEach(mergeInfo -> copy
+                .addMergeInformation(new StitchingMergeInformation(mergeInfo.getOid(),
+                                                                   mergeInfo.getTargetId(),
+                                                                   mergeInfo.getError(),
+                                                                   mergeInfo.getVendorId())));
 
         return copy;
     }
@@ -266,6 +290,16 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public Optional<List<CommoditiesBought>> removeProvider(@Nonnull final StitchingEntity entity) {
         return Optional.ofNullable(commodityBoughtListByProvider.remove(entity));
+    }
+
+    @Override
+    public boolean removeConnection(@Nonnull final StitchingEntity connectedTo, @Nonnull final ConnectionType type) {
+        final Set<StitchingEntity> connectedToOfType = this.connectedTo.get(type);
+        if (connectedToOfType != null) {
+            return connectedToOfType.remove(connectedTo);
+        } else {
+            return false;
+        }
     }
 
     public void addProviderCommodityBought(@Nonnull final StitchingEntity entity,
@@ -429,5 +463,10 @@ public class TopologyStitchingEntity implements StitchingEntity {
             @Nonnull CommoditySold that = (CommoditySold)obj;
             return (accesses == that.accesses && sold.equals(that.sold));
         }
+    }
+
+    @Override
+    public boolean removeIfUnstitched() {
+        return removeIfUnstitched;
     }
 }

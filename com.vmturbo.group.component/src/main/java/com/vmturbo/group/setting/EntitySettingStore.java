@@ -11,9 +11,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -26,18 +28,23 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest.SettingPolicyIdentifierCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -55,6 +62,13 @@ public class EntitySettingStore {
             .builder()
             .withName("group_entity_setting_update_duration_seconds")
             .withHelp("Duration in seconds it takes to update the entity setting store")
+            .build()
+            .register();
+
+    private static final DataMetricSummary ENTITY_SETTING_STORE_SAVE_DURATION = DataMetricSummary
+            .builder()
+            .withName("group_entity_setting_save_duration_seconds")
+            .withHelp("Duration in seconds it takes to save entity settings to database")
             .build()
             .register();
 
@@ -95,6 +109,14 @@ public class EntitySettingStore {
 
     private final long realtimeTopologyContextId;
 
+    private static final List<String> settingSpecsToSave = ImmutableList.of(
+            EntitySettingSpecs.PercentileAggressivenessVirtualMachine.getSettingName(),
+            EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getSettingName());
+
+    private static final Set<String> settingSpecsWithUnionTireBreaker =
+        EntitySettingSpecs.getEntitySettingSpecByTierBreaker(SettingTiebreaker.UNION)
+            .map(EntitySettingSpecs::getSettingName).collect(Collectors.toSet());
+
     public EntitySettingStore(final long realtimeTopologyContextId,
                               @Nonnull final SettingStore settingStore) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -130,15 +152,15 @@ public class EntitySettingStore {
      * @param entitySettings A stream of settings applied to entities in this topology.
      * @throws org.jooq.exception.DataAccessException If there is an error connecting to the
      *        database (required to retrieve default setting policies).
+     * @throws StoreOperationException if failed to retrieve data from DB
      */
-    public void storeEntitySettings(final long topologyContextId,
-                                    final long topologyId,
-                                    @Nonnull final Stream<EntitySettings> entitySettings) {
+    public void storeEntitySettings(final long topologyContextId, final long topologyId,
+            @Nonnull final Stream<EntitySettings> entitySettings) throws StoreOperationException {
         try (final DataMetricTimer timer = ENTITY_SETTING_STORE_UPDATE_DURATION.startTimer()) {
             final Map<Long, SettingPolicy> defaultPolicies = settingStore.getSettingPolicies(
                     SettingPolicyFilter.newBuilder()
                             .withType(Type.DEFAULT)
-                            .build())
+                            .build()).stream()
                     .collect(Collectors.toMap(SettingPolicy::getId, Function.identity()));
             final EntitySettingSnapshot newSnapshot =
                     snapshotFactory.createSnapshot(entitySettings, defaultPolicies);
@@ -153,6 +175,43 @@ public class EntitySettingStore {
     }
 
     /**
+     * Save settings by topologyContextId.
+     *
+     * @param topologyContextId Topology Context ID
+     * @param entitySettings entity setting object
+     * @throws StoreOperationException if failed to retrieve data from DB
+     */
+    public void savePlanEntitySettings(long topologyContextId,
+                                    @Nonnull final List<EntitySettings> entitySettings)
+            throws StoreOperationException {
+        try (DataMetricTimer timer = ENTITY_SETTING_STORE_SAVE_DURATION.startTimer()) {
+            final Map<Long, SettingPolicy> defaultPolicies = settingStore.getSettingPolicies(
+                    SettingPolicyFilter.newBuilder()
+                            .withType(Type.DEFAULT)
+                            .build())
+                    .stream()
+                    .collect(Collectors.toMap(SettingPolicy::getId, Function.identity()));
+            final EntitySettingSnapshot newSnapshot =
+                    snapshotFactory.createSnapshot(entitySettings.stream(), defaultPolicies);
+
+            final Predicate<SettingToPolicyId> namePredicate =
+                    s -> settingSpecsToSave.contains(s.getSetting().getSettingSpecName());
+
+            final Multimap<Long, Setting> entityToSettingMap = HashMultimap.create();
+            final Multimap<Setting, Long> settingToEntityMap = HashMultimap.create();
+
+            for (EntitySettings userSettings : newSnapshot.settingsByEntity.values()) {
+                newSnapshot.getEntitySettings(userSettings.getEntityOid(), namePredicate)
+                        .forEach(s -> {
+                            entityToSettingMap.put(userSettings.getEntityOid(), s.getSetting());
+                            settingToEntityMap.put(s.getSetting(), userSettings.getEntityOid());
+                        });
+            }
+            settingStore.savePlanEntitySettings(topologyContextId, entityToSettingMap, settingToEntityMap);
+        }
+    }
+
+    /**
      * Get entity settings stored via
      * {@link EntitySettingStore#storeEntitySettings(long, long, Stream)}.
      *
@@ -163,63 +222,81 @@ public class EntitySettingStore {
      *         All entities specified in the {@link EntitySettingFilter} will have entries in the map.
      * @throws NoSettingsForTopologyException If there is no setting information for entities in
      *      the topology specified by the input filter.
+     * @throws InvalidProtocolBufferException Error with getting plan entity settings
      */
     @Nonnull
     public Map<Long, Collection<SettingToPolicyId>> getEntitySettings(@Nonnull final TopologySelection topologySelection,
                                                       @Nonnull final EntitySettingFilter filter)
-            throws NoSettingsForTopologyException {
+            throws NoSettingsForTopologyException, InvalidProtocolBufferException {
 
         ENTITY_SETTING_STORE_QUERY_HIT_COUNT.increment();
         try (final DataMetricTimer timer = ENTITY_SETTING_STORE_QUERY_DURATION.startTimer()) {
             final long contextId = topologySelection.hasTopologyContextId() ?
                     topologySelection.getTopologyContextId() : realtimeTopologyContextId;
-            final ContextSettingSnapshotCache contextCache = entitySettingSnapshots.get(contextId);
-            if (contextCache == null) {
-                throw new NoSettingsForTopologyException(contextId);
-            }
-            final EntitySettingSnapshot snapshot;
-            if (topologySelection.hasTopologyId()) {
-                snapshot = contextCache.getSnapshot(topologySelection.getTopologyId())
-                        .orElseThrow(() -> new NoSettingsForTopologyException(contextId,
-                                topologySelection.getTopologyId()));
+            if (contextId == realtimeTopologyContextId) {
+                final ContextSettingSnapshotCache contextCache = entitySettingSnapshots.get(contextId);
+                if (contextCache == null) {
+                    throw new NoSettingsForTopologyException(contextId);
+                }
+                final EntitySettingSnapshot snapshot;
+                if (topologySelection.hasTopologyId()) {
+                    snapshot = contextCache.getSnapshot(topologySelection.getTopologyId())
+                            .orElseThrow(() -> new NoSettingsForTopologyException(contextId,
+                                    topologySelection.getTopologyId()));
+                } else {
+                    snapshot = contextCache.getLatestSnapshot()
+                            // We may have a briefly empty setting cache that hasn't been fully initialized
+                            // yet. Treat it as if it doesn't exist.
+                            .orElseThrow(() -> new NoSettingsForTopologyException(contextId));
+                }
+                return snapshot.getFilteredSettings(filter);
             } else {
-                snapshot = contextCache.getLatestSnapshot()
-                        // We may have a briefly empty setting cache that hasn't been fully initialized
-                        // yet. Treat it as if it doesn't exist.
-                        .orElseThrow(() -> new NoSettingsForTopologyException(contextId));
+                // For plans, get the settings from database.
+                return settingStore.getPlanEntitySettings(contextId, filter.getEntitiesList());
             }
-            return snapshot.getFilteredSettings(filter);
-        } catch (NoSettingsForTopologyException | RuntimeException e) {
+        } catch (NoSettingsForTopologyException | RuntimeException | InvalidProtocolBufferException e) {
             ENTITY_SETTING_STORE_QUERY_ERROR_COUNT.increment();
             throw e;
         }
     }
 
     /**
-     * Return the Setting Policies associated with an entity.
-     * @param entityId ID of the entity
+     * Return the Setting Policies associated with an entity set.
+     * @param entityIds ID set of the entities
+     * @param includeInActive a parameter indicating that if we should return the policies which
+     *                        their schedule is inactive or not.
      * @return Stream of Setting Policies associated with the entity.
+     * @throws StoreOperationException on error operating with DB backend
      */
-    public Stream<SettingPolicy> getEntitySettingPolicies(@Nonnull final long entityId) {
+    public Collection<SettingPolicy> getEntitySettingPolicies(@Nonnull final Set<Long> entityIds,
+                                                                             boolean includeInActive)
+            throws StoreOperationException {
         final ContextSettingSnapshotCache contextCache =
                 entitySettingSnapshots.get(realtimeTopologyContextId);
         if (contextCache == null) {
-            return Stream.empty();
+            return Collections.emptySet();
         }
         final Optional<EntitySettingSnapshot> snapshot = contextCache.getLatestSnapshot();
         if (!snapshot.isPresent()) {
-            return Stream.empty();
+            return Collections.emptySet();
         }
 
-        Set<Long> settingPolicyIds =
-                snapshot.get().getEntitySettingPolicyIds(entityId);
-        if (settingPolicyIds.isEmpty()) {
-            return Stream.empty();
+        Map<Long, Boolean> settingPolicies = new HashMap<>();
+        entityIds.stream().forEach(entityId -> snapshot.get()
+                .getEntitySettingPolicyIds(entityId)
+                .stream()
+                .filter(s -> s.getActive() || includeInActive)
+                .forEach(s -> settingPolicies.put(s.getPolicyId(), s.getActive())));
+        if (settingPolicies.isEmpty()) {
+            return Collections.emptySet();
         }
 
         SettingPolicyFilter.Builder settingPolicyFilter = SettingPolicyFilter.newBuilder()
-                .withType(Type.USER);
-            settingPolicyIds.forEach(settingPolicyId -> settingPolicyFilter.withId(settingPolicyId));
+                .withType(Type.USER)
+                .withType(Type.DISCOVERED);
+            settingPolicies.keySet().forEach(settingPolicyId -> settingPolicyFilter.withId(settingPolicyId));
+
+
         return settingStore.getSettingPolicies(settingPolicyFilter.build());
     }
 
@@ -358,6 +435,10 @@ public class EntitySettingStore {
         private static final Logger LOGGER = LogManager.getLogger();
 
         private final Map<Long, EntitySettings> settingsByEntity;
+        // Flyweight map to avoid creating new default setting to PolicyId every time.
+        // the map is: Default setting policy id -> (Default setting policy setting -> Default setting to PolicyId)
+        private static final Map<Long, Map<Setting, SettingToPolicyId>> defaultSettingPolicyIdCacheMap
+            = new ConcurrentHashMap<>();
 
         private final Map<Long, SettingPolicy> defaultPolicies;
 
@@ -402,13 +483,54 @@ public class EntitySettingStore {
         public Map<Long, Collection<SettingToPolicyId>> getFilteredSettings(final EntitySettingFilter filter) {
             final Set<Long> ids = filter.getEntitiesList().isEmpty() ?
                     settingsByEntity.keySet() : Sets.newHashSet(filter.getEntitiesList());
-            return ids.stream()
-                    .collect(Collectors.toMap(Function.identity(),
-                            this::getEntitySettings));
+            final Set<String> targetSettings = filter.getSettingNameList().isEmpty() ? Collections.emptySet() : new HashSet<>(filter.getSettingNameList());
+            final Predicate<SettingToPolicyId> namePredicate =
+                s -> targetSettings.isEmpty() || targetSettings.contains(s.getSetting().getSettingSpecName());
+
+            final Map<Long, Collection<SettingToPolicyId>> retMap = new HashMap<>();
+            for (Long id : ids) {
+                if (filter.hasPolicyId()) {
+                    retMap.put(id, getEntitySettingsFromPolicy(id, filter.getPolicyId(), namePredicate));
+                } else {
+                    retMap.put(id, getEntitySettings(id, namePredicate));
+                }
+            }
+            return retMap;
+        }
+
+        private Collection<SettingToPolicyId> getEntitySettingsFromPolicy(@Nonnull final Long id,
+                                                                          final long policyId,
+                                                                          @Nonnull final Predicate<SettingToPolicyId> namePredicate) {
+            final EntitySettings userSettings = settingsByEntity.get(id);
+            if (userSettings == null) {
+                return Collections.emptyList();
+            }
+
+            if (policyId == userSettings.getDefaultSettingPolicyId()) {
+                Set<String> excludedSettings = userSettings.getUserSettingsList().stream()
+                    .filter(namePredicate)
+                    .map(settingToPolicy -> settingToPolicy.getSetting().getSettingSpecName())
+                    .collect(Collectors.toSet());
+
+                return getDefaultSettingPolicySettings(policyId)
+                    .filter(namePredicate)
+                    .filter(settingToPolicy ->
+                        !excludedSettings.contains(settingToPolicy.getSetting().getSettingSpecName()))
+                    .collect(Collectors.toList());
+            }
+
+            return userSettings.getUserSettingsList().stream()
+                // TODO (Hongyue): improve slow operation: searching in an array is an O(n) operation.
+                // One way is to change this is to store a custom java object instead of the protobuf
+                // object in the entity settings store's settingsByEntity map.
+                .filter(settingToPolicy -> settingToPolicy.getSettingPolicyIdList().contains(policyId))
+                .filter(namePredicate)
+                .collect(Collectors.toList());
         }
 
         @Nonnull
-        private Collection<SettingToPolicyId> getEntitySettings(@Nonnull final Long id) {
+        private Collection<SettingToPolicyId> getEntitySettings(@Nonnull final Long id,
+                                                                @Nonnull final Predicate<SettingToPolicyId> namePredicate) {
             final EntitySettings userSettings = settingsByEntity.get(id);
             if (userSettings == null) {
                 return Collections.emptyList();
@@ -417,7 +539,9 @@ public class EntitySettingStore {
             final List<SettingToPolicyId> settings = new ArrayList<>();
 
             // First add all user settings
-            settings.addAll(userSettings.getUserSettingsList());
+            userSettings.getUserSettingsList().stream()
+                .filter(namePredicate)
+                .forEach(settings::add);
             final Set<String> specsPresent = settings.stream()
                     .map(SettingToPolicyId::getSetting)
                     .map(Setting::getSettingSpecName)
@@ -425,24 +549,50 @@ public class EntitySettingStore {
 
             // Fill in default settings, if any.
             if (userSettings.hasDefaultSettingPolicyId()) {
-                final SettingPolicy defaultSettingPolicy =
-                        defaultPolicies.get(userSettings.getDefaultSettingPolicyId());
-                if (defaultSettingPolicy != null) {
-                    defaultSettingPolicy.getInfo().getSettingsList().stream()
-                        .filter(setting -> !specsPresent.contains(setting.getSettingSpecName()))
-                        .forEach(setting -> settings.add(SettingToPolicyId.newBuilder()
-                                .setSetting(setting)
-                                .setSettingPolicyId(defaultSettingPolicy.getId())
-                                .build()));
-                } else {
-                    // This shouldn't happen, because we checked that the default setting policy
-                    // exists when constructing the snapshot.
-                    LOGGER.error("Default setting policy {} somehow missing from snapshot.",
-                            userSettings.getDefaultSettingPolicyId());
-                }
+                getDefaultSettingPolicySettings(userSettings.getDefaultSettingPolicyId())
+                    .filter(namePredicate)
+                    // Check to make sure we don't override the one from user settings.
+                    .filter(settingToPolicyId ->
+                        settingSpecsWithUnionTireBreaker.contains(settingToPolicyId.getSetting().getSettingSpecName()) ||
+                        !specsPresent.contains(settingToPolicyId.getSetting().getSettingSpecName()))
+                    .forEach(settings::add);
             }
 
             return settings;
+        }
+
+        @Nonnull
+        private Stream<SettingToPolicyId> getDefaultSettingPolicySettings(final long policyId) {
+            final SettingPolicy defaultSettingPolicy = defaultPolicies.get(policyId);
+            if (defaultSettingPolicy != null) {
+                return defaultSettingPolicy.getInfo().getSettingsList().stream()
+                    .map(setting -> acquireSettingToPolicyId(defaultSettingPolicy, setting));
+            } else {
+                // This shouldn't happen, because we checked that the default setting policy
+                // exists when constructing the snapshot.
+                LOGGER.error("Default setting policy {} somehow missing from snapshot.",
+                    policyId);
+                return Stream.empty();
+            }
+        }
+
+        // Build flyweight map to avoid creating new default setting to PolicyId every time.
+        // The map is: Default setting policy id -> (Default setting policy setting -> Default setting to PolicyId)
+        private SettingToPolicyId acquireSettingToPolicyId(@Nonnull final SettingPolicy defaultSettingPolicy,
+                                                           @Nonnull final Setting setting) {
+            return defaultSettingPolicyIdCacheMap.computeIfAbsent(defaultSettingPolicy.getId(), newSettingToPolicyId -> {
+                final Map<Setting, SettingToPolicyId> settingToPolicyIdConcurrentHashMap = new ConcurrentHashMap<>();
+                settingToPolicyIdConcurrentHashMap.put(setting, buildSettingToPolicyId(defaultSettingPolicy, setting));
+                return settingToPolicyIdConcurrentHashMap;
+            }).computeIfAbsent(setting, newSetting -> buildSettingToPolicyId(defaultSettingPolicy, setting));
+        }
+
+        private SettingToPolicyId buildSettingToPolicyId(@Nonnull final SettingPolicy defaultSettingPolicy,
+                                                         @Nonnull final Setting setting) {
+            return SettingToPolicyId.newBuilder()
+                .setSetting(setting)
+                .addSettingPolicyId(defaultSettingPolicy.getId())
+                .build();
         }
 
         /**
@@ -451,26 +601,17 @@ public class EntitySettingStore {
          * @return Set of setting policy ids associated with the entity.
          */
         @Nonnull
-        public Set<Long> getEntitySettingPolicyIds(long entityId) {
+        List<EntitySettings.EntitySettingsPolicy> getEntitySettingPolicyIds(long entityId) {
             final EntitySettings userSettings = settingsByEntity.get(entityId);
             if (userSettings == null) {
-                return Collections.emptySet();
+                return Collections.emptyList();
             }
 
-            return userSettings.getUserSettingsList()
-                    .stream()
-                    .filter(SettingToPolicyId::hasSettingPolicyId)
-                    .map(SettingToPolicyId::getSettingPolicyId)
-                    .collect(Collectors.toSet());
+            return userSettings.getEntityPoliciesList();
         }
 
     }
 
-    /**
-     * Returns the {@link realtimeTopologyContextId}.
-     *
-     * @return realtimeTopologyContextId
-     */
     public long getRealtimeTopologyContextId() {
         return realtimeTopologyContextId;
     }

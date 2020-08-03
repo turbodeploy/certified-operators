@@ -4,15 +4,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.mediation.actionscript.executor.ActionScriptExecutionStatus;
 import com.vmturbo.mediation.actionscript.executor.ActionScriptExecutor;
@@ -22,14 +19,14 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
+import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
+import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
-import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.sdk.probe.ActionResult;
 import com.vmturbo.platform.sdk.probe.IActionExecutor;
 import com.vmturbo.platform.sdk.probe.IDiscoveryProbe;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
 import com.vmturbo.platform.sdk.probe.IProgressTracker;
-import com.vmturbo.platform.sdk.probe.ISupplyChainAwareProbe;
 import com.vmturbo.platform.sdk.probe.ProbeConfiguration;
 import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 
@@ -45,7 +42,7 @@ import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
  * and not require extra file-system overhead.
  */
 public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccount>,
-    IActionExecutor<ActionScriptProbeAccount>, ISupplyChainAwareProbe<ActionScriptProbeAccount> {
+    IActionExecutor<ActionScriptProbeAccount> {
 
     private IProbeContext probeContext;
 
@@ -60,22 +57,27 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
         final IPropertyProvider propertyProvider = this.probeContext.getPropertyProvider();
     }
 
-    @Override
-    public void destroy() {
-        // TODO: Anything to clean up?
-    }
-
     @Nonnull
     @Override
     public DiscoveryResponse discoverTarget(@Nonnull ActionScriptProbeAccount accountValues) {
         final String targetName = accountValues.getNameOrAddress();
         logger.info("Beginning discovery of ActionScript target {}", targetName);
-        final DiscoveryResponse response = new ActionScriptDiscovery(accountValues).discoverActionScripts();
-        logger.info("Discovery completed for target {} with {} workflows discovered and {} errors.",
-            targetName,
-            response.getWorkflowCount(),
-            response.getErrorDTOCount());
-        return response;
+        try {
+            final DiscoveryResponse response = new ActionScriptDiscovery(accountValues).discoverActionScripts();
+            logger.info("Discovery completed for target {} with {} workflows discovered and {} errors.",
+                targetName,
+                response.getWorkflowCount(),
+                response.getErrorDTOCount());
+            return response;
+        } catch (Exception e) {
+            logger.error("Failed to discover target {}:", targetName, e);
+            return DiscoveryResponse.newBuilder()
+                .addErrorDTO(ErrorDTO.newBuilder()
+                    .setSeverity(ErrorSeverity.CRITICAL)
+                    .setDescription("ActionScript target discovery failed: "+e.getMessage())
+                    .build())
+                .build();
+        }
     }
 
     @Nonnull
@@ -109,11 +111,21 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
         // Check to see that the filesystem folder for the ActionScripts exists and is usable.
         final String targetName = accountValues.getNameOrAddress();
         logger.info("Beginning validation of ActionScript target {} ", targetName);
-        final ValidationResponse response = new ActionScriptDiscovery(accountValues).validateManifestFile();
-        logger.info("Validation completed for target {} with {} errors.",
-            targetName,
-            response.getErrorDTOCount());
-        return response;
+        try {
+            final ValidationResponse response = new ActionScriptDiscovery(accountValues).validateManifestFile();
+            logger.info("Validation completed for target {} with {} errors.",
+                targetName,
+                response.getErrorDTOCount());
+            return response;
+        } catch (Exception e) {
+            logger.error("Failed to validate target {}:", targetName, e);
+            return ValidationResponse.newBuilder()
+                .addErrorDTO(ErrorDTO.newBuilder()
+                    .setSeverity(ErrorSeverity.CRITICAL)
+                    .setDescription("ActionScript target validation failed: "+e.getMessage())
+                    .build())
+                .build();
+        }
     }
 
     @Nonnull
@@ -132,14 +144,10 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
 
     @Nonnull
     private ActionResult getActionResultForStatus(ActionScriptExecutionStatus status) {
-        ActionResponseState state = null;
+        ActionResponseState state;
         switch (status) {
             case QUEUED:
                 state = ActionResponseState.QUEUED;
-                break;
-            case CANCELED:
-            case CANCELED_FROM_QUEUE:
-                state = ActionResponseState.FAILED;
                 break;
             case RUNNING:
                 state = ActionResponseState.IN_PROGRESS;
@@ -147,9 +155,12 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
             case COMPLETE:
                 state = ActionResponseState.SUCCEEDED;
                 break;
+            case CANCELED:
+            case CANCELED_FROM_QUEUE:
             case FAILED:
             case ERROR:
                 state = ActionResponseState.FAILED;
+                break;
             case NEW:
             default:
                 throw new IllegalStateException("Illegal action script execution status: " + status.name());
@@ -164,11 +175,6 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
         } else {
             return message;
         }
-    }
-
-    @Override
-    public Set<TemplateDTO> getSupplyChainDefinition() {
-        return Sets.newHashSet();
     }
 
     private static class DelegatingProgressTracker implements IProgressTracker {

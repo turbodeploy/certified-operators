@@ -4,7 +4,9 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -25,22 +27,13 @@ import com.vmturbo.topology.processor.entity.EntityStore;
  */
 public class ResizeContext extends AbstractActionExecutionContext {
 
+    private static final Logger logger = LogManager.getLogger();
+
     public ResizeContext(@Nonnull final ExecuteActionRequest request,
                          @Nonnull final ActionDataManager dataManager,
                          @Nonnull final EntityStore entityStore,
                          @Nonnull final EntityRetriever entityRetriever) {
         super(request, dataManager, entityStore, entityRetriever);
-    }
-
-    /**
-     * Get the type of the over-arching action being executed
-     *
-     * @return the type of the over-arching action being executed
-     */
-    @Nonnull
-    @Override
-    public ActionDTO.ActionType getActionType() {
-        return ActionDTO.ActionType.RESIZE;
     }
 
     /**
@@ -66,9 +59,10 @@ public class ResizeContext extends AbstractActionExecutionContext {
      * This implementation additionally sets commodity data needed for resize action execution.
      *
      * @return a list of {@link ActionItemDTO.Builder ActionItemDTO builders}
+     * @throws ContextCreationException if exception faced while building action
      */
     @Override
-    protected List<ActionItemDTO.Builder> initActionItemBuilders() {
+    protected List<ActionItemDTO.Builder> initActionItemBuilders() throws ContextCreationException {
         List<ActionItemDTO.Builder> builders = super.initActionItemBuilders();
         ActionItemDTO.Builder actionItemBuilder = getPrimaryActionItemBuilder(builders);
         Resize resizeInfo = getActionInfo().getResize();
@@ -90,6 +84,10 @@ public class ResizeContext extends AbstractActionExecutionContext {
         // by sending correct increments to the market. (OM-16571)
         actionItemBuilder.setNewComm(commodityForResizeAction(commodityType,
             resizeInfo.getNewCapacity(), resizeInfo));
+        // Indicate whether this resize is related to a scaling group
+        if (resizeInfo.hasScalingGroupId()) {
+            actionItemBuilder.setConsistentScalingCompliance(true);
+        }
 
         return builders;
     }
@@ -109,8 +107,23 @@ public class ResizeContext extends AbstractActionExecutionContext {
         CommodityDTO.CommodityType sdkCommodityType = CommodityDTO.CommodityType.forNumber(commodityType.getType());
         CommodityDTO.Builder commodity = CommodityDTO.newBuilder()
             .setCommodityType(sdkCommodityType)
-            .setKey(commodityType.getKey())
-            .setCapacity(capacity);
+            .setKey(commodityType.getKey());
+
+        // Note: the meaning of the capacity value is determined by the commodityAttribute setting
+        switch (resizeInfo.getCommodityAttribute()) {
+            case CAPACITY:
+                commodity.setCapacity(capacity);
+                break;
+            case LIMIT:
+                commodity.setLimit(capacity);
+                break;
+            case RESERVED:
+                commodity.setReservation(capacity);
+                break;
+            default:
+                logger.error("Invalid commodityAttribute: " + resizeInfo.getCommodityAttribute().name());
+                break;
+        }
 
         // set VMem/Vcpu data which includes info on hot add/hot remove
         if (sdkCommodityType == CommodityDTO.CommodityType.VMEM) {

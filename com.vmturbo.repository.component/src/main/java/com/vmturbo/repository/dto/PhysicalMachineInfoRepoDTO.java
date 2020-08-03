@@ -28,6 +28,8 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     private Integer numCpuSockets;
     // The timezone of this host
     private String timezone;
+    // The core speed in MHz
+    private Integer cpuCoreMHz;
 
     @Override
     public void fillFromTypeSpecificInfo(@Nonnull final TypeSpecificInfo typeSpecificInfo,
@@ -51,6 +53,10 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         if (physicalMachineInfo.hasTimezone()) {
             setTimezone(physicalMachineInfo.getTimezone());
+        }
+
+        if (physicalMachineInfo.hasCpuCoreMhz()) {
+            setCpuCoreMHz(physicalMachineInfo.getCpuCoreMhz());
         }
 
         serviceEntityRepoDTO.setPhysicalMachineInfoRepoDTO(this);
@@ -78,6 +84,9 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (getTimezone() != null) {
             physicalMachineInfoBuilder.setTimezone(getTimezone());
+        }
+        if (getCpuCoreMHz() != null) {
+            physicalMachineInfoBuilder.setCpuCoreMhz(getCpuCoreMHz());
         }
         return TypeSpecificInfo.newBuilder()
                 .setPhysicalMachine(physicalMachineInfoBuilder)
@@ -130,6 +139,14 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.timezone = timezone;
     }
 
+    public Integer getCpuCoreMHz() {
+        return cpuCoreMHz;
+    }
+
+    public void setCpuCoreMHz(final Integer cpuCoreMHz) {
+        this.cpuCoreMHz = cpuCoreMHz;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -140,12 +157,13 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
             Objects.equals(model, that.model) &&
             Objects.equals(numCpus, that.numCpus) &&
             Objects.equals(numCpuSockets, that.numCpuSockets) &&
-            Objects.equals(timezone, that.timezone);
+            Objects.equals(timezone, that.timezone) &&
+            Objects.equals(cpuCoreMHz, that.cpuCoreMHz);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cpuModel, vendor, model, numCpus, numCpuSockets, timezone);
+        return Objects.hash(cpuModel, vendor, model, numCpus, numCpuSockets, timezone, cpuCoreMHz);
     }
 
     @Override
@@ -157,6 +175,7 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
             ", numCpus=" + numCpus +
             ", numCpuSockets=" + numCpuSockets +
             ", timezone='" + timezone + '\'' +
+            ", cpuCoreMHz='" + cpuCoreMHz + '\'' +
             '}';
     }
 }

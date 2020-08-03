@@ -18,6 +18,7 @@ import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
@@ -53,18 +54,23 @@ public class AccountValueVerifier {
      * Performs account entry validation.
      *
      * @param inputField input field to validate
+     * @param allFields all input fields in one map
      * @param entryWrapped account definition wrapper
      * @param accountDefinition account definition itself
      * @return string representation of validation errors, or {@code null} if no errors found
      */
     private static String validateAccountEntry(final AccountValue inputField,
-                    @Nonnull AccountDefEntry entryWrapped,
-                    @Nonnull final Discovery.AccountDefEntry accountDefinition) {
+            @Nonnull Map<String, AccountValue> allFields, @Nonnull AccountDefEntry entryWrapped,
+            @Nonnull final Discovery.AccountDefEntry accountDefinition) {
         Objects.requireNonNull(accountDefinition);
         if (inputField == null) {
-            return accountDefinition.getMandatory()
-                            ? String.format("Missing mandatory field %s", entryWrapped.getName())
-                            : null;
+            try {
+                return isMandatory(entryWrapped, allFields) ?
+                        String.format("Missing mandatory field %s", entryWrapped.getName()) : null;
+            } catch (InvalidTargetException e) {
+                return String.format("Failed detecting mandatity of a field \"%s\": %s",
+                        entryWrapped.getName(), e.getErrors());
+            }
         }
         switch (accountDefinition.getDefinitionCase()) {
             case CUSTOM_DEFINITION:
@@ -74,6 +80,26 @@ public class AccountValueVerifier {
             default:
                 return "Malformed account definition. Could not verify field "
                                 + inputField.getKey();
+        }
+    }
+
+    private static boolean isMandatory(@Nonnull AccountDefEntry accountDefEntry,
+            @Nonnull Map<String, AccountValue> accountValues) throws InvalidTargetException {
+        if (!accountDefEntry.isRequired()) {
+            return false;
+        } else if (!accountDefEntry.getDependencyField().isPresent()) {
+            return true;
+        } else {
+            final AccountValue dependencyField =
+                    accountValues.get(accountDefEntry.getDependencyField().get().getFirst());
+            if (dependencyField == null) {
+                throw new InvalidTargetException(String.format(
+                        "Malformed account definition. Dependency field \"%s\" is absent",
+                        accountDefEntry.getDependencyField().get().getFirst()));
+            }
+            return Pattern.compile(accountDefEntry.getDependencyField().get().getSecond())
+                    .matcher(dependencyField.getStringValue())
+                    .matches();
         }
     }
 
@@ -113,7 +139,7 @@ public class AccountValueVerifier {
 
     private static String verifyCustom(CustomAccountDefEntry entry, AccountValue inputField) {
         final String accountField = inputField.getStringValue();
-        if (entry.hasVerificationRegex()) {
+        if (!accountField.isEmpty() && entry.hasVerificationRegex()) {
             final Pattern p = Pattern.compile(entry.getVerificationRegex(), Pattern.DOTALL);
             if (!p.matcher(accountField).matches()) {
                 return String.format("Value %s doesn't match verification regex.", accountField);
@@ -152,6 +178,7 @@ public class AccountValueVerifier {
                         .filter(Discovery.AccountDefEntry::getMandatory)
                         .map(AccountValueAdaptor::wrap)
                         .filter(AccountDefEntry::isSecret)
+                        .filter(customEntry -> validateSecretField(customEntry, inputFields))
                         .map(AccountDefEntry::getName)
                         .collect(Collectors.toSet());
 
@@ -162,16 +189,43 @@ public class AccountValueVerifier {
                         .map(name -> "Unknown field: " + name).collect(Collectors.toList()));
         // Check for mandatory secret fields that the input fields doesn't contain.
         fieldErrors.addAll(mandatorySecretFields.stream()
-                        .filter(secretField -> !inputFields.keySet().contains(secretField))
+                        .filter(secretField -> !inputFields.containsKey(secretField))
                         .map(name -> "Unknown secret field: " + name).collect(Collectors.toList()));
         // Check that the input fields that the probe DOES recognize are valid and well-formed.
         fieldErrors.addAll(entries.entrySet().stream()
                         .map(entry -> validateAccountEntry(
                                         inputFields.get(entry.getValue().getName()),
+                                        inputFields,
                                         entry.getValue(), entry.getKey()))
                         .filter(Objects::nonNull).collect(Collectors.toList()));
         if (!fieldErrors.isEmpty()) {
             throw new InvalidTargetException(fieldErrors);
         }
+    }
+
+    /**
+     * Validation happens by checking if the field' expected Dependency key's value is equal to
+     * actual value received in {@param inputFields} matches.
+     * if the customEntry does not have a dependency key we proceed with validating the secret field.
+     *
+     * @param customEntry {@link AccountDefEntry}.
+     * @param inputFields list of InputFields for a target.
+     * @return true if the current {@link AccountDefEntry} should be validated.
+     */
+    private static boolean validateSecretField(
+            @Nonnull final AccountDefEntry customEntry,
+            @Nonnull final Map<String, AccountValue> inputFields) {
+        if (customEntry.getDependencyField().isPresent()) {
+            // if current entry has a dependencyKey.
+            // dependencyKey, dependencyValue
+            final Pair<String, String> dependencyField = customEntry.getDependencyField().get();
+            final String expectedDependencyValue = dependencyField.getSecond();
+            final AccountValue actualAccountValue = inputFields.get(dependencyField.getFirst());
+            if (actualAccountValue != null) {
+                return expectedDependencyValue.equalsIgnoreCase(actualAccountValue.getStringValue());
+            }
+        }
+        // If no dependency key found, the secret field must be validated.
+        return true;
     }
 }

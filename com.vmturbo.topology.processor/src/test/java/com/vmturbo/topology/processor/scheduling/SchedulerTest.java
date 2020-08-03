@@ -26,19 +26,22 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
-
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -56,19 +59,51 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
 public class SchedulerTest {
 
     private final OperationManager operationManager = Mockito.mock(OperationManager.class);
-    private final ScheduledExecutorService scheduledExecutorSpy = Mockito.spy(new DelegationExecutor());
+    private final ScheduledExecutorService fullDiscoveryExecutorSpy1 =
+            Mockito.spy(new DelegationExecutor());
+    private final ScheduledExecutorService fullDiscoveryExecutorSpy2 =
+            Mockito.spy(new DelegationExecutor());
+    private final ScheduledExecutorService incrementalDiscoveryExecutorSpy1 =
+            Mockito.spy(new DelegationExecutor());
+    private final ScheduledExecutorService incrementalDiscoveryExecutorSpy2 =
+            Mockito.spy(new DelegationExecutor());
+    private final ScheduledExecutorService broadcastExecutorSpy =
+            Mockito.spy(new DelegationExecutor());
+    private final ScheduledExecutorService expirationExecutorSpy =
+            Mockito.spy(new DelegationExecutor());
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
     private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
     private final TopologyHandler topologyHandler = Mockito.mock(TopologyHandler.class);
     private final KeyValueStore keyValueStore = Mockito.mock(KeyValueStore.class);
-    private final StitchingJournalFactory journalFactory = StitchingJournalFactory.emptyStitchingJournalFactory();
+    private final StitchingJournalFactory journalFactory =
+            StitchingJournalFactory.emptyStitchingJournalFactory();
     private Scheduler scheduler;
 
     public static final long TEST_SCHEDULE_MILLIS = 100;
     public static final long SCHEDULED_TIMEOUT_SECONDS = 10;
     public static final long INITIAL_BROADCAST_INTERVAL_MINUTES = 1;
+    private static final long PROBE_ID_1 = 1L;
+    private static final long PROBE_ID_2 = 2L;
+    private static final long PROBE_ID_3 = 3L;
+    private static final String PROBE_TYPE_1 = "type 1";
+    private static final ProbeInfo PROBE_TYPE_1_INFO = ProbeInfo.newBuilder()
+            .setProbeType(PROBE_TYPE_1)
+            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setFullRediscoveryIntervalSeconds(10)
+            .build();
+    private static final String PROBE_TYPE_2 = "type 2";
+    private static final ProbeInfo PROBE_TYPE_2_INFO = ProbeInfo.newBuilder()
+            .setProbeType(PROBE_TYPE_2)
+            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setFullRediscoveryIntervalSeconds(10)
+            .build();
+    private static final String PROBE_TYPE_3 = "type 3";
+    private static final ProbeInfo PROBE_TYPE_3_INFO = ProbeInfo.newBuilder()
+            .setProbeType(PROBE_TYPE_3)
+            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .build();
     private final long targetId = 1234;
-    private final long probeId = 1L;
+    private final long targetId3 = 1235;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -77,13 +112,41 @@ public class SchedulerTest {
         return Scheduler.SCHEDULE_KEY_OFFSET + key;
     }
 
+    private ScheduledExecutorService getFullDiscoveryExecutorService(String name) {
+        if (name.startsWith(PROBE_TYPE_1)) {
+            return fullDiscoveryExecutorSpy1;
+        } else if (name.startsWith(PROBE_TYPE_2)) {
+            return fullDiscoveryExecutorSpy2;
+        } else {
+            return null;
+        }
+    }
+
+    private ScheduledExecutorService getIncrementalDiscoveryExecutorService(String name) {
+        if (name.startsWith(PROBE_TYPE_1)) {
+            return incrementalDiscoveryExecutorSpy1;
+        } else if (name.startsWith(PROBE_TYPE_2)) {
+            return incrementalDiscoveryExecutorSpy2;
+        } else {
+            return null;
+        }
+    }
+
     @Before
     public void setup() throws Exception {
         Target target = Mockito.mock(Target.class);
         when(target.getId()).thenReturn(targetId);
-        when(target.getProbeId()).thenReturn(probeId);
+        when(target.getProbeId()).thenReturn(PROBE_ID_1);
+        when(target.getProbeInfo()).thenReturn(PROBE_TYPE_1_INFO);
+        Target target3 = Mockito.mock(Target.class);
+        when(target3.getId()).thenReturn(targetId3);
+        when(target3.getProbeId()).thenReturn(PROBE_ID_3);
+        when(target3.getProbeInfo()).thenReturn(PROBE_TYPE_3_INFO);
         when(targetStore.getTarget(targetId)).thenReturn(Optional.of(target));
-        when(probeStore.getProbe(Mockito.anyLong())).thenAnswer(answer -> Optional.of(ProbeInfo.getDefaultInstance()));
+        when(targetStore.getTarget(targetId3)).thenReturn(Optional.of(target3));
+        when(probeStore.getProbe(PROBE_ID_1)).thenAnswer(answer -> Optional.of(PROBE_TYPE_1_INFO));
+        when(probeStore.getProbe(PROBE_ID_2)).thenAnswer(answer -> Optional.of(PROBE_TYPE_2_INFO));
+        when(probeStore.getProbe(PROBE_ID_3)).thenReturn(Optional.of(PROBE_TYPE_3_INFO));
         when(keyValueStore.get(anyString())).thenReturn(Optional.empty());
 
         when(operationManager.getActionTimeoutMs()).thenReturn(2000L);
@@ -91,27 +154,33 @@ public class SchedulerTest {
         when(operationManager.getValidationTimeoutMs()).thenReturn(4000L);
 
         scheduler = new Scheduler(operationManager, targetStore, probeStore, topologyHandler,
-            keyValueStore, journalFactory, scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+            keyValueStore, journalFactory, (name) -> getFullDiscoveryExecutorService(name),
+            (name) -> getIncrementalDiscoveryExecutorService(name), broadcastExecutorSpy,
+            expirationExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+        scheduler.initialize();
     }
 
     @Test
+    @Ignore("Investigate this test later and verify why this is flaky. See OM-53822 for details.")
     public void testSetDiscoverySchedule() throws Exception {
         final CountDownLatch discoveryExecutedLatch = new CountDownLatch(1);
 
         Mockito.doAnswer(unused -> {
             discoveryExecutedLatch.countDown();
             return null;
-        }).when(operationManager).addPendingDiscovery(targetId);
-        scheduler.setDiscoverySchedule(targetId, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS);
+        }).when(operationManager).addPendingDiscovery(targetId, DiscoveryType.FULL);
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS,
+            false);
         discoveryExecutedLatch.await(SCHEDULED_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
-        verify(operationManager).addPendingDiscovery(targetId);
-        assertFalse(scheduler.getDiscoverySchedule(targetId).get().isSynchedToBroadcast());
+        verify(operationManager).addPendingDiscovery(targetId, DiscoveryType.FULL);
+        assertFalse(scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).get().isSynchedToBroadcast());
     }
 
     @Test
     public void testSetDiscoverySchedulePersistsSchedule() throws Exception {
-        scheduler.setDiscoverySchedule(targetId, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS);
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS,
+            false);
         verify(keyValueStore).put(
             scheduleKey(Long.toString(targetId)),
             new Gson().toJson(new TargetDiscoveryScheduleData(TEST_SCHEDULE_MILLIS, false))
@@ -122,13 +191,14 @@ public class SchedulerTest {
     @Test
     public void testSetDiscoveryScheduleWithoutExistingExecutedImmediately() throws Exception {
         TargetDiscoverySchedule discoverySchedule =
-            scheduler.setDiscoverySchedule(targetId, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS);
+            scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS,
+                false);
 
         // Either the delay should be zero or lower, or the task should have already executed
         long executionDelay = discoverySchedule.getDelay(TimeUnit.MILLISECONDS);
         if (executionDelay > 0) {
             // The task has already executed and should have added a pending discovery
-            verify(operationManager).addPendingDiscovery(targetId);
+            verify(operationManager).addPendingDiscovery(targetId, DiscoveryType.FULL);
         } else {
             // The task has not executed but should be set up for immediate execution.
             assertThat(executionDelay, is(lessThanOrEqualTo(0L)));
@@ -141,37 +211,43 @@ public class SchedulerTest {
         expectedException.expect(TargetNotFoundException.class);
         expectedException.expectMessage("Target with id 0 does not exist in the store.");
 
-        scheduler.setDiscoverySchedule(0, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS);
+        scheduler.setDiscoverySchedule(0, DiscoveryType.FULL, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS,
+            false);
     }
 
     @Test
     public void testScheduledTargetNotFoundExceptionWhenRun() throws Exception {
-        when(operationManager.addPendingDiscovery(targetId)).thenThrow(new TargetNotFoundException(targetId));
-        scheduler.setDiscoverySchedule(targetId, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS);
+        when(operationManager.addPendingDiscovery(targetId, DiscoveryType.FULL)).thenThrow(new TargetNotFoundException(targetId));
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS,
+            false);
 
         // Triggering the TargetNotFoundException should cause the removal of the scheduled discovery
-        OperationTestUtilities.waitForEvent(scheduler, scheduler -> !scheduler.getDiscoverySchedule(targetId).isPresent());
+        OperationTestUtilities.waitForEvent(() ->
+            !scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
     }
 
     @Test
     public void testScheduledInterruptedException() throws Exception {
-        when(operationManager.addPendingDiscovery(targetId)).thenThrow(new InterruptedException());
-        scheduler.setDiscoverySchedule(targetId, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS);
+        when(operationManager.addPendingDiscovery(targetId, DiscoveryType.FULL)).thenThrow(new InterruptedException());
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS,
+            false);
 
         // Triggering the InterruptedException should cause the removal of the scheduled discovery
-        OperationTestUtilities.waitForEvent(scheduler, scheduler -> !scheduler.getDiscoverySchedule(targetId).isPresent());
+        OperationTestUtilities.waitForEvent(() ->
+            !scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
     }
 
     @Test
     public void testUpdateScheduledDiscoveryCancelsExistingSchedule() throws Exception {
         final long tenMinutesMillis = TimeUnit.MILLISECONDS.convert(10, TimeUnit.MINUTES);
         final ScheduledFuture<?> mockFuture = Mockito.mock(ScheduledFuture.class);
-        Mockito.doReturn(mockFuture).when(scheduledExecutorSpy).scheduleAtFixedRate(
+        Mockito.doReturn(mockFuture).when(fullDiscoveryExecutorSpy1).scheduleAtFixedRate(
             any(), Mockito.anyLong(), eq(tenMinutesMillis), any()
         );
 
-        scheduler.setDiscoverySchedule(targetId, tenMinutesMillis, TimeUnit.MILLISECONDS);
-        scheduler.setDiscoverySchedule(targetId, 5, TimeUnit.MINUTES);
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, tenMinutesMillis, TimeUnit.MILLISECONDS,
+            false);
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, 5, TimeUnit.MINUTES, false);
 
         verify(mockFuture).cancel(Mockito.anyBoolean());
     }
@@ -181,7 +257,8 @@ public class SchedulerTest {
         expectedException.expect(IllegalArgumentException.class);
         expectedException.expectMessage("Illegal discovery interval: 0");
 
-        scheduler.setDiscoverySchedule(targetId, 0, TimeUnit.MILLISECONDS);
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, 0, TimeUnit.MILLISECONDS,
+            false);
     }
 
     @Test
@@ -189,16 +266,26 @@ public class SchedulerTest {
         expectedException.expect(IllegalArgumentException.class);
         expectedException.expectMessage("Illegal discovery interval: -100");
 
-        scheduler.setDiscoverySchedule(targetId, -100, TimeUnit.MINUTES);
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, -100, TimeUnit.MINUTES, false);
     }
 
     @Test
     public void testOnTargetAdded() throws Exception {
-        assertFalse(scheduler.getDiscoverySchedule(targetId).isPresent());
+        assertFalse(scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
 
         scheduler.onTargetAdded(targetStore.getTarget(targetId).get());
 
-        assertTrue(scheduler.getDiscoverySchedule(targetId).isPresent());
+        assertTrue(scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
+    }
+
+    /**
+     * Tests that discovery is not scheduled for a target, that is not able to perform discoveries.
+     */
+    @Test
+    public void testOnNonDiscoveryTargetAdded() {
+        Assert.assertFalse(scheduler.getDiscoverySchedule(targetId3, DiscoveryType.FULL).isPresent());
+        scheduler.onTargetAdded(targetStore.getTarget(targetId3).get());
+        Assert.assertFalse(scheduler.getDiscoverySchedule(targetId3, DiscoveryType.FULL).isPresent());
     }
 
     /**
@@ -215,17 +302,18 @@ public class SchedulerTest {
         final ScheduledFuture<?> mockFuture = Mockito.mock(ScheduledFuture.class);
         when(mockFuture.getDelay(TimeUnit.MILLISECONDS))
             .thenReturn(TimeUnit.MILLISECONDS.convert(7, TimeUnit.MINUTES));
-        Mockito.doReturn(mockFuture).when(scheduledExecutorSpy).scheduleAtFixedRate(
+        Mockito.doReturn(mockFuture).when(fullDiscoveryExecutorSpy1).scheduleAtFixedRate(
             any(), eq(0L), eq(tenMinutesMillis), any()
         );
 
         // Set up a 10-minute schedule, getting the mocked future which will say that 3 minutes
         // have elapsed (10-7).
-        scheduler.setDiscoverySchedule(targetId, tenMinutesMillis, TimeUnit.MILLISECONDS);
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, tenMinutesMillis,
+            TimeUnit.MILLISECONDS, false);
         // Override with a 5-minute schedule. The arguments differ from those passed to the mocked
         // spy above, so it will not get the mockFuture when called.
         final TargetDiscoverySchedule updatedSchedule =
-            scheduler.setDiscoverySchedule(targetId, 5, TimeUnit.MINUTES);
+            scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, 5, TimeUnit.MINUTES, false);
 
         // Expect the overridden version to account for the mocked 3 minutes that elapsed
         // in the first schedule
@@ -254,65 +342,70 @@ public class SchedulerTest {
         final ScheduledFuture<?> mockFuture = Mockito.mock(ScheduledFuture.class);
         when(mockFuture.getDelay(TimeUnit.MILLISECONDS))
             .thenReturn(TimeUnit.MILLISECONDS.convert(3, TimeUnit.MINUTES));
-        Mockito.doReturn(mockFuture).when(scheduledExecutorSpy).scheduleAtFixedRate(
+        Mockito.doReturn(mockFuture).when(fullDiscoveryExecutorSpy1).scheduleAtFixedRate(
             any(), eq(0L), eq(tenMinutesMillis), any()
         );
 
         // Set up a 10-minute schedule, getting the mocked future.
-        scheduler.setDiscoverySchedule(targetId, tenMinutesMillis, TimeUnit.MILLISECONDS);
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, tenMinutesMillis, TimeUnit.MILLISECONDS,
+            false);
         // Override with a 5-minute schedule. The arguments differ from those passed to the mocked
         // spy above, so it will not get the mockFuture when called.
-        scheduler.setDiscoverySchedule(targetId, 5, TimeUnit.MINUTES);
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, 5, TimeUnit.MINUTES, false);
 
-        verify(scheduledExecutorSpy).scheduleAtFixedRate(
+        verify(fullDiscoveryExecutorSpy1).scheduleAtFixedRate(
             any(), eq(0L), eq(tenMinutesMillis), any()
         );
-        verify(scheduledExecutorSpy).scheduleAtFixedRate(
+        verify(fullDiscoveryExecutorSpy1).scheduleAtFixedRate(
             any(), eq(0L), eq(TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)), any()
         );
     }
 
     @Test
     public void testGetDiscoverySchedule() throws Exception {
-        assertFalse(scheduler.getDiscoverySchedule(targetId).isPresent());
-        scheduler.setDiscoverySchedule(targetId, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS);
-        assertTrue(scheduler.getDiscoverySchedule(targetId).isPresent());
+        assertFalse(scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS,
+            false);
+        assertTrue(scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
     }
 
     @Test
     public void testCancelDiscoverySchedule() throws Exception {
         final TargetDiscoverySchedule task =
-            scheduler.setDiscoverySchedule(targetId, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS);
-        assertTrue(scheduler.getDiscoverySchedule(targetId).isPresent());
+            scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS,
+                false);
+        assertTrue(scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
         assertFalse(task.isCancelled());
 
-        final Optional<TargetDiscoverySchedule> cancelledTask = scheduler.cancelDiscoverySchedule(targetId);
+        final Optional<TargetDiscoverySchedule> cancelledTask =
+            scheduler.disableDiscoverySchedule(targetId, DiscoveryType.FULL);
         assertEquals(targetId, cancelledTask.get().getTargetId());
         assertTrue(cancelledTask.get().isCancelled());
-        assertFalse(scheduler.getDiscoverySchedule(targetId).isPresent());
+        assertFalse(scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
     }
 
     @Test
     public void testResetDiscoveryScheduleEmpty() throws Exception {
-        assertFalse(scheduler.resetDiscoverySchedule(targetId).isPresent());
+        assertFalse(scheduler.resetDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
     }
 
     @Test
     public void testResetDiscoverySchedulePresent() throws Exception {
         final TargetDiscoverySchedule originalTask =
-            scheduler.setDiscoverySchedule(targetId, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS);
+            scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS,
+                false);
         assertFalse(originalTask.isCancelled());
 
-        final Optional<TargetDiscoverySchedule> resetTask = scheduler.resetDiscoverySchedule(targetId);
+        final Optional<TargetDiscoverySchedule> resetTask = scheduler.resetDiscoverySchedule(targetId, DiscoveryType.FULL);
         assertTrue(originalTask.isCancelled());
         assertFalse(resetTask.get().isCancelled());
     }
 
     @Test
     public void testSetBroadcastSynchedDiscoverySchedule() throws Exception {
-        scheduler.setBroadcastSynchedDiscoverySchedule(targetId);
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, true);
 
-        TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId).get();
+        TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).get();
         assertTrue(schedule.isSynchedToBroadcast());
         assertEquals(
             scheduler.getBroadcastSchedule().get().getScheduleInterval(TimeUnit.MINUTES),
@@ -324,7 +417,7 @@ public class SchedulerTest {
     public void testSetBroadcastSynchedDiscoverySchedulePersistsSchedule() throws Exception {
         long broadcastIntervalMillis =
             scheduler.getBroadcastSchedule().get().getScheduleInterval(TimeUnit.MILLISECONDS);
-        scheduler.setBroadcastSynchedDiscoverySchedule(targetId);
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, true);
 
         verify(keyValueStore).put(
             scheduleKey(Long.toString(targetId)),
@@ -395,8 +488,9 @@ public class SchedulerTest {
     public void testIllegalInitialBroadcastInterval() throws Exception {
         final Scheduler schedulerWithIllegalInitialInterval = new Scheduler(operationManager,
             targetStore, probeStore, topologyHandler, keyValueStore, journalFactory,
-                scheduledExecutorSpy, -1);
-
+                (name) -> fullDiscoveryExecutorSpy1, (name) -> incrementalDiscoveryExecutorSpy1,
+                broadcastExecutorSpy, expirationExecutorSpy, -1);
+        schedulerWithIllegalInitialInterval.initialize();
         assertEquals(
             Scheduler.FAILOVER_INITIAL_BROADCAST_INTERVAL_MINUTES,
             schedulerWithIllegalInitialInterval.getBroadcastSchedule().get().getScheduleInterval(TimeUnit.MINUTES)
@@ -409,9 +503,10 @@ public class SchedulerTest {
             .thenReturn(Optional.of(new Gson().toJson(new ScheduleData(TEST_SCHEDULE_MILLIS))));
 
         Scheduler scheduler = new Scheduler(operationManager, targetStore, probeStore,
-                topologyHandler, keyValueStore, journalFactory, scheduledExecutorSpy,
-                INITIAL_BROADCAST_INTERVAL_MINUTES);
-
+            topologyHandler, keyValueStore, journalFactory, (name) -> fullDiscoveryExecutorSpy1,
+            (name) -> incrementalDiscoveryExecutorSpy1, broadcastExecutorSpy, expirationExecutorSpy,
+            INITIAL_BROADCAST_INTERVAL_MINUTES);
+        scheduler.initialize();
         TopologyBroadcastSchedule schedule = scheduler.getBroadcastSchedule().get();
         assertEquals(TEST_SCHEDULE_MILLIS, schedule.getScheduleInterval(TimeUnit.MILLISECONDS));
     }
@@ -419,18 +514,23 @@ public class SchedulerTest {
     @Test
     public void testUpdateBroadcastScheduleUpdatesSynchedDiscoveries() throws Exception {
         long synchedTarget = 9999;
-        when(targetStore.getTarget(synchedTarget)).thenReturn(Optional.of(Mockito.mock(Target.class)));
+        Target target = Mockito.mock(Target.class);
+        when(target.getProbeInfo()).thenReturn(PROBE_TYPE_1_INFO);
+        when(targetStore.getTarget(synchedTarget)).thenReturn(Optional.of(target));
+        when(target.getProbeId()).thenReturn(PROBE_ID_1);
 
-        TargetDiscoverySchedule nonSynchedSchedule = scheduler.setDiscoverySchedule(targetId, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS);
-        TargetDiscoverySchedule synchedSchedule = scheduler.setBroadcastSynchedDiscoverySchedule(synchedTarget);
+        TargetDiscoverySchedule nonSynchedSchedule = scheduler.setDiscoverySchedule(targetId,
+            DiscoveryType.FULL, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS, false);
+        TargetDiscoverySchedule synchedSchedule = scheduler.setDiscoverySchedule(synchedTarget,
+            DiscoveryType.FULL, TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS, true);
 
         assertNotEquals(7, nonSynchedSchedule.getScheduleInterval(TimeUnit.MINUTES));
         assertNotEquals(7, synchedSchedule.getScheduleInterval(TimeUnit.MINUTES));
         assertTrue(synchedSchedule.isSynchedToBroadcast());
 
         scheduler.setBroadcastSchedule(7, TimeUnit.MINUTES);
-        nonSynchedSchedule = scheduler.getDiscoverySchedule(targetId).get();
-        synchedSchedule = scheduler.getDiscoverySchedule(synchedTarget).get();
+        nonSynchedSchedule = scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).get();
+        synchedSchedule = scheduler.getDiscoverySchedule(synchedTarget, DiscoveryType.FULL).get();
 
         assertNotEquals(7, nonSynchedSchedule.getScheduleInterval(TimeUnit.MINUTES));
         assertEquals(7, synchedSchedule.getScheduleInterval(TimeUnit.MINUTES));
@@ -451,7 +551,7 @@ public class SchedulerTest {
         final ScheduledFuture<?> mockFuture = Mockito.mock(ScheduledFuture.class);
         when(mockFuture.getDelay(TimeUnit.MILLISECONDS))
             .thenReturn(TimeUnit.MILLISECONDS.convert(7, TimeUnit.MINUTES));
-        Mockito.doReturn(mockFuture).when(scheduledExecutorSpy).scheduleAtFixedRate(
+        Mockito.doReturn(mockFuture).when(broadcastExecutorSpy).scheduleAtFixedRate(
             any(), Mockito.anyLong(), eq(tenMinutesMillis), any()
         );
 
@@ -490,7 +590,7 @@ public class SchedulerTest {
         final ScheduledFuture<?> mockFuture = Mockito.mock(ScheduledFuture.class);
         when(mockFuture.getDelay(TimeUnit.MILLISECONDS))
             .thenReturn(TimeUnit.MILLISECONDS.convert(3, TimeUnit.MINUTES));
-        Mockito.doReturn(mockFuture).when(scheduledExecutorSpy).scheduleAtFixedRate(
+        Mockito.doReturn(mockFuture).when(broadcastExecutorSpy).scheduleAtFixedRate(
             any(), Mockito.anyLong(), eq(tenMinutesMillis), any()
         );
 
@@ -500,10 +600,10 @@ public class SchedulerTest {
         // spy above, so it will not get the mockFuture when called.
         scheduler.setBroadcastSchedule(5, TimeUnit.MINUTES);
 
-        verify(scheduledExecutorSpy).scheduleAtFixedRate(
+        verify(broadcastExecutorSpy).scheduleAtFixedRate(
             any(), Mockito.anyLong(), eq(tenMinutesMillis), any()
         );
-        verify(scheduledExecutorSpy).scheduleAtFixedRate(
+        verify(broadcastExecutorSpy).scheduleAtFixedRate(
             any(), eq(0L), eq(TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)), any()
         );
     }
@@ -517,13 +617,13 @@ public class SchedulerTest {
 
         final Optional<TopologyBroadcastSchedule> cancelledTask = scheduler.cancelBroadcastSchedule();
         assertTrue(cancelledTask.get().isCancelled());
-        assertFalse(scheduler.getDiscoverySchedule(targetId).isPresent());
+        assertFalse(scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).isPresent());
     }
 
     @Test
     public void testCancelBroadcastScheduleDeletesPersistedSchedule() throws Exception {
         scheduler.cancelBroadcastSchedule();
-        verify(keyValueStore).remove(scheduleKey(Scheduler.BROADCAST_SCHEDULE_KEY));
+        verify(keyValueStore).removeKeysWithPrefix(scheduleKey(Scheduler.BROADCAST_SCHEDULE_KEY));
     }
 
     @Test
@@ -549,10 +649,11 @@ public class SchedulerTest {
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target));
 
         Scheduler scheduler = new Scheduler(operationManager, targetStore, probeStore,
-                topologyHandler, keyValueStore, journalFactory, scheduledExecutorSpy,
-                INITIAL_BROADCAST_INTERVAL_MINUTES);
-
-        TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId).get();
+            topologyHandler, keyValueStore, journalFactory, (name) -> fullDiscoveryExecutorSpy1,
+            (name) -> incrementalDiscoveryExecutorSpy1, broadcastExecutorSpy, expirationExecutorSpy,
+            INITIAL_BROADCAST_INTERVAL_MINUTES);
+        scheduler.initialize();
+        TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).get();
         assertEquals(INITIAL_BROADCAST_INTERVAL_MINUTES, schedule.getScheduleInterval(TimeUnit.MINUTES));
         assertTrue(schedule.isSynchedToBroadcast());
     }
@@ -565,10 +666,12 @@ public class SchedulerTest {
             .thenReturn(Optional.of(new Gson().toJson(new TargetDiscoveryScheduleData(TEST_SCHEDULE_MILLIS, false))));
 
         Scheduler scheduler = new Scheduler(operationManager, targetStore, probeStore,
-                topologyHandler, keyValueStore, journalFactory, scheduledExecutorSpy,
-                INITIAL_BROADCAST_INTERVAL_MINUTES);
-
-        TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId).get();
+            topologyHandler, keyValueStore, journalFactory, (name) -> fullDiscoveryExecutorSpy1,
+            (name) -> incrementalDiscoveryExecutorSpy1, broadcastExecutorSpy, expirationExecutorSpy,
+            INITIAL_BROADCAST_INTERVAL_MINUTES);
+        scheduler.initialize();
+        TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).get();
+        scheduler.initialize();
         assertEquals(TEST_SCHEDULE_MILLIS, schedule.getScheduleInterval(TimeUnit.MILLISECONDS));
         assertFalse(schedule.isSynchedToBroadcast());
     }
@@ -580,12 +683,13 @@ public class SchedulerTest {
         when(operationManager.getValidationTimeoutMs()).thenReturn(30L);
 
         scheduler = new Scheduler(operationManager, targetStore, probeStore, topologyHandler,
-            keyValueStore, journalFactory,
-            scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
-
+            keyValueStore, journalFactory, (name) -> fullDiscoveryExecutorSpy1,
+            (name) -> incrementalDiscoveryExecutorSpy1, broadcastExecutorSpy, expirationExecutorSpy,
+            INITIAL_BROADCAST_INTERVAL_MINUTES);
+        scheduler.initialize();
         // A schedule should be added that checks for timeouts based on the shortest timeout among
         // action, discovery, and validation operations.
-        Mockito.verify(scheduledExecutorSpy).scheduleAtFixedRate(any(), eq(10L), eq(10L), eq(TimeUnit.MILLISECONDS));
+        Mockito.verify(expirationExecutorSpy).scheduleAtFixedRate(any(), eq(10L), eq(10L), eq(TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -593,26 +697,123 @@ public class SchedulerTest {
         ProbeInfo standardProbeInfo = ProbeInfo.newBuilder()
                 .setProbeType("TestProbe")
                 .setProbeCategory("Test")
+                .setUiProbeCategory("Test")
                 .build();
-        Assert.assertEquals(60000, scheduler.getProbeDiscoveryInterval(standardProbeInfo));
+        Assert.assertEquals(60000, scheduler.getFullDiscoveryInterval(standardProbeInfo, true));
 
         // test with longer discovery interval
         ProbeInfo slowDiscoveryProbeInfo = ProbeInfo.newBuilder(standardProbeInfo)
                 .setFullRediscoveryIntervalSeconds(999999).build();
-        Assert.assertEquals(999999000, scheduler.getProbeDiscoveryInterval(slowDiscoveryProbeInfo));
+        Assert.assertEquals(999999000, scheduler.getFullDiscoveryInterval(slowDiscoveryProbeInfo, true));
 
         // test with longer discovery interval and performance discovery interval
         ProbeInfo slowFullFastPerformanceProbeInfo = ProbeInfo.newBuilder(standardProbeInfo)
                 .setFullRediscoveryIntervalSeconds(999999)
                 .setPerformanceRediscoveryIntervalSeconds(99).build();
-        Assert.assertEquals(99000, scheduler.getProbeDiscoveryInterval(slowFullFastPerformanceProbeInfo));
+        Assert.assertEquals(99000, scheduler.getFullDiscoveryInterval(slowFullFastPerformanceProbeInfo, true));
 
         // test with performance discovery interval slower than full discovery interval
         ProbeInfo fastFullSlowPerformanceProbeInfo = ProbeInfo.newBuilder(standardProbeInfo)
                 .setFullRediscoveryIntervalSeconds(99)
                 .setPerformanceRediscoveryIntervalSeconds(9999).build();
-        Assert.assertEquals(99000, scheduler.getProbeDiscoveryInterval(fastFullSlowPerformanceProbeInfo));
+        Assert.assertEquals(99000, scheduler.getFullDiscoveryInterval(fastFullSlowPerformanceProbeInfo, true));
 
+        // test with both full/performance discovery interval are lower than broadcast interval
+        // and sync with broadcast schedule
+        ProbeInfo lowerThanBroadcastIntervalProbeInfo = ProbeInfo.newBuilder(standardProbeInfo)
+            .setFullRediscoveryIntervalSeconds(50)
+            .setPerformanceRediscoveryIntervalSeconds(30).build();
+        Assert.assertEquals(60000, scheduler.getFullDiscoveryInterval(lowerThanBroadcastIntervalProbeInfo, true));
+
+        // test with both full/performance discovery interval are lower than broadcast interval
+        // and do not sync with broadcast schedule
+        Assert.assertEquals(30000, scheduler.getFullDiscoveryInterval(lowerThanBroadcastIntervalProbeInfo, false));
+    }
+
+    @Test
+    public void testPendingDiscoveryShouldntBlockBroadcast() throws Exception {
+        // verify that pending discoveries won't block the realtime broadcast.
+        long testTargetId = targetId;
+        CountDownLatch discoveryStartedLatch = new CountDownLatch(1);
+        CountDownLatch discoveryCompleteLatch = new CountDownLatch(1);
+        CountDownLatch broadcastLatch = new CountDownLatch(1);
+        Mockito.doAnswer(unused -> {
+            discoveryStartedLatch.countDown();
+            // discovery will block until the broadcast completes, or we timeout while waiting.
+            broadcastLatch.await();
+            discoveryCompleteLatch.countDown();
+            return null;
+        }).when(operationManager).addPendingDiscovery(testTargetId, DiscoveryType.FULL);
+
+        Mockito.doAnswer(unused -> {
+            // broadcast will release the broadcast latch, unblocking discovery
+            broadcastLatch.countDown();
+            return null;
+        }).when(topologyHandler).broadcastLatestTopology(any());
+
+        // set the discovery schedule -- this will trigger an immediate discovery.
+        scheduler.setDiscoverySchedule(testTargetId, DiscoveryType.FULL, 10, TimeUnit.MINUTES,
+            false);
+        // ... but we'll wait for it to start anyways.
+        discoveryStartedLatch.await();
+        // now set a fast broadcast schedule. With the old threading model, this would lead to a
+        // deadlock since a pending discovery would block the broadcast schedule.
+        scheduler.setBroadcastSchedule(5, TimeUnit.MILLISECONDS);
+        broadcastLatch.await(5, TimeUnit.SECONDS);
+        discoveryCompleteLatch.await(5, TimeUnit.SECONDS);
+        // verify that both discovery and broadcast have completed.
+        assertEquals(0, broadcastLatch.getCount());
+        assertEquals(0, discoveryCompleteLatch.getCount());
+    }
+
+    /**
+     * Test that two targets with different probe types have their discoveries executed on different
+     * threads.
+     *
+     * @throws Exception when Scheduler throws one.
+     */
+    @Test
+    public void testDifferentProbeTypesGetDifferentExecutors() throws Exception {
+        long target2Id = 9999;
+        Target target2 = Mockito.mock(Target.class);
+        when(target2.getProbeInfo()).thenReturn(PROBE_TYPE_2_INFO);
+        when(targetStore.getTarget(target2Id)).thenReturn(Optional.of(target2));
+        when(target2.getProbeId()).thenReturn(PROBE_ID_2);
+        CountDownLatch discovery1StartedLatch = new CountDownLatch(1);
+        CountDownLatch discovery2StartedLatch = new CountDownLatch(1);
+        CountDownLatch discoveryCompleteLatch = new CountDownLatch(1);
+        CountDownLatch releaseDiscoveryLatch = new CountDownLatch(1);
+
+        Mockito.doAnswer(unused -> {
+            discovery1StartedLatch.countDown();
+            // discovery will block until we release releaseDiscoveryLatch.
+            releaseDiscoveryLatch.await();
+            discoveryCompleteLatch.countDown();
+            return null;
+        }).when(operationManager).addPendingDiscovery(targetId, DiscoveryType.FULL);
+
+        Mockito.doAnswer(unused -> {
+            discovery2StartedLatch.countDown();
+            return null;
+        }).when(operationManager).addPendingDiscovery(target2Id, DiscoveryType.FULL);
+
+        // set the discovery schedule -- this will trigger an immediate discovery.
+        scheduler.setDiscoverySchedule(targetId, DiscoveryType.FULL, 10,
+                TimeUnit.MINUTES, false);
+        // ... but we'll wait for it to start anyways.
+        discovery1StartedLatch.await(SCHEDULED_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        scheduler.setDiscoverySchedule(target2Id, DiscoveryType.FULL, 10, TimeUnit.MINUTES,
+                false);
+        // wait until discovery of target 2 starts
+        discovery2StartedLatch.await(SCHEDULED_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        verify(operationManager).addPendingDiscovery(target2Id, DiscoveryType.FULL);
+        // confirm other thread is still waiting
+        assertEquals(1, discoveryCompleteLatch.getCount());
+        // release other thread and wait for it to finish.
+        releaseDiscoveryLatch.countDown();
+        discoveryCompleteLatch.await();
+        assertEquals(0, discoveryCompleteLatch.getCount());
+        assertEquals(0, discovery2StartedLatch.getCount());
     }
 
     /**

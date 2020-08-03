@@ -31,7 +31,7 @@ public class ActionEnvironmentTypeTest {
                         .setId(1)
                         .setType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .setEnvironmentType(EnvironmentType.CLOUD))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .setExplanation(Explanation.getDefaultInstance())
             .build();
 
@@ -48,7 +48,7 @@ public class ActionEnvironmentTypeTest {
                         .setId(1)
                         .setType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .setEnvironmentType(EnvironmentType.ON_PREM))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .setExplanation(Explanation.getDefaultInstance())
             .build();
 
@@ -74,7 +74,7 @@ public class ActionEnvironmentTypeTest {
                             .setId(3)
                             .setType(EntityType.COMPUTE_TIER_VALUE)
                             .setEnvironmentType(EnvironmentType.CLOUD)))))
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .setExplanation(Explanation.getDefaultInstance())
             .build();
 
@@ -84,9 +84,12 @@ public class ActionEnvironmentTypeTest {
     @Test
     public void testEnvTypeMatch() {
         assertTrue(ActionEnvironmentType.ON_PREM.matchesEnvType(EnvironmentType.ON_PREM));
+        assertTrue(ActionEnvironmentType.ON_PREM.matchesEnvType(EnvironmentType.HYBRID));
         assertTrue(ActionEnvironmentType.CLOUD.matchesEnvType(EnvironmentType.CLOUD));
+        assertTrue(ActionEnvironmentType.CLOUD.matchesEnvType(EnvironmentType.HYBRID));
         assertTrue(ActionEnvironmentType.ON_PREM_AND_CLOUD.matchesEnvType(EnvironmentType.ON_PREM));
         assertTrue(ActionEnvironmentType.ON_PREM_AND_CLOUD.matchesEnvType(EnvironmentType.CLOUD));
+        assertTrue(ActionEnvironmentType.ON_PREM_AND_CLOUD.matchesEnvType(EnvironmentType.HYBRID));
     }
 
     @Test

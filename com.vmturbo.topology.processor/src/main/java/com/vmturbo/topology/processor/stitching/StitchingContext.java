@@ -1,14 +1,17 @@
 package com.vmturbo.topology.processor.stitching;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -21,19 +24,16 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntityToAdd;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
-import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * A context object that contains the data necessary to perform stitching.
@@ -78,33 +78,46 @@ public class StitchingContext {
      */
     private final IdentityProvider identityProvider;
 
+    /**
+     * Cache in which we can lookup which commodities are resold commodities.
+     */
+    private final ResoldCommodityCache resoldCommodityCache;
+
     private static final Logger logger = LogManager.getLogger();
 
     /**
      * Create a new {@link StitchingContext}.
      *
      * @param stitchingGraph the graph of all entities to be stitched.
-     * @param  entitiesByEntityTypeAndTarget A map of EntityType ->
-     *                                       Map<TargetId, List<Entities of the given type discovered by that target>>
+     * @param entitiesByEntityTypeAndTarget A map of EntityType ->
+     *                                      Map<TargetId, List<Entities of the given type discovered by that target>>
+     * @param targetStore store of targets.
+     * @param identityProvider Identity provider to use to assign identities for entities created during stitching.
+     * @param resoldCommodityCache A cache for looking up which commodities are resold based on probe
+     *                             supply chains.
      */
     private StitchingContext(@Nonnull final TopologyStitchingGraph stitchingGraph,
                              @Nonnull final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>> entitiesByEntityTypeAndTarget,
                              @Nonnull final TargetStore targetStore,
-                             @Nonnull final IdentityProvider identityProvider) {
+                             @Nonnull final IdentityProvider identityProvider,
+                             @Nonnull final ResoldCommodityCache resoldCommodityCache) {
         this.stitchingGraph = Objects.requireNonNull(stitchingGraph);
         this.entitiesByEntityTypeAndTarget = Objects.requireNonNull(entitiesByEntityTypeAndTarget);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.resoldCommodityCache = Objects.requireNonNull(resoldCommodityCache);
     }
 
     /**
      * Create a new builder for constructing a {@link StitchingContext}.
      *
      * @param entityCount The number of entities to be added to the context when it is built.
+     * @param targetStore The targetStore to use when constructing the stitching context.
      * @return a new builder for constructing a {@link StitchingContext}.
      */
-    public static Builder newBuilder(int entityCount) {
-        return new Builder(entityCount);
+    public static Builder newBuilder(int entityCount,
+                                     @Nonnull final TargetStore targetStore) {
+        return new Builder(entityCount, targetStore);
     }
 
     /**
@@ -163,6 +176,21 @@ public class StitchingContext {
                 final List<TopologyStitchingEntity> targetEntities = entitiesByTarget.get(targetId);
                 return targetEntities == null ? Stream.empty() : targetEntities.stream();
             });
+    }
+
+    /**
+     * Get a stream of all entities discovered by a set of targets.
+     *
+     * @param targetIds The ids of the targets that discovered the entities to retrieve.
+     * @return a stream of all entities discovered by a set of targets.
+     */
+    @Nonnull
+    public Stream<TopologyStitchingEntity> internalEntities(@Nonnull final Set<Long> targetIds) {
+        return entitiesByEntityTypeAndTarget.values().stream()
+            .flatMap(entitiesByTarget -> entitiesByTarget.entrySet().stream()
+                .flatMap(entry -> targetIds.contains(entry.getKey())
+                    ? entry.getValue().stream()
+                    : Stream.empty()));
     }
 
     /**
@@ -325,40 +353,61 @@ public class StitchingContext {
                 });
             }
             return newTopologyEntities;
-        } catch (IdentityUninitializedException | IdentityMetadataMissingException | IdentityProviderException e) {
+        } catch (IdentityServiceException e) {
             throw new IllegalStateException("Exception while adding new entities to stitching graph: " + e);
         }
     }
 
     /**
-     * Construct a {@link TopologyGraph} composed of the entities in the {@link StitchingContext}.
-     *
      * After stitching, this should return a valid, well-formed topology.
      *
      * @return The entities in the {@link StitchingContext}, arranged by ID.
      */
     @Nonnull
     public Map<Long, TopologyEntity.Builder> constructTopology() {
+
+        final Function<TopologyStitchingEntity, TopologyEntity.Builder> valueMapper =
+                        stitchingEntity -> {
+                            final TopologyEntityDTO.Builder builder = SdkToTopologyEntityConverter
+                                            .newTopologyEntityDTO(stitchingEntity,
+                                                            resoldCommodityCache)
+                                            .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
+                                                            stitchingEntity.buildDiscoveryOrigin()));
+                            return TopologyEntity.newBuilder(builder);
+                        };
         /**
          * If this line throws an exception, it indicates an error in stitching. If stitching is
          * successful it should merge down all entities with duplicate OIDs into a single entity.
          *
          * If multiple entities have the same OID, we log it as an error and pick one to use at random.
          */
-        return stitchingGraph.entities()
-            .collect(Collectors.toMap(TopologyStitchingEntity::getOid,
-                stitchingEntity -> {
-                    final TopologyEntityDTO.Builder builder =
-                        SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity)
-                            .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(stitchingEntity.buildDiscoveryOrigin()));
-                    return TopologyEntity.newBuilder(builder);
-                },
-                (oldValue, newValue) -> {
-                    logger.error("Multiple entities with oid {}. Keeping the first.", oldValue.getOid());
-                    return oldValue;
-                }
-            ));
+        final Map<Long, Collection<TopologyEntity.Builder>> duplicatedOids = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> result = stitchingGraph.entities()
+                        .collect(Collectors.toMap(TopologyStitchingEntity::getOid, valueMapper,
+                                        (oldValue, newValue) -> {
+                                            final Collection<TopologyEntity.Builder>
+                                                            duplicatedBuilders =
+                                                            duplicatedOids.computeIfAbsent(
+                                                                            oldValue.getOid(),
+                                                                            k -> new LinkedList<>());
+                                            if (duplicatedBuilders.isEmpty()) {
+                                                duplicatedBuilders.add(oldValue);
+                                            }
+                                            duplicatedBuilders.add(newValue);
+                                            return oldValue;
+                                        }
+                        ));
+        if (!duplicatedOids.isEmpty()) {
+            final StringBuilder messageBuilder = new StringBuilder();
+            messageBuilder.append(
+                            "First entity will be kept for the following OIDs with duplications:");
+            messageBuilder.append(System.lineSeparator());
+            duplicatedOids.forEach((oid, builders) -> messageBuilder
+                            .append(String.format("Oid '%s' assigned to '%s' entities.%n", oid,
+                                            builders.size())));
+            logger.error(messageBuilder.toString());
+        }
+        return result;
     }
 
     @Nonnull
@@ -390,8 +439,12 @@ public class StitchingContext {
 
         private IdentityProvider identityProvider;
 
-        private Builder(final int entityCount) {
+        private ResoldCommodityCache resoldCommodityCache;
+
+        private Builder(final int entityCount, @Nonnull final TargetStore targetStore) {
             this.stitchingGraph = new TopologyStitchingGraph(entityCount);
+            this.targetStore = Objects.requireNonNull(targetStore);
+            this.resoldCommodityCache = new ResoldCommodityCache(targetStore);
             entitiesByEntityTypeAndTarget = new EnumMap<>(EntityType.class);
         }
 
@@ -400,13 +453,9 @@ public class StitchingContext {
             return this;
         }
 
-        public Builder setTargetStore(final TargetStore targetStore) {
-            this.targetStore = targetStore;
-            return this;
-        }
-
         public StitchingContext build() {
-            return new StitchingContext(stitchingGraph, entitiesByEntityTypeAndTarget, targetStore, identityProvider);
+            return new StitchingContext(stitchingGraph, entitiesByEntityTypeAndTarget, targetStore,
+                identityProvider, resoldCommodityCache);
         }
 
         /**

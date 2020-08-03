@@ -78,7 +78,7 @@ public class PlanOverPlanSysTest extends SystemTestBase {
         logger.info("rebalance scenarioId: {}", rebalanceScenarioId);
         final String planId =
                 marketsApi.applyAndRunScenario(LIVE_MARKET_UUID, rebalanceScenarioId,
-                        null, null).getUuid();
+                        null, null, true).getUuid();
 
         logger.info("rebalance planId: {}<", planId);
         waitForPlanToFinish(planId, PLAN_EXECUTION_TIMEOUT, marketsApi);
@@ -96,7 +96,7 @@ public class PlanOverPlanSysTest extends SystemTestBase {
         logger.info("addLoad scenarioId: {}", addLoadScenarioId);
 
         String secondPlanId = marketsApi.applyAndRunScenario(planId, addLoadScenarioId,
-                null, null).getUuid();
+                null, null, true).getUuid();
         logger.info("second planId: {}", secondPlanId);
 
         waitForPlanToFinish(secondPlanId, PLAN_EXECUTION_TIMEOUT, marketsApi);

@@ -29,13 +29,13 @@ public class SetCommodityCapacityFromSettingPostStitchingTest {
 
     private static final CommodityType COMM_TYPE = CommodityType.RESPONSE_TIME;
     private static final CommodityType COMM_TYPE_EXCLUDED = CommodityType.DB_MEM;
-    private static final String RESPONSE_TIME_CAPACITY_SETTING = "responseTimeCapacity";
+    private static final String RESPONSE_TIME_SLO_SETTING = "responseTimeSLO";
 
     private static final EntityType SELLER_TYPE = EntityType.DATABASE_SERVER;
 
     private final SetCommodityCapacityFromSettingPostStitchingOperation stitchOperation =
             new SetCommodityCapacityFromSettingPostStitchingOperation(SELLER_TYPE,
-                    ProbeCategory.DATABASE_SERVER, COMM_TYPE, RESPONSE_TIME_CAPACITY_SETTING);
+                    ProbeCategory.DATABASE_SERVER, COMM_TYPE, RESPONSE_TIME_SLO_SETTING);
 
     private static final double initialCapacity = 10.0d;
 
@@ -53,12 +53,12 @@ public class SetCommodityCapacityFromSettingPostStitchingTest {
     @Test
     public void testSetCapacityValue() {
         TopologyEntity provider = seller();
-        Setting responseTimeCapacitySetting = Setting.newBuilder()
+        Setting responseTimeSLOSetting = Setting.newBuilder()
                 .setNumericSettingValue(NumericSettingValue
                         .newBuilder().setValue(settingCapacityValue).build()).build();
         when(entitySettingsCollection.getEntitySetting(provider.getOid(),
-                RESPONSE_TIME_CAPACITY_SETTING))
-                .thenReturn(Optional.of(responseTimeCapacitySetting));
+                RESPONSE_TIME_SLO_SETTING))
+                .thenReturn(Optional.of(responseTimeSLOSetting));
 
         UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
         stitchOperation.performOperation(
@@ -80,7 +80,7 @@ public class SetCommodityCapacityFromSettingPostStitchingTest {
         TopologyEntity provider = seller();
         // make sure operation fails to get a setting for this provider during post stitching
         when(entitySettingsCollection.getEntitySetting(provider.getOid(),
-                RESPONSE_TIME_CAPACITY_SETTING))
+                RESPONSE_TIME_SLO_SETTING))
                 .thenReturn(Optional.empty());
 
         UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();

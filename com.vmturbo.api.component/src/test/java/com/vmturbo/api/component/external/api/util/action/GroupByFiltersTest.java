@@ -21,7 +21,7 @@ import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -104,9 +104,6 @@ public class GroupByFiltersTest {
         when(query.actionInput()).thenReturn(inputDTO);
         when(query.getCostType()).thenReturn(Optional.empty());
 
-        when(actionSpecMapper.mapXlActionStateToApi(ActionState.READY))
-            .thenReturn(com.vmturbo.api.enums.ActionState.RECOMMENDED);
-
         final GroupByFilters groupByFilters = groupByFiltersFactory.filtersForQuery(query);
         groupByFilters.setState(ActionState.READY);
 
@@ -114,7 +111,7 @@ public class GroupByFiltersTest {
         assertThat(filters.size(), is(1));
         final StatFilterApiDTO filter = filters.get(0);
         assertThat(filter.getType(), is(StringConstants.ACTION_STATES));
-        assertThat(filter.getValue(), is("RECOMMENDED"));
+        assertThat(filter.getValue(), is("READY"));
     }
 
     @Test

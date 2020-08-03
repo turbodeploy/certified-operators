@@ -9,8 +9,8 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
-import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
+import com.vmturbo.clustermgr.api.ComponentProperties;
 
 /**
  * Discovery dump settings that obtain config values from the XL ClusterManager.
@@ -34,15 +34,27 @@ public class ComponentBasedTargetDumpingSettings implements TargetDumpingSetting
     // properties are considered stale if this much time has elapsed since last fetch
     private static final long PROPERTIES_REFRESH_INTERVAL = TimeUnit.MINUTES.toMillis(5L);
     private final String componentType;
-    private final String componentInstanceNumber;
+    private final String componentId;
     // time (milliseconds since epoch) of last fetch
     private long lastFetchTime = 0L;
     // property values from most recent fetch
-    private ComponentPropertiesDTO componentProperties;
+    private ComponentProperties componentProperties;
 
-    public ComponentBasedTargetDumpingSettings(String componentType, String componentInstanceNumber) {
+    private final ClusterMgrRestClient clusterMgrRestClient;
+
+    /**
+     * Create a new index.
+     *
+     * @param componentType The type of the component.
+     * @param componentId The id of the component.
+     * @param clusterMgrRestClient REST client to access component properties.
+     */
+    public ComponentBasedTargetDumpingSettings(@Nonnull final String componentType,
+            @Nonnull final String componentId,
+            @Nonnull final ClusterMgrRestClient clusterMgrRestClient) {
         this.componentType = componentType;
-        this.componentInstanceNumber = componentInstanceNumber;
+        this.componentId = componentId;
+        this.clusterMgrRestClient = clusterMgrRestClient;
     }
 
     @Override
@@ -71,7 +83,7 @@ public class ComponentBasedTargetDumpingSettings implements TargetDumpingSetting
      */
     @Override
     public void refreshSettings() {
-        this.componentProperties = BaseVmtComponent.getClusterMgrClient().getComponentInstanceProperties(componentType, componentInstanceNumber);
+        this.componentProperties = clusterMgrRestClient.getComponentLocalProperties(componentType);
         this.lastFetchTime = System.currentTimeMillis();
     }
 

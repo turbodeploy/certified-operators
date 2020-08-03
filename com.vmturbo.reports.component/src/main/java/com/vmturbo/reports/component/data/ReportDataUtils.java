@@ -20,7 +20,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
@@ -202,16 +202,16 @@ public class ReportDataUtils {
 
     // wrapper class to return default VM group (PK, UUID) and VM groups' (PK, UUID)
     static class GroupResults {
-        private Map<Group, Tuple2<Long, String>> groupToPK;
+        private Map<Grouping, Tuple2<Long, String>> groupToPK;
         private Tuple2<Long, String> defaultGroupPK;
 
         public GroupResults(@Nonnull Tuple2<Long, String> defaultVmGroupPK,
-                       @Nonnull Map<Group, Tuple2<Long, String>> groupToPK) {
+                       @Nonnull Map<Grouping, Tuple2<Long, String>> groupToPK) {
             this.groupToPK = groupToPK;
             this.defaultGroupPK = defaultVmGroupPK;
         }
 
-        public Map<Group, Tuple2<Long, String>> getGroupToPK() {
+        public Map<Grouping, Tuple2<Long, String>> getGroupToPK() {
             return groupToPK;
         }
 
@@ -225,17 +225,17 @@ public class ReportDataUtils {
      */
     static class EntitiesTableGeneratedId {
         // Group -> new generated group id in entities table.
-        private Map<Group, Long> groupToPK;
+        private Map<Grouping, Long> groupToPK;
         // default group, e.g. all VM on-premise
         private Long defaultGroupPK;
 
         public EntitiesTableGeneratedId(@Nonnull final Long defaultVmGroupPK,
-                                        @Nonnull final Map<Group, Long> groupToPK) {
+                                        @Nonnull final Map<Grouping, Long> groupToPK) {
             this.groupToPK = groupToPK;
             this.defaultGroupPK = defaultVmGroupPK;
         }
 
-        public Map<Group, Long> getGroupToPK() {
+        public Map<Grouping, Long> getGroupToPK() {
             return groupToPK;
         }
 
@@ -269,8 +269,10 @@ public class ReportDataUtils {
         }
     }
 
-    public static Map<Long, ReportTemplate> getReportMap() {
-        final GroupGeneratorDelegate delegate = new GroupGeneratorDelegate();
+    public static Map<Long, ReportTemplate> getReportMap(final long maxConnectRetryCount,
+                                                         final long retryDelayInMilliSec) {
+        final GroupGeneratorDelegate delegate =
+            new GroupGeneratorDelegate(maxConnectRetryCount, retryDelayInMilliSec);
         return ImmutableMap.<Long, ReportTemplate>builder().
             // standard reports
             // daily_infra_30_days_avg_stats_vs_thresholds_grid
@@ -293,8 +295,8 @@ public class ReportDataUtils {
             // daily_pm_top_resource_utilization_bar
                 put(169L, new NullReportTemplate(delegate)).
                 put(170L, new Daily_cluster_30_days_avg_stats_vs_thresholds_grid(delegate)).
-            // daily_potential_storage_waste_grid
-                put(172L, new NullReportTemplate(delegate)).
+            // daily_potential_storage_waste_grid, according to PT it show recently added VM, hide it for now
+            //  put(172L, new NullReportTemplate(delegate)).
             // monthly_individual_vm_summary
                 put(181L, new NullReportTemplate(delegate)).
             // monthly_30_days_pm_top_bottom_capacity_grid

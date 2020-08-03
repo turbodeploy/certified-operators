@@ -32,8 +32,8 @@ import com.vmturbo.reports.component.EmailAddressValidator;
 import com.vmturbo.reports.component.ReportRequest;
 import com.vmturbo.reports.component.ReportingException;
 import com.vmturbo.reports.component.communication.ReportNotificationSender;
-import com.vmturbo.reports.component.data.GroupGeneratorDelegate;
 import com.vmturbo.reports.component.data.ReportDataUtils.MetaGroup;
+import com.vmturbo.reports.component.data.ReportTemplate;
 import com.vmturbo.reports.component.data.ReportsDataGenerator;
 import com.vmturbo.reports.component.entities.EntitiesDao;
 import com.vmturbo.reports.component.templates.TemplateWrapper;
@@ -217,5 +217,10 @@ public class ReportsGenerator {
             logger.error("Could not send notification about report " + reportInstance.getId() +
                             " generation", e);
         }
+    }
+
+    public Map<Long, ReportTemplate> getSupportedReport() {
+        return reportsDataGenerator.getSupportedReport();
+
     }
 }

@@ -8,59 +8,50 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.flywaydb.core.Flyway;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProject;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Daily;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Schedule;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.TimeOfRun;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Daily;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Schedule;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.TimeOfRun;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.plan.orchestrator.db.Plan;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Unit test for {@link PlanProjectDaoImpl}
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=plan"})
 public class PlanProjectDaoImplTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
 
-    @Autowired
-    private TestSQLDatabaseConfig dbConfig;
-    private PlanProjectDao planProjectDao;
-    private Flyway flyway;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    private PlanProjectDao planProjectDao = new PlanProjectDaoImpl(dbConfig.getDslContext(), new IdentityInitializer(0));
 
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        planProjectDao = new PlanProjectDaoImpl(dbConfig.dsl(), new IdentityInitializer(0), null);
-        prepareDatabase();
-    }
-
-    private void prepareDatabase() throws Exception {
-        flyway = dbConfig.flyway();
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
     }
 
     @Test
@@ -74,18 +65,18 @@ public class PlanProjectDaoImplTest {
     }
 
     private void testGetPlanProjectList(PlanProjectType planProjectType) throws Exception {
-        List<PlanDTO.PlanProject> projectList =
+        List<PlanProjectOuterClass.PlanProject> projectList =
                 planProjectDao.getPlanProjectsByType(planProjectType);
 
         int numOfHeadroomProjectsBeforeInsert = projectList.size();
 
         assertEquals(numOfHeadroomProjectsBeforeInsert, 0);
 
-        PlanDTO.Recurrence recurrence = PlanDTO.Recurrence.newBuilder()
-                .setSchedule(PlanDTO.Recurrence.Schedule.newBuilder().setDaily(PlanDTO.Recurrence.Daily.newBuilder()))
-                .setTimeOfRun(PlanDTO.Recurrence.TimeOfRun.newBuilder().setHour(5))
+        PlanProjectOuterClass.Recurrence recurrence = PlanProjectOuterClass.Recurrence.newBuilder()
+                .setSchedule(PlanProjectOuterClass.Recurrence.Schedule.newBuilder().setDaily(PlanProjectOuterClass.Recurrence.Daily.newBuilder()))
+                .setTimeOfRun(PlanProjectOuterClass.Recurrence.TimeOfRun.newBuilder().setHour(5))
                 .build();
-        PlanDTO.PlanProjectInfo planProjectInfo = PlanDTO.PlanProjectInfo.newBuilder()
+        PlanProjectOuterClass.PlanProjectInfo planProjectInfo = PlanProjectOuterClass.PlanProjectInfo.newBuilder()
                 .setName("Plan Project")
                 .setRecurrence(recurrence)
                 .setType(planProjectType)
@@ -98,16 +89,16 @@ public class PlanProjectDaoImplTest {
 
     @Test
     public void testCollectDiags() throws Exception {
-        final PlanDTO.Recurrence recurrence = PlanDTO.Recurrence.newBuilder()
-            .setSchedule(PlanDTO.Recurrence.Schedule.newBuilder().setDaily(PlanDTO.Recurrence.Daily.newBuilder()))
-            .setTimeOfRun(PlanDTO.Recurrence.TimeOfRun.newBuilder().setHour(5))
+        final PlanProjectOuterClass.Recurrence recurrence = PlanProjectOuterClass.Recurrence.newBuilder()
+            .setSchedule(PlanProjectOuterClass.Recurrence.Schedule.newBuilder().setDaily(PlanProjectOuterClass.Recurrence.Daily.newBuilder()))
+            .setTimeOfRun(PlanProjectOuterClass.Recurrence.TimeOfRun.newBuilder().setHour(5))
             .build();
-        final PlanDTO.PlanProjectInfo planProjectInfo1 = PlanDTO.PlanProjectInfo.newBuilder()
+        final PlanProjectOuterClass.PlanProjectInfo planProjectInfo1 = PlanProjectOuterClass.PlanProjectInfo.newBuilder()
             .setName("Plan Project 1")
             .setRecurrence(recurrence)
             .setType(PlanProjectType.USER)
             .build();
-        final PlanDTO.PlanProjectInfo planProjectInfo2 = PlanDTO.PlanProjectInfo.newBuilder()
+        final PlanProjectOuterClass.PlanProjectInfo planProjectInfo2 = PlanProjectOuterClass.PlanProjectInfo.newBuilder()
             .setName("Plan Project 2")
             .setRecurrence(recurrence)
             .setType(PlanProjectType.CLUSTER_HEADROOM)
@@ -116,12 +107,15 @@ public class PlanProjectDaoImplTest {
         planProjectDao.createPlanProject(planProjectInfo1);
         planProjectDao.createPlanProject(planProjectInfo2);
 
-        final List<String> result = planProjectDao.collectDiags();
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        planProjectDao.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
+
         final List<String> expected = planProjectDao.getAllPlanProjects().stream()
             .map(project -> PlanProjectDaoImpl.GSON.toJson(project, PlanProject.class))
             .collect(Collectors.toList());
-        assertEquals(2, result.size());
-        assertEquals(expected, result);
+        assertEquals(expected, diags.getAllValues());
     }
 
     @Test
@@ -166,10 +160,5 @@ public class PlanProjectDaoImplTest {
             result
         );
 
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 }

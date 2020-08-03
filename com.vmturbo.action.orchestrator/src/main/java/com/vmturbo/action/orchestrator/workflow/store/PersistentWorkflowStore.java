@@ -1,10 +1,13 @@
 package com.vmturbo.action.orchestrator.workflow.store;
 
 import static com.vmturbo.action.orchestrator.db.tables.Workflow.WORKFLOW;
+import static com.vmturbo.action.orchestrator.db.tables.WorkflowOid.WORKFLOW_OID;
 import static com.vmturbo.action.orchestrator.workflow.store.WorkflowAttributeExtractor.WORKFLOW_TARGET_ID;
+import static org.jooq.impl.DSL.select;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,21 +16,22 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.DSLContext;
-import org.jooq.exception.DataAccessException;
-import org.jooq.impl.DSL;
-
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
+import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
+
 import com.vmturbo.action.orchestrator.db.tables.pojos.Workflow;
+import com.vmturbo.action.orchestrator.workflow.rpc.WorkflowFilter;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO.OrchestratorType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
@@ -78,28 +82,29 @@ public class PersistentWorkflowStore implements WorkflowStore {
                 throw new WorkflowStoreException("Error fetching workflow oids", e);
             }
 
-            // wrap the entire process in a DB transaction
+            // first fetch the "old oids" for this target
+            // fetch the OIDs for each workflowInfo; as a side effect, new OIDs will be created and
+            // persisted if necessary.
+            final Map<WorkflowInfo, Long> workflowOids = Maps.newHashMap();
+            try {
+                final IdentityStoreUpdate identityStoreUpdate =
+                    identityStore.fetchOrAssignItemOids(workflowInfos);
+                workflowOids.putAll(identityStoreUpdate.getNewItems());
+                workflowOids.putAll(identityStoreUpdate.getOldItems());
+
+                logger.info("{} previous workflow items, {} new workflow items",
+                    identityStoreUpdate.getOldItems().size(),
+                    identityStoreUpdate.getNewItems().size());
+            } catch (IdentityStoreException | DataAccessException e) {
+                logger.error("Identity Store Error fetching ItemOIDs for: " + workflowInfos, e);
+                throw new WorkflowStoreException("Identity Store Error fetching ItemOIDs for: " +
+                    workflowInfos, e);
+            }
+
+            // wrap the insert/update process in a DB transaction
             dsl.transaction(configuration -> {
                 // set up a DSLContext for this transaction to use in all Jooq operations
                 DSLContext transactionDsl = DSL.using(configuration);
-                // first fetch the "old oids" for this target
-                // fetch the OIDs for each workflowInfo; as a side effect, new OIDs will be created and
-                // persisted if necessary.
-                final Map<WorkflowInfo, Long> workflowOids = Maps.newHashMap();
-                try {
-                    final IdentityStoreUpdate identityStoreUpdate =
-                            identityStore.fetchOrAssignItemOids(workflowInfos);
-                    workflowOids.putAll(identityStoreUpdate.getNewItems());
-                    workflowOids.putAll(identityStoreUpdate.getOldItems());
-
-                    logger.info("{} previous workflow items, {} new workflow items",
-                            identityStoreUpdate.getOldItems().size(),
-                            identityStoreUpdate.getNewItems().size());
-                } catch (IdentityStoreException | DataAccessException e) {
-                    logger.error("Identity Store Error fetching ItemOIDs for: " + workflowInfos, e);
-                    throw new WorkflowStoreException("Identity Store Error fetching ItemOIDs for: " +
-                            workflowInfos, e);
-                }
 
                 // capture the time now - use to set last_update_time and then to remove old records
                 final LocalDateTime dateTimeNow = LocalDateTime.now(clock);
@@ -124,17 +129,17 @@ public class PersistentWorkflowStore implements WorkflowStore {
                                 + " %s for target id %s", workflowInfo.getName(), targetId), e);
                     }
                 }
-
-                // now remove all the OIDs that were present before but not in the batch being persisted
-                Set<Long> oidsToRemove = Sets.difference(previousOidsForThisTarget,
-                        Sets.newHashSet(workflowOids.values()));
-                // if any left, they are old; remove them
-                if (!oidsToRemove.isEmpty()) {
-                    logger.info("Previous workflows removed: {}", oidsToRemove.size());
-                    identityStore.removeItemOids(Sets.newHashSet(oidsToRemove));
-                }
             });
-        } catch (DataAccessException e) {
+
+            // now remove all the OIDs that were present before but not in the batch being persisted
+            Set<Long> oidsToRemove = Sets.difference(previousOidsForThisTarget,
+                    Sets.newHashSet(workflowOids.values()));
+            // if any left, they are old; remove them
+            if (!oidsToRemove.isEmpty()) {
+                identityStore.removeItemOids(Sets.newHashSet(oidsToRemove));
+                logger.info("Previous workflows removed: {}", oidsToRemove.size());
+            }
+        } catch (DataAccessException | IdentityStoreException e) {
             throw new WorkflowStoreException(e.getMessage(), e);
         }
     }
@@ -144,7 +149,7 @@ public class PersistentWorkflowStore implements WorkflowStore {
      */
     @Override
     @Nonnull
-    public Set<WorkflowDTO.Workflow> fetchWorkflows(@Nullable OrchestratorType orchestratorTypeFilter)
+    public Set<WorkflowDTO.Workflow> fetchWorkflows(@Nonnull WorkflowFilter workflowFilter)
             throws WorkflowStoreException {
         // note that the 'orchestratorFilterType' is defined by the UI but not set; it is ignored here
         // in the future the filter may need to be implemented, but not currently.
@@ -156,6 +161,7 @@ public class PersistentWorkflowStore implements WorkflowStore {
                 for (com.vmturbo.action.orchestrator.db.tables.pojos.Workflow workflow :
                         transactionDsl.select()
                         .from(WORKFLOW)
+                        .where(createConditions(workflowFilter))
                         .fetchInto(Workflow.class)) {
                     // todo: replace the call to the builder with a fetch using a Jooq Converter
                     WorkflowDTO.Workflow workflowInfo = buildWorkflowInfo(workflow);
@@ -236,5 +242,16 @@ public class PersistentWorkflowStore implements WorkflowStore {
                 .setId(dbWorkflow.getId())
                 .setWorkflowInfo(dbWorkflow.getWorkflowInfo())
                 .build();
+    }
+
+    @Nonnull
+    private Collection<Condition> createConditions(@Nonnull WorkflowFilter workflowFilter) {
+        final ImmutableList.Builder<Condition> condBuilder = ImmutableList.builder();
+        final List<Long> desiredTargets = workflowFilter.getDesiredTargetIds();
+        if (!desiredTargets.isEmpty()) {
+            condBuilder.add(WORKFLOW.ID.in(select(WORKFLOW_OID.ID).from(WORKFLOW_OID)
+                    .where(WORKFLOW_OID.TARGET_ID.in(desiredTargets))));
+        }
+        return condBuilder.build();
     }
 }

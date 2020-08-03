@@ -1,7 +1,5 @@
 package com.vmturbo.components.api.server;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
@@ -12,6 +10,11 @@ import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.AbstractMessage;
+
+import io.prometheus.client.Counter;
+import io.prometheus.client.Gauge;
+
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -20,13 +23,12 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.protobuf.AbstractMessage;
-import io.prometheus.client.Counter;
-import io.prometheus.client.Gauge;
-
 import com.vmturbo.communication.CommunicationException;
 
-public class KafkaMessageProducer implements AutoCloseable {
+/**
+ * Creates kafka-based message senders.
+ */
+public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactory {
 
     /**
      * Interval between retrials to send the message.
@@ -67,11 +69,30 @@ public class KafkaMessageProducer implements AutoCloseable {
     private final KafkaProducer<String, byte[]> producer;
     private final Logger logger = LogManager.getLogger(getClass());
     private final AtomicLong msgCounter = new AtomicLong(0);
+    private final String namespacePrefix;
+    private final int maxRequestSizeBytes;
+    private final int recommendedRequestSizeBytes;
 
     // boolean tracking if the last send was successful or not. Used as a simple health check.
     private AtomicBoolean lastSendFailed = new AtomicBoolean(false);
 
-    public KafkaMessageProducer(@Nonnull String bootstrapServer) {
+    /**
+     * Construct a {@link KafkaMessageProducer} given the list of bootstrap servers and the
+     * namespace prefix.
+     *
+     * @param bootstrapServer the list of Kafka bootstrap servers
+     * @param namespacePrefix the namespace prefix to be added to the topics
+     * @param maxRequestSizeBytes Maximum size of message that can be sent with this producer, in bytes.
+     * @param recommendedRequestSizeBytes Recommended size for messages sent with this producer, in bytes.
+     */
+    public KafkaMessageProducer(@Nonnull String bootstrapServer,
+                                @Nonnull String namespacePrefix,
+                                final int maxRequestSizeBytes,
+                                final int recommendedRequestSizeBytes) {
+        this.namespacePrefix = Objects.requireNonNull(namespacePrefix);
+        this.maxRequestSizeBytes = maxRequestSizeBytes;
+        this.recommendedRequestSizeBytes = recommendedRequestSizeBytes;
+
         // set the default properties
         final Properties props = new Properties();
         props.put("bootstrap.servers", bootstrapServer);
@@ -80,20 +101,15 @@ public class KafkaMessageProducer implements AutoCloseable {
         props.put("retry.backoff.ms", RETRY_INTERVAL_MS);
         props.put("batch.size", 16384);
         props.put("linger.ms", 1);
-        // pjs: set a max request size based on standard max protobuf serializabe size for now
-        props.put("max.request.size", 67108864); // 64mb
-        props.put("buffer.memory", 67108864);
+        props.put("max.request.size", maxRequestSizeBytes);
+        props.put("buffer.memory", maxRequestSizeBytes);
         props.put("key.serializer", StringSerializer.class.getName());
         props.put("value.serializer", ByteArraySerializer.class.getName());
 
         producer = new KafkaProducer<>(props);
     }
 
-    /**
-     * Did the last send attempt fail?
-     *
-     * @return true if the last send attempt resulted in an exception
-     */
+    @Override
     public boolean lastSendFailed() {
         return lastSendFailed.get();
     }
@@ -144,6 +160,7 @@ public class KafkaMessageProducer implements AutoCloseable {
                     logger.debug("Message send of {} bytes took {} ms", payload.length, sentTimeMs);
                     // update failure count if there was an exception
                     if (exception != null) {
+                        logger.warn("Error while sending kafka message", exception);
                         lastSendFailed.set(true);
                         MESSAGE_SEND_ERRORS_COUNT.labels(topic).inc();
                     } else {
@@ -157,30 +174,17 @@ public class KafkaMessageProducer implements AutoCloseable {
         producer.close();
     }
 
-    /**
-     * Creates message sender for the specific topic.
-     *
-     * @param topic topic to send messages to
-     * @return message sender.
-     */
+    @Override
     public <S extends AbstractMessage> IMessageSender<S> messageSender(@Nonnull String topic) {
-        return new BusMessageSender<>(topic);
+        final String namespacedTopic = namespacePrefix + topic;
+        return new BusMessageSender<>(namespacedTopic);
     }
 
-    /**
-     * Creates a message sender for the specific topic, with a specific key generator function.
-     *
-     * The key generator function should accept a message of the chosen type and return a string
-     * to use as the message key when sending.
-     *
-     * @param topic The topic to send messages to
-     * @param keyGenerator The key generation function to use
-     * @param <S> The Type of the messages to send on this topic
-     * @return a message sender configured for the topic and key generator
-     */
+    @Override
     public <S extends AbstractMessage> IMessageSender<S> messageSender(@Nonnull String topic,
                                            @Nonnull Function<S, String> keyGenerator) {
-        return new BusMessageSender<>(topic, keyGenerator);
+        final String namespacedTopic = namespacePrefix + topic;
+        return new BusMessageSender<>(namespacedTopic, keyGenerator);
     }
 
     /**
@@ -213,6 +217,16 @@ public class KafkaMessageProducer implements AutoCloseable {
                 throw new CommunicationException("Unexpected exception sending message " +
                         serverMsg.getClass().getSimpleName(), e);
             }
+        }
+
+        @Override
+        public int getMaxRequestSizeBytes() {
+            return maxRequestSizeBytes;
+        }
+
+        @Override
+        public int getRecommendedRequestSizeBytes() {
+            return recommendedRequestSizeBytes;
         }
     }
 }

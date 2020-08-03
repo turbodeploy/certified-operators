@@ -2,36 +2,133 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 1
-
 global:
 #  registry: index.docker.io
+#  imagePullSecret: turbocred
 #  imageUsername: turbouser
 #  imagePassword: turbopassword
   repository: turbonomic
-  tag: 7.16.0
+  tag: 7.22.0
+#  pullPolicy: IfNotPresent
+  customImageNames: true
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  annotations: {}
+  # setting these to be more tolerant than the k8s defaults, since we run in some pretty resource
+  # constrained environments where the readiness probe failures don't really fix anything. We should
+  # adjust these back down when we have a horizontally-scaled environment.
+  readinessPeriodSecs: 20
+  readinessTimeoutSecs: 10
 #  externalIP: 10.233.0.3 # byo k8s DNS
 #              10.100.0.10 # eks DNS
 #              10.0.0.10 # aks DNS
 #              10.23.240.10 # gke DNS
+#  externalArangoDBName: xl-influxdb.us-east-1.elb.amazonaws.com
+#  externalConsul: xl-consul.ca-central-1.rds.amazonaws.com
 #  externalDBName: xl-hackaton.cmachd0izjog.ca-central-1.rds.amazonaws.com
-  elk: false
+#  externalInfluxDBName: xl-influxdb.us-east-1.elb.amazonaws.com
+#  externalKafka: xl-kafka.us-east-1.elb.amazonaws.com
 #  externalSyslog: a608c38591a9f11e9ad190efbcf8c7e5-1236730884.us-east-1.elb.amazonaws.com
-  #  debug: true
-  dev_options: "-agentlib:jdwp=transport=dt_socket,address=8000,server=y,suspend=n"
+  elk: false
+#  debug: true
+  dev_options: "-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n"
+#  storageClassName: default
+#  storageSelector: true
+  securityContext:
+    fsGroup: 2000
+  certmanager:
+    enabled: false
+    certissuer: letsencrypt-prod
+  ingress:
+    # domain: *.turbonomic.com
+    secrets:
+    ## If you're providing your own certificates, please use this to add the certificates as secrets
+    ## key and certificate should start with -----BEGIN CERTIFICATE----- or
+    ## -----BEGIN RSA PRIVATE KEY-----
+    ##
+    ## It is also possible to create and manage the certificates outside of this helm chart
+    # - name: nginx-ingressgateway-certs
+    #   key:
+    #   certificate:
 
-ui:
+nginxingress:
   enabled: true
-history:
+istioingress:
+  enabled: false
+  mtls: true
+platform:
+  enabled: true
+control:
   enabled: true
 reporting:
-  enabled: true
+  enabled: false
 metron:
   enabled: false
+kubeturbo:
+  enabled: false
+prometurbo:
+  enabled: false
+training:
+  enabled: false
 
+loki:
+  enabled: false
+promtail:
+  enabled: false
+fluent-bit:
+  enabled: false
 prometheus:
   enabled: false
+prometheus-mysql-exporter:
+  enabled: false
 grafana:
+  # We expect the grafana admin password to be set in the CR file, like:
+  # grafana:
+  #   adminPassword: somePassword
+  grafana.ini:
+    users:
+      # Disallow explicit user creation.
+      allow_sign_up: false
+      auto_assign_org_role: Editor
+      default_theme: light
+    server:
+      # This needs to be in sync with the UI, and the NGINX configuration.
+      root_url: "https://%(domain)s/reports"
+      serve_from_sub_path: true
+    auth.proxy:
+      enabled: true
+    database:
+      # SQLite by default, overridable to postgres.
+      type: sqlite3
+
+      # The following fields are configured for postgres, and pretty much ignored when the type
+      # is SQLite. We also expect the password to use for the grafana user to be set in the CR file.
+      # In order for the user to configure the postgres backend for Grafana, we need:
+      # grafana:
+      #   grafana.ini:
+      #     database:
+      #       type: postgres
+      #       password: somePassword
+      host: timescaledb
+      name: grafana
+      user: grafana_backend
+chronograf:
+  enabled: false
+jaeger-operator:
+  enabled: false
+  jaeger:
+    create: true
+    spec:
+      storage:
+        options:
+          memory:
+            max-traces: 100000
+datacloud:
+  enabled: false
+intersight-integration:
+  enabled: false
+extractor:
   enabled: false
 
 # Enable mediation
@@ -41,25 +138,27 @@ aix:
   enabled: false
 appdynamics:
   enabled: false
+appinsights:
+  enabled: false
 aws:
   enabled: false
-awsbilling:
+baremetal:
   enabled: false
-awscost:
+datadog:
   enabled: false
 awslambda:
   enabled: false
 azure:
   enabled: false
-azurecost:
-  enabled: false
-azurevolumes:
-  enabled: false
 cloudfoundry:
   enabled: false
 compellent:
   enabled: false
+customdata:
+  enabled: false
 dynatrace:
+  enabled: false
+gcp:
   enabled: false
 hpe3par:
   enabled: false
@@ -71,13 +170,21 @@ hyperflex:
   enabled: false
 hyperv:
   enabled: false
+intersight:
+  enabled: false
 istio:
   enabled: false
 mssql:
   enabled: false
+mysql:
+  enabled: false
 netapp:
   enabled: false
 netflow:
+  enabled: false
+newrelic:
+  enabled: false
+nutanix:
   enabled: false
 oneview:
   enabled: false
@@ -91,7 +198,11 @@ rhv:
   enabled: false
 scaleio:
   enabled: false
+servicenow:
+  enabled: false
 snmp:
+  enabled: false
+terraform:
   enabled: false
 tetration:
   enabled: false
@@ -99,11 +210,11 @@ ucs:
   enabled: false
 ucsdirector:
   enabled: false
+udt:
+  enabled: false
 vcd:
   enabled: false
 vcenter:
-  enabled: false
-vcenterbrowsing:
   enabled: false
 vmax:
   enabled: false
@@ -115,21 +226,3 @@ wmi:
   enabled: false
 xtremio:
   enabled: false
-
-resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #  cpu: 100m
-  #  memory: 128Mi
-  # requests:
-  #  cpu: 100m
-  #  memory: 128Mi
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}

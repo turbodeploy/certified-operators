@@ -10,6 +10,13 @@ message StatsAvailable {
     // The ID of the topology context. For a plan, this id will match the plan id.
     // For the live topology this will match the global realtime_topology_context_id.
     optional int64 topology_context_id = 1;
+
+    optional UpdateFailure updateFailure = 2;
+
+    message UpdateFailure {
+        optional string error_message = 1;
+    }
+
 }
 
 // The message that the history component sends to websocket listeners.

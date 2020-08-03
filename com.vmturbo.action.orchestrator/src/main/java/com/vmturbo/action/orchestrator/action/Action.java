@@ -1,10 +1,16 @@
 package com.vmturbo.action.orchestrator.action;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -12,25 +18,31 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.StringUtils;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Maps;
-
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceRemovalEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AuthorizedActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ClearingEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionRemovalEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
-import com.vmturbo.action.orchestrator.store.EntitiesCache;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
@@ -39,15 +51,22 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPhase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
@@ -100,6 +119,40 @@ public class Action implements ActionView {
     private final Object recommendationLock = new Object();
 
     /**
+     * The cached action mode for the action. This is not final, because for "live" actions it
+     * can change during the lifetime of the action. We save it because action mode computation
+     * is always necessary, rarely changes, and fairly expensive.
+     * <p>
+     * Plans/BuyRI:
+     * In plans, and for Buy RI actions, this action mode is always the same.
+     * <p>
+     * Live:
+     * Every broadcast the Topology Processor updates the per-entity settings in the group
+     * component according to the group and setting policies defined by the user. When the
+     * Action Orchestrator processes an action plan it gets these per-entity settings, and
+     * can then determine the new action mode. The processing code is responsible for calling
+     * {@link Action#refreshAction(EntitiesAndSettingsSnapshot)} for all live actions when the per-entity settings
+     * are updated.
+     * <p>
+     */
+    private volatile ActionMode actionMode = ActionMode.RECOMMEND;
+
+    /**
+     * The cached workflow settings for the actions, broken down by state.
+     * Each action state may have a different workflow setting.
+     * Not final, because the settings can change during the lifetime of the action.
+     * <p>
+     * Plans/BuyRI:
+     * In plans, and for Buy RI actions, this should always be empty because we don't allow
+     * action execution.
+     * <p>
+     * Live:
+     * Updated every broadcast via {@link Action#refreshAction(EntitiesAndSettingsSnapshot)} for all live actions.
+     */
+    private volatile Map<ActionState, SettingProto.Setting> workflowSettingsForState =
+        Collections.emptyMap();
+
+    /**
      * The time at which this action was recommended.
      */
     private final LocalDateTime recommendationTime;
@@ -116,6 +169,13 @@ public class Action implements ActionView {
 
     private String executionAuthorizerId;
 
+    private String description = null;
+
+    private Optional<Long> associatedAccountId = Optional.empty();
+
+    private Optional<Long> associatedResourceGroupId = Optional.empty();
+
+    private Collection<Long> associatedSettingsPolicies;
 
     /**
      * The state of the action. The state of an action transitions due to certain system events.
@@ -135,14 +195,11 @@ public class Action implements ActionView {
     private final Map<ActionState, ExecutableStep> executableSteps = Maps.newHashMap();
 
     /**
-     * Cached settings for entities.
-     */
-    private final EntitiesCache entitiesCache;
-
-    /**
      * The ID of the action plan to which this action's recommendation belongs.
      */
     private final long actionPlanId;
+
+    private final long recommendationOid;
 
     private static final DataMetricGauge IN_PROGRESS_ACTION_COUNTS_GAUGE = DataMetricGauge.builder()
         .withName("ao_in_progress_action_counts")
@@ -169,6 +226,8 @@ public class Action implements ActionView {
      */
     private final ActionCategory actionCategory;
 
+    private ActionSchedule schedule;
+
     /**
      * Create an action from a state object that was used to serialize the state of the action.
      *
@@ -176,7 +235,7 @@ public class Action implements ActionView {
      * @param actionModeCalculator used to calculate the automation mode of the action
      */
     public Action(@Nonnull final SerializationState savedState,
-                  @Nonnull final ActionModeCalculator actionModeCalculator) {
+            @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.recommendation = savedState.recommendation;
         this.actionPlanId = savedState.actionPlanId;
         this.currentExecutableStep = Optional.ofNullable(ExecutableStep.fromExecutionStep(savedState.executionStep));
@@ -187,14 +246,37 @@ public class Action implements ActionView {
         }
         this.stateMachine = ActionStateMachine.newInstance(this, savedState.currentState);
         this.actionTranslation = savedState.actionTranslation;
-        this.entitiesCache = null;
         this.actionCategory = savedState.actionCategory;
         this.actionModeCalculator = actionModeCalculator;
+        this.schedule = savedState.schedule;
+        if (savedState.getActionDetailData() != null) {
+            // TODO: OM-48679 Initially actionDetailData will contain the action description.
+            //  It was named this way instead of description since eventually we should store the
+            //  the data used to build the action description instead of the description itself.
+            this.description = new String(savedState.getActionDetailData());
+        }
+        if (savedState.getRecommendationOid() != null) {
+            this.recommendationOid = savedState.getRecommendationOid();
+        } else {
+            // The recommendation oid will be null when the action was saved to the database before
+            // actions had recommendation oids (7.22.1 and earlier). However, we still need some
+            // sort of identifier because this.getRecommendationOid() is used to populate data
+            // structures in other objects. The Action.ActionDTO is good enough. It would be
+            // expensive to recalculate the oid. We do not need a stable oid for these database
+            // actions because they existed before external approval and audit probes like
+            // ServiceNOW.
+            this.recommendationOid = recommendation.getId();
+        }
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final LocalDateTime recommendationTime,
-                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
+                  final long actionPlanId,
+                  @Nonnull final ActionModeCalculator actionModeCalculator,
+                  @Nullable final String description,
+                  @Nullable final Long associatedAccountId,
+                  @Nullable final Long associatedResourceGroupId,
+            long recommendationOid) {
         this.recommendation = recommendation;
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.actionPlanId = actionPlanId;
@@ -202,38 +284,23 @@ public class Action implements ActionView {
         this.stateMachine = ActionStateMachine.newInstance(this);
         this.currentExecutableStep = Optional.empty();
         this.decision = new Decision();
-        this.entitiesCache = null;
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
-                recommendation.getExplanation());
+                recommendation);
         this.actionModeCalculator = actionModeCalculator;
+        this.description = description;
+        this.associatedAccountId = Optional.ofNullable(associatedAccountId);
+        this.associatedResourceGroupId = Optional.ofNullable(associatedResourceGroupId);
+        this.recommendationOid = recommendationOid;
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
-                  @Nonnull final LocalDateTime recommendationTime,
-                  @Nonnull final EntitiesCache entitySettings,
-                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
-        this.recommendation = recommendation;
-        this.actionTranslation = new ActionTranslation(this.recommendation);
-        this.actionPlanId = actionPlanId;
-        this.recommendationTime = Objects.requireNonNull(recommendationTime);
-        this.stateMachine = ActionStateMachine.newInstance(this);
-        this.currentExecutableStep = Optional.empty();
-        this.decision = new Decision();
-        this.entitiesCache = Objects.requireNonNull(entitySettings);
-        this.actionCategory = ActionCategoryExtractor.assignActionCategory(
-                recommendation.getExplanation());
-        this.actionModeCalculator = actionModeCalculator;
-    }
-
-    public Action(@Nonnull final ActionDTO.Action recommendation,
-                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
-        this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator);
-    }
-
-    public Action(@Nonnull final ActionDTO.Action recommendation,
-                  @Nonnull final EntitiesCache entitySettings,
-                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
-        this(recommendation, LocalDateTime.now(), entitySettings, actionPlanId, actionModeCalculator);
+                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator,
+            long recommendationOid) {
+        // This constructor is used by LiveActionStore, so passing null to 'description' argument
+        // or the 'associatedAccountId' or to "associatedResourceGroup" is not hurtful since the
+        // description will be formed at a later stage during refreshAction.
+        this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator, null, null,
+                null, recommendationOid);
     }
 
     /**
@@ -258,13 +325,6 @@ public class Action implements ActionView {
             if (recommendation == null) {
                 throw new IllegalStateException("Action has no recommendation.");
             }
-
-            if (!newRecommendation.getInfo().equals(this.recommendation.getInfo())) {
-                throw new IllegalArgumentException(
-                    "Updated recommendation must have the same ActionInfo!\n" +
-                        "Before:\n" + this.recommendation.getInfo() + "\nAfter:\n" +
-                        newRecommendation.getInfo());
-            }
             this.recommendation = newRecommendation.toBuilder()
                     // It's important to keep the same ID - that's the whole point of
                     // updating the recommendation instead of creating a new action.
@@ -278,11 +338,12 @@ public class Action implements ActionView {
     @Override
     public String toString() {
         synchronized (recommendationLock) {
-            return "Action Id=" + getId() +
-                    ", Type=" + recommendation.getInfo().getActionTypeCase() +
-                    ", Mode=" + getMode() +
-                    ", State=" + getState() +
-                    ", Recommendation=" + recommendation;
+            return "Action Id=" + getId()
+                    + ", Type=" + recommendation.getInfo().getActionTypeCase()
+                    + ", Mode=" + getMode()
+                    + ", State=" + getState()
+                    + ", Recommendation=" + recommendation
+                    + ", Schedule=" + schedule;
         }
     }
 
@@ -339,47 +400,144 @@ public class Action implements ActionView {
     }
 
     /**
-     * Calculate the {@link ActionMode} of the action. Check first for a Workflow Action, where
-     * the Action Mode is determined by the Workflow Policy. If not a Workflow Action,
-     * then the mode is determined by the  strictest policy that applies to the entity
-     * involved in the action.
+     * Returns OID of recommendation for this action.
+     *
+     * @return recommendation OID
+     */
+    public long getRecommendationOid() {
+        return recommendationOid;
+    }
+
+    /**
+     * Refreshes the currently saved action mode and sets the action description
+     *
+     * <p>This should only be called during live action plan processing, after the
+     * {@link EntitiesAndSettingsSnapshotFactory} is updated with the new snapshot of the settings
+     * and entities needed to resolve action modes and form the action description.
+     */
+    public void refreshAction(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot)
+            throws UnsupportedActionException {
+        synchronized (recommendationLock) {
+            final ActionModeCalculator.ModeAndSchedule actionModeAndSchedule = actionModeCalculator
+                .calculateActionModeAndExecutionSchedule(this, entitiesSnapshot);
+            actionMode = actionModeAndSchedule.getMode();
+            schedule = actionModeAndSchedule.getSchedule();
+            workflowSettingsForState = actionModeCalculator.calculateWorkflowSettings(recommendation, entitiesSnapshot);
+
+            try {
+                final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
+                associatedSettingsPolicies =
+                        getAssociatedPolicies(entitiesSnapshot, primaryEntity);
+                associatedAccountId = Action.getAssociatedAccountId(recommendation, entitiesSnapshot, primaryEntity);
+                associatedResourceGroupId = entitiesSnapshot.getResourceGroupForEntity(primaryEntity);
+            } catch (UnsupportedActionException e) {
+                // Shouldn't ever happen here, because we would have rejected this action
+                // if it was unsupported.
+                logger.error("Unexpected unsupported action exception while refreshing action:" +
+                    " {}. Error: {}", recommendation, e.getMessage());
+            }
+            // in real-time, entitiesSnapshot has information on all action types, hence the second
+            // parameter specific to detached volumes is not needed as in plans.
+            setDescription(ActionDescriptionBuilder.buildActionDescription(entitiesSnapshot,
+               actionTranslation.getTranslationResultOrOriginal()));
+        }
+    }
+
+    private static Optional<Long> getAssociatedAccountId(@Nonnull final ActionDTO.Action action,
+                                                         @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                         long primaryEntity) {
+        final ActionInfo actionInfo = action.getInfo();
+        switch (actionInfo.getActionTypeCase()) {
+            case BUYRI:
+                final BuyRI buyRi = actionInfo.getBuyRi();
+                return Optional.of(buyRi.getMasterAccount().getId());
+            default:
+                return entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
+                        .map(EntityWithConnections::getOid);
+        }
+    }
+
+    @Nonnull
+    private Set<Long> getAssociatedPolicies(@Nonnull EntitiesAndSettingsSnapshot entitiesSnapshot,
+            long primaryEntity) {
+        final Map<String, Collection<Long>> settingPoliciesForEntity =
+                entitiesSnapshot.getSettingPoliciesForEntity(primaryEntity);
+        final Set<Long> policiesAssociatedWithAction = new HashSet<>();
+        final List<String> specApplicableToAction =
+                actionModeCalculator.specsApplicableToAction(getRecommendation(),
+                        entitiesSnapshot.getSettingsForEntity(primaryEntity))
+                        .map(EntitySettingSpecs::getSettingName)
+                        .collect(Collectors.toList());
+        for (String settingName : specApplicableToAction) {
+            final Collection<Long> policies = settingPoliciesForEntity.get(settingName);
+            if (policies != null) {
+                policiesAssociatedWithAction.addAll(policies);
+            }
+            // also check execution schedule settings because specsApplicableToAction don't have
+            // information about them
+            final String executionScheduleSetting =
+                    ActionSettingSpecs.getSubSettingFromActionModeSetting(settingName,
+                            ActionSettingType.SCHEDULE);
+            if (executionScheduleSetting != null) {
+                final Collection<Long> executionSchedulePolicies =
+                        settingPoliciesForEntity.get(executionScheduleSetting);
+                if (executionSchedulePolicies != null) {
+                    policiesAssociatedWithAction.addAll(executionSchedulePolicies);
+                }
+            }
+        }
+        return policiesAssociatedWithAction;
+    }
+
+    /**
+     * Return the {@link ActionMode} of the action.
      *
      * @return The {@link ActionMode} that currently applies to the action.
      */
     @Override
     public ActionMode getMode() {
-        return actionModeCalculator.calculateWorkflowActionMode(this, entitiesCache)
-                .orElseGet(() -> getClippedActionMode());
+        return actionMode;
     }
 
     /**
-     * Calculate the {@link ActionMode} for this action based on the mode default for this action,
-     * limited by (clipped by) the action modes supported by the probe for this action.
-     *
-     * The mode is determined by the strictest policy that applies to any entity involved in the action.
-     * The default mode is RECOMMEND for actions of unrecognized type, and MANUAL for actions of
-     * recognized type with sufficient SupportLevel.
-     *
-     * @return The {@link ActionMode} that currently applies to the action.
-     * @throws IllegalArgumentException if the Action SupportLevel is not supported.
+     * {@inheritDoc}
      */
-    private ActionMode getClippedActionMode() {
-        switch (getRecommendation().getSupportingLevel()) {
-            case UNSUPPORTED:
-            case UNKNOWN:
-                return ActionMode.DISABLED;
-            case SHOW_ONLY:
-                final ActionMode mode = actionModeCalculator.calculateActionMode(
-                        this, entitiesCache);
-                return (mode.getNumber() > ActionMode.RECOMMEND_VALUE)
-                        ? ActionMode.RECOMMEND
-                        : mode;
-            case SUPPORTED:
-                return actionModeCalculator.calculateActionMode(
-                        this, entitiesCache);
-            default:
-                throw new IllegalArgumentException("Action SupportLevel is of unrecognized type.");
+    @Nonnull
+    @Override
+    public VisibilityLevel getVisibilityLevel() {
+        if (getMode() == ActionMode.DISABLED) {
+            // Disabled actions are hidden by default.
+            return VisibilityLevel.HIDDEN_BY_DEFAULT;
         }
+        return VisibilityLevel.ALWAYS_VISIBLE;
+    }
+
+    /**
+     * Gets the action description.
+     *
+     * @return The action description string.
+     */
+    @Nonnull
+    @Override
+    public String getDescription() {
+        return description == null ? "" : description;
+    }
+
+    /**
+     * Sets action description.
+     *
+     * This method is exposed to permit setting action description in tests without the need to
+     * go through Action Store logic.
+     *
+     * The action description is being built by
+     * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
+     *
+     * @param description The action description that will be set.
+     */
+    @VisibleForTesting
+    public void setDescription(@Nonnull final String description) {
+        this.description =  description;
+
     }
 
     /**
@@ -418,12 +576,8 @@ public class Action implements ActionView {
         return hasNonEmptyStringSetting(getWorkflowSetting());
     }
 
-    private boolean hasWorkflowForState(ActionState actionState) {
-        return hasNonEmptyStringSetting(getWorkflowSetting(actionState));
-    }
-
     private boolean hasNonEmptyStringSetting(Optional<SettingProto.Setting> settingOpt) {
-        return settingOpt.map(setting -> hasNonEmptyStringValue(setting)).orElse(false);
+        return settingOpt.map(this::hasNonEmptyStringValue).orElse(false);
     }
 
     private boolean hasNonEmptyStringValue(Setting setting) {
@@ -476,9 +630,37 @@ public class Action implements ActionView {
         return actionCategory;
     }
 
+    @Override
+    @Nonnull
+    public Optional<Long> getAssociatedAccount() {
+        return associatedAccountId;
+    }
+
+    @Override
+    public Optional<Long> getAssociatedResourceGroupId() {
+        return associatedResourceGroupId;
+    }
+
+    @Nonnull
+    @Override
+    public Optional<ActionSchedule> getSchedule() {
+        return Optional.ofNullable(schedule);
+    }
+
+    @Override
+    public void setSchedule(@Nonnull ActionSchedule actionSchedule) {
+        this.schedule = actionSchedule;
+    }
+
+    @Nonnull
+    @Override
+    public Collection<Long> getAssociatedSettingsPolicies() {
+        return associatedSettingsPolicies != null ? associatedSettingsPolicies : Collections.emptyList();
+    }
+
     /**
      * Get the translation of the action from the market's domain-agnostic representation into
-     * the domain-specific real-world representaiton. See {@link ActionTranslation} for more details.
+     * the domain-specific real-world representation. See {@link ActionTranslation} for more details.
      *
      * @return The {@link ActionTranslation} associated with this action.
      */
@@ -488,6 +670,15 @@ public class Action implements ActionView {
         synchronized (recommendationLock) {
             return actionTranslation;
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public ActionDTO.Action getTranslationResultOrOriginal() {
+        return getActionTranslation().getTranslationResultOrOriginal();
     }
 
     /**
@@ -527,17 +718,7 @@ public class Action implements ActionView {
      */
     @Nonnull
     private Optional<SettingProto.Setting> getWorkflowSetting(ActionState actionState) {
-        // To avoid holding the lock for a long time, save the reference to the recommendation at
-        // the time the method is called. Note that the underlying protobuf is immutable.
-        final ActionDTO.Action curRecommendation;
-        synchronized (recommendationLock) {
-            curRecommendation = recommendation;
-        }
-        // Fetch the setting, if any, that defines whether a Workflow should be applied in the *next*
-        // step of this action's execution. This may be a PRE, REPLACE or POST workflow, depending
-        // on the policies defined and the current state of the action.
-        return ActionModeCalculator
-            .calculateWorkflowSetting(curRecommendation, entitiesCache, actionState);
+        return Optional.ofNullable(workflowSettingsForState.get(actionState));
     }
 
 
@@ -545,11 +726,14 @@ public class Action implements ActionView {
      * Determine if this Action may be executed directly by Turbonomic, i.e. the mode
      * is either AUTOMATIC or MANUAL.
      *
-     * @return true if this Action may be executed, i.e. mode is either AUTOMATIC or MANUAL
+     * @return true if this Action may be executed, i.e. mode is AUTOMATIC, MANUAL, or
+     *         EXTERNAL_APPROVAL.
      */
     private boolean modePermitsExecution() {
         final ActionMode mode = getMode();
-        return mode == ActionMode.AUTOMATIC || mode == ActionMode.MANUAL;
+        return mode == ActionMode.AUTOMATIC
+            || mode == ActionMode.MANUAL
+            || mode == ActionMode.EXTERNAL_APPROVAL;
     }
 
     /**
@@ -619,7 +803,7 @@ public class Action implements ActionView {
 
     @Override
     public boolean hasPendingExecution() {
-        return currentExecutableStep.map(step -> hasPendingExecution(step)).orElse(false);
+        return currentExecutableStep.map(this::hasPendingExecution).orElse(false);
     }
 
     private boolean hasPendingExecution(@Nonnull ExecutableStep step) {
@@ -656,7 +840,41 @@ public class Action implements ActionView {
     }
 
     /**
-     * Called when an action enters the PRE state, preparing to execute an action
+     * Called when an action is rejected.
+     *
+     * @param event The event that caused the rejecting.
+     */
+    void onActionRejected(@Nonnull final RejectionEvent event) {
+    }
+
+    /**
+     * Called when acceptance is removed for action.
+     *
+     * @param event The event that caused the removing acceptance.
+     */
+    void onAcceptanceRemoved(@Nonnull final AcceptanceRemovalEvent event) {
+        currentExecutableStep = Optional.empty();
+    }
+
+    /**
+     * Called when rejection is removed for action.
+     *
+     * @param event The event that caused the removing rejection.
+     */
+    void onRejectionRemoved(@Nonnull final RejectionRemovalEvent event) {
+    }
+
+    /**
+     * Called when accepted action is sent to the queue.
+     *
+     * @param event The event that caused the sending action to the queue.
+     */
+    void onActionQueued(@Nonnull final QueuedEvent event) {
+    }
+
+    /**
+     * Called when an action enters the PRE state, preparing to execute an action.
+     *
      * @param event The event that caused the execution preparation.
      */
     void onActionPrepare(@Nonnull final PrepareExecutionEvent event) {
@@ -693,10 +911,7 @@ public class Action implements ActionView {
         // Add the current executable step to the map of all steps with the IN_PROGRESS key
         executableSteps.put(getState(), currentExecutableStep.get());
         // Mark the main execution step of this action as in-progress
-        updateExecutionStatus(step -> {
-                step.execute();
-            }, event.getEventName()
-        );
+        updateExecutionStatus(ExecutableStep::execute, event.getEventName());
     }
 
     /**
@@ -709,10 +924,7 @@ public class Action implements ActionView {
         // tracking the primary action execution
         replaceExecutionStep(event.getEventName());
         // Mark the main execution step of this action as in-progress
-        updateExecutionStatus(step -> {
-                step.execute();
-            }, event.getEventName()
-        );
+        updateExecutionStatus(ExecutableStep::execute, event.getEventName());
     }
 
     void onActionProgress(@Nonnull final ProgressEvent event) {
@@ -737,7 +949,17 @@ public class Action implements ActionView {
     }
 
     /**
-     * Called when an action enters the POST state, after executing an action successfully
+     * When action was removed from queue because of non active status of execution window.
+     *
+     * @param rollBackEvent the rollback event signaling the changing action state from QUEUED to
+     * previous state
+     */
+    void onActionRemovedFromQueue(@Nonnull final RollBackToAcceptedEvent rollBackEvent) {
+        currentExecutableStep = Optional.empty();
+    }
+
+    /**
+     * Called when an action enters the POST state, after executing an action successfully.
      *
      * @param event The success event signaling the end of action execution
      */
@@ -778,10 +1000,7 @@ public class Action implements ActionView {
             // tracking the POST action execution
             replaceExecutionStep(event.getEventName());
             // Mark the main execution step of this action as in-progress
-            updateExecutionStatus(step -> {
-                    step.execute();
-                }, event.getEventName()
-            );
+            updateExecutionStatus(ExecutableStep::execute, event.getEventName());
             // ActionStateUpdater will kick off the actual execution of the POST workflow
         }
     }
@@ -976,15 +1195,46 @@ public class Action implements ActionView {
             return actionCategory;
         }
 
-        final LocalDateTime recommendationTime;
+        @Nullable
+        public Long getAssociatedAccountId() {
+            return associatedAccountId;
+        }
 
-        final ActionDecision actionDecision;
+        @Nullable
+        public Long getAssociatedResourceGroupId() {
+            return associatedResourceGroupId;
+        }
 
-        final ExecutionStep executionStep;
+        @Nullable
+        public byte[] getActionDetailData() {
+            return actionDetailData;
+        }
 
-        final ActionState currentState;
+        @Nullable
+        public ActionSchedule getSchedule() {
+            return schedule;
+        }
 
-        final ActionTranslation actionTranslation;
+        private final LocalDateTime recommendationTime;
+
+        private final ActionDecision actionDecision;
+
+        private final ExecutionStep executionStep;
+
+        private final ActionState currentState;
+
+        private final ActionTranslation actionTranslation;
+
+        private final Long associatedAccountId;
+
+        private final Long associatedResourceGroupId;
+
+        private final byte[] actionDetailData;
+
+        private final ActionSchedule schedule;
+
+        @Nullable
+        private final Long recommendationOid;
 
         /**
          * We don't really need to save the category because it can be extracted from the
@@ -1002,6 +1252,11 @@ public class Action implements ActionView {
             this.currentState = action.stateMachine.getState();
             this.actionTranslation = action.actionTranslation;
             this.actionCategory = action.getActionCategory();
+            this.associatedAccountId = action.getAssociatedAccount().orElse(null);
+            this.associatedResourceGroupId = action.getAssociatedResourceGroupId().orElse(null);
+            this.actionDetailData = action.getDescription().getBytes();
+            this.schedule = action.getSchedule().orElse(null);
+            this.recommendationOid = action.getRecommendationOid();
         }
 
         public SerializationState(final long actionPlanId,
@@ -1010,7 +1265,11 @@ public class Action implements ActionView {
                                   @Nullable ActionDecision decision,
                                   @Nullable ExecutionStep executableStep,
                                   @Nonnull ActionState actionState,
-                                  @Nonnull ActionTranslation actionTranslation) {
+                                  @Nonnull ActionTranslation actionTranslation,
+                                  @Nullable Long associatedAccountId,
+                                  @Nullable Long associatedResourceGroupId,
+                                  @Nullable byte[] actionDetailData,
+                                  @Nullable Long recommendationOid) {
             this.actionPlanId = actionPlanId;
             this.recommendation = recommendation;
             this.recommendationTime = recommendationTime;
@@ -1019,7 +1278,25 @@ public class Action implements ActionView {
             this.currentState = actionState;
             this.actionTranslation = actionTranslation;
             this.actionCategory =
-                    ActionCategoryExtractor.assignActionCategory(recommendation.getExplanation());
+                    ActionCategoryExtractor.assignActionCategory(recommendation);
+            this.associatedAccountId = associatedAccountId;
+            this.associatedResourceGroupId = associatedResourceGroupId;
+            this.actionDetailData = actionDetailData;
+            this.schedule = null;
+            this.recommendationOid = recommendationOid;
+        }
+
+        /**
+         * Return the stable oid that identifies the action, even between market cycles and
+         * restarts.
+         *
+         * @return the stable oid that identifies the action, even between market cycles and
+         * restarts. This value is null when the data was saved when the stable oid did not exist.
+         * This includes XL versions 7.22.1 and earlier.
+         */
+        @Nullable
+        public Long getRecommendationOid() {
+            return recommendationOid;
         }
     }
 

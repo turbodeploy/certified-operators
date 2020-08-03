@@ -35,7 +35,7 @@ import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
 import com.vmturbo.components.api.test.IntegrationTestServer;
-import com.vmturbo.components.common.ConsulDiscoveryManualConfig;
+import com.vmturbo.components.common.ConsulRegistrationConfig;
 import com.vmturbo.mediation.client.it.AbstractIntegrationTest.ContextConfiguration;
 import com.vmturbo.mediation.common.ProbeInstanceRegistry;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
@@ -103,13 +103,16 @@ public class XlSdkEngine implements ISdkEngine {
         environment.setProperty(TestMediationCommonConfig.FIELD_TEST_NAME,
                 testName.getMethodName());
         environment.setProperty("instance_id", testName.getMethodName());
+        environment.setProperty("instance_ip", "10.10.10.10");
         environment.setProperty("identityGeneratorPrefix", "0");
-        environment.setProperty("kvStoreRetryIntervalMillis", "1000");
+        environment.setProperty("kvStoreTimeoutSeconds", "5");
         environment.setProperty("websocket.pong.timeout", "10000");
         environment.setProperty("server.grpcPort", "0");
         environment.setProperty("consul_port", "0");
         environment.setProperty("consul_host", "consul");
-        environment.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION, "true");
+        environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
+        environment.setProperty("standalone", "true");
+        environment.setProperty("connRetryIntervalSeconds", "1");
 
         applicationContext = new AnnotationConfigWebApplicationContext();
         applicationContext.setEnvironment(environment);
@@ -194,7 +197,9 @@ public class XlSdkEngine implements ISdkEngine {
     @Nonnull
     @Override
     public ISdkContainer createMediationContainer() throws Exception {
-        return new SdkContainer();
+        final SdkContainer container = new SdkContainer();
+        containers.add(container);
+        return container;
     }
 
     @Nonnull
@@ -260,12 +265,12 @@ public class XlSdkEngine implements ISdkEngine {
             };
             environment.setProperty(TestMediationCommonConfig.FIELD_TEST_NAME,
                     testName.getMethodName());
-            environment.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION,
+            environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION,
                     "true");
             environment.setProperty("consul_host", "consul");
             environment.setProperty("consul_port", "0");
             environment.setProperty("spring.application.name", "the-component");
-            environment.setProperty("kvStoreRetryIntervalMillis", "1000");
+            environment.setProperty("kvStoreTimeoutSeconds", "5");
 
             // Alter JMX domain in order to start multiple spring-boot applications inside one
             // JVM
@@ -277,11 +282,15 @@ public class XlSdkEngine implements ISdkEngine {
             final String instanceId =
                     testName.getMethodName() + "-" + instanceCounter.getAndIncrement();
             environment.setProperty("instance_id", instanceId);
+            environment.setProperty("instance_ip", "10.10.10.10");
             environment.setProperty("component_type", "sdk-test-" + instanceId);
             environment.setProperty("probe-directory", probeJarsDir.toString());
             environment.setProperty("serverAddress",
                     webSocketServer.getServerURI(SdkServerConfig.REMOTE_MEDIATION_PATH).toString());
             environment.setProperty("instances." + instanceId + ".identityGeneratorPrefix", "0");
+            environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
+            environment.setProperty("standalone", "true");
+            environment.setProperty("connRetryIntervalSeconds", "1");
             testServer =
                     new IntegrationTestServer(testName, ContextConfiguration.class, environment);
         }
@@ -333,8 +342,8 @@ public class XlSdkEngine implements ISdkEngine {
         public void createProbeJar(@Nonnull SdkProbe probe) throws Exception {
             if (this.probe != null) {
                 throw new IllegalStateException(
-                        "Probe is already set to value " + this.probe.getType() +
-                                " while trying to add probe " + probe.getType());
+                        "Probe is already set to value " + this.probe.getType()
+                                + " while trying to add probe " + probe.getType());
             }
             this.probe = Objects.requireNonNull(probe);
             ProbeCompiler.configureProbe(probeHome, probe);

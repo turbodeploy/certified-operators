@@ -12,6 +12,8 @@ import org.junit.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.vmturbo.clustermgr.api.ClusterConfiguration;
+
 public class ClusterConfigurationTest {
 
     private final Logger logger = LogManager.getLogger();
@@ -21,7 +23,8 @@ public class ClusterConfigurationTest {
         // Arrange
         InputStream clusterConfigJson = getClass().getClassLoader().getResourceAsStream("clusterConfigurationTest.json");
         // Act
-        ClusterConfiguration testValue = new ObjectMapper().readValue(clusterConfigJson, ClusterConfiguration.class);
+        ClusterConfiguration
+                testValue = new ObjectMapper().readValue(clusterConfigJson, ClusterConfiguration.class);
         // Assert
         // test the "defaults" section first
         assertThat(testValue.getDefaults().getComponentNames().size(), is(2));
@@ -41,7 +44,6 @@ public class ClusterConfigurationTest {
         assertThat(testValue.getInstances().size(), is(2));
         assertThat(testValue.getInstances().keySet(), containsInAnyOrder(expectedComponentIds));
         assertThat(testValue.getInstances().get("c1_1").getComponentType(), is("c1"));
-        assertThat(testValue.getInstances().get("c1_1").getNode(), is("node1"));
         assertThat(testValue.getInstances().get("c1_1").getProperties().size(), is(2));
         String[] expectedC1PropertyKeys = {"prop1", "prop2"};
         assertThat(testValue.getInstances().get("c1_1").getProperties().keySet(), containsInAnyOrder(expectedC1PropertyKeys));
@@ -49,7 +51,6 @@ public class ClusterConfigurationTest {
         assertThat(testValue.getInstances().get("c1_1").getProperties().get("prop2"), is("val2"));
 
         assertThat(testValue.getInstances().get("c2_1").getComponentType(), is("c2"));
-        assertThat(testValue.getInstances().get("c2_1").getNode(), is("node2"));
         assertThat(testValue.getInstances().get("c2_1").getProperties().size(), is(1));
         assertThat(testValue.getInstances().get("c2_1").getProperties().get("prop3"), is("val3"));
 

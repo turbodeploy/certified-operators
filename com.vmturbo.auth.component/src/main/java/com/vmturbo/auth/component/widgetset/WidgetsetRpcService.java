@@ -1,16 +1,16 @@
 package com.vmturbo.auth.component.widgetset;
 
+import java.util.Collections;
 import java.util.Optional;
 
 import javax.ws.rs.NotAuthorizedException;
 
-import org.jooq.tools.StringUtils;
-
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.jooq.tools.StringUtils;
+
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
-import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.component.store.AuthProvider;
 import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.common.protobuf.widgets.Widgets;
@@ -108,10 +108,10 @@ public class WidgetsetRpcService extends WidgetsetsServiceGrpc.WidgetsetsService
                                   StreamObserver<Widgetset> responseObserver) {
         final String removedUserid = request.getRemovedUserid();
         try {
-            widgetsetStore.transferOwnership(Long.parseLong(removedUserid), getQueryUserOid())
-                .forEachRemaining(widgetsetRecord -> {
-                    responseObserver.onNext(fromDbWidgetset(widgetsetRecord));
-                });
+            widgetsetStore.transferOwnership(Collections.singleton(Long.parseLong(removedUserid)),
+                    getQueryUserOid()).forEachRemaining(widgetsetRecord -> {
+                        responseObserver.onNext(fromDbWidgetset(widgetsetRecord));
+                    });
             responseObserver.onCompleted();
         } catch (NumberFormatException nfe) {
             responseObserver.onError(Status.FAILED_PRECONDITION
@@ -171,13 +171,8 @@ public class WidgetsetRpcService extends WidgetsetsServiceGrpc.WidgetsetsService
         if (queryUserOid == dbWidgetset.getOwnerOid()) {
             protoWidgetset.setOwnerUserid(queryUserid);
         } else {
-            String ownerUserUuid = Long.toString(dbWidgetset.getOwnerOid());
-            // TODO: add an entrypoint to look up a user by UUID; otherwise must loop
-            String ownerUserid = authProvider.list().stream()
-                    .filter(authUserDTO -> authUserDTO.getUuid().equals(ownerUserUuid))
-                    .map(AuthUserDTO::getUser)
-                    .findFirst().orElse(DEFAULT_OWNER_USERID);
-            protoWidgetset.setOwnerUserid(ownerUserid);
+            protoWidgetset.setOwnerUserid(authProvider.findUsername(dbWidgetset.getOwnerOid())
+                    .orElse(DEFAULT_OWNER_USERID));
         }
         Widgets.WidgetsetInfo.Builder protoWidgetsetInfo = Widgets.WidgetsetInfo.newBuilder();
         if (dbWidgetset.getDisplayName() != null) {

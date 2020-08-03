@@ -3,8 +3,9 @@ package plan;
 
 option java_package = "com.vmturbo.common.protobuf.plan";
 
-import "plan/PlanDTO.proto";
+import "plan/Scenario.proto";
 import "topology/TopologyDTO.proto";
+import "plan/TemplateDTO.proto";
 
 // Reservation describes user-specified reservation information, such as templates, constraints and
 // also contains all reservation instances and placement information which are created by internal
@@ -34,16 +35,43 @@ message Reservation {
     optional ConstraintInfoCollection constraint_info_collection = 7;
 }
 
+// ReservationChange describes a reservation whose status has changed.
+// Meant to be lightweight since we will batch send multiple reservation records.
+message ReservationChange {
+    // Id of reservation.
+    optional int64 id = 1;
+
+    // Status of reservation.
+    optional ReservationStatus status = 2;
+}
+
+// ReservationChanges describes a list of reservations whose statuses have changed.
+message ReservationChanges {
+    // A list of reservation status changes.
+    repeated ReservationChange reservation_change = 1;
+}
+
 // If current date is before start date, status is FUTURE. If current date is equal or after
 // start date, status is RESERVED.
 //ie: current date     start_date
 //    ----------------|--------------
 //    FUTURE           RESERVED
+// If the reservation's template was deleted, status is INVALID.
 enum ReservationStatus {
     // FUTURE means that reservation's start day is after current date.
     FUTURE = 1;
     // RESERVED means that reservation is active now which start day is on or before current date.
     RESERVED = 2;
+    // INVALID means that the reservation's template was deleted.
+    INVALID = 3;
+    // initial status of reservations created with start date same as current date
+    UNFULFILLED = 4;
+    //  reservation part of the current reservation plan
+    INPROGRESS = 5;
+    // reservation was part of  reservation plan and there is not enough space currently
+    PLACEMENT_FAILED = 6;
+    // initial state of reservation
+    INITIAL = 7;
 }
 
 message ReservationTemplateCollection {
@@ -62,6 +90,9 @@ message ReservationTemplateCollection {
         // A list of reservation instance which contains placement information.
         repeated ReservationInstance reservation_instance = 3;
 
+        // template
+        optional Template template = 4;
+
         message ReservationInstance {
             // Id of reservation instance entity.
             optional int64 entity_id = 1;
@@ -71,6 +102,9 @@ message ReservationTemplateCollection {
 
             // Name of entity
             optional string name = 3;
+
+            // details of why a reservation instance was unplaced.
+            repeated InitialPlacementFailureInfo failure_info = 4;
 
             // Contains placement information of reservation instance.
             message PlacementInfo {
@@ -82,9 +116,18 @@ message ReservationTemplateCollection {
 
                 // a list of commodities bought from this provider.
                 repeated .topology.CommodityBoughtDTO commodity_bought = 3;
+
+                optional int64 placement_info_id = 4;
             }
         }
     }
+}
+
+message InitialPlacementFailureInfo {
+    optional .topology.CommodityType commType = 1;
+    optional int64 closest_seller = 2;
+    optional double max_quantity_available = 3;
+    optional double requested_quantity = 4;
 }
 
 message ConstraintInfoCollection {
@@ -112,6 +155,7 @@ message GetAllReservationsRequest {
 message GetReservationByIdRequest {
     // Id of the request reservation.
     optional int64 reservation_id = 1;
+    optional bool apiCallBlock = 2;
 }
 
 // Reqeust for create a new reservation.
@@ -147,10 +191,31 @@ message UpdateReservationsRequest {
     repeated Reservation reservation = 1;
 }
 
+// Request for update future and expired reservations.
+message UpdateFutureAndExpiredReservationsRequest {
+    // A list of reservations need to update.
+}
+
+message UpdateConstraintMapRequest {
+    repeated ReservationConstraintInfo reservationContraintInfo = 1;
+}
+
+message UpdateConstraintMapResponse {
+    required int64 count = 1;
+}
+
+message UpdateFutureAndExpiredReservationsResponse {
+    // The number of reservations that are activated by the RPC.
+    // If this number is greater than 0, the reservation service will be kicking off
+    // another reservation plan to place the activated reservations.
+    optional int64 activated_reservations = 1;
+
+    // The number of reservations that are now expired, and got deleted.
+    optional int64 expired_reservations_removed = 2;
+}
+
 // A service responsible for Reservation related request.
 service ReservationService {
-    // Attemp to run a initial placement
-    rpc InitialPlacement(InitialPlacementRequest) returns (InitialPlacementResponse);
 
     // Get all reservations.
     rpc GetAllReservations(GetAllReservationsRequest) returns (stream Reservation);
@@ -164,6 +229,10 @@ service ReservationService {
     // Create a new reservation.
     rpc CreateReservation(CreateReservationRequest) returns (Reservation);
 
+    // Update future and expired reservation.
+    rpc UpdateFutureAndExpiredReservations(UpdateFutureAndExpiredReservationsRequest)
+        returns (UpdateFutureAndExpiredReservationsResponse);
+
     // Delete a existing reservation.
     rpc DeleteReservationById(DeleteReservationByIdRequest) returns (Reservation);
 
@@ -172,4 +241,7 @@ service ReservationService {
 
     // Update a list of reservations together.
     rpc UpdateReservations(UpdateReservationsRequest) returns (stream Reservation);
+
+    // Update a existing resertion with a new reservation.
+    rpc UpdateConstraintMap(UpdateConstraintMapRequest) returns (UpdateConstraintMapResponse);
 }

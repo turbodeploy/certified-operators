@@ -1,7 +1,9 @@
 package com.vmturbo.components.test.performance.action.orchestrator;
 
-import java.util.Collection;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -15,6 +17,12 @@ import java.util.stream.LongStream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
+import io.grpc.Channel;
+import io.grpc.stub.StreamObserver;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -23,19 +31,11 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-
-import io.grpc.Channel;
-import io.grpc.stub.StreamObserver;
 import tec.units.ri.unit.MetricPrefix;
 
-import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorNotificationReceiver;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -43,6 +43,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.TypeCase;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -50,18 +52,21 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetEntitiesInfoRequest;
-import com.vmturbo.common.protobuf.topology.EntityServiceGrpc.EntityServiceImplBase;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesResponse;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceImplBase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
@@ -110,7 +115,7 @@ public class ActionOrchestratorPerformanceTest {
         IdentityGenerator.initPrefix(0);
     }
 
-    private ActionOrchestrator actionOrchestrator;
+    private ActionOrchestratorNotificationReceiver actionOrchestrator;
     private ActionsServiceBlockingStub actionsService;
     private EntitySeverityServiceBlockingStub severitiesService;
     private KafkaMessageConsumer messageConsumer;
@@ -134,7 +139,7 @@ public class ActionOrchestratorPerformanceTest {
         marketNotificationSender =
                 MarketKafkaSender.createMarketSender(componentTestRule.getKafkaMessageProducer());
         actionOrchestrator =
-                new ActionOrchestratorNotificationReceiver(messageReceiver, threadPool);
+                new ActionOrchestratorNotificationReceiver(messageReceiver, threadPool, 0);
         messageConsumer.start();
     }
 
@@ -223,11 +228,18 @@ public class ActionOrchestratorPerformanceTest {
             deleteActionsResponse.getActionCount());
     }
 
-    public void populateActions(@Nonnull final ActionOrchestrator actionOrchestrator,
+    /**
+     * Send the specified action plan to the action orchestrator for processing.
+     *
+     * @param actionOrchestrator The action orchestrator.
+     * @param actionPlan The action plan.
+     * @param type The type.
+     */
+    public void populateActions(@Nonnull final ActionOrchestratorNotificationReceiver actionOrchestrator,
                                 @Nonnull final ActionPlan actionPlan,
                                 @Nonnull final String type) throws Exception {
         final CompletableFuture<ActionsUpdated> actionsUpdatedFuture = new CompletableFuture<>();
-        actionOrchestrator.addActionsListener(new TestActionsListener(actionsUpdatedFuture));
+        actionOrchestrator.addListener(new TestActionsListener(actionsUpdatedFuture));
 
         final long start = System.currentTimeMillis();
         marketNotificationSender.notifyActionsRecommended(actionPlan);
@@ -247,11 +259,15 @@ public class ActionOrchestratorPerformanceTest {
                 // Set a high limit. The server may trim it down.
                 .setLimit(100000)
                 .build();
-        final FilteredActionResponse response = actionsService.getAllActions(request.toBuilder()
-                .setPaginationParams(paginationParameters)
-                .build());
-        final int counter = response.getActionsCount();
-
+        final Iterator<FilteredActionResponse> responseIterator = actionsService.getAllActions(
+                request.toBuilder().setPaginationParams(paginationParameters).build());
+        int counter = 0;
+        while (responseIterator.hasNext()) {
+            final FilteredActionResponse response = responseIterator.next();
+            if (response.getTypeCase() == TypeCase.ACTION_CHUNK) {
+                counter += response.getActionChunk().getActionsCount();
+            }
+        }
         logger.info("Took {} retrieve the first page of {} {} actions.",
             (System.currentTimeMillis() - startFetchVisible) / 1000.0f, type, counter);
     }
@@ -299,31 +315,29 @@ public class ActionOrchestratorPerformanceTest {
      * Entity Service Stub that provides bare-bones entity information for entities referenced in
      * an action plan.
      */
-    public class EntityServiceStub extends EntityServiceImplBase {
+    public class EntityServiceStub extends RepositoryServiceImplBase {
 
-        private Map<Long,EntityInfo> entitiesForActionPlan = new HashMap<>();
+        private Map<Long, ActionPartialEntity> entitiesForActionPlan = new HashMap<>();
 
         public void loadEntitiesForActionPlan(ActionPlan actionPlan) throws UnsupportedActionException {
             // create simple entities for each action in the plan
             entitiesForActionPlan = ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()).stream()
-                    .map(entityId -> EntityInfo.newBuilder()
-                        .putTargetIdToProbeId(1L, 2L)
-                        .setEntityId(entityId).build())
-                    .collect(Collectors.toMap(EntityInfo::getEntityId, Function.identity()));
+                    .map(entityId -> ActionPartialEntity.newBuilder()
+                    .addAllDiscoveringTargetIds(Arrays.asList(1L))
+                    .setOid(entityId).build())
+                    .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
         }
-
-        public Collection<Long> getEntityIds() {
-            return entitiesForActionPlan.keySet();
-        }
-
         @Override
-        public void getEntitiesInfo(final GetEntitiesInfoRequest request, final StreamObserver<EntityInfo> responseObserver) {
-            for (final Long entityId : request.getEntityIdsList()) {
-                EntityInfo entityInfo = entitiesForActionPlan.get(entityId);
-                if (entityInfo != null) {
-                    responseObserver.onNext(entityInfo);
+        public void retrieveTopologyEntities(final RetrieveTopologyEntitiesRequest request,
+                                              final StreamObserver<PartialEntityBatch> responseObserver) {
+            List<PartialEntity> actionPartialEntities = new ArrayList<>();
+            for (final Long entityId : request.getEntityOidsList()) {
+                ActionPartialEntity actionPartialEntity = entitiesForActionPlan.get(entityId);
+                if (actionPartialEntity != null) {
+                    actionPartialEntities.add(PartialEntity.newBuilder().setAction(actionPartialEntity).build());
                 }
             }
+            responseObserver.onNext(PartialEntityBatch.newBuilder().addAllEntities(actionPartialEntities).build());
             responseObserver.onCompleted();
         }
     }

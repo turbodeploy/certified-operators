@@ -1,6 +1,5 @@
 package com.vmturbo.cost.component.reserved.instance;
 
-import java.time.Clock;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,31 +8,53 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceController;
-import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceSpecServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
+import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.component.CostComponentGlobalConfig;
+import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
+import com.vmturbo.cost.component.SupplyChainServiceConfig;
+import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
+import com.vmturbo.cost.component.notification.CostNotificationConfig;
+import com.vmturbo.cost.component.pricing.PricingConfig;
+import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
+import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory.DefaultRICoverageAllocatorFactory;
+import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 @Configuration
 @Import({IdentityProviderConfig.class,
-        GroupClientConfig.class,
-        MarketClientConfig.class,
-        MarketListenerConfig.class,
-        SQLDatabaseConfig.class,
-        RepositoryClientConfig.class})
+    GroupClientConfig.class,
+    MarketClientConfig.class,
+    MarketListenerConfig.class,
+    CostDBConfig.class,
+    RepositoryClientConfig.class,
+    ComputeTierDemandStatsConfig.class,
+    CostNotificationConfig.class,
+    CostComponentGlobalConfig.class,
+    TopologyProcessorListenerConfig.class,
+    SupplyChainServiceConfig.class,
+    CostClientConfig.class})
 public class ReservedInstanceConfig {
 
     @Value("${retention.numRetainedMinutes}")
@@ -45,11 +66,17 @@ public class ReservedInstanceConfig {
     @Value("${riCoverageCacheExpireMinutes:120}")
     private int riCoverageCacheExpireMinutes;
 
-    @Value("${projectedTopologyListenerTimeOut}")
-    private int projectedTopologyTimeOut;
-
     @Value("${persistEntityCostChunkSize}")
     private int persistEntityCostChunkSize;
+
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
+
+    @Value("${supplementalRICoverageValidation:false}")
+    private boolean supplementalRICoverageValidation;
+
+    @Value("${concurrentSupplementalRICoverageAllocation:true}")
+    private boolean concurrentSupplementalRICoverageAllocation;
 
     @Autowired
     private GroupClientConfig groupClientConfig;
@@ -61,15 +88,51 @@ public class ReservedInstanceConfig {
     private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private CostDBConfig databaseConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
 
+    @Autowired
+    private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
+
+    @Autowired
+    private CostComponentGlobalConfig costComponentGlobalConfig;
+
+    @Autowired
+    private CostNotificationConfig costNotificationConfig;
+
+    @Autowired
+    private TopologyProcessorListenerConfig topologyProcessorListenerConfig;
+
+    @Autowired
+    private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
+
+    @Autowired
+    private PricingConfig pricingConfig;
+
+    @Autowired
+    private SupplyChainServiceConfig supplyChainRpcServiceConfig;
+
+    @Autowired
+    private CostClientConfig costClientConfig;
+
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
         return new ReservedInstanceBoughtStore(databaseConfig.dsl(),
-                identityProviderConfig.identityProvider());
+                identityProviderConfig.identityProvider(), repositoryInstanceCostCalculator(),
+                pricingConfig.priceTableStore());
+    }
+
+    /**
+     * Plan reserved instance store. Used to interact with plan reserved instance table.
+     *
+     * @return The {@link PlanReservedInstanceStore}.
+     */
+    @Bean
+    public PlanReservedInstanceStore planReservedInstanceStore() {
+        return new PlanReservedInstanceStore(databaseConfig.dsl(), identityProviderConfig.identityProvider(),
+                        repositoryInstanceCostCalculator());
     }
 
     @Bean
@@ -79,21 +142,15 @@ public class ReservedInstanceConfig {
     }
 
     @Bean
-    public ReservedInstanceSpecStore reservedInstanceSpecStore() {
-        return new ReservedInstanceSpecStore(databaseConfig.dsl(),
-                identityProviderConfig.identityProvider());
-    }
-
-    @Bean
     public EntityReservedInstanceMappingStore entityReservedInstanceMappingStore() {
-        return new EntityReservedInstanceMappingStore(databaseConfig.dsl(),
-                reservedInstanceBoughtStore());
+        return new EntityReservedInstanceMappingStore(databaseConfig.dsl());
     }
 
     @Bean
     public ReservedInstanceUtilizationStore reservedInstanceUtilizationStore() {
         return new ReservedInstanceUtilizationStore(databaseConfig.dsl(),
-                reservedInstanceBoughtStore(), reservedInstanceSpecStore(),
+                reservedInstanceBoughtStore(),
+                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 entityReservedInstanceMappingStore());
     }
 
@@ -102,53 +159,65 @@ public class ReservedInstanceConfig {
         return new ReservedInstanceCoverageStore(databaseConfig.dsl());
     }
 
+    /**
+     *  ReservedInstanceBoughtRpcService bean.
+     * @return The {@link ReservedInstanceBoughtRpcService}
+     */
     @Bean
     public ReservedInstanceBoughtRpcService reservedInstanceBoughtRpcService() {
         return new ReservedInstanceBoughtRpcService(reservedInstanceBoughtStore(),
-                entityReservedInstanceMappingStore());
+                entityReservedInstanceMappingStore(), repositoryClientConfig.repositoryClient(),
+                supplyChainRpcServiceConfig.supplyChainRpcService(),
+                PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
+                realtimeTopologyContextId, pricingConfig.priceTableStore(),
+                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
+                BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
     }
 
+    /**
+     * Plan reserved instance Rpc service bean.
+     *
+     * @return The {@link PlanReservedInstanceRpcService}
+     */
     @Bean
-    public ReservedInstanceSpecRpcService reservedInstanceSpecRpcService() {
-        return new ReservedInstanceSpecRpcService(reservedInstanceSpecStore(), databaseConfig.dsl());
-    }
-
-    @Bean
-    public RepositoryServiceBlockingStub repositoryServiceClient() {
-        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    public PlanReservedInstanceRpcService planReservedInstanceRpcService() {
+        return new PlanReservedInstanceRpcService(planReservedInstanceStore(),
+                buyReservedInstanceStore(), reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
 
     @Bean
     public ProjectedRICoverageAndUtilStore projectedEntityRICoverageAndUtilStore() {
-        return new ProjectedRICoverageAndUtilStore(repositoryServiceClient());
+        return new ProjectedRICoverageAndUtilStore(
+                repositoryClientConfig.repositoryClient(),
+                supplyChainRpcServiceConfig.supplyChainRpcService(),
+                reservedInstanceBoughtStore(),
+                buyReservedInstanceStore(),
+                costComponentGlobalConfig.clock());
     }
 
     @Bean
     public RetentionPeriodFetcher retentionPeriodFetcher() {
-        return new RetentionPeriodFetcher(Clock.systemUTC(), updateRetentionIntervalSeconds,
+        return new RetentionPeriodFetcher(costComponentGlobalConfig.clock(), updateRetentionIntervalSeconds,
             TimeUnit.SECONDS, numRetainedMinutes,
             SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
     @Bean
     public TimeFrameCalculator timeFrameCalculator() {
-        return new TimeFrameCalculator(Clock.systemUTC(), retentionPeriodFetcher());
+        return new TimeFrameCalculator(costComponentGlobalConfig.clock(), retentionPeriodFetcher());
     }
 
     @Bean
     public ReservedInstanceUtilizationCoverageRpcService reservedInstanceUtilizationCoverageRpcService() {
         return new ReservedInstanceUtilizationCoverageRpcService(reservedInstanceUtilizationStore(),
-                reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(), timeFrameCalculator());
+                        reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(),
+                        entityReservedInstanceMappingStore(), planProjectedRICoverageAndUtilStore(),
+                        timeFrameCalculator(), realtimeTopologyContextId);
     }
 
     @Bean
     public ReservedInstanceBoughtServiceController reservedInstanceBoughtServiceController() {
         return new ReservedInstanceBoughtServiceController(reservedInstanceBoughtRpcService());
-    }
-
-    @Bean
-    public ReservedInstanceSpecServiceController reservedInstanceSpecServiceController() {
-        return new ReservedInstanceSpecServiceController(reservedInstanceSpecRpcService());
     }
 
     @Bean
@@ -161,29 +230,133 @@ public class ReservedInstanceConfig {
     public ReservedInstanceCoverageUpdate reservedInstanceCoverageUpload() {
         return new ReservedInstanceCoverageUpdate(databaseConfig.dsl(), entityReservedInstanceMappingStore(),
                 reservedInstanceUtilizationStore(), reservedInstanceCoverageStore(),
-                riCoverageCacheExpireMinutes);
+                reservedInstanceCoverageValidatorFactory(),
+                supplementalRICoverageAnalysisFactory(),
+                costNotificationConfig.costNotificationSender(),
+                riCoverageCacheExpireMinutes,
+                pricingConfig.businessAccountPriceTableKeyStore());
     }
 
-
+    /**
+     * Returns the projected RI coverage listener.
+     *
+     * @return The projected RI coverage listener.
+     */
     @Bean
     public ProjectedRICoverageListener projectedRICoverageListener() {
         final ProjectedRICoverageListener projectedRICoverageListener =
                 new ProjectedRICoverageListener(projectedEntityRICoverageAndUtilStore(),
-                                                planProjectedRICoverageAndUtilStore());
+                        planProjectedRICoverageAndUtilStore(),
+                        costNotificationConfig.costNotificationSender());
         marketComponent.addProjectedEntityRiCoverageListener(projectedRICoverageListener);
         return projectedRICoverageListener;
     }
 
+    /**
+     * Setup subscription for projected topology from market.
+     *
+     * @return The listener in the cost component that handles projected topology changes.
+     */
+    @Bean
+    public CostComponentProjectedEntityTopologyListener projectedEntityTopologyListener() {
+        final CostComponentProjectedEntityTopologyListener projectedEntityTopologyListener =
+                new CostComponentProjectedEntityTopologyListener(realtimeTopologyContextId,
+                        computeTierDemandStatsConfig.riDemandStatsWriter(),
+                        cloudTopologyFactory());
+        marketComponent.addProjectedTopologyListener(projectedEntityTopologyListener);
+        return projectedEntityTopologyListener;
+    }
+
+    @Bean
+    public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
+        return new DefaultTopologyEntityCloudTopologyFactory(
+                new GroupMemberRetriever(GroupServiceGrpc
+                        .newBlockingStub(groupClientConfig.groupChannel())));
+    }
+
+    /**
+     * PlanProjectedRICoverageAndUtilStore bean.
+     * @return The {@link PlanProjectedRICoverageAndUtilStore}
+     */
     @Bean
     public PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore() {
-        PlanProjectedRICoverageAndUtilStore PlanProjectedRICoverageAndUtilStore
+        final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore
                 = new PlanProjectedRICoverageAndUtilStore(databaseConfig.dsl(),
-                                                   projectedTopologyTimeOut,
                                                    repositoryServiceClient(),
-                                                   reservedInstanceBoughtStore(),
-                                                   reservedInstanceSpecStore(),
+                                                   planReservedInstanceService(),
+                                                   reservedInstanceSpecConfig
+                                                           .reservedInstanceSpecStore(),
                                                    persistEntityCostChunkSize);
-        repositoryClientConfig.repository().addListener(PlanProjectedRICoverageAndUtilStore);
-        return PlanProjectedRICoverageAndUtilStore;
+        repositoryClientConfig.repository().addListener(planProjectedRICoverageAndUtilStore);
+        return planProjectedRICoverageAndUtilStore;
+    }
+
+    @Bean
+    public ActionContextRIBuyStore actionContextRIBuyStore() {
+        return new ActionContextRIBuyStore(databaseConfig.dsl());
+    }
+
+    @Bean
+    public ReservedInstanceCoverageValidatorFactory reservedInstanceCoverageValidatorFactory() {
+        return new ReservedInstanceCoverageValidatorFactory(
+                reservedInstanceBoughtStore(),
+                reservedInstanceSpecConfig.reservedInstanceSpecStore());
+    }
+
+    @Bean
+    public ThinTargetCache thinTargetCache() {
+        return new ThinTargetCache(topologyProcessorListenerConfig.topologyProcessor());
+    }
+
+    @Bean
+    public CoverageTopologyFactory coverageTopologyFactory() {
+        return new CoverageTopologyFactory(thinTargetCache());
+    }
+
+    @Bean
+    public RICoverageAllocatorFactory riCoverageAllocatorFactory() {
+        return new DefaultRICoverageAllocatorFactory();
+    }
+
+    @Bean
+    public SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory() {
+        return new SupplementalRICoverageAnalysisFactory(
+                riCoverageAllocatorFactory(),
+                coverageTopologyFactory(),
+                reservedInstanceBoughtStore(),
+                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
+                supplementalRICoverageValidation,
+                concurrentSupplementalRICoverageAllocation);
+    }
+
+    @Bean
+    public SettingServiceBlockingStub settingServiceClient() {
+        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    @Bean
+    public RepositoryServiceBlockingStub repositoryServiceClient() {
+        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    /**
+     * Gets the plan service handle.
+     *
+     * @return plan service handle.
+     */
+    @Bean
+    public PlanReservedInstanceServiceBlockingStub planReservedInstanceService() {
+        return PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    /**
+     * Instantiate bean for ReservedInstanceCostCalculator class.
+     *
+     * @return object of type ReservedInstanceCostCalculator.
+     */
+    @Bean
+    public ReservedInstanceCostCalculator repositoryInstanceCostCalculator() {
+        return new ReservedInstanceCostCalculator(reservedInstanceSpecConfig
+                .reservedInstanceSpecStore());
     }
 }

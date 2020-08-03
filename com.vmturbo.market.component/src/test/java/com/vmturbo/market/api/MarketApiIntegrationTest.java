@@ -83,7 +83,10 @@ public class MarketApiIntegrationTest {
                         integrationTestServer.getBean("projectedEntityCostSender"),
                         integrationTestServer.getBean("projectedEntityRiCoverageSender"),
                         integrationTestServer.getBean("actionPlanSender"),
-                        integrationTestServer.getBean("planAnalysisTopologySender"), threadPool);
+                        integrationTestServer.getBean("planAnalysisTopologySender"),
+                        integrationTestServer.getBean("analysisSummarySender"),
+                        integrationTestServer.getBean("analysisStatusSender"),
+                        threadPool, 0);
 
         notificationSender = integrationTestServer.getBean(MarketNotificationSender.class);
 
@@ -195,7 +198,7 @@ public class MarketApiIntegrationTest {
     }
 
     private Action createAction() {
-        return Action.newBuilder().setId(0L).setImportance(0)
+        return Action.newBuilder().setId(0L).setDeprecatedImportance(0)
                         .setExplanation(ActionDTO.Explanation.newBuilder().build())
                         .setInfo(ActionInfo.newBuilder().setMove(Move.newBuilder()
                                         .setTarget(ActionEntity.newBuilder().setId(0L).setType(0)

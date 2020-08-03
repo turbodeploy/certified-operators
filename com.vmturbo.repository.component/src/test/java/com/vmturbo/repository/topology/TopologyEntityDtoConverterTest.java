@@ -15,27 +15,33 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
 import org.assertj.core.util.Lists;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessUserInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.components.common.mapping.UIEntityState;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.repository.constant.RepoObjectType;
+import com.vmturbo.repository.dto.BusinessUserInfoRepoDTO;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
 import com.vmturbo.repository.dto.ConnectedEntityRepoDTO;
+import com.vmturbo.repository.dto.DesktopPoolInfoRepoDTO;
 import com.vmturbo.repository.dto.GuestOSRepoDTO;
 import com.vmturbo.repository.dto.IpAddressRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -54,6 +60,8 @@ public class TopologyEntityDtoConverterTest {
     private TopologyEntityDTO dsTopoDTO;
     private TopologyEntityDTO vdcTopoDTO;
     private TopologyEntityDTO networkTopoDTO;
+    private TopologyEntityDTO desktopPoolTopoDTO;
+    private TopologyEntityDTO businessUserTopoDTO;
     private ServiceEntityRepoDTO vmServiceEntity = new ServiceEntityRepoDTO();
 
     @Before
@@ -63,6 +71,8 @@ public class TopologyEntityDtoConverterTest {
         dsTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/ds-1.dto.json");
         vdcTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vdc-1.dto.json");
         networkTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/network-1.dto.json");
+        desktopPoolTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/desktopPool-1.dto.json");
+        businessUserTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/businessUser-1.dto.json");
         buildVMServiceEntityRepoDTO(vmServiceEntity);
     }
 
@@ -70,8 +80,8 @@ public class TopologyEntityDtoConverterTest {
         vmServiceEntity.setDisplayName("test-vm");
         vmServiceEntity.setOid("111");
         vmServiceEntity.setUuid("111");
-        vmServiceEntity.setEntityType(RepoObjectType.mapEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
-        vmServiceEntity.setState(UIEntityState.ACTIVE.getValue());
+        vmServiceEntity.setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        vmServiceEntity.setState(UIEntityState.ACTIVE.apiStr());
         final Map<String, List<String>> tagsMap = new HashMap<>();
         tagsMap.put("key1", Arrays.asList("value1", "value2"));
         tagsMap.put("key2", Collections.singletonList("value1"));
@@ -93,21 +103,21 @@ public class TopologyEntityDtoConverterTest {
         final CommoditySoldRepoDTO commoditySoldRepoDTO = new CommoditySoldRepoDTO();
         commoditySoldRepoDTO.setCapacity(123);
         commoditySoldRepoDTO.setKey("test-sold-key");
-        commoditySoldRepoDTO.setType(RepoObjectType.mapCommodityType(CommodityType.VMEM.getValue()));
+        commoditySoldRepoDTO.setType(UICommodityType.VMEM.apiStr());
         commoditySoldRepoDTO.setUsed(100);
         commoditySoldRepoDTO.setProviderOid("111");
         commoditySoldRepoDTO.setOwnerOid("111");
         final CommoditySoldRepoDTO commoditySoldRepoDTOTwo = new CommoditySoldRepoDTO();
         commoditySoldRepoDTOTwo.setCapacity(345);
         commoditySoldRepoDTOTwo.setKey("test-sold-key-two");
-        commoditySoldRepoDTOTwo.setType(RepoObjectType.mapCommodityType(CommodityType.APPLICATION.getValue()));
+        commoditySoldRepoDTOTwo.setType(UICommodityType.APPLICATION.apiStr());
         commoditySoldRepoDTOTwo.setUsed(100);
         commoditySoldRepoDTOTwo.setProviderOid("111");
         commoditySoldRepoDTOTwo.setOwnerOid("111");
         final CommoditySoldRepoDTO commoditySoldRepoDTOThree = new CommoditySoldRepoDTO();
         commoditySoldRepoDTOThree.setCapacity(345);
         commoditySoldRepoDTOThree.setKey("test-sold-key-three");
-        commoditySoldRepoDTOThree.setType(RepoObjectType.mapCommodityType(CommodityType.VCPU.getValue()));
+        commoditySoldRepoDTOThree.setType(UICommodityType.VCPU.apiStr());
         commoditySoldRepoDTOThree.setUsed(100);
         commoditySoldRepoDTOThree.setProviderOid("111");
         commoditySoldRepoDTOThree.setOwnerOid("111");
@@ -117,13 +127,13 @@ public class TopologyEntityDtoConverterTest {
         vmServiceEntity.setCommoditySoldList(Lists.newArrayList(commoditySoldRepoDTO, commoditySoldRepoDTOTwo, commoditySoldRepoDTOThree));
         final CommodityBoughtRepoDTO commodityBoughtRepoDTO = new CommodityBoughtRepoDTO();
         commodityBoughtRepoDTO.setKey("test-key");
-        commodityBoughtRepoDTO.setType(RepoObjectType.mapCommodityType(CommodityType.MEM.getValue()));
+        commodityBoughtRepoDTO.setType(UICommodityType.MEM.apiStr());
         commodityBoughtRepoDTO.setUsed(123);
         commodityBoughtRepoDTO.setProviderOid("222");
         commodityBoughtRepoDTO.setOwnerOid("111");
         final CommodityBoughtRepoDTO commodityBoughtRepoDTOTwo = new CommodityBoughtRepoDTO();
         commodityBoughtRepoDTOTwo.setKey("test-key-two");
-        commodityBoughtRepoDTOTwo.setType(RepoObjectType.mapCommodityType(CommodityType.CLUSTER.getValue()));
+        commodityBoughtRepoDTOTwo.setType(UICommodityType.CLUSTER.apiStr());
         commodityBoughtRepoDTOTwo.setUsed(123);
         commodityBoughtRepoDTOTwo.setProviderOid("222");
         commodityBoughtRepoDTOTwo.setOwnerOid("111");
@@ -141,15 +151,17 @@ public class TopologyEntityDtoConverterTest {
         connectedEntityRepoDTO.setConnectedEntityType(EntityType.PHYSICAL_MACHINE.getNumber());
         connectedEntityRepoDTO.setConnectedEntityId(pmTopoDTO.getOid());
         vmServiceEntity.setConnectedEntityList(Lists.newArrayList(connectedEntityRepoDTO));
-        vmServiceEntity.setTargetIds(Lists.newArrayList("1111"));
+        vmServiceEntity.setTargetVendorIds(ImmutableMap.of("12512", "qqq"));
     }
 
     @Test
     public void testConvertDTOs() {
-        assertEquals(0, TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.emptyList()).size());
-
-        assertEquals(1, TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(vmTopoDTO)).size());
-        assertEquals(5, TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Arrays.asList(vmTopoDTO, pmTopoDTO, dsTopoDTO, vdcTopoDTO, networkTopoDTO)).size());
+        assertEquals(0,
+                TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.emptyList())
+                        .size());
+        assertEquals(7, TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(
+                Arrays.asList(vmTopoDTO, pmTopoDTO, dsTopoDTO, vdcTopoDTO, networkTopoDTO,
+                        desktopPoolTopoDTO, businessUserTopoDTO)).size());
     }
 
     @Test
@@ -173,6 +185,14 @@ public class TopologyEntityDtoConverterTest {
         ServiceEntityRepoDTO networkRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(networkTopoDTO))
                 .iterator().next();
         verifySE(networkTopoDTO, networkRepoDTO);
+
+        ServiceEntityRepoDTO desktopPoolRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(desktopPoolTopoDTO))
+                .iterator().next();
+        verifySE(desktopPoolTopoDTO, desktopPoolRepoDTO);
+
+        ServiceEntityRepoDTO businessUserRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(businessUserTopoDTO))
+                .iterator().next();
+        verifySE(businessUserTopoDTO, businessUserRepoDTO);
     }
 
     @Test
@@ -196,6 +216,14 @@ public class TopologyEntityDtoConverterTest {
         ServiceEntityRepoDTO networkRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(networkTopoDTO))
                 .iterator().next();
         verifyCommodityBought(networkTopoDTO, networkRepoDTO);
+
+        ServiceEntityRepoDTO desktopPoolRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(desktopPoolTopoDTO))
+                .iterator().next();
+        verifyCommodityBought(desktopPoolTopoDTO, desktopPoolRepoDTO);
+
+        ServiceEntityRepoDTO businessUserRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(businessUserTopoDTO))
+                .iterator().next();
+        verifyCommodityBought(businessUserTopoDTO, businessUserRepoDTO);
     }
 
     @Test
@@ -215,6 +243,10 @@ public class TopologyEntityDtoConverterTest {
         ServiceEntityRepoDTO dsRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(dsTopoDTO))
                 .iterator().next();
         verifyCommoditySold(dsTopoDTO, dsRepoDTO);
+
+        ServiceEntityRepoDTO desktopPoolRepoDTO = TopologyEntityDTOConverter.convertToServiceEntityRepoDTOs(Collections.singletonList(desktopPoolTopoDTO))
+                .iterator().next();
+        verifyCommoditySold(desktopPoolTopoDTO, desktopPoolRepoDTO);
     }
 
     @Test
@@ -227,11 +259,11 @@ public class TopologyEntityDtoConverterTest {
         verifyCommoditySold(topologyEntityDTO, vmServiceEntity);
     }
 
-    private static void verifySE(
-            final TopologyEntityDTO seTopoDTO, final ServiceEntityRepoDTO seRepoDTO) {
+    private static void verifySE(@Nonnull final TopologyEntityDTO seTopoDTO,
+                                 @Nonnull final ServiceEntityRepoDTO seRepoDTO) {
         final String expectedState = UIEntityState.fromEntityState(seTopoDTO.getEntityState())
-                .getValue();
-        final String expectedType = RepoObjectType.mapEntityType(seTopoDTO.getEntityType());
+                .apiStr();
+        final String expectedType = ApiEntityType.fromEntity(seTopoDTO).apiStr();
 
         assertEquals(Long.toString(seTopoDTO.getOid()), seRepoDTO.getOid());
         assertEquals(seTopoDTO.getDisplayName(), seRepoDTO.getDisplayName());
@@ -274,6 +306,27 @@ public class TopologyEntityDtoConverterTest {
             }
         }
 
+        // compare desktop pool info
+        final DesktopPoolInfoRepoDTO desktopPoolInfoRepoDTO = seRepoDTO.getDesktopPoolInfoRepoDTO();
+        if (desktopPoolInfoRepoDTO != null) {
+            Assert.assertTrue(seTopoDTO.hasTypeSpecificInfo());
+            Assert.assertTrue(seTopoDTO.getTypeSpecificInfo().hasDesktopPool());
+            final DesktopPoolInfo desktopPool = seTopoDTO.getTypeSpecificInfo().getDesktopPool();
+            Assert.assertEquals(desktopPoolInfoRepoDTO.getAssignmentType(), desktopPool.getAssignmentType());
+            Assert.assertEquals(desktopPoolInfoRepoDTO.getCloneType(), desktopPool.getCloneType());
+            Assert.assertEquals(desktopPoolInfoRepoDTO.getProvisionType(), desktopPool.getProvisionType());
+            Assert.assertEquals(desktopPoolInfoRepoDTO.getTemplateReferenceId(), (Long)desktopPool.getTemplateReferenceId());
+        }
+
+        // compare business user info
+        final BusinessUserInfoRepoDTO businessUserInfoRepoDTO = seRepoDTO.getBusinessUserInfoRepoDTO();
+        if (businessUserInfoRepoDTO != null) {
+            Assert.assertTrue(seTopoDTO.hasTypeSpecificInfo());
+            Assert.assertTrue(seTopoDTO.getTypeSpecificInfo().hasBusinessUser());
+            final BusinessUserInfo businessUser = seTopoDTO.getTypeSpecificInfo().getBusinessUser();
+            Assert.assertEquals(businessUserInfoRepoDTO.getVmOidToSessionDuration(), businessUser.getVmOidToSessionDurationMap());
+        }
+
         // check connected entity list
         assertEquals(seRepoDTO.getConnectedEntityList().size(), seTopoDTO.getConnectedEntityListCount());
         seRepoDTO.getConnectedEntityList().forEach(connectedEntityRepoDTO ->
@@ -287,11 +340,11 @@ public class TopologyEntityDtoConverterTest {
                                         connectedEntityRepoDTO.getConnectedEntityId())));
 
         // check target ids
-        if (seRepoDTO.getTargetIds() != null) {
-            assertTrue(seRepoDTO.getTargetIds().stream()
+        if (seRepoDTO.getTargetVendorIds() != null) {
+            assertTrue(seRepoDTO.getTargetVendorIds().keySet().stream()
                 .map(Long::valueOf)
                 .collect(Collectors.toList()).containsAll(
-                    seTopoDTO.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList()));
+                    seTopoDTO.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet()));
         }
     }
 
@@ -332,8 +385,7 @@ public class TopologyEntityDtoConverterTest {
                                               final String providerOid,
                                               final CommodityBoughtDTO commTopoDTO,
                                               final CommodityBoughtRepoDTO commRepoDTO) {
-        final String expectedType = RepoObjectType.mapCommodityType(
-                commTopoDTO.getCommodityType().getType());
+        final String expectedType = UICommodityType.fromType(commTopoDTO.getCommodityType().getType()).apiStr();
         assertEquals(commTopoDTO.getCommodityType().getKey(), commRepoDTO.getKey());
         assertEquals(commTopoDTO.getPeak(), commRepoDTO.getPeak(), epsilon);
         assertEquals(providerOid, commRepoDTO.getProviderOid());
@@ -361,8 +413,7 @@ public class TopologyEntityDtoConverterTest {
                                             final String providerOid,
                                             final CommoditySoldDTO commTopoDTO,
                                             final CommoditySoldRepoDTO commRepoDTO) {
-        final String expectedType = RepoObjectType.mapCommodityType(
-                commTopoDTO.getCommodityType().getType());
+        final String expectedType = UICommodityType.fromType(commTopoDTO.getCommodityType().getType()).apiStr();
         assertEquals(commTopoDTO.getCapacity(), commRepoDTO.getCapacity(), epsilon);
         assertEquals(commTopoDTO.getEffectiveCapacityPercentage(), commRepoDTO.getEffectiveCapacityPercentage(), epsilon);
         assertEquals(commTopoDTO.getCommodityType().getKey(), commRepoDTO.getKey());

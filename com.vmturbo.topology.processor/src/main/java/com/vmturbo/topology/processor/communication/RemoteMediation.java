@@ -2,22 +2,30 @@ package com.vmturbo.topology.processor.communication;
 
 import java.time.Clock;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionUpdateStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
+import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
+import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
-import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.action.Action;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
+import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
+import com.vmturbo.topology.processor.targets.Target;
 
 /**
  * General interface of the remote mediation. All calls occur asynchronously and should return a
@@ -36,47 +44,109 @@ public interface RemoteMediation {
      * Sends discovery request. Method returns after request is sent. Result of the request
      * processing is reported to {@code responseHandler}.
      *
-     * @param probeId probe to perform request on
+     * @param target target to perform request on
      * @param discoveryRequest discovery request data
      * @param responseHandler handler to accept discovery responses.
+     * @return the unique mediation message id for this discovery request
      * @throws ProbeException if probe requested does not exist.
      * @throws CommunicationException if some communication error occurred.
      * @throws InterruptedException if thread is interrupted while sending request.
      */
-    void sendDiscoveryRequest(final long probeId, @Nonnull final DiscoveryRequest discoveryRequest,
-                    @Nonnull final IOperationMessageHandler<Discovery> responseHandler)
+    int sendDiscoveryRequest(@Nonnull Target target,
+                              @Nonnull DiscoveryRequest discoveryRequest,
+                    @Nonnull IOperationMessageHandler<Discovery> responseHandler)
                     throws ProbeException, CommunicationException, InterruptedException;
 
     /**
      * Sends validation request. Method returns after request is sent. Result of the request
      * processing is reported to {@code responseHandler}.
      *
-     * @param probeId probe to perform request on
+     * @param target target to perform request on
      * @param validationRequest validation request data
      * @param responseHandler handler to accept validation responses.
      * @throws ProbeException if probe requested does not exist.
      * @throws CommunicationException if some communication error occurred
      * @throws InterruptedException if thread is interrupted while sending request.
      */
-    void sendValidationRequest(final long probeId,
-                    @Nonnull final ValidationRequest validationRequest,
-                    @Nonnull final IOperationMessageHandler<Validation> responseHandler)
+    void sendValidationRequest(@Nonnull Target target,
+                    @Nonnull ValidationRequest validationRequest,
+                    @Nonnull IOperationMessageHandler<Validation> responseHandler)
                     throws InterruptedException, ProbeException, CommunicationException;
 
     /**
      * Sends action request. Method returns after request is sent. Result of the request
      * processing is reported to {@code responseHandler}.
      *
-     * @param probeId probe to perform request on
+     * @param target target to perform request on
      * @param actionRequest action request data
      * @param actionMessageHandler handler to accept action responses.
      * @throws ProbeException if probe requested does not exist.
      * @throws CommunicationException if some communication error occurred
      * @throws InterruptedException if thread is interrupted while sending request.
      */
-    void sendActionRequest(final long probeId,
-                           @Nonnull final ActionRequest actionRequest,
-                           @Nonnull final IOperationMessageHandler<Action> actionMessageHandler)
+    void sendActionRequest(@Nonnull Target target,
+                           @Nonnull ActionRequest actionRequest,
+                           @Nonnull IOperationMessageHandler<Action> actionMessageHandler)
+            throws InterruptedException, ProbeException, CommunicationException;
+
+    /**
+     * Sends action approval request to an external action approval backend.
+     *
+     * @param target target to send message to
+     * @param actionApprovalRequest request to send
+     * @param messageHandler handler to receive all the messages received for this request
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws ProbeException if probe requested does not exist
+     * @throws CommunicationException if some communication error occurred
+     */
+    void sendActionApprovalsRequest(@Nonnull Target target,
+            @Nonnull ActionApprovalRequest actionApprovalRequest,
+            @Nonnull IOperationMessageHandler<ActionApproval> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException;
+
+    /**
+     * Sends action state updates to external action approval backend.
+     *
+     * @param target target to send message to
+     * @param actionUpdateStateRequest request to send
+     * @param messageHandler handler to receive all the messages received for this request
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws ProbeException if probe requested does not exist
+     * @throws CommunicationException if some communication error occurred
+     */
+    void sendActionUpdateStateRequest(@Nonnull Target target,
+            @Nonnull ActionUpdateStateRequest actionUpdateStateRequest,
+            @Nonnull IOperationMessageHandler<ActionUpdateState> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException;
+
+    /**
+     * Requests action state updates from external action approval backend.
+     *
+     * @param target target to send message to
+     * @param getActionStateRequest request to send
+     * @param messageHandler handler to receive all the messages received for this request
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws ProbeException if probe requested does not exist
+     * @throws CommunicationException if some communication error occurred
+     */
+    void sendGetActionStatesRequest(@Nonnull Target target,
+            @Nonnull GetActionStateRequest getActionStateRequest,
+            @Nonnull IOperationMessageHandler<GetActionState> messageHandler)
+            throws InterruptedException, ProbeException, CommunicationException;
+
+    /**
+     * Sends action events for audit on the remote audit backend.
+     *
+     * @param target target to send message to
+     * @param actionAuditRequest request to send
+     * @param messageHandler handler to receive all the messages received for this request
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws ProbeException if probe requested does not exist
+     * @throws CommunicationException if some communication error occurred
+     */
+    void sendActionAuditRequest(@Nonnull Target target,
+            @Nonnull ActionAuditRequest actionAuditRequest,
+            @Nonnull IOperationMessageHandler<ActionAudit> messageHandler)
             throws InterruptedException, ProbeException, CommunicationException;
 
     /**
@@ -92,23 +162,24 @@ public interface RemoteMediation {
             throws InterruptedException, ProbeException, CommunicationException;
 
     /**
-     * Remove message handlers matching the {@code shouldRemoveFilter}. Removing these handlers
-     * will cause messages targeting these handlers to be discarded. Probes do not support
-     * aborting an operation, so removing the handler can be used to discard the results
-     * of those operations.
+     * Remove message handlers and notify mediation clients about target removal.
      *
-     * @param shouldRemoveFilter A predicate method that checks whether a particular message
-     *                          handler should be removed. Handlers passed to this method
-     *                          that return true will be removed.
+     * @param probeId probe identifier
+     * @param targetId target identifier
+     * @param request request to send to remote containers
+     * @throws ProbeException if probe requested does not exist.
+     * @throws CommunicationException if some communication error occurred
+     * @throws InterruptedException if thread is interrupted while sending request.
      */
-    void removeMessageHandlers(@Nonnull final Predicate<Operation> shouldRemoveFilter);
+    void handleTargetRemoval(long probeId, long targetId, @Nonnull TargetUpdateRequest request)
+                    throws CommunicationException, InterruptedException, ProbeException;
 
     /**
      * Check for expired operation handlers, expiring and removing any that have
      * exceeded their timeout. Returns the number of message handlers retained after
      * expiring handlers.
      */
-    int checkForExpiredHandlers();
+    void checkForExpiredHandlers();
 
     /**
      * Returns clock to use for message expiration detection.

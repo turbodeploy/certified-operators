@@ -1,5 +1,7 @@
 package com.vmturbo.auth.component.userscope;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
@@ -10,7 +12,8 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 
-import org.hamcrest.Matchers;
+import io.grpc.stub.StreamObserver;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -21,14 +24,12 @@ import org.mockito.Mockito;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -37,9 +38,15 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRes
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeRequest;
@@ -69,7 +76,7 @@ public class UserScopeServiceTest {
 
     private static final SupplyChain TEST_NON_INFRASTRUCTURE_SUPPLY_CHAIN = SupplyChain.newBuilder()
             .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                    .setEntityType(EntityType.APPLICATION.name())
+                    .setEntityType(EntityType.APPLICATION_COMPONENT.name())
                     .putMembersByState(EntityState.ACTIVE.ordinal(), MemberList.newBuilder()
                             .addMemberOids(10L)
                             .build()))
@@ -85,12 +92,17 @@ public class UserScopeServiceTest {
 
     private SupplyChainServiceMole supplyChainService = spy(new SupplyChainServiceMole());
 
+    private SearchServiceMole searchService = spy(new SearchServiceMole());
+
     @Rule
-    public GrpcTestServer mockServer = GrpcTestServer.newServer(groupService, supplyChainService);
+    public GrpcTestServer mockServer = GrpcTestServer.newServer(groupService, supplyChainService,
+            searchService);
 
     private GroupServiceBlockingStub groupServiceClient;
 
     private SupplyChainServiceBlockingStub supplyChainServiceClient;
+
+    private SearchServiceBlockingStub searchServiceBlockingStub;
 
     private UserScopeService userScopeService;
 
@@ -107,33 +119,45 @@ public class UserScopeServiceTest {
 
         final long memberId = 2;
 
-        doReturn(GetMembersResponse.newBuilder()
-            .setMembers(Members.newBuilder()
-                .addIds(memberId))
-            .build())
-                .when(groupService).getMembers(GetMembersRequest.newBuilder()
-                    .setId(GROUP_ID)
+        Mockito.when(groupService.getMembers(GetMembersRequest.newBuilder()
+                    .addId(GROUP_ID)
                     .setExpectPresent(false)
-                    .build());
+                    .setEnforceUserScope(false)
+                    .setExpandNestedGroups(true)
+                    .build()))
+                .thenReturn(Collections.singletonList(GetMembersResponse.newBuilder()
+                        .addMemberId(memberId)
+                        .setGroupId(GROUP_ID)
+                        .build()));
 
         doReturn(GetSupplyChainResponse.newBuilder()
             .setSupplyChain(TEST_SUPPLY_CHAIN)
             .build()).when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
-                .addStartingEntityOid(memberId)
+                .setFilterForDisplay(false)
+                .setScope(SupplyChainScope.newBuilder()
+                    .addStartingEntityOid(memberId))
                 .build());
 
         // if asked for a "shared" user, return a subset.
         doReturn(GetSupplyChainResponse.newBuilder()
             .setSupplyChain(TEST_NON_INFRASTRUCTURE_SUPPLY_CHAIN)
             .build()).when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
-                .addStartingEntityOid(memberId)
-                .addAllEntityTypesToInclude(UserScopeService.SHARED_USER_ENTITY_TYPES)
+                .setFilterForDisplay(false)
+                .setScope(SupplyChainScope.newBuilder()
+                    .addStartingEntityOid(memberId)
+                    .addAllEntityTypesToInclude(UserScopeUtils.SHARED_USER_ENTITY_TYPES))
                 .build());
+
+        // return empty so the scope id is considered a group
+        doReturn(SearchEntityOidsResponse.getDefaultInstance()).when(searchService)
+                .searchEntityOids(SearchEntityOidsRequest.newBuilder().addEntityOid(1L).build());
 
         groupServiceClient = GroupServiceGrpc.newBlockingStub(mockServer.getChannel());
         supplyChainServiceClient = SupplyChainServiceGrpc.newBlockingStub(mockServer.getChannel());
+        searchServiceBlockingStub = SearchServiceGrpc.newBlockingStub(mockServer.getChannel());
 
-        userScopeService = new UserScopeService(groupServiceClient, supplyChainServiceClient, clock);
+        userScopeService = new UserScopeService(groupServiceClient, supplyChainServiceClient,
+                searchServiceBlockingStub, clock);
 
         testServer = GrpcTestServer.newServer(userScopeService);
         testServer.start();
@@ -160,6 +184,36 @@ public class UserScopeServiceTest {
         verifyScopedAccess(response.getEntityAccessScopeContents());
     }
 
+    /**
+     * Test that getEntityAccessScopeMembers works for entity scope, like DataCenter.
+     */
+    @Test
+    public void testGetEntityAccessScopeMembersForDataCenter() {
+        final long dcId = 112L;
+        doReturn(SearchEntityOidsResponse.newBuilder().addEntities(dcId).build())
+                .when(searchService).searchEntityOids(eq(
+                        SearchEntityOidsRequest.newBuilder().addEntityOid(dcId).build()));
+        doReturn(GetSupplyChainResponse.newBuilder()
+                    .setSupplyChain(TEST_SUPPLY_CHAIN)
+                .build())
+                .when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
+                    .setFilterForDisplay(false)
+                    .setScope(SupplyChainScope.newBuilder()
+                        .addStartingEntityOid(dcId))
+                    .build());
+
+        EntityAccessScopeResponse response = userScopeServiceClient.getEntityAccessScopeMembers(
+                EntityAccessScopeRequest.newBuilder()
+                        .addGroupId(dcId)
+                        .build());
+
+        EntityAccessScopeContents scopeContents = response.getEntityAccessScopeContents();
+        Assert.assertThat(scopeContents.getAccessibleOids().getArray().getOidsList(),
+                containsInAnyOrder(TEST_SUPPLY_CHAIN_OIDS.toArray()));
+        Assert.assertThat(scopeContents.getSeedOids().getArray().getOidsList(),
+                containsInAnyOrder(dcId));
+    }
+
     // verify that the entity access scope is unrestricted
     private void verifyFullAccess(EntityAccessScopeContents contents) {
         // verify the accessible oids list is "all oids"
@@ -175,13 +229,13 @@ public class UserScopeServiceTest {
         OidSetDTO accessibleOids = contents.getAccessibleOids();
         Assert.assertTrue(accessibleOids.hasArray());
         Assert.assertThat(accessibleOids.getArray().getOidsList(),
-                Matchers.containsInAnyOrder(TEST_SUPPLY_CHAIN_OIDS.toArray()));
+                containsInAnyOrder(TEST_SUPPLY_CHAIN_OIDS.toArray()));
 
         // also verify the seed oids list
         OidSetDTO seedOids = contents.getSeedOids();
         Assert.assertTrue(seedOids.hasArray());
         Assert.assertThat(seedOids.getArray().getOidsList(),
-                Matchers.containsInAnyOrder(2L));
+                containsInAnyOrder(2L));
     }
 
     // test that an empty group list results in an unrestricted access scope.
@@ -290,7 +344,7 @@ public class UserScopeServiceTest {
         OidSetDTO accessibleOids = response.getEntityAccessScopeContents().getAccessibleOids();
         Assert.assertTrue(accessibleOids.hasArray());
         Assert.assertThat(accessibleOids.getArray().getOidsList(),
-                Matchers.containsInAnyOrder(10L, 11L));
+                containsInAnyOrder(10L, 11L));
     }
 
     // test the "get current user access scope" when no local session exists.

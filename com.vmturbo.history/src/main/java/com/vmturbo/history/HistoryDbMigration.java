@@ -1,5 +1,7 @@
 package com.vmturbo.history;
 
+import java.util.Optional;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -13,15 +15,19 @@ public class HistoryDbMigration {
 
     private final static Logger log = LogManager.getLogger();
 
-    private HistorydbIO historydbIO;
+    private final HistorydbIO historydbIO;
+
+    private final Optional<String> migrationLocationOverride;
 
     /**
      * Create a handler for the creation and update of the DB.
      *
      * @param historydbIO - used to perform RDB operations.
+     * @param migrationLocationOverride If set, the path in the classpath to look for migrations.
      */
-    public HistoryDbMigration(HistorydbIO historydbIO) {
+    public HistoryDbMigration(HistorydbIO historydbIO, Optional<String> migrationLocationOverride) {
         this.historydbIO = historydbIO;
+        this.migrationLocationOverride = migrationLocationOverride;
     }
 
     /**
@@ -31,7 +37,7 @@ public class HistoryDbMigration {
      */
     public void migrate() throws VmtDbException {
         log.info("Starting DB migration");
-        historydbIO.init(false, null, historydbIO.getDatabaseName());
+        historydbIO.init(false, null, historydbIO.getDbSchemaName(), migrationLocationOverride);
         log.info("DB Migration complete");
     }
 }

@@ -1,0 +1,167 @@
+package com.vmturbo.api.component.communication;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensaml.core.xml.XMLObject;
+import org.opensaml.core.xml.schema.XSAny;
+import org.opensaml.core.xml.schema.XSString;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.saml2.provider.service.authentication.OpenSamlAuthenticationProvider;
+import org.springframework.security.saml2.provider.service.authentication.Saml2Authentication;
+import org.springframework.security.saml2.provider.service.authentication.Saml2AuthenticationToken;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.RestTemplate;
+
+import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
+import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
+
+/**
+ * Custom Spring authorization provider to authorize SAML request.
+ */
+public class SamlAuthenticationProvider extends RestAuthenticationProvider {
+
+    /**
+     * The logger.
+     */
+    private static final Logger logger = LogManager.getLogger(SamlAuthenticationProvider.class);
+    private static final Pattern PATTERN = Pattern.compile("^http", Pattern.CASE_INSENSITIVE);
+    private final IComponentJwtStore componentJwtStore;
+    private final OpenSamlAuthenticationProvider authProvider;
+
+    /**
+     * Construct the authentication provider.
+     *
+     * @param authHost          The authentication host.
+     * @param authPort          The authentication port.
+     * @param authRoute         The authorize path.
+     * @param restTemplate      The REST endpoint.
+     * @param verifier          The verifier.
+     * @param componentJwtStore The component JWT store.
+     * @param externalGroupTag  The asserted group name.
+     */
+    public SamlAuthenticationProvider(final @Nonnull String authHost, final int authPort,
+            final @Nonnull String authRoute, final @Nonnull RestTemplate restTemplate,
+            final @Nonnull JWTAuthorizationVerifier verifier,
+            final @Nonnull IComponentJwtStore componentJwtStore,
+            final @Nonnull String externalGroupTag) {
+        super(authHost, authPort, authRoute, restTemplate, verifier);
+        this.componentJwtStore = Objects.requireNonNull(componentJwtStore);
+        authProvider = new OpenSamlAuthenticationProvider();
+        authProvider.setResponseTimeValidationSkew(Duration.ofMinutes(10L));
+        // extractor group attribute from assertion's AttributeStatement, e.g.:
+        //      <saml:AttributeStatement>
+        //         <saml:Attribute Name="group" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
+        //            <saml:AttributeValue xsi:type="xs:string">turbo_admin_group</saml:AttributeValue>
+        //             <saml:AttributeValue xsi:type="xs:string">turbo_observer_group</saml:AttributeValue>
+        //         </saml:Attribute>
+        //      </saml:AttributeStatement>
+        authProvider.setAuthoritiesExtractor(assertion -> assertion.getAttributeStatements()
+                .stream()
+                .flatMap(statement -> statement.getAttributes().stream())
+                .filter(attribute -> externalGroupTag.equalsIgnoreCase(attribute.getName()))
+                .flatMap(attribute -> attribute.getAttributeValues().stream())
+                .map(xmlObject -> getAttributeValue(xmlObject))
+                .filter(Optional::isPresent)
+                .map(group -> new SimpleGrantedAuthority(group.get()))
+                .collect(Collectors.toList()));
+    }
+
+    private static Optional<String> getAttributeValue(final @Nonnull XMLObject object) {
+        if (object instanceof XSString) {
+            return Optional.ofNullable(((XSString)object).getValue());
+        } else if (object instanceof XSAny) {
+            return Optional.ofNullable(((XSAny)object).getTextContent());
+        } else {
+            logger.error("Failed to get the SAML group value: {}", object.toString());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Performs authentication with the request object passed in. It will grant an authority to
+     * authentication object. The authority is currently the role of user and will be used to verify
+     * if a resource can be accessed by a user.
+     *
+     * @param authentication the authentication request object.
+     * @return a fully authenticated object including credentials and authorities. May return
+     * <code>null</code> if the <code>AuthenticationProvider</code> is unable to support
+     * authentication of the passed <code>Authentication</code> object. In such a case, the next
+     * <code>AuthenticationProvider</code> that supports the presented
+     * <code>Authentication</code> class will be tried.
+     * @throws AuthenticationException if authentication fails.
+     */
+    @Override
+    @Nonnull
+    public Authentication authenticate(Authentication authentication)
+            throws AuthenticationException {
+        if (authentication instanceof Saml2AuthenticationToken) {
+            Saml2AuthenticationToken authenticationToken =
+                    convert((Saml2AuthenticationToken)authentication);
+            Saml2Authentication saml2Authentication =
+                    (Saml2Authentication)authProvider.authenticate(authenticationToken);
+
+            final String username = saml2Authentication.getName();
+            final List<String> groups = saml2Authentication.getAuthorities()
+                    .stream()
+                    .map(authority -> authority.getAuthority())
+                    .collect(Collectors.toList());
+
+            final Authentication authToken = SecurityContextHolder.getContext().getAuthentication();
+            String remoteIpAddress = "unknown";
+            if (authToken instanceof CustomSamlAuthenticationToken) {
+                remoteIpAddress = ((CustomSamlAuthenticationToken)authToken).getRemoteIpAddress();
+                logger.trace("remote IP address is:  " + remoteIpAddress);
+                SecurityContextHolder.getContext().setAuthentication(null);
+            }
+            try {
+                return groups.size() > 1
+                        ? super.authorize(username, groups.toArray(new String[0]), remoteIpAddress, componentJwtStore)
+                        : super.authorize(username, groups.stream().findFirst(), remoteIpAddress, componentJwtStore);
+            } catch (HttpServerErrorException.InternalServerError e) {
+                // avoid showing stacktrace
+                throw new CustomAuthenticationException(e.getMessage());
+            }
+        } else if (authentication instanceof CustomSamlAuthenticationToken) {
+            logger.trace("Request is CustomSamlAuthenticationToken, cleaning it up.");
+            SecurityContextHolder.getContext().setAuthentication(null);
+        }
+
+        return authentication;
+    }
+
+    // Request to API component is from Nginx using HTTP, but the assertion is HTTPS from IDP.
+    // to pass the assertion validation, we need to manually convert it to HTTPS.
+    private Saml2AuthenticationToken convert(Saml2AuthenticationToken token) {
+
+        return new Saml2AuthenticationToken(token.getSaml2Response(),
+                token.getRecipientUri().replaceFirst(PATTERN.pattern(), "https"),
+                token.getIdpEntityId(), token.getLocalSpEntityId(), token.getX509Credentials());
+    }
+
+    @Override
+    public boolean supports(Class<?> authentication) {
+        return Saml2AuthenticationToken.class.isAssignableFrom(authentication) ||
+                CustomSamlAuthenticationToken.class.isAssignableFrom(authentication);
+    }
+
+    /**
+     * Customize Spring exception to avoid showing stacktrace.
+     */
+    private class CustomAuthenticationException extends AuthenticationException {
+        CustomAuthenticationException(String message) {
+            super(message);
+        }
+    }
+}

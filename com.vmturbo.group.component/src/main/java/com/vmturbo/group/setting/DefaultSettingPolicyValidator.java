@@ -4,11 +4,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -17,20 +19,17 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Ordering;
+
 import org.apache.commons.lang3.StringUtils;
 import org.jooq.exception.DataAccessException;
 
-import com.google.common.base.Preconditions;
-
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.DurationCase;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.EndingCase;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.RecurrenceCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -38,8 +37,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
-import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.group.IGroupStore;
 
 /**
  * The default implementation of {@link SettingPolicyValidator}. This should be the
@@ -47,31 +48,37 @@ import com.vmturbo.group.group.GroupStore;
  */
 @ThreadSafe
 public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
-
-    private final Map<SettingValueTypeCase, BiFunction<Setting, SettingSpec, Collection<String>>>
+    private final Map<SettingValueTypeCase, BiFunction<SettingPolicy, SettingSpec, Collection<String>>>
             settingProcessors;
     private final SettingSpecStore settingSpecStore;
-    private final GroupStore groupStore;
+    private final IGroupStore groupStore;
 
+    /**
+     * Constructs setting policy validator.
+     *
+     * @param settingSpecStore setting specs store
+     * @param groupStore group store
+     */
     public DefaultSettingPolicyValidator(@Nonnull final SettingSpecStore settingSpecStore,
-            @Nonnull final GroupStore groupStore) {
+            @Nonnull final IGroupStore groupStore) {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.groupStore = Objects.requireNonNull(groupStore);
 
-        final Map<SettingValueTypeCase, BiFunction<Setting, SettingSpec, Collection<String>>>
+        final Map<SettingValueTypeCase, BiFunction<SettingPolicy, SettingSpec, Collection<String>>>
                 processors = new EnumMap<>(SettingValueTypeCase.class);
         processors.put(SettingValueTypeCase.BOOLEAN_SETTING_VALUE_TYPE,
                 this::processBooleanSetting);
         processors.put(SettingValueTypeCase.ENUM_SETTING_VALUE_TYPE, this::processEnumSetting);
         processors.put(SettingValueTypeCase.STRING_SETTING_VALUE_TYPE, this::processStringSetting);
-        processors.put(SettingValueTypeCase.NUMERIC_SETTING_VALUE_TYPE,
-                this::processNumericSetting);
+        processors.put(SettingValueTypeCase.NUMERIC_SETTING_VALUE_TYPE, this::processNumericSetting);
+        processors.put(SettingValueTypeCase.SORTED_SET_OF_OID_SETTING_VALUE_TYPE, this::processSortedSetOfOidSetting);
         settingProcessors = Collections.unmodifiableMap(processors);
     }
 
     /**
      * {@inheritDoc}
      */
+    @Override
     public void validateSettingPolicy(@Nonnull final SettingPolicyInfo settingPolicyInfo,
             @Nonnull final Type type) throws InvalidItemException {
         // We want to collect everything wrong with the input and put that
@@ -88,62 +95,61 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
 
         settingPolicyInfo.getSettingsList().forEach((setting) -> {
             final String specName = setting.getSettingSpecName();
-            if (StringUtils.isBlank(specName)) {
-                errors.add("Null/empty key in setting spec map!");
-            } else if (!setting.hasSettingSpecName()) {
+            if (!setting.hasSettingSpecName()) {
                 errors.add("Setting for spec " + specName + " has unset name field.");
-            } else if (!specName.equals(setting.getSettingSpecName())) {
-                errors.add("Spec name " + specName +
-                        " mapped to setting with inconsistent name: " +
-                        setting.getSettingSpecName());
+            } else if (StringUtils.isBlank(specName)) {
+                errors.add("Null/empty key in setting spec map!");
             }
         });
 
         errors.addAll(validateReferencedSpecs(settingPolicyInfo));
 
         if (type.equals(Type.DEFAULT)) {
-            if (settingPolicyInfo.hasScope()) {
+            if (settingPolicyInfo.hasScope() && settingPolicyInfo.getScope().getGroupsCount() > 0) {
                 errors.add("Default setting policy should not have a scope!");
             }
-            if (settingPolicyInfo.hasSchedule()) {
+            if (settingPolicyInfo.hasScheduleId()) {
                 errors.add("Default setting policy should not have a schedule.");
             }
             if (settingPolicyInfo.hasTargetId()) {
                 errors.add("Default setting policy must not have a targetId.");
             }
         } else if (type.equals(Type.USER)) {
-            if (settingPolicyInfo.hasSchedule()) {
-                errors.addAll(validateSchedule(settingPolicyInfo.getSchedule()));
-            }
             if (settingPolicyInfo.hasTargetId()) {
                 errors.add("User setting policy must not have a targetId.");
             }
 
-            if (!settingPolicyInfo.hasScope() ||
-                    settingPolicyInfo.getScope().getGroupsCount() < 1) {
-                errors.add("User setting policy must have at least one scope!");
+            if (!settingPolicyInfo.hasScope()
+                    || settingPolicyInfo.getScope().getGroupsCount() < 1) {
+                // as of OM-44888, we are no longer making scopes required, and will not longer
+                // generate an error here.
             } else {
                 // Make sure the groups exist, and are compatible with the policy info.
                 try {
-                    final Map<Long, Optional<Group>> groupMap =
-                            groupStore.getGroups(settingPolicyInfo.getScope().getGroupsList());
-                    groupMap.forEach((groupId, groupOpt) -> {
-                        if (groupOpt.isPresent()) {
-                            final Group group = groupOpt.get();
-                            final int policyEntityType = settingPolicyInfo.getEntityType();
-                            final int groupEntityType = GroupProtoUtil.getEntityType(group);
-                            if (groupEntityType != policyEntityType) {
-                                errors.add("Group " + group.getId() + " with entity type " +
-                                        groupEntityType + " does not match entity type " +
-                                        policyEntityType + " of the setting policy");
-                            }
-                        } else {
-                            errors.add("Group " + groupId + "for setting policy not found.");
+                    final Set<Long> policyGroups =
+                            new HashSet<>(settingPolicyInfo.getScope().getGroupsList());
+                    final Collection<Grouping> groups = groupStore.getGroups(
+                            GroupProtoUtil.createGroupFilterByIds(policyGroups));
+                    groups.stream().map(Grouping::getId).forEach(policyGroups::remove);
+                    if (!policyGroups.isEmpty()) {
+                        errors.add("Groups " + policyGroups + " for setting policy not found");
+                    }
+                    for (Grouping group: groups) {
+                        final int policyEntityType = settingPolicyInfo.getEntityType();
+                        final Collection<Integer> groupExpectedMemberTypes =
+                                GroupProtoUtil.getEntityTypes(group)
+                                        .stream()
+                                        .map(ApiEntityType::typeNumber)
+                                        .collect(Collectors.toSet());
+                        if (!groupExpectedMemberTypes.contains(policyEntityType)) {
+                            errors.add("Group " + group.getId() + " with entity type "
+                                    + groupExpectedMemberTypes + " does not match entity type "
+                                    + policyEntityType + " of the setting policy");
                         }
-                    });
+                    }
                 } catch (DataAccessException e) {
-                    errors.add("Unable to fetch groups for setting policy due to exception: " +
-                            e.getMessage());
+                    errors.add("Unable to fetch groups for setting policy due to exception: "
+                            + e.getMessage());
                 }
             }
         } else {
@@ -154,62 +160,9 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         }
 
         if (!errors.isEmpty()) {
-            throw new InvalidItemException(
-                    "Invalid setting policy: " + settingPolicyInfo.getName() +
-                            System.lineSeparator() +
-                            StringUtils.join(errors, System.lineSeparator()));
+            throw new InvalidItemException("Invalid setting policy: " + settingPolicyInfo.getName()
+                    + System.lineSeparator() + StringUtils.join(errors, System.lineSeparator()));
         }
-    }
-
-    private List<String> validateSchedule(@Nonnull final Schedule schedule) {
-        List<String> errors = new LinkedList<>();
-
-        if (!schedule.hasStartTime()) {
-            errors.add("Setting policy schedule must have start datetime.");
-        }
-        if (schedule.getDurationCase().equals(DurationCase.DURATION_NOT_SET)) {
-            errors.add("Setting policy schedule must have a duration consisting of " +
-                    "either an end time or a number of minutes.");
-        }
-        if (schedule.hasEndTime() && (schedule.getStartTime() >= schedule.getEndTime())) {
-            errors.add("Setting policy schedule end time must be after start time.");
-        }
-        if (schedule.hasMinutes() && (schedule.getMinutes() < 1)) {
-            errors.add("Setting policy schedule duration must be one minute or greater.");
-        }
-        if (schedule.getRecurrenceCase().equals(RecurrenceCase.RECURRENCE_NOT_SET)) {
-            errors.add("Setting policy schedule recurrence must be one of OneTime, " +
-                    "Daily, Weekly, or Monthly.");
-        }
-        if (schedule.hasOneTime() &&
-                !schedule.getEndingCase().equals(EndingCase.ENDING_NOT_SET)) {
-            errors.add("OneTime setting policy schedule cannot have end date or " +
-                    "be perpetual.");
-        }
-        if (!schedule.hasOneTime() &&
-                schedule.getEndingCase().equals(EndingCase.ENDING_NOT_SET)) {
-            errors.add("Recurring setting policy schedule must have end date or " +
-                    "be perpetual.");
-        }
-        if (schedule.hasLastDate() && schedule.getStartTime() > schedule.getLastDate()) {
-            errors.add("Last date of recurring setting policy must be after first date.");
-        }
-        if (schedule.hasWeekly() && schedule.getWeekly().getDaysOfWeekList().isEmpty()) {
-            errors.add("Weekly setting policy schedule must have at least one active day.");
-        }
-        if (schedule.hasMonthly()){
-            if (schedule.getMonthly().getDaysOfMonthList().isEmpty()) {
-                errors.add("Monthly setting policy schedule must have at least one active day.");
-            }
-            schedule.getMonthly().getDaysOfMonthList().forEach(day -> {
-                if ((day < 1)  || (day > 31)) {
-                    errors.add("Monthly setting policy schedule can only have " +
-                            "active day(s) 1-31. " + day + " is invalid.");
-                }
-            });
-        }
-
-        return errors;
     }
 
     @Nonnull
@@ -217,6 +170,11 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
             @Nonnull final SettingPolicyInfo settingPolicyInfo) {
         // We want to collect everything wrong with the input.
         final List<String> errors = new LinkedList<>();
+
+        final Set<String> settingsInPolicy = settingPolicyInfo.getSettingsList()
+                .stream()
+                .map(Setting::getSettingSpecName)
+                .collect(Collectors.toSet());
 
         final Map<Setting, Optional<SettingSpec>> referencedSpecs =
                 settingPolicyInfo.getSettingsList()
@@ -232,8 +190,8 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                 final String name = setting.getSettingSpecName();
                 final SettingSpec spec = specOpt.get();
                 if (!spec.hasEntitySettingSpec()) {
-                    errors.add("Setting " + name + " is not an entity setting, " +
-                            "and can't be overwritten by a setting policy!");
+                    errors.add("Setting " + name + " is not an entity setting, "
+                            + "and can't be overwritten by a setting policy!");
                 } else {
                     // Make sure that the input policy info matches any
                     // entity type restrictions in the setting scope.
@@ -243,25 +201,27 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                     if (scope.hasEntityTypeSet() && !scope.getEntityTypeSet()
                             .getEntityTypeList()
                             .contains(entityType)) {
-                        errors.add("Entity type " + entityType +
-                                " not supported by setting spec " + name +
-                                ". Must be one of: " +
-                                StringUtils.join(scope.getEntityTypeSet().getEntityTypeList(),
-                                        ", "));
+                        errors.add("Entity type " + entityType + " not supported by setting spec "
+                                + name + ". Must be one of: "
+                                + StringUtils.join(
+                                        scope.getEntityTypeSet().getEntityTypeList(), ", "));
                     }
                 }
 
-                final BiFunction<Setting, SettingSpec, Collection<String>> processor =
+                final BiFunction<SettingPolicy, SettingSpec, Collection<String>> processor =
                         settingProcessors.get(spec.getSettingValueTypeCase());
-                errors.addAll(processor.apply(setting, spec));
+                final SettingPolicy settingPolicy =
+                        new SettingPolicy(setting, settingsInPolicy);
+                errors.addAll(processor.apply(settingPolicy, spec));
             }
         });
         return errors;
     }
 
-    private Collection<String> processBooleanSetting(@Nonnull Setting setting,
+    private Collection<String> processBooleanSetting(@Nonnull SettingPolicy settingPolicy,
             @Nonnull SettingSpec settingSpec) {
-        final Optional<String> typeError = matchType(setting, ValueCase.BOOLEAN_SETTING_VALUE);
+        final Optional<String> typeError =
+                matchType(settingPolicy.getCurrentSetting(), ValueCase.BOOLEAN_SETTING_VALUE);
         if (typeError.isPresent()) {
             return Collections.singleton(typeError.get());
         } else {
@@ -269,8 +229,9 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         }
     }
 
-    private Collection<String> processNumericSetting(@Nonnull Setting setting,
+    private Collection<String> processNumericSetting(@Nonnull SettingPolicy settingPolicy,
             @Nonnull SettingSpec settingSpec) {
+        final Setting setting = settingPolicy.getCurrentSetting();
         final Optional<String> typeError = matchType(setting, ValueCase.NUMERIC_SETTING_VALUE);
         if (typeError.isPresent()) {
             return Collections.singleton(typeError.get());
@@ -279,34 +240,36 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         final float value = setting.getNumericSettingValue().getValue();
         final Collection<String> errors = new ArrayList<>(0);
         if (type.hasMin() && value < type.getMin()) {
-            errors.add("Value " + value + " for setting " + setting.getSettingSpecName() +
-                    " less than minimum!");
+            errors.add("Value " + value + " for setting " + setting.getSettingSpecName()
+                    + " less than minimum!");
         }
         if (type.hasMax() && value > type.getMax()) {
-            errors.add("Value " + value + " for setting " + setting.getSettingSpecName() +
-                    " more than maximum!");
+            errors.add("Value " + value + " for setting " + setting.getSettingSpecName()
+                    + " more than maximum!");
         }
         return errors;
     }
 
-    private Collection<String> processStringSetting(@Nonnull Setting setting,
+    private Collection<String> processStringSetting(@Nonnull SettingPolicy settingPolicy,
             @Nonnull SettingSpec settingSpec) {
+        final Setting setting = settingPolicy.getCurrentSetting();
         final Optional<String> typeError = matchType(setting, ValueCase.STRING_SETTING_VALUE);
         if (typeError.isPresent()) {
             return Collections.singleton(typeError.get());
         }
         final StringSettingValueType type = settingSpec.getStringSettingValueType();
         final String value = setting.getStringSettingValue().getValue();
-        if (type.hasValidationRegex() &&
-                !Pattern.compile(type.getValidationRegex()).matcher(value).matches()) {
-            return Collections.singleton("Value " + value + " does not match validation regex " +
-                    type.getValidationRegex());
+        if (type.hasValidationRegex()
+                && !Pattern.compile(type.getValidationRegex()).matcher(value).matches()) {
+            return Collections.singleton("Value " + value + " does not match validation regex "
+                    + type.getValidationRegex());
         }
         return Collections.emptySet();
     }
 
-    private Collection<String> processEnumSetting(@Nonnull Setting setting,
+    private Collection<String> processEnumSetting(@Nonnull SettingPolicy settingPolicy,
             @Nonnull SettingSpec settingSpec) {
+        final Setting setting = settingPolicy.getCurrentSetting();
         final Optional<String> typeError = matchType(setting, ValueCase.ENUM_SETTING_VALUE);
         if (typeError.isPresent()) {
             return Collections.singleton(typeError.get());
@@ -314,19 +277,104 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         final EnumSettingValueType type = settingSpec.getEnumSettingValueType();
         final String value = setting.getEnumSettingValue().getValue();
         if (!type.getEnumValuesList().contains(value)) {
-            return Collections.singleton("Value " + value + " is not in the allowable list: " +
-                    StringUtils.join(type.getEnumValuesList(), ", "));
+            return Collections.singleton(
+                    "Value " + value + " is not in the allowable list: " + StringUtils.join(
+                            type.getEnumValuesList(), ", "));
         }
         return Collections.emptySet();
     }
 
+    /**
+     * Validate settings with {@link ValueCase#SORTED_SET_OF_OID_SETTING_VALUE}.
+     * The list value of the setting should be sorted in natural order and
+     * shouldn't contain any duplicate, which means it's strictly ordered.
+     *
+     * @param settingPolicy the {@link Setting} to validate
+     * @param settingSpec the {@link SettingSpec} corresponds to the setting
+     * @return a {@link Collection} of errors
+     */
+    private Collection<String> processSortedSetOfOidSetting(@Nonnull SettingPolicy settingPolicy,
+            @Nonnull SettingSpec settingSpec) {
+        final Setting setting = settingPolicy.getCurrentSetting();
+        final Optional<String> typeError =
+                matchType(setting, ValueCase.SORTED_SET_OF_OID_SETTING_VALUE);
+        if (typeError.isPresent()) {
+            return Collections.singleton(typeError.get());
+        }
+        final Collection<String> errors = new ArrayList<>();
+        if (ActionSettingSpecs.isExecutionScheduleSetting(setting.getSettingSpecName())) {
+            final Optional<String> validationErrors =
+                    validateExecutionScheduleSetting(settingPolicy);
+            validationErrors.ifPresent(errors::add);
+        } else {
+            final List<Long> value = setting.getSortedSetOfOidSettingValue().getOidsList();
+            if (!Ordering.natural().isStrictlyOrdered(value)) {
+                return Collections.singleton("Value " + value + " is not strictly ordered.");
+            }
+        }
+
+        return errors;
+    }
+
+    /**
+     * Check that current ExecutionSchedule setting has appropriate ActionMode setting in this
+     * policy.
+     *
+     * @param settingPolicy contains information about settings in policy
+     * @return if there is ActionMode setting for this ExecutionSchedule setting, other wise
+     * return error
+     */
+    private Optional<String> validateExecutionScheduleSetting(SettingPolicy settingPolicy) {
+        final String settingName = settingPolicy.getCurrentSetting().getSettingSpecName();
+        if (ActionSettingSpecs.isExecutionScheduleSetting(settingName)
+                && !settingPolicy.getSettingsInPolicy()
+                .contains(ActionSettingSpecs.getActionModeSettingFromExecutionScheduleSetting(
+                    settingName))) {
+            return Optional.of("There is no corresponding ActionMode setting for current "
+                    + "schedule setting " + settingName);
+        }
+        return Optional.empty();
+    }
+
     private Optional<String> matchType(@Nonnull Setting setting, ValueCase valueCase) {
         if (setting.getValueCase() != valueCase) {
-            return Optional.of(
-                    "Mismatched value. Got " + setting.getValueCase() + " and expected " +
-                            valueCase);
+            return Optional.of("Mismatched value. Got " + setting.getValueCase() + " and expected "
+                    + valueCase);
         } else {
             return Optional.empty();
+        }
+    }
+
+    /**
+     * Helper class contains full information about certain setting and list of names of all
+     * settings in policy.
+     */
+    private class SettingPolicy {
+        private final Setting currentSetting;
+        private final Collection<String> settingsInPolicy;
+
+        private SettingPolicy(@Nonnull Setting currentSetting,
+                @Nonnull Collection<String> settingsInPolicy) {
+            this.currentSetting = currentSetting;
+            this.settingsInPolicy = settingsInPolicy;
+        }
+
+        /**
+         * Get full information about current setting.
+         *
+         * @return {@link Setting}
+         */
+        public Setting getCurrentSetting() {
+            return currentSetting;
+        }
+
+        /**
+         * Returns all settings names existing in that setting policy.
+         *
+         * @return collection of all settings names existing in that setting policy.
+         */
+        public Collection<String> getSettingsInPolicy() {
+            return settingsInPolicy;
         }
     }
 }

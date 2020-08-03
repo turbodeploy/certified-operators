@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>7.17.0-SNAPSHOT</version>
+        <version>7.22.6-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -135,7 +135,7 @@
                     <!-- Generator parameters -->
                     <generator>
                         <database>
-                            <name>org.jooq.util.mysql.MySQLDatabase</name>
+                            <name>org.jooq.meta.mysql.MySQLDatabase</name>
                             <!-- Retrieve schema version from Flyway info table -->
                             <schemaVersionProvider>SELECT CONCAT_WS('_', '${db.outputSchema}', MAX(version)) from schema_version</schemaVersionProvider>
                             <includes>.*</includes>
@@ -156,11 +156,11 @@
                                     <converter>com.vmturbo.sql.utils.LocalDateTimeConverter</converter>
                                 </customType>
                                 <customType>
-                                    <name>com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo</name>
+                                    <name>com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo</name>
                                     <converter>com.vmturbo.plan.orchestrator.scenario.ScenarioInfoConverter</converter>
                                 </customType>
                                 <customType>
-                                    <name>com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo</name>
+                                    <name>com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo</name>
                                     <converter>com.vmturbo.plan.orchestrator.project.PlanProjectInfoConverter</converter>
                                 </customType>
                                 <customType>
@@ -196,7 +196,7 @@
                                 </forcedType>
                                 <!-- Automatically deserialize the changes blob to a ScenarioInfo-->
                                 <forcedType>
-                                    <name>com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo</name>
+                                    <name>com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo</name>
                                     <expression>.*\.scenario\.scenario_info</expression>
                                 </forcedType>
                                 <forcedType>
@@ -204,7 +204,7 @@
                                     <expression>.*\.plan_instance\.plan_instance</expression>
                                 </forcedType>
                                 <forcedType>
-                                    <name>com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo</name>
+                                    <name>com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo</name>
                                     <expression>.*\.plan_project\.project_info</expression>
                                 </forcedType>
                                 <forcedType>
@@ -233,6 +233,13 @@
                             <directory>target/generated-sources/jooq</directory>
                         </target>
                     </generator>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
                 </configuration>
             </plugin>
         </plugins>
@@ -266,6 +273,10 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>market-component-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.group.api</artifactId>
         </dependency>
         <dependency>
@@ -288,10 +299,40 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>sql-utils</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.api</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- Common test utilities. -->
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>sql-test-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>components-api-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+            <version>2.9.9</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-all</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

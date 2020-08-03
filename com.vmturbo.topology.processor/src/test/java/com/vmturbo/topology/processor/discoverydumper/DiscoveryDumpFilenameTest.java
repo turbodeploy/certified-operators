@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.discoverydumper;
 
 import java.io.File;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import org.junit.Assert;
@@ -10,6 +11,7 @@ import org.junit.Test;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 
 public class DiscoveryDumpFilenameTest {
+    private static final String dateFormatPattern = "yyyy.MM.dd.HH.mm.ss.SSS";
     private void testFilename(String filename, String targetName, Date timeStamp, DiscoveryType discoveryType, boolean mustFail) {
         final DiscoveryDumpFilename ddFileName = DiscoveryDumpFilename.parse(filename);
 
@@ -24,12 +26,16 @@ public class DiscoveryDumpFilenameTest {
         Assert.assertEquals(timeStamp, ddFileName.getTimestamp());
         Assert.assertEquals(discoveryType, ddFileName.getDiscoveryType());
 
-        final File dumpDirectory = new File("/");
+        String tmpDir = System.getProperty("java.io.tmpdir");
+        if (tmpDir != null && !tmpDir.endsWith(File.separator)) {
+            tmpDir += File.separator;
+        }
+        final File dumpDirectory = new File(tmpDir);
         Assert.assertEquals(
-            "/" + filename.substring(0, filename.length() - 3) + "txt",
+            tmpDir + filename.substring(0, filename.length() - 3) + "txt",
             ddFileName.getFile(dumpDirectory, true, false).getAbsolutePath());
         Assert.assertEquals(
-            "/" + filename.substring(0, filename.length() - 3) + "txt.gz",
+            tmpDir + filename.substring(0, filename.length() - 3) + "txt.lz4",
             ddFileName.getFile(dumpDirectory, true, true).getAbsolutePath());
     }
 
@@ -41,7 +47,7 @@ public class DiscoveryDumpFilenameTest {
     @Test
     public void testFilenameParsingNothingUnusual() throws ParseException {
         final String aDateRepresentation = "2018.04.09.11.30.02.155";
-        final Date aDate = DiscoveryDumpFilename.dateFormat.parse(aDateRepresentation);
+        final Date aDate = new SimpleDateFormat(dateFormatPattern).parse(aDateRepresentation);
 
         testFilename(
             "normal.target.name.1-" + aDateRepresentation + "-PERFORMANCE.txt",
@@ -51,7 +57,7 @@ public class DiscoveryDumpFilenameTest {
     @Test
     public void testFilenameParsingTrickyTargetName() throws ParseException {
         final String aDateRepresentation = "2018.04.09.11.30.02.155";
-        final Date aDate = DiscoveryDumpFilename.dateFormat.parse(aDateRepresentation);
+        final Date aDate = new SimpleDateFormat(dateFormatPattern).parse(aDateRepresentation);
 
         testFilename(
             "http___tricky.url.com-" + aDateRepresentation + "-PERFORMANCE.txt",
@@ -62,7 +68,7 @@ public class DiscoveryDumpFilenameTest {
     @Test
     public void testFilenameParsingSingleUnderscoreTargetName() throws ParseException {
         final String aDateRepresentation = "2018.04.09.11.30.02.155";
-        final Date aDate = DiscoveryDumpFilename.dateFormat.parse(aDateRepresentation);
+        final Date aDate = new SimpleDateFormat(dateFormatPattern).parse(aDateRepresentation);
 
         testFilename(
             "_-" + aDateRepresentation + "-PERFORMANCE.txt",
@@ -73,7 +79,7 @@ public class DiscoveryDumpFilenameTest {
     @Test
     public void testFilenameParsingTargetNameWithSpecialChars() throws ParseException {
         final String aDateRepresentation = "2018.04.09.11.30.02.155";
-        final Date aDate = DiscoveryDumpFilename.dateFormat.parse(aDateRepresentation);
+        final Date aDate = new SimpleDateFormat(dateFormatPattern).parse(aDateRepresentation);
 
         testFilename(
             "A_B_-" + aDateRepresentation + "-PERFORMANCE.txt",
@@ -85,7 +91,7 @@ public class DiscoveryDumpFilenameTest {
     @Test
     public void testFilenameParsingSpecialCharsFull() throws ParseException {
         final String aDateRepresentation = "2018.04.09.11.30.02.155";
-        final Date aDate = DiscoveryDumpFilename.dateFormat.parse(aDateRepresentation);
+        final Date aDate = new SimpleDateFormat(dateFormatPattern).parse(aDateRepresentation);
 
         testFilename(
             "A_B_-" + aDateRepresentation + "-FULL.txt",
@@ -99,9 +105,8 @@ public class DiscoveryDumpFilenameTest {
      * a dump file.
      */
     @Test
-    public void testFilenameParsingEmptyTargetName() throws ParseException {
+    public void testFilenameParsingEmptyTargetName() {
         final String aDateRepresentation = "2018.04.09.11.30.02.155";
-        final Date aDate = DiscoveryDumpFilename.dateFormat.parse(aDateRepresentation);
 
         testFilename(
             "-" + aDateRepresentation + "-PERFORMANCE.txt",
@@ -110,9 +115,8 @@ public class DiscoveryDumpFilenameTest {
     }
 
     @Test
-    public void testFilenameParsingInvalidDiscoveryType() throws ParseException {
+    public void testFilenameParsingInvalidDiscoveryType() {
         final String aDateRepresentation = "2018.04.09.11.30.02.155";
-        final Date aDate = DiscoveryDumpFilename.dateFormat.parse(aDateRepresentation);
 
         testFilename(
             "A-" + aDateRepresentation + "-PERFORMANC.txt",
@@ -121,9 +125,8 @@ public class DiscoveryDumpFilenameTest {
     }
 
     @Test
-    public void testFilenameParsingTopologyFileRejected() throws ParseException {
+    public void testFilenameParsingTopologyFileRejected() {
         final String aDateRepresentation = "2018.04.09.11.30.02.155";
-        final Date aDate = DiscoveryDumpFilename.dateFormat.parse(aDateRepresentation);
 
         testFilename(
             "A_B_-" + aDateRepresentation + ".topology",

@@ -6,10 +6,6 @@ option java_package = "com.vmturbo.common.protobuf.common";
 
 
 // Identifies a subset of the topology.
-//
-// Note - we don't have "HYBRID" as an environment type, because most things are either
-// ON_PREM or CLOUD. "HYBRID" is a useful short-form for queries (to indicate ON_PREM or CLOUD),
-// but it's not a valid environment.
 enum EnvironmentType {
     // The environment type was either unset or could not be determined.
     // It's up to the caller to decide whether how to treat UNKNOWN,
@@ -21,4 +17,9 @@ enum EnvironmentType {
 
     // The "cloud" subset of the topology.
     CLOUD = 2;
+
+    // The "hybrid" subset of the topology, for entities like
+    // BusinessApplication that can span both cloud
+    // and on-premise environments.
+    HYBRID = 3;
 }

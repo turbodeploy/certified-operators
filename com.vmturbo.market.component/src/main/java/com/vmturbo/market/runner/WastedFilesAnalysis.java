@@ -5,18 +5,22 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.google.common.base.Strings;
+import com.google.common.collect.Streams;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -24,15 +28,23 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
-import com.vmturbo.market.runner.Analysis.AnalysisState;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -55,11 +67,9 @@ public class WastedFilesAnalysis {
 
     private final Clock clock;
 
-    private final Set<TopologyEntityDTO> topologyDTOs;
+    private final Map<Long, TopologyEntityDTO> topologyDTOs;
 
     private final TopologyCostCalculator cloudCostCalculator;
-
-    private final MarketPriceTable priceTable;
 
     private final TopologyInfo topologyInfo;
 
@@ -71,16 +81,22 @@ public class WastedFilesAnalysis {
 
     private Collection<Action> actions;
 
+    private final CloudTopology<TopologyEntityDTO> originalCloudTopology;
+    /**
+     * A map of key: storageOid -> value: total storage freed up for this storage by deleting files.
+     */
+    private final Map<Long, Long> storageToStorageAmountReleasedMap = new HashMap<>();
+
     public WastedFilesAnalysis(@Nonnull final TopologyInfo topologyInfo,
-                               @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
+                               @Nonnull final Map<Long, TopologyEntityDTO> topologyDTOs,
                                @Nonnull final Clock clock,
                                @Nonnull final TopologyCostCalculator cloudCostCalculator,
-                               @Nonnull final MarketPriceTable priceTable) {
+                               @Nonnull final CloudTopology<TopologyEntityDTO> originalCloudTopology) {
         this.topologyInfo = topologyInfo;
         this.clock = clock;
         this.topologyDTOs = topologyDTOs;
         this.cloudCostCalculator = cloudCostCalculator;
-        this.priceTable = priceTable;
+        this.originalCloudTopology = originalCloudTopology;
         state = AnalysisState.INITIAL;
         logPrefix = topologyInfo.getTopologyType() + " WastedFilesAnalysis " +
             topologyInfo.getTopologyContextId() + " with topology " +
@@ -117,27 +133,21 @@ public class WastedFilesAnalysis {
             try (final DataMetricTimer scopingTimer = Metrics.WASTED_FILES_SUMMARY.startTimer()) {
                 // create a map by OID of all virtual volumes that have file data and are connected to
                 // Storages or StorageTiers
-                final Map<Long, TopologyEntityDTO> wastedFilesMap = topologyDTOs.stream()
+                final Map<Long, TopologyEntityDTO> wastedFilesMap = topologyDTOs.values().stream()
                     .filter(topoEntity -> topoEntity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
                     .filter(topoEntity -> topoEntity.hasTypeSpecificInfo())
                     .filter(topoEntity -> topoEntity.getTypeSpecificInfo().hasVirtualVolume())
-                    .filter(topoEntity -> (topoEntity.getTypeSpecificInfo().getVirtualVolume()
-                        .hasStorageAmountCapacity() &&
-                        topoEntity.getTypeSpecificInfo().getVirtualVolume().getStorageAmountCapacity() > 0)
+                    .filter(topoEntity -> getStorageAmountCapacity(topoEntity) > 0
                         || topoEntity.getTypeSpecificInfo().getVirtualVolume().getFilesCount() > 0)
-                    .filter(topoEntity -> topoEntity.getConnectedEntityListList().stream()
-                        .anyMatch(connEntity -> connEntity.hasConnectedEntityType()
-                            && (connEntity.getConnectedEntityType() == EntityType.STORAGE_VALUE
-                            || connEntity.getConnectedEntityType() == EntityType.STORAGE_TIER_VALUE)))
+                    // only include those which are "deletable" from setting
+                    .filter(topoEntity -> topoEntity.hasAnalysisSettings() &&
+                                          topoEntity.getAnalysisSettings().getDeletable())
                     .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-                // remove any VirtualVolumes that have VMs which are connectedTo them
-                topologyDTOs.stream()
+                 // remove any VirtualVolumes that have VMs which are connectedTo them
+                 topologyDTOs.values().stream()
                     .filter(topoEntity -> topoEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                    .forEach(virtualMachine -> virtualMachine.getConnectedEntityListList().stream()
-                        .filter(connEntity -> connEntity.hasConnectedEntityType())
-                        .filter(connEntity -> connEntity.getConnectedEntityType() ==
-                            EntityType.VIRTUAL_VOLUME_VALUE)
-                        .forEach(connEntity -> wastedFilesMap.remove(connEntity.getConnectedEntityId())));
+                    .forEach(virtualMachine -> getAttachedVolumesIds(virtualMachine)
+                        .forEach(wastedFilesMap::remove));
                 actions = wastedFilesMap.values().stream()
                         .flatMap(volume -> createActionsFromVolume(volume).stream())
                         .collect(Collectors.toList());
@@ -157,6 +167,43 @@ public class WastedFilesAnalysis {
         return true;
     }
 
+    private static double getStorageAmountCapacity(@Nonnull final TopologyEntityDTO entity) {
+        return entity.getCommoditySoldListList().stream()
+                .filter(commodity -> commodity.getCommodityType().getType()
+                        == CommodityType.STORAGE_AMOUNT.getNumber())
+                .map(CommoditySoldDTO::getCapacity)
+                .findAny().orElse(0D);
+    }
+
+    /**
+     * Get volumes attached to a virtual machine. For on prem VMs attached volumes are represented
+     * using ConnectedTo relationship. For cloud VMs attached volumes are represented as commodity
+     * providers. This method joins connected entities and commodity providers and returns
+     * concatenated stream.
+     *
+     * @param virtualMachine Virtual machine.
+     * @return Stream of OIDs of volumes attached to the virtual machine.
+     */
+    private static Stream<Long> getAttachedVolumesIds(
+            @Nonnull final TopologyEntityDTO virtualMachine) {
+        final int volumeType = EntityType.VIRTUAL_VOLUME_VALUE;
+
+        // Get volumes connected to the VM (on prem case)
+        final Stream<Long> connectedVolumes = virtualMachine.getConnectedEntityListList()
+                .stream()
+                .filter(ConnectedEntity::hasConnectedEntityType)
+                .filter(connEntity -> connEntity.getConnectedEntityType() == volumeType)
+                .map(ConnectedEntity::getConnectedEntityId);
+
+        // Get volumes selling commodities to the VM (cloud case)
+        final Stream<Long> consumedVolumes = virtualMachine.getCommoditiesBoughtFromProvidersList()
+                .stream()
+                .filter(commBought -> commBought.getProviderEntityType() == volumeType)
+                .map(CommoditiesBoughtFromProvider::getProviderId);
+
+        return Streams.concat(connectedVolumes, consumedVolumes);
+    }
+
     private DeleteExplanation getOnPremWastedFilesDeleteExplanation(long sizeKb) {
         return DeleteExplanation.newBuilder().setSizeKb(sizeKb).build();
     }
@@ -166,25 +213,43 @@ public class WastedFilesAnalysis {
      * fields between on prem and cloud.  This builder must later be refined with details specific
      * to on prem or cloud by the calling method.
      *
-     * @param storageOid the id of the Storage or StorageTier hosting the file
-     * @param entityType {@link EntityType} - either Storage (on prem) or StorageTier (cloud)
-     * @param filePath The file path (on prem) or volume to be deleted
+     * @param targetEntityOid id of the storage hosting the file (on-perm) or virtual volume wasted (cloud)
+     * @param targetEntityType {@link EntityType} - either Storage (on prem) or Virtual Volume (cloud)
+     * @param sourceEntityOid - storage tier which the Virtual Volume sits (cloud)
+     * @param sourceEntityType - {@link EntityType} Storage Tier for cloud
+     * @param filePath The file path to be deleted (on prem)
+     * @param environmentType {@link EnvironmentType} of target
      * @return {@link Action.Builder} with the common fields for the delete action populated
      */
-    private Action.Builder newActionFromVolume(final long storageOid,
-                                               final EntityType entityType,
-                                               final String filePath) {
+    private Action.Builder newActionFromVolume(final long targetEntityOid,
+                                               final EntityType targetEntityType,
+                                               @Nullable final Long sourceEntityOid,
+                                               @Nullable final EntityType sourceEntityType,
+                                               @Nullable final String filePath,
+                                               final EnvironmentType environmentType) {
+        final Delete.Builder deleteBuilder = Delete.newBuilder()
+            .setTarget(ActionEntity.newBuilder()
+                .setId(targetEntityOid)
+                .setType(targetEntityType.getNumber())
+                .setEnvironmentType(environmentType));
+
+        if (!Strings.isNullOrEmpty(filePath)) {
+            deleteBuilder.setFilePath(filePath);
+        }
+
+        if (sourceEntityOid != null) {
+            deleteBuilder.setSource(ActionEntity.newBuilder()
+                .setId(sourceEntityOid)
+                .setType(sourceEntityType.getNumber())
+                .setEnvironmentType(environmentType));
+        }
+
         final Action.Builder action = Action.newBuilder()
-            // Assign a unique ID to each generated action.
-            .setId(IdentityGenerator.next())
-            .setImportance(0.0D)
-            .setExecutable(false)
-            .setInfo(ActionInfo.newBuilder().setDelete(Delete.newBuilder()
-                .setTarget(ActionEntity.newBuilder()
-                    .setId(storageOid)
-                    .setType(entityType.getNumber()))
-                .setFilePath(filePath)
-            ));
+                // Assign a unique ID to each generated action.
+                .setId(IdentityGenerator.next())
+                .setDeprecatedImportance(0.0D)
+                .setExecutable(true)
+                .setInfo(ActionInfo.newBuilder().setDelete(deleteBuilder));
         Metrics.WASTED_FILES_ACTION_COUNTER.increment();
         return action;
     }
@@ -194,14 +259,17 @@ public class WastedFilesAnalysis {
      *
      * @param storageOid the ID of the Storage hosting the file
      * @param fileDescr {@link VirtualVolumeFileDescriptor} representing the file
+     * @param environmentType {@link EnvironmentType} of Target
      * @return {@link Action.Builder} representing a delete action for the file
      */
     private Action.Builder newActionFromFile(final long storageOid,
-                                             final VirtualVolumeFileDescriptor fileDescr) {
+                                             final VirtualVolumeFileDescriptor fileDescr,
+                                             final EnvironmentType environmentType) {
         Action.Builder action = newActionFromVolume(storageOid, EntityType.STORAGE,
-            fileDescr.getPath());
+                null, null, // TODO need to update source entity for on-perm in the future
+                fileDescr.getPath(), environmentType);
         action.setExplanation(Explanation.newBuilder()
-            .setDelete(getOnPremWastedFilesDeleteExplanation(fileDescr.getSizeKb())));
+                .setDelete(getOnPremWastedFilesDeleteExplanation(fileDescr.getSizeKb())));
         return action;
     }
 
@@ -214,36 +282,52 @@ public class WastedFilesAnalysis {
      * with the volume.
      */
     private Collection<Action> createActionsFromVolume(final TopologyEntityDTO volume) {
-        Optional<Long> storageOid;
+        if (volume.hasTypeSpecificInfo() && volume.getTypeSpecificInfo().hasVirtualVolume() &&
+                volume.getTypeSpecificInfo().getVirtualVolume().hasAttachmentState() &&
+                volume.getTypeSpecificInfo().getVirtualVolume().getAttachmentState()
+                        == AttachmentState.ATTACHED) {
+            logger.trace("Cannot generate delete action on volume {} since it is in use.",
+                    volume.getDisplayName());
+            return Collections.emptyList();
+        }
+
+        Optional<Long> optStorageOrStorageTierOid = TopologyDTOUtil.getVolumeProvider(volume);
+        if (!optStorageOrStorageTierOid.isPresent()) {
+            return Collections.emptyList();
+        }
+        final Long storageOrStorageTierOid = optStorageOrStorageTierOid.get();
+
         if (volume.getEnvironmentType() != EnvironmentType.ON_PREM) {
             // handle cloud case
-            storageOid = TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
-                EntityType.STORAGE_TIER.getNumber()).findFirst();
-            if (!storageOid.isPresent()) {
-                return Collections.emptyList();
-            }
-            // TODO need to calculate savings for cloud volumes
+            Optional<CostJournal<TopologyDTO.TopologyEntityDTO>> costJournalOpt =
+                this.cloudCostCalculator.calculateCostForEntity(this.originalCloudTopology, volume);
+
             double costSavings = 0.0d;
-            return Collections.singletonList(newActionFromVolume(storageOid.get(),
-                EntityType.STORAGE_TIER, volume.getDisplayName())
-                .setExplanation(Explanation.newBuilder().setDelete(
-                    DeleteExplanation.newBuilder().build()))
-                .setSavingsPerHour(CurrencyAmount.newBuilder()
-                    .setAmount(costSavings)
-                    .build())
+            if (costJournalOpt.isPresent()) {
+                // This will set the hourly saving rate to the action
+                costSavings = costJournalOpt.get().getTotalHourlyCost().getValue();
+            } else {
+                logger.debug("Unable to get cost for volume {}", volume.getDisplayName());
+            }
+            return Collections.singletonList(newActionFromVolume(
+                    volume.getOid(), EntityType.VIRTUAL_VOLUME, storageOrStorageTierOid,
+                    EntityType.STORAGE_TIER, null, volume.getEnvironmentType())
+                .setExplanation(Explanation.newBuilder().setDelete(DeleteExplanation.newBuilder()
+                    .setSizeKb((long)getStorageAmountCapacity(volume))))
+                .setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(costSavings))
                 .build());
         } else {
             // handle ON_PREM
-            storageOid = TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
-                EntityType.STORAGE.getNumber()).findFirst();
-            if (!storageOid.isPresent()) {
-                return Collections.EMPTY_LIST;
-            }
             // TODO add a setting to control the minimum file size.  For now, use 1MB
             return volume.getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
                 .filter(vvfd -> vvfd.getSizeKb() > Units.KBYTE)
-                .map(vvfd -> newActionFromFile(storageOid.get(), vvfd).build())
-                .collect(Collectors.toList());
+                .map(vvfd -> {
+                    storageToStorageAmountReleasedMap.merge(storageOrStorageTierOid,
+                        vvfd.getSizeKb(), (v1, v2) -> v1 + v2);
+                    return newActionFromFile(storageOrStorageTierOid, vvfd, volume.getEnvironmentType())
+                        .build();
+                })
+            .collect(Collectors.toList());
         }
     }
 
@@ -276,4 +360,13 @@ public class WastedFilesAnalysis {
             .register();
     }
 
+
+    /**
+     * Storage amount freed up for given oid.
+     * @param oid to search for storage amount released.
+     * @return  storage amount or empty optional.
+     */
+    public Optional<Long> getStorageAmountReleasedForOid(long oid) {
+        return Optional.ofNullable(storageToStorageAmountReleasedMap.get(oid));
+    }
 }

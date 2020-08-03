@@ -14,6 +14,7 @@ import io.swagger.annotations.ApiModelProperty;
 
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.proactivesupport.DataMetricCounter;
+import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.OperationDto;
@@ -76,16 +77,24 @@ public abstract class Operation {
     private List<String> errors;
 
     /**
+     * The timer used for timing the duration of validations.
+     * Mark transient to avoid serialization of this field.
+     */
+    private final transient DataMetricTimer durationTimer;
+
+    /**
      * Create a new operation.
      * The startTime will be set to the current time and status will be initialized to IN_PROGRESS.
      *
      * @param probeId The id of the probe that will be doing the operation.
      * @param targetId The id of the target being discovered.
      * @param identityProvider The identity provider to use to get an ID.
+     * @param durationMetricSummary metric summary to use for operation duration tracking
      */
     public Operation(final long probeId,
                      final long targetId,
-                     @Nonnull final IdentityProvider identityProvider) {
+                     @Nonnull final IdentityProvider identityProvider,
+                     @Nonnull DataMetricSummary durationMetricSummary) {
         Objects.requireNonNull(identityProvider);
         this.startTime = LocalDateTime.now();
         this.id = identityProvider.generateOperationId();
@@ -94,6 +103,7 @@ public abstract class Operation {
         this.status = Status.IN_PROGRESS;
         this.errors = new ArrayList<>();
         this.userInitiated = false;
+        this.durationTimer = durationMetricSummary.startTimer();
     }
 
     public long getId() {
@@ -131,6 +141,11 @@ public abstract class Operation {
     @Nonnull
     public List<String> getErrors() {
         return errors;
+    }
+
+    @Nonnull
+    public String getErrorString() {
+        return String.join(", ", errors);
     }
 
     /**
@@ -255,14 +270,6 @@ public abstract class Operation {
     }
 
     /**
-     * Get the timer for use in timing operation durations.
-     *
-     * @return The timer for use in timing operation durations.
-     */
-    @Nonnull
-    protected abstract DataMetricTimer getMetricsTimer();
-
-    /**
      * Get the counter that tracks the count of operation results.
      *
      * @return The counter that tracks the count of operation results.
@@ -274,7 +281,7 @@ public abstract class Operation {
      * Complete the operation and update any associated Prometheus metrics.
      */
     protected void completeOperation() {
-        getMetricsTimer().observe();
+        durationTimer.observe();
         getStatusCounter().labels(status.name()).increment();
     }
 

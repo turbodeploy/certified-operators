@@ -6,6 +6,8 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -18,13 +20,17 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.vmturbo.api.component.external.api.interceptor.DevFreemiumInterceptor;
 import com.vmturbo.api.component.external.api.interceptor.LicenseInterceptor;
+import com.vmturbo.api.component.external.api.interceptor.TracingInterceptor;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.interceptors.TelemetryInterceptor;
 import com.vmturbo.api.serviceinterfaces.IAppVersionInfo;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
 /**
  * Configuration of things that affect the entire API component and don't fit into
@@ -84,17 +90,48 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
             .excludePathPatterns("/license/**")
             .excludePathPatterns("/checkInit")
             .excludePathPatterns("/initAdmin")
+            .excludePathPatterns("/notifications/**")
             .excludePathPatterns("/users/administrator/reset")
             .excludePathPatterns("/cluster/proactive/initialized")
             .excludePathPatterns("/cluster/proactive/enabled")
             .excludePathPatterns("/cluster/isXLEnabled")
             .excludePathPatterns("/admin/versions")
+            .excludePathPatterns("/admin/productcapabilities")
+            .excludePathPatterns("/admin/telemetry")
             .excludePathPatterns("/users/me")
             .excludePathPatterns("/users/saml")
             .excludePathPatterns("/health")
             // exclude "/" so that redirection from "/" to "/app/index.html" works
             // as defined in ExternalApiConfig
-            .excludePathPatterns("/");
+            .excludePathPatterns("/")
+            // Fix after upgrading to Spring 5.x, initialization and license installation pages failed to
+            // load due to they are blocked by license interceptor.
+            .excludePathPatterns("/assets/**")
+            .excludePathPatterns("/doc/**")
+            .excludePathPatterns("/widgetsets/**")
+            .excludePathPatterns("/app/**");
+        // add a planning feature interceptor that will block access to plan configuration endpoints
+        registry.addInterceptor(new LicenseInterceptor(licenseCheckClientConfig.licenseCheckClient(),
+                ImmutableSet.of(ProbeLicense.PLANNER)))
+                .addPathPatterns("/scenarios/**");
+        registry.addInterceptor(devFreemiumInterceptor())
+            .addPathPatterns("/actions/**")
+            .addPathPatterns("/businessunits/**")
+            .addPathPatterns("/deploymentprofiles/**")
+            .addPathPatterns("/entities/*/actions/**")
+            .addPathPatterns("/groups/*/actions/**")
+            .addPathPatterns("/markets/**")
+            .addPathPatterns("/plandestinations/**")
+            .addPathPatterns("/policies/**")
+            .addPathPatterns("/pricelists/**")
+            .addPathPatterns("/reports/**")
+            .addPathPatterns("/reservations/**")
+            .addPathPatterns("/search/" + UuidMapper.UI_REAL_TIME_MARKET_STR + "/**")
+            .addPathPatterns("/settings/**")
+            .addPathPatterns("/settingspolicies/**")
+            .addPathPatterns("/stats/**")
+            .addPathPatterns("/templates/**");
+        registry.addInterceptor(restTracingInterceptor());
     }
 
     @Bean
@@ -124,6 +161,11 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
         return new TelemetryInterceptor(versionInfo());
     }
 
+    @Bean
+    public TracingInterceptor restTracingInterceptor() {
+        return new TracingInterceptor();
+    }
+
     /**
      * Create a license interceptor to check if current license is valid or not.
      *
@@ -134,6 +176,15 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
         return new LicenseInterceptor(licenseCheckClientConfig.licenseCheckClient());
     }
 
+    /**
+     * Create an interceptor to check if the current request is allowed based on the license used.
+     *
+     * @return A {@link DevFreemiumInterceptor} instance.
+     */
+    @Bean
+    public DevFreemiumInterceptor devFreemiumInterceptor() {
+        return new DevFreemiumInterceptor(licenseCheckClientConfig.licenseCheckClient());
+    }
     /**
      * Implement the {@link IAppVersionInfo} to provide version info to the {@link TelemetryInterceptor}.
      */

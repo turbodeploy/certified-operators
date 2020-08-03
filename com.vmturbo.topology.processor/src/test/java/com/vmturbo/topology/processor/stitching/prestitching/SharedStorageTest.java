@@ -10,6 +10,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -24,6 +25,7 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.prestitching.SharedStoragePreStitchingOperation;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
@@ -42,6 +44,7 @@ public class SharedStorageTest {
         .selling(storageProvisioned().capacity(1000.0).used(500.0))
         .selling(storageLatencyMillis().capacity(100.0).used(100.0))
         .selling(storageAccessIOPS().capacity(100.0).used(20.0))
+        .powerState(PowerState.POWERED_ON)
         .build()
         .toBuilder();
 
@@ -51,6 +54,7 @@ public class SharedStorageTest {
         .selling(storageProvisioned().capacity(1000.0).used(250.0))
         .selling(storageLatencyMillis().capacity(100.0).used(50.0))
         .selling(storageAccessIOPS().capacity(100.0).used(30.0))
+        .powerState(PowerState.POWERSTATE_UNKNOWN)
         .build()
         .toBuilder();
 
@@ -143,9 +147,19 @@ public class SharedStorageTest {
             .get().getUsed(), epsilon);
     }
 
+    @Test
+    public void testStoragePowerState() {
+        operation.performOperation(Stream.of(newStorage, oldStorage), resultBuilder)
+                .getChanges().forEach(change -> change.applyChange(new StitchingJournal<>()));
+
+        assertEquals(PowerState.POWERED_ON, newStorage.getEntityBuilder().getPowerState());
+    }
+
     private void setupEntities(@Nonnull final EntityDTO.Builder... entities) {
         final long targetIncrement = 111L;
         final long lastUpdatedIncrement = 100L;
+        TargetStore targetStore = Mockito.mock(TargetStore.class);
+        Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
 
         long oid = 1L;
         long targetId = targetIncrement;
@@ -162,8 +176,7 @@ public class SharedStorageTest {
             entityDataList.add(stitchingData);
         }
 
-        final StitchingContext.Builder builder = StitchingContext.newBuilder(entities.length)
-            .setTargetStore(Mockito.mock(TargetStore.class))
+        final StitchingContext.Builder builder = StitchingContext.newBuilder(entities.length, targetStore)
             .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
         entityDataList.forEach(entity -> builder.addEntity(entity, ImmutableMap.of(entity.getLocalId(), entity)));
 

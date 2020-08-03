@@ -29,10 +29,12 @@ import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -40,6 +42,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
@@ -87,6 +90,8 @@ public class MarketPerformanceTest {
     private IMessageReceiver<ActionPlan> actionsReceiver;
     private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
     private IMessageReceiver<ProjectedEntityCosts> projectedEntityCostReceiver;
+    private IMessageReceiver<AnalysisSummary> analysisSummaryReceiver;
+    private IMessageReceiver<AnalysisStatusNotification> analysisStatusReceiver;
     private IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver;
     private KafkaMessageConsumer kafkaMessageConsumer;
 
@@ -105,8 +110,15 @@ public class MarketPerformanceTest {
         projectedEntityCostReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.PROJECTED_ENTITY_COSTS_TOPIC,
                 ProjectedEntityCosts::parseFrom);
+        analysisSummaryReceiver = kafkaMessageConsumer.messageReceiver(
+                MarketComponentNotificationReceiver.ANALYSIS_SUMMARY_TOPIC,
+            AnalysisSummary::parseFrom);
+        analysisStatusReceiver = kafkaMessageConsumer.messageReceiver(
+                       MarketComponentNotificationReceiver.ANALYSIS_STATUS_NOTIFICATION_TOPIC,
+                           AnalysisStatusNotification::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(projectedTopologyReceiver,
-                projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionsReceiver, null, threadPool);
+                projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionsReceiver,
+            null, analysisSummaryReceiver, analysisStatusReceiver, threadPool, 0);
         kafkaMessageConsumer.start();
     }
 
@@ -125,7 +137,7 @@ public class MarketPerformanceTest {
                               @Nonnull final Optional<List<Long>> scopeSeedOids) throws Exception {
         final TopologyProcessorNotificationSender tpNotificationSender =
             TopologyProcessorKafkaSender.create(threadPool,
-                componentTestRule.getKafkaMessageProducer());
+                componentTestRule.getKafkaMessageProducer(), new MutableFixedClock(1_000_000));
 
         final TopologyInfo.Builder topologyInfoBuilder = TopologyInfo.newBuilder()
             .setTopologyType(TopologyType.REALTIME)
@@ -265,13 +277,13 @@ public class MarketPerformanceTest {
         public void getGlobalSetting(final GetSingleGlobalSettingRequest request,
                                    final StreamObserver<GetGlobalSettingResponse> responseObserver) {
             Preconditions.checkArgument(
-                request.getSettingSpecName().equals(GlobalSettingSpecs.RateOfResize.getSettingName())
+                request.getSettingSpecName().equals(GlobalSettingSpecs.DefaultRateOfResize.getSettingName())
             );
 
             responseObserver.onNext(GetGlobalSettingResponse.newBuilder()
                 .setSetting(Setting.newBuilder()
                     .setSettingSpecName(
-                        GlobalSettingSpecs.RateOfResize.getSettingName())
+                        GlobalSettingSpecs.DefaultRateOfResize.getSettingName())
                     .setNumericSettingValue(
                         SettingDTOUtil.createNumericSettingValue(2.0f)))
                 .build());
@@ -282,7 +294,7 @@ public class MarketPerformanceTest {
     public class GetGroupsStub extends GroupServiceImplBase {
         @Override
         public void getGroups(GroupDTO.GetGroupsRequest request,
-                              StreamObserver<GroupDTO.Group> responseObserver) {
+                              StreamObserver<GroupDTO.Grouping> responseObserver) {
             responseObserver.onCompleted(); // Don't return any groups
         }
     }

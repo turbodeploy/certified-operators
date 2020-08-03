@@ -16,7 +16,7 @@ public class RoaringBitmapOidSet implements OidSet {
     private final Roaring64NavigableMap roaringBitmap;
 
     public RoaringBitmapOidSet(long[] oids) {
-        roaringBitmap = Roaring64NavigableMap.bitmapOf(oids);
+        roaringBitmap = Roaring64NavigableMap.bitmapOf(oids != null ? oids : new long[0]);
     }
 
     public RoaringBitmapOidSet(Collection<Long> oids) {
@@ -42,6 +42,18 @@ public class RoaringBitmapOidSet implements OidSet {
         // than int capacity anyways.
         return (int) roaringBitmap.getLongCardinality();
     }
+
+    @Override
+    public int hashCode() {
+        return defaultHashCode();
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+        return defaultEquals(obj);
+    }
+
+
 
     /**
      * {@inheritDoc}

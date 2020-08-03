@@ -3,34 +3,41 @@ package com.vmturbo.api.component.external.api.mapper;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anySetOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
-import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
-
-import javax.annotation.Nonnull;
-
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mockito;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Mockito;
+
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
-import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
+import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
+import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionType;
-import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -40,18 +47,26 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
-import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
-import com.vmturbo.common.protobuf.search.Search.SearchPlanTopologyEntityDTOsResponse;
-import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -65,7 +80,9 @@ public class CompoundMoveTest {
 
     private ActionSpecMapper mapper;
 
-    private PolicyDTOMoles.PolicyServiceMole policyMole;
+    private PolicyServiceMole policyMole = spy(PolicyServiceMole.class);
+
+    private SupplyChainServiceMole supplyChainMole = spy(new SupplyChainServiceMole());
 
     private RepositoryApi repositoryApi;
 
@@ -73,15 +90,17 @@ public class CompoundMoveTest {
 
     private PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
 
+    private GrpcTestServer supplyChainGrpcServer;
+
+    private SupplyChainServiceGrpc.SupplyChainServiceBlockingStub supplyChainService;
+
     private ActionSpecMappingContextFactory actionSpecMappingContextFactory;
 
     private static final int VM = EntityType.VIRTUAL_MACHINE_VALUE;
     private static final int PM = EntityType.PHYSICAL_MACHINE_VALUE;
     private static final int ST = EntityType.STORAGE_VALUE;
 
-    private SearchServiceMole searchMole;
-
-    private static final long TARGET_ID = 10;
+    private static final long TARGET_ENTITY_ID = 10;
     private static final String TARGET_NAME = "vm-1";
     private static final long ST1_ID = 20;
     private static final String ST1_NAME = "storage-1";
@@ -93,178 +112,203 @@ public class CompoundMoveTest {
     private static final String PM2_NAME = "host-2";
     private static final long VOL1_ID = 40;
     private static final String VOL1_NAME = "vol-1";
+    private static final long DATACENTER_ID = 50;
+    private static final String DC_NAME = "DC-1";
+    private static final long DATACENTER2_ID = 51;
+    private static final String DC2_NAME = "DC-2";
+
+    private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
+
+    private final VirtualVolumeAspectMapper virtualVolumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
 
     @Before
-    public void setup() throws IOException {
-        policyMole = Mockito.spy(PolicyDTOMoles.PolicyServiceMole.class);
+    public void setup() throws Exception {
         final List<PolicyResponse> policyResponses = ImmutableList.of(
             PolicyResponse.newBuilder().setPolicy(Policy.newBuilder()
                 .setId(1)
                 .setPolicyInfo(PolicyInfo.newBuilder()
                     .setName("policy")))
                 .build());
-        Mockito.when(policyMole.getAllPolicies(Mockito.any())).thenReturn(policyResponses);
+        when(policyMole.getPolicies(Mockito.any())).thenReturn(policyResponses);
         grpcServer = GrpcTestServer.newServer(policyMole);
         grpcServer.start();
         policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        repositoryApi = Mockito.mock(RepositoryApi.class);
-        searchMole = Mockito.spy(new SearchServiceMole());
-        GrpcTestServer searchGrpcServer = GrpcTestServer.newServer(searchMole);
-        searchGrpcServer.start();
-        SearchServiceBlockingStub searchServiceBlockingStub = SearchServiceGrpc.newBlockingStub(
-            searchGrpcServer.getChannel());
+        RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riBuyContextFetchServiceStub =
+                RIBuyContextFetchServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
+        final List<GetMultiSupplyChainsResponse> supplyChainResponses = ImmutableList.of(
+            makeGetMultiSupplyChainResponse(TARGET_ENTITY_ID, DATACENTER_ID),
+            makeGetMultiSupplyChainResponse(PM1_ID, DATACENTER_ID),
+            makeGetMultiSupplyChainResponse(PM2_ID, DATACENTER2_ID),
+            makeGetMultiSupplyChainResponse(ST1_ID, DATACENTER_ID),
+            makeGetMultiSupplyChainResponse(ST2_ID, DATACENTER2_ID));
+        when(supplyChainMole.getMultiSupplyChains(Mockito.any())).thenReturn(supplyChainResponses);
+        supplyChainGrpcServer = GrpcTestServer.newServer(supplyChainMole);
+        supplyChainGrpcServer.start();
+        supplyChainService = SupplyChainServiceGrpc
+            .newBlockingStub(supplyChainGrpcServer.getChannel());
+
+        repositoryApi = mock(RepositoryApi.class);
+        final SearchRequest emptySearchReq = ApiTestUtils.mockEmptySearchReq();
+        when(repositoryApi.getRegion(any())).thenReturn(emptySearchReq);
+
+        when(virtualVolumeAspectMapper.mapVirtualMachines(anySetOf(Long.class), anyLong())).thenReturn(Collections.emptyMap());
+        when(virtualVolumeAspectMapper.mapUnattachedVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.empty());
 
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
-            Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
-            searchServiceBlockingStub, Mockito.mock(CloudAspectMapper.class),
-            Mockito.mock(VirtualMachineAspectMapper.class),
-            Mockito.mock(VirtualVolumeAspectMapper.class), REAL_TIME_TOPOLOGY_CONTEXT_ID);
+                Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,
+                mock(EntityAspectMapper.class), virtualVolumeAspectMapper,
+                REAL_TIME_TOPOLOGY_CONTEXT_ID, null, null, serviceEntityMapper,
+                supplyChainService, Mockito.mock(PoliciesService.class));
 
-        mapper = new ActionSpecMapper(actionSpecMappingContextFactory, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
+                CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
+                reservedInstanceUtilizationCoverageServiceBlockingStub =
+                ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
+        mapper = new ActionSpecMapper(
+                actionSpecMappingContextFactory,
+                serviceEntityMapper,
+                mock(PoliciesService.class),
+                mock(ReservedInstanceMapper.class),
+                riBuyContextFetchServiceStub,
+                costServiceBlockingStub,
+                reservedInstanceUtilizationCoverageServiceBlockingStub,
+                mock(BuyRiScopeHandler.class),
+                REAL_TIME_TOPOLOGY_CONTEXT_ID);
         IdentityGenerator.initPrefix(0);
-        Mockito.when(searchMole.searchPlanTopologyEntityDTOs(any()))
-            .thenReturn(SearchPlanTopologyEntityDTOsResponse.newBuilder()
-                .addAllTopologyEntityDtos(Lists.newArrayList(
-                    topologyEntityDTO(TARGET_NAME, TARGET_ID, EntityType.VIRTUAL_MACHINE_VALUE),
-                    topologyEntityDTO(PM1_NAME, PM1_ID, EntityType.PHYSICAL_MACHINE_VALUE),
-                    topologyEntityDTO(PM2_NAME, PM2_ID, EntityType.PHYSICAL_MACHINE_VALUE),
-                    topologyEntityDTO(ST1_NAME, ST1_ID, EntityType.STORAGE_VALUE),
-                    topologyEntityDTO(ST2_NAME, ST2_ID, EntityType.STORAGE_VALUE),
-                    topologyEntityDTO(VOL1_NAME, VOL1_ID, EntityType.VIRTUAL_VOLUME_VALUE)))
-                .build());
+
+        final MultiEntityRequest multiReq = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity(TARGET_NAME, TARGET_ENTITY_ID, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity(PM1_NAME, PM1_ID, EntityType.PHYSICAL_MACHINE_VALUE),
+                new TestEntity(PM2_NAME, PM2_ID, EntityType.PHYSICAL_MACHINE_VALUE),
+                new TestEntity(ST1_NAME, ST1_ID, EntityType.STORAGE_VALUE),
+                new TestEntity(ST2_NAME, ST2_ID, EntityType.STORAGE_VALUE),
+                new TestEntity(VOL1_NAME, VOL1_ID, EntityType.VIRTUAL_VOLUME_VALUE),
+                new TestEntity(DC_NAME, DATACENTER_ID, EntityType.DATACENTER_VALUE),
+                new TestEntity(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE))));
+
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiReq);
     }
 
-    private TopologyEntityDTO topologyEntityDTO(@Nonnull final String displayName, long oid,
-                                                int entityType) {
-        return TopologyEntityDTO.newBuilder()
-            .setOid(oid)
-            .setDisplayName(displayName)
-            .setEntityType(entityType)
+    private GetMultiSupplyChainsResponse makeGetMultiSupplyChainResponse(long entityOid,
+                                                                         long dataCenterOid) {
+        return GetMultiSupplyChainsResponse.newBuilder().setSeedOid(entityOid).setSupplyChain(SupplyChain
+            .newBuilder().addSupplyChainNodes(makeSupplyChainNode(dataCenterOid)))
             .build();
     }
 
-    private Map<Long, Optional<ServiceEntityApiDTO>> oidToEntityMap(
-                    ServiceEntityApiDTO... dtos) {
-        Map<Long, Optional<ServiceEntityApiDTO>> answer = new HashMap<>();
-        for (ServiceEntityApiDTO dto : dtos) {
-            answer.put(Long.valueOf(dto.getUuid()), Optional.of(dto));
-        }
-        return answer;
+    private SupplyChainNode makeSupplyChainNode(long oid) {
+        return SupplyChainNode.newBuilder()
+            .setEntityType(ApiEntityType.DATACENTER.apiStr())
+            .putMembersByState(EntityState.ACTIVE.ordinal(),
+                MemberList.newBuilder().addMemberOids(oid).build())
+            .build();
     }
 
-    private ServiceEntityApiDTO entityApiDTO(@Nonnull final String displayName, long oid,
-                    @Nonnull String className) {
-        ServiceEntityApiDTO seDTO = new ServiceEntityApiDTO();
-        seDTO.setDisplayName(displayName);
-        seDTO.setUuid(Long.toString(oid));
-        seDTO.setClassName(className);
-        return seDTO;
+    /**
+     * A Test class to store information about entity, used for testing only.
+     */
+    final class TestEntity {
+        public String displayName;
+        public long oid;
+        public int entityType;
+
+        TestEntity(String displayName, long oid, int entityType) {
+            this.displayName = displayName;
+            this.oid = oid;
+            this.entityType = entityType;
+        }
+    }
+
+    private List<ApiPartialEntity> topologyEntityDTOList(List<TestEntity> testEntities) {
+        Map<Long, ServiceEntityApiDTO> map = new HashMap<>();
+
+        List<ApiPartialEntity> resp = testEntities.stream().map(testEntity -> {
+            final ServiceEntityApiDTO mappedE = new ServiceEntityApiDTO();
+            mappedE.setDisplayName(testEntity.displayName);
+            mappedE.setUuid(Long.toString(testEntity.oid));
+            mappedE.setClassName(ApiEntityType.fromType(testEntity.entityType).apiStr());
+            map.put(testEntity.oid, mappedE);
+
+            ApiPartialEntity entity = ApiPartialEntity.newBuilder()
+                    .setOid(testEntity.oid)
+                    .setDisplayName(testEntity.displayName)
+                    .setEntityType(testEntity.entityType)
+                    .build();
+            when(serviceEntityMapper.toServiceEntityApiDTO(entity)).thenReturn(mappedE);
+            return entity;
+        }).collect(Collectors.toList());
+
+        when(serviceEntityMapper.toServiceEntityApiDTOMap(any())).thenReturn(map);
+        return resp;
     }
 
     /**
      * Test a compound move with one provider being changed.
      *
-     * @throws UnknownObjectException not supposed to happen
-     * @throws UnsupportedActionException  not supposed to happen
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testSimpleAction()
-                    throws UnknownObjectException, UnsupportedActionException, ExecutionException,
-                    InterruptedException {
-        ActionDTO.Action moveStorage = makeAction(TARGET_ID, VM, ST1_ID, ST, ST2_ID, ST, null);
-        ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveStorage), 77L);
-        assertSame(ActionType.CHANGE, apiDto.getActionType());
+    public void testSimpleAction() throws Exception {
+        ActionDTO.Action moveStorage = makeAction(TARGET_ENTITY_ID, VM, ST1_ID, ST, ST2_ID, ST, null);
+        ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveStorage), REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        assertSame(ActionType.MOVE, apiDto.getActionType());
         assertEquals(1, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(ST1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(ST2_ID), apiDto.getNewValue());
-        assertEquals(details("Virtual Machine", TARGET_NAME, ST1_NAME, ST2_NAME),
-            apiDto.getDetails());
+        assertEquals(DC_NAME, apiDto.getCurrentLocation().getDisplayName());
+        assertEquals(DC2_NAME, apiDto.getNewLocation().getDisplayName());
     }
 
     /**
      * Test a simple move with one provider being changed. This change is for a particular
      * resource of the target.
      *
-     * @throws UnknownObjectException not supposed to happen
-     * @throws UnsupportedActionException  not supposed to happen
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testSimpleActionWithResource()
-            throws UnknownObjectException, UnsupportedActionException, ExecutionException,
-            InterruptedException {
-        ActionDTO.Action moveVolume = makeAction(TARGET_ID, VM, ST1_ID, ST, ST2_ID, ST, VOL1_ID);
-        ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveVolume), 77L);
-        assertSame(ActionType.CHANGE, apiDto.getActionType());
+    public void testSimpleActionWithResource() throws Exception {
+        ActionDTO.Action moveVolume = makeAction(TARGET_ENTITY_ID, VM, ST1_ID, ST, ST2_ID, ST, VOL1_ID);
+        ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveVolume), REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        assertSame(ActionType.MOVE, apiDto.getActionType());
         assertEquals(1, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(ST1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(ST2_ID), apiDto.getNewValue());
-        assertEquals(moveDetailsWithResource("Virtual Volume", VOL1_NAME, "Virtual Machine",
-                TARGET_NAME, ST1_NAME, ST2_NAME),
-                apiDto.getDetails());
     }
 
     /**
      * Test a compound move with two providers being changed, first
      * is Storage, second is PM.
      *
-     * @throws UnknownObjectException not supposed to happen
-     * @throws UnsupportedActionException  not supposed to happen
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testCompoundAction1()
-                    throws UnknownObjectException, UnsupportedActionException, ExecutionException,
-                    InterruptedException {
-        ActionDTO.Action moveBoth1 = makeAction(TARGET_ID, VM, ST1_ID, ST, ST2_ID, ST, PM1_ID, PM, PM2_ID, PM);
-        ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth1), 77L);
+    public void testCompoundAction1() throws Exception {
+        ActionDTO.Action moveBoth1 = makeAction(TARGET_ENTITY_ID, VM, ST1_ID, ST, ST2_ID, ST, PM1_ID, PM, PM2_ID, PM);
+        ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth1), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertSame(ActionType.MOVE, apiDto.getActionType());
         assertEquals(2, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(PM1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(PM2_ID), apiDto.getNewValue());
-        assertEquals(details("Virtual Machine", TARGET_NAME, PM1_NAME, PM2_NAME),
-            apiDto.getDetails());
     }
 
     /**
      * Test a compound move with two providers being changed, first
      * is PM, second is Storage.
      *
-     * @throws UnknownObjectException not supposed to happen
-     * @throws UnsupportedActionException  not supposed to happen
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testCompoundAction2()
-                    throws UnknownObjectException, UnsupportedActionException, ExecutionException,
-                    InterruptedException {
-        ActionDTO.Action moveBoth2 = makeAction(TARGET_ID, VM,
+    public void testCompoundAction2() throws Exception {
+        ActionDTO.Action moveBoth2 = makeAction(TARGET_ENTITY_ID, VM,
             PM1_ID, PM, PM2_ID, PM, ST1_ID, ST, ST2_ID, ST); // different order
-        ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth2), 77L);
+        ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth2), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         assertSame(ActionType.MOVE, apiDto.getActionType());
         assertEquals(2, apiDto.getCompoundActions().size());
         assertEquals(String.valueOf(PM1_ID), apiDto.getCurrentValue());
         assertEquals(String.valueOf(PM2_ID), apiDto.getNewValue());
-        assertEquals(details("Virtual Machine", TARGET_NAME, PM1_NAME, PM2_NAME),
-            apiDto.getDetails());
-    }
-
-    private static String details(String targetType, String targetName, String providerName1,
-                                  String providerName2) {
-        return "Move " + targetType + " "
-                        + targetName
-                        + " from "
-                        + providerName1
-                        + " to "
-                        + providerName2;
-    }
-
-    private static String moveDetailsWithResource(String resourceType, String resourceName,
-                                                  String targetType, String targetName,
-                                                  String providerName1, String providerName2) {
-        return "Move " + resourceType + " "
-                + resourceName + " of " + targetType + " " + targetName
-                + " from "
-                + providerName1
-                + " to "
-                + providerName2;
     }
 
     private ActionSpec buildActionSpec(ActionDTO.Action action) {
@@ -289,6 +333,9 @@ public class CompoundMoveTest {
                                 .addChanges(makeChange(s1, s1Type, d1, d1Type, r1))
                                 .build())
                             .build())
+                        .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
+                            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setCompliance(Compliance.newBuilder().build()))))
                         .build();
     }
 
@@ -305,13 +352,16 @@ public class CompoundMoveTest {
                                 .addChanges(makeChange(s2, s2Type, d2, d2Type, null))
                                 .build())
                             .build())
+                        .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
+                            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setCompliance(Compliance.newBuilder().build()))))
                         .build();
     }
 
     private static ActionDTO.Action.Builder genericActionStuff() {
         return ActionDTO.Action.newBuilder()
                         .setId(IdentityGenerator.next())
-                        .setImportance(0)
+                        .setDeprecatedImportance(0)
                         .setExecutable(true)
                         .setSupportingLevel(SupportLevel.SUPPORTED)
                         .setExplanation(Explanation.newBuilder().build());

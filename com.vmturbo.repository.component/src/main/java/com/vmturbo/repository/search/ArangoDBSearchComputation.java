@@ -26,6 +26,8 @@ import javaslang.collection.Seq;
 import javaslang.collection.Stream;
 import javaslang.concurrent.Future;
 
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.OptScope;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.executor.AQL;
@@ -62,25 +64,27 @@ public class ArangoDBSearchComputation implements SearchStageComputation<SearchC
     private Future<Collection<String>> executeAQL(final SearchComputationContext context,
                                                   final Collection<String> inputs) {
         return Future.of(context.executorService(), () -> {
-            final String queryString = AQLs.getQuery(aqlQuery);
-            final Collection<String> vars = AQLs.getBindVars(aqlQuery);
-            final Map<String, Object> bindVars = vars.stream()
+            try (OptScope scope = Tracing.addOpToTrace("Arango - " + context.traceID())) {
+                final String queryString = AQLs.getQuery(aqlQuery);
+                final Collection<String> vars = AQLs.getBindVars(aqlQuery);
+                final Map<String, Object> bindVars = vars.stream()
                     .filter(v -> !v.equals("inputs")) // `inputs` does not come from the context. Skip it.
                     .collect(Collectors.toMap(Function.identity(), v -> bindValuesMapper.get(v).apply(context)));
-            bindVars.put("inputs", inputs);
+                bindVars.put("inputs", inputs);
 
-            LOG.debug("pipeline ({}) running {} with first 10 inputs {}",
+                LOG.debug("pipeline ({}) running {} with first 10 inputs {}",
                     context.traceID(),
                     queryString,
                     Stream.ofAll(inputs).take(10).toJavaList());
-            LOG.debug("pipeline ({}) running {} with bindVars {}", context.traceID(), queryString, bindVars);
+                LOG.debug("pipeline ({}) running {} with bindVars {}", context.traceID(), queryString, bindVars);
 
-            // We don't close the cursor because it gets auto-closed by the server
-            // get all the results.
-            final ArangoCursor<String> cursor = context.arangoDB().db(context.databaseName())
+                // We don't close the cursor because it gets auto-closed by the server
+                // get all the results.
+                final ArangoCursor<String> cursor = context.arangoDB().db(context.databaseName())
                     .query(queryString, bindVars, null, String.class);
-            final List<String> results = cursor.asListRemaining();
-            return (results == null) ? Collections.emptyList() : deduplicateWithOrder(results);
+                final List<String> results = cursor.asListRemaining();
+                return (results == null) ? Collections.emptyList() : deduplicateWithOrder(results);
+            }
         });
     }
 
@@ -163,11 +167,13 @@ public class ArangoDBSearchComputation implements SearchStageComputation<SearchC
 
                 final Future<ArangoCursor<ToEntityQueryReturn>> cursor =
                         Future.of(ctx.executorService(), () -> {
-                            LOG.debug("pipeline ({}) converting to entities using {}", ctx.traceID(), query);
+                            try (OptScope scope = Tracing.addOpToTrace("to entities")) {
+                                LOG.debug("pipeline ({}) converting to entities using {}", ctx.traceID(), query);
 
-                            return ctx.arangoDB()
+                                return ctx.arangoDB()
                                     .db(ctx.databaseName())
                                     .query(query, bindVars, null, ToEntityQueryReturn.class);
+                            }
                         });
 
                 cursor.onFailure(err ->

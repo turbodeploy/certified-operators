@@ -1,30 +1,44 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceImplBase;
 import com.vmturbo.common.protobuf.cost.Cost.SetBuyRIAnalysisScheduleRequest;
 import com.vmturbo.common.protobuf.cost.Cost.SetBuyRIAnalysisScheduleResponse;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisResponse;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisScope;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalyzer;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceHistoricalDemandDataType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 
 /**
  * This class is a rpc service for buy reserved instance analysis.
@@ -41,15 +55,28 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
 
     private final long realtimeTopologyContextId;
 
+    private final RepositoryServiceBlockingStub repositoryClient;
+
+    private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
+
     private final ExecutorService buyRIExecutor = Executors.newSingleThreadExecutor(
             new ThreadFactoryBuilder().setNameFormat("buy-ri-algorithm-%d").build());
 
+    private static final Map<DemandType, ReservedInstanceHistoricalDemandDataType>
+            demandTypeToHistoricalDemandType = ImmutableMap.of(
+            DemandType.ALLOCATION, ReservedInstanceHistoricalDemandDataType.ALLOCATION,
+            DemandType.CONSUMPTION, ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
+
     public BuyRIAnalysisRpcService(
             @Nonnull final BuyRIAnalysisScheduler buyRIAnalysisScheduler,
+            @Nonnull final RepositoryServiceBlockingStub repositoryClient,
+            @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
             @Nonnull final ReservedInstanceAnalyzer reservedInstanceAnalyzer,
             @Nonnull final ComputeTierDemandStatsStore computeTierDemandStatsStore,
             final long realtimeTopologyContextId) {
         this.buyRIAnalysisScheduler = Objects.requireNonNull(buyRIAnalysisScheduler);
+        this.repositoryClient = Objects.requireNonNull(repositoryClient);
+        this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
         this.reservedInstanceAnalyzer = Objects.requireNonNull(reservedInstanceAnalyzer);
         this.computeTierDemandStatsStore = Objects.requireNonNull(computeTierDemandStatsStore);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -92,15 +119,20 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
      */
     public void startBuyRIAnalysis(StartBuyRIAnalysisRequest request,
                                    StreamObserver<StartBuyRIAnalysisResponse> responseObserver) {
-        if (request.hasTopologyInfo() && request.getTopologyInfo().hasPlanInfo()) {
-            runPlanBuyRIAnalysis(request, responseObserver);
-        } else {
-            runRealtimeBuyRIAnalysis(request, responseObserver);
+        try {
+            if (request.hasTopologyInfo() && request.getTopologyInfo().hasPlanInfo()) {
+                runPlanBuyRIAnalysis(request, responseObserver);
+            } else {
+                runRealtimeBuyRIAnalysis(request, responseObserver);
+            }
+        } catch (Exception e) {
+            logger.error("Unexpected exception occurred in buy RI analysis.");
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }
 
     /**
-     * Run buy ri analysis for plan and send buy ri action plan to action orchestrator.
+     * Run Buy RI analysis for plan and send Buy RI action plan to Action Orchestrator.
      *
      * @param request StartBuyRIAnalysisRequest
      * @param responseObserver StartBuyRIAnalysisResponse
@@ -108,19 +140,21 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
     private void runPlanBuyRIAnalysis(StartBuyRIAnalysisRequest request,
                                       StreamObserver<StartBuyRIAnalysisResponse> responseObserver) {
         long planId = request.getTopologyInfo().getTopologyContextId();
+        DemandType demandType = request.getDemandType();
+        ReservedInstanceHistoricalDemandDataType historicalDemandDataType =
+                demandTypeToHistoricalDemandType.get(demandType);
         try {
-            // failed the plan because not enough data to run buy ri
-            if (!computeTierDemandStatsStore.containsDataOverWeek()) {
-                String failedMsg = "Not enough compute tier data collected to run buy RI analysis";
-                logger.error(failedMsg);
-                responseObserver.onError(Status.FAILED_PRECONDITION.withDescription(failedMsg).asException());
-            } else {
-                logger.info("Executing buy RI algorithm for plan {}.", planId);
-                ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
-                                new ReservedInstanceAnalysisScope(request);
-                reservedInstanceAnalyzer.runRIAnalysisAndSendActions(planId, reservedInstanceAnalysisScope,
-                                                                     ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
-           }
+            logger.info("Executing buy RI algorithm for plan {} using {}.",
+                    planId, historicalDemandDataType);
+
+            final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopology();
+
+            ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
+                    new ReservedInstanceAnalysisScope(request);
+            reservedInstanceAnalyzer.runRIAnalysisAndSendActions(planId, cloudTopology,
+                    reservedInstanceAnalysisScope, historicalDemandDataType);
+            responseObserver.onNext(StartBuyRIAnalysisResponse.getDefaultInstance());
+            responseObserver.onCompleted();
         } catch (CommunicationException | InterruptedException e) {
             logger.error("Failed to send buy RI action plan to action orchestrator for plan {}", planId);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
@@ -128,6 +162,25 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
             logger.error("Unexpected run time exception occurs in buy RI analysis for plan {}", planId);
             responseObserver.onError(Status.ABORTED.withDescription(ex.getMessage()).asException());
         }
+    }
+
+    /**
+     * Compute the TopologyEntityCloudTopology.
+     *
+     * @return TopologyEntityCloudTopology
+     */
+    private TopologyEntityCloudTopology createCloudTopology() {
+        final Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
+                repositoryClient.retrieveTopologyEntities(
+                        RetrieveTopologyEntitiesRequest.newBuilder()
+                                .setTopologyContextId(realtimeTopologyContextId)
+                                .setReturnType(Type.FULL)
+                                .setTopologyType(TopologyType.SOURCE)
+                                .build()))
+                .map(PartialEntity::getFullEntity);
+        final TopologyEntityCloudTopology cloudTopology =
+                cloudTopologyFactory.newCloudTopology(entities);
+        return cloudTopology;
     }
 
     /**
@@ -149,17 +202,20 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
             ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
                             new ReservedInstanceAnalysisScope(request);
             try {
+                final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopology();
+
                 reservedInstanceAnalyzer.runRIAnalysisAndSendActions(realtimeTopologyContextId,
-                                                                     reservedInstanceAnalysisScope, ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
+                        cloudTopology, reservedInstanceAnalysisScope,
+                        ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
+                responseObserver.onNext(StartBuyRIAnalysisResponse.getDefaultInstance());
+                responseObserver.onCompleted();
             } catch (InterruptedException ie) {
                 logger.error("Interrupted publishing of buy RI actions", ie);
                 Thread.currentThread().interrupt();
             } catch (CommunicationException ce) {
                 logger.error("Exception while publishing buy RI actions", ce);
+                responseObserver.onError(Status.INTERNAL.withDescription(ce.getMessage()).asException());
             }
-            responseObserver.onNext(StartBuyRIAnalysisResponse.getDefaultInstance());
-            responseObserver.onCompleted();
-            return;
         });
     }
 }

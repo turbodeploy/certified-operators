@@ -6,10 +6,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -17,29 +19,36 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersCase;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.ExpressionType;
@@ -66,6 +75,14 @@ class DiscoveredGroupInterpreter {
      */
     @VisibleForTesting
     static final int MAX_NESTING_DEPTH = 100;
+
+    /**
+     * Set of group types which are considered as clusters.
+     */
+    private static final Set<GroupType> CLUSTER_TYPES = ImmutableSet.of(
+            GroupType.COMPUTE_HOST_CLUSTER,
+            GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER,
+            GroupType.STORAGE_CLUSTER);
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -97,17 +114,6 @@ class DiscoveredGroupInterpreter {
         this.propertyFilterConverter = converter;
     }
 
-    private boolean validGroup(@Nonnull final CommonDTO.GroupDTO group) {
-        try {
-            GroupProtoUtil.extractId(group);
-            return true;
-        } catch (IllegalArgumentException e) {
-            Metrics.ERROR_COUNT.labels("invalid_group_dto").increment();
-            logger.error("Invalid GroupDTO: {}", group, e);
-            return false;
-        }
-    }
-
     /**
      * Attempt to interpret a list of {@link CommonDTO.GroupDTO}s. Returns one
      * {@link InterpretedGroup} for every input {@link CommonDTO.GroupDTO}.
@@ -120,7 +126,7 @@ class DiscoveredGroupInterpreter {
     List<InterpretedGroup> interpretSdkGroupList(@Nonnull final List<CommonDTO.GroupDTO> dtoList,
                                                  final long targetId) {
         final List<CommonDTO.GroupDTO> legalDtoList = dtoList.stream()
-            .filter(this::validGroup)
+            .filter(this::validGroupId)
             .collect(Collectors.toList());
         final GroupInterpretationContext context =
             new GroupInterpretationContext(targetId, legalDtoList);
@@ -128,110 +134,76 @@ class DiscoveredGroupInterpreter {
             // We check to see if we need to interpret this particular group, because the
             // interpretation of a previous group that contains this one may have already triggered
             // the interpretation of this one. Re-interpreting it would be wasteful.
-            context.computeInterpretedGroup(GroupProtoUtil.extractId(group), () -> interpretGroup(group, context));
+            context.computeInterpretedGroup(GroupProtoUtil.extractId(group),
+                    () -> interpretGroup(group, context));
         });
         return new ArrayList<>(context.interpretedGroups());
     }
 
     /**
-     * Attempt to convert a {@link CommonDTO.GroupDTO} to a {@link ClusterInfo}, if it meets the
-     * required criteria to be treated as a cluster in the XL system.
+     * Check if the id of the given sdk group is valid or not.
      *
-     * @param sdkDTO The {@link CommonDTO.GroupDTO}.
-     * @return An optional containing the {@link ClusterInfo}, or an empty optional if the
-     *         {@link CommonDTO.GroupDTO} does not represent a cluster.
+     * @param group the discovered group from probe
+     * @return true of the group id is valid, otherwise false
      */
-    @VisibleForTesting
+    private boolean validGroupId(@Nonnull final CommonDTO.GroupDTO group) {
+        try {
+            GroupProtoUtil.extractId(group);
+            return true;
+        } catch (IllegalArgumentException e) {
+            Metrics.ERROR_COUNT.labels("invalid_group_dto").increment();
+            logger.error("Invalid GroupDTO: {}", group, e);
+            return false;
+        }
+    }
+
     @Nonnull
-    Optional<ClusterInfo.Builder> sdkToCluster(@Nonnull final CommonDTO.GroupDTO sdkDTO,
-                                               final GroupInterpretationContext context) {
-        // Clusters must be statically-configured.
-        if (!isCluster(sdkDTO) || !sdkDTO.getMembersCase().equals(MembersCase.MEMBER_LIST)) {
-            return Optional.empty();
-        }
-
-        // We only support clusters of storages and physical machines.
-        if (!(sdkDTO.getEntityType().equals(EntityType.PHYSICAL_MACHINE) ||
-                sdkDTO.getEntityType().equals(EntityType.STORAGE))) {
-            logger.warn("Unexpected cluster entity type: {}", sdkDTO.getEntityType());
-            return Optional.empty();
-        }
-
-        final ClusterInfo.Builder builder = ClusterInfo.newBuilder();
-        builder.setClusterType(sdkDTO.getEntityType().equals(EntityType.PHYSICAL_MACHINE)
-                ? Type.COMPUTE : Type.STORAGE);
-        builder.setName(GroupProtoUtil.extractId(sdkDTO));
-        builder.setDisplayName(GroupProtoUtil.extractDisplayName(sdkDTO));
-
-        final Optional<StaticGroupMembers> parsedMembersOpt =
-                parseMemberList(sdkDTO, context);
-        if (parsedMembersOpt.isPresent()) {
-            // There may not be any members, but we allow empty clusters.
-            builder.setMembers(parsedMembersOpt.get());
-        } else {
-            logger.warn("Unable to parse cluster member list: {}", sdkDTO.getMemberList());
-            return Optional.empty();
-        }
-
-        final Tags.Builder tagsBuilder = Tags.newBuilder();
-        SdkToTopologyEntityConverter.extractTags(sdkDTO.getEntityPropertiesList()).entrySet()
-                .forEach(e -> tagsBuilder.putTags(e.getKey(), e.getValue().build()));
-        builder.setTags(tagsBuilder.build());
-
-        return Optional.of(builder);
+    public InterpretedGroup interpretGroup(@Nonnull final GroupDTO sdkDTO,
+                                           @Nonnull final GroupInterpretationContext context) {
+        Metrics.DISCOVERED_GROUP_COUNT.labels(sdkDTO.getGroupType().name()).increment();
+        // convert sdk group to xl group and set source id and target id
+        return new InterpretedGroup(sdkDTO, sdkToGroupDefinition(sdkDTO, context));
     }
 
     /**
-     * Attempt to convert a {@link CommonDTO.GroupDTO} to a {@link GroupInfo} describing a group
-     * in the XL system. This should happen after an attempt for
-     * {@link DiscoveredGroupInterpreter#sdkToCluster(GroupDTO, GroupInterpretationContext)}.
+     * Attempt to convert a {@link CommonDTO.GroupDTO} to a {@link GroupDefinition} describing a
+     * group in the XL system.
      *
      * @param sdkDTO The {@link CommonDTO.GroupDTO} discovered by the target.
-     * @return An optional containing the {@link GroupInfo}, or an empty optional if the conversion
-     *         is not successful.
+     * @param context the context object containing all needed info for interpretation
+     * @return An optional containing the {@link GroupDefinition.Builder}, or an empty optional
+     * if the conversion is not successful.
      */
-    @VisibleForTesting
-    @Nonnull
-    Optional<GroupInfo.Builder> sdkToGroup(@Nonnull final CommonDTO.GroupDTO sdkDTO,
-                           @Nonnull final GroupInterpretationContext context) {
-        final GroupInfo.Builder builder = GroupInfo.newBuilder();
-        builder.setEntityType(sdkDTO.getEntityType().getNumber());
-        builder.setName(GroupProtoUtil.extractId(sdkDTO));
-        builder.setDisplayName(GroupProtoUtil.extractDisplayName(sdkDTO));
+    public Optional<GroupDefinition.Builder> sdkToGroupDefinition(
+            @Nonnull final CommonDTO.GroupDTO sdkDTO,
+            @Nonnull final GroupInterpretationContext context) {
+        // validate group
+        if (!validGroup(sdkDTO)) {
+            return Optional.empty();
+        }
 
+        final GroupDefinition.Builder groupDefinition = GroupDefinition.newBuilder();
+        // set members first, since it may return fast if there is any error during parsing
         switch (sdkDTO.getMembersCase()) {
+            // dynamic members from probe, SelectionSpec is used to select group members, this
+            // seems seldom used, since I don't see a dynamic group from probe as far as now
             case SELECTION_SPEC_LIST:
-                final SearchParameters.Builder searchParametersBuilder = SearchParameters.newBuilder();
-                final AtomicInteger successCount = new AtomicInteger(0);
-                sdkDTO.getSelectionSpecList().getSelectionSpecList().stream()
-                        .map(propertyFilterConverter::selectionSpecToPropertyFilter)
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .forEach(propFilter -> {
-                            successCount.incrementAndGet();
-                            if (searchParametersBuilder.hasStartingFilter()) {
-                                searchParametersBuilder.addSearchFilter(SearchFilter.newBuilder()
-                                        .setPropertyFilter(propFilter));
-                            } else {
-                                searchParametersBuilder.setStartingFilter(propFilter);
-                            }
-                        });
-
-                if (sdkDTO.getSelectionSpecList().getSelectionSpecList().size() ==
-                        successCount.get()) {
-                    builder.setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                            .addSearchParameters(searchParametersBuilder));
+                Optional<EntityFilters.Builder> entityFilters = parseSelectionSpecList(sdkDTO);
+                if (entityFilters.isPresent()) {
+                    groupDefinition.setEntityFilters(entityFilters.get());
                 } else {
-                    logger.warn("Failed to translate all selection specs.");
+                    logger.warn("Unable to parse selection spec list: {}", sdkDTO.getSelectionSpecList());
                     return Optional.empty();
                 }
                 break;
+            // static members from probe, MembersList contains a list of member uuids
             case MEMBER_LIST:
-                final Optional<StaticGroupMembers> members =
-                        parseMemberList(sdkDTO, context);
+                final Optional<StaticMembers> members = parseMemberList(sdkDTO, context);
                 if (members.isPresent()) {
-                    builder.setStaticGroupMembers(members.get());
+                    // We allow empty groups
+                    groupDefinition.setStaticGroupMembers(members.get());
                 } else {
+                    logger.warn("Unable to parse group member list: {}", sdkDTO.getMemberList());
                     return Optional.empty();
                 }
                 break;
@@ -240,12 +212,112 @@ class DiscoveredGroupInterpreter {
                 return Optional.empty();
         }
 
-        final Tags.Builder tagsBuilder = Tags.newBuilder();
-        SdkToTopologyEntityConverter.extractTags(sdkDTO.getEntityPropertiesList()).entrySet()
-                .forEach(e -> tagsBuilder.putTags(e.getKey(), e.getValue().build()));
-        builder.setTags(tagsBuilder.build());
+        // set other properties on the group
+        groupDefinition.setType(GroupProtoUtil.getGroupType(sdkDTO));
+        groupDefinition.setDisplayName(GroupProtoUtil.extractDisplayName(sdkDTO));
 
-        return Optional.of(builder);
+        // set tags for group
+        SdkToTopologyEntityConverter.convertGroupTags(sdkDTO).ifPresent(groupDefinition::setTags);
+
+        if (sdkDTO.hasOwner()) {
+            final Optional<Long> ownerForResourceGroup =
+                    getOwnerOIDForResourceGroup(sdkDTO, context.targetId);
+            ownerForResourceGroup.ifPresent(groupDefinition::setOwner);
+        }
+
+        return Optional.of(groupDefinition);
+    }
+
+    private Optional<Long> getOwnerOIDForResourceGroup(final GroupDTO sdkDTO, final Long targetId) {
+        final String groupOwner = sdkDTO.getOwner();
+        if (!StringUtils.isBlank(groupOwner)) {
+            final Optional<Map<String, Long>> targetEntityIdMap =
+                    entityStore.getTargetEntityIdMap(targetId);
+            if (targetEntityIdMap.isPresent()) {
+                final Long ownerOID = targetEntityIdMap.get().get(groupOwner);
+                if (ownerOID == null) {
+                    logger.warn("OwnerID is null for '{}' group", sdkDTO.getGroupName());
+                }
+                return Optional.ofNullable(ownerOID);
+            } else {
+                logger.error("There are no entities for '{}' target ", targetId);
+            }
+        } else {
+            logger.error("Owner is not set for '{}' group", sdkDTO.getGroupName());
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Check if the given sdk group is valid or not.
+     *
+     * @param sdkDTO the discovered group from probe
+     * @return true of the group id is valid, otherwise false
+     */
+    private boolean validGroup(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
+        // it means probe has been changed to use new enum
+        if (CLUSTER_TYPES.contains(sdkDTO.getGroupType())) {
+            // all cluster should have constraint info
+            if (!sdkDTO.hasConstraintInfo()) {
+                logger.error("ConstraintInfo is not set for cluster : {}", sdkDTO);
+                return false;
+            }
+
+            if (!MembersCase.MEMBER_LIST.equals(sdkDTO.getMembersCase())) {
+                logger.error("Static members list is not configured for cluster: {}", sdkDTO);
+                return false;
+            }
+        } else {
+            // it means probe is still using old way to tell if it's cluster
+            // todo: remove once probe is changed to use new group type
+            if (sdkDTO.hasConstraintInfo()) {
+                final ConstraintType constraintType = sdkDTO.getConstraintInfo().getConstraintType();
+                if (constraintType == ConstraintType.CLUSTER &&
+                        !MembersCase.MEMBER_LIST.equals(sdkDTO.getMembersCase())) {
+                    logger.error("Static members list is not configured for cluster: {}", sdkDTO);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Converts a SDK {@link CommonDTO.GroupDTO.SelectionSpecList} to the equivalent
+     * {@link EntityFilters.Builder}, which can be used internally as the dynamic group filters.
+     *
+     * @param sdkDTO the sdk group dto coming from probe
+     * @return optional {@link EntityFilters.Builder}
+     */
+    private Optional<EntityFilters.Builder> parseSelectionSpecList(@Nonnull GroupDTO sdkDTO) {
+        final SearchParameters.Builder searchParametersBuilder = SearchParameters.newBuilder();
+        final AtomicInteger successCount = new AtomicInteger(0);
+        sdkDTO.getSelectionSpecList()
+                .getSelectionSpecList()
+                .stream()
+                .map(propertyFilterConverter::selectionSpecToPropertyFilter)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .forEach(propFilter -> {
+                    successCount.incrementAndGet();
+                    if (searchParametersBuilder.hasStartingFilter()) {
+                        searchParametersBuilder.addSearchFilter(
+                                SearchFilter.newBuilder().setPropertyFilter(propFilter));
+                    } else {
+                        searchParametersBuilder.setStartingFilter(propFilter);
+                    }
+                });
+
+        if (sdkDTO.getSelectionSpecList().getSelectionSpecList().size() != successCount.get()) {
+            logger.warn("Failed to translate all selection specs {}", sdkDTO.getSelectionSpecList());
+            return Optional.empty();
+        }
+
+        return Optional.of(EntityFilters.newBuilder().addEntityFilter(EntityFilter.newBuilder()
+                .setEntityType(sdkDTO.getEntityType().getNumber())
+                .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                    .addSearchParameters(searchParametersBuilder))));
     }
 
     /**
@@ -261,7 +333,7 @@ class DiscoveredGroupInterpreter {
      *         <p>
      *         Returns an empty optional if there are any errors looking up entity ID information.
      */
-    private Optional<StaticGroupMembers> parseMemberList(
+    private Optional<StaticMembers> parseMemberList(
             @Nonnull final CommonDTO.GroupDTO groupDTO,
             @Nonnull final GroupInterpretationContext context) {
         final Optional<Map<String, Long>> idMapOpt =
@@ -269,102 +341,166 @@ class DiscoveredGroupInterpreter {
         if (!idMapOpt.isPresent()) {
             logger.warn("No entity ID map available for target {}", context.targetId);
             return Optional.empty();
-        } else {
-            /*
-             * If a group_name equals uuid of some entity of the same target, this means, that group
-             * represents the entity. We do omit such groups, as this is a type of hacks in Legacy.
-             * As we do not support group of folder, the group newly created will appear an empty
-             * one. This is an example of group, reported for DC
-             *
-             * entity_type: PHYSICAL_MACHINE
-             * display_name: "Datacenter-dc9"
-             * group_name: "vsphere-dc9.eng.vmturbo.com-Datacenter-datacenter-21"
-             * member_list {
-             *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-n25"
-             *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-s24"
-             *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-v22"
-             *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-h23"
-             * }
-             */
-            final Map<String, Long> idMap = idMapOpt.get();
-            final String groupId = GroupProtoUtil.extractId(groupDTO);
-            if (idMap.containsKey(groupId)) {
-                logger.debug("Skipping group {} as it is represented by entity already", groupId);
-                return Optional.empty();
-            }
-            final StaticGroupMembers.Builder staticMemberBldr =
-                    StaticGroupMembers.newBuilder();
-            final AtomicInteger missingMemberCount = new AtomicInteger(0);
-            groupDTO.getMemberList().getMemberList()
-                .forEach(uuid -> {
-                    final Long discoveredEntityId = idMap.get(uuid);
-                    if (discoveredEntityId != null) {
-                        Optional<Entity> entity = entityStore.getEntity(discoveredEntityId);
-                        if (entity.isPresent()) {
-                            // Validate that the member entityType is the
-                            // same as that of the group/cluster.
-                            // So far, the only known case of
-                            // entityType!=entitypesOfMembers is in
-                            // VCenter Clusters where a VDC is part of
-                            // the Cluster along with the PhysicalMachine
-                            // entities. After checking with Dmitry
-                            // Illichev, this was done in legacy to
-                            // accomodate license feature - to model vdcs as
-                            // folders - and he thinks that this is now obsolete.
-                            // So the assumption that
-                            // GroupEntityType==EntityTypesOfItsMembers should be
-                            // fine as this is also the assumption made in
-                            // the UI. Even the Group protobuf message is defined
-                            // with this assumption.
-                            if (entity.get().getEntityType() == groupDTO.getEntityType()) {
-                                staticMemberBldr.addStaticMemberOids(discoveredEntityId);
-                            } else {
-                                logger.warn("EntityType: {} and groupType: {} doesn't match for oid: {}"
-                                        + ". Not adding to the group/cluster members list for groupId: {}, " +
-                                        " groupDisplayName: {}.",
-                                    entity.get().getEntityType(), groupDTO.getEntityType(), discoveredEntityId,
-                                    groupId, groupDTO.getDisplayName());
-                            }
-                        }
-                    } else {
-                        // If the uuid is not an entity ID, it may refer to another group discovered
-                        // by the target. In that case, we expand the group into the list of "leaf"
-                        // entities, and add those entities to the group definition.
-                        //
-                        // Note (roman, March 25 2019): In the future we will want to preserve
-                        // the group hierarchies.
-                        final Optional<List<Long>> groupMembers = tryExpandMemberGroup(uuid, groupDTO, context);
-                        if (groupMembers.isPresent()) {
-                            // The uuid referred to another one of the discovered groups.
-                            staticMemberBldr.addAllStaticMemberOids(groupMembers.get());
-                        } else {
-                            // This may happen if the probe sends members that aren't
-                            // discovered (i.e. a bug in the probe) or if the Topology
-                            // Processor doesn't record the entities before processing
-                            // groups (i.e. a bug in the TP).
-                            missingMemberCount.incrementAndGet();
-                        }
-                    }
-                });
-            if (missingMemberCount.get() > 0) {
-                Metrics.MISSING_MEMBER_COUNT.increment((double)missingMemberCount.get());
-                logger.warn("{} members could not be mapped to OIDs when processing group {} (uuid: {})",
-                    missingMemberCount.get(), groupDTO.getDisplayName(), groupId);
-            }
-            return Optional.of(staticMemberBldr.build());
         }
+        /*
+         * If a group_name equals uuid of some entity of the same target, this means, that group
+         * represents the entity. We do omit such groups, as this is a type of hacks in Legacy.
+         * As we do not support group of folder, the group newly created will appear an empty
+         * one. This is an example of group, reported for DC
+         *
+         * entity_type: PHYSICAL_MACHINE
+         * display_name: "Datacenter-dc9"
+         * group_name: "vsphere-dc9.eng.vmturbo.com-Datacenter-datacenter-21"
+         * member_list {
+         *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-n25"
+         *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-s24"
+         *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-v22"
+         *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-h23"
+         * }
+         */
+        final Map<String, Long> idMap = idMapOpt.get();
+        final String groupId = GroupProtoUtil.extractId(groupDTO);
+        if (idMap.containsKey(groupId)) {
+            logger.warn("Skipping group {} as it is represented by entity already", groupId);
+            return Optional.empty();
+        }
+
+        List<String> memberList = groupDTO.getMemberList().getMemberList();
+
+        final AtomicInteger missingMemberCount = new AtomicInteger(0);
+        final Map<MemberType, Set<Long>> membersByType = new HashMap<>();
+        memberList.forEach(uuid -> {
+            final Long discoveredEntityId = idMap.get(uuid);
+            if (discoveredEntityId != null) {
+                Optional<Entity> entity = entityStore.getEntity(discoveredEntityId);
+
+                if (entity.isPresent()) {
+                    // TODO (mahdi) OM-52028 The probe is sending VDC as a member of compute cluster
+                    // this is unexpected as we only expect PM to be part of the cluster. And this
+                    // will make the computer cluster heterogeneous group which UI does not expect.
+                    // This condition is here temporarily here to prevent that from happening until
+                    // we investigate why the probe is sending VDC as part of compute cluster.
+                    if (GroupProtoUtil.getGroupType(groupDTO) == GroupType.COMPUTE_HOST_CLUSTER &&
+                        entity.get().getEntityType() != groupDTO.getEntityType()) {
+                        logger.debug("Ignoring entity `{}` since it does not match compute " +
+                            "cluster type `{}`.", entity, groupDTO.getGroupType());
+                    } else {
+                        final MemberType memberType = MemberType.newBuilder()
+                            .setEntity(entity.get().getEntityType().getNumber())
+                            .build();
+                        membersByType.computeIfAbsent(memberType, k -> new HashSet<>())
+                            .add(discoveredEntityId);
+                    }
+                } else {
+                    missingMemberCount.incrementAndGet();
+                    logger.warn("Member entity {} not found, thus not added to group {} (uuid: {})",
+                            uuid, groupDTO.getDisplayName(), groupId);
+                }
+            } else {
+                // If the uuid is not an entity ID, it may refer to another group discovered
+                // by the target. In that case, we expand the group into the list of "leaf"
+                // entities, and add those entities to the group definition.
+                //
+                // Note (roman, March 25 2019): In the future we will want to preserve
+                // the group hierarchies.
+                Optional<Map<MemberType, List<Long>>> groupMembers =
+                        tryExpandMemberGroup(uuid, groupDTO, context);
+                if (groupMembers.isPresent()) {
+                    // The uuid referred to another one of the discovered groups.
+                    groupMembers.get().forEach(((memberType, members) ->
+                            membersByType.computeIfAbsent(memberType, k -> new HashSet<>())
+                                    .addAll(members)));
+                } else {
+                    // This may happen if the probe sends members that aren't
+                    // discovered (i.e. a bug in the probe) or if the Topology
+                    // Processor doesn't record the entities before processing
+                    // groups (i.e. a bug in the TP).
+                    missingMemberCount.incrementAndGet();
+                    logger.warn("Member group {} not found, thus not added to group {} (uuid: {})",
+                            uuid, groupDTO.getDisplayName(), groupId);
+                }
+            }
+        });
+
+        if (missingMemberCount.get() > 0) {
+            Metrics.MISSING_MEMBER_COUNT.increment((double)missingMemberCount.get());
+            logger.warn("{} members could not be mapped to OIDs when processing group {} (uuid: {})",
+                    missingMemberCount.get(), groupDTO.getDisplayName(), groupId);
+        }
+
+        // if no members provided (or the members can not be found in EntityStore) and
+        // the group entity type is set, we should create an empty
+        // StaticMembersByType with this entity type so user can define policy on it, it is
+        // currently empty but may have entities of that type in future.
+        // Note: now we introduced the heterogeneous group, the entityType field in sdk dto doesn't
+        // actually make sense since actual types are based on members types. we may need to make
+        // the field repeated so it supports empty group of multiple types
+        if (membersByType.isEmpty() && groupDTO.hasEntityType()
+                && groupDTO.getEntityType() != EntityType.UNKNOWN) {
+            return Optional.of(StaticMembers.newBuilder()
+                    .addMembersByType(StaticMembersByType.newBuilder()
+                            .setType(MemberType.newBuilder()
+                                    .setEntity(groupDTO.getEntityType().getNumber())))
+                    .build());
+        }
+
+        // add all members for each type
+        final StaticMembers.Builder staticMemberBldr = StaticMembers.newBuilder();
+        membersByType.forEach(((memberType, members) -> staticMemberBldr.addMembersByType(
+                StaticMembersByType.newBuilder()
+                        .setType(memberType)
+                        .addAllMembers(members)
+        )));
+        return Optional.of(staticMemberBldr.build());
     }
 
+    /**
+     * Converts template names to OIDs for a template exclusion group.
+     *
+     * @param templateExclusionGroup template exclusion group
+     * @param targetId The target that discovered the groups
+     * @param targetName The target name
+     * @return the set of template OIDs
+     */
     @Nonnull
-    private InterpretedGroup interpretGroup(@Nonnull final GroupDTO group,
-                                            @Nonnull GroupInterpretationContext context) {
-        if (isCluster(group)) {
-            Metrics.DISCOVERED_GROUP_COUNT.labels(Group.Type.CLUSTER.name()).increment();
-            return new InterpretedGroup(group, Optional.empty(), sdkToCluster(group, context));
-        } else {
-            Metrics.DISCOVERED_GROUP_COUNT.labels(Group.Type.GROUP.name()).increment();
-            return new InterpretedGroup(group, sdkToGroup(group, context), Optional.empty());
+    public Set<Long> convertTemplateNamesToOids(@Nonnull CommonDTO.GroupDTO templateExclusionGroup,
+            long targetId, @Nonnull String targetName) {
+        Optional<Map<String, Long>> entityMap = entityStore.getTargetEntityIdMap(targetId);
+
+        if (!entityMap.isPresent()) {
+            logger.warn("No entity ID map available for target {}", targetName);
+            return Collections.emptySet();
         }
+
+        ConstraintInfo constraint = templateExclusionGroup.getConstraintInfo();
+
+        if (constraint == null) {
+            logger.warn("Constraint is null for group '{}', target {}", templateExclusionGroup,
+                    targetName);
+            return Collections.emptySet();
+        }
+
+        if (constraint.getExcludedTemplatesCount() <= 0) {
+            logger.warn("No cloud tiers for group '{}', target {}", templateExclusionGroup,
+                    targetName);
+            return Collections.emptySet();
+        }
+
+        // The OIDs should be sorted
+        Set<Long> result = new TreeSet<>();
+
+        for (String templateName : constraint.getExcludedTemplatesList()) {
+            Long oid = entityMap.get().get(templateName);
+
+            if (oid == null) {
+                logger.error("No OID found for cloud tier '{}', target {}", templateName,
+                        targetName);
+            } else {
+                result.add(oid);
+            }
+        }
+
+        return result;
     }
 
     /**
@@ -385,10 +521,10 @@ class DiscoveredGroupInterpreter {
      *         condition, an empty optional.
      */
     @Nonnull
-    private Optional<List<Long>> tryExpandMemberGroup(
-        @Nonnull final String memberId,
-        @Nonnull final GroupDTO groupDto,
-        @Nonnull final GroupInterpretationContext context) {
+    private Optional<Map<MemberType, List<Long>>> tryExpandMemberGroup(
+            @Nonnull final String memberId,
+            @Nonnull final GroupDTO groupDto,
+            @Nonnull final GroupInterpretationContext context) {
         final GroupDTO discoveredGroup;
         final GroupDTO noPrefixGroup = context.getGroupsByUuid().get(memberId);
         final String parsedMemberId;
@@ -448,35 +584,19 @@ class DiscoveredGroupInterpreter {
                 return Optional.empty();
             } else {
                 final GroupDTO childGroup = interpretedGroup.getOriginalSdkGroup();
-                if (groupDto.getEntityType() != childGroup.getEntityType()) {
-                    Metrics.ERROR_COUNT.labels("entity_type_mismatch").increment();
-                    logger.error("Group {} (uuid: {}, entity type: {}) has child group " +
-                            "{} (uuid: {}) with a different entity type: {}. Removing child group.",
-                        groupDto.getDisplayName(), groupId, groupDto.getEntityType(),
-                        childGroup.getDisplayName(), GroupProtoUtil.extractId(childGroup), childGroup.getEntityType());
-                    return Optional.empty();
-                } else {
-                    if (childGroup.getMembersCase() != MembersCase.MEMBER_LIST) {
-                        Metrics.ERROR_COUNT.labels("non_static_child").increment();
-                        logger.warn("Group {} (uuid: {}) has non-static child group {} (uuid: {}). " +
-                                "Not currently supported.",
-                            groupDto.getDisplayName(), groupId,
-                            childGroup.getDisplayName(), GroupProtoUtil.extractId(childGroup));
-                    }
-                    return Optional.of(interpretedGroup.getStaticMembers());
+                if (childGroup.getMembersCase() != MembersCase.MEMBER_LIST) {
+                    Metrics.ERROR_COUNT.labels("non_static_child").increment();
+                    logger.warn("Group {} (uuid: {}) has non-static child group {} (uuid: {}). " +
+                            "Not currently supported.",
+                        groupDto.getDisplayName(), groupId,
+                        childGroup.getDisplayName(), GroupProtoUtil.extractId(childGroup));
                 }
+                return Optional.of(interpretedGroup.getStaticMembersByType());
             }
         } finally {
             context.popVisitedGroup();
         }
     }
-
-    private boolean isCluster(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
-        // A cluster must have a specific constraint type.
-        return sdkDTO.hasConstraintInfo() &&
-            sdkDTO.getConstraintInfo().getConstraintType().equals(ConstraintType.CLUSTER);
-    }
-
 
     /**
      * The {@link PropertyFilterConverter} is a utility interface to allow mocking of the
@@ -634,8 +754,27 @@ class DiscoveredGroupInterpreter {
                                    @Nonnull final List<GroupDTO> dtoList) {
             this.targetId = targetId;
             this.groupsByUuid = Collections.unmodifiableMap(dtoList.stream()
-                .collect(Collectors.toMap(GroupProtoUtil::extractId, Function.identity())));
+                .collect(Collectors.toMap(GroupProtoUtil::extractId, Function.identity(),
+                    (g1, g2) -> {
+                        if (!g1.equals(g2)) {
+                            logger.error("Target {} discovered two groups with the same name - {} - " +
+                                " and different definitions. Keeping the first.\n" +
+                                "First definition: {}\n" +
+                                "Second definition: {}\n",
+                                targetId,
+                                GroupProtoUtil.extractId(g1), printForLog(g1), printForLog(g2));
+                        }
+                        return g1;
+                    })));
             this.interpretedGroupByUuid = new HashMap<>(this.groupsByUuid.size());
+        }
+
+        private String printForLog(@Nonnull final GroupDTO group) {
+            try {
+                return JsonFormat.printer().print(group);
+            } catch (InvalidProtocolBufferException e) {
+                return "Cannot print due to error: " + e.getMessage();
+            }
         }
 
         void pushVisitedGroup(@Nonnull final String groupName) {
@@ -700,7 +839,6 @@ class DiscoveredGroupInterpreter {
             }
         }
     }
-
 
     private static class Metrics {
          private static final DataMetricCounter DISCOVERED_GROUP_COUNT = DataMetricCounter.builder()

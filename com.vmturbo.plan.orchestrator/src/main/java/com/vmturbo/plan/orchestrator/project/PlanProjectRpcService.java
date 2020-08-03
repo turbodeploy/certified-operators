@@ -5,20 +5,23 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanDTO.DeletePlanProjectResponse;
-import com.vmturbo.common.protobuf.plan.PlanDTO.GetAllPlanProjectsRequest;
-import com.vmturbo.common.protobuf.plan.PlanDTO.GetAllPlanProjectsResponse;
-import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlanProjectResponse;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProject;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.RunPlanProjectResponse;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.DeletePlanProjectRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.DeletePlanProjectResponse;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetAllPlanProjectsRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetAllPlanProjectsResponse;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetPlanProjectRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetPlanProjectResponse;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.RunPlanProjectRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.RunPlanProjectResponse;
 import com.vmturbo.common.protobuf.plan.PlanProjectServiceGrpc.PlanProjectServiceImplBase;
 
 /**
@@ -37,17 +40,17 @@ public class PlanProjectRpcService extends PlanProjectServiceImplBase {
 
     @Override
     public void createPlanProject(PlanProjectInfo info,
-                                  StreamObserver<PlanDTO.PlanProject> responseObserver) {
-        PlanDTO.PlanProject planProject = planProjectDao.createPlanProject(info);
+                                  StreamObserver<PlanProjectOuterClass.PlanProject> responseObserver) {
+        PlanProjectOuterClass.PlanProject planProject = planProjectDao.createPlanProject(info);
         responseObserver.onNext(planProject);
         responseObserver.onCompleted();
     }
 
     @Override
-    public void deletePlanProject(PlanDTO.DeletePlanProjectRequest request,
-                                  StreamObserver<PlanDTO.DeletePlanProjectResponse> responseObserver) {
+    public void deletePlanProject(DeletePlanProjectRequest request,
+                                  StreamObserver<DeletePlanProjectResponse> responseObserver) {
 
-        Optional<PlanDTO.PlanProject> planProject = planProjectDao.deletePlan(request.getProjectId());
+        Optional<PlanProjectOuterClass.PlanProject> planProject = planProjectDao.deletePlan(request.getProjectId());
 
         if (planProject.isPresent()) {
             responseObserver.onNext(DeletePlanProjectResponse.newBuilder()
@@ -63,9 +66,9 @@ public class PlanProjectRpcService extends PlanProjectServiceImplBase {
     }
 
     @Override
-    public void getPlanProject(PlanDTO.GetPlanProjectRequest request,
-                               StreamObserver<PlanDTO.GetPlanProjectResponse> responseObserver) {
-        Optional<PlanDTO.PlanProject> project = planProjectDao.getPlanProject(request.getProjectId());
+    public void getPlanProject(GetPlanProjectRequest request,
+                               StreamObserver<GetPlanProjectResponse> responseObserver) {
+        Optional<PlanProjectOuterClass.PlanProject> project = planProjectDao.getPlanProject(request.getProjectId());
         if (project.isPresent()) {
             responseObserver.onNext(
                     GetPlanProjectResponse.newBuilder()
@@ -81,8 +84,8 @@ public class PlanProjectRpcService extends PlanProjectServiceImplBase {
     }
 
     @Override
-    public void getAllPlanProjects(PlanDTO.GetAllPlanProjectsRequest request,
-                                   StreamObserver<PlanDTO.GetAllPlanProjectsResponse> responseObserver) {
+    public void getAllPlanProjects(GetAllPlanProjectsRequest request,
+                                   StreamObserver<GetAllPlanProjectsResponse> responseObserver) {
         GetAllPlanProjectsResponse response = GetAllPlanProjectsResponse.newBuilder()
                 .addAllProjects(planProjectDao.getAllPlanProjects())
                 .build();
@@ -91,8 +94,8 @@ public class PlanProjectRpcService extends PlanProjectServiceImplBase {
     }
 
     @Override
-    public void runPlanProject(PlanDTO.RunPlanProjectRequest request,
-                               StreamObserver<PlanDTO.RunPlanProjectResponse> responseObserver) {
+    public void runPlanProject(RunPlanProjectRequest request,
+                               StreamObserver<RunPlanProjectResponse> responseObserver) {
         final Optional<PlanProject> planProject = planProjectDao.getPlanProject(request.getId());
         if (planProject.isPresent()) {
             planProjectExecutor.executePlan(planProject.get());

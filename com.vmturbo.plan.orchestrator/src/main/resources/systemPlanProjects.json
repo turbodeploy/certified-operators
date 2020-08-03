@@ -12,7 +12,6 @@
         }
       },
       "type": "CLUSTER_HEADROOM",
-      "perClusterScope": true,
       "scenarios":
       [
         {
@@ -44,10 +43,65 @@
             {
               "settingOverride" : {
                 "setting" : {
-                  "settingSpecName" : "shop",
-                  "enumSettingValue" : { "value" : "ENABLED" }
-                },
-                "entity_type" : 2
+                  "settingSpecName" : "resizeVcpuUpInBetweenThresholds",
+                  "enumSettingValue" : { "value" : "DISABLED" }
+                }
+              }
+            },
+            {
+              "settingOverride" : {
+                "setting" : {
+                  "settingSpecName" : "resizeVcpuDownInBetweenThresholds",
+                  "enumSettingValue" : { "value" : "DISABLED" }
+                }
+              }
+            },
+            {
+              "settingOverride" : {
+                "setting" : {
+                  "settingSpecName" : "resizeVcpuAboveMaxThreshold",
+                  "enumSettingValue" : { "value" : "DISABLED" }
+                }
+              }
+            },
+            {
+              "settingOverride" : {
+                "setting" : {
+                  "settingSpecName" : "resizeVcpuBelowMinThreshold",
+                  "enumSettingValue" : { "value" : "DISABLED" }
+                }
+              }
+            },
+            {
+              "settingOverride" : {
+                "setting" : {
+                  "settingSpecName" : "resizeVmemBelowMinThreshold",
+                  "enumSettingValue" : { "value" : "DISABLED" }
+                }
+              }
+            },
+            {
+              "settingOverride" : {
+                "setting" : {
+                  "settingSpecName" : "resizeVmemUpInBetweenThresholds",
+                  "enumSettingValue" : { "value" : "DISABLED" }
+                }
+              }
+            },
+            {
+              "settingOverride" : {
+                "setting" : {
+                  "settingSpecName" : "resizeVmemDownInBetweenThresholds",
+                  "enumSettingValue" : { "value" : "DISABLED" }
+                }
+              }
+            },
+            {
+              "settingOverride" : {
+                "setting" : {
+                  "settingSpecName" : "resizeVmemAboveMaxThreshold",
+                  "enumSettingValue" : { "value" : "DISABLED" }
+                }
               }
             }
           ]

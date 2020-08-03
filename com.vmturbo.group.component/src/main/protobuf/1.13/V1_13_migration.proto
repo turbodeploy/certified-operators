@@ -1,0 +1,239 @@
+syntax = "proto2";
+package group;
+
+option java_package = "com.vmturbo.group.migration.v1_13";
+
+import "common/EnvironmentTypeEnum.proto";
+import "search/Search.proto";
+import "setting/Setting.proto";
+import "tag/Tag.proto";
+import "CommonDTO.proto";
+import "group/GroupDTO.proto";
+
+// A group is a set of entities that can be treated collectively for the
+// purpose of settings, policies, statistics, and other operations.
+message Group {
+    // The origin represents how the group came to be in the system.
+    enum Origin {
+        // A user group was explicitly created by the user, and is owned by
+        // the turbonomic system.
+        USER = 1;
+
+        // A discovered group exists in the user's topology, and was imported and interpreted
+        // as part of a discovery.
+        // Users cannot mutate or delete discovered groups.
+        DISCOVERED = 2;
+    }
+
+    // The type of the group. Protobuf doesn't have inheritance, so we use a Type to
+    // differentiate between sufficiently different kinds of groups.
+    enum Type {
+        // A group is a set of entities that can be treated collectively for the
+        // purpose of settings, policies, statistics, and other operations.
+        GROUP = 1;
+
+        // A cluster is closely related to a group, and is most relevant when working with on-prem
+        // environments - especially vSphere. It's essentially the unit of management for large
+        // vSphere environments.
+        //
+        // Since clusters cannot be created by the user, all clusters have Origin == DISCOVERED.
+        //
+        // TODO (roman, July 27 2017): In the future we will likely want to rearchitect the model
+        // away from "cluster" terminology to "management unit" terminology, where groups of entities
+        // that act as the units of management for an environment - e.g. Clusters for vSphere, Business
+        // Units for cloud environments - can be represented in a common fashion.
+        CLUSTER = 2;
+
+        // A temporary group is a GROUP that can only have static scope, is not persisted to
+        // the database, and gets removed after a certain time.
+        //
+        // Temporary groups are not valid targets for policies or setting policies, and are
+        // only used for query purposes.
+        TEMP_GROUP = 3;
+
+        // A nested group is a group that contains other groups. The most common use case for
+        // nested groups is to create a group of several clusters (e.g. all clusters in a
+        // datacenter).
+        //
+        // Temporary groups are not valid targets for policies or setting policies, and are only
+        // used for query/visibility purposes.
+        NESTED_GROUP = 4;
+    }
+
+    // The unique numeric identifier of the group.
+    // This field will always be set.
+    optional int64 id = 1;
+
+    // The type of the group.
+    // This field will always be set.
+    optional Type type = 7 [default = GROUP];
+
+    // The origin of this group.
+    // This field will always be set.
+    optional Origin origin = 6 [default = USER];
+
+    oneof info {
+        // The properties describing the group.
+        // This field is only set for groups where Type == GROUP.
+        GroupInfo group = 2;
+
+        // The properties describing the cluster.
+        // This field is only set for groups where Type == CLUSTER.
+        ClusterInfo cluster = 4;
+
+        // The properties describing a temporary group.
+        // This field is only set for groups where Type == TEMP_GROUP.
+        TempGroupInfo temp_group = 5;
+
+        // The properties describing the nested group.
+        // This field is only set for groups where Type == NESTED_GROUP.
+        NestedGroupInfo nested_group = 10;
+    }
+
+    // The ID of the target that discovered the group.
+    // This field is only set for groups where Origin == DISCOVERED.
+    optional int64 target_id = 3;
+}
+
+// The customizeable properties of a group.
+message GroupInfo {
+    // The name of the group.
+    optional string name = 1;
+
+    // The type of entity in the group. A group can only have entities of
+    // a single type.
+    optional int32 entity_type = 2;
+
+    // Groups may be either static or dynamic.
+    // Whether it is static or dynamic determines when its members are resolved and updated.
+    oneof selection_criteria {
+        // A static group's members are fixed at the time they are created and that membership
+        // may only be updated by an explicit call to update the group.
+        StaticGroupMembers static_group_members = 3;
+
+        // A wrapper layer to respent a list of search parameters
+        SearchParametersCollection search_parameters_collection = 5;
+    }
+
+    // Is the group a hidden group
+    // We use this field for the groups automatically created for merge data centers policy, since
+    // data center is not a group, but we need the groups for the merge operation.
+    optional bool is_hidden = 6 [default = false];
+
+    // User friendly name. Typically used for discovered groups.
+    optional string display_name = 7;
+
+    // Tags. Used for discovered groups.
+    optional .tag.Tags tags = 8;
+}
+
+message TempGroupInfo {
+    // The name of the group.
+    optional string name = 1;
+
+    // The type of entity in the group. A group can only have entities of
+    // a single type.
+    optional int32 entity_type = 2;
+
+    // A static group's members are fixed at the time they are created and that membership
+    // may only be updated by an explicit call to update the group.
+    optional StaticGroupMembers members = 3;
+
+    // If true, means the temp group contains all entities with same entity type in global scope.
+    // This field will speed up stats query for global scope.
+    optional bool is_global_scope_group = 4;
+
+    // If set, the environment type of entities in the group.
+    // This field should be combined with entity_type and is_global_scope_group to optimize
+    // stats queries for all entity types in an environment when navigating the supply chain.
+    optional .common.EnvironmentType environment_type = 5;
+}
+
+// The properties of a cluster.
+message ClusterInfo {
+
+    enum Type {
+        // A compute cluster is comprised of physical machines.
+        COMPUTE = 1;
+        // A storage cluster is comprised of storages.
+        STORAGE = 2;
+        // A compute virtual machine cluster is comprised of virtual machines.
+        COMPUTE_VIRTUAL_MACHINE = 3;
+    }
+
+    // The name of the cluster.
+    optional string name = 1;
+
+    optional Type cluster_type = 2;
+
+    // The entities belonging to the cluster.
+    optional StaticGroupMembers members = 3;
+
+    // The template ID that the headroom plan will use.
+    // If it is empty, the default plan will be used.
+    optional int64 cluster_headroom_template_id = 4;
+
+    // User friendly name. Typically used for discovered clusters.
+    optional string display_name = 7;
+
+    // Tags. Used for discovered clusters.
+    optional .tag.Tags tags = 8;
+}
+
+// The properties of a nested group.
+message NestedGroupInfo {
+    // The name of the group.
+    optional string name = 1;
+
+    // The type of nested group. All members of the group will be of the same type.
+    oneof type {
+        // If set, this is a group of clusters of this type.
+        ClusterInfo.Type cluster = 2;
+
+        // In the future, we may want to support nested groups of other nested groups (e.g. when
+        // parsing VC folders). However, for now we don't do this - and will try to avoid it for
+        // as long as possible!
+    }
+
+    // Describes how groups are selected to be in the group.
+    // The selection criteria only applies to groups that match the type (defined above).
+    // For example, if the type is compute cluster, we will only consider compute clusters
+    // as candidates for selection.
+    oneof selection_criteria {
+        // If set, this is a static nested group. The members are configured at creation time
+        // and do not change.
+        StaticGroupMembers static_group_members = 10;
+
+        // If set, this is a dynamic nested group. The members will be the subset of groups in
+        // the system that match the property filters.
+        GroupPropertyFilterList property_filter_list = 11;
+    }
+}
+
+
+// A property filter list that can be used to dynamically select a set of groups.
+// This is loosely equivalent to "SearchParameters" in Search.proto, but without
+// traversal filters.<p/>
+// Currently (2019/4/29), there are exactly two properties that can be used to
+// filter groups: display names and tags. For display names, we use a regex string
+// filter. For tags, we use a MapFilter, as is the case for service entity tags.
+// Other property filter types, e.g., numeric filters, list filters, and object
+// filters are not used.
+message GroupPropertyFilterList {
+    // This message type is included for backward compatibility with 7.16 and
+    // earlier versions.  It should not be used.
+    message GroupPropertyFilter {
+        oneof property_type {
+            .search.PropertyFilter.StringFilter __deprecated__name_filter = 1 [deprecated=true];
+        }
+    }
+
+    // This field is included for backward compatibility with 7.16 and
+    // earlier versions.  It should not be used.
+    repeated GroupPropertyFilter __deprecated__property_filters_old = 1 [deprecated=true];
+
+    // Property filters to match group against. Currently (2019/4/29) used only for:
+    // (a) display name (property of type string) regex matching and
+    // (b) tags (property of type multimap).
+    repeated .search.PropertyFilter property_filters = 2;
+}

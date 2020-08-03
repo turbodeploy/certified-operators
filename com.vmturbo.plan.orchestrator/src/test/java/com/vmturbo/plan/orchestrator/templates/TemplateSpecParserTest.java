@@ -8,14 +8,25 @@ import static org.junit.Assert.fail;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
-import org.junit.Before;
-import org.junit.Test;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+
+import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecField;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecResource;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 public class TemplateSpecParserTest {
@@ -32,7 +43,7 @@ public class TemplateSpecParserTest {
         Map<String, TemplateSpec> templateSpecParserMap = templateSpecParser.getTemplateSpecMap();
 
         assertNotNull(templateSpecParserMap);
-        assertEquals(templateSpecParserMap.keySet().size(), 3);
+        assertEquals(4, templateSpecParserMap.keySet().size());
         assertTrue(templateSpecParserMap.keySet().contains(EntityType.VIRTUAL_MACHINE.toString()));
         assertTrue(templateSpecParserMap.keySet().contains(EntityType.PHYSICAL_MACHINE.toString()));
         assertFalse(templateSpecParserMap.get(EntityType.VIRTUAL_MACHINE.toString())
@@ -43,13 +54,48 @@ public class TemplateSpecParserTest {
             .getResourcesList().get(0).getFieldsList().get(0).getName(), "numOfCpu");
     }
 
+    /**
+     * Test fields specific for HCI Host template.
+     */
+    @Test
+    public void testHciHostTemplate() {
+        TemplateSpec template = templateSpecParser.getTemplateSpecMap()
+                .get(EntityType.HCI_PHYSICAL_MACHINE.toString());
+
+        TemplateSpecResource resource = template.getResourcesList().stream()
+                .filter(r -> r.getCategory().getName() == ResourcesCategoryName.Storage).findFirst()
+                .get();
+
+        testHciHostTemplateField(resource, "failuresToTolerate", null);
+        testHciHostTemplateField(resource, "spaceReservationPct", null);
+        testHciHostTemplateField(resource, "compressionRatio", 1.0);
+        testHciHostTemplateField(resource, "redundancyMethod", null);
+        testHciHostTemplateField(resource, "isCompressionEnabled", 0.0);
+
+        Assert.assertNotNull(template);
+    }
+
+    private static void testHciHostTemplateField(@Nonnull TemplateSpecResource resource,
+            @Nonnull String fieldName, @Nullable Double defaultValue) {
+        Optional<TemplateSpecField> field = resource.getFieldsList().stream()
+                .filter(f -> f.getName().equals(fieldName)).findFirst();
+        Assert.assertTrue(field.isPresent());
+
+        if (defaultValue != null) {
+            Assert.assertEquals(defaultValue.floatValue(), field.get().getDefaultValue(), .1);
+        }
+    }
+
     @Test
     public void testCollectDiags() throws Exception {
-        assertEquals(
-            Collections.singletonList(TemplateSpecParser.GSON
-                .toJson(templateSpecParser.getTemplateSpecMap(), TemplateSpecParser.TYPE)),
-            templateSpecParser.collectDiags()
-        );
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        templateSpecParser.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
+
+        assertEquals(Collections.singletonList(
+                TemplateSpecParser.GSON.toJson(templateSpecParser.getTemplateSpecMap(),
+                        TemplateSpecParser.TYPE)), diags.getAllValues());
     }
 
     @Test

@@ -1,6 +1,10 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
-public class ContextCreationException extends RuntimeException {
+/**
+ * Exception to be throw weh context could not be created. Also used in actions
+ * when context throws exception performing any operations.
+ */
+public class ContextCreationException extends Exception {
 
     /**
      * Constructs a new ContextCreationException with the specified detail message.

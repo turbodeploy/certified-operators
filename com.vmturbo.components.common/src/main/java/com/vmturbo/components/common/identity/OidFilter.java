@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.PrimitiveIterator;
 import java.util.Set;
 
 /**
@@ -70,6 +71,69 @@ public interface OidFilter {
             }
         }
         return true;
+    }
+
+    /**
+     * Given an {@link OidSet} of oids, return true if all of the oids in the set pass the filter.
+     *
+     * @param oids the OidSet to compare
+     * @return true, if all oids in the collection pass the filter. false, if any do not.
+     */
+    default boolean contains(OidSet oids) {
+        if (oids == null) {
+            return true;
+        }
+        // return false on the first oid that doesn't match the filter.
+        PrimitiveIterator.OfLong iterator = oids.iterator();
+        while (iterator.hasNext()) {
+            if (!this.contains(iterator.nextLong())) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Given a collection of oids, return true if any oid in the collection pass the filter.
+     *
+     * @param oids the collection of oids to check.
+     * @return true, if any oid in the collection passes the filter. false, if none pass.
+     */
+    default boolean containsAny(Collection<Long> oids) {
+        if (oids == null) {
+            return false;
+        }
+
+        // return true if any are contained
+        for (Long oid: oids) {
+            if (contains(oid)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Given an {@link OidSet} of oids, return true if any oid in the OidSet passes the filter.
+     *
+     * @param oids the set of oids to check.
+     * @return true, if any oid in the collection passes the filter. false, if none pass.
+     */
+    default boolean containsAny(OidSet oids) {
+        if (oids == null) {
+            return false;
+        }
+        // return true if any are contained
+        PrimitiveIterator.OfLong iterator = oids.iterator();
+        while (iterator.hasNext()) {
+            if (this.contains(iterator.nextLong())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

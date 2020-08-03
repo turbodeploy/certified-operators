@@ -24,14 +24,20 @@ public class VirtualVolumeInfoMapper extends TypeSpecificInfoMapper {
         final VirtualVolumeData vvData = sdkEntity.getVirtualVolumeData();
         VirtualVolumeInfo.Builder vvInfo = VirtualVolumeInfo.newBuilder();
         final TypeSpecificInfo.Builder retBuilder = TypeSpecificInfo.newBuilder();
-        if (vvData.hasStorageAccessCapacity()) {
-            vvInfo.setStorageAccessCapacity(vvData.getStorageAccessCapacity());
-        }
-        if (vvData.hasStorageAmountCapacity()) {
-            vvInfo.setStorageAmountCapacity(vvData.getStorageAmountCapacity());
+        if (vvData.hasSnapshotId()) {
+            vvInfo.setSnapshotId(vvData.getSnapshotId());
         }
         if (vvData.hasRedundancyType()) {
             vvInfo.setRedundancyType(vvData.getRedundancyType());
+        }
+        if (vvData.hasAttachmentState()) {
+            vvInfo.setAttachmentState(vvData.getAttachmentState());
+        }
+        if (vvData.hasEncrypted()) {
+            vvInfo.setEncryption(vvData.getEncrypted());
+        }
+        if (vvData.hasIsEphemeral()) {
+            vvInfo.setIsEphemeral(vvData.getIsEphemeral());
         }
         vvInfo.addAllFiles(vvData.getFileList());
         retBuilder.setVirtualVolume(vvInfo.build());

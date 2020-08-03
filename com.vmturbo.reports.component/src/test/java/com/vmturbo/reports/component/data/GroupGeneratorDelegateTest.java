@@ -4,7 +4,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -20,13 +19,14 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import javaslang.Tuple;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainS
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.reports.component.data.ReportDataUtils.EntitiesTableGeneratedId;
 import com.vmturbo.sql.utils.DbException;
 
@@ -54,24 +55,23 @@ public class GroupGeneratorDelegateTest {
     private ReportDBDataWriter reportDBDataWriter = mock(ReportDBDataWriter.class);
     private EntitiesTableGeneratedId results = mock(EntitiesTableGeneratedId.class);
     private EntitiesTableGeneratedId newResults = mock(EntitiesTableGeneratedId.class);
+    private final GetSupplyChainResponse response = GetSupplyChainResponse
+        .newBuilder()
+        .setSupplyChain(SupplyChain.newBuilder()
+            .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                .putMembersByState(EntityState.POWERED_ON_VALUE,
+                    MemberList.newBuilder().addMemberOids(1L)
+                        .build()).build()).build()).build();
 
     @Before
     public void init() throws Exception {
-        groupGeneratorDelegate = new GroupGeneratorDelegate();
+        groupGeneratorDelegate = new GroupGeneratorDelegate(60, 100000);
         context = mock(ReportsDataContext.class);
         Mockito.when(groupServiceMole.getGroup(any()))
             .thenReturn(GetGroupResponse.newBuilder()
-                .setGroup(Group.newBuilder()
-                    .setType(Group.Type.CLUSTER))
+                .setGroup(Grouping.newBuilder()
+                    .setDefinition(GroupDefinition.newBuilder().setType(GroupType.COMPUTE_HOST_CLUSTER)))
                 .build());
-
-        final GetSupplyChainResponse response = GetSupplyChainResponse
-            .newBuilder()
-            .setSupplyChain(SupplyChain.newBuilder()
-                .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                    .putMembersByState(EntityState.POWERED_ON_VALUE,
-                        MemberList.newBuilder().addMemberOids(1L)
-                        .build()).build()).build()).build();
 
         Mockito.when(supplyChainServiceMole.getSupplyChain(any()))
             .thenReturn(response);
@@ -84,15 +84,59 @@ public class GroupGeneratorDelegateTest {
         when(reportDBDataWriter.insertEntityAssns(results)).thenReturn(newResults);
 
         when(context.getSupplyChainRpcService()).thenReturn(SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()));
-        Group group = Group.newBuilder().build();
-        Map<Group, Long> groupToPK = ImmutableMap.of(group, 1L);
+        Grouping group = Grouping.newBuilder().build();
+        Map<Grouping, Long> groupToPK = ImmutableMap.of(group, 1L);
         when(newResults.getGroupToPK()).thenReturn(groupToPK);
-        Mockito.when(groupServiceMole.createTempGroup(any()))
-            .thenReturn(CreateTempGroupResponse.newBuilder().setGroup(group).build());
+        Mockito.when(groupServiceMole.createGroup(any()))
+            .thenReturn(CreateGroupResponse.newBuilder().setGroup(group).build());
     }
 
     @After
     public void cleanup() {
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testRetryRepositoryLogicInvalidArgment1() throws DbException {
+        new GroupGeneratorDelegate(1, 1);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testRetryRepositoryLogicInvalidArgment2() throws DbException {
+        new GroupGeneratorDelegate(100, 10);
+    }
+
+    /**
+     * Verify if the retries <= maxConnectRetryCount (2), it will retry again.
+     */
+    @Test
+    public void testRetryRepositoryLogicWithGrpcException() throws DbException {
+        GroupGeneratorDelegate groupGeneratorDelegate = new GroupGeneratorDelegate(2, 1001);
+        Mockito.when(supplyChainServiceMole.getSupplyChain(any()))
+            .thenThrow(new StatusRuntimeException(Status.INTERNAL)).
+            thenThrow(new StatusRuntimeException(Status.INTERNAL)).
+            thenReturn(response);
+        groupGeneratorDelegate.insertVMClusterRelationships(context);
+        verify(context).getGroupService();
+        verify(results).getGroupToPK();
+        verify(context, times(7)).getReportDataWriter();
+        verify(reportDBDataWriter,times(2)).cleanUpEntity_Assns(anyList());
+        verify(reportDBDataWriter).insertEntityAssns(any());
+        verify(reportDBDataWriter).insertEntityAssnsMembersEntities(anyMap());
+        verify(reportDBDataWriter).insertEntityAttrs(anyList(), any());
+    }
+
+    /**
+     * Verify if the retried > maxConnectRetryCount (2 in this case), a RuntimeException will throw.
+     */
+    @Test(expected = RuntimeException.class)
+    public void testRetryRepositoryLogicWithGrpcExceptionBeyondFix() throws DbException {
+        GroupGeneratorDelegate groupGeneratorDelegate = new GroupGeneratorDelegate(2, 1001);
+        Mockito.when(supplyChainServiceMole.getSupplyChain(any()))
+            .thenThrow(new StatusRuntimeException(Status.INTERNAL)).
+            thenThrow(new StatusRuntimeException(Status.INTERNAL)).
+            thenThrow(new StatusRuntimeException(Status.INTERNAL)).
+            thenReturn(response);
+        groupGeneratorDelegate.insertVMClusterRelationships(context);
     }
 
     @Test

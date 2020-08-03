@@ -1,0 +1,96 @@
+#
+#  CODEOWNERS specifies the users/groups that are responsible for certain files and directories.
+#
+#    Documentation: https://docs.gitlab.com/ee/user/project/code_owners.html
+#
+#    Our rules:
+#        1. review groups are alway listed first
+#        2. all other groups listed after
+#        3. individuals listed last (but this should be avoided if at all possible)
+#
+# (note: build-related at the bottom of the file so that they take precedence)
+
+/VmtReports/ @review/XL @review/Reporting
+/com.vmturbo.action.orchestrator/ @review/XL @review/Analytics  @review/Orchestrator
+/com.vmturbo.action.orchestrator.api/ @review/XL @review/Analytics  @review/Orchestrator
+/com.vmturbo.api.component/   @review/Mediation @review/XL
+/com.vmturbo.arangodb/   @review/XL @review/Platform
+/com.vmturbo.auth.api/   @review/XL @review/APIs
+/com.vmturbo.auth.test/  @review/XL @review/APIs
+/com.vmturbo.base.fulljava/  @review/XL @review/Platform
+/com.vmturbo.clustermgr/ @review/XL @review/Platform
+/com.vmturbo.clustermgr.api/ @review/XL @review/Platform
+/com.vmturbo.common.protobuf/ @review/XL @review/Platform
+/com.vmturbo.components/ @review/XL @review/Platform
+/com.vmturbo.components.api/ @review/XL @review/APIs
+/com.vmturbo.components.api.root/ @review/XL @review/APIs
+/com.vmturbo.components.api.test/ @review/XL @review/APIs
+/com.vmturbo.components.baseimage/   @review/XL @review/Platform
+/com.vmturbo.components.common/  @review/XL @review/Platform
+/com.vmturbo.components.test.performance/ @review/XL @review/Platform
+/com.vmturbo.components.test.utilities/  @review/XL @review/Platform
+/com.vmturbo.consul/ @review/XL @review/Platform
+/com.vmturbo.cost.calculation/   @review/XL @review/Cost
+/com.vmturbo.cost.component/ @review/XL @review/Platform
+/com.vmturbo.cost.component.api/ @review/XL @review/Platform
+/com.vmturbo.group.api/  @review/XL @review/Group
+/com.vmturbo.grpc.extensions/ @review/XL @review/Platform
+/com.vmturbo.history/ @review/XL @review/History
+/com.vmturbo.history.component.api/  @review/XL @review/History
+/com.vmturbo.history.schema/ @review/XL @review/History
+/com.vmturbo.identity/    @review/Mediation @review/XL
+/com.vmturbo.influxdb/   @review/XL @review/Platform
+/com.vmturbo.kvstore/ @review/XL @review/Platform
+/com.vmturbo.market.component/   @review/XL @review/Analytics
+/com.vmturbo.market.component.api/   @review/XL @review/Analytics
+/com.vmturbo.mediation.actionscript/  @review/Mediation @review/APIs
+/com.vmturbo.mediation.aws.billing.conversion/   @review/XL @review/Cloud @review/AWS
+/com.vmturbo.mediation.aws.conversion/   @review/XL @review/Cloud @review/AWS
+/com.vmturbo.mediation.azure.conversion/ @review/XL @review/Cloud @review/Azure
+/com.vmturbo.mediation.azure.volumes.conversion/ @review/XL @review/Cloud @review/Azure
+/com.vmturbo.mediation.client/    @review/Mediation
+/com.vmturbo.mediation.client.bootstrap/  @review/Mediation
+/com.vmturbo.mediation.cloud.conversion/  @review/Mediation
+/com.vmturbo.mediation.delegatingprobe/   @review/Mediation
+/com.vmturbo.mediation.probe.parent/  @review/Mediation
+/com.vmturbo.mediation.vcenter.browsing.conversion/   @review/Mediation
+/com.vmturbo.mediation.vcenter.conversion/    @review/Mediation
+/com.vmturbo.plan.orchestrator/  @review/XL @review/Analytics  @review/Orchestrator
+/com.vmturbo.plan.orchestrator.api/  @review/XL @review/Analytics  @review/Orchestrator
+/com.vmturbo.priceindex.api/ @review/XL @review/Analytics
+/com.vmturbo.proactive.loader/    @review/Telemetry
+/com.vmturbo.proactivesupport/    @review/Telemetry
+/com.vmturbo.reports.api/ @review/XL @review/Reporting
+/com.vmturbo.reports.templates/  @review/XL @review/Reporting
+/com.vmturbo.repository.api/  @review/XL
+/com.vmturbo.sample.component/   @review/XL @review/Mediation
+/com.vmturbo.sample.component.api/   @review/XL @review/Mediation
+/com.vmturbo.sql.utils/  @review/XL @review/Platform
+/com.vmturbo.stitching/   @review/Mediation @review/XL
+/com.vmturbo.system.notification.receiver/   @review/XL @review/Platform
+/com.vmturbo.system.notification.sender/ @review/XL @review/Platform
+/com.vmturbo.systest/ @review/XL @review/Platform
+/com.vmturbo.topology.graph/  @review/Mediation @review/XL
+/com.vmturbo.topology.processor/  @review/Mediation @review/XL
+/com.vmturbo.topology.processor.api/  @review/Mediation
+/db/ @review/XL @review/Platform
+/diags/  @review/XL @review/Platform
+/external-api-stubs/ @review/XL @review/Platform
+/kafka/  @review/XL @review/Platform
+/logtools/   @review/XL @review/Platform
+/nginx/  @review/XL @review/Platform
+/persistence/ @review/XL @review/Platform
+/protoc-grpc-moles/  @review/XL @review/Platform
+/protoc-plugin-common/   @review/XL @review/Platform
+/protoc-spring-rest/ @review/XL @review/Platform
+/syslog/ @review/XL @review/Platform
+/zookeeper/  @review/XL @review/Platform
+
+#
+# Special section for build related changed that overrides any matches above.
+#
+/versioning/  @review/build
+/build/ @review/build @review/XL
+/git-hooks/  @review/build
+pom.xml @review/build
+

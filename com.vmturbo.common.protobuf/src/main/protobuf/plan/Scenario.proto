@@ -1,0 +1,392 @@
+syntax = "proto2";
+package plan;
+
+option java_package = "com.vmturbo.common.protobuf.plan";
+
+import "CommonDTO.proto";
+import "CloudCostDTO.proto";
+import "setting/Setting.proto";
+import "group/PolicyDTO.proto";
+
+// NB Informational (most) messages in this set of declarations are serialized in rdbms.
+// They are not modifiable, only extendable.
+
+// A scenario specifies the changes to the topology, and changes to configuration
+// to be used when running a plan.
+message Scenario {
+    // The ID of the scenario
+    optional int64 id = 1;
+
+    // Information describing the scenario
+    optional ScenarioInfo scenario_info = 2;
+}
+
+// Information describing the scenario.
+message ScenarioInfo {
+    // The name of the scenario
+    optional string name = 1;
+
+    // The list of changes to be made
+    repeated ScenarioChange changes = 2;
+
+    // The "type" of the scenario - for example "ADD_WORKLOAD", "DECOMMISION_HOST" - as specified
+    // in the API.
+    // We use a string instead of an enum because at the time of this writing the source of truth
+    // for available types is the UI (!!!), and the type of a scenario has no server-side effect.
+    // Its main purpose is to limit the UI options presented to the user (e.g. with DECOMMISION_HOST
+    // the user will only see changes related to removing hosts).
+    //
+    // (roman, June 1 2017): In the future, if there are many of these strings that we only need
+    // to preserve for the UI, we can add a "metadata" message (or map), where "type" would be
+    // one of the fields.
+    optional string type = 3;
+
+    // The plan scope
+    optional PlanScope scope = 4;
+}
+
+// The Plan Scope is a set of entity groups chosen as part of the plan. This scope is used to filter
+// the topology (according to the entities in scope) down to a "scoped topology", which is the minimal
+// subset of the economy needed to fully analyze the scoped plan.
+message PlanScope {
+    // A list of scope entries (groups) to include in scope.
+    repeated PlanScopeEntry scope_entries = 1;
+}
+
+// A reference to an entity or group id to be included in the plan scope. In the future, this entry
+// may also have some kind of operator representing whether the group should be included or excluded
+// from scope, but for now all entries are treated as being included in the scope.
+message PlanScopeEntry {
+    // the id of the object this scope entry refers to.
+    optional int64 scope_object_oid = 1;
+
+    // class name of the scope entry type -- for UI compatibility and may be removed in the future
+    optional string class_name = 3;
+
+    // display name of the group -- for UI compatibility and may be removed in the future
+    optional string display_name = 4;
+}
+
+message ScenarioChange {
+    // Specific details about the change that should be made. Can be one of many different cases.
+    oneof details {
+        TopologyAddition topology_addition = 15;
+        TopologyRemoval topology_removal = 16;
+        TopologyReplace topology_replace = 17;
+
+        SettingOverride setting_override = 21;
+        PlanChanges plan_changes = 22;
+        RISetting ri_setting = 23;
+    };
+
+    message RISetting {
+        optional common_dto.DemandType demand_type = 1;
+        // RI Setting by CloudType
+        map<string, RIProviderSetting> ri_setting_by_cloudtype = 2;
+    }
+
+    message RIProviderSetting {
+        optional common_dto.ReservedInstanceType.OfferingClass preferred_offering_class = 1;
+        optional common_dto.ReservedInstanceType.PaymentOption preferred_payment_option = 2;
+        optional int32 preferred_term = 3;
+        optional int64 purchase_date = 4;
+    }
+
+    message PlanChanges {
+        repeated IgnoreConstraint ignore_constraints = 1;
+
+        optional PolicyChange policy_change = 2;
+
+        optional UtilizationLevel utilization_level = 3;
+
+        optional MaxUtilizationLevel max_utilization_level = 6 [deprecated = true];
+
+        // User specified multiple constraints for initial placement, the logic between them is AND.
+        repeated ReservationConstraintInfo initial_placement_constraints = 4;
+
+        optional HistoricalBaseline historical_baseline = 5;
+
+        optional IncludedCoupons included_coupons = 7;
+
+        message IncludedCoupons {
+           // User selected OIDs of RIs/Coupons to include in OC plans.
+           repeated int64 included_coupon_oids = 1;
+           // Specied whether the above list is a white (included - default)
+           // or excluded (black) list.
+           optional bool is_white_list = 2 [default = true];
+        }
+
+        message IgnoreConstraint {
+            // Constraints can be set per group/cluster, for all entities of a specific type
+            // or for all entities in the topology.
+            oneof ignore {
+                ConstraintGroup ignore_group = 1;
+
+                //Field deprecated rather than removed so we can identify
+                //configurations no longer supported
+                IgnoreEntityTypes _deprecated_ignore_entity_types = 2 [deprecated = true];
+
+                bool ignore_all_entities = 3;
+
+                GlobalIgnoreEntityType global_ignore_entity_type = 4;
+            }
+        }
+
+        // ignore constraint for the specific group and commodity type.
+        message ConstraintGroup {
+            optional string commodity_type = 1;
+            optional int64 group_uuid = 2;
+        }
+
+        //Deprecated, Use GlobalIgnoreEntityType instead
+        //Deprecated rather than removed so we can identify IgnoreConstraint
+        //configurations no longer supported
+        message IgnoreEntityTypes {
+            option deprecated = true;
+            repeated common_dto.EntityDTO.EntityType entityTypes = 1;
+        }
+
+        //Change to indicate ignore all constraints for planScope of set entityType
+        message GlobalIgnoreEntityType {
+            optional common_dto.EntityDTO.EntityType entity_type = 1;
+        }
+
+
+        // A change to a placement policy or a new policy altogether.
+        message PolicyChange {
+            optional bool enabled = 1 [default = true];
+            oneof policy {
+                int64 policy_id = 2;
+                .group.Policy plan_only_policy = 3;
+            }
+        }
+
+        // Represents UtilizationLevel plan setting. When this setting comes from UI it has only
+        // percentage and display name which is always "Virtual machine".
+        // Since we apply this setting only for VMs we need only percentage field.
+        message UtilizationLevel {
+            required int32 percentage = 2;
+
+            // the group to apply this to. This is expected to be a group of VMs.
+            optional int64 group_oid = 3;
+        }
+
+        // This message is deprecated. Use setting_override instead
+        option deprecated = true;
+        message MaxUtilizationLevel {
+
+            required int32 percentage = 2;
+
+            // The group to apply this to. This is expected to be a group of hosts or storages.
+            // If null, apply to global scope
+            optional int64 group_oid = 3;
+
+            // Type of entity being targeted with global scope configuration
+            optional int32 selected_entity_type = 4;
+        }
+
+        // Represents baseline date selected from UI. It is used to get the used and peak values from historical data
+        // to run the plan with those values.
+        message HistoricalBaseline {
+            // It is milliseconds elapsed since epoch.
+            required int64 baseline_date = 1;
+        }
+    }
+
+    // A change to supply or demand made by cloning an entity in the topology
+    message TopologyAddition {
+        // How many days in the future to apply the change. More than one value in the list means that the change
+        // will be repeated, once at each time in the list. The list should be in ascending order and all members
+        // should be >= 0.
+        repeated int32 change_application_days = 1;
+
+        // The number of times the entity will be cloned. Should be a positive number.
+        optional int32 addition_count = 2;
+
+        // EntityType to add from addition_type group
+        optional int32 target_entity_type = 3;
+
+        // The type of the object being added.
+        oneof addition_type {
+            int64 entity_id = 16;
+            int64 template_id = 17;
+            int64 group_id = 18;
+        }
+    }
+
+    // A change to supply or demand made by removing an entity from the topology
+    message TopologyRemoval {
+        // How many days in the future to apply the change, should be >= 0.
+        optional int32 change_application_day = 1;
+
+        // EntityType to remove from removal_type group
+        optional int32 target_entity_type = 3;
+
+        // The type of the object being removed.
+        oneof removal_type {
+            int64 entity_id = 16;
+            int64 group_id = 17;
+        }
+    }
+
+    // A change to supply or demand made by cloning an entity in the topology
+    // With a replace, commodity constraints and relationships are copied from the removed entity
+    // onto the entity being added.
+    message TopologyReplace {
+        // How many days in the future to apply the change, should be >= 0.rrr
+        optional int32 change_application_day = 1;
+
+        // The id of the template to replace the items being removed in the change.
+        optional int64 add_template_id = 2;
+
+        // EntityType to remove from replace_type group
+        optional int32 target_entity_type = 3;
+
+        // The type of the object being replaced.
+        oneof replace_type {
+            int64 remove_entity_id = 16;
+            int64 remove_group_id = 17;
+        }
+    }
+
+    // A change to set the value of some setting to some particular value.
+    message SettingOverride {
+        // The setting to override.
+        optional .setting.Setting setting = 1;
+
+        // If present, the entity type to override the setting for.
+        // This is one of the ways to narrow down setting overrides.
+        optional int32 entity_type = 2;
+
+        // The group to apply current setting
+        // UI only supports selection of VMs, Host, Storage, Container groups
+        // If unset, apply to global scope
+        // entity_type indicates the entities to target when expanding groups
+        // Currently group_oid only applies if entity_type is set.
+        // TODO : Change this behavior in SettingOverride implementation such that group_oid and
+        // entity_type be independent variables.
+        optional int64 group_oid = 3;
+    }
+}
+
+// The constraints user specified when running initial placement or reservation limit where
+// templates could be placed.
+message ReservationConstraintInfo {
+    // It can be the id of cluster, data center, virtual data ceneter
+    optional int64 constraint_id = 1;
+    // The type of constraint
+    optional Type type = 2;
+    // the key of the commodity associated with the constraint.
+    optional string key = 3;
+    // The entity type of provider.
+    optional int32 provider_type = 4;
+    enum Type {
+        // Cluster constraint and constraint id is cluster id
+        CLUSTER = 1;
+
+        // Data center constraint and constraint id is data center id
+        DATA_CENTER = 2;
+
+        // Virtual data center constraint and constraint id is virtual data center id
+        VIRTUAL_DATA_CENTER = 3;
+
+        // Placement policy constraint which means reservation entities will be part of policy
+        // consumer group.
+        POLICY = 4;
+
+        // Network constraints. The constraint ID is the id of the network.
+        // This means the template will only be placed on hosts that are connected to the
+        // specified network.
+        NETWORK = 5;
+
+        // Cluster constraint and constraint id is storage cluster id
+        STORAGE_CLUSTER = 6;
+
+    }
+}
+
+
+message ScenarioList {
+    repeated Scenario scenarios = 1;
+}
+
+message ScenarioId {
+    optional int64 scenario_id = 1;
+}
+
+// Options for looking up scenarios.
+message GetScenariosOptions {
+    // TODO: Support for pagination and filtering by user
+}
+
+message UpdateScenarioRequest {
+    required int64 scenario_id = 1;
+
+    // If set, overrides the scenario's info with
+    // this info.
+    optional ScenarioInfo new_info = 2;
+
+    // (roman, Dec 8 2016): If necessary we can provide
+    // other options to allow partial edits of the scenario
+    // info. Addition of new ScenarioChanges is easy. Deletion
+    // of ScenarioChanges is a bit more difficult.
+}
+
+message UpdateScenarioResponse {
+    // If set, the updated scenario.
+    // Will be unset if the scenario_id in
+    // the request refers to a non-existing scenario.
+    optional Scenario scenario = 1;
+}
+
+message DeleteScenarioRequest {
+    // The ID of the scenario to delete.
+    required int64 scenario_id = 1;
+}
+
+message DeleteScenarioResponse {
+}
+
+// A service responsible for CRUD operations for plan scenarios.
+// A PlanScenario contains a list, possibly empty, of ScenarioChange objects to be applied to
+// a topology prior to execution. PlanScenarios are persisted to the Plan database.
+service ScenarioService {
+
+    // Create a scenario given the information about a scenario.
+    // The newly created Scenario will be persisted to the Plan database.
+    //
+    // @returns the newly created scenario
+    rpc CreateScenario (ScenarioInfo) returns (Scenario);
+
+    // Get a scenario by its ID.
+    // Searches the scenarios persisted previously to the Plan database.
+    //
+    // @parameter ScenarioId indicates the ID of the scenario to search for.
+    // @returns the Scenario with the given ID; if not found, the scenario_info will not be set
+    rpc GetScenario(ScenarioId) returns (Scenario);
+
+    // Get scenarios from the Plan database, filtered by certain options.
+    // Currently there are no filter options, and so this call returns all the known scenarios.
+    //
+    // @parameter GetScenarioOptions options for paginating and filtering known scenarios - not impl.
+    // @returns a stream of Scenario objects that match the filters.
+    rpc GetScenarios(GetScenariosOptions) returns (stream Scenario);
+
+    // Update an existing scenario given the ID and a new ScenarioInfo.
+    // Replaces all the fields of the scenario from the new ScenarioInfo.
+    // The ScenarioInfo is persisted to the database with the same ID as before.
+    //
+    // @param UpdateScenarioRequest the ID of the scenario to be updated, and the ScenarioInfo
+    // to be stored
+    // @returns the ID of the Scenario updated if found; else the ID in the response will be unset
+    rpc UpdateScenario(UpdateScenarioRequest) returns (UpdateScenarioResponse);
+
+    // Delete an existing scenario from the Plan database.
+    // Note that, since we store the PlanInstances as blobs, we cannot check that no PlanInstance
+    // depends on the Scenario to be deleted.
+    //
+    // @param ScenarioId the unique ID of the scenario to be deleted
+    // @returns the ID of the Scenario that was deleted, if found,
+    // or the ID in the response will be unset if not found.
+    rpc DeleteScenario(ScenarioId) returns (DeleteScenarioResponse);
+}

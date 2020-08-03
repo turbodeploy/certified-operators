@@ -1,0 +1,8 @@
+automated_entity_definition {
+  naming_prefix: "department"
+  entity_type: NETWORK
+  connected_entity_type: VIRTUAL_MACHINE
+  tag_grouping {
+    tag_key: "Support"
+  }
+}

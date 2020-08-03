@@ -4,6 +4,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -11,14 +15,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
-
-import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.history.component.api.HistoryComponent;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 
 /**
@@ -37,6 +36,9 @@ public class HistoryClientConfig {
     @Value("${serverGrpcPort}")
     private int grpcPort;
 
+    @Value("${kafkaReceiverTimeoutSeconds:3600}")
+    private int kafkaReceiverTimeoutSeconds;
+
     @Autowired
     private BaseKafkaConsumerConfig kafkaConsumerConfig;
 
@@ -53,13 +55,25 @@ public class HistoryClientConfig {
     }
 
     @Bean
-    public HistoryComponent historyComponent() {
+    public HistoryComponentNotificationReceiver historyComponent() {
         return new HistoryComponentNotificationReceiver(historyClientMessageReceiver(),
-                historyClientThreadPool());
+                historyClientThreadPool(), kafkaReceiverTimeoutSeconds);
     }
 
     @Bean
     public Channel historyChannel() {
-        return GrpcChannelFactory.newChannelBuilder(historyHost, grpcPort).build();
+        return ComponentGrpcServer.newChannelBuilder(historyHost, grpcPort).build();
     }
+
+    /**
+     * Construct a channel with specified maximum message size.
+     *
+     * @param maxMessageSize message size
+     * @return history channel
+     */
+    @Bean
+    public Channel historyChannelWithMaxMessageSize(int maxMessageSize) {
+        return ComponentGrpcServer.newChannelBuilder(historyHost, grpcPort, maxMessageSize).build();
+    }
+
 }

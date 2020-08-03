@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.group.discovery;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +13,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.stitching.StitchingMergeInformation;
 
 /**
@@ -40,15 +41,6 @@ public class DiscoveredGroupMemberCache {
     }
 
     /**
-     * Returns groups for all targets.
-     *
-     * @return all discovered groups members
-     */
-    public Stream<DiscoveredGroupMembers> getAllDiscoveredGroupsMembers() {
-        return targetDiscoveredGroups.values().stream().flatMap(List::stream);
-    }
-
-    /**
      * Look up the discovered groups for the target/oid pair in the merge information.
      *
      * @param mergeInfo The merge information containing the target/oid pair for which discovered
@@ -71,19 +63,15 @@ public class DiscoveredGroupMemberCache {
      * {@link InterpretedGroup} definition.
      */
     public static class DiscoveredGroupMembers {
-        private final Set<Long> memberOids;
-        private InterpretedGroup associatedGroup;
+        private final InterpretedGroup associatedGroup;
+        private final Map<MemberType, Set<Long>> membersByType;
 
         @VisibleForTesting
         DiscoveredGroupMembers(@Nonnull final InterpretedGroup associatedGroup) {
             this.associatedGroup = Objects.requireNonNull(associatedGroup);
-
-            final List<Long> members = associatedGroup.getDtoAsCluster()
-                .map(cluster -> cluster.getMembers().getStaticMemberOidsList())
-                .orElseGet(() -> associatedGroup.getDtoAsGroup()
-                    .map(group -> group.getStaticGroupMembers().getStaticMemberOidsList())
-                    .orElse(Collections.<Long>emptyList()));
-            this.memberOids = new HashSet<>(members);
+            this.membersByType = associatedGroup.getStaticMembers().stream()
+                    .collect(Collectors.toMap(StaticMembersByType::getType,
+                            member -> new HashSet<>(member.getMembersList())));
         }
 
         /**
@@ -93,7 +81,12 @@ public class DiscoveredGroupMemberCache {
          * @return True if the discovered group contains the member, false otherwise.
          */
         public boolean hasMember(final long memberOid) {
-            return memberOids.contains(memberOid);
+            for (Set<Long> members : membersByType.values()) {
+                if (members.contains(memberOid)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /**
@@ -110,9 +103,11 @@ public class DiscoveredGroupMemberCache {
          *         present and could not be replaced.
          */
         public boolean swapMember(final long existingMemberOid, final long replacementOid) {
-            if (memberOids.remove(existingMemberOid)) {
-                memberOids.add(replacementOid);
-                return true;
+            for (Set<Long> members : membersByType.values()) {
+                if (members.remove(existingMemberOid)) {
+                    members.add(replacementOid);
+                    return true;
+                }
             }
             return false;
         }
@@ -122,8 +117,12 @@ public class DiscoveredGroupMemberCache {
          *
          * @return A set containing the OID members of the associated group.
          */
-        public Set<Long> getMemberOids() {
-            return memberOids;
+        public List<StaticMembersByType> getMembers() {
+            return membersByType.entrySet().stream()
+                    .map(entry -> StaticMembersByType.newBuilder()
+                            .setType(entry.getKey())
+                            .addAllMembers(entry.getValue()).build())
+                    .collect(Collectors.toList());
         }
 
         /**

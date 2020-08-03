@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.stats;
 
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -11,8 +10,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.CombinedStatsBucketsFactory.DefaultBucketsFactory;
+import com.vmturbo.action.orchestrator.stats.aggregator.BusinessAccountActionAggregator.BusinessAccountActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.ClusterActionAggregator.ClusterActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator.GlobalAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
@@ -21,20 +22,26 @@ import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatsRollupConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
+import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
+import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
+import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({GroupClientConfig.class,
         RepositoryClientConfig.class,
-        SQLDatabaseConfig.class,
+        ActionOrchestratorDBConfig.class,
         ActionTranslationConfig.class,
         ActionStatsRollupConfig.class,
-        ActionOrchestratorGlobalConfig.class})
+        ActionOrchestratorGlobalConfig.class,
+        TopologyProcessorConfig.class,
+        UserSessionConfig.class})
 public class ActionStatsConfig {
 
     @Autowired
@@ -44,7 +51,7 @@ public class ActionStatsConfig {
     private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
-    private SQLDatabaseConfig sqlDatabaseConfig;
+    private ActionOrchestratorDBConfig sqlDatabaseConfig;
 
     @Autowired
     private ActionTranslationConfig actionTranslationConfig;
@@ -55,12 +62,18 @@ public class ActionStatsConfig {
     @Autowired
     private ActionOrchestratorGlobalConfig globalConfig;
 
+    @Autowired
+    private TopologyProcessorConfig tpConfig;
+
     /**
      * Auto-wiring the action store config without an @Import
      * because of circular dependency.
      */
     @Autowired
     private ActionStoreConfig actionStoreConfig;
+
+    @Autowired
+    private UserSessionConfig userSessionConfig;
 
     @Value("${actionStatsWriteBatchSize}")
     private int actionStatsWriteBatchSize;
@@ -70,14 +83,30 @@ public class ActionStatsConfig {
         return new ClusterActionAggregatorFactory(groupClientConfig.groupChannel(), repositoryClientConfig.repositoryChannel());
     }
 
+    /**
+     * Factory for business account aggregators.
+     *
+     * @return The {@link BusinessAccountActionAggregatorFactory}.
+     */
+    @Bean
+    public BusinessAccountActionAggregatorFactory businessAccountActionAggregatorFactory() {
+        return new BusinessAccountActionAggregatorFactory(
+            RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()));
+    }
+
+    /**
+     * Factory for global aggregators.
+     *
+     * @return The {@link GlobalAggregatorFactory}.
+     */
     @Bean
     public GlobalAggregatorFactory globalAggregatorFactory() {
         return new GlobalAggregatorFactory();
     }
 
     @Bean
-    public SingleActionSnapshotFactory snapshotFactory() {
-        return new SingleActionSnapshotFactory();
+    public StatsActionViewFactory snapshotFactory() {
+        return new StatsActionViewFactory();
     }
 
     @Bean
@@ -111,11 +140,15 @@ public class ActionStatsConfig {
             new DefaultBucketsFactory());
     }
 
+    /**
+     * Bean for {@link CurrentActionStatReader}.
+     * @return The {@link CurrentActionStatReader}.
+     */
     @Bean
     public CurrentActionStatReader currentActionStatReader() {
-        return new CurrentActionStatReader(globalConfig.realtimeTopologyContextId(),
-            actionStoreConfig.actionStorehouse(),
-            actionTranslationConfig.actionTranslator());
+        return new CurrentActionStatReader(tpConfig.realtimeTopologyContextId(),
+            actionStoreConfig.actionStorehouse(), userSessionConfig.userSessionContext(),
+            involvedEntitiesExpander());
     }
 
     @Bean
@@ -125,12 +158,23 @@ public class ActionStatsConfig {
                 actionGroupStore(),
                 mgmtUnitSubgroupStore(),
                 snapshotFactory(),
-                // TODO (roman, Mar 8 2019): Re-enable Cluster Aggregator after
-                // OM-43498 is solved.
-                Arrays.asList(globalAggregatorFactory()),
+                Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory(), businessAccountActionAggregatorFactory()),
                 globalConfig.actionOrchestratorClock(),
-                actionTranslationConfig.actionTranslator(),
                 rollupConfig.rollupScheduler(),
                 rollupConfig.cleanupScheduler());
+    }
+
+    /**
+     * Returns the {@link InvolvedEntitiesExpander} configured with the remote supply chain
+     * and repository services.
+     *
+     * @return the {@link InvolvedEntitiesExpander} configured with the remote supply chain
+     *         and repository services.
+     */
+    @Bean
+    public InvolvedEntitiesExpander involvedEntitiesExpander() {
+        return new InvolvedEntitiesExpander(
+            RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()),
+            SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()));
     }
 }

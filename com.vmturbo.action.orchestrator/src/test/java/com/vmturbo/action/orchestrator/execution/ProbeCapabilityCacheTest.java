@@ -60,6 +60,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.api.ProbeInfo;
+import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 
@@ -82,6 +83,9 @@ public class ProbeCapabilityCacheTest {
 
     @Captor
     private ArgumentCaptor<Map<Long, List<ProbeActionCapability>>> probeCapabilityCaptor;
+
+    @Captor
+    private ArgumentCaptor<Map<Long, Long>> targetToProbeCaptor;
 
     private TestActionBuilder testActionBuilder = new TestActionBuilder();
 
@@ -115,13 +119,21 @@ public class ProbeCapabilityCacheTest {
             .build();
     }
 
+    @Nonnull
+    private TargetInfo targetInfo(final long targetId, final long probeId) {
+        final TargetInfo targetInfo = mock(TargetInfo.class);
+        when(targetInfo.getId()).thenReturn(targetId);
+        when(targetInfo.getProbeId()).thenReturn(probeId);
+        return targetInfo;
+    }
+
     @Test
     public void testFullRefreshError() throws CommunicationException {
         final CachedCapabilities cachedCapabilities = mock(CachedCapabilities.class);
         // An attempt to get cached capabilities should trigger another refresh, since we shouldn't
         // have saved the empty capabilities (because we hit an error trying to refresh).
         final CachedCapabilities cachedCapabilities2 = mock(CachedCapabilities.class);
-        when(cachedCapabilitiesFactory.newCapabilities(any(), any()))
+        when(cachedCapabilitiesFactory.newCapabilities(any(), any(), any()))
             .thenReturn(cachedCapabilities)
             .thenReturn(cachedCapabilities2);
         when(topologyProcessor.getAllProbes()).thenThrow(CommunicationException.class);
@@ -129,24 +141,27 @@ public class ProbeCapabilityCacheTest {
         assertThat(capabilityCache.fullRefresh(), is(cachedCapabilities));
 
         verify(cachedCapabilitiesFactory)
-            .newCapabilities(Collections.emptyMap(), Collections.emptyMap());
+            .newCapabilities(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
         assertThat(capabilityCache.getCachedCapabilities(), is(cachedCapabilities2));
 
         verify(cachedCapabilitiesFactory, times(2))
-            .newCapabilities(Collections.emptyMap(), Collections.emptyMap());
+            .newCapabilities(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
     }
 
     @Test
     public void testFirstGetDoesRefresh() throws CommunicationException {
         final CachedCapabilities cachedCapabilities = mock(CachedCapabilities.class);
-        when(cachedCapabilitiesFactory.newCapabilities(any(), any()))
+        when(cachedCapabilitiesFactory.newCapabilities(any(), any(), any()))
             .thenReturn(cachedCapabilities);
 
         final ProbeInfo probeInfo = probeInfo(2, ProbeCategory.CLOUD_MANAGEMENT);
         final ProbeActionCapabilities capabilities = capabilities(2, 10);
+        final TargetInfo targetInfo = targetInfo(3, probeInfo.getId());
         when(topologyProcessor.getAllProbes())
             .thenReturn(ImmutableSet.of(probeInfo));
+        when(topologyProcessor.getAllTargets())
+            .thenReturn(ImmutableSet.of(targetInfo));
         doReturn(Collections.singletonList(capabilities))
             .when(capabilitiesBackendMole).listProbeActionCapabilities(any());
 
@@ -158,12 +173,14 @@ public class ProbeCapabilityCacheTest {
             .listProbeActionCapabilities(ListProbeActionCapabilitiesRequest.getDefaultInstance());
 
         verify(cachedCapabilitiesFactory).newCapabilities(probeCategoryCaptor.capture(),
-            probeCapabilityCaptor.capture());
+            probeCapabilityCaptor.capture(), targetToProbeCaptor.capture());
 
         assertThat(probeCapabilityCaptor.getValue(),
             is(ImmutableMap.of(2L, capabilities.getActionCapabilitiesList())));
         assertThat(probeCategoryCaptor.getValue(),
             is(ImmutableMap.of(2L, ProbeCategory.CLOUD_MANAGEMENT)));
+        assertThat(targetToProbeCaptor.getValue(),
+            is(ImmutableMap.of(3L, probeInfo.getId())));
 
         // Second time, we should retrieve the cached ones. No full refresh.
         assertThat(capabilityCache.getCachedCapabilities(), is(cachedCapabilities));
@@ -189,21 +206,21 @@ public class ProbeCapabilityCacheTest {
             .when(capabilitiesBackendMole).listProbeActionCapabilities(any());
 
         final CachedCapabilities cachedCapabilities1 = mock(CachedCapabilities.class);
-        when(cachedCapabilitiesFactory.newCapabilities(any(), any()))
+        when(cachedCapabilitiesFactory.newCapabilities(any(), any(), any()))
             .thenReturn(cachedCapabilities1);
 
         // First time probe gets registered we do a full refresh (since refresh hasn't been done yet).
         capabilityCache.onProbeRegistered(probeInfo);
 
         verify(cachedCapabilitiesFactory).newCapabilities(Collections.emptyMap(),
-            Collections.emptyMap());
+            Collections.emptyMap(), Collections.emptyMap());
 
         assertThat(capabilityCache.getCachedCapabilities(), is(cachedCapabilities1));
 
         // Next time a probe gets registered we get the probes capabilities and rebuild the
         // capability cache.
         final CachedCapabilities cachedCapabilities2 = mock(CachedCapabilities.class);
-        when(cachedCapabilitiesFactory.newCapabilities(any(), any()))
+        when(cachedCapabilitiesFactory.newCapabilities(any(), any(), any()))
             .thenReturn(cachedCapabilities2);
         doReturn(GetProbeActionCapabilitiesResponse.newBuilder()
             .addAllActionCapabilities(probeCapabilities.getActionCapabilitiesList())
@@ -217,7 +234,8 @@ public class ProbeCapabilityCacheTest {
         // Two invocations, because we verified the first one earlier.
         verify(cachedCapabilitiesFactory, times(2)).newCapabilities(
             ImmutableMap.of(probeInfo.getId(), ProbeCategory.CLOUD_NATIVE),
-            ImmutableMap.of(probeInfo.getId(), probeCapabilities.getActionCapabilitiesList()));
+            ImmutableMap.of(probeInfo.getId(), probeCapabilities.getActionCapabilitiesList()),
+            Collections.emptyMap());
 
         assertThat(capabilityCache.getCachedCapabilities(), is(cachedCapabilities2));
     }
@@ -233,7 +251,8 @@ public class ProbeCapabilityCacheTest {
             ImmutableMap.of(probeId, capabilities(probeId, 10).getActionCapabilitiesList());
 
         final CachedCapabilities capabilities =
-            cachedCapabilitiesFactory.newCapabilities(probeCatMap, probeCapabilities);
+            cachedCapabilitiesFactory.newCapabilities(probeCatMap, probeCapabilities,
+                Collections.emptyMap());
         assertThat(capabilities.getProbeCategory(probeId).get(), is(ProbeCategory.DATABASE_SERVER));
     }
 
@@ -247,7 +266,8 @@ public class ProbeCapabilityCacheTest {
             ImmutableMap.of(1L, capabilities(1L, 10).getActionCapabilitiesList());
 
         final CachedCapabilities capabilities =
-            cachedCapabilitiesFactory.newCapabilities(probeCatMap, probeCapabilities);
+            cachedCapabilitiesFactory.newCapabilities(probeCatMap, probeCapabilities,
+                Collections.emptyMap());
         final ActionDTO.Action testAction =
             testActionBuilder.buildMoveAction(1L, 2L, 2, 3L, 2);
 
@@ -272,7 +292,7 @@ public class ProbeCapabilityCacheTest {
             ImmutableMap.of(probeId, capabilities(probeId, 10).getActionCapabilitiesList());
 
         final CachedCapabilities capabilities =
-            cachedCapabilitiesFactory.newCapabilities(probeCatMap, probeCapabilities);
+            cachedCapabilitiesFactory.newCapabilities(probeCatMap, probeCapabilities, Collections.emptyMap());
         final ActionDTO.Action testAction =
             testActionBuilder.buildMoveAction(1L, 2L, 2, 3L, 2);
         final ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(testAction);
@@ -301,7 +321,8 @@ public class ProbeCapabilityCacheTest {
             ImmutableMap.of(probeId, capabilities(probeId, 10).getActionCapabilitiesList());
 
         final CachedCapabilities capabilities =
-            cachedCapabilitiesFactory.newCapabilities(probeCatMap, probeCapabilities);
+            cachedCapabilitiesFactory.newCapabilities(probeCatMap, probeCapabilities,
+                Collections.emptyMap());
         final ActionDTO.Action testAction =
             testActionBuilder.buildMoveAction(1L, 2L, 2, 3L, 2);
         final ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(testAction);
@@ -333,7 +354,8 @@ public class ProbeCapabilityCacheTest {
             ImmutableMap.of(probeId, capabilities(probeId, 10).getActionCapabilitiesList());
 
         final CachedCapabilities capabilities =
-            cachedCapabilitiesFactory.newCapabilities(probeCatMap, probeCapabilities);
+            cachedCapabilitiesFactory.newCapabilities(probeCatMap, probeCapabilities,
+                Collections.emptyMap());
         final ActionDTO.Action testAction =
             testActionBuilder.buildMoveAction(1L, 2L, 2, 3L, 2);
         final ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(testAction);
@@ -371,7 +393,7 @@ public class ProbeCapabilityCacheTest {
             ImmutableMap.of(probeId, capabilities(probeId, 10).getActionCapabilitiesList());
 
         final CachedCapabilities capabilities =
-            cachedCapabilitiesFactory.newCapabilities(probeCatMap, probeCapabilities);
+            cachedCapabilitiesFactory.newCapabilities(probeCatMap, probeCapabilities, Collections.emptyMap());
         final ActionDTO.Action testAction =
             testActionBuilder.buildMoveAction(1L, 2L, 2, 3L, 2);
         final ActionDTO.ActionEntity primaryEntity = ActionDTOUtil.getPrimaryEntity(testAction);
@@ -497,7 +519,7 @@ public class ProbeCapabilityCacheTest {
         final int destType2 = 3;
         final ActionDTO.Action testAction = ActionDTO.Action.newBuilder()
             .setId(1)
-            .setImportance(1)
+            .setDeprecatedImportance(1)
             .setExplanation(Explanation.newBuilder().build())
             .setInfo(ActionInfo.newBuilder()
                 .setMove(Move.newBuilder()

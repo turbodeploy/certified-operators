@@ -32,7 +32,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 /**
  * Unit Tests for the {@link CpuCapacityRpcService} Entry Points
  **/
-@RunWith(MockitoJUnitRunner.class)
 public class CpuCapacitylRpcTest {
     public static final String CPU_MODEL_1 = "cpu_model_1";
     private static final Integer CPU_CORES_1 = 4;

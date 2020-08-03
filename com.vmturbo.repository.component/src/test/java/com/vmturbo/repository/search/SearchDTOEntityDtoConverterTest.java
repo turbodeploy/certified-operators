@@ -7,12 +7,14 @@ import java.util.List;
 
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 
@@ -259,12 +261,13 @@ public class SearchDTOEntityDtoConverterTest {
         serviceEntityRepoDTO.setEntityType("VirtualMachine");
         serviceEntityRepoDTO.setState("ACTIVE");
         serviceEntityRepoDTO.setOid(Long.toString(oid));
+        serviceEntityRepoDTO.setEnvironmentType("CLOUD");
 
-        Search.Entity entity = SearchDTOConverter.toSearchEntity(serviceEntityRepoDTO);
+        MinimalEntity entity = SearchDTOConverter.toSearchEntity(serviceEntityRepoDTO);
 
         assertEquals(name, entity.getDisplayName());
-        assertEquals(EntityDTO.EntityType.VIRTUAL_MACHINE.getNumber(), entity.getType());
-        assertEquals(TopologyDTO.EntityState.POWERED_ON.getNumber(), entity.getState());
+        assertEquals(EntityDTO.EntityType.VIRTUAL_MACHINE.getNumber(), entity.getEntityType());
+        assertEquals(EnvironmentType.CLOUD, entity.getEnvironmentType());
         assertEquals(oid, entity.getOid());
     }
 
@@ -277,12 +280,13 @@ public class SearchDTOEntityDtoConverterTest {
         serviceEntityRepoDTO.setEntityType("PhysicalMachine");
         serviceEntityRepoDTO.setState("SUSPEND");
         serviceEntityRepoDTO.setOid(Long.toString(oid));
+        serviceEntityRepoDTO.setEnvironmentType("CLOUD");
 
-        Search.Entity entity = SearchDTOConverter.toSearchEntity(serviceEntityRepoDTO);
+        MinimalEntity entity = SearchDTOConverter.toSearchEntity(serviceEntityRepoDTO);
 
         assertEquals(name, entity.getDisplayName());
-        assertEquals(EntityDTO.EntityType.PHYSICAL_MACHINE.getNumber(), entity.getType());
-        assertEquals(TopologyDTO.EntityState.SUSPENDED.getNumber(), entity.getState());
+        assertEquals(EntityDTO.EntityType.PHYSICAL_MACHINE.getNumber(), entity.getEntityType());
         assertEquals(oid, entity.getOid());
+        assertEquals(EnvironmentType.CLOUD, entity.getEnvironmentType());
     }
 }

@@ -7,30 +7,32 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 public class ActionCategoryExtractor {
 
-    public static final Set<Integer> SEGMENTATION_COMMODITY_SET = ImmutableSet.of(
+    private static final Set<Integer> SEGMENTATION_COMMODITY_SET = ImmutableSet.of(
         CommodityType.SEGMENTATION_VALUE, CommodityType.DRS_SEGMENTATION_VALUE);
 
     /**
      * Categorize action based on its explanation.
      *
-     * @param explanation the explanation of the action
+     * @param action the actionDTO
      * @return category
      */
-    public static ActionCategory assignActionCategory(Explanation explanation) {
+    public static ActionCategory assignActionCategory(ActionDTO.Action action) {
+        Explanation explanation = action.getExplanation();
         switch (explanation.getActionExplanationTypeCase()) {
             case MOVE:
-                MoveExplanation moveExp = explanation.getMove();
+            case SCALE:
                 List<ChangeProviderExplanation> changeExplanations =
-                                moveExp.getChangeProviderExplanationList();
+                    ActionDTOUtil.getChangeProviderExplanationList(explanation);
                 List<ChangeProviderExplanation> primaryExplanations = changeExplanations.stream()
                     .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
                     .collect(Collectors.toList());
@@ -64,14 +66,22 @@ public class ActionCategoryExtractor {
                                 .filter(Optional::isPresent).map(Optional::get)
                                 .findFirst().orElse(ActionCategory.UNKNOWN);
             case RESIZE:
-                if (explanation.getResize().getStartUtilization() >= explanation.getResize()
-                                .getEndUtilization()) {
+                if (action.getInfo().getResize().getOldCapacity() <= action.getInfo().getResize().getNewCapacity()) {
                     // resize up is to assure performance
                     return ActionCategory.PERFORMANCE_ASSURANCE;
                 } else {
                     // resize down is to improve efficiency
                     return ActionCategory.EFFICIENCY_IMPROVEMENT;
                 }
+            case ATOMICRESIZE:
+                for (com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo resize
+                            : action.getInfo().getAtomicResize().getResizesList()) {
+                    if (resize.getOldCapacity() <= resize.getNewCapacity()) {
+                        // resize up is to assure performance - performance takes priority
+                        return ActionCategory.PERFORMANCE_ASSURANCE;
+                    }
+                }
+                return ActionCategory.EFFICIENCY_IMPROVEMENT;
             case ACTIVATE:
                 if (SEGMENTATION_COMMODITY_SET
                                 .contains(explanation.getActivate().getMostExpensiveCommodity())) {
@@ -92,7 +102,7 @@ public class ActionCategoryExtractor {
                     case PROVISION_BY_SUPPLY_EXPLANATION:
                         if (SEGMENTATION_COMMODITY_SET
                                         .contains(provExp.getProvisionBySupplyExplanation()
-                                                        .getMostExpensiveCommodity())) {
+                                                        .getMostExpensiveCommodityInfo().getCommodityType().getType())) {
                             // if activation is due to segmentation commodity(DRS is a subclass of it)
                             return ActionCategory.COMPLIANCE;
                         } else {
@@ -102,6 +112,9 @@ public class ActionCategoryExtractor {
                         return ActionCategory.UNKNOWN;
                 }
             case DELETE:
+                return ActionCategory.EFFICIENCY_IMPROVEMENT;
+            case BUYRI:
+            case ALLOCATE:
                 return ActionCategory.EFFICIENCY_IMPROVEMENT;
             default:
                 return ActionCategory.UNKNOWN;

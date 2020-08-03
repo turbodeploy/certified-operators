@@ -1,0 +1,30 @@
+{
+  "entityType": "VIRTUAL_MACHINE",
+  "id": "601c4058-464c-437d-8eb3-6fc01f3c5002f",
+  "displayName": "kube-vm-1",
+  "commoditiesSold": [
+    {
+      "commodityType": "VCPU",
+      "used": 50.0,
+      "capacity": 2000.0
+    },
+    {
+      "commodityType": "VMEM",
+      "used": 50.0,
+      "capacity": 2000.0
+    }
+  ],
+  "actionEligibility": {
+    "suspendable": false
+  },
+  "powerState": "POWERED_ON",
+  "virtual_machine_data": {
+    "ipAddress": [
+      "10.0.1.15"
+    ],
+    "vmState": {
+      "connected": true
+    },
+    "guestName": "LINUX"
+  }
+}

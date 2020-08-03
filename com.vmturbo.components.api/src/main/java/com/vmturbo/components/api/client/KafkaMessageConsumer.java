@@ -26,9 +26,13 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.collect.Collections2;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
+
+import io.prometheus.client.Counter;
+import io.prometheus.client.Histogram;
 
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -41,9 +45,6 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.prometheus.client.Counter;
-import io.prometheus.client.Histogram;
-
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 
 /**
@@ -51,7 +52,7 @@ import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.Star
  * will be routed to the child {@link IMessageReceiver} instances, added in
  * {@link #messageReceiver(String, Deserializer)} calls.
  */
-public class KafkaMessageConsumer implements AutoCloseable {
+public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFactory {
     // OM-25600: Adding metrics to help understand producer and consumer behavior and configuration
     // needs as a result.
     static private Counter MESSAGES_RECEIVED_COUNT = Counter.build()
@@ -110,6 +111,11 @@ public class KafkaMessageConsumer implements AutoCloseable {
     private final ExecutorService threadPool;
 
     /**
+     * Namespace prefix for this consumer
+     */
+    private final String namespacePrefix;
+
+    /**
      * map of topic -> settings.
      */
     @GuardedBy("consumerLock")
@@ -118,15 +124,39 @@ public class KafkaMessageConsumer implements AutoCloseable {
     @GuardedBy("consumerLock")
     private boolean started = false;
 
+    /**
+     * Construct a {@link KafkaMessageConsumer} given the list of bootstrap servers, the consumer
+     * group and the namespace prefix.
+     *
+     * @param bootstrapServer the list of bootstrap servers
+     * @param consumerGroup the consumer group name
+     */
     public KafkaMessageConsumer(@Nonnull String bootstrapServer, @Nonnull String consumerGroup) {
+        this(bootstrapServer, consumerGroup, "");
+    }
+
+    /**
+     * Construct a {@link KafkaMessageConsumer} given the list of bootstrap servers, the consumer
+     * group and the namespace prefix.
+     *
+     * @param bootstrapServer the list of bootstrap servers
+     * @param consumerGroup the consumer group name
+     * @param namespacePrefix the namespace prefix to be added to the topics and consumer groups
+     */
+    public KafkaMessageConsumer(@Nonnull String bootstrapServer, @Nonnull String consumerGroup,
+                                @Nonnull String namespacePrefix) {
+        this.namespacePrefix = Objects.requireNonNull(namespacePrefix);
+        final String namespacedConsumerGroup =
+                namespacePrefix + Objects.requireNonNull(consumerGroup);
+
         final Properties props = new Properties();
         props.put("bootstrap.servers", bootstrapServer);
-        props.put("group.id", consumerGroup);
+        props.put("group.id", namespacedConsumerGroup);
         props.put("enable.auto.commit", "false");
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", ByteArrayDeserializer.class.getName());
         props.put("session.timeout.ms", 90000);
-        props.put("max.poll.records", 1);
+        props.put("max.poll.records", 500);
         props.put("max.poll.interval.ms", 90000);
         props.put("fetch.max.bytes", 67108864);
         props.put("auto.offset.reset", "earliest");
@@ -153,59 +183,51 @@ public class KafkaMessageConsumer implements AutoCloseable {
         }
     }
 
-    /**
-     * Creates message receiver for the specific topic. Kafka consumer will not subscribe to any
-     * topics until this method is called.
-     *
-     * @param topic topic to subscribe to
-     * @param deserializer function to deserialize the message from bytes
-     * @param <T> type of messages to receive
-     * @return message receiver implementation
-     * @throws IllegalStateException if the topic has been already subscribed to
-     */
+    @Override
     public <T> IMessageReceiver<T> messageReceiver(@Nonnull String topic,
             @Nonnull Deserializer<T> deserializer) {
-        return createMessageReceiver(topic, deserializer);
+        final String namespacedTopic = namespacePrefix + topic;
+        return createMessageReceiver(namespacedTopic, deserializer);
     }
 
-    /**
-     * Creates a message receiver for a specific topic, with additional topic-specific settings
-     * configured.
-     *
-     * @param topicSettings the {@link TopicSettings} to use for this topic
-     * @param deserializer function to deserialize the message from bytes
-     * @param <T> type of messages to receive
-     * @return message receiver implementation
-     */
+    @Override
+    public <T> IMessageReceiver<T> messageReceiver(@Nonnull Collection<String> topics,
+                                                   @Nonnull Deserializer<T> deserializer) {
+        final Collection<IMessageReceiver<T>> receivers = new ArrayList<>();
+        synchronized (consumerLock) {
+            for (String topic : topics) {
+                final String namespaceTopic = namespacePrefix + topic;
+                receivers.add(createMessageReceiver(namespaceTopic, deserializer));
+            }
+        }
+        return new UmbrellaMessageReceiver<>(receivers);
+    }
+
+    @Override
     public <T> IMessageReceiver<T> messageReceiverWithSettings(@Nonnull TopicSettings topicSettings,
                                                    @Nonnull Deserializer<T> deserializer) {
+        final String namespacedTopic = namespacePrefix + topicSettings.topic;
+        final TopicSettings namespacedTopicSettings = new TopicSettings(namespacedTopic,
+                topicSettings.startFrom);
+
         // store the settings in a map
         synchronized (consumerLock) {
-            topicSettingsMap.put(topicSettings.topic, topicSettings);
+            topicSettingsMap.put(namespacedTopicSettings.topic, namespacedTopicSettings);
             return messageReceiver(topicSettings.topic, deserializer);
         }
     }
 
-    /**
-     * Creates message receiver for the specific topic. Kafka consumer will not subscribe to any
-     * topics until this method is called. Different topics specified here could be reported
-     * in parallel, while all the messages within a topic are only delivered sequentially.
-     *
-     * @param topics topic to subscribe to
-     * @param deserializer function to deserialize the message from bytes
-     * @param <T> type of messages to receive
-     * @return message receiver implementation
-     * @throws IllegalStateException if the topic has been already subscribed to
-     */
-    public <T> IMessageReceiver<T> messageReceiver(@Nonnull Collection<String> topics,
+    @Override
+    public <T> IMessageReceiver<T> messageReceiversWithSettings(
+            @Nonnull Collection<TopicSettings> topicSettings,
             @Nonnull Deserializer<T> deserializer) {
-        final Collection<IMessageReceiver<T>> receivers = new ArrayList<>();
         synchronized (consumerLock) {
-            for (String topic : topics) {
-                receivers.add(createMessageReceiver(topic, deserializer));
-            }
+            topicSettings.stream()
+                    .map(ts -> new TopicSettings(namespacePrefix + ts.topic, ts.startFrom))
+                    .forEach(setting -> topicSettingsMap.put(setting.topic, setting));
+            return messageReceiver(Collections2.transform(topicSettings, setting -> setting.topic),
+                deserializer);
         }
-        return new UmbrellaMessageReceiver<>(receivers);
     }
 
     /**
@@ -592,7 +614,7 @@ public class KafkaMessageConsumer implements AutoCloseable {
          * <ul><li><code>LAST_COMMITTED</code>: The consumer will read from the last committed offset.
          * This is the default behavior.</li>
          * <li><code>BEGINNING</code>: The consumer will read from the earliest available offset in
-         * the parition. Note that this implies that previously seen messages will be seen again, so
+         * the partition. Note that this implies that previously seen messages will be seen again, so
          * be certain your consumer is prepared to handle these.</li>
          * <li><code>END</code>: The consumer will read from the end of the partition, meaning only
          * new messages published after the partition was assigned will be seen by the consumer. Use

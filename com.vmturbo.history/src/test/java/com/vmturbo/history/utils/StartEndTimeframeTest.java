@@ -20,7 +20,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
-import com.vmturbo.history.db.TimeFrame;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsByDay;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsByHour;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsByMonth;

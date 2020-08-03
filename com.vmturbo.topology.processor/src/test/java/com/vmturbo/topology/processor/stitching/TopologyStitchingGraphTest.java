@@ -2,6 +2,8 @@ package com.vmturbo.topology.processor.stitching;
 
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.isBuyingCommodityFrom;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.newStitchingGraph;
+import static com.vmturbo.topology.processor.stitching.TopologyStitchingGraph.stitchingErrorCodeFor;
+import static com.vmturbo.topology.processor.stitching.TopologyStitchingGraph.xlConnectionTypeFor;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -23,21 +25,27 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.google.common.collect.ImmutableMap;
-
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.ConnectedEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ActionOnProviderEligibility;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 
 public class TopologyStitchingGraphTest {
@@ -169,6 +177,21 @@ public class TopologyStitchingGraphTest {
     }
 
     @Test
+    public void testDuplicateLayeredOver() {
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+            .addLayeredOver(validEntity.getLocalId())
+            .addLayeredOver(validEntity.getLocalId())
+            .addLayeredOver(validEntity.getLocalId()));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+        assertThat(resEntity.getEntityBuilder().getLayeredOverList(),
+            containsInAnyOrder(validEntity.getLocalId()));
+    }
+
+    @Test
     public void testInvalidConsistsOf() {
         final StitchingEntityData entity = stitchingData(entityBuilder()
             .addConsistsOf("bad consists of")
@@ -184,6 +207,101 @@ public class TopologyStitchingGraphTest {
             containsInAnyOrder(validEntity.getLocalId()));
     }
 
+    @Test
+    public void testDuplicateConsistsOf() {
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+            .addConsistsOf(validEntity.getLocalId())
+            .addConsistsOf(validEntity.getLocalId())
+            .addConsistsOf(validEntity.getLocalId()));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+        assertThat(resEntity.getEntityBuilder().getConsistsOfList(),
+            containsInAnyOrder(validEntity.getLocalId()));
+    }
+
+    @Test
+    public void testConnectionCreation() {
+        for (ConnectedEntity.ConnectionType connectionType : ConnectedEntity.ConnectionType.values()) {
+            final ConnectionType xlType = xlConnectionTypeFor(connectionType);
+            final StitchingEntityData entity = stitchingData(entityBuilder()
+                .addConnectedEntities(CommonDTO.ConnectedEntity.newBuilder()
+                    .setConnectionType(connectionType)
+                    .setConnectedEntityId(validEntity.getLocalId()))
+                .setEntityType(validEntity.getEntityDtoBuilder().getEntityType()));
+
+            final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+            assertThat(graph.entityCount(), is(2));
+            final TopologyStitchingEntity a = graph.getEntity(entity.getEntityDtoBuilder()).get();
+            final TopologyStitchingEntity b = graph.getEntity(validEntity.getEntityDtoBuilder()).get();
+
+            assertEquals(1, a.getConnectedToByType().size());
+            assertEquals(0, a.getConnectedFromByType().size());
+            assertEquals(StitchingErrors.none(), a.getStitchingErrors());
+
+            assertEquals(0, b.getConnectedToByType().size());
+            assertEquals(1, b.getConnectedFromByType().size());
+            assertEquals(StitchingErrors.none(), b.getStitchingErrors());
+
+            assertThat(a.getConnectedToByType().get(xlType), contains(b));
+            assertThat(b.getConnectedFromByType().get(xlType), contains(a));
+        }
+    }
+
+    @Test
+    public void testDuplicateConnections() {
+        for (ConnectedEntity.ConnectionType connectionType : ConnectedEntity.ConnectionType.values()) {
+            final ConnectionType xlType = xlConnectionTypeFor(connectionType);
+            final StitchingEntityData entity = stitchingData(entityBuilder()
+                .addConnectedEntities(CommonDTO.ConnectedEntity.newBuilder()
+                    .setConnectionType(connectionType)
+                    .setConnectedEntityId(validEntity.getLocalId()))
+                .addConnectedEntities(CommonDTO.ConnectedEntity.newBuilder()
+                    .setConnectionType(connectionType)
+                    .setConnectedEntityId(validEntity.getLocalId()))
+                .setEntityType(validEntity.getEntityDtoBuilder().getEntityType()));
+
+            final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+            assertThat(graph.entityCount(), is(2));
+            final TopologyStitchingEntity a = graph.getEntity(entity.getEntityDtoBuilder()).get();
+            final TopologyStitchingEntity b = graph.getEntity(validEntity.getEntityDtoBuilder()).get();
+
+            assertEquals(1, a.getConnectedToByType().size());
+            assertEquals(0, a.getConnectedFromByType().size());
+            assertEquals(StitchingErrors.none(), a.getStitchingErrors());
+
+            assertEquals(0, b.getConnectedToByType().size());
+            assertEquals(1, b.getConnectedFromByType().size());
+            assertEquals(StitchingErrors.none(), a.getStitchingErrors());
+
+            assertThat(a.getConnectedToByType().get(xlType), contains(b));
+            assertThat(b.getConnectedFromByType().get(xlType), contains(a));
+        }
+    }
+
+    @Test
+    public void testInvalidConnections() {
+        for (ConnectedEntity.ConnectionType connectionType : ConnectedEntity.ConnectionType.values()) {
+            final StitchingEntityData entity = stitchingData(entityBuilder()
+                .addConnectedEntities(CommonDTO.ConnectedEntity.newBuilder()
+                    .setConnectionType(connectionType)
+                    .setConnectedEntityId("foo"))
+                .setEntityType(validEntity.getEntityDtoBuilder().getEntityType()));
+
+            final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+            assertThat(graph.entityCount(), is(2));
+            final TopologyStitchingEntity a = graph.getEntity(entity.getEntityDtoBuilder()).get();
+
+            assertEquals(0, a.getConnectedToByType().size());
+            assertEquals(0, a.getConnectedFromByType().size());
+            assertTrue(a.getStitchingErrors().contains(stitchingErrorCodeFor(connectionType)));
+        }
+    }
 
     @Test
     public void testBuildConstructionEmptyMap() {
@@ -574,6 +692,66 @@ public class TopologyStitchingGraphTest {
         assertThat(graph.getEntity(e2_2.getEntityDtoBuilder()).get(), isBuyingCommodityFrom("1"));
         graph.removeEntity(graph.getEntity(e1_1.getEntityDtoBuilder()).get());
         assertThat(graph.getEntity(e2_2.getEntityDtoBuilder()).get(), isBuyingCommodityFrom("1"));
+    }
+
+    /**
+     * Test that the action eligibility data set in the commodity bought section of
+     * the SDK's entity DTO is transferred to the TopologyStitchingEntity.
+     */
+    @Test
+    public void testMoveEligibilityData() {
+        final CommodityBought validCommBought = CommodityBought.newBuilder()
+                .setProviderId(validEntity.getLocalId())
+                .setActionEligibility(ActionOnProviderEligibility.newBuilder()
+                    .setMovable(false)
+                    .build())
+                .addBought(CommodityDTO.newBuilder()
+                        .setCommodityType(CommodityType.MEM))
+                .build();
+
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+                .addCommoditiesBought(validCommBought));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+        Map<StitchingEntity, List<CommoditiesBought>> commBoughtList = resEntity.getCommodityBoughtListByProvider();
+        for (StitchingEntity se : commBoughtList.keySet()) {
+            List<CommoditiesBought> bought =   commBoughtList.get(se);
+            for (CommoditiesBought b : bought) {
+                assertEquals(b.getMovable().get(), false);
+            }
+        }
+    }
+
+    /**
+     * Test that the CommoditiesBought of the TopologyStitchingEntity does not contain any values
+     * for the action eligibility attributes if the action eligibility data
+     * is not set in the commodity bought section of the SDK's entity DTO.
+     */
+    @Test
+    public void testUnsetMoveActionEligibilityData() {
+        final CommodityBought validCommBought = CommodityBought.newBuilder()
+                .setProviderId(validEntity.getLocalId())
+                .addBought(CommodityDTO.newBuilder()
+                        .setCommodityType(CommodityType.MEM))
+                .build();
+
+        final StitchingEntityData entity = stitchingData(entityBuilder()
+                .addCommoditiesBought(validCommBought));
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMapOf(validEntity, entity));
+
+        assertThat(graph.entityCount(), is(2));
+        final TopologyStitchingEntity resEntity = graph.getEntity(entity.getEntityDtoBuilder()).get();
+        Map<StitchingEntity, List<CommoditiesBought>> commBoughtList = resEntity.getCommodityBoughtListByProvider();
+        for (StitchingEntity se : commBoughtList.keySet()) {
+            List<CommoditiesBought> bought =   commBoughtList.get(se);
+            for (CommoditiesBought b : bought) {
+                assertEquals(b.getMovable(), Optional.empty());
+            }
+        }
     }
 
     private Optional<TopologyStitchingEntity> entityByLocalId(@Nonnull final TopologyStitchingGraph graph,

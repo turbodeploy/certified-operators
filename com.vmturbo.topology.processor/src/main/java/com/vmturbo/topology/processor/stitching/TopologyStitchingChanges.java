@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.stitching;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -15,7 +17,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.stitching.EntityToAdd;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
@@ -24,6 +29,7 @@ import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.JournalChangeset;
 import com.vmturbo.stitching.journal.JournalableEntity;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
+import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.EntityFieldMergers.EntityFieldMerger;
 import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
 
@@ -240,9 +246,40 @@ public class TopologyStitchingChanges {
                         + " but is not buying any commodities from it.");
             }
 
-            // TODO: Consider adding support for a consumerCommoditiesBoughtMerger
-            toUpdate.getCommodityBoughtListByProvider().computeIfAbsent(newProvider, p ->
-                    new ArrayList<>(commoditiesBought.get().size())).addAll(commoditiesBought.get());
+            final List<CommoditiesBought> commoditiesBoughtList =
+                toUpdate.getCommodityBoughtListByProvider().computeIfAbsent(newProvider, p ->
+                    new ArrayList<>(commoditiesBought.get().size()));
+            // merge old commodities bought list from old provider to new provider
+            commoditiesBought.get().forEach(fromCommoditiesBought -> {
+                final Optional<CommoditiesBought> matchingCommoditiesBought =
+                    toUpdate.getMatchingCommoditiesBought(newProvider, fromCommoditiesBought);
+                if (matchingCommoditiesBought.isPresent()) {
+                    // merge from fromCommoditiesBought to ontoCommoditiesBought
+                    final CommoditiesBought ontoCommoditiesBought = matchingCommoditiesBought.get();
+                    final List<CommodityDTO.Builder> mergedBoughtCommodities =
+                        CopyCommodities.mergeCommoditiesBought(fromCommoditiesBought.getBoughtList(),
+                            ontoCommoditiesBought.getBoughtList(), Optional.empty(), false);
+                    // remove old commodities bought set
+                    commoditiesBoughtList.remove(ontoCommoditiesBought);
+                    // add new merged commodities bought set
+                    commoditiesBoughtList.add(new CommoditiesBought(mergedBoughtCommodities,
+                        ontoCommoditiesBought.getVolumeId()));
+                } else {
+                    List<CommodityDTO.Builder> newBoughtList = CopyCommodities.matchBoughtToSold(
+                            fromCommoditiesBought.getBoughtList(),
+                            newProvider.getCommoditiesSold().collect(Collectors.toList())
+                    );
+                    CommoditiesBought newCommoditiesBought = new CommoditiesBought(newBoughtList);
+                    fromCommoditiesBought.getMovable().ifPresent(newCommoditiesBought::setMovable);
+                    fromCommoditiesBought.getStartable().ifPresent(newCommoditiesBought::setStartable);
+                    fromCommoditiesBought.getScalable().ifPresent(newCommoditiesBought::setScalable);
+                    Long volumeId = fromCommoditiesBought.getVolumeId();
+                    if (volumeId != null) {
+                        newCommoditiesBought.setVolumeId(volumeId);
+                    }
+                    commoditiesBoughtList.add(newCommoditiesBought);
+                }
+            });
 
             // Make the buying entity a consumer of the new provider.
             newProvider.addConsumer(toUpdate);
@@ -296,8 +333,14 @@ public class TopologyStitchingChanges {
             // Track providers before and after applying the update.
             final List<StitchingEntity> providersBeforeChangeCopy = entityToUpdate.getProviders().stream()
                 .collect(Collectors.toList());
+            final Map<ConnectionType, Set<StitchingEntity>> connectedToBeforeChangeCopy =
+                entityToUpdate.getConnectedToByType().entrySet().stream()
+                    .collect(Collectors.toMap(e -> e.getKey(), e -> ImmutableSet.copyOf(e.getValue())));
             updateMethod.accept(entityToUpdate);
+
             final Set<StitchingEntity> providersAfterChange = entityToUpdate.getProviders();
+            final Map<ConnectionType, Set<StitchingEntity>> connectedToAfterChange =
+                entityToUpdate.getConnectedToByType();
 
             // All removed providers should no longer relate to the destination through a consumer relationship.
             providersBeforeChangeCopy.stream()
@@ -313,6 +356,27 @@ public class TopologyStitchingChanges {
                     changeset.beforeChange(provider);
                     ((TopologyStitchingEntity)provider).addConsumer(entityToUpdate);
                 });
+
+            connectedToBeforeChangeCopy.forEach((connectionType, beforeEntities) -> {
+                final Set<StitchingEntity> afterChangeEntities =
+                    connectedToAfterChange.getOrDefault(connectionType, Collections.emptySet());
+
+                // Remove all removed connections from the destination.
+                beforeEntities.forEach(beforeEntity -> {
+                    if (!afterChangeEntities.contains(beforeEntity)) {
+                        changeset.beforeChange(beforeEntity);
+                        ((TopologyStitchingEntity)beforeEntity).removeConnectedFrom(connectionType, entityToUpdate);
+                    }
+                });
+
+                // Add all added connections to the destination.
+                afterChangeEntities.forEach(afterEntity -> {
+                    if (!beforeEntities.contains(afterEntity)) {
+                        changeset.beforeChange(afterEntity);
+                        ((TopologyStitchingEntity)afterEntity).addConnectedFrom(connectionType, entityToUpdate);
+                    }
+                });
+            });
         }
     }
 

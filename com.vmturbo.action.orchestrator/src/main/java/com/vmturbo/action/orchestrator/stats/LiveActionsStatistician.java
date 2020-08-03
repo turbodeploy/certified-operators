@@ -22,14 +22,19 @@ import org.jooq.Batch;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterators;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMaps;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.ActionSnapshotLatest;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
-import com.vmturbo.action.orchestrator.stats.SingleActionSnapshotFactory.SingleActionSnapshot;
+import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.ActionAggregator;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
@@ -41,7 +46,6 @@ import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -67,26 +71,25 @@ public class LiveActionsStatistician {
 
     private final MgmtUnitSubgroupStore mgmtUnitSubgroupStore;
 
-    private final SingleActionSnapshotFactory snapshotFactory;
+    private final StatsActionViewFactory snapshotFactory;
 
     private final Clock clock;
 
     private final List<ActionAggregatorFactory<? extends ActionAggregator>> aggregatorFactories;
 
-    private final ActionTranslator actionTranslator;
-
     private final ActionStatRollupScheduler actionStatRollupScheduler;
 
     private final ActionStatCleanupScheduler actionStatCleanupScheduler;
+
+    private PreviousBroadcastActions previousBroadcastActions;
 
     public LiveActionsStatistician(@Nonnull final DSLContext dsl,
             final int batchSize,
             @Nonnull final ActionGroupStore actionGroupStore,
             @Nonnull final MgmtUnitSubgroupStore mgmtUnitSubgroupStore,
-            @Nonnull final SingleActionSnapshotFactory snapshotFactory,
+            @Nonnull final StatsActionViewFactory snapshotFactory,
             @Nonnull final List<ActionAggregatorFactory<? extends ActionAggregator>> aggregatorFactories,
             @Nonnull final Clock clock,
-            @Nonnull final ActionTranslator actionTranslator,
             @Nonnull final ActionStatRollupScheduler rollupScheduler,
             @Nonnull final ActionStatCleanupScheduler cleanupScheduler) {
         this.dslContext = Objects.requireNonNull(dsl);
@@ -96,9 +99,9 @@ public class LiveActionsStatistician {
         this.snapshotFactory = Objects.requireNonNull(snapshotFactory);
         this.clock = Objects.requireNonNull(clock);
         this.aggregatorFactories = Objects.requireNonNull(aggregatorFactories);
-        this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.actionStatRollupScheduler = Objects.requireNonNull(rollupScheduler);
         this.actionStatCleanupScheduler = Objects.requireNonNull(cleanupScheduler);
+        previousBroadcastActions = new PreviousBroadcastActions();
     }
 
     /**
@@ -129,7 +132,7 @@ public class LiveActionsStatistician {
     }
 
     private void internalRecordActionStats(final TopologyInfo sourceTopologyInfo,
-                                @Nonnull final Stream<ActionView> actionStream) {
+                                           @Nonnull final Stream<ActionView> actionStream) {
         final LocalDateTime topologyCreationTime = LocalDateTime.ofInstant(
             Instant.ofEpochMilli(sourceTopologyInfo.getCreationTime()),
             clock.getZone());
@@ -147,18 +150,17 @@ public class LiveActionsStatistician {
         // user always sees translated actions, so if any changes occur during translation - for
         // example, dropping invalid actions - the counts should reflect them.
         try (DataMetricTimer timer = Metrics.ACTION_STAT_RECORD_SNAPSHOT_TIME.startTimer()) {
-            actionTranslator.translate(actionStream)
-                    .map(actionView -> {
-                        try {
-                            return snapshotFactory.newSnapshot(actionView);
-                        } catch (UnsupportedActionException e) {
-                            logger.error("Attempting to record stats for unsupported action: " +
-                                    e.getLocalizedMessage());
-                            return null;
-                        }
-                    })
-                    .filter(Objects::nonNull)
-                    .forEach(snapshotBuilder::addActions);
+            actionStream.map(actionView -> {
+                try {
+                        return snapshotFactory.newStatsActionView(actionView);
+                    } catch (UnsupportedActionException e) {
+                        logger.error("Attempting to record stats for unsupported action: " +
+                                e.getLocalizedMessage());
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .forEach(snapshotBuilder::addActions);
         }
 
         // We build the snapshot before running the aggregators because the aggregators can take
@@ -191,15 +193,18 @@ public class LiveActionsStatistician {
             snapshot.actions().forEach(action -> {
                 startedAggregators.forEach(startedAggregator -> {
                     try {
-                        startedAggregator.processAction(action);
+                        startedAggregator.processAction(action, previousBroadcastActions);
                     } catch (RuntimeException e) {
                         logger.debug("Aggregator {} got exception when processing action." +
-                                " Message: {}", e.getLocalizedMessage());
+                                " Message: {}", startedAggregator, e.getLocalizedMessage());
                         aggregatorErrorCounts.compute(startedAggregator,
                             (k, existingCount) -> existingCount == null ? 1 : existingCount + 1);
                     }
                 });
             });
+
+            // Update the map to track the action -> action group mappings from the last broadcast.
+            previousBroadcastActions.updateActions(snapshot);
 
             if (!aggregatorErrorCounts.isEmpty()) {
                 logger.error("Some aggregators encounted the following number of errors. Turn on " +
@@ -280,6 +285,16 @@ public class LiveActionsStatistician {
     }
 
     /**
+     * This is now only used for testing.
+     *
+     * @return a mapping from action id to its old {@link ActionGroupKey}
+     */
+    @VisibleForTesting
+    PreviousBroadcastActions getPreviousBroadcastActions() {
+        return previousBroadcastActions;
+    }
+
+    /**
      * Metrics for {@link LiveActionsStatistician}
      */
     private static class Metrics {
@@ -316,13 +331,13 @@ public class LiveActionsStatistician {
     }
 
     /**
-     * A snapshot of all actions passed to {@link LiveActionsStatistician#recordActionStats(TopologyInfo, Stream)}.
+     * A snapshot of all actions passed to {@link LiveActionsStatistician#recordActionStats}.
      */
     @Value.Immutable
     interface LiveActionsSnapshot {
         LocalDateTime topologyCreationTime();
 
-        List<SingleActionSnapshot> actions();
+        List<StatsActionView> actions();
 
         long topologyId();
 
@@ -341,6 +356,32 @@ public class LiveActionsStatistician {
             snapshotRecord.setTopologyId(topologyId());
             snapshotRecord.setActionsCount(actions().size());
             return snapshotRecord;
+        }
+    }
+
+    /**
+     * A utility class that stores a mapping from action id to its old {@link ActionGroupKey}.
+     */
+    public static class PreviousBroadcastActions {
+        private Long2ObjectMap<ActionGroupKey> actionIdToActionGroupKey = Long2ObjectMaps.emptyMap();
+
+        public int size() {
+            return actionIdToActionGroupKey.size();
+        }
+
+        public ActionGroupKey getActionGroupKey(final long actionId) {
+            return actionIdToActionGroupKey.get(actionId);
+        }
+
+        public boolean actionChanged(final long actionId, @Nonnull final ActionGroupKey actionGroupKey) {
+            final ActionGroupKey oldKey = actionIdToActionGroupKey.get(actionId);
+            return oldKey == null || !oldKey.equals(actionGroupKey);
+        }
+
+        void updateActions(@Nonnull final LiveActionsSnapshot snapshot) {
+            actionIdToActionGroupKey = new Long2ObjectOpenHashMap<>(snapshot.actions().size());
+            snapshot.actions().forEach(action ->
+                actionIdToActionGroupKey.put(action.recommendation().getId(), action.actionGroupKey()));
         }
     }
 }

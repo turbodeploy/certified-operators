@@ -1,6 +1,6 @@
 package com.vmturbo.topology.processor.group.discovery;
 
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -32,10 +32,11 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache.DiscoveredClusterConstraint;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 public class DiscoveredClusterConstraintCacheTest {
 
@@ -101,7 +102,7 @@ public class DiscoveredClusterConstraintCacheTest {
                             .setCommodityType(CommodityType.newBuilder()
                                     .setType(CommodityDTO.CommodityType.CLUSTER_VALUE))));
 
-    private TopologyGraph topologyGraph;
+    private TopologyGraph<TopologyEntity> topologyGraph;
 
     @Before
     public void setup() {
@@ -130,7 +131,7 @@ public class DiscoveredClusterConstraintCacheTest {
         topologyMap.put(11L, vmFirstBuilder);
         topologyMap.put(12L, vmSecondBuilder);
 
-        topologyGraph = TopologyGraph.newGraph(topologyMap);
+        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         discoveredClusterConstraintCache.storeDiscoveredClusterConstraint(targetId,
                 Lists.newArrayList(vmGroup, pmGroup));
         discoveredClusterConstraintCache.applyClusterCommodity(topologyGraph);
@@ -149,7 +150,7 @@ public class DiscoveredClusterConstraintCacheTest {
         topologyMap.put(11L, vmFirstBuilder);
         topologyMap.put(12L, vmSecondBuilder);
 
-        topologyGraph = TopologyGraph.newGraph(topologyMap);
+        topologyGraph = TopologyEntityTopologyGraphCreator.newGraph(topologyMap);
         discoveredClusterConstraintCache.storeDiscoveredClusterConstraint(targetId,
                 Lists.newArrayList(vmGroup, pmGroup));
         discoveredClusterConstraintCache.applyClusterCommodity(topologyGraph);

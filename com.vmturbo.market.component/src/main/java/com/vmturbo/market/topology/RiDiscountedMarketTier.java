@@ -1,10 +1,7 @@
 package com.vmturbo.market.topology;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -14,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.topology.conversions.ReservedInstanceAggregate;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -27,7 +23,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * shopping lists. If a cloud entity is placed on RI1, its compute shopping list will be supplied
  * by this MarketTier which will have RI1 as a constituent RI.
  */
-public class RiDiscountedMarketTier implements MarketTier {
+public class RiDiscountedMarketTier implements SingleRegionMarketTier {
     private static final Logger logger = LogManager.getLogger();
     private final TopologyEntityDTO tier;
     private final TopologyEntityDTO region;
@@ -45,13 +41,6 @@ public class RiDiscountedMarketTier implements MarketTier {
         this.tier = tier;
         this.region = region;
         this.riAggregate = riAggregate;
-    }
-
-    public RiDiscountedMarketTier(@Nonnull TopologyEntityDTO tier,
-                                  @Nonnull TopologyEntityDTO region,
-                                  @Nonnull ReservedInstanceData riData,
-                                  @Nonnull Map<Long, TopologyEntityDTO> topology) {
-        this(tier, region, new ReservedInstanceAggregate(riData, topology));
     }
 
     @Override
@@ -90,37 +79,12 @@ public class RiDiscountedMarketTier implements MarketTier {
     }
 
     /**
-     * On demand market tier has no RI discount.
+     * On demand market tier and on demand storage tier have no RI discount.
      * @return RiDiscountedMarketTier has discount
      */
     @Override
     public boolean hasRIDiscount() {
         return true;
-    }
-
-    /**
-     * Gets the connected market tiers of specified type.
-     * For ex. lets say 'this' represents [Region1 x ComputeTier1] and ComputeTier1 is connected to
-     * 2 storage types io1 and gp2. Then this method called with EntityType.STORAGE_TIER_VALUE
-     * will return 2 MarketTiers - [Region1 x io1] and [Region1 x gp2].
-     *
-     * @param connectedMarketTierType The EntityType of connected TopologyEntityDTO
-     * @param topology the topology
-     * @return List of connected MarketTiers
-     */
-    @Override
-    @Nonnull
-    public List<MarketTier> getConnectedMarketTiersOfType(
-            int connectedMarketTierType,
-            @Nonnull Map<Long, TopologyEntityDTO> topology) {
-        List<MarketTier> connectedMarketTiers = new ArrayList<>();
-        List<TopologyEntityDTO> connectedEntities = TopologyDTOUtil.getConnectedEntitiesOfType(
-                getTier(), connectedMarketTierType, topology);
-        for(TopologyEntityDTO connectedEntity : connectedEntities) {
-            MarketTier marketTier = new OnDemandMarketTier(connectedEntity, getRegion());
-            connectedMarketTiers.add(marketTier);
-        }
-        return connectedMarketTiers;
     }
 
     /**
@@ -160,9 +124,9 @@ public class RiDiscountedMarketTier implements MarketTier {
      *
      * @param entityId The entity id which wants to use the coupons
      * @param totalNumberOfCouponsToUse the number of coupons which the entity wants to use
-     * @return the entity reserved instance coverage for this
+     * @return mapping from RI ID -> Number of coupons used of that RI.
      */
-    public Optional<EntityReservedInstanceCoverage> useCoupons(long entityId, double totalNumberOfCouponsToUse) {
+    public Map<Long, Double> useCoupons(long entityId, double totalNumberOfCouponsToUse) {
         return riAggregate.useCoupons(entityId, totalNumberOfCouponsToUse);
     }
 

@@ -2,11 +2,15 @@ package com.vmturbo.topology.processor.rest;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,6 +18,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
 
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
@@ -27,6 +34,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -50,20 +58,35 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.util.NestedServletException;
 
-import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowsRequest;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowsResponse;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTOMoles.WorkflowServiceMole;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.topology.processor.TestIdentityStore;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
@@ -83,9 +106,10 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
@@ -100,6 +124,12 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 public class TargetControllerTest {
 
+    private static final SettingPolicyServiceMole settingPolicyServiceMole =
+            Mockito.spy(new SettingPolicyServiceMole());
+
+    private static final WorkflowServiceMole workflowServiceMole =
+            Mockito.spy(new WorkflowServiceMole());
+
     /**
      * Nested configuration for Spring context.
      */
@@ -108,7 +138,12 @@ public class TargetControllerTest {
     static class ContextConfiguration extends WebMvcConfigurerAdapter {
         @Bean
         public KeyValueStore keyValueStore() {
-            return Mockito.mock(KeyValueStore.class);
+            return mock(KeyValueStore.class);
+        }
+
+        @Bean
+        public TargetDao targetDao() {
+            return Mockito.mock(TargetDao.class);
         }
 
         @Bean
@@ -116,14 +151,14 @@ public class TargetControllerTest {
             return new IdentityProviderImpl(
                     new IdentityService(
                             new IdentityServiceInMemoryUnderlyingStore(
-                                    Mockito.mock(IdentityDatabaseStore.class)),
+                                    mock(IdentityDatabaseStore.class)),
                             new HeuristicsMatcher()),
                     new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L);
         }
 
         @Bean
         ProbeStore probeStore() {
-            return new RemoteProbeStore(keyValueStore(), identityService(), stitchingOperationStore());
+            return new RemoteProbeStore(keyValueStore(), identityService(), stitchingOperationStore(),  new ActionMergeSpecsRepository());
         }
 
         @Bean
@@ -133,20 +168,20 @@ public class TargetControllerTest {
 
         @Bean
         Scheduler schedulerMock() {
-            return Mockito.mock(Scheduler.class);
+            return mock(Scheduler.class);
         }
 
         @Bean
         StitchingOperationStore stitchingOperationStore() {
-            return Mockito.mock(StitchingOperationStore.class);
+            return mock(StitchingOperationStore.class);
         }
 
         @Bean
         public TargetStore targetStore() {
-            GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-            Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
-                    .then(AdditionalAnswers.returnsFirstArg());
-            return new KVBackedTargetStore(keyValueStore(), probeStore(),
+            GroupScopeResolver groupScopeResolver = mock(GroupScopeResolver.class);
+            when(groupScopeResolver.processGroupScope(any(), any(), any()))
+                    .then(AdditionalAnswers.returnsSecondArg());
+            return new CachingTargetStore(targetDao(), probeStore(),
                     targetIdentityStore());
         }
 
@@ -159,27 +194,50 @@ public class TargetControllerTest {
 
         @Bean
         public IOperationManager operationManager() {
-            final IOperationManager result = Mockito.mock(IOperationManager.class);
-            Mockito.when(result.getLastDiscoveryForTarget(Mockito.anyLong()))
+            final IOperationManager result = mock(IOperationManager.class);
+            when(result.getLastDiscoveryForTarget(anyLong(), any(DiscoveryType.class)))
                     .thenReturn(Optional.empty());
-            Mockito.when(result.getInProgressDiscoveryForTarget(Mockito.anyLong()))
+            when(result.getInProgressDiscoveryForTarget(anyLong(), any(DiscoveryType.class)))
                     .thenReturn(Optional.empty());
-            Mockito.when(result.getLastValidationForTarget(Mockito.anyLong()))
+            when(result.getLastValidationForTarget(anyLong()))
                     .thenReturn(Optional.empty());
-            Mockito.when(result.getInProgressValidationForTarget(Mockito.anyLong()))
+            when(result.getInProgressValidationForTarget(anyLong()))
                     .thenReturn(Optional.empty());
             return result;
         }
 
         @Bean
         TopologyHandler topologyHandler() {
-            return Mockito.mock(TopologyHandler.class);
+            return mock(TopologyHandler.class);
+        }
+
+        @Bean
+        public GrpcTestServer grpcTestServer() {
+            try {
+                final GrpcTestServer testServer =
+                        GrpcTestServer.newServer(settingPolicyServiceMole, workflowServiceMole);
+                testServer.start();
+                return testServer;
+            } catch (IOException e) {
+                throw new BeanCreationException("Failed to create test grpc server", e);
+            }
+        }
+
+        @Bean
+        public SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub() {
+            return SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+        }
+
+        @Bean
+        public WorkflowServiceBlockingStub workflowServiceBlockingStub() {
+            return WorkflowServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
         }
 
         @Bean
         public TargetController targetController() {
             return new TargetController(schedulerMock(), targetStore(), probeStore(),
-                            operationManager(), topologyHandler());
+                    operationManager(), topologyHandler(), settingPolicyServiceBlockingStub(),
+                    workflowServiceBlockingStub());
         }
     }
 
@@ -190,6 +248,8 @@ public class TargetControllerTest {
     // Helper protos to construct probe infos
     // without setting all the useless required fields.
     private ProbeInfo probeInfo;
+    private ProbeInfo derivedProbeInfo;
+    private ProbeInfo otherProbeInfo;
     private AccountDefEntry mandatoryAccountDef;
     private AccountDefEntry optionalAccountDef;
 
@@ -197,7 +257,6 @@ public class TargetControllerTest {
     private TargetStore targetStore;
     private ITransport<MediationServerMessage, MediationClientMessage> transport;
     private IdentityProvider identityProvider;
-    private KeyValueStore mockKvStore;
     private IOperationManager operationManager;
 
     @Autowired
@@ -217,13 +276,13 @@ public class TargetControllerTest {
         probeStore = wac.getBean(ProbeStore.class);
         targetStore = wac.getBean(TargetStore.class);
         identityProvider = wac.getBean(IdentityProvider.class);
-        mockKvStore = wac.getBean(KeyValueStore.class);
         operationManager = wac.getBean(IOperationManager.class);
-        probeInfo = ProbeInfo.newBuilder()
-                .setProbeType("test")
-                .setProbeCategory("testCat")
-                .addTargetIdentifierField("mandatory")
-                .build();
+        probeInfo = createProbeInfo("test", "testCategoryStandAlone", "mandatory",
+            "mandatory",   CreationMode.STAND_ALONE);
+        derivedProbeInfo = createProbeInfo("testDerived", "testCategoryDerived", "mandatory",
+            "mandatory",   CreationMode.DERIVED);
+        otherProbeInfo = createProbeInfo("test", "testCategoryOther", "mandatory",
+            "mandatory", CreationMode.OTHER);
         mandatoryAccountDef = AccountDefEntry.newBuilder()
                 .setCustomDefinition(CustomAccountDefEntry.newBuilder()
                         .setName("mandatory")
@@ -240,31 +299,56 @@ public class TargetControllerTest {
                 .build();
         @SuppressWarnings("unchecked")
         final ITransport<MediationServerMessage, MediationClientMessage> mock =
-                        Mockito.mock(ITransport.class);
+                        mock(ITransport.class);
         transport = mock;
+    }
+
+    private static ProbeInfo createProbeInfo(String probeType, String category,
+                                             String identifierField, String accoutDef,
+                                      CreationMode creationMode) {
+        return ProbeInfo.newBuilder()
+            .setProbeType(probeType)
+            .setProbeCategory(category)
+            .setUiProbeCategory(category)
+            .addTargetIdentifierField(identifierField)
+            .setCreationMode(creationMode)
+            .addAccountDefinition(AccountDefEntry.newBuilder()
+                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                    .setName(accoutDef)
+                .setDescription("test").setDisplayName("test"))
+                .setMandatory(true)
+                .build())
+            .build();
     }
 
     @Test
     public void addTarget() throws Exception {
-        final AccountDefEntry.Builder accountBuilder =
-                        AccountDefEntry.newBuilder(mandatoryAccountDef);
-        accountBuilder.getCustomDefinitionBuilder().setName("mandatory");
-        ProbeInfo oneMandatory = ProbeInfo.newBuilder(probeInfo)
-                .addAccountDefinition(accountBuilder).build();
-        probeStore.registerNewProbe(oneMandatory, transport);
-        TargetAdder adder = new TargetAdder(identityProvider.getProbeId(oneMandatory));
-        adder.setAccountField("mandatory", "1");
-        TargetInfo result = adder.postAndExpect(HttpStatus.OK);
+        final TargetInfo result = addTestTarget("mandatory", probeInfo, HttpStatus.OK);
         Assert.assertNotNull(result.getTargetId());
     }
 
     @Test
-    public void addTargetMissingMandatory() throws Exception {
+    public void addTargetOther() throws Exception {
+        final TargetInfo result = addTestTarget("mandatory", otherProbeInfo, HttpStatus.FORBIDDEN);
+        Assert.assertNull(result.getTargetId());
+    }
+
+    private TargetInfo addTestTarget(String customDefinitionName, ProbeInfo probeInfo,
+                                     HttpStatus httpStatus) throws Exception {
         final AccountDefEntry.Builder accountBuilder =
-                        AccountDefEntry.newBuilder(mandatoryAccountDef);
-        accountBuilder.getCustomDefinitionBuilder().setName("mandatory");
+            AccountDefEntry.newBuilder(mandatoryAccountDef);
+        accountBuilder.getCustomDefinitionBuilder().setName(customDefinitionName);
         ProbeInfo oneMandatory = ProbeInfo.newBuilder(probeInfo)
-                .addAccountDefinition(accountBuilder).build();
+            .addAccountDefinition(accountBuilder).build();
+        probeStore.registerNewProbe(oneMandatory, transport);
+        TargetAdder adder = new TargetAdder(identityProvider.getProbeId(oneMandatory));
+        adder.setAccountField("mandatory", "1");
+        return adder.postAndExpect(httpStatus);
+    }
+
+    @Test
+    public void addTargetMissingMandatory() throws Exception {
+        ProbeInfo oneMandatory = ProbeInfo.newBuilder(probeInfo).build();
         probeStore.registerNewProbe(oneMandatory, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(oneMandatory));
         TargetInfo result = adder.postAndExpect(HttpStatus.BAD_REQUEST);
@@ -275,12 +359,9 @@ public class TargetControllerTest {
     public void addTargetMissingMultipleMandatory() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
                         AccountDefEntry.newBuilder(mandatoryAccountDef);
-        accountBuilder.getCustomDefinitionBuilder().setName("1mandatory");
-        final AccountDefEntry mandatory1 = accountBuilder.build();
         accountBuilder.getCustomDefinitionBuilder().setName("2mandatory");
         final AccountDefEntry mandatory2 = accountBuilder.build();
         ProbeInfo twoMandatory = ProbeInfo.newBuilder(probeInfo)
-                .addAccountDefinition(mandatory1)
                 .addAccountDefinition(mandatory2).build();
         probeStore.registerNewProbe(twoMandatory, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(twoMandatory));
@@ -297,6 +378,7 @@ public class TargetControllerTest {
                 .addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(optional, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(optional));
+        adder.setAccountField("mandatory", "abc123");
         TargetInfo result = adder.postAndExpect(HttpStatus.OK);
         Assert.assertNotNull(result.getTargetId());
     }
@@ -312,6 +394,7 @@ public class TargetControllerTest {
         probeStore.registerNewProbe(abcPrefix, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(abcPrefix));
         adder.setAccountField("abcPrefix", "abc123");
+        adder.setAccountField("mandatory", "abc123");
         adder.postAndExpect(HttpStatus.OK);
     }
 
@@ -327,6 +410,7 @@ public class TargetControllerTest {
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(abcPrefix));
         // Invalid value, since it doesn't start with abc.
         adder.setAccountField("abcPrefix", "123");
+        adder.setAccountField("mandatory", "123");
         TargetInfo result = adder.postAndExpect(HttpStatus.BAD_REQUEST);
         Assert.assertEquals(result.getErrors().size(), 1);
     }
@@ -344,11 +428,7 @@ public class TargetControllerTest {
 
     @Test
     public void addTargetExtraFieldsAndMissingFields() throws Exception {
-        final AccountDefEntry.Builder accountBuilder =
-                        AccountDefEntry.newBuilder(mandatoryAccountDef);
-        accountBuilder.getCustomDefinitionBuilder().setName("mandatory");
-        final ProbeInfo oneMandatory = ProbeInfo.newBuilder(probeInfo)
-                .addAccountDefinition(accountBuilder).build();
+        final ProbeInfo oneMandatory = ProbeInfo.newBuilder(probeInfo).build();
         probeStore.registerNewProbe(oneMandatory, transport);
 
         final TargetAdder adder = new TargetAdder(identityProvider.getProbeId(oneMandatory));
@@ -436,21 +516,25 @@ public class TargetControllerTest {
         probeStore.registerNewProbe(info, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
         adder.setAccountField("secret", "nooneknows");
+        adder.setAccountField("mandatory", "nooneknows");
         TargetInfo result = adder.postAndExpect(HttpStatus.OK);
 
         TargetSpec retSpec = getTarget(result.getTargetId()).getSpec();
         // Expect an empty return spec, because we shouldn't
         // get secret fields.
-        TargetSpec expectedSpec = new TargetAdder(identityProvider.getProbeId(info)).buildSpec();
+        TargetAdder expectedAdder = new TargetAdder(identityProvider.getProbeId(info));
+        expectedAdder.setAccountField("mandatory", "nooneknows");
 
-        assertEqualSpecs(retSpec, expectedSpec);
+        assertEqualSpecs(retSpec, expectedAdder.buildSpec());
     }
 
     @Test
     public void testGetTargetProbeNotRegistered() throws Exception {
         ProbeInfo info = ProbeInfo.newBuilder(probeInfo).build();
         probeStore.registerNewProbe(info, transport);
-        TargetInfo result = new TargetAdder(identityProvider.getProbeId(info)).postAndExpect(HttpStatus.OK);
+        TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
+        adder.setAccountField("mandatory", "nooneknows");
+        TargetInfo result = adder.postAndExpect(HttpStatus.OK);
 
         // Now magically unregister the probeStore.
         final ProbeStore probeStore = wac.getBean(ProbeStore.class);
@@ -512,29 +596,29 @@ public class TargetControllerTest {
         final long probeId = identityProvider.getProbeId(info);
         final Discovery discovery = new Discovery(probeId, 0, identityProvider);
         final Validation validation = new Validation(probeId,  0, identityProvider);
-        Mockito.when(operationManager.getLastDiscoveryForTarget(Mockito.anyLong()))
+        when(operationManager.getLastDiscoveryForTarget(anyLong(), any(DiscoveryType.class)))
                 .thenReturn(Optional.empty());
-        Mockito.when(operationManager.getLastValidationForTarget(Mockito.anyLong()))
+        when(operationManager.getLastValidationForTarget(anyLong()))
                 .thenReturn(Optional.empty());
 
         final TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
         adder.setAccountField("mandatory", "prop");
         final TargetInfo result = adder.postAndExpect(HttpStatus.OK);
         Assert.assertNotNull(result.getTargetId());
-        Assert.assertEquals("Unknown", result.getStatus());
+        Assert.assertEquals(TargetController.VALIDATING, result.getStatus());
         Assert.assertNull(result.getLastValidationTime());
 
-        Mockito.when(operationManager.getLastDiscoveryForTarget(Mockito.anyLong()))
+        when(operationManager.getLastDiscoveryForTarget(anyLong(), any(DiscoveryType.class)))
                 .thenReturn(Optional.of(discovery));
-        Mockito.when(operationManager.getLastValidationForTarget(Mockito.anyLong()))
+        when(operationManager.getLastValidationForTarget(anyLong()))
                 .thenReturn(Optional.of(validation));
-        Mockito.when(operationManager.getInProgressValidationForTarget(Mockito.anyLong()))
+        when(operationManager.getInProgressValidationForTarget(anyLong()))
                 .thenReturn(Optional.of(validation));
-        Mockito.when(operationManager.getInProgressValidationForTarget(Mockito.anyLong()))
+        when(operationManager.getInProgressValidationForTarget(anyLong()))
                 .thenReturn(Optional.of(validation));
         {
             final TargetInfo target2 = getTarget(result.getId());
-            Assert.assertThat(target2.getStatus(), CoreMatchers.containsString("Unknown"));
+            Assert.assertThat(target2.getStatus(), CoreMatchers.containsString(TargetController.VALIDATING));
             Assert.assertNull(target2.getLastValidationTime());
 
             validation.setUserInitiated(true);
@@ -543,19 +627,19 @@ public class TargetControllerTest {
             Assert.assertThat(target2_user.getStatus(), CoreMatchers.containsString("in progress"));
         }
         {
-            Mockito.when(operationManager.getInProgressValidationForTarget(Mockito.anyLong()))
+            when(operationManager.getInProgressValidationForTarget(anyLong()))
                     .thenReturn(Optional.empty());
-            Mockito.when(operationManager.getInProgressValidationForTarget(Mockito.anyLong()))
+            when(operationManager.getInProgressValidationForTarget(anyLong()))
                     .thenReturn(Optional.empty());
             validation.success();
             final TargetInfo target3 = getTarget(result.getId());
-            Assert.assertThat(target3.getStatus(), is(TargetController.VALIDATED));
+            Assert.assertThat(target3.getStatus(), is(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS));
             Assert.assertEquals(validation.getCompletionTime(), target3.getLastValidationTime());
         }
         {
             discovery.success();
             final TargetInfo target4 = getTarget(result.getId());
-            Assert.assertThat(target4.getStatus(), is(TargetController.VALIDATED));
+            Assert.assertThat(target4.getStatus(), is(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS));
             Assert.assertEquals(discovery.getCompletionTime(), target4.getLastValidationTime());
         }
         {
@@ -570,7 +654,7 @@ public class TargetControllerTest {
             validation.success();
             final TargetInfo target = getTarget(result.getId());
             Assert.assertThat(target.getStatus(),
-                    CoreMatchers.containsString(TargetController.VALIDATED));
+                    CoreMatchers.containsString(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS));
             Assert.assertEquals(validation.getCompletionTime(), target.getLastValidationTime());
         }
     }
@@ -594,12 +678,16 @@ public class TargetControllerTest {
         for (int i = 0; i < 3; ++i) {
             TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
             adder.setAccountField("secret", "nooneknows" + i);
+            adder.setAccountField("mandatory", "abc123");
             TargetInfo resp = adder.postAndExpect(HttpStatus.OK);
             ids.add(resp.getTargetId());
         }
 
         Map<Long, TargetInfo> targets = getAllTargets();
-        TargetSpec emptySpec = new TargetAdder(identityProvider.getProbeId(info)).buildSpec();
+        TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
+        adder.setAccountField("mandatory", "abc123");
+
+        TargetSpec emptySpec = adder.buildSpec();
         ids.stream().forEach(
                 targetId -> {
                     Assert.assertTrue(targets.containsKey(targetId));
@@ -613,15 +701,19 @@ public class TargetControllerTest {
         ProbeInfo goneProbe = ProbeInfo.newBuilder(probeInfo).setProbeType("type1").build();
         @SuppressWarnings("unchecked")
         final ITransport<MediationServerMessage, MediationClientMessage> goneTransport =
-                        Mockito
-                        .mock(ITransport.class);
+                        mock(ITransport.class);
         probeStore.registerNewProbe(goneProbe, goneTransport);
 
         ProbeInfo registeredProbe = ProbeInfo.newBuilder(probeInfo).setProbeType("type2").build();
         probeStore.registerNewProbe(registeredProbe, transport);
 
-        final Long goneId = new TargetAdder(identityProvider.getProbeId(goneProbe)).postAndExpect(HttpStatus.OK).getTargetId();
-        final Long registeredId = new TargetAdder(identityProvider.getProbeId(registeredProbe)).postAndExpect(HttpStatus.OK).getTargetId();
+        final TargetAdder adder = new TargetAdder(identityProvider.getProbeId(goneProbe));
+        adder.setAccountField("mandatory", "abc123");
+        final Long goneId = adder.postAndExpect(HttpStatus.OK).getTargetId();
+
+        final TargetAdder newAdder = new TargetAdder(identityProvider.getProbeId(registeredProbe));
+        newAdder.setAccountField("mandatory", "abc123");
+        final Long registeredId = newAdder.postAndExpect(HttpStatus.OK).getTargetId();
 
         // Now magically unregister one of the probes.
         ProbeStore probeStore = wac.getBean(ProbeStore.class);
@@ -640,8 +732,11 @@ public class TargetControllerTest {
         Assert.assertTrue(targets.containsKey(goneId));
         Assert.assertFalse(targets.get(goneId).getProbeConnected());
         Assert.assertTrue(targets.containsKey(registeredId));
+        TargetAdder expectedAdder = new TargetAdder(identityProvider.getProbeId(registeredProbe));
+        expectedAdder.setAccountField("mandatory", "abc123");
+
         assertEqualSpecs(targets.get(registeredId).getSpec(),
-                new TargetAdder(identityProvider.getProbeId(registeredProbe)).buildSpec());
+            expectedAdder.buildSpec());
     }
 
     /**
@@ -656,7 +751,7 @@ public class TargetControllerTest {
                         .setKey(mandatoryAccountDef.getCustomDefinition().getName())
                         .setStringValue(id).build();
         final TopologyProcessorDTO.TargetSpec spec = TopologyProcessorDTO.TargetSpec.newBuilder().setProbeId(probeId)
-                        .addAccountValue(account).setIsHidden(false).build();
+                        .addAccountValue(account).setIsHidden(false).setReadOnly(false).build();
         return spec;
     }
 
@@ -674,14 +769,16 @@ public class TargetControllerTest {
     }
 
     /**
-     * Creates one probe with one mandatory field, registeres it in probe store and returns its id.
+     * Creates one probe with one mandatory field and desired probe info,
+     * registers it in probe store and returns its id.
      *
-     * @return id of the probe
-     * @throws Exception on exceptions occurred.
+     * @param probeInfo of the new probe to create
+     * @return the probe id
+     * @throws Exception in case the registration to the probe store fails
      */
-    private long createProbeWithOneField() throws Exception {
+    private long createProbeWithOneField(ProbeInfo probeInfo) throws Exception {
         final ProbeInfo info = ProbeInfo.newBuilder(probeInfo)
-                        .addAccountDefinition(mandatoryAccountDef).build();
+            .addAccountDefinition(mandatoryAccountDef).build();
         probeStore.registerNewProbe(info, transport);
         final long probeId = probeStore.getProbes().keySet().iterator().next();
         return probeId;
@@ -694,7 +791,7 @@ public class TargetControllerTest {
      */
     @Test
     public void removeTarget() throws Exception {
-        final long probeId = createProbeWithOneField();
+        final long probeId = createProbeWithOneField(probeInfo);
         final Target target1 = createTarget(probeId, "1");
         final Target target2 = createTarget(probeId, "2");
 
@@ -702,9 +799,48 @@ public class TargetControllerTest {
         final MvcResult mvcResult =
                         requestRemoveTarget(target1.getId()).andExpect(status().isOk()).andReturn();
         final TargetInfo targetDeleted = decodeResult(mvcResult, TargetInfo.class);
-
         Assert.assertEquals(Collections.singletonList(target2), targetStore.getAll());
         Assert.assertEquals(target1.getId(), targetDeleted.getId());
+    }
+
+    /**
+     * Test case for preventing deleting orchestration target (ServiceNow).
+     * Prevent deleting target if there is at least one policy with external approval settings.
+     * Searching policies by workflow id, because workflow discovered by target is used as
+     * setting value.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testPreventTargetRemoving() throws Exception {
+        final long probeWithApprovalFeatureId = createProbeWithOneField(probeInfo);
+        final Target target1 = createTarget(probeWithApprovalFeatureId, "1");
+
+        final long workflowId = 11L;
+        final String blockedPolicyName = "Blocked Policy";
+        final long blockedPolicyId = 12L;
+        Mockito.when(workflowServiceMole.fetchWorkflows(
+                FetchWorkflowsRequest.newBuilder().addTargetId(target1.getId()).build()))
+                .thenReturn(FetchWorkflowsResponse.newBuilder()
+                        .addWorkflows(Workflow.newBuilder().setId(workflowId).build())
+                        .build());
+        Mockito.when(settingPolicyServiceMole.listSettingPolicies(
+                ListSettingPoliciesRequest.newBuilder().addWorkflowId(workflowId).build()))
+                .thenReturn(Collections.singletonList(SettingPolicy.newBuilder()
+                        .setInfo(SettingPolicyInfo.newBuilder().setName(blockedPolicyName).build())
+                        .setId(blockedPolicyId)
+                        .build()));
+
+        Assert.assertEquals(1, targetStore.getAll().size());
+        final MvcResult mvcResult =
+                requestRemoveTarget(target1.getId()).andExpect(status().isForbidden()).andReturn();
+        final TargetInfo notDeletedTarget = decodeResult(mvcResult, TargetInfo.class);
+        Assert.assertEquals(Collections.singletonList(target1), targetStore.getAll());
+        Assert.assertThat(notDeletedTarget.getErrors().iterator().next(), CoreMatchers.allOf(
+                CoreMatchers.containsString(
+                        "Cannot remove target " + target1.getDisplayName()),
+                CoreMatchers.containsString(blockedPolicyName),
+                CoreMatchers.containsString(String.valueOf(blockedPolicyId))));
     }
 
     /**
@@ -744,7 +880,7 @@ public class TargetControllerTest {
      */
     @Test
     public void updateExistingTarget() throws Exception {
-        final long probeId = createProbeWithOneField();
+        final long probeId = createProbeWithOneField(probeInfo);
         final Target target1 = createTarget(probeId, "1");
         createTarget(probeId, "2");
         final TopologyProcessorDTO.TargetSpec newTargetSpec = createTargetSpec(probeId, "3");
@@ -762,13 +898,29 @@ public class TargetControllerTest {
     }
 
     /**
+     * Creates a probe with derived creation mode and checks that it cannot be edited from the api call.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void invalidUpdateExistingTarget() throws Exception {
+        final long probeId = createProbeWithOneField(derivedProbeInfo);
+        final Target targetBeforeOperation = createTarget(probeId, "1");
+        final TopologyProcessorDTO.TargetSpec newTargetSpec = createTargetSpec(probeId, "77");
+        final MvcResult mvcResult = requestModifyTarget(targetBeforeOperation.getId(), new TargetSpec(newTargetSpec))
+                .andExpect(status().isForbidden()).andReturn();
+        final Target targetAfterOperation = targetStore.getTarget(targetBeforeOperation.getId()).get();
+        Assert.assertNotEquals(newTargetSpec, targetAfterOperation.getNoSecretDto().getSpec());
+    }
+
+    /**
      * Tests for trial to update not existing target. Expected to return NOT_FOUND error.
      *
      * @throws Exception on exceptions occur
      */
     @Test
     public void updateNotExistingTarget() throws Exception {
-        final long probeId = createProbeWithOneField();
+        final long probeId = createProbeWithOneField(probeInfo);
         final TargetSpec spec = new TargetSpec(createTargetSpec(probeId, "2"));
         final long targetId = 1L;
         Assert.assertEquals(0, targetStore.getAll().size());
@@ -780,6 +932,21 @@ public class TargetControllerTest {
         Assert.assertEquals(1, resultTarget.getErrors().size());
         Assert.assertThat(resultTarget.getErrors().iterator().next(),
                         createTargetMatcher(targetId, "does not exist "));
+    }
+
+    /**
+     * Creates a probe with derived creation mode and checks that it cannot be removed from the api call.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void removeInvalidTarget() throws Exception {
+        final long probeId = createProbeWithOneField(derivedProbeInfo);
+        final Target target = createTarget(probeId, "7");
+        Assert.assertEquals(1, targetStore.getAll().size());
+        requestRemoveTarget(target.getId()).andExpect(status().isForbidden()).andReturn();
+        Assert.assertEquals(1, targetStore.getAll().size());
+        Assert.assertEquals(target, targetStore.getAll().iterator().next());
     }
 
     // Using this instead of overriding equals because tests are the only

@@ -4,9 +4,13 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -23,14 +27,13 @@ public class ActivateContext extends AbstractActionExecutionContext {
         super(request, dataManager, entityStore, entityRetriever);
     }
 
-    /**
-     * Get the type of the over-arching action being executed
-     *
-     * @return the type of the over-arching action being executed
-     */
     @Override
-    public ActionDTO.ActionType getActionType() {
-        return ActionDTO.ActionType.ACTIVATE;
+    protected ActionItemDTO.ActionType calculateSDKActionType(@Nonnull final ActionDTO.ActionType actionType) {
+        if (targetEntityIsStorage()) {
+            return ActionType.ADD_PROVIDER;
+        } else {
+            return ActionType.START;
+        }
     }
 
     /**
@@ -45,6 +48,26 @@ public class ActivateContext extends AbstractActionExecutionContext {
      */
     @Override
     protected long getPrimaryEntityId() {
-        return getActionInfo().getActivate().getTarget().getId();
+        return getActivateInfo().getTarget().getId();
+    }
+
+    /**
+     * A convenience method for getting the Activate info.
+     *
+     * @return the Activate info associated with this action
+     */
+    private Activate getActivateInfo() {
+        return getActionInfo().getActivate();
+    }
+
+    /**
+     * Checks if the target entity for the Activate info is Storage.
+     *
+     * @return true if target entity is Storage, false otherwise
+     */
+    private boolean targetEntityIsStorage() {
+        return getActivateInfo().hasTarget() &&
+            getActivateInfo().getTarget().hasType() &&
+            getActivateInfo().getTarget().getType() == EntityType.STORAGE_VALUE;
     }
 }

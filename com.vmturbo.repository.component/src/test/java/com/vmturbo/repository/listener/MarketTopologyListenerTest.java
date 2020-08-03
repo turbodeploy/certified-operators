@@ -7,10 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Optional;
-
-import com.google.common.collect.Sets;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -18,13 +15,18 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.google.common.collect.Sets;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.ProjectedTopologyCreator;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
 /**
@@ -34,6 +36,7 @@ import com.vmturbo.repository.util.RepositoryTestUtil;
 @RunWith(MockitoJUnitRunner.class)
 public class MarketTopologyListenerTest {
 
+    private final long realtimeContextId = 10231;
     private MarketTopologyListener marketTopologyListener;
 
     @Mock
@@ -43,7 +46,10 @@ public class MarketTopologyListenerTest {
     private RepositoryNotificationSender apiBackend;
 
     @Mock
-    private ProjectedTopologyCreator topologyCreator;
+    private TopologyCreator<ProjectedTopologyEntity> topologyCreator;
+
+    @Mock
+    private LiveTopologyStore liveTopologyStore;
 
     @Mock
     private RemoteIterator<ProjectedTopologyEntity> entityIterator;
@@ -66,15 +72,13 @@ public class MarketTopologyListenerTest {
 
     @Before
     public void setUp() throws Exception {
-        marketTopologyListener = new MarketTopologyListener(
-                apiBackend,
-                topologyManager);
+        marketTopologyListener = new MarketTopologyListener(apiBackend, topologyManager);
 
         // Simulates three DTOs with two chunks received by the listener.
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
                                         .thenReturn(Sets.newHashSet(dsDTO));
         when(entityIterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(topologyManager.newProjectedTopologyCreator(any())).thenReturn(topologyCreator);
+        when(topologyManager.newProjectedTopologyCreator(any(), any())).thenReturn(topologyCreator);
     }
 
     /**
@@ -88,16 +92,16 @@ public class MarketTopologyListenerTest {
         final long creationTime = 44444L;
         when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
-        marketTopologyListener.onProjectedTopologyReceived(
-                projectedTopologyId,
-                TopologyInfo.newBuilder()
-                        .setTopologyId(srcTopologyId)
-                        .setTopologyContextId(topologyContextId)
-                        .setCreationTime(creationTime)
-                        .build(),
+        final TopologyInfo originalTopoInfo = TopologyInfo.newBuilder()
+            .setTopologyId(srcTopologyId)
+            .setTopologyContextId(topologyContextId)
+            .setCreationTime(creationTime)
+            .build();
+
+        marketTopologyListener.onProjectedTopologyReceived(projectedTopologyId, originalTopoInfo,
                 entityIterator);
 
-        verify(topologyManager).newProjectedTopologyCreator(tid);
+        verify(topologyManager).newProjectedTopologyCreator(tid, originalTopoInfo);
         verify(topologyCreator).complete();
         verify(topologyCreator, never()).rollback();
         // 2 invocations, one for each chunk
@@ -106,26 +110,33 @@ public class MarketTopologyListenerTest {
 
     @Test
     public void testOnStaleProjectedTopologyReceived() throws Exception {
-        // verify that the projected topology will get skipped if it's for a source topology older
-        // than the "current" one.
+        // verify that the projected topology will get skipped if a newer projected topolgy has
+        // been received. In this case we skip since id 3 is "bigger" than id 2.
         final long topologyContextId = 11L;
         final long srcTopologyId = 1;
-        final long projectedTopologyId = 33333L;
+        final long projectedTopologyId = 2L;
         final long creationTime = 44444L;
-        when(topologyManager.getRealtimeTopologyId())
-                .thenReturn(TopologyID.fromDatabaseName("topology-11-SOURCE-2"));
+
+        marketTopologyListener.onAnalysisSummary(AnalysisSummary.newBuilder()
+            .setProjectedTopologyInfo(
+                ProjectedTopologyInfo.newBuilder()
+                    .setProjectedTopologyId(3L)
+                    .build()
+            ).build());
+
         final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
-        marketTopologyListener.onProjectedTopologyReceived(
-                projectedTopologyId,
-                TopologyInfo.newBuilder()
-                        .setTopologyId(srcTopologyId)
-                        .setTopologyContextId(topologyContextId)
-                        .setCreationTime(creationTime)
-                        .build(),
+        final TopologyInfo originalTopoInfo = TopologyInfo.newBuilder()
+            .setTopologyId(srcTopologyId)
+            .setTopologyContextId(topologyContextId)
+            .setCreationTime(creationTime)
+            .build();
+
+        marketTopologyListener.onProjectedTopologyReceived(projectedTopologyId,
+                originalTopoInfo,
                 entityIterator);
 
         // should not have any "write" interactions
-        verify(topologyManager, never()).newProjectedTopologyCreator(tid);
+        verify(topologyManager, never()).newProjectedTopologyCreator(tid, originalTopoInfo);
         verify(topologyCreator, never()).complete();
     }
 }

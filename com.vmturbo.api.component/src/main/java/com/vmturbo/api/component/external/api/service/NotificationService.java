@@ -2,14 +2,13 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
-import java.util.TimeZone;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.springframework.util.StringUtils;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -27,7 +26,7 @@ import com.vmturbo.api.pagination.NotificationPaginationRequest;
 import com.vmturbo.api.pagination.NotificationPaginationRequest.NotificationPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.INotificationService;
 import com.vmturbo.api.utils.UrlsHelp;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.notification.NotificationStore;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
 
@@ -50,16 +49,42 @@ public class NotificationService implements INotificationService {
 
     @Override
     public List<LogEntryApiDTO> getNotifications() throws Exception {
-        final List<LogEntryApiDTO> notificationList = notificationStore
-                .getAllNotifications()
-                .stream()
-                .sorted(Comparator.comparing(SystemNotification::getGenerationTime))
-                .map(this::toLogEntryApiDTO).collect(Collectors.toList());
+        final List<LogEntryApiDTO> notificationList = getUniqueNotifications();
+        Collections.reverse(notificationList); // UI expect ascending order.
         // add external links as required by UI
         final LogEntryApiDTO logEntryApiDTO = new LogEntryApiDTO();
         UrlsHelp.setNotificationHelp(logEntryApiDTO);
         notificationList.add(logEntryApiDTO);
         return notificationList;
+    }
+
+    private List<LogEntryApiDTO> getUniqueNotifications() {
+        final List<LogEntryApiDTO> notificationList = removeDuplicate(notificationStore
+                .getAllNotifications()
+                .stream()
+                .sorted(Comparator.comparing(SystemNotification::getGenerationTime).reversed()) // sort descending to keep latest entry
+                .map(this::toLogEntryApiDTO)
+                .collect(Collectors.toList()));
+        return notificationList;
+    }
+
+    /**
+     * Remove duplicate notification.
+     *
+     * @param notificationList list of notifications may have duplicates.
+     * @return list of unique notification.
+     */
+    private List<LogEntryApiDTO> removeDuplicate(@Nonnull final List<LogEntryApiDTO> notificationList) {
+        final Set<CustomKey> set = Sets.newHashSet();
+        final List<LogEntryApiDTO> list = Lists.newArrayList();
+        for (LogEntryApiDTO dto : notificationList) {
+            CustomKey customKey = new CustomKey(dto);
+            if (!set.contains(customKey)) {
+                set.add(customKey);
+                list.add(dto);
+            }
+        }
+        return list;
     }
 
     @Override
@@ -87,7 +112,8 @@ public class NotificationService implements INotificationService {
         Preconditions.checkArgument(Long.valueOf(inputDTO.getStartDate()) > 0);
 
         final long startDate = Long.valueOf(inputDTO.getStartDate());
-        final long totalNotificationSize = notificationStore.getNotificationCountAfterTimestamp(startDate);
+        final long totalNotificationSize = getUniqueNotifications().stream()
+                .filter(logEntryApiDTO -> logEntryApiDTO.getLogActionTime() > startDate).count();
         final StatSnapshotApiDTO retDto = new StatSnapshotApiDTO();
         // UI requires offset data time, e.g. 2018-12-11T00:00:00-05:00
         final OffsetDateTime offset = OffsetDateTime.ofInstant(Instant.ofEpochMilli(startDate),
@@ -141,5 +167,50 @@ public class NotificationService implements INotificationService {
             logEntryApiDTO.setSubCategory(notification.getCategory().getLicense().getDisplayName());
         }
         return logEntryApiDTO;
+    }
+
+    /**
+     * Build custom key based on {@link LogEntryApiDTO}, which is composite key from
+     * description, severity, and targetSE.
+     */
+    private static class CustomKey {
+        private final LogEntryApiDTO logEntryApiDTO;
+
+        CustomKey(LogEntryApiDTO logEntryApiDTO) {
+            this.logEntryApiDTO = logEntryApiDTO;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            CustomKey customKey = (CustomKey)o;
+            return same(logEntryApiDTO, customKey.logEntryApiDTO);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(logEntryApiDTO.getDescription(),
+                    logEntryApiDTO.getTargetSE(),
+                    logEntryApiDTO.getSeverity());
+        }
+
+        /**
+         * If descriptions are the same, severities are the same and targetSEs are the same, they are the same.
+         * We treat "null" as not duplicated, which should not happen.
+         *
+         * @param oldDto old notification dto
+         * @param newDto new notification dto
+         * @return true if same, false otherwise
+         */
+        private boolean same(@Nonnull final LogEntryApiDTO oldDto, @Nonnull final LogEntryApiDTO newDto) {
+            return (oldDto.getDescription() != null && oldDto.getDescription().equalsIgnoreCase(newDto.getDescription())
+                    && oldDto.getSeverity() != null && oldDto.getSeverity().equalsIgnoreCase(newDto.getSeverity())
+                    && oldDto.getTargetSE() != null && oldDto.getTargetSE().equalsIgnoreCase(newDto.getTargetSE()));
+        }
     }
 }

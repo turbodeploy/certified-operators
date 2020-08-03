@@ -20,13 +20,12 @@ import javaslang.control.Either;
 import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.GraphDefinition;
-import com.vmturbo.repository.graph.executor.GraphDBExecutor;
+import com.vmturbo.repository.graph.executor.ArangoDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
-import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 
@@ -35,7 +34,7 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager;
  */
 public class GraphDBServiceTest {
 
-    private final GraphDBExecutor graphDBExecutor = Mockito.mock(GraphDBExecutor.class);
+    private final ArangoDBExecutor graphDBExecutor = Mockito.mock(ArangoDBExecutor.class);
 
     private final GraphDefinition graphDefinition = Mockito.mock(GraphDefinition.class);
 
@@ -45,12 +44,9 @@ public class GraphDBServiceTest {
 
     @Before
     public void setup() throws Exception {
-
-        final TopologyDatabase topologyDatabase = Mockito.mock(TopologyDatabase.class);
-        when(result.getRealtimeDatabase())
-            .thenReturn(Optional.of(topologyDatabase));
         final TopologyID topologyId = new TopologyID(1, 2, TopologyID.TopologyType.SOURCE);
         when(result.getRealtimeTopologyId()).thenReturn(Optional.of(topologyId));
+        when(graphDefinition.getSEVertexCollection(topologyId)).thenCallRealMethod();
 
         graphDBService = new GraphDBService(
             graphDBExecutor,
@@ -62,7 +58,7 @@ public class GraphDBServiceTest {
     public void testGetSupplyChain() throws Exception {
         final SupplyChainSubgraph subgraph = Mockito.mock(SupplyChainSubgraph.class);
         final SupplyChainNode node = SupplyChainNode.newBuilder()
-            .setEntityType(RepoEntityType.VIRTUAL_MACHINE.getValue())
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
             .build();
         when(subgraph.toSupplyChainNodes()).thenReturn(
             Collections.singletonList(node));
@@ -74,32 +70,6 @@ public class GraphDBServiceTest {
                     Optional.empty(), Collections.emptySet(), Collections.emptySet()).get()
             .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
 
-        assertEquals(node, nodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue()));
-    }
-
-    @Test
-    public void testRetrieveRealTimeTopologyEntities() throws Exception {
-        when(graphDefinition.getServiceEntityVertex()).thenReturn("111");
-        final Try<Collection<ServiceEntityRepoDTO>> results =
-                Try.of(() -> Collections.EMPTY_SET);
-        when(graphDBExecutor.executeServiceEntityMultiGetCmd(any(GraphCmd.ServiceEntityMultiGet.class))).thenReturn(
-                results);
-        final Either either =
-                graphDBService.retrieveRealTimeTopologyEntities(Collections.EMPTY_SET);
-        assertTrue(either.isRight());
-    }
-
-
-    @Test
-    public void testRetrieveRealTimeTopologyEntitiesWithoutReadTimeTopologyId() throws Exception {
-        when(result.getRealtimeTopologyId()).thenReturn(Optional.empty());
-        when(graphDefinition.getServiceEntityVertex()).thenReturn("111");
-        final Try<Collection<ServiceEntityRepoDTO>> results =
-                Try.of(() -> Collections.EMPTY_SET);
-        when(graphDBExecutor.executeServiceEntityMultiGetCmd(any(GraphCmd.ServiceEntityMultiGet.class))).thenReturn(
-                results);
-        final Either either =
-                graphDBService.retrieveRealTimeTopologyEntities(Collections.EMPTY_SET);
-        assertTrue(either.isLeft());
+        assertEquals(node, nodes.get(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
     }
 }

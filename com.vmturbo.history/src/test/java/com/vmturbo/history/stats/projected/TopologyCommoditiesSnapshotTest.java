@@ -25,6 +25,8 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -34,7 +36,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.history.stats.StatsTestUtils;
 import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -265,7 +268,8 @@ public class TopologyCommoditiesSnapshotTest {
         when(soldCommoditiesInfo.getValue(smallerId, COMMODITY)).thenReturn(smallerVal);
         when(soldCommoditiesInfo.getValue(largerId, COMMODITY)).thenReturn(largerVal);
 
-        final Comparator<Long> entityComparator = snapshot.getEntityComparator(params);
+        final Comparator<Long> entityComparator = snapshot.getEntityComparator(params,
+            StatsTestUtils.createEntityGroupsMap(Sets.newHashSet(smallerId, largerId)));
         final int result = entityComparator.compare(smallerId, largerId);
         assertThat(result, is(-1));
     }
@@ -286,7 +290,8 @@ public class TopologyCommoditiesSnapshotTest {
         when(soldCommoditiesInfo.getValue(smallerId, COMMODITY)).thenReturn(smallerVal);
         when(soldCommoditiesInfo.getValue(largerId, COMMODITY)).thenReturn(largerVal);
 
-        final Comparator<Long> entityComparator = snapshot.getEntityComparator(params);
+        final Comparator<Long> entityComparator = snapshot.getEntityComparator(params,
+            StatsTestUtils.createEntityGroupsMap(Sets.newHashSet(smallerId, largerId)));
         final int result = entityComparator.compare(smallerId, largerId);
         assertThat(result, is(1));
     }
@@ -300,9 +305,10 @@ public class TopologyCommoditiesSnapshotTest {
         when(params.getSortCommodity()).thenReturn(COMMODITY);
         when(params.isAscending()).thenReturn(true);
 
-        final Comparator<Long> entityComparator = snapshot.getEntityComparator(params);
         final long smallerId = 7L;
         final long largerId = 8L;
+        final Comparator<Long> entityComparator = snapshot.getEntityComparator(params,
+            StatsTestUtils.createEntityGroupsMap(Sets.newHashSet(smallerId, largerId)));
         // The stat values are the same, so the order should be determined by the id.
         final int result = entityComparator.compare(smallerId, largerId);
         assertThat(result, is(-1));
@@ -317,9 +323,10 @@ public class TopologyCommoditiesSnapshotTest {
         when(params.getSortCommodity()).thenReturn(COMMODITY);
         when(params.isAscending()).thenReturn(false);
 
-        final Comparator<Long> entityComparator = snapshot.getEntityComparator(params);
         final long smallerId = 7L;
         final long largerId = 8L;
+        final Comparator<Long> entityComparator = snapshot.getEntityComparator(params,
+            StatsTestUtils.createEntityGroupsMap(Sets.newHashSet(smallerId, largerId)));
         // The stat values are the same, so the order should be determined by the id.
         final int result = entityComparator.compare(smallerId, largerId);
         assertThat(result, is(1));
@@ -334,7 +341,7 @@ public class TopologyCommoditiesSnapshotTest {
         final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
         when(params.getSortCommodity()).thenReturn(COMMODITY);
         when(entityCountInfo.isCountStat(COMMODITY)).thenReturn(true);
-        snapshot.getEntityComparator(params);
+        snapshot.getEntityComparator(params, Collections.emptyMap());
     }
 
     @Test
@@ -347,6 +354,54 @@ public class TopologyCommoditiesSnapshotTest {
         final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
         when(projectedPriceIndexSnapshot.getEntityComparator(params)).thenReturn(priceIndexComparator);
         when(params.getSortCommodity()).thenReturn(StringConstants.PRICE_INDEX);
-        assertThat(snapshot.getEntityComparator(params), is(priceIndexComparator));
+        assertThat(snapshot.getEntityComparator(params, Collections.emptyMap()), is(priceIndexComparator));
+    }
+
+    /**
+     * Test the comparator created for EntityGroup works as expected. The stats value is aggregated
+     * from derived entities, then used for comparison.
+     */
+    @Test
+    public void testEntityComparatorEntityGroupAscending() {
+        final TopologyCommoditiesSnapshot snapshot =
+            new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
+                entityCountInfo, projectedPriceIndexSnapshot, 1);
+        final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
+        when(params.getSortCommodity()).thenReturn(COMMODITY);
+        when(params.isAscending()).thenReturn(true);
+
+        final long dcId1 = 7L;
+        final long dcId2 = 8L;
+        final long pmId1 = 71L;
+        final long pmId2 = 72L;
+        final long pmId3 = 81L;
+        final long pmId4 = 82L;
+        final double pmVal1 = 11.0;
+        final double pmVal2 = 12.0;
+        final double pmVal3 = 13.0;
+        final double pmVal4 = 15.0;
+
+        final Map<Long, Double> valuesMap = ImmutableMap.of(
+            pmId1, pmVal1,
+            pmId2, pmVal2,
+            pmId3, pmVal3,
+            pmId4, pmVal4
+        );
+        valuesMap.forEach((key, value) ->
+            when(soldCommoditiesInfo.getValue(key, COMMODITY)).thenReturn(value));
+
+        final Comparator<Long> entityComparator1 = snapshot.getEntityComparator(params,
+            ImmutableMap.of(
+                dcId1, ImmutableSet.of(pmId1, pmId2),
+                dcId2, ImmutableSet.of(pmId3, pmId4)
+            ));
+        assertThat(entityComparator1.compare(dcId1, dcId2), is(-1));
+
+        final Comparator<Long> entityComparator2 = snapshot.getEntityComparator(params,
+            ImmutableMap.of(
+                dcId1, ImmutableSet.of(pmId1, pmId4),
+                dcId2, ImmutableSet.of(pmId2, pmId3)
+            ));
+        assertThat(entityComparator2.compare(dcId1, dcId2), is(1));
     }
 }

@@ -4,21 +4,21 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -28,39 +28,44 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.NoDetailsApiDTO;
+import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse.ActionCountsByEntity;
-import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -71,7 +76,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class ActionsServiceTest {
 
     public static final String[] ALL_ACTION_MODES = {
-            "RECOMMEND", "DISABLED", "MANUAL", "AUTOMATIC"
+            "RECOMMEND", "DISABLED", "MANUAL", "AUTOMATIC", "EXTERNAL_APPROVAL"
     };
     /**
      * The backend the API forwards calls to (i.e. the part that's in the plan orchestrator).
@@ -87,13 +92,23 @@ public class ActionsServiceTest {
 
     private UuidMapper uuidMapper = mock(UuidMapper.class);
 
+    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
+
     ActionsServiceGrpc.ActionsServiceBlockingStub actionsRpcService;
 
     private ActionSpecMapper actionSpecMapper;
 
+    private ActionSearchUtil actionSearchUtil;
+
+    private MarketsService marketsService;
+
+    private SupplyChainFetcherFactory supplyChainFetcherFactory;
+
     private final long REALTIME_TOPOLOGY_ID = 777777L;
 
     private final String UUID = "12345";
+
+    private final int maxInnerPagination = 500;
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsServiceBackend);
@@ -103,15 +118,18 @@ public class ActionsServiceTest {
 
     @Before
     public void setup() throws IOException {
-
         // set up a mock Actions RPC server
         actionSpecMapper = Mockito.mock(ActionSpecMapper.class);
+        actionSearchUtil = Mockito.mock(ActionSearchUtil.class);
+        marketsService = Mockito.mock(MarketsService.class);
+        supplyChainFetcherFactory = Mockito.mock(SupplyChainFetcherFactory.class);
         actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         // set up the ActionsService to test
         actionsServiceUnderTest = new ActionsService(actionsRpcService, actionSpecMapper,
             repositoryApi, REALTIME_TOPOLOGY_ID,
-            actionStatsQueryExecutor, uuidMapper);
+            actionStatsQueryExecutor, uuidMapper, serviceProviderExpander,
+            actionSearchUtil, marketsService, supplyChainFetcherFactory, maxInnerPagination);
     }
 
     /**
@@ -146,15 +164,6 @@ public class ActionsServiceTest {
 
     @Test
     public void testGetActionTypeCountStatsByUuidsQuery() throws Exception {
-        final ServiceEntityApiDTO serviceEntityOne = new ServiceEntityApiDTO();
-        serviceEntityOne.setDisplayName("First Entity");
-        serviceEntityOne.setClassName("VM #1");
-        serviceEntityOne.setUuid("1");
-        final Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityMap =
-            ImmutableMap.of(1L, Optional.of(serviceEntityOne));
-
-        when(repositoryApi.getServiceEntitiesById(any()))
-            .thenReturn(serviceEntityMap);
 
         final ActionScopesApiInputDTO actionScopesApiInputDTO = new ActionScopesApiInputDTO();
         final ActionApiInputDTO actionApiInputDTO = new ActionApiInputDTO();
@@ -163,7 +172,7 @@ public class ActionsServiceTest {
         final ApiId scope1 = ApiTestUtils.mockEntityId("1", uuidMapper);
         final ApiId scope2 = ApiTestUtils.mockGroupId("3", uuidMapper);
         actionScopesApiInputDTO.setActionInput(actionApiInputDTO);
-        actionScopesApiInputDTO.setRelatedType(UIEntityType.PHYSICAL_MACHINE.getValue());
+        actionScopesApiInputDTO.setRelatedType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
 
         final ActionStatsQuery expectedQuery = ImmutableActionStatsQuery.builder()
                 .entityType(EntityType.PHYSICAL_MACHINE_VALUE)
@@ -179,21 +188,127 @@ public class ActionsServiceTest {
         when(actionStatsQueryExecutor.retrieveActionStats(any()))
             .thenReturn(ImmutableMap.of(scope1, scope1Snapshots, scope2, scope2Snapshots));
 
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(MinimalEntity.newBuilder()
+            .setOid(1)
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setDisplayName("First Entity")
+            .build()));
+        when(repositoryApi.entitiesRequest(Collections.singleton(1L))).thenReturn(req);
+
+        when(serviceProviderExpander.expand(any())).thenReturn(ImmutableSet.of(3L, 1L));
+
         final Map<String, EntityStatsApiDTO> statsByUuid =
             actionsServiceUnderTest.getActionStatsByUuidsQuery(actionScopesApiInputDTO).stream()
                 .collect(Collectors.toMap(EntityStatsApiDTO::getUuid, Function.identity()));
 
         verify(actionStatsQueryExecutor).retrieveActionStats(expectedQuery);
-        verify(repositoryApi).getServiceEntitiesById(
-                ServiceEntitiesRequest.newBuilder(Collections.singleton(1L))
-                    .build());
+        verify(repositoryApi).entitiesRequest(Collections.singleton(1L));
 
         assertThat(statsByUuid.keySet(), containsInAnyOrder("1", "3"));
         assertThat(statsByUuid.get("1").getStats(), is(scope1Snapshots));
-        assertThat(statsByUuid.get("1").getDisplayName(), is(serviceEntityOne.getDisplayName()));
-        assertThat(statsByUuid.get("1").getClassName(), is(serviceEntityOne.getClassName()));
+        assertThat(statsByUuid.get("1").getDisplayName(), is("First Entity"));
+        assertThat(statsByUuid.get("1").getClassName(), is(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
 
         assertThat(statsByUuid.get("3").getStats(), is(scope2Snapshots));
+    }
+
+    /**
+     * Tests getting action details for an empty collection of uuids.
+     */
+    @Test
+    public void testGetActionDetailsByUuidsEmptyUuids() {
+        ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
+        inputDTO.setUuids(Collections.emptyList());
+
+        Map<String, ActionDetailsApiDTO> actionDetails = actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
+        assertEquals(0, actionDetails.size());
+    }
+
+    /**
+     * Tests getting action details for actions with/without spec, order of details the same as in request.
+     * Verifies that when input DTO contains no topologyContextId, the default realtime one is used.
+     */
+    @Test
+    public void testGetActionDetailsByUuids() {
+        long actionIdWithSpec = 10;
+        long actionIdNoSpec = 20;
+        ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
+        inputDTO.setUuids(Arrays.asList(Long.toString(actionIdWithSpec), Long.toString(actionIdNoSpec)));
+        Map<String, ActionDetailsApiDTO> dtoMap = new HashMap<>();
+        dtoMap.put("10", new CloudResizeActionDetailsApiDTO());
+        dtoMap.put("20", new NoDetailsApiDTO());
+
+        List<ActionOrchestratorAction> orchestratorActions = Arrays.asList(
+                ActionOrchestratorAction.newBuilder()
+                        .setActionId(actionIdNoSpec)
+                        .build(),
+                ActionOrchestratorAction.newBuilder()
+                        .setActionId(actionIdWithSpec)
+                        .setActionSpec(ActionSpec.newBuilder()
+                                .build())
+                        .build()
+        );
+        ArgumentCaptor<MultiActionRequest> multiActionRequestCaptor =
+                ArgumentCaptor.forClass(MultiActionRequest.class);
+        when(actionsServiceBackend.getActions(multiActionRequestCaptor.capture()))
+                .thenReturn(orchestratorActions);
+
+        ArgumentCaptor<Collection> orchestratorActionCaptor =
+                ArgumentCaptor.forClass(Collection.class);
+        when(actionSpecMapper.createActionDetailsApiDTO(orchestratorActionCaptor.capture(), anyLong()))
+                .thenReturn(dtoMap);
+
+        Map<String, ActionDetailsApiDTO> actionDetails = actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
+
+        assertEquals(2, actionDetails.size());
+        assertEquals(CloudResizeActionDetailsApiDTO.class, actionDetails.get(Long.toString(actionIdWithSpec)).getClass());
+        assertEquals(NoDetailsApiDTO.class, actionDetails.get(Long.toString(actionIdNoSpec)).getClass());
+
+        List<MultiActionRequest> actualRequests = multiActionRequestCaptor.getAllValues();
+        assertEquals(1, actualRequests.size());
+        MultiActionRequest multiActionRequest = actualRequests.get(0);
+        assertEquals(actionIdWithSpec, multiActionRequest.getActionIds(0));
+        assertEquals(actionIdNoSpec, multiActionRequest.getActionIds(1));
+        assertEquals(REALTIME_TOPOLOGY_ID, multiActionRequest.getTopologyContextId());
+
+        Collection<ActionOrchestratorAction> actualOrchestratorActions = orchestratorActionCaptor.getValue();
+        assertEquals(2, actualOrchestratorActions.size());
+        assertEquals(actionIdNoSpec, actualOrchestratorActions.iterator().next().getActionId());
+    }
+
+    /**
+     * Tests getting action details for actions in a specific topology context.
+     */
+    @Test
+    public void testGetActionDetailsByUuidsInTopologyContext() {
+        final long actionId = 10;
+        final long topologyContextId = 20;
+        final ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
+        inputDTO.setUuids(Collections.singletonList(Long.toString(actionId)));
+        inputDTO.setTopologyContextId(Long.toString(topologyContextId));
+
+        final List<ActionOrchestratorAction> mockActions =
+            Collections.singletonList(ActionOrchestratorAction.getDefaultInstance());
+        final ArgumentCaptor<MultiActionRequest> requestCaptor =
+            ArgumentCaptor.forClass(MultiActionRequest.class);
+        Map<String, ActionDetailsApiDTO> dtoMap = new HashMap<>();
+        dtoMap.put("1", mock(ActionDetailsApiDTO.class));
+
+        when(actionsServiceBackend.getActions(requestCaptor.capture())).thenReturn(mockActions);
+
+        when(actionSpecMapper.createActionDetailsApiDTO(anyList(), anyLong()))
+            .thenReturn(dtoMap);
+
+        final Map<String, ActionDetailsApiDTO> resultDetailMap =
+            actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
+
+        assertEquals(1, resultDetailMap.size());
+        final List<MultiActionRequest> requests = requestCaptor.getAllValues();
+        assertEquals(1, requests.size());
+        final MultiActionRequest multiActionRequest = requests.get(0);
+        assertEquals(topologyContextId, multiActionRequest.getTopologyContextId());
+        assertEquals(1, multiActionRequest.getActionIdsCount());
+        assertEquals(actionId, multiActionRequest.getActionIds(0));
     }
 
     private static AcceptActionResponse acceptanceError(@Nonnull final String error) {

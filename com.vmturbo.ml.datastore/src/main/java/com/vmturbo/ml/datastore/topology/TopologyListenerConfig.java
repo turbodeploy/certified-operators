@@ -13,7 +13,8 @@ import com.vmturbo.ml.datastore.influx.Obfuscator.HashingObfuscator;
 import com.vmturbo.ml.datastore.rpc.MLDatastoreRpcConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
 
 /**
  * Configuration for integration with the Topology Processor. The ML datstore receives
@@ -55,6 +56,6 @@ public class TopologyListenerConfig {
     public TopologyProcessor topologyProcessor() {
         // Only listen to live topologies. Plan topology metrics are not stored because they
         // do not necessarily reflect what is really happening in the customer's environment.
-        return tpConfig.topologyProcessor(Collections.singleton(Subscription.LiveTopologies));
+        return tpConfig.topologyProcessor(TopologyProcessorSubscription.forTopic(Topic.LiveTopologies));
     }
 }

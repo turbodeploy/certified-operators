@@ -1,0 +1,82 @@
+manual_entity_definition {
+  entity_type: BUSINESS_APPLICATION
+  entity_name: "BA_Combined"
+  associated_entities {
+    associated_group {
+    }
+    connected_entity_type: CONTAINER_POD
+  }
+  associated_entities {
+    static_associated_entities {
+      members_by_type {
+        type: {
+          entity: 3
+        }
+        members: 74412384495333
+        members: 74412384495332
+      }
+    }
+    connected_entity_type: SERVICE
+  }
+  associated_entities {
+    associated_group {
+      id: 123434550
+    }
+    connected_entity_type: CONTAINER
+  }
+  associated_entities {
+    dynamic_connection_filters {
+      search_parameters {
+    starting_filter {
+      property_name: "entityType"
+      numeric_filter {
+        comparison_operator: EQ
+        value: 10
+      }
+    }
+    search_filter {
+      property_filter {
+        property_name: "displayName"
+        string_filter {
+          string_property_regex: "^*-vm$"
+          positive_match: true
+          case_sensitive: false
+        }
+      }
+    }
+    source_filter_specs {
+      expression_type: "RXEQ"
+      expression_value: "*-vm"
+      filter_type: "vmsByName"
+      is_case_sensitive: false
+    }
+  }
+  search_parameters {
+    starting_filter {
+      property_name: "entityType"
+      numeric_filter {
+        comparison_operator: EQ
+        value: 10
+      }
+    }
+    search_filter {
+      property_filter {
+        property_name: "displayName"
+        string_filter {
+          string_property_regex: "^vm-*$"
+          positive_match: false
+          case_sensitive: true
+        }
+      }
+    }
+    source_filter_specs {
+      expression_type: "RXNEQ"
+      expression_value: "vm-*"
+      filter_type: "vmsByName"
+      is_case_sensitive: true
+    }
+  }
+    }
+    connected_entity_type: VIRTUAL_MACHINE
+  }
+}

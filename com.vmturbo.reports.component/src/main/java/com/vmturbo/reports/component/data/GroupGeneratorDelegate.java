@@ -16,32 +16,38 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.Lists;
+import io.grpc.StatusRuntimeException;
 
 import javaslang.Tuple2;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.OptimizationMetadata;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
-import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.reports.component.data.ReportDataUtils.EntitiesTableGeneratedId;
 import com.vmturbo.reports.component.data.ReportDataUtils.MetaGroup;
 import com.vmturbo.reports.component.instances.ReportsGenerator;
@@ -57,6 +63,14 @@ import com.vmturbo.sql.utils.DbException;
 public class GroupGeneratorDelegate {
     private static final Logger logger = LogManager.getLogger();
     public static final String FAKE_VM_GROUP = "fake_vm_group";
+    private final long maxConnectRetryCount;
+    private final long retryDelayInMilliSec;
+
+    public GroupGeneratorDelegate(final long maxConnectRetryCount, final long retryDelayInMilliSec) {
+        Preconditions.checkArgument(maxConnectRetryCount > 1 && retryDelayInMilliSec > 1000);
+        this.maxConnectRetryCount = maxConnectRetryCount;
+        this.retryDelayInMilliSec= retryDelayInMilliSec;
+    }
 
     /**
      * Insert compute clusters and their members to database.
@@ -66,7 +80,7 @@ public class GroupGeneratorDelegate {
      */
     public synchronized void insertVMClusterRelationships(@Nonnull final ReportsDataContext context) throws DbException {
         logger.info("Generating VM cluster relationships");
-        insertClusterRelationshipsInternal(context, ClusterInfo.Type.COMPUTE, MetaGroup.VMs, VIRTUAL_MACHINE);
+        insertClusterRelationshipsInternal(context, GroupType.COMPUTE_HOST_CLUSTER, MetaGroup.VMs, VIRTUAL_MACHINE);
         logger.info("Finished generating VM cluster relationships");
     }
 
@@ -115,7 +129,6 @@ public class GroupGeneratorDelegate {
 
     }
 
-
     /**
      * Insert system discovered or user created PM group and their members to database.
      * Also insert the same PM group and their VM members to database using arbitrary group name:
@@ -135,22 +148,33 @@ public class GroupGeneratorDelegate {
         final GetGroupResponse groupResponse = context.getGroupService()
             .getGroup(GroupID.newBuilder().setId(groupId).build());
         if (groupResponse.hasGroup()) {
-            final Group group = groupResponse.getGroup();
+            final Grouping group = groupResponse.getGroup();
             final Set<Long> allMemberVMIds =
                 getSupplyChainNodes(context, VIRTUAL_MACHINE, getEntitiesInScope(context, group))
                     .stream().flatMap(node -> RepositoryDTOUtil.getAllMemberOids(node).stream())
                 .collect(Collectors.toSet());
-            final TempGroupInfo tempGroupInfo = TempGroupInfo.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setMembers(StaticGroupMembers.newBuilder()
-                    .addAllStaticMemberOids(allMemberVMIds))
-                .setName(MetaGroup.FAKE_VM_GROUP.name().toLowerCase())
-                .setIsGlobalScopeGroup(false)
-                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+            final GroupDefinition tempGroupInfo = GroupDefinition.newBuilder()
+                .setIsTemporary(true)
+                .setStaticGroupMembers(
+                    StaticMembers.newBuilder()
+                        .addMembersByType(StaticMembersByType.newBuilder()
+                            .setType(MemberType.newBuilder()
+                                .setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                            .addAllMembers(allMemberVMIds)
+                                         )
+                                      )
+                .setDisplayName(MetaGroup.FAKE_VM_GROUP.name().toLowerCase())
+                .setOptimizationMetadata(OptimizationMetadata.newBuilder()
+                                .setIsGlobalScope(false)
+                                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+                                        )
                 .build();
-            final CreateTempGroupResponse response = context.getGroupService().createTempGroup(
-                CreateTempGroupRequest.newBuilder()
-                    .setGroupInfo(tempGroupInfo)
+            final CreateGroupResponse response = context.getGroupService().createGroup(
+                CreateGroupRequest.newBuilder()
+                    .setGroupDefinition(tempGroupInfo)
+                    .setOrigin(Origin.newBuilder()
+                                    .setSystem(Origin.System.newBuilder().setDescription(
+                                                    MetaGroup.FAKE_VM_GROUP.name().toLowerCase())))
                     .build());
             if (response.hasGroup()) {
                 writeGroupToDB(context, MetaGroup.VMs, VIRTUAL_MACHINE, response.getGroup());
@@ -168,10 +192,13 @@ public class GroupGeneratorDelegate {
      */
     public synchronized Optional<String> insertPMVMsRelationships(@Nonnull final ReportsDataContext context,
                                                                   long pmId) throws DbException {
-        final TempGroupInfo tempGroupInfo = createTemporaryPmGroupInfo(context, pmId);
-        final CreateTempGroupResponse response = context.getGroupService().createTempGroup(
-            CreateTempGroupRequest.newBuilder()
-                .setGroupInfo(tempGroupInfo)
+        final GroupDefinition tempGroupInfo = createTemporaryPmGroupInfo(context, pmId);
+        final CreateGroupResponse response = context.getGroupService().createGroup(
+            CreateGroupRequest.newBuilder()
+                .setGroupDefinition(tempGroupInfo)
+                .setOrigin(Origin.newBuilder()
+                                .setSystem(Origin.System.newBuilder().setDescription(
+                                                MetaGroup.FAKE_VM_GROUP.name().toLowerCase())))
                 .build());
         if (response.hasGroup()) {
             return writeGroupToDB(context, MetaGroup.VMs, VIRTUAL_MACHINE, response.getGroup());
@@ -180,18 +207,26 @@ public class GroupGeneratorDelegate {
     }
 
     // create a temporary PM group with VM members
-    private TempGroupInfo createTemporaryPmGroupInfo(final ReportsDataContext context, final long id) {
+    private GroupDefinition createTemporaryPmGroupInfo(final ReportsDataContext context, final long id) {
         final Set<Long> groupMembers =
             getSupplyChainNodes(context, VIRTUAL_MACHINE, Collections.singleton(id)).stream().flatMap(
                 node -> RepositoryDTOUtil.getAllMemberOids(node).stream()
             ).collect(Collectors.toSet());
-        return TempGroupInfo.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .setMembers(StaticGroupMembers.newBuilder()
-                .addAllStaticMemberOids(groupMembers))
-            .setName(MetaGroup.FAKE_VM_GROUP.name().toLowerCase())
-            .setIsGlobalScopeGroup(false)
-            .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+        return GroupDefinition.newBuilder()
+            .setIsTemporary(true)
+            .setStaticGroupMembers(
+                StaticMembers.newBuilder()
+                    .addMembersByType(StaticMembersByType.newBuilder()
+                        .setType(MemberType.newBuilder()
+                            .setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                        .addAllMembers(groupMembers)
+                                     )
+                                  )
+            .setDisplayName(MetaGroup.FAKE_VM_GROUP.name().toLowerCase())
+            .setOptimizationMetadata(OptimizationMetadata.newBuilder()
+                            .setIsGlobalScope(false)
+                            .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+                                    )
             .build();
     }
 
@@ -203,7 +238,7 @@ public class GroupGeneratorDelegate {
      */
     public synchronized void insertPMClusterRelationships(@Nonnull final ReportsDataContext context) throws DbException {
         logger.info("Generating PM cluster relationships");
-        insertClusterRelationshipsInternal(context, ClusterInfo.Type.COMPUTE, MetaGroup.PMs, PHYSICAL_MACHINE);
+        insertClusterRelationshipsInternal(context, GroupType.COMPUTE_HOST_CLUSTER, MetaGroup.PMs, PHYSICAL_MACHINE);
         logger.info("Finished generating PM cluster relationships");
     }
 
@@ -216,19 +251,19 @@ public class GroupGeneratorDelegate {
      */
     public synchronized void insertStorageClusterRelationships(@Nonnull final ReportsDataContext context) throws DbException {
         logger.info("Generating Storage cluster relationships");
-        insertClusterRelationshipsInternal(context, ClusterInfo.Type.STORAGE, MetaGroup.Storages, STORAGE);
+        insertClusterRelationshipsInternal(context, GroupType.STORAGE_CLUSTER, MetaGroup.Storages, STORAGE);
         logger.info("Finished generating Storage cluster relationships");
     }
 
 
     // insert groups and their members relationships to entity_assns_members table.
     private void insertClusterMembersRelationships(@Nonnull final ReportsDataContext context,
-                                                   @Nonnull final Map<Group, Long> groupToPK,
+                                                   @Nonnull final Map<Grouping, Long> groupToPK,
                                                    @Nonnull final Long defaultGroupId,
                                                    @Nonnull final String entityType)
         throws DbException {
-        for (Map.Entry<Group, Long> entry : groupToPK.entrySet()) {
-            final List<Long> staticMemberOidsList = entry.getKey().getCluster().getMembers().getStaticMemberOidsList();
+        for (Map.Entry<Grouping, Long> entry : groupToPK.entrySet()) {
+            final List<Long> staticMemberOidsList = GroupProtoUtil.getStaticMembers(entry.getKey());
             final List<SupplyChainNode> nodes = getSupplyChainNodes(context, entityType, staticMemberOidsList);
             for (SupplyChainNode node : nodes) {
                 final Set<Long> entitiesInScope = RepositoryDTOUtil.getAllMemberOids(node);
@@ -249,14 +284,47 @@ public class GroupGeneratorDelegate {
                                                       final @Nonnull String entityType,
                                                       final @Nonnull Collection<Long> staticMemberOidsList) {
         final GetSupplyChainRequest request = GetSupplyChainRequest.newBuilder()
-            .setEnvironmentType(EnvironmentType.ON_PREM)
-            .addAllStartingEntityOid(staticMemberOidsList)
-            .addAllEntityTypesToInclude(Collections.singleton(entityType))
+            .setScope(SupplyChainScope.newBuilder()
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .addAllStartingEntityOid(staticMemberOidsList)
+                .addAllEntityTypesToInclude(Collections.singleton(entityType)))
             .build();
-        final GetSupplyChainResponse response = context.getSupplyChainRpcService().getSupplyChain(request);
+        final GetSupplyChainResponse response = getGetSupplyChainResponse(context, request);
         return response.getSupplyChain().getSupplyChainNodesList();
     }
 
+    /*
+     (May 21, 2019, Gary Zeng) XL recently have following exception in BoA environment,
+      while trying to get cluster/members relationships from repository:
+      io.grpc.StatusRuntimeException: INTERNAL: java.util.concurrent.ExecutionException:
+      com.arangodb.ArangoDBException: java.io.IOException: Reached the end of the stream.
+      TODO: Currently, gRPC retry logic is not available (issues/284), but consider replace following codes
+      when it's ready.
+     */
+    private GetSupplyChainResponse getGetSupplyChainResponse(@Nonnull final ReportsDataContext context,
+                                                             @Nonnull final GetSupplyChainRequest request) {
+        int count = 0;
+        while (true) {
+            try {
+                return context.getSupplyChainRpcService().getSupplyChain(request);
+            } catch (StatusRuntimeException e) {
+                if (count++ >= maxConnectRetryCount) {
+                    logger.error("Cannot get response from repository component with "
+                        + maxConnectRetryCount + " retries");
+                    throw e;
+                }
+
+                logger.error("Failed to get response from repository: ", e);
+                logger.info("Waiting for repository to response. Retry #" + count);
+                try {
+                    Thread.sleep(retryDelayInMilliSec);
+                } catch (InterruptedException e1) {
+                    throw new RuntimeException(
+                        "Exception while retrying connection to repository", e1);
+                }
+            }
+        }
+    }
 
     // 1. Insert ENTITIES table with group names.
     // 2. Get members from the clusters
@@ -264,36 +332,34 @@ public class GroupGeneratorDelegate {
     // 4. Insert cluster id -> members to ENTITY_ASSNS_MEMBERS_ENTITIES table
     // 5. Insert cluster id with entity type and "sETypeName"
     private void insertClusterRelationshipsInternal(@Nonnull final ReportsDataContext context,
-                                                    @Nonnull final ClusterInfo.Type type,
+                                                    @Nonnull final GroupType type,
                                                     @Nonnull final MetaGroup metaGroup,
                                                     @Nonnull final String entityType) throws DbException {
-        final Iterable<Group> groups = () -> context
+        final Iterable<Grouping> groups = () -> context
             .getGroupService()
             .getGroups(GetGroupsRequest.newBuilder()
-                .addTypeFilter(Type.CLUSTER)
-                .setClusterFilter(ClusterFilter.newBuilder()
-                    .setTypeFilter(type)
-                    .build())
-                .build());
-        final List<Group> groupList = StreamSupport.stream(groups.spliterator(), false)
-            .filter(group -> !(group.hasGroup() && group.getGroup().getIsHidden()))
-            .filter(group -> group.getCluster().getMembers().getStaticMemberOidsCount() > 0)
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                    .setGroupType(type))
+                            .build());
+        final List<Grouping> groupList = StreamSupport.stream(groups.spliterator(), false)
+            .filter(group -> !(group.hasDefinition() && group.getDefinition().getIsHidden()))
+            .filter(group -> GroupProtoUtil.getStaticMembers(group).size() > 0)
             .collect(Collectors.toList());
         final EntitiesTableGeneratedId groupResults = context.getReportDataWriter().insertGroupIntoEntitiesTable(groupList, metaGroup);
         writeGroupRelationships(context, entityType, groupResults);
     }
 
-    /**
+    /*
      * Write group relationship to DB. It will return user selected group's UUID from entities table.
      */
     private Optional<String> writeGroupToDB(@Nonnull final ReportsDataContext context,
                                             @Nonnull final MetaGroup metaGroup,
                                             @Nonnull final String entityType,
-                                            @Nonnull final Group group) throws DbException {
+                                            @Nonnull final Grouping group) throws DbException {
         final Tuple2<EntitiesTableGeneratedId, Optional<String>> resultsTuple =
             context.getReportDataWriter().insertGroup(group, metaGroup);
         final EntitiesTableGeneratedId results = resultsTuple._1;
-        final Map<Group, Long> groupToPK = results.getGroupToPK();
+        final Map<Grouping, Long> groupToPK = results.getGroupToPK();
         final List<Long> allGeneratedGroupIdsFromEntitiesTable = groupToPK.values().stream().collect(Collectors.toList());
         allGeneratedGroupIdsFromEntitiesTable.add(results.getDefaultGroupPK());
         context.getReportDataWriter().cleanUpEntity_Assns(allGeneratedGroupIdsFromEntitiesTable);
@@ -302,7 +368,7 @@ public class GroupGeneratorDelegate {
         final Set<Long> entitiesInScope = getEntitiesInScope(context, group);
         context.getReportDataWriter().cleanUpEntity_Assns(Lists.newArrayList(entitiesInScope));
         context.getReportDataWriter().insertEntityAssnsBatch(Lists.newArrayList(entitiesInScope));
-        for (Map.Entry<Group, Long> entry : resultsFromEntityAssns.getGroupToPK().entrySet()) {
+        for (Map.Entry<Grouping, Long> entry : resultsFromEntityAssns.getGroupToPK().entrySet()) {
             final Map<Long, Set<Long>> groupMembers = new HashMap<>();
             // we want the primary key, not the group id
             groupMembers.put(entry.getValue(), entitiesInScope);
@@ -317,15 +383,18 @@ public class GroupGeneratorDelegate {
         return resultsTuple._2;
     }
 
-    private Set<Long> getEntitiesInScope(final @Nonnull ReportsDataContext context, final @Nonnull Group group) {
-        return GroupProtoUtil.getStaticMembers(group).map(members -> members.stream().collect(Collectors.toSet()))
-            .orElse(ReportDataUtils.expandOids(Collections.singleton(group.getId()), context.getGroupService()));
+    private Set<Long> getEntitiesInScope(final @Nonnull ReportsDataContext context, final @Nonnull Grouping group) {
+        if (group.getDefinition().hasStaticGroupMembers() && !GroupProtoUtil.isNestedGroup(group)) {
+            return GroupProtoUtil.getStaticMembers(group).stream().collect(Collectors.toSet());
+        } else {
+            return ReportDataUtils.expandOids(Collections.singleton(group.getId()), context.getGroupService());
+        }
     }
 
     private void writeGroupRelationships(@Nonnull final ReportsDataContext context,
                                          @Nonnull final String entityType,
                                          @Nonnull final EntitiesTableGeneratedId results) throws DbException {
-        final Map<Group, Long> groupToPK = results.getGroupToPK();
+        final Map<Grouping, Long> groupToPK = results.getGroupToPK();
         final List<Long> allGroupsFromEntitiesTable = groupToPK.values().stream().collect(Collectors.toList());
         allGroupsFromEntitiesTable.add(results.getDefaultGroupPK());
         context.getReportDataWriter().cleanUpEntity_Assns(allGroupsFromEntitiesTable);

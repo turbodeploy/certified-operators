@@ -1,5 +1,6 @@
 package com.vmturbo.reports.component.data;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -27,10 +28,10 @@ public class ReportsDataGenerator {
 
 
     public ReportsDataGenerator(@Nonnull final ReportsDataContext context,
-                                @Nonnull final Map<Long, ReportTemplate> standardReportMap
+                                @Nonnull final Map<Long, ReportTemplate> reportMap
                                 ) {
         this.context = Objects.requireNonNull(context);
-        this.reportMap = Objects.requireNonNull(standardReportMap);
+        this.reportMap = Objects.requireNonNull(reportMap);
     }
 
     /**
@@ -71,6 +72,14 @@ public class ReportsDataGenerator {
     // this group to show up in other reports.
     private void cleanUpFakeVmGroup() {
         context.getReportDataWriter().cleanGroup(MetaGroup.FAKE_VM_GROUP);
+    }
+
+    /**
+     * Get supported reports.
+     * @return supported report Map
+     */
+    public Map<Long,ReportTemplate> getSupportedReport() {
+        return Collections.unmodifiableMap(reportMap);
     }
 
     private static class Metrics {

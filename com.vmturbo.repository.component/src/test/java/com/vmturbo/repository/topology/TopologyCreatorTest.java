@@ -16,11 +16,12 @@ import org.junit.Test;
 
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriverBuilder;
+import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.operator.TopologyGraphCreator;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.ArangoProjectedTopologyCreator;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.ArangoSourceTopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.EntityConverter;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.ProjectedTopologyCreator;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.SourceTopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyGraphCreatorFactory;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufWriter;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
@@ -48,103 +49,123 @@ public class TopologyCreatorTest {
 
     private final TopologyGraphCreator graphCreator = mock(TopologyGraphCreator.class);
 
+    private final GlobalSupplyChainManager globalSupplyChainManager =
+            mock(GlobalSupplyChainManager.class);
+
+    private final GraphDBExecutor graphDBExecutor = mock(GraphDBExecutor.class);
+
     private final TopologyID realtimeSourceId =
-            new TopologyID(realtimeTopologyContextId, 1L, TopologyType.SOURCE);
+        new TopologyID(realtimeTopologyContextId, 1L, TopologyType.SOURCE);
     private final TopologyID realtimeProjectedId =
-            new TopologyID(realtimeTopologyContextId, 1L, TopologyType.PROJECTED);
+        new TopologyID(realtimeTopologyContextId, 1L, TopologyType.PROJECTED);
     private final TopologyID planSourceId =
-            new TopologyID(1L, 1L, TopologyType.SOURCE);
+        new TopologyID(1L, 1L, TopologyType.SOURCE);
     private final TopologyID planProjectedId =
-            new TopologyID(1L, 1L, TopologyType.PROJECTED);
+        new TopologyID(1L, 1L, TopologyType.PROJECTED);
 
 
     @Before
     public void setup() {
-        when(graphDatabaseDriverBuilder.build(any())).thenReturn(mockDriver);
-        when(topologyProtobufsManager.createTopologyProtobufWriter(anyLong()))
+        when(graphDatabaseDriverBuilder.build(any(), any())).thenReturn(mockDriver);
+        when(topologyProtobufsManager.createSourceTopologyProtobufWriter(anyLong()))
+            .thenReturn(protobufWriter);
+        when(topologyProtobufsManager.createProjectedTopologyProtobufWriter(anyLong()))
                 .thenReturn(protobufWriter);
         when(graphCreatorFactory.newGraphCreator(eq(mockDriver))).thenReturn(graphCreator);
     }
 
     @Test
     public void testTopologyCreatorRealtimeSourceTopology() {
-        new SourceTopologyCreator(realtimeSourceId,
+        new ArangoSourceTopologyCreator(realtimeSourceId,
                 graphDatabaseDriverBuilder,
+                topologyProtobufsManager,
                 onComplete,
                 graphCreatorFactory,
-                entityConverter, realtimeTopologyContextId, 2, 2);
+                entityConverter,
+                globalSupplyChainManager,
+                graphDBExecutor,
+                realtimeTopologyContextId, 2, 2);
 
-        verify(graphDatabaseDriverBuilder).build(eq(realtimeSourceId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
-        verify(topologyProtobufsManager, never()).createTopologyProtobufWriter(anyLong());
+        verify(topologyProtobufsManager, never()).createProjectedTopologyProtobufWriter(anyLong());
     }
 
     @Test
     public void testTopologyCreatorRealtimeProjectedTopology() {
-        new ProjectedTopologyCreator(realtimeProjectedId,
+        new ArangoProjectedTopologyCreator(realtimeProjectedId,
                 graphDatabaseDriverBuilder,
                 topologyProtobufsManager,
                 onComplete,
                 graphCreatorFactory,
                 entityConverter,
+                globalSupplyChainManager,
+                graphDBExecutor,
                 realtimeTopologyContextId, 2, 2);
 
-        verify(graphDatabaseDriverBuilder).build(eq(realtimeProjectedId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
-        verify(topologyProtobufsManager, never()).createTopologyProtobufWriter(anyLong());
+        verify(topologyProtobufsManager, never()).createProjectedTopologyProtobufWriter(anyLong());
     }
 
     @Test
     public void testTopologyCreatorPlanSourceTopology() {
-        new SourceTopologyCreator(planSourceId,
-                graphDatabaseDriverBuilder,
-                onComplete,
-                graphCreatorFactory,
-                entityConverter, realtimeTopologyContextId, 2, 2);
-
-        verify(graphDatabaseDriverBuilder).build(eq(planSourceId.toDatabaseName()));
-        verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
-        verify(topologyProtobufsManager, never()).createTopologyProtobufWriter(anyLong());
-    }
-
-    @Test
-    public void testTopologyCreatorPlanProjectedTopology() {
-        new ProjectedTopologyCreator(planProjectedId,
+        new ArangoSourceTopologyCreator(planSourceId,
                 graphDatabaseDriverBuilder,
                 topologyProtobufsManager,
                 onComplete,
                 graphCreatorFactory,
                 entityConverter,
+                globalSupplyChainManager,
+                graphDBExecutor,
                 realtimeTopologyContextId, 2, 2);
 
-        verify(graphDatabaseDriverBuilder).build(eq(planProjectedId.toDatabaseName()));
+        verify(graphDatabaseDriverBuilder).build(eq(graphDBExecutor.getArangoDatabaseName()),
+            eq(planSourceId.toCollectionNameSuffix()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
         verify(topologyProtobufsManager)
-            .createTopologyProtobufWriter(eq(planProjectedId.getTopologyId()));
+            .createSourceTopologyProtobufWriter(eq(planSourceId.getTopologyId()));
+    }
+
+    @Test
+    public void testTopologyCreatorPlanProjectedTopology() {
+        new ArangoProjectedTopologyCreator(planProjectedId,
+                graphDatabaseDriverBuilder,
+                topologyProtobufsManager,
+                onComplete,
+                graphCreatorFactory,
+                entityConverter,
+                globalSupplyChainManager,
+                graphDBExecutor,
+                realtimeTopologyContextId, 2, 2);
+
+        verify(graphDatabaseDriverBuilder).build(eq(graphDBExecutor.getArangoDatabaseName()),
+            eq(planProjectedId.toCollectionNameSuffix()));
+        verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
+        verify(topologyProtobufsManager)
+            .createProjectedTopologyProtobufWriter(eq(planProjectedId.getTopologyId()));
     }
 
     @Test
     public void testTopologyCreatorInitialize() throws Exception {
-        SourceTopologyCreator creator = newTopologyCreator(planSourceId);
+        ArangoSourceTopologyCreator creator = newTopologyCreator(planSourceId);
         creator.initialize();
         verify(graphCreator).init();
     }
 
     @Test
     public void testTopologyCreatorAddEntities() throws Exception {
-        SourceTopologyCreator creator = newTopologyCreator(planSourceId);
+        ArangoSourceTopologyCreator creator = newTopologyCreator(planSourceId);
 
         when(entityConverter.convert(any())).thenReturn(Collections.emptySet());
         creator.addEntities(Collections.emptySet());
 
         verify(entityConverter).convert(any());
         verify(graphCreator).updateTopologyToDb(any());
-        verify(protobufWriter, never()).storeChunk(any());
+        verify(protobufWriter).storeChunk(any());
     }
 
     @Test
     public void testTopologyCreatorProjectedAddEntities() throws Exception {
-        ProjectedTopologyCreator creator = newProjectedTopologyCreator(planProjectedId);
+        ArangoProjectedTopologyCreator creator = newProjectedTopologyCreator(planProjectedId);
 
         when(entityConverter.convert(any())).thenReturn(Collections.emptySet());
         creator.addEntities(Collections.emptySet());
@@ -156,41 +177,47 @@ public class TopologyCreatorTest {
 
     @Test
     public void testTopologyCreatorComplete() throws Exception {
-        SourceTopologyCreator creator = newTopologyCreator(planSourceId);
+        ArangoSourceTopologyCreator creator = newTopologyCreator(planSourceId);
         creator.complete();
         verify(onComplete).accept(eq(planSourceId));
     }
 
     @Test
     public void testTopologyCreatorRollback() throws Exception {
-        SourceTopologyCreator creator = newTopologyCreator(planSourceId);
+        ArangoSourceTopologyCreator creator = newTopologyCreator(planSourceId);
         creator.rollback();
-        verify(mockDriver).dropDatabase();
+        verify(mockDriver).dropCollections();
     }
 
     @Test
     public void testProjectedTopologyCreatorRollback() throws Exception {
-        ProjectedTopologyCreator creator = newProjectedTopologyCreator(planProjectedId);
+        ArangoProjectedTopologyCreator creator = newProjectedTopologyCreator(planProjectedId);
         creator.rollback();
-        verify(mockDriver).dropDatabase();
+        verify(mockDriver).dropCollections();
         verify(protobufWriter).delete();
     }
 
-    private SourceTopologyCreator newTopologyCreator(TopologyID tid) {
-        return new SourceTopologyCreator(tid,
-                graphDatabaseDriverBuilder,
-                onComplete,
-                graphCreatorFactory,
-                entityConverter, realtimeTopologyContextId, 2, 2);
-    }
-
-    private ProjectedTopologyCreator newProjectedTopologyCreator(TopologyID tid) {
-        return new ProjectedTopologyCreator(tid,
+    private ArangoSourceTopologyCreator newTopologyCreator(TopologyID tid) {
+        return new ArangoSourceTopologyCreator(tid,
                 graphDatabaseDriverBuilder,
                 topologyProtobufsManager,
                 onComplete,
                 graphCreatorFactory,
                 entityConverter,
+                globalSupplyChainManager,
+                graphDBExecutor,
+                realtimeTopologyContextId, 2, 2);
+    }
+
+    private ArangoProjectedTopologyCreator newProjectedTopologyCreator(TopologyID tid) {
+        return new ArangoProjectedTopologyCreator(tid,
+                graphDatabaseDriverBuilder,
+                topologyProtobufsManager,
+                onComplete,
+                graphCreatorFactory,
+                entityConverter,
+                globalSupplyChainManager,
+                graphDBExecutor,
                 realtimeTopologyContextId, 2, 2);
     }
 }

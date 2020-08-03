@@ -5,17 +5,20 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.topology.processor.KVConfig;
+import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
+import com.vmturbo.topology.processor.targets.TargetConfig;
 
 @Configuration
 @Import({
         IdentityProviderConfig.class,
         ProbeConfig.class,
         StitchingConfig.class,
-        SQLDatabaseConfig.class})
+        TopologyProcessorDBConfig.class,
+        KVConfig.class})
 public class MigrationsConfig {
 
     @Autowired
@@ -25,16 +28,24 @@ public class MigrationsConfig {
     ProbeConfig probeConfig;
 
     @Autowired
-    SQLDatabaseConfig sqlDatabaseConfig;
+    TopologyProcessorDBConfig topologyProcessorDBConfig;
 
     @Autowired
     StitchingConfig stitchingConfig;
 
+    @Autowired
+    KVConfig kvConfig;
+
+    @Autowired
+    TargetConfig targetConfig;
+
     @Bean
     public MigrationsLibrary migrationsList() {
-        return new MigrationsLibrary(sqlDatabaseConfig.dsl(),
+        return new MigrationsLibrary(topologyProcessorDBConfig.dsl(),
                 probeConfig.probeStore(), stitchingConfig.historyClient(),
                 identityProviderConfig.underlyingStore(),
-                identityProviderConfig.identityProvider());
+                identityProviderConfig.identityProvider(),
+                kvConfig.keyValueStore(), targetConfig.targetStore(), targetConfig.targetDao(),
+                targetConfig.identityStore());
     }
 }

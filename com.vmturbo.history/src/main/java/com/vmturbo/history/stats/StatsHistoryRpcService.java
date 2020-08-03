@@ -1,97 +1,131 @@
 package com.vmturbo.history.stats;
 
 import static com.vmturbo.components.common.stats.StatsUtils.collectCommodityNames;
-import static org.joda.time.DateTimeConstants.MILLIS_PER_DAY;
+import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
+import static org.apache.commons.lang.time.DateUtils.MILLIS_PER_DAY;
 
-import java.math.BigDecimal;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
-
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.Record;
-import org.jooq.exception.DataAccessException;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.util.CollectionUtils;
+import com.google.common.collect.MultimapBuilder;
+import com.google.common.collect.Sets;
+import com.google.common.collect.Sets.SetView;
+import com.google.common.collect.Table.Cell;
 
 import io.grpc.Status;
+import io.grpc.StatusException;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
 
-import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.auth.api.authorization.UserSessionContext;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.Record;
+import org.jooq.exception.DataAccessException;
+import org.springframework.util.CollectionUtils;
+
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroup;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroupList;
+import com.vmturbo.common.protobuf.stats.Stats.EntityUuidAndType;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
+import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingResponse;
+import com.vmturbo.common.protobuf.stats.Stats.SetPercentileCountsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
+import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
-import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonthRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
-import com.vmturbo.history.stats.live.LiveStatsReader;
-import com.vmturbo.history.stats.live.LiveStatsReader.StatRecordPage;
+import com.vmturbo.history.stats.ClusterStatsReader.ClusterStatsRecordReader;
 import com.vmturbo.history.stats.live.SystemLoadReader;
-import com.vmturbo.history.stats.live.SystemLoadWriter;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
+import com.vmturbo.history.stats.readers.LiveStatsReader;
+import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
+import com.vmturbo.history.stats.readers.MostRecentLiveStatReader;
+import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
+import com.vmturbo.history.stats.writers.PercentileWriter;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * Handles incoming RPC calls to History Component to return Stats information.
@@ -104,10 +138,10 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     private final LiveStatsReader liveStatsReader;
     private final HistorydbIO historydbIO;
+    private final BulkLoader<ClusterStatsByDayRecord> clusterStatsByDayLoader;
     private final PlanStatsReader planStatsReader;
     private final long realtimeContextId;
     private final ClusterStatsReader clusterStatsReader;
-    private final ClusterStatsWriter clusterStatsWriter;
 
     private final ProjectedStatsStore projectedStatsStore;
 
@@ -118,19 +152,18 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     private final StatRecordBuilder statRecordBuilder;
 
     private final SystemLoadReader systemLoadReader;
-    private final SystemLoadWriter systemLoadWriter;
+    private final RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader;
+    private final MostRecentLiveStatReader mostRecentLiveStatReader;
+    private final ExecutorService statsWriterExecutorService;
 
-    private static final Set<String> HEADROOM_STATS =
-                    ImmutableSet.of(StringConstants.CPU_HEADROOM,
-                            StringConstants.MEM_HEADROOM,
-                            StringConstants.STORAGE_HEADROOM,
-                            StringConstants.CPU_EXHAUSTION,
-                            StringConstants.MEM_EXHAUSTION,
-                            StringConstants.STORAGE_EXHAUSTION,
-                            StringConstants.VM_GROWTH,
-                            StringConstants.HEADROOM_VMS);
+    private final int systemLoadRecordsPerChunk;
 
-    private static final String PROPERTY_TYPE_PREFIX_CURRENT = "current";
+    // Cluster commodities for which to create projected headroom.
+    private static final Set<String> CLUSTER_COMMODITY_STATS = ImmutableSet.of(
+        StringConstants.CPU_HEADROOM,
+        StringConstants.MEM_HEADROOM,
+        StringConstants.STORAGE_HEADROOM,
+        StringConstants.TOTAL_HEADROOM);
 
     private static final Summary GET_STATS_SNAPSHOT_DURATION_SUMMARY = Summary.build()
         .name("history_get_stats_snapshot_duration_seconds")
@@ -144,29 +177,35 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         .register();
 
     StatsHistoryRpcService(final long realtimeContextId,
-                           @Nonnull final LiveStatsReader liveStatsReader,
-                           @Nonnull final PlanStatsReader planStatsReader,
-                           @Nonnull final ClusterStatsReader clusterStatsReader,
-                           @Nonnull final ClusterStatsWriter clusterStatsWriter,
-                           @Nonnull final HistorydbIO historydbIO,
-                           @Nonnull final ProjectedStatsStore projectedStatsStore,
-                           @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
-                           @Nonnull final StatSnapshotCreator statSnapshotCreator,
-                           @Nonnull final StatRecordBuilder statRecordBuilder,
-                           @Nonnull final SystemLoadReader systemLoadReader,
-                           @Nonnull final SystemLoadWriter systemLoadWriter) {
+            @Nonnull final LiveStatsReader liveStatsReader,
+            @Nonnull final PlanStatsReader planStatsReader,
+            @Nonnull final ClusterStatsReader clusterStatsReader,
+            @Nonnull final BulkLoader<ClusterStatsByDayRecord> clusterStatsByDayLoader,
+            @Nonnull final HistorydbIO historydbIO,
+            @Nonnull final ProjectedStatsStore projectedStatsStore,
+            @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
+            @Nonnull final StatSnapshotCreator statSnapshotCreator,
+            @Nonnull final StatRecordBuilder statRecordBuilder,
+            @Nonnull final SystemLoadReader systemLoadReader,
+            final int systemLoadRecordsPerChunk,
+            @Nonnull RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader,
+            @Nonnull ExecutorService statsWriterExecutorService,
+            @Nonnull MostRecentLiveStatReader mostRecentLiveStatReader) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
         this.planStatsReader = Objects.requireNonNull(planStatsReader);
         this.clusterStatsReader = Objects.requireNonNull(clusterStatsReader);
-        this.clusterStatsWriter = Objects.requireNonNull(clusterStatsWriter);
+        this.clusterStatsByDayLoader = Objects.requireNonNull(clusterStatsByDayLoader);
         this.historydbIO = Objects.requireNonNull(historydbIO);
         this.projectedStatsStore = Objects.requireNonNull(projectedStatsStore);
         this.paginationParamsFactory = Objects.requireNonNull(paginationParamsFactory);
         this.statSnapshotCreator = Objects.requireNonNull(statSnapshotCreator);
         this.statRecordBuilder = Objects.requireNonNull(statRecordBuilder);
         this.systemLoadReader = Objects.requireNonNull(systemLoadReader);
-        this.systemLoadWriter = Objects.requireNonNull(systemLoadWriter);
+        this.systemLoadRecordsPerChunk = systemLoadRecordsPerChunk;
+        this.percentileReader = Objects.requireNonNull(percentileReader);
+        this.statsWriterExecutorService = Objects.requireNonNull(statsWriterExecutorService);
+        this.mostRecentLiveStatReader = Objects.requireNonNull(mostRecentLiveStatReader);
     }
 
     /**
@@ -199,10 +238,34 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     @Override
     public void getProjectedEntityStats(@Nonnull final ProjectedEntityStatsRequest request,
                 @Nonnull final StreamObserver<ProjectedEntityStatsResponse> responseObserver) {
+        final EntityStatsScope scope = request.getScope();
+        // create mapping from seed entity to derived entities, if no derived entities specified,
+        // it will only use the seed entity to fetch stats
+        final Map<Long, Set<Long>> seedEntityToDerivedEntities;
+        switch (scope.getScopeCase()) {
+            case ENTITY_LIST:
+                seedEntityToDerivedEntities = scope.getEntityList().getEntitiesList().stream()
+                    .collect(Collectors.toMap(oid -> oid, Collections::singleton));
+                break;
+            case ENTITY_GROUP_LIST:
+                seedEntityToDerivedEntities = scope.getEntityGroupList().getGroupsList().stream()
+                .collect(Collectors.toMap(EntityGroup::getSeedEntity,
+                    entityGroup -> entityGroup.getEntitiesCount() == 0
+                        ? Collections.singleton(entityGroup.getSeedEntity())
+                        : new HashSet<>(entityGroup.getEntitiesList())));
+                break;
+            default:
+                logger.warn("Scope case {} is not supported, returning empty stats",
+                    scope.getScopeCase());
+                responseObserver.onError(new UnsupportedOperationException("Scope case: " +
+                    scope.getScopeCase() + " is not supported, returning empty stats."));
+                responseObserver.onCompleted();
+                return;
+        }
         responseObserver.onNext(projectedStatsStore.getEntityStats(
-                new HashSet<>(request.getEntitiesList()),
-                new HashSet<>(request.getCommodityNameList()),
-                paginationParamsFactory.newPaginationParams(request.getPaginationParams())));
+            seedEntityToDerivedEntities,
+            new HashSet<>(request.getCommodityNameList()),
+            paginationParamsFactory.newPaginationParams(request.getPaginationParams())));
         responseObserver.onCompleted();
     }
 
@@ -210,18 +273,17 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * Fetch a sequence of StatSnapshot's based on the time range and filters in the StatsRequest.
      * The stats may be taken from the live topology history or the plan topology history depending
      * on the ID in the request.
-     * <p>
-     * Unfortunately, we need to determine, by a lookup, which type of entity ID(s) we are
+     *
+     * <p>Unfortunately, we need to determine, by a lookup, which type of entity ID(s) we are
      * to gather stats for. This call has been overloaded (ultimately) by the External REST API,
      * which doesn't distinguish between stats requests for groups vs. individual SEs, live
-     * vs. plan topologies, etc.
-     * <p>
-     * The 'entitiesList' in the {@link GetAveragedEntityStatsRequest} may be:
+     * vs. plan topologies, etc.</p>
+     *
+     * <p>The 'entitiesList' in the {@link GetAveragedEntityStatsRequest} may be:</p>
      * <ul>
-     * <li>a single-element list containing the distinguished ID for the Real-Time Topology = "Market"
-     * <li>a single-element list containing the OID of a plan topology - a numeric (long)
-     * <li>a list of one or more {@link .ServiceEntityApiDTO} OIDs - these are
-     * numeric (longs)
+     *     <li>a single-element list containing the distinguished ID for the Real-Time Topology = "Market"</li>
+     *     <li>a single-element list containing the OID of a plan topology - a numeric (long)</li>
+     *     <li>a list of one or more {@link ServiceEntityApiDTO} OIDs - these are numeric (longs)</li>
      * </ul>
      *
      * @param request a set of parameters describing how to fetch the snapshot and what entities.
@@ -249,14 +311,12 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             if (isPlan) {
                 // read from plan topologies
                 returnPlanTopologyStats(responseObserver, entitiesList.get(0),
-                        filter.getCommodityRequestsList());
+                        filter.getCommodityRequestsList(), request.getGlobalFilter());
             } else {
                 // read from live topologies
-                Optional<String> relatedEntityType = (request.hasRelatedEntityType())
-                        ? Optional.of(request.getRelatedEntityType())
-                        : Optional.empty();
-                returnLiveMarketStats(responseObserver, filter,
-                        entitiesList, relatedEntityType);
+                getLiveMarketStats(filter, entitiesList, request.getGlobalFilter())
+                    .forEach(responseObserver::onNext);
+                responseObserver.onCompleted();
             }
 
             timer.observeDuration();
@@ -270,6 +330,66 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         }
     }
 
+    /**
+     * Get the comparator that can be used to sort EntityStats according to the passed-in pagination
+     * parameters. We compare the getUtilization of the stat (used / capacity).
+     *
+     * @param entityStats list of entity stats to get comparator for
+     * @param commodity name of the stat to compare
+     * @param ascending whether to create comparator in the ascending order or descending order
+     * @return comparator used to sort EntityStats
+     */
+    @VisibleForTesting
+    protected Comparator<EntityStats> getEntityStatsComparator(@Nonnull List<EntityStats> entityStats,
+                                                             @Nonnull String commodity,
+                                                             final boolean ascending) {
+        // pre calculate the getUtilization for each entity, to reduce the calculation during sorting
+        final Map<Long, Float> utilizationByEntity = entityStats.stream()
+            .collect(Collectors.toMap(EntityStats::getOid, stats ->
+                getStatsUtilization(stats, commodity, ascending)));
+        return (entityStats1, entityStats2) -> {
+            float statVal1 = utilizationByEntity.get(entityStats1.getOid());
+            float statVal2 = utilizationByEntity.get(entityStats2.getOid());
+            int compareResult = Float.compare(statVal1, statVal2);
+            // if stats values are same, compare entity oid to ensure stable sorting
+            if (compareResult == 0) {
+                compareResult = Long.compare(entityStats1.getOid(), entityStats2.getOid());
+            }
+            return ascending ? compareResult : -compareResult;
+        };
+    }
+
+    /**
+     * Get the getUtilization of the given commodity from the list of snapshots. If no no snapshots,
+     * or no capacity, or commodity is not found, return max/min if it's ascending/descending so
+     * it is placed at the end after sorting.
+     *
+     * @param entityStats entityStats containing entity id and a list of snapshots
+     * @param commodity name of the commodity to calculate getUtilization for
+     * @param ascending whether or not the pagination is ascending or descending
+     * @return getUtilization of the given commodity
+     */
+    private Float getStatsUtilization(@Nonnull final EntityStats entityStats,
+                                      @Nonnull final String commodity,
+                                      final boolean ascending) {
+        final List<StatSnapshot> snapshots = entityStats.getStatSnapshotsList();
+        if (snapshots.isEmpty()) {
+            // if no snapshots, return max/min if it's ascending/descending so it is placed
+            // at the end after sorting
+            return ascending ? Float.MAX_VALUE : Float.MIN_VALUE;
+        }
+        // take the first matching one for comparison
+        return snapshots.get(0).getStatRecordsList().stream()
+            .filter(statRecord -> StringUtils.equals(statRecord.getName(), commodity))
+            // must have capacity to calculate getUtilization
+            .filter(statRecord -> statRecord.hasCapacity() && statRecord.getCapacity().getAvg() != 0)
+            .map(statRecord -> statRecord.getValues().getAvg() / statRecord.getCapacity().getAvg())
+            .findFirst()
+            // if no matching commodity, return max/min if it's ascending/descending so it is
+            // placed at the end after sorting
+            .orElse(ascending ? Float.MAX_VALUE : Float.MIN_VALUE);
+    }
+
     @Override
     public void getEntityStats(@Nonnull GetEntityStatsRequest request,
                                @Nonnull StreamObserver<GetEntityStatsResponse> responseObserver) {
@@ -280,39 +400,60 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             responseObserver.onNext(GetEntityStatsResponse.getDefaultInstance());
             responseObserver.onCompleted();
             return;
-        } else if (!(scope.hasEntityList() || scope.hasEntityType())) {
+        } else if (!(scope.hasEntityList() || scope.hasEntityType() || scope.hasEntityGroupList())) {
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(
-                "Scope must have either an entity type or  a list of entity IDs.").asException());
+                "Scope must have either an entity type, a list of entity IDs or a list of " +
+                    "entity groups.").asException());
         }
         try {
             final Timer timer = GET_ENTITY_STATS_DURATION_SUMMARY.startTimer();
-            final StatRecordPage recordPage = liveStatsReader.getPaginatedStatsRecords(request.getScope(),
+
+            if (scope.hasEntityGroupList()) {
+                // if the scope is a list of EntityGroups, we should handle it differently since
+                // each stats is an aggregation on the derived entities for the seed entity
+                returnStatsForEntityGroups(scope.getEntityGroupList(), request.getFilter(),
+                    request.hasPaginationParams() ? Optional.of(request.getPaginationParams())
+                        : Optional.empty(), responseObserver);
+            } else {
+                final StatRecordPage recordPage = liveStatsReader.getPaginatedStatsRecords(scope,
                     request.getFilter(),
                     paginationParamsFactory.newPaginationParams(request.getPaginationParams()));
 
-            final List<EntityStats> entityStats = new ArrayList<>(recordPage.getNextPageRecords().size());
-            recordPage.getNextPageRecords().forEach((entityOid, recordList) -> {
-                final EntityStats.Builder statsForEntity = EntityStats.newBuilder()
+                final List<EntityStats> entityStats = new ArrayList<>(
+                    recordPage.getNextPageRecords().size());
+                recordPage.getNextPageRecords().forEach((entityOid, recordList) -> {
+                    final EntityStats.Builder statsForEntity = EntityStats.newBuilder()
                         .setOid(entityOid);
-                // organize the stats DB records for this entity into StatSnapshots and add to response
-                statSnapshotCreator.createStatSnapshots(recordList, false,
+                    // organize the stats DB records for this entity into StatSnapshots and add to response
+                    statSnapshotCreator.createStatSnapshots(recordList, false,
                         request.getFilter().getCommodityRequestsList())
-                    .forEach(statsForEntity::addStatSnapshots);
-                entityStats.add(statsForEntity.build());
-            });
+                        .forEach(statsForEntity::addStatSnapshots);
+                    entityStats.add(statsForEntity.build());
+                });
 
-            final PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
-            recordPage.getNextCursor().ifPresent(paginationResponse::setNextCursor);
+                final PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
+                recordPage.getNextCursor().ifPresent(paginationResponse::setNextCursor);
+                recordPage.getTotalRecordCount().ifPresent(paginationResponse::setTotalRecordCount);
 
-            responseObserver.onNext(GetEntityStatsResponse.newBuilder()
+                responseObserver.onNext(GetEntityStatsResponse.newBuilder()
                     .addAllEntityStats(entityStats)
                     .setPaginationResponse(paginationResponse)
                     .build());
-            responseObserver.onCompleted();
+                responseObserver.onCompleted();
+            }
+
             timer.observeDuration();
         } catch (VmtDbException e) {
             responseObserver.onError(Status.INTERNAL
                     .withDescription("DB Error fetching stats for " + scopeErrorDescription(scope))
+                    .withCause(e)
+                    .asException());
+        } catch (IllegalArgumentException e) {
+            final String errorMessage = "Invalid stats query: " + scopeErrorDescription(scope) +
+                    ", " + e.getMessage();
+            logger.error(errorMessage);
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription(errorMessage)
                     .withCause(e)
                     .asException());
         } catch (RuntimeException e) {
@@ -322,6 +463,80 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     .withCause(e)
                     .asException());
         }
+    }
+
+    /**
+     * Fetch and return a sequence of StatSnapshots for each of the provided entity group in the
+     * request. For each seed entity (like: DC), it aggregates stats on its derived entities
+     * (like: PMs) and use it as the stats for the seed entity.
+     *
+     * <p>Currently, we only support getting stats from live topology history, since there is no use
+     * case for plan topology. We can extend it to support plan topology history if necessary.
+     *
+     * <p>Note: This call is expected to be slower since we can't do pagination in DB level.
+     *
+     * @param entityGroupList EntityGroupList containing list of EnityGroups
+     * @param statsFilter the requested stats names and filters
+     * @param paginationParameters pagination parameters
+     * @param responseObserver the chunking channel on which the response should be returned
+     * @throws VmtDbException if there is an error interacting with the database
+     */
+    @VisibleForTesting
+    protected void returnStatsForEntityGroups(@Nonnull EntityGroupList entityGroupList,
+                                            @Nonnull StatsFilter statsFilter,
+                                            @Nonnull Optional<PaginationParameters> paginationParameters,
+                                            @Nonnull StreamObserver<GetEntityStatsResponse> responseObserver)
+            throws VmtDbException {
+        final List<EntityGroup> entityGroups = entityGroupList.getGroupsList();
+        final List<EntityStats> entityStatsList = new ArrayList<>(entityGroups.size());
+        // get stats for all aggregated entities
+        for (EntityGroup entityGroup : entityGroups) {
+            // use derived entities if any, otherwise use seed entity
+            final Collection<Long> entities = entityGroup.getEntitiesList().isEmpty()
+                ? Collections.singleton(entityGroup.getSeedEntity())
+                : entityGroup.getEntitiesList();
+            final EntityStats.Builder entityStats = EntityStats.newBuilder()
+                .setOid(entityGroup.getSeedEntity());
+            // fetch aggregated stats
+            getLiveMarketStats(statsFilter, entities, GlobalFilter.getDefaultInstance())
+                .forEach(entityStats::addStatSnapshots);
+            entityStatsList.add(entityStats.build());
+        }
+
+        // if no pagination parameters provided, return all
+        if (!paginationParameters.isPresent()) {
+            responseObserver.onNext(GetEntityStatsResponse.newBuilder()
+                .addAllEntityStats(entityStatsList)
+                    .build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        final PaginationParameters paginationParams = paginationParameters.get();
+        // create stats comparator for sorting and pagination
+        final Comparator<EntityStats> comparator = getEntityStatsComparator(entityStatsList,
+            paginationParams.getOrderBy().getEntityStats().getStatName(), paginationParams.getAscending());
+        // sort entityStatsList
+        entityStatsList.sort(comparator);
+
+        // get the start and end indexes for next page stats
+        final int startIndex = paginationParams.hasCursor()
+            ? Integer.parseInt(paginationParams.getCursor()) : 0;
+        final int endIndex = Math.min(entityStatsList.size(),
+            startIndex + paginationParams.getLimit());
+
+        final GetEntityStatsResponse.Builder response = GetEntityStatsResponse.newBuilder()
+                .addAllEntityStats(entityStatsList.subList(startIndex, endIndex));
+
+        // set nextCursor on pagination response
+        final PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder()
+                .setTotalRecordCount(entityGroups.size());
+        if (endIndex < entityStatsList.size()) {
+            paginationResponse.setNextCursor(String.valueOf(endIndex));
+        }
+        response.setPaginationResponse(paginationResponse.build());
+        responseObserver.onNext(response.build());
+        responseObserver.onCompleted();
     }
 
     /**
@@ -341,112 +556,191 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     @Override
     public void getClusterStats(@Nonnull Stats.ClusterStatsRequest request,
-                                @Nonnull StreamObserver<StatSnapshot> responseObserver) {
-        final long clusterId = request.getClusterId();
-        final StatsFilter filter = request.getStats();
+                                @Nonnull StreamObserver<ClusterStatsResponse> responseObserver) {
+        try {
+            for (ClusterStatsResponse responseChunk : clusterStatsReader.getStatsRecords(request)) {
+                try {
+                    responseObserver.onNext(responseChunk);
+                } catch (IllegalArgumentException e) {
+                    responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
+                }
+            }
+        } catch (Throwable e) {
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+        responseObserver.onCompleted();
+
+    }
+
+    /**
+     * Get cluster stats as a part of processing a gRPC request.
+     *
+     * @param clusterId uuid of cluster to retrieve
+     * @param filter    stats filter
+     * @param timeFrame timeframe to use for query
+     * @return retrieved records
+     * @throws StatusException for specifically crafted errors to be sent to reuestor
+     * @throws VmtDbException if a DB error occurs
+     */
+    private List<ClusterStatsRecordReader> getClusterStats(long clusterId, StatsFilter filter, TimeFrame timeFrame)
+            throws StatusException, VmtDbException {
 
         long now = System.currentTimeMillis();
         long startDate = (filter.hasStartDate()) ? filter.getStartDate() : now;
-        long endDate = filter.hasEndDate()? filter.getEndDate() : now;
+        long endDate = filter.hasEndDate() ? filter.getEndDate() : now;
         if (startDate > endDate) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
+            throw Status.INVALID_ARGUMENT
                     .withDescription("Invalid date range for retrieving cluster statistics.")
-                    .asException());
-            return;
+                    .asException();
         }
         final Set<String> commodityNames = collectCommodityNames(filter);
 
+        return clusterStatsReader.getStatsRecordsForHeadRoomPlanRequest(clusterId,
+                startDate, endDate, Optional.of(timeFrame), commodityNames);
+    }
+
+    /**
+     * Get cluster stats for headroom plan, e.g. number of VMs.
+     * We first query the monthly table. If there's not enough data (less than 2 rows) in the monthly
+     * table between start date and end date, then we query the daily table.
+     *
+     * @param request a request to get cluster stats
+     * @param responseObserver a stream observer on which to write cluster stats
+     */
+    @Override
+    public void getClusterStatsForHeadroomPlan(@Nonnull Stats.ClusterStatsRequestForHeadroomPlan request,
+                                               @Nonnull StreamObserver<StatSnapshot> responseObserver) {
+        final long clusterId = request.getClusterId();
+        StatsFilter statsFilter = request.getStats();
         try {
-            Multimap<java.sql.Date, StatRecord> resultMap = HashMultimap.create();
-
-            if (isUseMonthlyData(startDate, endDate)) {
-                final List<ClusterStatsByMonthRecord> statDBRecordsByMonth =
-                        clusterStatsReader.getStatsRecordsByMonth(clusterId, startDate, endDate, commodityNames);
-
-                // Group records by date.
-                for (ClusterStatsByMonthRecord record : statDBRecordsByMonth) {
-                    resultMap.put(record.getRecordedOn(), createStatRecordForClusterStatsByMonth(record));
-                }
-            } else {
-                // If the date range is shorter than a month, or a date range is not provided,
-                // get the most recent snapshot from the cluster_stats_by_day table.
-                final List<ClusterStatsByDayRecord> statDBRecordsByDay =
-                        clusterStatsReader.getStatsRecordsByDay(clusterId, startDate, endDate, commodityNames);
-
-                // For CPUHeadroom, MemHeadroom and StorageHeadroom "property type" we have
-                // rows with "sub-property type" : used and capacity. Both of them have
-                // to be merged to create one stat record with read used and capacity.
-                Map<String, List<ClusterStatsByDayRecord>> headroomStats = statDBRecordsByDay.stream()
-                    .filter(record -> HEADROOM_STATS.contains(record.getPropertyType()))
-                    .collect(Collectors.groupingBy(ClusterStatsByDayRecord::getPropertyType));
-
-                // Handle Headroom stats
-                headroomStats
-                    .forEach((propertyType, recordsOnDifferentDates) -> {
-                        // GroupBy records based on date
-                        recordsOnDifferentDates.stream().collect(Collectors.groupingBy(ClusterStatsByDayRecord::getRecordedOn))
-                            .values().forEach(records -> {
-                                if (CollectionUtils.isEmpty(records))  {
-                                    return;
-                                }
-                                switch (records.size()) {
-                                    // CPUExhaustion, MemExhaustion and StorageExhaustion expected to have one record each.
-                                    case 1 :
-                                        resultMap.put(records.get(0).getRecordedOn(),
-                                                        createStatRecordForClusterStatsByDay(records.get(0)));
-                                        break;
-                                     // CPUHeadroom, MemHeadroom and StorageHeadroom expected to have two records each.
-                                    case 2 :
-                                        ClusterStatsByDayRecord firstRecord =  records.get(0);
-                                        ClusterStatsByDayRecord secondRecord =  records.get(1);
-                                        if (firstRecord.getPropertySubtype().equals(StringConstants.CAPACITY)) {
-                                            resultMap.put(secondRecord.getRecordedOn(),
-                                                createStatRecordForClusterStatsByDay(secondRecord,
-                                                                firstRecord.getValue().floatValue()));
-                                        } else {
-                                            resultMap.put(secondRecord.getRecordedOn(),
-                                                createStatRecordForClusterStatsByDay(firstRecord,
-                                                                secondRecord.getValue().floatValue()));
-                                        }
-                                    break;
-                                    // Print an error if none of the cases satisfied above.
-                                    default:
-                                        logger.error("Skipping entry of headroom records because of unexpected  "
-                                                        + "records size : " + records.size());
-                                        break;
-                                }
-                                // Remove headroom records because we have already processed them.
-                                statDBRecordsByDay.removeAll(records);
-                        });
-                    });
-
-                // Group records by date.
-                for (ClusterStatsByDayRecord record : statDBRecordsByDay) {
-                    resultMap.put(record.getRecordedOn(), createStatRecordForClusterStatsByDay(record));
-                }
+            List<ClusterStatsRecordReader> records = getClusterStats(clusterId, statsFilter, TimeFrame.MONTH);
+            if (records.size() < 2) {
+                records = getClusterStats(clusterId, statsFilter, TimeFrame.DAY);
             }
+            sendClusterStatsResponse(request, records, responseObserver);
+        } catch (Exception e) {
+            responseObserver.onError(
+                    (e instanceof StatusException) ? e : Status.INTERNAL
+                            .withDescription("Cluster stats request failed")
+                            .withCause(e)
+                            .asException());
+        }
+    }
+
+    /**
+     * Postprocess cluster stats query results and package them into {@link StatSnapshot} instances,
+     * and transmit them back to the requestor.
+     *
+     * @param request          a cluster stats request
+     * @param results          cluster stats records
+     * @param responseObserver where to send the results
+     * @throws StatusException if there's a problem packaging or sending results
+     */
+    private void sendClusterStatsResponse(@Nonnull final Stats.ClusterStatsRequestForHeadroomPlan request,
+                                          @Nonnull final Collection<ClusterStatsRecordReader> results,
+                                          @Nonnull final StreamObserver<StatSnapshot> responseObserver)
+            throws StatusException {
+
+        // group records according to timestamp and property type
+        Map<Pair<Timestamp, String>, List<ClusterStatsRecordReader>> recordsByPropertyType =
+                results.stream().collect(
+                        Collectors.groupingBy(r -> Pair.of(r.getRecordedOn(), r.getPropertyType())));
+
+        // collect results in a StatRecord per timestamp
+        Multimap<Timestamp, StatRecord> resultMap = MultimapBuilder.hashKeys().arrayListValues().build();
+
+        try {
+            // a map that may contain counts of unexpected records by property type + subtype. For
+            // error tracking
+            final Map<String, AtomicInteger> unexpectedRecordCounts = new HashMap();
+
+            // consolidate each db record list into a single stat record.
+            recordsByPropertyType.forEach((key, records) -> {
+                final Timestamp recordedOn = key.getLeft();
+                final String propertyType = key.getRight();
+
+                // we'll fill these in as we iterate through the records. They're nullable.
+                String propertySubtype = null;
+                Float value = null;
+                Float capacity = null;
+
+                // the record collection will generally be either 1 or 2 records long.
+                if (records.size() == 1) {
+                    // the stats with one record are single-value stats, so we are going to set the
+                    // value and property sub-type.
+                    ClusterStatsRecordReader record = records.get(0);
+                    propertySubtype = record.getPropertySubtype();
+                    value = record.getValue();
+                } else {
+                    // stats with multiiple records are expected to be usage-related, with one
+                    // record containing the "used" value and another containing "capacity". We will
+                    // know which record is which based on the property sub-type.
+                    for (ClusterStatsRecordReader record : records) {
+                        switch (record.getPropertySubtype()) {
+                            case StringConstants.USED:
+                                value = record.getValue();
+                                break;
+                            case StringConstants.CAPACITY:
+                                capacity = record.getValue();
+                                break;
+                            default:
+                                // we don't expect to be here, but we also don't want to spam the log.
+                                // let's count it in the warning map.
+                                unexpectedRecordCounts.computeIfAbsent(
+                                        propertyType + ":" + record.getPropertySubtype(),
+                                        k -> new AtomicInteger()).incrementAndGet();
+                        }
+                    }
+                }
+
+                resultMap.put(recordedOn, statRecordBuilder.buildStatRecord(
+                        propertyType,
+                        propertySubtype,
+                        capacity,
+                        (Float)null,
+                        null,
+                        null,
+                        value != null ? StatsAccumulator.singleStatValue(value) : null,
+                        null,
+                        null));
+
+            });
 
             // Sort stats data by date.
-            List<java.sql.Date> sortedStatsDates = Lists.newArrayList(resultMap.keySet());
+            List<Timestamp> sortedStatsDates = Lists.newArrayList(resultMap.keySet());
             Collections.sort(sortedStatsDates);
 
             // A StatSnapshot will be created for each date.
             // Each snapshot may have several record types (e.g. "headroomVMs", "numVMs")
-            for (java.sql.Date recordDate : sortedStatsDates) {
-                StatSnapshot.Builder statSnapshotResponseBuilder = StatSnapshot.newBuilder();
+            for (Timestamp recordDate : sortedStatsDates) {
+                Builder statSnapshotResponseBuilder = StatSnapshot.newBuilder();
                 resultMap.get(recordDate).forEach(statSnapshotResponseBuilder::addStatRecords);
-                statSnapshotResponseBuilder.setSnapshotDate(LocalDateTime.ofInstant(
-                        Instant.ofEpochMilli(recordDate.getTime()), ZoneOffset.systemDefault())
-                        .toString());
-                statSnapshotResponseBuilder.setStartDate(recordDate.getTime());
-                statSnapshotResponseBuilder.setEndDate(recordDate.getTime());
+                statSnapshotResponseBuilder.setSnapshotDate(recordDate.getTime());
+                // Currently, all cluster stats are historical
+                statSnapshotResponseBuilder.setStatEpoch(StatEpoch.HISTORICAL);
                 responseObserver.onNext(statSnapshotResponseBuilder.build());
             }
 
+            if (request.getStats().getRequestProjectedHeadroom() && !sortedStatsDates.isEmpty()) {
+                final Timestamp latestRecordDate = sortedStatsDates.get(sortedStatsDates.size() - 1);
+                createProjectedHeadroomStats(responseObserver, request, latestRecordDate.getTime(),
+                    resultMap.get(latestRecordDate));
+            }
+
+            // if we encountered any unexpected records, log them.
+            if (!CollectionUtils.isEmpty(unexpectedRecordCounts)) {
+                StringBuilder sb = new StringBuilder("Unexpected cluster stat records: ");
+                unexpectedRecordCounts.forEach((recordKey, count) -> {
+                    sb.append(recordKey).append("(").append(count).append(") ");
+                });
+                logger.warn(sb.toString());
+            }
+
+            // all done!
             responseObserver.onCompleted();
-        } catch (VmtDbException e) {
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription("DB Error fetching stats for cluster " + clusterId)
+        } catch (Exception e) {
+            throw (Status.INTERNAL
+                    .withDescription("DB Error fetching stats for cluster " + request.getClusterId())
                     .withCause(e)
                     .asException());
         }
@@ -468,81 +762,97 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         return false;
     }
 
-    private StatRecord createStatRecordForClusterStatsByDay(ClusterStatsByDayRecord dbRecord, float capacity) {
-        return statRecordBuilder.buildStatRecord(
-                        dbRecord.getPropertyType(),
-                        dbRecord.getPropertySubtype(),
-                        capacity,
-                        (Float)null,
-                        null,
-                        dbRecord.getValue().floatValue(),
-                        dbRecord.getValue().floatValue(),
-                        dbRecord.getValue().floatValue(),
-                        null,
-                        dbRecord.getValue().floatValue(),
-                        null);
-    }
     /**
-     * Helper method to create StatRecord objects, which nest inside StatSnapshot objects.
+     * Create projected headroom stats for each day between snapshotDate and endDate
+     * based on the latest headroom stats.
      *
-     * @param dbRecord the database record to begin with
-     * @return a newly initialized {@link StatRecord} protobuf
+     * <p>Suppose the daily VM growth is 1 and available CPU headroom is 10.
+     * Available CPU headrooms for the next 3 days are 9, 8, 7 respectively.
+     * Also, available headroom is always a non-negative integer.
+     *
+     * @param responseObserver a stream observer on which to write cluster stats
+     * @param request a cluster stats request
+     * @param latestRecordDate the date of the latest records
+     * @param latestStatRecords the latest records
      */
-    private StatRecord createStatRecordForClusterStatsByDay(ClusterStatsByDayRecord dbRecord) {
-        return statRecordBuilder.buildStatRecord(
-                dbRecord.getPropertyType(),
-                dbRecord.getPropertySubtype(),
-                (Float)null,
-                (Float)null,
-                null,
-                dbRecord.getValue().floatValue(),
-                dbRecord.getValue().floatValue(),
-                dbRecord.getValue().floatValue(),
-                null,
-                dbRecord.getValue().floatValue(),
-                null);
-    }
+    @VisibleForTesting
+    void createProjectedHeadroomStats(
+            @Nonnull final StreamObserver<StatSnapshot> responseObserver,
+            @Nonnull final Stats.ClusterStatsRequestForHeadroomPlan request, final long latestRecordDate,
+            @Nonnull final Collection<StatRecord> latestStatRecords) {
+        final StatsFilter filter = request.getStats();
+        final long startDate;
+        final long endDate;
+        if (latestStatRecords.isEmpty() || !filter.hasStartDate() || !filter.hasEndDate() ||
+            (startDate = filter.getStartDate()) >= (endDate = filter.getEndDate()) ||
+            latestRecordDate >= endDate) {
+            return;
+        }
 
-    private StatRecord createStatRecordForClusterStatsByMonth(ClusterStatsByMonthRecord dbRecord) {
-        return statRecordBuilder.buildStatRecord(
-                dbRecord.getPropertyType(),
-                dbRecord.getPropertySubtype(),
-                (Float)null,
-                (Float)null,
-                null,
-                dbRecord.getValue().floatValue(),
-                dbRecord.getValue().floatValue(),
-                dbRecord.getValue().floatValue(),
-                null,
-                dbRecord.getValue().floatValue(),
-                null);
-    }
-    /**
-     * Calculate a Cluster Stats Rollup, if necessary, and persist to the appropriate stats table.
-     *
-     * The request contains all the clusters to be rolled up. For each cluster in the request
-     * we get the ID, and the ID's of the cluster members.
-     *
-     * @param request a {link @ClusterRollupRequest} containing the cluster DTOs to be persisted.
-     * @param responseObserver an indication that the request has completed - there is no data
-     *                         returned with this response.
-     */
-    @Override
-    public void computeClusterRollup(Stats.ClusterRollupRequest request,
-                                     StreamObserver<Stats.ClusterRollupResponse> responseObserver) {
-        try {
-            // Filter by type as an extra precaution.
-            clusterStatsWriter.rollupClusterStats(request.getClustersToRollupList().stream()
-                .filter(group -> group.getType().equals(Type.CLUSTER))
-                .collect(Collectors.toMap(Group::getId, Group::getCluster)));
-            responseObserver.onNext(Stats.ClusterRollupResponse.newBuilder().build());
-            responseObserver.onCompleted();
-        } catch (Exception e) {
-            // acatch and handle any internal exception so we return a useful error to caller
-            logger.error("Internal exception rolling up clusters, request: " + request, e);
-            responseObserver.onError(Status.INTERNAL.withDescription("Error rolling up clusters")
-                    .withCause(e)
-                    .asException());
+        // Get latest headroom stats.
+        final List<StatRecord> headroomCommodityRecords = latestStatRecords.stream().filter(record ->
+            CLUSTER_COMMODITY_STATS.contains(record.getName())).collect(Collectors.toList());
+        if (!headroomCommodityRecords.isEmpty()) {
+            // Copy snapshot as current snapshot.
+            responseObserver.onNext(StatSnapshot.newBuilder()
+                .setSnapshotDate(System.currentTimeMillis())
+                .setStatEpoch(StatEpoch.CURRENT)
+                .addAllStatRecords(headroomCommodityRecords)
+                .build());
+
+            // Get monthly vm growth.
+            final long clusterId = request.getClusterId();
+            final List<ClusterStatsRecordReader> statDBRecords;
+            try {
+                // retrieve records, using timeframe computed from parameters
+                statDBRecords = clusterStatsReader.getStatsRecordsForHeadRoomPlanRequest(clusterId,
+                    startDate, endDate, Optional.empty(), Collections.singleton(StringConstants.VM_GROWTH));
+            } catch (VmtDbException e) {
+                responseObserver.onError(Status.INTERNAL
+                        .withDescription("DB Error fetching stats for cluster " + clusterId)
+                        .withCause(e)
+                        .asException());
+                return;
+            }
+
+            final Optional<ClusterStatsRecordReader> vmGrowthRecord = statDBRecords.stream()
+                    .max(Comparator.comparingLong(record -> record.getRecordedOn().getTime()));
+            if (vmGrowthRecord.isPresent()) {
+                final int daysPerMonth = 30;
+                final int dailyVMGrowth = (int)Math.ceil(vmGrowthRecord.get().getValue() / daysPerMonth);
+                final long millisPerDay = TimeUnit.DAYS.toMillis(1);
+                final long daysDifference = (endDate - latestRecordDate) / millisPerDay + 1;
+                logger.info("Daily VM growth: {}. Days difference: {}.", dailyVMGrowth, daysDifference);
+
+                // Create projected headroom stats for each day.
+                for (int day = 1; day <= daysDifference; day++) {
+                    StatSnapshot.Builder statSnapshotBuilder = StatSnapshot.newBuilder();
+                    statSnapshotBuilder.setStatEpoch(StatEpoch.PROJECTED);
+                    statSnapshotBuilder.setSnapshotDate(
+                        Math.min(endDate, latestRecordDate + day * millisPerDay));
+
+                    // Create projected headroom stats for each commodity.
+                    final List<StatRecord> projectedStatRecords = new ArrayList<>(headroomCommodityRecords.size());
+                    for (StatRecord statRecord : headroomCommodityRecords) {
+                        final StatRecord.Builder projectedStatRecord = statRecord.toBuilder();
+                        final float projectedHeadroom = Math.max(0,
+                            statRecord.getUsed().getAvg() - dailyVMGrowth * day);
+                        projectedStatRecord.setUsed(StatValue.newBuilder().setAvg(projectedHeadroom)
+                            .setMin(projectedHeadroom).setMax(projectedHeadroom).setTotal(projectedHeadroom));
+                        projectedStatRecord.clearCurrentValue();
+                        projectedStatRecord.clearValues();
+                        projectedStatRecord.clearPeak();
+                        projectedStatRecords.add(projectedStatRecord.build());
+                    }
+
+                    statSnapshotBuilder.addAllStatRecords(projectedStatRecords);
+                    responseObserver.onNext(statSnapshotBuilder.build());
+                }
+            } else {
+                logger.warn("No VM growth record found between start date {} and end data {}" +
+                        "in cluster {} table.", startDate, endDate,
+                    isUseMonthlyData(startDate, endDate) ? "monthly" : "daily");
+            }
         }
     }
 
@@ -557,46 +867,71 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     @Override
     public void saveClusterHeadroom(@Nonnull Stats.SaveClusterHeadroomRequest request,
                                     @Nonnull StreamObserver<Stats.SaveClusterHeadroomResponse> responseObserver) {
-        logger.info("Got request to save cluster headroom: {}", request);
-        try {
+        logger.debug("Got request to save cluster headroom: {}", request);
 
+        Timestamp today = Timestamp.from(Instant.now().truncatedTo(ChronoUnit.DAYS));
+
+        try {
             // Table represents : <PropertyType, SubPropertyType, Value>
-            com.google.common.collect.Table<String, String, BigDecimal> headroomData =
-                            HashBasedTable.create();
+            com.google.common.collect.Table<String, String, Double> headroomData =
+                    HashBasedTable.create();
 
             headroomData.put(StringConstants.HEADROOM_VMS, StringConstants.HEADROOM_VMS,
-                            BigDecimal.valueOf(request.getHeadroom()));
+                    (double)request.getHeadroom());
             headroomData.put(StringConstants.NUM_VMS, StringConstants.NUM_VMS,
-                            BigDecimal.valueOf(request.getNumVMs()));
-
+                    (double)request.getNumVMs());
+            headroomData.put(StringConstants.NUM_HOSTS, StringConstants.NUM_HOSTS,
+                    (double)request.getNumHosts());
+            headroomData.put(StringConstants.NUM_STORAGES, StringConstants.NUM_STORAGES,
+                    (double)request.getNumStorages());
+            headroomData.put(StringConstants.VM_GROWTH, StringConstants.VM_GROWTH,
+                    (double)request.getMonthlyVMGrowth());
             // CPU related headroom stats.
             headroomData.put(StringConstants.CPU_HEADROOM, StringConstants.USED,
-                            BigDecimal.valueOf(request.getCpuHeadroomInfo().getHeadroom()));
+                    (double)request.getCpuHeadroomInfo().getHeadroom());
             headroomData.put(StringConstants.CPU_HEADROOM, StringConstants.CAPACITY,
-                            BigDecimal.valueOf(request.getCpuHeadroomInfo().getCapacity()));
-            headroomData.put(StringConstants.CPU_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
-                            BigDecimal.valueOf(request.getCpuHeadroomInfo().getDaysToExhaustion()));
+                    (double)request.getCpuHeadroomInfo().getCapacity());
+            // Don't save days to exhaustion when headroom capacity is 0,
+            // because it doesn't make sense to have days to exhaustion in this case.
+            if (request.getCpuHeadroomInfo().getCapacity() != 0) {
+                headroomData.put(StringConstants.CPU_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
+                        (double)request.getCpuHeadroomInfo().getDaysToExhaustion());
+            }
 
             // Memory related headroom stats.
             headroomData.put(StringConstants.MEM_HEADROOM, StringConstants.USED,
-                            BigDecimal.valueOf(request.getMemHeadroomInfo().getHeadroom()));
+                    (double)request.getMemHeadroomInfo().getHeadroom());
             headroomData.put(StringConstants.MEM_HEADROOM, StringConstants.CAPACITY,
-                            BigDecimal.valueOf(request.getMemHeadroomInfo().getCapacity()));
-            headroomData.put(StringConstants.MEM_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
-                            BigDecimal.valueOf(request.getMemHeadroomInfo().getDaysToExhaustion()));
+                    (double)request.getMemHeadroomInfo().getCapacity());
+            if (request.getMemHeadroomInfo().getCapacity() != 0) {
+                headroomData.put(StringConstants.MEM_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
+                        (double)request.getMemHeadroomInfo().getDaysToExhaustion());
+            }
 
             // Storage related headroom stats.
             headroomData.put(StringConstants.STORAGE_HEADROOM, StringConstants.USED,
-                            BigDecimal.valueOf(request.getStorageHeadroomInfo().getHeadroom()));
+                    (double)request.getStorageHeadroomInfo().getHeadroom());
             headroomData.put(StringConstants.STORAGE_HEADROOM, StringConstants.CAPACITY,
-                            BigDecimal.valueOf(request.getStorageHeadroomInfo().getCapacity()));
-            headroomData.put(StringConstants.STORAGE_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
-                            BigDecimal.valueOf(request.getStorageHeadroomInfo().getDaysToExhaustion()));
-
-            clusterStatsWriter.batchInsertClusterStatsByDayRecord(Long.valueOf(request.getClusterId()), headroomData);
+                    (double)request.getStorageHeadroomInfo().getCapacity());
+            if (request.getStorageHeadroomInfo().getCapacity() != 0) {
+                headroomData.put(StringConstants.STORAGE_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
+                        (double)request.getStorageHeadroomInfo().getDaysToExhaustion());
+            }
+            // save computed headrooms tats to cluster_stats_by_day table
+            for (Cell<String, String, Double> cell : headroomData.cellSet()) {
+                ClusterStatsByDayRecord record = CLUSTER_STATS_BY_DAY.newRecord();
+                record.setRecordedOn(today);
+                record.setInternalName(Long.toString(request.getClusterId()));
+                record.setPropertyType(cell.getRowKey());
+                record.setPropertySubtype(cell.getColumnKey());
+                record.setValue(cell.getValue());
+                record.setSamples(1);
+                clusterStatsByDayLoader.insert(record);
+            }
+            clusterStatsByDayLoader.flush(true);
             responseObserver.onNext(Stats.SaveClusterHeadroomResponse.getDefaultInstance());
             responseObserver.onCompleted();
-        } catch (VmtDbException e) {
+        } catch (InterruptedException e) {
             logger.error("Failed to save cluster headroom data in database for cluster {}: {}",
                     request.getClusterId(), e);
             responseObserver.onError(Status.INTERNAL.withDescription(
@@ -614,42 +949,49 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      *  @param responseObserver the chunking channel on which the response should be returned
      * @param topologyContextId the context id for the plan topology to look up
      * @param commodityRequests the commodities to include.
+     * @param globalFilter the global filter to apply to all returned stats
      */
     private void returnPlanTopologyStats(StreamObserver<StatSnapshot> responseObserver,
                                          long topologyContextId,
-                                         List<CommodityRequest> commodityRequests) {
+                                         List<CommodityRequest> commodityRequests,
+                                         @Nonnull GlobalFilter globalFilter) {
         StatSnapshot.Builder beforePlanStatSnapshotResponseBuilder = StatSnapshot.newBuilder();
         StatSnapshot.Builder afterPlanStatSnapshotResponseBuilder = StatSnapshot.newBuilder();
         List<MktSnapshotsStatsRecord> dbSnapshotStatsRecords;
         try {
             dbSnapshotStatsRecords = planStatsReader.getStatsRecords(
-                    topologyContextId, commodityRequests);
+                    topologyContextId, commodityRequests, globalFilter);
         } catch (VmtDbException e) {
             throw new RuntimeException("Error fetching plan market stats for "
                     + topologyContextId, e);
         }
         for (MktSnapshotsStatsRecord statsDBRecord : dbSnapshotStatsRecords) {
+            String relatedEntityType = Optional.ofNullable(statsDBRecord.getEntityType())
+                .map(ApiEntityType::fromType)
+                .map(ApiEntityType::apiStr)
+                .orElse(null);
+            StatsAccumulator statsValue = new StatsAccumulator();
+            statsValue.record(statsDBRecord.getMinValue(), statsDBRecord.getAvgValue(),
+                    statsDBRecord.getMaxValue());
             final StatRecord statResponseRecord = statRecordBuilder.buildStatRecord(
                     statsDBRecord.getPropertyType(),
                     statsDBRecord.getPropertySubtype(),
                     statsDBRecord.getCapacity() == null ? null : statsDBRecord.getCapacity()
                             .floatValue(),
                     null /* effective capacity*/,
+                    relatedEntityType,
                     null /* producerId */,
-                    statsDBRecord.getAvgValue().floatValue(),
-                    statsDBRecord.getMinValue().floatValue(),
-                    statsDBRecord.getMaxValue().floatValue(),
+                    statsValue.toStatValue(),
                     null /* commodityKey */,
-                    statsDBRecord.getAvgValue().floatValue(), /* Since there is only one value,
-                                                             set the total equal to the average.*/
-                    // (Feb 3, 2017) Currently, unlike in the real-time market, UI
-                    // doesn't use the 'relation' data for the plan results. Here, set the
-                    // property as "plan" to indicate this record is for a plan result.
-                    "plan" /*relation*/);
+                    // (Jan 29, 2020) Now we do populate (and rely on) the 'relation' data for
+                    // individual plan entities coming from the Repository. However, we still don't
+                    // have a use case for using this data in the History response, which is
+                    // aggregated data for the entire plan. In this context, relation makes no sense.
+                    null /*relation*/);
 
             // Group all records with property type name that start with "current" in one group
             // (before plan) and others in another group (after plan).
-            if (statsDBRecord.getPropertyType().startsWith(PROPERTY_TYPE_PREFIX_CURRENT)) {
+            if (statsDBRecord.getPropertyType().startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
                 beforePlanStatSnapshotResponseBuilder.addStatRecords(statResponseRecord);
             } else {
                 afterPlanStatSnapshotResponseBuilder.addStatRecords(statResponseRecord);
@@ -658,17 +1000,15 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         Optional<ScenariosRecord> planStatsRecord = historydbIO.getScenariosRecord(topologyContextId);
         if (planStatsRecord.isPresent()) {
             final long planTime = planStatsRecord.get().getCreateTime().getTime();
+            final Timestamp updateTime = planStatsRecord.get().getUpdateTime();
+            final long planEndTime = updateTime == null ? planTime : updateTime.getTime();
 
-            beforePlanStatSnapshotResponseBuilder.setSnapshotDate(DateTimeUtil.toString(planTime));
-            // TODO: the timestamps should be based on listening to the Plan Orchestrator OM-14839
-            beforePlanStatSnapshotResponseBuilder.setStartDate(planTime);
-            beforePlanStatSnapshotResponseBuilder.setEndDate(planTime);
+            beforePlanStatSnapshotResponseBuilder.setSnapshotDate(planTime);
+            beforePlanStatSnapshotResponseBuilder.setStatEpoch(StatEpoch.PLAN_SOURCE);
             responseObserver.onNext(beforePlanStatSnapshotResponseBuilder.build());
 
-            afterPlanStatSnapshotResponseBuilder.setSnapshotDate(DateTimeUtil.toString(planTime));
-            // TODO: the timestamps should be based on listening to the Plan Orchestrator OM-14839
-            afterPlanStatSnapshotResponseBuilder.setStartDate(planTime);
-            afterPlanStatSnapshotResponseBuilder.setEndDate(planTime);
+            afterPlanStatSnapshotResponseBuilder.setSnapshotDate(planEndTime);
+            afterPlanStatSnapshotResponseBuilder.setStatEpoch(StatEpoch.PLAN_PROJECTED);
             responseObserver.onNext(afterPlanStatSnapshotResponseBuilder.build());
 
             responseObserver.onCompleted();
@@ -684,52 +1024,48 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * ServiceEntity type (e.g. pm_stats_yyy and vm_stats_yyy) and by time frame, e.g.
      * xxx_stats_latest, xxx_stats__by_hour, xxx_stats_by_day, xxx_stats_by_month.
      *
-     * If the 'entities' list is empty then this is a request for averaged stats from the full
-     * live market.
+     * <p>If the 'entities' list is empty then this is a request for averaged stats from the full
+     * live market.</p>
      *
-     * If there is an empty 'entities' list and a 'relatedEntityType' is given, then only
-     * entities of that type are included in the averaged stats returned.
+     * <p>If there is an empty 'entities' list and a 'relatedEntityType' is given, then only
+     * entities of that type are included in the averaged stats returned.</p>
      *
-     * If there are entity OIDs specified in the 'entities' list, then the 'relatedEntityType' is
-     * ignored and only those entities listed are included in the stats averages returned.
+     * <p>If there are entity OIDs specified in the 'entities' list, then the 'relatedEntityType' is
+     * ignored and only those entities listed are included in the stats averages returned.</p>
      *
-     * @param responseObserver the chunking channel on which the response should be returned
      * @param statsFilter The stats filter to apply.
      * @param entities A list of service entity OIDs; an empty list implies full market, which
      *                 may be filtered based on relatedEntityType
-     * @param relatedEntityType optional of entityType to sample if entities list is empty;
-     *                          or all entity types if null; not used if the 'entities' list is
-     *                          not empty.
+     * @param globalFilter The global filter to apply to all commodities requested by the filter.
+     * @return stream of StatSnapshots from live market
      * @throws VmtDbException if error writing to the db.
      */
-    private void returnLiveMarketStats(@Nonnull StreamObserver<StatSnapshot> responseObserver,
-                                       @Nonnull final StatsFilter statsFilter,
-                                       @Nonnull Collection<Long> entities,
-                                       @Nonnull Optional<String> relatedEntityType) throws VmtDbException {
-
+    private Stream<StatSnapshot> getLiveMarketStats(@Nonnull final StatsFilter statsFilter,
+                                                    @Nonnull Collection<Long> entities,
+                                                    @Nonnull GlobalFilter globalFilter) throws VmtDbException {
         // get a full list of stats that satisfy this request, depending on the entity request
         final List<Record> statDBRecords;
         final boolean fullMarket = entities.isEmpty();
         if (fullMarket) {
-            statDBRecords = liveStatsReader.getFullMarketStatsRecords(statsFilter, relatedEntityType);
+            statDBRecords = liveStatsReader.getFullMarketStatsRecords(statsFilter, globalFilter);
         } else {
-            if (relatedEntityType.isPresent() &&
-                    !StringUtils.isEmpty(relatedEntityType.get())) {
-                logger.warn("'relatedEntityType' ({}) is ignored when specific entities listed",
-                        relatedEntityType);
+            if (!globalFilter.equals(GlobalFilter.getDefaultInstance())) {
+                logger.warn("'global filter' ({}) is ignored when specific entities listed",
+                        globalFilter);
             }
-            statDBRecords = liveStatsReader.getStatsRecords(
+            statDBRecords = liveStatsReader.getRecords(
                     entities.stream()
                             .map(id -> Long.toString(id))
                             .collect(Collectors.toSet()), statsFilter);
         }
 
         // organize the stats DB records into StatSnapshots and return them to the caller
-        statSnapshotCreator.createStatSnapshots(statDBRecords, fullMarket,
-                    statsFilter.getCommodityRequestsList())
-                .map(StatSnapshot.Builder::build)
-                .forEach(responseObserver::onNext);
-        responseObserver.onCompleted();
+        final List<Builder> statSnapshots = statSnapshotCreator
+            .createStatSnapshots(statDBRecords, fullMarket, statsFilter.getCommodityRequestsList())
+            .collect(Collectors.toList());
+        // All live market stats are considered historical for now
+        statSnapshots.stream().forEach(statSnapshot -> statSnapshot.setStatEpoch(StatEpoch.HISTORICAL));
+        return statSnapshots.stream().map(Builder::build);
     }
 
     /**
@@ -884,53 +1220,157 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     GetEntityCommoditiesMaxValuesRequest request,
                     StreamObserver<EntityCommoditiesMaxValues> responseObserver) {
         try {
-            if (request.getEntityTypesCount() <= 0) {
-                logger.warn("Invalid entities count in request: {}", request.getEntityTypesCount());
+            if (request.getEntityType() < 0 || EntityDTO.EntityType.forNumber(request.getEntityType()) == null) {
+                logger.error("Invalid entity type in getEntityCommoditiesMaxValues request for entity {}",
+                    request.getEntityType());
                 responseObserver.onCompleted();
                 return;
             }
-            for (Integer entityType : request.getEntityTypesList()) {
-                historydbIO.getEntityCommoditiesMaxValues(entityType).forEach(responseObserver::onNext);
+            if (request.getCommodityTypesCount() <= 0) {
+                logger.error("Invalid commodities count {} in getEntityCommoditiesMaxValues request for entity {}",
+                    request.getCommodityTypesCount(), request.getEntityType());
+                responseObserver.onCompleted();
+                return;
+            }
+            if (request.getCommodityTypesList().stream().anyMatch(commNum ->
+                CommodityDTO.CommodityType.forNumber(commNum) == null)) {
+                logger.error("Invalid commodities {} in getEntityCommoditiesMaxValues request for entity {}",
+                    request.getCommodityTypesList(), request.getEntityType());
+                responseObserver.onCompleted();
+                return;
+            }
+            historydbIO.getEntityCommoditiesMaxValues(request.getEntityType(),
+                request.getCommodityTypesList()).forEach(responseObserver::onNext);
+            responseObserver.onCompleted();
+        } catch (VmtDbException | SQLException e) {
+            responseObserver.onError(
+                    Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+    }
+
+    /**
+     * Getting the request for commodities capacity and getting the response from the db.
+     *
+     * @param request   contains the entities and commodities to get capacity for
+     * @param responseObserver  for streaming the response
+     */
+    @Override
+    public void getEntityCommoditiesCapacityValues(
+        GetEntityCommoditiesCapacityValuesRequest request,
+        StreamObserver<GetEntityCommoditiesCapacityValuesResponse> responseObserver) {
+        try {
+            final Set<Integer> uniqEntityTypes = request.getEntityUuidAndTypeSetList().stream()
+                .map(entity -> entity.getEntityType()).collect(Collectors.toSet());
+            for (Integer entityType : uniqEntityTypes) {
+                final Set<EntityUuidAndType> entityToCommodities = request.getEntityUuidAndTypeSetList().stream()
+                    .filter(entity -> entity.getEntityType() == entityType).collect(Collectors.toSet());
+                final Set<String> uuidsToGetCapacityFor = entityToCommodities.stream()
+                    .map(entity -> String.valueOf(entity.getEntityUuid()))
+                    .collect(Collectors.toSet());
+                // Get data from the daily table, if data for uuid is missing get it from the hourly table
+                final List<GetEntityCommoditiesCapacityValuesResponse> entityCommoditiesCapacityDayValues =
+                    historydbIO.getEntityCommoditiesCapacityValues(entityType, uuidsToGetCapacityFor,
+                        request.getCommodityTypeName(), TimeUnit.DAYS);
+                entityCommoditiesCapacityDayValues.forEach(responseObserver::onNext);
+                final SetView<String> entityUuidsWithoutDailyData =
+                    Sets.difference(uuidsToGetCapacityFor, entityCommoditiesCapacityDayValues.iterator().next()
+                    .getEntitiesToCommodityTypeCapacityList().stream()
+                    .map(x -> String.valueOf(x.getEntityUuid()))
+                    .collect(Collectors.toSet()));
+                final List<GetEntityCommoditiesCapacityValuesResponse> entityCommoditiesCapacityHourValues =
+                    historydbIO.getEntityCommoditiesCapacityValues(entityType, entityUuidsWithoutDailyData,
+                        request.getCommodityTypeName(), TimeUnit.HOURS);
+                entityCommoditiesCapacityHourValues.forEach(responseObserver::onNext);
             }
             responseObserver.onCompleted();
-        } catch (VmtDbException|SQLException e) {
+        } catch (VmtDbException | SQLException e) {
             responseObserver.onError(
                 Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }
 
+    @Override
+    public void getPercentileCounts(GetPercentileCountsRequest request,
+                    StreamObserver<PercentileChunk> responseObserver) {
+        try {
+            percentileReader.processRequest(request, responseObserver);
+        } catch (VmtDbException e) {
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+    }
+
+    @Override
+    public StreamObserver<PercentileChunk> setPercentileCounts(
+                    StreamObserver<SetPercentileCountsResponse> responseObserver) {
+        return new PercentileWriter(responseObserver, historydbIO, statsWriterExecutorService);
+    }
+
     /**
-     * The method reads all the system load related records for a slice.
+     * The method reads all the system load related records for all cluster ids.
      *
-     * @param request It contains the id of the slice.
+     * @param request It contains a list of cluster ids.
      * @param responseObserver An indication that the request has completed.
      */
+    @Override
     public void getSystemLoadInfo(
-                    SystemLoadInfoRequest request,
+                    final SystemLoadInfoRequest request,
                     final StreamObserver<SystemLoadInfoResponse> responseObserver) {
-        final SystemLoadInfoResponse.Builder responseBuilder = SystemLoadInfoResponse.newBuilder();
-        final Stats.SystemLoadRecord.Builder recordBuilder = Stats.SystemLoadRecord.newBuilder();
-        SystemLoadInfoResponse response = null;
-
-        List<SystemLoadRecord> records = systemLoadReader.getSystemLoadInfo(Long.toString(request.getClusterId()));
-        for (SystemLoadRecord record : records) {
-            Stats.SystemLoadRecord statsRecord = recordBuilder
-                    .setClusterId(record.getSlice() != null ? Long.parseLong(record.getSlice()) : 0L)
-                    .setSnapshotTime(record.getSnapshotTime() != null ? record.getSnapshotTime().getTime() : -1)
-                    .setUuid(record.getUuid() != null ? Long.parseLong(record.getUuid()) : 0L)
-                    .setProducerUuid(record.getProducerUuid() != null ? Long.parseLong(record.getProducerUuid()) : 0L)
-                    .setPropertyType(record.getPropertyType() != null ? record.getPropertyType() : "")
-                    .setPropertySubtype(record.getPropertySubtype() != null ? record.getPropertySubtype() : "")
-                    .setCapacity(record.getCapacity() != null ? record.getCapacity() : -1.0)
-                    .setAvgValue(record.getAvgValue() != null ? record.getAvgValue() : -1.0)
-                    .setMinValue(record.getMinValue() != null ? record.getMinValue() : -1.0)
-                    .setMaxValue(record.getMaxValue() != null ? record.getMaxValue() : -1.0)
-                    .setRelationType(record.getRelation() != null ? record.getRelation().ordinal() : -1)
-                    .setCommodityKey(record.getCommodityKey() != null ? record.getCommodityKey() : "").build();
-            responseBuilder.addRecord(statsRecord);
+        if (request.getClusterIdList().size() == 0) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription("No clusterId available")
+                .asException());
+            return;
         }
-        responseObserver.onNext(responseBuilder.build());
+
+        for (final long clusterId : request.getClusterIdList()) {
+            try {
+                // Chunking messages in order not to exceed gRPC message maximum size,
+                // which is 4MB by default. The size of each record is around 0.1KB.
+                Iterators.partition(
+                        systemLoadReader.getSystemLoadInfo(Long.toString(clusterId)).iterator(),
+                        systemLoadRecordsPerChunk)
+                    .forEachRemaining(chunkRecords -> {
+                        final SystemLoadInfoResponse.Builder chunkResponse =
+                            SystemLoadInfoResponse.newBuilder().setClusterId(clusterId);
+                        for (SystemLoadRecord record : chunkRecords) {
+                            chunkResponse.addRecord(systemLoadRecordToStatsSystemLoadRecord(record));
+                        }
+                        responseObserver.onNext(chunkResponse.build());
+                    });
+            } catch (RuntimeException e) {
+                logger.error("Encountered error for clusterId {}. Error: {}",
+                    clusterId, e.getMessage());
+                responseObserver.onNext(SystemLoadInfoResponse.newBuilder()
+                    .setClusterId(clusterId)
+                    .setError(e.getMessage())
+                    .build());
+            }
+        }
+
         responseObserver.onCompleted();
+    }
+
+    /**
+     * Convert a {@link SystemLoadRecord} to a {@link Stats.SystemLoadRecord} for gRPC usage.
+     *
+     * @param record a {@link SystemLoadRecord}
+     * @return a {@link Stats.SystemLoadRecord}
+     */
+    private Stats.SystemLoadRecord systemLoadRecordToStatsSystemLoadRecord(
+            @Nonnull final SystemLoadRecord record) {
+        return Stats.SystemLoadRecord.newBuilder()
+            .setClusterId(record.getSlice() != null ? Long.parseLong(record.getSlice()) : 0L)
+            .setSnapshotTime(record.getSnapshotTime() != null ? record.getSnapshotTime().getTime() : -1)
+            .setUuid(record.getUuid() != null ? Long.parseLong(record.getUuid()) : 0L)
+            .setProducerUuid(record.getProducerUuid() != null ? Long.parseLong(record.getProducerUuid()) : 0L)
+            .setPropertyType(record.getPropertyType() != null ? record.getPropertyType() : "")
+            .setPropertySubtype(record.getPropertySubtype() != null ? record.getPropertySubtype() : "")
+            .setCapacity(record.getCapacity() != null ? record.getCapacity() : -1.0)
+            .setAvgValue(record.getAvgValue() != null ? record.getAvgValue() : -1.0)
+            .setMinValue(record.getMinValue() != null ? record.getMinValue() : -1.0)
+            .setMaxValue(record.getMaxValue() != null ? record.getMaxValue() : -1.0)
+            .setRelationType(record.getRelation() != null ? record.getRelation().ordinal() : -1)
+            .setCommodityKey(record.getCommodityKey() != null ? record.getCommodityKey() : "").build();
     }
 
     /**
@@ -953,5 +1393,31 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             responseObserver.onError(
                     Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getMostRecentStat(GetMostRecentStatRequest request,
+                                  StreamObserver<GetMostRecentStatResponse> responseObserver) {
+        final ServerCallStreamObserver streamObserver =
+            responseObserver instanceof ServerCallStreamObserver ?
+                (ServerCallStreamObserver)responseObserver : null;
+        final Optional<GetMostRecentStatResponse.Builder> response = mostRecentLiveStatReader
+            .getMostRecentStat(request.getEntityType(), request.getCommodityName(),
+                request.getProviderId(), streamObserver);
+        final GetMostRecentStatResponse returnObject = response.map(stat -> {
+            final String entityDisplayName = liveStatsReader
+                .getEntityDisplayNameForId(stat.getEntityUuid());
+            if (entityDisplayName != null) {
+                stat.setEntityDisplayName(entityDisplayName);
+            }
+            return stat.build();
+        }).orElse(GetMostRecentStatResponse.newBuilder().build());
+        logger.debug("Most recent stat response for request {}, is {}", () -> request,
+            () -> returnObject);
+        responseObserver.onNext(returnObject);
+        responseObserver.onCompleted();
     }
 }

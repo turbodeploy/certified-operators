@@ -1,10 +1,11 @@
 package com.vmturbo.components.common.setting;
 
 import javax.annotation.Nonnull;
-
-import jdk.nashorn.internal.ir.annotations.Immutable;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.Builder;
 
 /**
@@ -27,5 +28,13 @@ public class BooleanSettingDataType extends AbstractSettingDataType<Boolean> {
                 .setDefault(getDefault())
                 .putAllEntityDefaults(getEntityDefaults())
                 .build());
+    }
+
+    @Override
+    @Nullable
+    public Boolean getValue(@Nullable Setting setting) {
+        return setting == null || !setting.hasBooleanSettingValue()
+               || !setting.getBooleanSettingValue().hasValue() ? null
+                               : setting.getBooleanSettingValue().getValue();
     }
 }

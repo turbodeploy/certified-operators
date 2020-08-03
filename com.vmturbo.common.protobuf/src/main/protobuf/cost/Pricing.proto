@@ -3,6 +3,7 @@ package cost;
 
 option java_package = "com.vmturbo.common.protobuf.cost";
 
+import "CloudCostDTO.proto";
 import "PricingDTO.proto";
 import "cost/Cost.proto";
 
@@ -33,12 +34,45 @@ message PriceTable {
     // See OnDemandPriceTable for more details.
     map<int64, OnDemandPriceTable> on_demand_price_by_region_id = 1;
 
-    // The spot instance prices, arranged by region ID.
+    // The spot instance prices, arranged by zone or region ID. If prices are provided per zone
+    // the key is zone ID, otherwise the key is region ID.
     // See SpotInstancePriceTable for more details.
-    map<int64, SpotInstancePriceTable> spot_price_by_region_id = 10;
+    map<int64, SpotInstancePriceTable> spot_price_by_zone_or_region_id = 10;
 
-    // A list of license prices grouped by OS type
-    repeated common_dto.LicensePriceByOsEntry license_prices = 20;
+    // A list of on-demand license prices grouped by OS type.
+    repeated common_dto.LicensePriceEntry on_demand_license_prices = 20;
+
+    // A list of reserved license prices grouped by OS type.
+    repeated common_dto.LicensePriceEntry reserved_license_prices = 30;
+}
+
+// PriceTableKey contains information which describes the source of price table.
+message PriceTableKey {
+    // Represents the scope of this PriceTableKey. It is expected the group will be an identifier
+    // of the cloud provider (e.g. AWS, Azure). This group is a short-term implementation for scoping
+    // the keys, which is expected to be replaced by a CloudServiceProvider entity identifier in the
+    // near future
+    optional string pricing_group = 1 [deprecated = true];
+
+    // probe_key_material is a map of miscellaneous information about the price table which helps to
+    // uniquely identify a price table and to which account it might be related to.
+    map<string, string> probe_key_material = 2;
+
+    // The service provider id
+    optional int64 service_provider_id = 3;
+}
+
+// Simple MapFieldEntry to capture checksum of each priceTableKey and to
+// serve GetPriceTableChecksum requests.
+message PriceTableChecksum {
+    optional PriceTableKey price_table_key = 1;
+
+    optional int64 check_sum = 2;
+}
+
+// Map of business account OID to priceTableKey
+message BusinessAccountPriceTableKey {
+    map<int64, PriceTableKey> business_account_price_table_key = 1;
 }
 
 // The pricing information for reserved instances.
@@ -77,13 +111,18 @@ message OnDemandPriceTable {
     map<int64, common_dto.ComputeTierPriceList> compute_prices_by_tier_id = 1;
 
     // The prices for database instances in this region, arranged by instance ID.
-    map<int64, common_dto.DatabaseTierPriceList> db_prices_by_instance_id = 2;
+    map<int64, DbTierOnDemandPriceTable> db_prices_by_instance_id = 2;
 
     // The prices for IPs in this region
     optional common_dto.IpPriceList ip_prices = 3;
 
     // The prices for cloud storage in this region, arranged by tier ID.
     map<int64, common_dto.StorageTierPriceList> cloud_storage_prices_by_tier_id = 4;
+}
+
+message DbTierOnDemandPriceTable {
+    optional common_dto.DatabaseTierPriceList on_demand_prices_no_deployment_type = 1;
+    map<int32, common_dto.DatabaseTierPriceList> db_prices_by_deployment_type = 2;
 }
 
 // The pricing table for spot instances.
@@ -95,12 +134,30 @@ message OnDemandPriceTable {
 // Note: Spot instances are called Low-Priority VMs in Azure, and Preemptible VMs in
 //       Google Cloud.
 message SpotInstancePriceTable {
-    // At the time of this writing the spot price is always hourly, and
-    // is set per-region-per-instance.
-    map<int64, common_dto.Price> spot_price_by_instance_id = 1;
+    // Spot prices by compute tier ID
+    map<int64, SpotPricesForTier> spot_prices_by_tier_oid = 1;
+
+    // Spot prices for all Operating Systems in a given Compute Tier
+    message SpotPricesForTier {
+        repeated PriceForGuestOsType price_for_guest_os_type = 1;
+    }
+
+    // Spot instance price for given guest OS type
+    message PriceForGuestOsType {
+        // OS type
+        required common_dto.OSType guest_os_type = 1;
+
+        // Spot instance hourly price
+        required common_dto.Price price = 2;
+    }
 }
 
 message GetPriceTableRequest {
+}
+
+message GetPriceTablesRequest {
+    // List of oids to get price tables for.
+    repeated int64 oid = 1;
 }
 
 message GetPriceTableResponse {
@@ -109,34 +166,40 @@ message GetPriceTableResponse {
     optional PriceTable global_price_table = 1;
 }
 
+message GetPriceTablesResponse{
+    // List of price tables corresponding to a list of oids
+    map <int64, PriceTable> price_tables_by_oid = 1;
+}
 
 // a segment of a probe price table delivery
 message ProbePriceTableSegment {
-    oneof segment_contents {
-        ProbePriceTableHeader header = 1;
-        ProbePriceTableChunk probe_price_table = 2;
-        ProbeRISpecPriceChunk probe_ri_spec_prices = 3;
-    }
+    optional ProbePriceTableHeader header = 1;
+    optional ProbePriceTableChunk probe_price_table = 2;
+    optional ProbeRISpecPriceChunk probe_ri_spec_prices = 3;
 
     message ProbePriceTableHeader {
-        // the checksum of the data in this request
-        optional int64 checksum = 1;
-
         // the time the request was created
-        optional int64 created_time = 2;
+        optional int64 created_time = 1;
+
+        // entries of price_table to its checksum values.
+        repeated PriceTableChecksum price_table_checksums = 2;
     }
 
     // a chunk containing a probe's price table.
     message ProbePriceTableChunk {
-        optional string probe_type = 1;
+        //PriceTableKey contains priceTable properties.
+        required PriceTableKey price_table_key = 1;
+
         optional PriceTable price_table = 2;
     }
 
     // a chunk of RI Spec Prices from a probe type. We may see several of these spread across
     // several ProbePriceTableSegments
     message ProbeRISpecPriceChunk {
-        optional string probe_type = 1;
-        repeated ReservedInstanceSpecPrice reserved_instance_spec_prices = 20;
+        //PriceTableKey contains priceTable properties.
+        optional PriceTableKey price_table_key = 1;
+
+        repeated ReservedInstanceSpecPrice reserved_instance_spec_prices = 2;
     }
 }
 
@@ -150,23 +213,61 @@ message UploadPriceTablesResponse {
 }
 
 message GetPriceTableChecksumRequest {
+    repeated PriceTableKey priceTableKey = 1;
 }
 
 message GetPriceTableChecksumResponse {
-    optional int64 price_table_checksum = 1;
+    repeated PriceTableChecksum pricetable_to_checksum = 1;
+}
+
+// Request for upload map of businessAccount to PriceTable in cost DB.
+message UploadAccountPriceTableKeyRequest {
+    optional BusinessAccountPriceTableKey business_account_price_table_key = 1;
+}
+
+// Response for UploadAccountPriceTableKeyRequest.
+message UploadAccountPriceTableKeysResponse {
+
+}
+
+// Request to fetch map of BA OIDs to Price table key.
+message GetAccountPriceTableRequest {
+    repeated int64 business_account_oid  = 1;
+}
+
+// Response for GetAccountPriceTableKeys. Returns map of BA OIDs to PriceTableKey OIDs.
+message GetAccountPriceTableResponse {
+    map<int64, int64> business_account_price_table_key = 1;
 }
 
 // The pricing service is the interface to upload and retrieve pricing data from the cost
 // component.
 service PricingService {
     // Get the current "global" price table.
-    rpc GetPriceTable(GetPriceTableRequest) returns (GetPriceTableResponse);
+    rpc GetPriceTable (GetPriceTableRequest) returns (GetPriceTableResponse) {
+        option deprecated = true;
+    };
 
-    // request for the checksum of the current price table data
-    rpc GetPriceTableChecksum(GetPriceTableChecksumRequest) returns (GetPriceTableChecksumResponse);
+    // Gets a list of price tables
+    rpc GetPriceTables (GetPriceTablesRequest) returns (GetPriceTablesResponse);
+
+    // request for the checksum of the list of price tables
+    rpc GetPriceTableChecksum (GetPriceTableChecksumRequest) returns (GetPriceTableChecksumResponse);
 
     // Upload the most recent price table discovered by a particular cost probe.
-    //
     // Returns INVALID_ARGUMENT if the request is missing fields.
-    rpc UpdatePriceTables(stream ProbePriceTableSegment) returns (UploadPriceTablesResponse);
+    // Captures priceTableKey -> priceTable data. Its working is closely related to information
+    // captured by UploadAccountPriceTableKeys. Which captures BA OID - > priceTableKey information.
+    rpc UpdatePriceTables (stream ProbePriceTableSegment) returns (UploadPriceTablesResponse);
+
+    // Upload map of businessAccounts id to priceTableKeys discovered.
+    // This is closely related to UpdatePriceTables which provides priceTableKeys to priceTable information.
+    // BA -> priceTable data can be looked up only after both these rpc call completes.
+    rpc UploadAccountPriceTableKeys (UploadAccountPriceTableKeyRequest)
+    returns (UploadAccountPriceTableKeysResponse);
+
+    //Request to fetch BA OIDs to price table key mapping.
+    //If no BA OIDs are provided, all mappings are returned.
+    rpc GetAccountPriceTable(GetAccountPriceTableRequest)
+    returns (GetAccountPriceTableResponse);
 }

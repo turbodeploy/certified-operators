@@ -4,12 +4,12 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
-import com.google.common.collect.HashMultimap;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -24,23 +24,26 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.graph.GraphDefinition;
+import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
-import com.vmturbo.repository.graph.parameter.GraphCmd.GetGlobalSupplyChain;
-import com.vmturbo.repository.graph.result.ImmutableGlobalSupplyChainFluxResult;
 import com.vmturbo.repository.graph.result.SupplyChainOidsGroup;
 import com.vmturbo.repository.service.SupplyChainServiceTest.TestConfig;
+import com.vmturbo.repository.topology.GlobalSupplyChain;
+import com.vmturbo.repository.topology.GlobalSupplyChainManager;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 
 /**
  * unit test for {@link SupplyChainService}.
@@ -49,9 +52,6 @@ import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 @ContextConfiguration(loader = AnnotationConfigContextLoader.class, classes = {TestConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 public class SupplyChainServiceTest {
-
-    private static final String VMS = "vms";
-    private static final String HOSTS = "pms";
 
     @Autowired
     private TestConfig testConfig;
@@ -63,23 +63,36 @@ public class SupplyChainServiceTest {
      */
     @Test
     public void testGlobalSupplyChain() throws Exception {
+        final String VMS = "VirtualMachine";
+        final String HOSTS = "PhysicalMachine";
+
         final SupplyChainOidsGroup vms = new SupplyChainOidsGroup(VMS, "ACTIVE", Arrays.asList(1L, 2L, 3L, 4L));
         final SupplyChainOidsGroup hosts = new SupplyChainOidsGroup(HOSTS, "ACTIVE", Arrays.asList(5L, 6L, 7L));
 
-        final Flux<SupplyChainOidsGroup> typesAndOids = Flux.fromIterable(Arrays.asList(vms, hosts));
-        final ImmutableGlobalSupplyChainFluxResult supplyChainFluxResult =
-            ImmutableGlobalSupplyChainFluxResult.builder().entities(typesAndOids).build();
-        Mockito.when(testConfig.reactiveExecutor()
-            .executeGlobalSupplyChainCmd(Mockito.any(GetGlobalSupplyChain.class)))
-            .thenReturn(supplyChainFluxResult);
+        List<TopologyEntityDTO> chunks = new ArrayList<>();
+        chunks.add(createEntityDto(1L, EntityType.VIRTUAL_MACHINE_VALUE));
+        chunks.add(createEntityDto(2L, EntityType.VIRTUAL_MACHINE_VALUE));
+        chunks.add(createEntityDto(3L, EntityType.VIRTUAL_MACHINE_VALUE));
+        chunks.add(createEntityDto(4L, EntityType.VIRTUAL_MACHINE_VALUE));
+        chunks.add(createEntityDto(5L, EntityType.PHYSICAL_MACHINE_VALUE));
+        chunks.add(createEntityDto(6L, EntityType.PHYSICAL_MACHINE_VALUE));
+        chunks.add(createEntityDto(7L, EntityType.PHYSICAL_MACHINE_VALUE));
 
         Mockito.when(testConfig.userSessionContext().getUserAccessScope())
                 .thenReturn(EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE);
 
-        final Mono<Map<String, SupplyChainNode>> globalSupplyChain =
-            testConfig.supplyChainService().getGlobalSupplyChain(Optional.empty(),
-                    Optional.empty(), Collections.emptySet());
-        final Map<String, SupplyChainNode> result = globalSupplyChain.toFuture().get();
+        TopologyID topologyID = testConfig.getTopologyId();
+        GlobalSupplyChain globalSupplyChain = new GlobalSupplyChain(topologyID, testConfig.graphDBExecutor());
+        globalSupplyChain.processEntities(chunks);
+        globalSupplyChain.seal();
+        Mockito.when(testConfig.globalSupplyChainManager().getGlobalSupplyChain(topologyID))
+                .thenReturn(Optional.of(globalSupplyChain));
+
+        final Mono<Map<String, SupplyChainNode>> globalSupplyChainNodes =
+                testConfig.supplyChainService().getGlobalSupplyChain(Optional.empty(),
+                        Optional.empty(), Collections.emptySet());
+
+        final Map<String, SupplyChainNode> result = globalSupplyChainNodes.toFuture().get();
         Assert.assertEquals(2, result.size());
         assertThat(RepositoryDTOUtil.getAllMemberOids(result.get(VMS)),
                 containsInAnyOrder(vms.getOids().toArray()));
@@ -92,14 +105,16 @@ public class SupplyChainServiceTest {
      */
     @Configuration
     public static class TestConfig {
+
+        @Bean
+        public TopologyID getTopologyId(){
+            return new TopologyID(1, 2, TopologyID.TopologyType.SOURCE);
+        }
+
         @Bean
         public TopologyLifecycleManager topologyManager() {
             final TopologyLifecycleManager result = Mockito.mock(TopologyLifecycleManager.class);
-            final TopologyDatabase topologyDatabase = Mockito.mock(TopologyDatabase.class);
-            Mockito.when(result.getRealtimeDatabase())
-                    .thenReturn(Optional.of(topologyDatabase));
-            final TopologyID topologyId = new TopologyID(1, 2, TopologyID.TopologyType.SOURCE);
-            Mockito.when(result.getRealtimeTopologyId()).thenReturn(Optional.of(topologyId));
+            Mockito.when(result.getRealtimeTopologyId()).thenReturn(Optional.of(getTopologyId()));
             return result;
         }
 
@@ -119,24 +134,37 @@ public class SupplyChainServiceTest {
         }
 
         @Bean
+        public GraphDBExecutor graphDBExecutor() {
+            return Mockito.mock(GraphDBExecutor.class);
+        }
+
+        @Bean
         public UserSessionContext userSessionContext() {
             return Mockito.mock(UserSessionContext.class);
         }
 
         @Bean
-        public TopologyRelationshipRecorder topologyRelationshipRecorder() {
-            final TopologyRelationshipRecorder recorder =
-                    Mockito.mock(TopologyRelationshipRecorder.class);
-            Mockito.when(recorder.getGlobalSupplyChainProviderStructures())
-                    .thenReturn(HashMultimap.create());
-            return recorder;
+        public GlobalSupplyChainManager globalSupplyChainManager() {
+            return Mockito.mock(GlobalSupplyChainManager.class);
         }
 
         @Bean
         public SupplyChainService supplyChainService() throws IOException {
-            return new SupplyChainService(reactiveExecutor(), graphDbService(),
-                    graphDefinition(), topologyRelationshipRecorder(), topologyManager(),
+            return new SupplyChainService(
+                    topologyManager(),
+                    globalSupplyChainManager(),
                     userSessionContext());
         }
+    }
+
+    private TopologyEntityDTO createEntityDto(Long oid, int entityType) {
+
+        return TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setEntityType(entityType)
+                .setEntityState(EntityState.POWERED_ON)
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .build();
+
     }
 }

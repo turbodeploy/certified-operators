@@ -1,0 +1,710 @@
+[
+  {
+    "entityType": "VIRTUAL_DATACENTER",
+    "id": "4c55cc8b83be02357bcc4a496b5278a22e136677",
+    "displayName": "SITE02-POD01-POOL04",
+    "commoditiesSold": [
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "VirtualDataCenter::4c55cc8b83be02357bcc4a496b5278a22e136677",
+        "used": 3623.0,
+        "capacity": 30160.0,
+        "active": true,
+        "resizable": true
+      },
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "VirtualDataCenter::4c55cc8b83be02357bcc4a496b5278a22e136677",
+        "used": 1.048572E7,
+        "capacity": 1.79402752E8,
+        "active": true,
+        "resizable": true
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "resgroup-48"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "VcTgtIdAndInternalName",
+        "value": "4c55cc8b83be02357bcc4a496b5278a22e136677"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "virtual_datacenter_data": {
+      "supportsStorage": false,
+      "vdc_type_props": {
+        "role": "CONSUMER",
+        "supportsNesting": true,
+        "nestedConsumer": false
+      },
+      "vdc_allocation_model": "PAY_AS_YOU_GO"
+    }
+  },
+  {
+    "entityType": "VIRTUAL_MACHINE",
+    "id": "4233fb65-8d8e-31fe-90c8-8a89369d5072",
+    "displayName": "S02-P01-P04-05",
+    "commoditiesSold": [
+      {
+        "commodityType": "APPLICATION",
+        "key": "VirtualMachine::4233fb65-8d8e-31fe-90c8-8a89369d5072",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE",
+        "key": "VirtualMachine::9215fe1680151114b134756b409bf4cfa1b94e66",
+        "used": 11389.44921875,
+        "capacity": 32265.99609375,
+        "active": true,
+        "resizable": true,
+        "vstorage_partition_data": {
+          "partition": "C:\\"
+        }
+      },
+      {
+        "commodityType": "VMEM",
+        "used": 564131.7333333333,
+        "capacity": 2097152.0,
+        "limit": -1.0,
+        "peak": 671088.0,
+        "active": true,
+        "resizable": true,
+        "vmem_data": {
+          "hotAddSupported": false
+        }
+      },
+      {
+        "commodityType": "VCPU",
+        "used": 2248.233333333333,
+        "capacity": 2600.0,
+        "limit": -1.0,
+        "peak": 2396.0,
+        "active": true,
+        "resizable": true,
+        "vcpu_data": {
+          "hotAddSupported": false,
+          "hotRemoveSupported": false
+        }
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "fb5f0bc9-a0c52693",
+        "bought": [
+          {
+            "commodityType": "STORAGE_ACCESS",
+            "used": 0.13333333333333333,
+            "active": true,
+            "resizable": true,
+            "storage_access_data": {
+            }
+          },
+          {
+            "commodityType": "DSPM_ACCESS",
+            "key": "PhysicalMachine::Virtual_ESX_42385b03-a08b-dbda-6e25-6f8dd1201450",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "STORAGE_CLUSTER",
+            "key": "free_storage_cluster",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "STORAGE_AMOUNT",
+            "used": 13456.955673217773,
+            "computedUsed": false
+          },
+          {
+            "commodityType": "STORAGE_PROVISIONED",
+            "used": 43914.78623962402,
+            "computedUsed": false
+          },
+          {
+            "commodityType": "STORAGE_LATENCY",
+            "used": 68.23333333333333,
+            "active": true,
+            "resizable": true,
+            "storage_latency_data": {
+            }
+          }
+        ],
+        "providerType": "STORAGE"
+      },
+      {
+        "providerId": "Virtual_ESX_42385b03-a08b-dbda-6e25-6f8dd1201450",
+        "bought": [
+          {
+            "commodityType": "NET_THROUGHPUT",
+            "used": 0.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "IO_THROUGHPUT",
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "DATACENTER",
+            "key": "DataCenter::468b8920afcf477502ec7869e02a45fafc405376",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "CPU",
+            "used": 2248.233333333333,
+            "peak": 2396.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "CPU_PROVISIONED",
+            "used": 2600.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "MEM",
+            "used": 2097152.0,
+            "peak": 2097152.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "BALLOONING",
+            "used": 0.0,
+            "active": false,
+            "resizable": true
+          },
+          {
+            "commodityType": "SWAPPING",
+            "used": 0.0,
+            "active": false,
+            "resizable": true
+          },
+          {
+            "commodityType": "MEM_PROVISIONED",
+            "used": 2097152.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "DATASTORE",
+            "key": "Storage::fb5f0bc9-a0c52693",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "CLUSTER",
+            "key": "Cluster::fe9f817f53d21750ac259e6753b7ccd888dd7061",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "Q1_VCPU",
+            "used": 2352.0
+          },
+          {
+            "commodityType": "NETWORK",
+            "key": "Network::VM Network",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          }
+        ],
+        "providerType": "PHYSICAL_MACHINE"
+      },
+      {
+        "providerId": "4c55cc8b83be02357bcc4a496b5278a22e136677",
+        "bought": [
+          {
+            "commodityType": "CPU_ALLOCATION",
+            "key": "VirtualDataCenter::4c55cc8b83be02357bcc4a496b5278a22e136677",
+            "used": 2248.233333333333,
+            "peak": 2396.0,
+            "active": true,
+            "resizable": true
+          },
+          {
+            "commodityType": "MEM_ALLOCATION",
+            "key": "VirtualDataCenter::4c55cc8b83be02357bcc4a496b5278a22e136677",
+            "used": 2097152.0,
+            "peak": 2097152.0,
+            "active": true,
+            "resizable": true
+          }
+        ],
+        "providerType": "VIRTUAL_DATACENTER"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "vm-285"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "numCpus",
+        "value": "1"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "VcTgtIdAndInternalName",
+        "value": "a31e8aaeda60c9aa9dff175693f1a17baac023e3"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "instanceUuid",
+        "value": "50334c2a-02e7-ad81-51bb-11d1cb8f00c4"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "targetAddress",
+        "value": "vsphere-dc25.corp.vmturbo.com"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "vmHardwareCompatibilityVersion",
+        "value": "vmx-11"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "consumerPolicy": {
+      "shopsTogether": true
+    },
+    "layeredOver": [
+      "0de2d0bdd9e6f84340f6f5e492356a78e7752691"
+    ]
+  },
+  {
+    "entityType": "STORAGE",
+    "id": "fb5f0bc9-a0c52693",
+    "displayName": "QS4:ESXDC25DS1",
+    "commoditiesSold": [
+      {
+        "commodityType": "STORAGE_ACCESS",
+        "active": true,
+        "resizable": true,
+        "computedUsed": true,
+        "storage_access_data": {
+          "supportsStorageIOPS": false
+        }
+      },
+      {
+        "commodityType": "DSPM_ACCESS",
+        "key": "PhysicalMachine::Virtual_ESX_42385b03-a08b-dbda-6e25-6f8dd1201450",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_CLUSTER",
+        "key": "free_storage_cluster",
+        "capacity": 1.0E9
+      },
+      {
+        "commodityType": "STORAGE_AMOUNT",
+        "used": 646944.0,
+        "capacity": 2997913.625,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_PROVISIONED",
+        "used": 1988486.802734375,
+        "active": true,
+        "resizable": true
+      },
+      {
+        "commodityType": "STORAGE_LATENCY",
+        "active": true,
+        "resizable": true,
+        "computedUsed": true,
+        "storage_latency_data": {
+          "supportsStorageLatency": false
+        }
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "DiskArray-fb5f0bc9-a0c52693",
+        "bought": [
+          {
+            "commodityType": "EXTENT",
+            "key": "DiskArray-fb5f0bc9-a0c52693",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          }
+        ],
+        "providerType": "DISK_ARRAY"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "datastore-38"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "VcTgtIdAndInternalName",
+        "value": "17e8d16cae670ced45345dc629581d5af43fe082"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "providerPolicy": {
+      "localSupported": false
+    },
+    "layeredOver": [
+      "Virtual_ESX_42383072-b82d-922f-3ccd-e4c4cea367a0",
+      "Virtual_ESX_4238c9d9-cb03-62db-f1e5-9c0f1720a39b",
+      "Virtual_ESX_42383e4d-4ba3-5d54-9480-9e327a73cdad",
+      "Virtual_ESX_42385b03-a08b-dbda-6e25-6f8dd1201450",
+      "Virtual_ESX_4238075f-0a8d-f0d8-5544-f66ad2ef5bf7"
+    ],
+    "maintenance": false,
+    "storage_data": {
+      "storageType": "NFS",
+      "externalName": [
+        "nfs:10.10.100.104#/export/dc25ds1",
+        "nfs:10.10.100.104#/export/dc25ds1"
+      ]
+    }
+  },
+  {
+    "entityType": "DISK_ARRAY",
+    "id": "DiskArray-fb5f0bc9-a0c52693",
+    "displayName": "DiskArray-QS4:ESXDC25DS1",
+    "commoditiesSold": [
+      {
+        "commodityType": "EXTENT",
+        "key": "DiskArray-fb5f0bc9-a0c52693",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "datastore-38"
+      }
+    ],
+    "origin": "REPLACEABLE",
+    "powerState": "POWERED_ON",
+    "disk_array_data": {
+    }
+  },
+  {
+    "entityType": "PHYSICAL_MACHINE",
+    "id": "Virtual_ESX_42385b03-a08b-dbda-6e25-6f8dd1201450",
+    "displayName": "hp-esx113.eng.vmturbo.com",
+    "commoditiesSold": [
+      {
+        "commodityType": "Q4_VCPU",
+        "capacity": 20000.0
+      },
+      {
+        "commodityType": "NET_THROUGHPUT",
+        "used": 99315.5,
+        "capacity": 3840000.0,
+        "peak": 108549.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "IO_THROUGHPUT",
+        "used": 121.1,
+        "capacity": 4864000.0,
+        "peak": 419.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "DATACENTER",
+        "key": "DataCenter::468b8920afcf477502ec7869e02a45fafc405376",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "Q2_VCPU",
+        "capacity": 20000.0
+      },
+      {
+        "commodityType": "HOST_LUN_ACCESS",
+        "used": 6.0,
+        "capacity": 256.0,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "CPU",
+        "used": 8082.166666666667,
+        "capacity": 10400.0,
+        "peak": 9025.0,
+        "active": true,
+        "resizable": false,
+        "utilizationThresholdPct": 100.0
+      },
+      {
+        "commodityType": "CPU_PROVISIONED",
+        "capacity": 10400.0,
+        "resizable": false
+      },
+      {
+        "commodityType": "MEM_ALLOCATION",
+        "key": "PhysicalMachine::Virtual_ESX_42385b03-a08b-dbda-6e25-6f8dd1201450",
+        "used": 2.6013774133333333E7,
+        "capacity": 5.0331124E7,
+        "peak": 2.6093856E7,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "MEM",
+        "used": 2.6013774133333333E7,
+        "capacity": 5.0331124E7,
+        "peak": 2.6093856E7,
+        "active": true,
+        "resizable": false,
+        "utilizationThresholdPct": 100.0
+      },
+      {
+        "commodityType": "MEM_PROVISIONED",
+        "capacity": 5.0331124E7,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "BALLOONING",
+        "used": 1.7278872E7,
+        "capacity": 5.0331124E7,
+        "active": false,
+        "resizable": true
+      },
+      {
+        "commodityType": "SWAPPING",
+        "used": 0.0,
+        "capacity": 5000000.0,
+        "active": false,
+        "resizable": true
+      },
+      {
+        "commodityType": "DATASTORE",
+        "key": "Storage::fb5f0bc9-a0c52693",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "CLUSTER",
+        "key": "Cluster::fe9f817f53d21750ac259e6753b7ccd888dd7061",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "Q1_VCPU",
+        "capacity": 20000.0
+      },
+      {
+        "commodityType": "NETWORK",
+        "key": "Network::VM Network",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "CPU_ALLOCATION",
+        "key": "PhysicalMachine::Virtual_ESX_42385b03-a08b-dbda-6e25-6f8dd1201450",
+        "used": 8082.166666666667,
+        "capacity": 10400.0,
+        "peak": 9025.0,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "fb5f0bc9-a0c52693",
+        "bought": [
+          {
+            "commodityType": "STORAGE_ACCESS",
+            "used": 31.46666666666667,
+            "active": false,
+            "resizable": true,
+            "storage_access_data": {
+            }
+          },
+          {
+            "commodityType": "STORAGE_LATENCY",
+            "used": 90.86666666666666,
+            "active": false,
+            "resizable": true,
+            "storage_latency_data": {
+            }
+          }
+        ],
+        "providerType": "STORAGE"
+      },
+      {
+        "providerId": "468b8920afcf477502ec7869e02a45fafc405376",
+        "bought": [
+          {
+            "commodityType": "DATACENTER",
+            "key": "DataCenter::DataCenter::468b8920afcf477502ec7869e02a45fafc405376",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "SPACE",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "POWER",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          },
+          {
+            "commodityType": "COOLING",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          }
+        ],
+        "providerType": "DATACENTER"
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "host-32"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "cpuModel",
+        "value": "Intel(R) Xeon(R) CPU E5-2670 0 @ 2.60GHz"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "model",
+        "value": "VMware Virtual Platform"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "vendor",
+        "value": "VMware, Inc."
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "timezone",
+        "value": "UTC"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "AssetTag",
+        "value": " No Asset Tag"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "ServiceTag",
+        "value": "VMware-42 38 5b 03 a0 8b db da-6e 25 6f 8d d1 20 14 50"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "VcTgtIdAndInternalName",
+        "value": "297f76e80ad4b746924080ad473e5a0b177d425e"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "providerPolicy": {
+      "availableForPlacement": true
+    },
+    "maintenance": false,
+    "physical_machine_data": {
+      "pmState": {
+        "failover": false
+      },
+      "numCpuSockets": 1,
+      "numCpuCores": 4,
+      "numCpuThreads": 4,
+      "cpuCoreMhz": 2600
+    },
+    "physical_machine_related_data": {
+    }
+  },
+  {
+    "entityType": "DATACENTER",
+    "id": "468b8920afcf477502ec7869e02a45fafc405376",
+    "displayName": "vsphere-dc25-DC01",
+    "commoditiesSold": [
+      {
+        "commodityType": "DATACENTER",
+        "key": "DataCenter::DataCenter::468b8920afcf477502ec7869e02a45fafc405376",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "SPACE",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "POWER",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "COOLING",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "datacenter-21"
+      }
+    ],
+    "origin": "REPLACEABLE",
+    "powerState": "POWERED_ON"
+  }
+]

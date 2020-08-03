@@ -6,23 +6,19 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import javax.annotation.Nonnull;
+import com.google.common.collect.Sets;
 
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.Sets;
-
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
@@ -75,64 +71,36 @@ public class WastedFilesPostStitchingOperationTest {
     private static TopologyEntity virtVolWasted3;
     private static EntitySettingsCollection settingsCollection = mock(EntitySettingsCollection.class);
 
-    private static void initialSetupForMainTest() {
+    private void initialSetupForMainTest() {
         // Create main test environment - Storage with three VirtualVolumes, 2 connected to VMs and
         // one for wasted storage.
         final TopologyEntity.Builder storage1 =
-            PostStitchingTestUtilities.makeTopologyEntityBuilder(
-                storage1Oid,
-                EntityType.STORAGE.getNumber(),
-                Collections.emptyList(),
-                Collections.emptyList());
+            makeEntityBuilder(storage1Oid, EntityType.STORAGE);
 
         final TopologyEntity.Builder virtualVolume1 =
-            PostStitchingTestUtilities.makeTopologyEntityBuilder(
-                virtualVolume1Oid,
-                EntityType.VIRTUAL_VOLUME.getNumber(),
-                Collections.emptyList(),
-                Collections.emptyList());
+            makeEntityBuilder( virtualVolume1Oid, EntityType.VIRTUAL_VOLUME);
 
         final TopologyEntity.Builder virtualVolume2 =
-            PostStitchingTestUtilities.makeTopologyEntityBuilder(
-                virtualVolume2Oid,
-                EntityType.VIRTUAL_VOLUME.getNumber(),
-                Collections.emptyList(),
-                Collections.emptyList());
+            makeEntityBuilder(virtualVolume2Oid, EntityType.VIRTUAL_VOLUME);
 
         final TopologyEntity.Builder virtualVolumeWasted1 =
-            PostStitchingTestUtilities.makeTopologyEntityBuilder(
-                virtualVolume1WastedOid,
-                EntityType.VIRTUAL_VOLUME.getNumber(),
-                Collections.emptyList(),
-                Collections.emptyList());
+            makeEntityBuilder(virtualVolume1WastedOid, EntityType.VIRTUAL_VOLUME);
 
         final TopologyEntity.Builder virtualMachine1 =
-            PostStitchingTestUtilities.makeTopologyEntityBuilder(
-                vm1Oid,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                Collections.emptyList(),
-                Collections.emptyList());
+            makeEntityBuilder(vm1Oid, EntityType.VIRTUAL_MACHINE);
 
         final TopologyEntity.Builder virtualMachine2 =
-            PostStitchingTestUtilities.makeTopologyEntityBuilder(
-                vm2Oid,
-                EntityType.VIRTUAL_MACHINE.getNumber(),
-                Collections.emptyList(),
-                Collections.emptyList());
+            makeEntityBuilder(vm2Oid, EntityType.VIRTUAL_MACHINE);
 
-        virtualMachine1.addConnectedTo(virtualVolume1);
-        virtualMachine2.addConnectedTo(virtualVolume2);
-        virtualVolume1.addConnectedTo(storage1);
-        virtualVolume1.addConnectedFrom(virtualMachine1);
-        virtualVolume2.addConnectedTo(storage1);
-        virtualVolume2.addConnectedFrom(virtualMachine2);
-        virtualVolumeWasted1.addConnectedTo(storage1);
-        storage1.addConnectedFrom(virtualVolume1);
-        storage1.addConnectedFrom(virtualVolume2);
-        storage1.addConnectedFrom(virtualVolumeWasted1);
-        addFilesToVirtualVolume(virtualVolume1, vm1Files);
-        addFilesToVirtualVolume(virtualVolume2, vm2Files);
-        addFilesToVirtualVolume(virtualVolumeWasted1, allFiles);
+        connect(virtualMachine1, virtualVolume1);
+        connect(virtualMachine2, virtualVolume2);
+        connect(virtualVolume1, storage1);
+        connect(virtualVolume2, storage1);
+        connect(virtualVolumeWasted1, storage1);
+        PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolume1, vm1Files);
+        PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolume2, vm2Files);
+        PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolumeWasted1,
+            new String[] {wastedFile, ignoreFile, ignoreDirFile});
 
         storageEntity1 = storage1.build();
         virtVol1 = virtualVolume1.build();
@@ -140,16 +108,16 @@ public class WastedFilesPostStitchingOperationTest {
         virtVolWasted1 = virtualVolumeWasted1.build();
         TopologyEntity virtMachine1 = virtualMachine1.build();
         TopologyEntity virtMachine2 = virtualMachine2.build();
-        assertTrue(virtMachine1.getConnectedToEntities().contains(virtVol1));
-        assertTrue(virtMachine2.getConnectedToEntities().contains(virtVol2));
-        assertTrue(virtVol1.getConnectedToEntities().contains(storageEntity1));
-        assertTrue(virtVol2.getConnectedToEntities().contains(storageEntity1));
-        assertTrue(virtVolWasted1.getConnectedToEntities().contains(storageEntity1));
+        assertTrue(virtMachine1.getOutboundAssociatedEntities().contains(virtVol1));
+        assertTrue(virtMachine2.getOutboundAssociatedEntities().contains(virtVol2));
+        assertTrue(virtVol1.getOutboundAssociatedEntities().contains(storageEntity1));
+        assertTrue(virtVol2.getOutboundAssociatedEntities().contains(storageEntity1));
+        assertTrue(virtVolWasted1.getOutboundAssociatedEntities().contains(storageEntity1));
         assertEquals(vm1Files.length, virtVol1.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
         assertEquals(vm2Files.length, virtVol2.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
-        assertEquals(allFiles.length, virtVolWasted1.getTopologyEntityDtoBuilder()
+        assertEquals(3, virtVolWasted1.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
     }
 
@@ -158,30 +126,33 @@ public class WastedFilesPostStitchingOperationTest {
      * Just a single storage with a single volume connected to it.  Volume has all the files
      * associated with it.
      */
-    private static void initialSetupForIgnoreSettingsTest() {
-        final TopologyEntity.Builder storage2 =
-            PostStitchingTestUtilities.makeTopologyEntityBuilder(
-                storage2Oid,
-                EntityType.STORAGE.getNumber(),
-                Collections.emptyList(),
-                Collections.emptyList());
+    private void initialSetupForIgnoreSettingsTest() {
+        final TopologyEntity.Builder storage2 = makeEntityBuilder(storage2Oid, EntityType.STORAGE);
 
         final TopologyEntity.Builder virtualVolumeWasted2 =
-            PostStitchingTestUtilities.makeTopologyEntityBuilder(
-                virtualVolume2WastedOid,
-                EntityType.VIRTUAL_VOLUME.getNumber(),
-                Collections.emptyList(),
-                Collections.emptyList());
+            makeEntityBuilder(virtualVolume2WastedOid, EntityType.VIRTUAL_VOLUME);
 
-        virtualVolumeWasted2.addConnectedTo(storage2);
-        storage2.addConnectedFrom(virtualVolumeWasted2);
-        addFilesToVirtualVolume(virtualVolumeWasted2, allFiles);
+        connect(virtualVolumeWasted2, storage2);
+        PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolumeWasted2, allFiles);
         storageEntity2 = storage2.build();
         virtVolWasted2 = virtualVolumeWasted2.build();
-        assertTrue(virtVolWasted2.getConnectedToEntities().contains(storageEntity2));
+        assertTrue(virtVolWasted2.getOutboundAssociatedEntities().contains(storageEntity2));
         assertEquals(allFiles.length, virtVolWasted2.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
     }
+
+    private TopologyEntity.Builder makeEntityBuilder(long oid, EntityType entityType) {
+        return PostStitchingTestUtilities.makeTopologyEntityBuilder(
+            oid,
+            entityType.getNumber(),
+            Collections.emptyList(),
+            Collections.emptyList());
+     }
+
+     private void connect(TopologyEntity.Builder source, TopologyEntity.Builder dest) {
+        source.addOutboundAssociation(dest);
+        dest.addInboundAssociation(source);
+     }
 
     /**
      * Create a topology graph with one storage, two VMs, and the related VirtualVolumes.
@@ -266,51 +237,22 @@ public class WastedFilesPostStitchingOperationTest {
     }
 
     /**
-     * Add VirtualVolumeFileDescriptors corresponding to a list of path names to a VirtualVolume.
-     *
-     * @param builder   A builder for the VirtualVolume's TopologyEntity
-     * @param pathNames A String array with the pathnames of the files to add.
-     */
-    private static void addFilesToVirtualVolume(@Nonnull TopologyEntity.Builder builder,
-                                                @Nonnull String[] pathNames) {
-        builder.getEntityBuilder().setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-            .setVirtualVolume(
-                builder.getEntityBuilder()
-                    .getTypeSpecificInfo()
-                    .getVirtualVolume()
-                    .toBuilder()
-                    .addAllFiles(Stream.of(pathNames).map(pathName ->
-                        VirtualVolumeFileDescriptor.newBuilder().setPath(pathName)
-                            .build())
-                        .collect(Collectors.toList()))));
-    }
-
-    /**
      * Setup environment to test filtering of other paths based on ignore directory settings.
      * Just a single storage with a single volume connected to it.  Volume has all the files
      * associated with it.
      */
-    private static void initialSetupForIgnoreSettingsOtherPathsTest() {
-        final TopologyEntity.Builder storage3 =
-            PostStitchingTestUtilities.makeTopologyEntityBuilder(
-                storage3Oid,
-                EntityType.STORAGE.getNumber(),
-                Collections.emptyList(),
-                Collections.emptyList());
+    private void initialSetupForIgnoreSettingsOtherPathsTest() {
+        final TopologyEntity.Builder storage3 = makeEntityBuilder(storage3Oid, EntityType.STORAGE);
 
         final TopologyEntity.Builder virtualVolumeWasted3 =
-            PostStitchingTestUtilities.makeTopologyEntityBuilder(
-                virtualVolume3WastedOid,
-                EntityType.VIRTUAL_VOLUME.getNumber(),
-                Collections.emptyList(),
-                Collections.emptyList());
+            makeEntityBuilder(virtualVolume3WastedOid, EntityType.VIRTUAL_VOLUME);
 
-        virtualVolumeWasted3.addConnectedTo(storage3);
-        storage3.addConnectedFrom(virtualVolumeWasted3);
-        addFileToVirtualVolume(virtualVolumeWasted3, validPath3, otherLinks3);
+        connect(virtualVolumeWasted3, storage3);
+        PostStitchingTestUtilities
+            .addFileToVirtualVolume(virtualVolumeWasted3, validPath3, otherLinks3);
         storageEntity3 = storage3.build();
         virtVolWasted3 = virtualVolumeWasted3.build();
-        assertTrue(virtVolWasted3.getConnectedToEntities().contains(storageEntity3));
+        assertTrue(virtVolWasted3.getOutboundAssociatedEntities().contains(storageEntity3));
         assertEquals(1, virtVolWasted3.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
     }
@@ -345,26 +287,5 @@ public class WastedFilesPostStitchingOperationTest {
             .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
             .map(VirtualVolumeFileDescriptor::getPath)
             .collect(Collectors.toSet()));
-    }
-
-    /**
-     * Add VirtualVolumeFileDescriptors corresponding to a list of path names to a VirtualVolume.
-     *
-     * @param builder   A builder for the VirtualVolume's TopologyEntity
-     * @param path The pathname of the file to add.
-     * @param links An array of alternative paths to the same file as path.
-     */
-    private static void addFileToVirtualVolume(@Nonnull TopologyEntity.Builder builder,
-                                                @Nonnull String path, @Nonnull String[] links) {
-        builder.getEntityBuilder().setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-            .setVirtualVolume(
-                builder.getEntityBuilder()
-                    .getTypeSpecificInfo()
-                    .getVirtualVolume()
-                    .toBuilder()
-                    .addAllFiles(Collections.singletonList(
-                        VirtualVolumeFileDescriptor.newBuilder().setPath(path)
-                        .addAllLinkedPaths(Arrays.asList(links)).build())
-                        )));
     }
 }

@@ -5,49 +5,74 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.common.protobuf.plan.ReservationDTOREST.ReservationServiceController;
-import com.vmturbo.plan.orchestrator.plan.PlanConfig;
-import com.vmturbo.plan.orchestrator.repository.RepositoryConfig;
+import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc;
+import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.market.component.api.impl.MarketClientConfig;
+import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Spring Configuration for Reservation services.
  */
 @Configuration
-@Import({SQLDatabaseConfig.class, RepositoryConfig.class, TemplatesConfig.class})
+@Import({PlanOrchestratorDBConfig.class,
+        TemplatesConfig.class,
+        BaseKafkaProducerConfig.class,
+        MarketClientConfig.class
+})
 public class ReservationConfig {
-    @Autowired
-    private PlanConfig planConfig;
 
     @Autowired
     private TemplatesConfig templatesConfig;
 
     @Autowired
-    private SQLDatabaseConfig dbConfig;
+    private PlanOrchestratorDBConfig dbConfig;
 
     @Autowired
-    private RepositoryConfig repositoryConfig;
+    private BaseKafkaProducerConfig kafkaProducerConfig;
 
-    @Bean
-    public ReservationDao reservationDao() {
-        return new ReservationDaoImpl(dbConfig.dsl());
-    }
+    @Autowired
+    private MarketClientConfig marketClientConfig;
 
     @Bean
     public ReservationRpcService reservationRpcService() {
-        return new ReservationRpcService(planConfig.planDao(), templatesConfig.templatesDao(),
-                reservationDao(), planConfig.planService());
+        return new ReservationRpcService(templatesConfig.templatesDao(),
+                dbConfig.reservationDao(), reservationManager());
     }
 
+    /**
+     * Create a {@link ReservationNotificationSender}.
+     *
+     * @return the reservation notification sender.
+     */
     @Bean
-    public ReservationServiceController reservationServiceController() {
-        return new ReservationServiceController(reservationRpcService());
+    public ReservationNotificationSender reservationNotificationSender() {
+        return new ReservationNotificationSender(kafkaProducerConfig.kafkaMessageSender()
+                .messageSender(PlanOrchestratorClientImpl.RESERVATION_NOTIFICATION_TOPIC));
     }
 
+    /**
+     * Create a {@link InitialPlacementServiceBlockingStub}.
+     *
+     * @return the InitialPlacementServiceBlockingStub.
+     */
     @Bean
-    public ReservationPlacementHandler reservationPlacementHandler() {
-        return new ReservationPlacementHandler(reservationDao(),
-                repositoryConfig.repositoryServiceBlockingStub());
+    public InitialPlacementServiceBlockingStub initialPlacementService() {
+        return InitialPlacementServiceGrpc.newBlockingStub(marketClientConfig.marketChannel());
+    }
+
+    /**
+     * create a ReservationManager.
+     *
+     * @return a new ReservationManager
+     */
+    @Bean
+    public ReservationManager reservationManager() {
+        ReservationManager reservationManager = new ReservationManager(dbConfig.reservationDao(),
+                reservationNotificationSender(), initialPlacementService(),
+                templatesConfig.templatesDao());
+        return reservationManager;
     }
 }

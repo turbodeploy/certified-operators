@@ -23,7 +23,7 @@ public class DefaultCloudGroupProducer {
 
     public static final String ALL_CLOUD_DB_AZURE_UUID = "_y-uCEAmMEeepiIloSuTHiC";
 
-    public static final String ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID = "_y-uCEAmMEeepiIloSuTHiD";
+    public static final String ALL_CLOULD_WORKLOAD_AWS_AND_AZURE_UUID = "123456789";
 
     /**
      * Load predefined Clould groups.

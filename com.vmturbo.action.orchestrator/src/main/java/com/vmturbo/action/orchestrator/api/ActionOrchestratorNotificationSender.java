@@ -4,12 +4,16 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
+import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated.UpdateFailure;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
@@ -21,6 +25,8 @@ import com.vmturbo.components.api.server.IMessageSender;
 public class ActionOrchestratorNotificationSender extends
         ComponentNotificationSender<ActionOrchestratorNotification> {
 
+    private static final Logger logger = LogManager.getLogger();
+
     private final IMessageSender<ActionOrchestratorNotification> sender;
 
     ActionOrchestratorNotificationSender(
@@ -29,7 +35,8 @@ public class ActionOrchestratorNotificationSender extends
     }
 
     /**
-     * Notify currently connected clients that some actions have been updated in the action orchestrator.
+     * Notify currently connected clients that some actions have been updated successfully in the
+     * action orchestrator.
      * These can be live topology-related recommendations, or plan actions.
      *
      * <p>Sends the notifications asynchronously to all clients connected at the time of the method call.
@@ -41,12 +48,34 @@ public class ActionOrchestratorNotificationSender extends
             throws CommunicationException, InterruptedException {
 
         final ActionOrchestratorNotification serverMessage =
-            createNewMessage()
-                .setActionsUpdated(ActionsUpdated.newBuilder()
-                    .setActionPlanId(actionPlan.getId())
-                    .setActionPlanInfo(actionPlan.getInfo()))
-                .build();
+                createNewMessage()
+                        .setActionsUpdated(ActionsUpdated.newBuilder()
+                                .setActionPlanId(actionPlan.getId())
+                                .setActionPlanInfo(actionPlan.getInfo()))
+                        .build();
         sendMessage(sender, serverMessage);
+    }
+
+    /**
+     * Notifies the actions update failure.
+     *
+     * @param actionPlan The action plan
+     */
+    public void notifyActionsUpdateFailure(@Nonnull final ActionPlan actionPlan) {
+        final ActionOrchestratorNotification serverMessage =
+                createNewMessage()
+                        .setActionsUpdated(ActionsUpdated.newBuilder()
+                                .setUpdateFailure(UpdateFailure.newBuilder()
+                                        .setErrorMessage("Actions update has been failed.").build())
+                                .setActionPlanId(actionPlan.getId())
+                                .setActionPlanInfo(actionPlan.getInfo()))
+                        .build();
+        try {
+            sendMessage(sender, serverMessage);
+        } catch (InterruptedException | CommunicationException e) {
+            logger.error("Error happened while sending the actions update failure " +
+                    "notification", e);
+        }
     }
 
     public void notifyActionProgress(@Nonnull final ActionProgress actionProgress)

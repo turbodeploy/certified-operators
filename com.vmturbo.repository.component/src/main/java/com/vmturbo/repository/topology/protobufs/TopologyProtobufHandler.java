@@ -1,21 +1,17 @@
 package com.vmturbo.repository.topology.protobufs;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import javax.annotation.Nonnull;
+
+import com.arangodb.ArangoCollection;
+import com.arangodb.ArangoDBException;
+import com.arangodb.ArangoDatabase;
+import com.arangodb.entity.BaseDocument;
+import com.arangodb.model.CollectionCreateOptions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.arangodb.ArangoCollection;
-import com.arangodb.ArangoDB;
-import com.arangodb.ArangoDBException;
-import com.arangodb.ArangoDatabase;
-import com.arangodb.entity.BaseDocument;
-import com.arangodb.model.PersistentIndexOptions;
-
+import com.vmturbo.arangodb.ArangoError;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 
 /**
@@ -28,24 +24,25 @@ public abstract class TopologyProtobufHandler {
 
     protected static final Logger logger = LogManager.getLogger();
     protected final long topologyId;
-    private final ArangoDB arangoDB;
+    private final ArangoDatabaseFactory arangoFactory;
     protected final ArangoDatabase database;
     protected final ArangoCollection topologyCollection;
     protected int sequenceNumber = 0;
 
-    private static String RAW_TOPOLOGIES_DATABASE_NAME = "topology-protobufs";
-
     /**
      * Create a collection for the given topology ID.
      *
-     * @param topologyId topology id of the raw topology
-     * @param arangoDatabaseFactory the dabase factory
+     * @param arangoDatabaseFactory the database factory.
+     * @param topologyId topology id of the raw topology.
+     * @param arangoDatabaseName ArangoDB database name.
      */
-    protected TopologyProtobufHandler(ArangoDatabaseFactory arangoDatabaseFactory, long topologyId) {
+    protected TopologyProtobufHandler(ArangoDatabaseFactory arangoDatabaseFactory, long topologyId,
+                                      final String arangoDatabaseName,
+                                      final CollectionCreateOptions collectionCreateOptions) {
         this.topologyId = topologyId;
-        arangoDB = arangoDatabaseFactory.getArangoDriver();
-        database = database();
-        topologyCollection = collection(getTopologyCollectionName(topologyId));
+        this.arangoFactory = arangoDatabaseFactory;
+        database = database(arangoDatabaseName);
+        topologyCollection = collection(getTopologyCollectionName(topologyId), collectionCreateOptions);
     }
 
     private static String getTopologyCollectionName(long topologyId) {
@@ -56,24 +53,23 @@ public abstract class TopologyProtobufHandler {
      * Obtain a collection where the topology chunks are/will be stored.
      *
      * @param collectionName identifying the raw topology
+     * @param collectionCreateOptions arangodb options used to create the collection
      * @return an ArangoDB collection that holds the chunks of this topology
      */
-    protected ArangoCollection collection(@Nonnull final String collectionName) {
-        database.createCollection(collectionName);
+    protected ArangoCollection collection(@Nonnull final String collectionName,
+                                          @Nonnull final CollectionCreateOptions collectionCreateOptions) {
+        database.createCollection(collectionName, collectionCreateOptions);
         return database.collection(collectionName);
     }
 
     /**
      * Verify that the raw topologies database exists, and if not then create it.
      *
+     * @param arangoDatabaseName ArangoDB database name.
      * @return the raw topologies database
      */
-    private synchronized ArangoDatabase database() {
-        if (!arangoDB.getDatabases().contains(RAW_TOPOLOGIES_DATABASE_NAME)) {
-            logger.info("Creating database {}", RAW_TOPOLOGIES_DATABASE_NAME);
-            arangoDB.createDatabase(RAW_TOPOLOGIES_DATABASE_NAME);
-        }
-        return arangoDB.db(RAW_TOPOLOGIES_DATABASE_NAME);
+    private ArangoDatabase database(final String arangoDatabaseName) {
+        return arangoFactory.getArangoDriver().db(arangoDatabaseName);
     }
 
     /**

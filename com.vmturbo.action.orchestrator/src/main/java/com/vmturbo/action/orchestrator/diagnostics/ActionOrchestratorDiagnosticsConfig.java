@@ -1,12 +1,20 @@
 package com.vmturbo.action.orchestrator.diagnostics;
 
+import java.util.Arrays;
+
+import io.prometheus.client.CollectorRegistry;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
-import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsHandlerImportable;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
+import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
+import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 
 /**
  * The Diagnostics package deals with dumping and restoring
@@ -24,16 +32,28 @@ public class ActionOrchestratorDiagnosticsConfig {
     @Bean
     public ActionOrchestratorDiagnostics diagnostics() {
         return new ActionOrchestratorDiagnostics(storeConfig.actionStorehouse(),
-                storeConfig.actionFactory(), diagnosticsWriter(), storeConfig.actionModeCalculator());
+                storeConfig.actionModeCalculator());
+    }
+
+    /**
+     * Zip reader factory.
+     *
+     * @return zip reader factory
+     */
+    @Bean
+    public DiagsZipReaderFactory diagsZipReaderFactory() {
+        return new DefaultDiagsZipReader();
     }
 
     @Bean
-    public DiagnosticsWriter diagnosticsWriter() {
-        return new DiagnosticsWriter();
+    public DiagnosticsHandlerImportable diagnosticsHandler() {
+        return new DiagnosticsHandlerImportable(diagsZipReaderFactory(),
+                Arrays.asList(diagnostics(),
+                        new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry)));
     }
 
     @Bean
-    public DiagnosticsController diagnosticsController() {
-        return new DiagnosticsController(diagnostics());
+    public DiagnosticsControllerImportable diagnosticsController() {
+        return new DiagnosticsControllerImportable(diagnosticsHandler());
     }
 }

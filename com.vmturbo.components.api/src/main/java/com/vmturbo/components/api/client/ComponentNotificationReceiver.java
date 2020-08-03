@@ -6,10 +6,10 @@ import java.util.concurrent.ExecutorService;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.protobuf.AbstractMessage;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.protobuf.AbstractMessage;
 
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 
@@ -68,5 +68,4 @@ public abstract class ComponentNotificationReceiver<RecvMsg extends AbstractMess
     protected Logger getLogger() {
         return logger;
     }
-
 }

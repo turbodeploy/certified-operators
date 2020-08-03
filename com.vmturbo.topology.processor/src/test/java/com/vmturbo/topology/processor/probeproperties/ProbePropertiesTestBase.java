@@ -25,13 +25,15 @@ public class ProbePropertiesTestBase {
     protected final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
     protected final TargetStore targetStore = Mockito.mock(TargetStore.class);
     protected final KeyValueStore keyValueStore = new MapKeyValueStore();
+    protected final KVBackedProbePropertyStore
+        probePropertyStore = new KVBackedProbePropertyStore(probeStore, targetStore, keyValueStore);
 
     @Spy
     protected final RemoteMediationServer mediationServer = Mockito.mock(RemoteMediationServer.class);
 
     // declare probes and targets
-    private final ProbeInfo probe1 = ProbeInfo.newBuilder().setProbeType("1").setProbeCategory("").build();
-    private final ProbeInfo probe2 = ProbeInfo.newBuilder().setProbeType("2").setProbeCategory("").build();
+    private final ProbeInfo probe1 = ProbeInfo.newBuilder().setProbeType("1").setProbeCategory("").setUiProbeCategory("").build();
+    private final ProbeInfo probe2 = ProbeInfo.newBuilder().setProbeType("2").setProbeCategory("").setUiProbeCategory("").build();
     private final Target target11 = Mockito.mock(Target.class);
     private final Target target12 = Mockito.mock(Target.class);
     private final Target target2 = Mockito.mock(Target.class);
@@ -83,8 +85,8 @@ public class ProbePropertiesTestBase {
             .when(targetStore.getProbeTargets(PROBE_ID_1))
             .thenReturn(ImmutableList.of(target11, target12));
         Mockito.when(targetStore.getProbeTargets(PROBE_ID_2)).thenReturn(ImmutableList.of(target2));
-        Mockito.when(targetStore.getTargetAddress(TARGET_ID_11)).thenReturn(Optional.of(TARGET_ADD_11));
-        Mockito.when(targetStore.getTargetAddress(TARGET_ID_12)).thenReturn(Optional.of(TARGET_ADD_12));
-        Mockito.when(targetStore.getTargetAddress(TARGET_ID_2)).thenReturn(Optional.of(TARGET_ADD_2));
+        Mockito.when(target11.getDisplayName()).thenReturn(TARGET_ADD_11);
+        Mockito.when(target12.getDisplayName()).thenReturn(TARGET_ADD_12);
+        Mockito.when(target2.getDisplayName()).thenReturn(TARGET_ADD_2);
     }
 }

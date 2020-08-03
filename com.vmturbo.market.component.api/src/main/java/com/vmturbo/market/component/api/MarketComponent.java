@@ -42,4 +42,18 @@ public interface MarketComponent {
      * @param listener the listener for plan analysis topologies
      */
     void addPlanAnalysisTopologyListener(@Nonnull final PlanAnalysisTopologyListener listener);
+
+    /**
+     * Register a listener for handling analysis summaries
+     *
+     * @param listener the listener for analysis summaries
+     */
+    void addAnalysisSummaryListener(@Nonnull final AnalysisSummaryListener listener);
+
+    /**
+     * Register a listener for handling analysis run status.
+     *
+     * @param listener the listener for analysis run status.
+     */
+    void addAnalysisStatusListener(@Nonnull AnalysisStatusNotificationListener listener);
 }

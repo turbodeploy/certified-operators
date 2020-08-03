@@ -4,9 +4,12 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -23,15 +26,13 @@ public class DeactivateContext extends AbstractActionExecutionContext {
         super(request, dataManager, entityStore, entityRetriever);
     }
 
-    /**
-     * Get the type of the over-arching action being executed
-     *
-     * @return the type of the over-arching action being executed
-     */
-    @Nonnull
     @Override
-    public ActionDTO.ActionType getActionType() {
-        return ActionDTO.ActionType.DEACTIVATE;
+    protected ActionItemDTO.ActionType calculateSDKActionType(@Nonnull final ActionDTO.ActionType actionType) {
+        if (targetEntityIsStorage()) {
+            return ActionItemDTO.ActionType.DELETE;
+        } else {
+            return ActionItemDTO.ActionType.SUSPEND;
+        }
     }
 
     /**
@@ -46,6 +47,26 @@ public class DeactivateContext extends AbstractActionExecutionContext {
      */
     @Override
     protected long getPrimaryEntityId() {
-        return getActionInfo().getDeactivate().getTarget().getId();
+        return getDeactivateInfo().getTarget().getId();
+    }
+
+    /**
+     * A convenience method for getting the Deactivate info.
+     *
+     * @return the Deactivate info associated with this action
+     */
+    private Deactivate getDeactivateInfo() {
+        return getActionInfo().getDeactivate();
+    }
+
+    /**
+     * Checks if the target entity for the Deactivate info is Storage.
+     *
+     * @return true if target entity is Storage, false otherwise
+     */
+    private boolean targetEntityIsStorage() {
+        return getDeactivateInfo().hasTarget() &&
+            getDeactivateInfo().getTarget().hasType() &&
+            getDeactivateInfo().getTarget().getType() == EntityType.STORAGE_VALUE;
     }
 }

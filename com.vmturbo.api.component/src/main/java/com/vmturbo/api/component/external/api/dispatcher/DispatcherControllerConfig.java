@@ -11,26 +11,27 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.api.component.external.api.ApiSecurityConfig;
+import com.vmturbo.api.component.external.api.HeaderApiSecurityConfig;
+import com.vmturbo.api.component.external.api.SamlApiSecurityConfig;
 import com.vmturbo.api.component.external.api.logging.GlobalExceptionHandler;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.controller.ActionsController;
 import com.vmturbo.api.controller.AdminController;
 import com.vmturbo.api.controller.AuthenticationController;
 import com.vmturbo.api.controller.BusinessUnitsController;
-import com.vmturbo.api.controller.DeploymentProfilesController;
+import com.vmturbo.api.controller.ClassicMigrationController;
 import com.vmturbo.api.controller.EntitiesController;
 import com.vmturbo.api.controller.GeneralController;
 import com.vmturbo.api.controller.GroupsController;
 import com.vmturbo.api.controller.LicensesController;
-import com.vmturbo.api.controller.LogsController;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.controller.NotificationsController;
 import com.vmturbo.api.controller.PoliciesController;
-import com.vmturbo.api.controller.ReportsController;
 import com.vmturbo.api.controller.ReservationsController;
 import com.vmturbo.api.controller.ReservedInstancesController;
 import com.vmturbo.api.controller.RolesController;
 import com.vmturbo.api.controller.ScenariosController;
+import com.vmturbo.api.controller.SchedulesController;
 import com.vmturbo.api.controller.SearchController;
 import com.vmturbo.api.controller.SettingsController;
 import com.vmturbo.api.controller.SettingsPoliciesController;
@@ -39,12 +40,12 @@ import com.vmturbo.api.controller.SupplyChainsController;
 import com.vmturbo.api.controller.TagsController;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.controller.TemplatesController;
+import com.vmturbo.api.controller.TopologyDefinitionsController;
 import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
 import com.vmturbo.api.controller.WorkflowsController;
-import com.vmturbo.api.internal.controller.ClusterController;
 import com.vmturbo.api.external.controller.ProbesController;
-import com.vmturbo.api.external.controller.SAMLController;
+import com.vmturbo.api.internal.controller.ClusterController;
 import com.vmturbo.api.validators.TemplatesValidator;
 
 /**
@@ -64,7 +65,7 @@ import com.vmturbo.api.validators.TemplatesValidator;
 @Configuration
 @EnableWebMvc
 @EnableWebSecurity
-@Import({ApiSecurityConfig.class, SecurityChainProxyInvoker.class})
+@Import({ApiSecurityConfig.class, SecurityChainProxyInvoker.class, HeaderApiSecurityConfig.class, SamlApiSecurityConfig.class})
 // DO NOT import configurations outside the external.api.dispatcher package here, because
 // that will re-create the configuration's beans in the child context for the dispatcher servlet.
 // You will end up with multiple instances of the same beans, which could lead to tricky bugs.
@@ -93,11 +94,6 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
-    public DeploymentProfilesController deploymentProfilesController() {
-        return new DeploymentProfilesController();
-    }
-
-    @Bean
     public EntitiesController entitiesController() {
         return new EntitiesController();
     }
@@ -110,11 +106,6 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public GroupsController groupsController() {
         return new GroupsController();
-    }
-
-    @Bean
-    public LogsController logsController() {
-        return new LogsController();
     }
 
     @Bean
@@ -135,11 +126,6 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public PoliciesController policiesController() {
         return new PoliciesController();
-    }
-
-    @Bean
-    public ReportsController reportsController() {
-        return new ReportsController();
     }
 
     @Bean
@@ -168,6 +154,11 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public SchedulesController schedulesController() {
+        return new SchedulesController();
+    }
+
+    @Bean
     public StatsController statsController() {
         return new StatsController();
     }
@@ -185,6 +176,11 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public TargetsController targetsController() {
         return new TargetsController();
+    }
+
+    @Bean
+    public TopologyDefinitionsController topologyDefinitionsController() {
+        return new TopologyDefinitionsController();
     }
 
     @Bean
@@ -210,6 +206,15 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public WidgetSetsController widgetSetsController() {
         return new WidgetSetsController();
+    }
+
+    /**
+     * Creates a ClassicMigrationController bean.
+     * @return the ClassicMigrationController
+     */
+    @Bean
+    public ClassicMigrationController classicMigrationController() {
+        return new ClassicMigrationController();
     }
 
     @Bean
@@ -246,10 +251,4 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     public GlobalExceptionHandler globalExceptionHandler() {
         return new GlobalExceptionHandler();
     }
-
-    @Bean
-    public SAMLController samlController() {
-        return new SAMLController();
-    }
-
 }

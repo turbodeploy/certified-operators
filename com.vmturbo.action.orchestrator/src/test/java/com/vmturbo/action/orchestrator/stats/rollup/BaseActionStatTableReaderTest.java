@@ -23,23 +23,19 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import org.flywaydb.core.Flyway;
+import com.google.common.collect.ImmutableMap;
+
 import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.google.common.collect.ImmutableMap;
-
+import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
@@ -52,21 +48,23 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable.RollupReadyI
 import com.vmturbo.action.orchestrator.stats.rollup.BaseActionStatTableReader.StatWithSnapshotCnt;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.TimeRange;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class BaseActionStatTableReaderTest {
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
 
-    private Flyway flyway;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private static final int ACTION_GROUP_ID = 1123;
 
@@ -82,14 +80,6 @@ public class BaseActionStatTableReaderTest {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway = dbConfig.flyway();
-        flyway.clean();
-        flyway.migrate();
-
-        // Grab a handle for JOOQ DB operations
-        dsl = dbConfig.dsl();
 
         baseReader = spy(new BaseActionStatTableReader<ActionStatsLatestRecord, ActionSnapshotLatestRecord>(dsl,
                 clock, LatestActionStatTable.LATEST_TABLE_INFO,
@@ -585,11 +575,5 @@ public class BaseActionStatTableReaderTest {
         final int mgmtUnitSubgroupId = 7;
         final LocalDateTime startTime = RollupTestUtils.time(12, 1);
         baseReader.rollup(mgmtUnitSubgroupId, startTime);
-    }
-
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 }

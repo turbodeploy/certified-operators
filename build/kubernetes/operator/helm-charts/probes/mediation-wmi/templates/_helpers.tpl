@@ -43,8 +43,10 @@ but Helm 2.9 and 2.10 doesn't support it, so we need to implement this if-else l
 Also, we can't use a single if because lazy evaluation is not an option
 */}}
 {{- if .Values.global }}
-    {{- if .Values.global.repository }}
+    {{- if and .Values.global.repository .Values.global.tag (eq $repositoryName "turbonomic") (eq $tag "latest") }}
         {{- printf "%s/com.vmturbo.mediation.apm.wmi.component:%s" .Values.global.repository .Values.global.tag -}}
+    {{- else -}}
+        {{- printf "%s/com.vmturbo.mediation.apm.wmi.component:%s" $repositoryName $tag -}}
     {{- end -}}
 {{- else -}}
     {{- printf "%s/com.vmturbo.mediation.apm.wmi.component:%s" $repositoryName $tag -}}

@@ -2,6 +2,8 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Collections;
+
 import org.junit.Test;
 
 import com.google.common.collect.Lists;
@@ -112,7 +114,8 @@ public class TemplateMapperTest {
 
     @Test
     public void testMapVMTemplateToApiDTO() {
-        TemplateApiDTO templateApiDTO = templateMapper.mapToTemplateApiDTO(TEMPLATE_VM, TEMPLATE_VM_SPEC);
+        final TemplateApiDTO templateApiDTO =
+            templateMapper.mapToTemplateApiDTO(TEMPLATE_VM, TEMPLATE_VM_SPEC, Collections.emptyList());
         assertEquals("test-VM-template", templateApiDTO.getDisplayName());
         assertEquals(1, templateApiDTO.getComputeResources().size());
         assertEquals(1, templateApiDTO.getComputeResources().get(0).getStats().size());
@@ -122,7 +125,8 @@ public class TemplateMapperTest {
 
     @Test
     public void testMapPMTemplateToApiDTO() {
-        TemplateApiDTO templateApiDTO = templateMapper.mapToTemplateApiDTO(TEMPLATE_PM, TEMPLATE_PM_SPEC);
+        final TemplateApiDTO templateApiDTO =
+            templateMapper.mapToTemplateApiDTO(TEMPLATE_PM, TEMPLATE_PM_SPEC, Collections.emptyList());
         assertEquals("test-PM-template", templateApiDTO.getDisplayName());
         assertEquals("cpu-model", templateApiDTO.getCpuModel());
         assertEquals(1, templateApiDTO.getInfrastructureResources().size());
@@ -133,7 +137,8 @@ public class TemplateMapperTest {
 
     @Test
     public void testMapSTTemplateToApiDTO() {
-        TemplateApiDTO templateApiDTO = templateMapper.mapToTemplateApiDTO(TEMPLATE_ST, TEMPLATE_ST_SPEC);
+        final TemplateApiDTO templateApiDTO =
+            templateMapper.mapToTemplateApiDTO(TEMPLATE_ST, TEMPLATE_ST_SPEC, Collections.emptyList());
         assertEquals("test-ST-template", templateApiDTO.getDisplayName());
         assertEquals(1, templateApiDTO.getStorageResources().size());
         assertEquals(1, templateApiDTO.getStorageResources().get(0).getStats().size());
@@ -142,7 +147,7 @@ public class TemplateMapperTest {
     }
 
     @Test
-    public void testVMApiInputDTOtoTemplateInfo() {
+    public void testVMApiInputDTOtoTemplateInfo() throws IllegalArgumentException {
         final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
         templateApiInputDTO.setDisplayName("test-VM-template");
         templateApiInputDTO.setClassName("VirtualMachineProfile");
@@ -160,9 +165,10 @@ public class TemplateMapperTest {
     /**
      * Test mapping from an external TemplateApiInputDTO with fields for a PM
      * to a TemplateInfo internal protobuf.
+     * @throws IllegalArgumentException
      */
     @Test
-    public void testPMApiInputDTOtoTemplateInfo() {
+    public void testPMApiInputDTOtoTemplateInfo() throws IllegalArgumentException {
         final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
         templateApiInputDTO.setDisplayName("test-PM-template");
         templateApiInputDTO.setClassName("PhysicalMachineProfile");
@@ -179,7 +185,7 @@ public class TemplateMapperTest {
     }
 
     @Test
-    public void testSTApiInputDTOtoTemplateInfo() {
+    public void testSTApiInputDTOtoTemplateInfo() throws IllegalArgumentException {
         final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
         templateApiInputDTO.setDisplayName("test-ST-template");
         templateApiInputDTO.setClassName("StorageProfile");
@@ -192,5 +198,25 @@ public class TemplateMapperTest {
         int entityType = EntityType.STORAGE.getValue();
         TemplateInfo templateInfo = templateMapper.mapToTemplateInfo(templateApiInputDTO, TEMPLATE_ST_SPEC, entityType);
         assertEquals(TEMPLATE_ST_INFO, templateInfo);
+    }
+
+    /**
+     * Test a non valid template.
+     *
+     * @throws IllegalArgumentException
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testCheckNotValidTemplate() throws IllegalArgumentException {
+        final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
+        templateApiInputDTO.setDisplayName("test-ST-template");
+        templateApiInputDTO.setClassName("StorageProfile");
+        final ResourceApiDTO resourceApiDTO = new ResourceApiDTO();
+        final StatApiDTO statApiDTO = new StatApiDTO();
+        statApiDTO.setName("numCpu");
+        statApiDTO.setValue(1F);
+        resourceApiDTO.setStats(Lists.newArrayList(statApiDTO));
+        templateApiInputDTO.setStorageResources(Lists.newArrayList(resourceApiDTO));
+        int entityType = EntityType.STORAGE.getValue();
+        templateMapper.mapToTemplateInfo(templateApiInputDTO, TEMPLATE_ST_SPEC, entityType);
     }
 }

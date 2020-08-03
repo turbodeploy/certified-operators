@@ -24,7 +24,13 @@ public class ScheduledMetrics {
     private static ScheduledMetrics instance = null;
 
     // the list of metric observers we want to trigger on the schedule
-    private List<ScheduledMetricsObserver> observers = new ArrayList();
+    private List<ScheduledMetricsObserver> observers = new ArrayList() {
+        @Override
+        public boolean add(Object o) {
+            logger.debug("Adding observer " + o);
+            return super.add(o);
+        }
+    };
 
     // the scheduler -- we aren't necessarily looking for blazing performance here, so let's start
     // with a single threaded pool.
@@ -40,6 +46,10 @@ public class ScheduledMetrics {
         // add the default observers
         observers.add(new JVMRuntimeMetrics());
         observers.add(ComponentLifespanMetrics.getInstance());
+        if (NativeMemoryTrackingMetrics.isSupported()) {
+            logger.info("Adding Native Memory tracking metrics.");
+            observers.add(new NativeMemoryTrackingMetrics());
+        }
 
         scheduler.scheduleWithFixedDelay(this::collectMetrics, initialDelayMs, periodMs, TimeUnit.MILLISECONDS);
         logger.info("ScheduledMetrics scheduled to collect every {} ms.", periodMs);

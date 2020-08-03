@@ -7,16 +7,25 @@
         "move"
       ],
       "planSettingsInfo": {
-        "uiToXlValueConversion" : {
-          "true" : "AUTOMATIC",
-          "false" : "DISABLED"
-        },
         "supportedSettingDefaults" : {
           "VirtualMachine" : {
-            "move": "true"
+            "resize": "AUTOMATIC"
           }
         }
       }
+    },
+    "marketsettingsmanager": {
+      "displayName": "Operational Constraints",
+      "defaultCategory": "Analysis",
+      "settings": [
+        "excludedTemplatesOids"
+      ]
+    },
+    "osmigrationmanager": {
+      "displayName": "OS Migration Manager",
+      "settings": [
+        "rhelTargetOs"
+      ]
     }
   }
 }

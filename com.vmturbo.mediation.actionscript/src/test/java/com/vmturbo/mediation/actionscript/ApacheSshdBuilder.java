@@ -52,7 +52,8 @@ public class ApacheSshdBuilder {
     }
 
     private void setupTestKeys() throws IOException, GeneralSecurityException {
-        // load the private key id_rsa from the src/test/resources/ssh folder
+        // load the private key id_rsa from the target/test-classes/ssh folder (it's copied there
+        // from src/test/resources/ssh by Maven before tests run.
         sshd.setKeyPairProvider(new ClassLoadableResourceKeyPairProvider("ssh/id_rsa"));
         // fetch the private key info for this test from the resource
         final String privateKeyString = Resources.toString(Resources.getResource("ssh/id_rsa"), Charset.defaultCharset());

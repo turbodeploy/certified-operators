@@ -5,22 +5,41 @@
 # Purpose: Setup a kubernetes environment with T8s xl components
 # Tools:  Kubespray, Heketi, GlusterFs
 
+# Variable to use if a non-turbonomic deployment
+deploymentBrand=${1}
+
 # Set the ip address for a single node setup.  Multinode should have the
 # ip values set manually in /opt/local/etc/turbo.conf
 singleNodeIp=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print $2}' | awk -F/ '{print$1}')
 sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/local/etc/turbo.conf
+for i in $(ls /opt/turbonomic/kubernetes/operator/deploy/crds/)
+do 
+  sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/$i
+done
+
+# Check /etc/resolv.conf
+if [[ ! -f /etc/resolv.conf || ! -s /etc/resolv.conf ]]
+then
+  echo ""
+  echo "exiting......"
+  echo "Please check there are valid nameservers in the /etc/resolv.conf"
+  echo ""
+  exit 0
+fi
 
 # Get the parameters used for kubernetes, gluster, turbo setup
 source /opt/local/etc/turbo.conf
 
 # Update the yaml files to run offline
-/opt/local/bin/offlineUpdate.sh
+#/opt/local/bin/offlineUpdate.sh
 
 # Create the ssh keys to run with
-if [ ! -f ~/.ssh/authorized_keys ]
+if [ ! -f ~/.ssh/id_rsa.pub ]
 then
   ssh-keygen -f ~/.ssh/id_rsa -t rsa -N ''
-  cat ~/.ssh/id_rsa.pub > ~/.ssh/authorized_keys
+  cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+  # Make sure authorized_keys has the appropriate permissions, otherwise sshd does not allow
+  # passwordless ssh.
   chmod 600 ~/.ssh/authorized_keys
 fi
 
@@ -73,6 +92,13 @@ then
 fi
 
 
+# Setup the node keys for communication
+if (( ${tLen} > 1 ))
+then
+  echo "Setup nodes to communicate using keys"
+  /opt/local/bin/multi-node-keygen.sh
+fi
+
 # List the master nodes:
 echo
 echo
@@ -117,14 +143,23 @@ cp ${kubesprayPath}/roles/container-engine/docker/defaults/main.yml ${kubesprayP
 dns_strict="docker_dns_servers_strict: true"
 dns_not_strick="docker_dns_servers_strict: false"
 dns_not_strick_group="#docker_dns_servers_strict: false"
-helm_enabled="helm_enabled: false"
-helm_enabled_group="helm_enabled: true"
 sed -i "s/${dns_strict}/${dns_not_strick}/g" ${kubesprayPath}/roles/container-engine/docker/defaults/main.yml
 sed -i "s/${dns_strict}/${dns_not_strick_group}/g" ${inventoryPath}/group_vars/all/all.yml
-sed -i "s/${helm_enabled}/${helm_enabled_group}/g" ${inventoryPath}/group_vars/k8s-cluster/addons.yml
+
+# Check if the /tmp/releases directory exists, and kubeadm/calicoctl/hyperkube are available for the offline install
+if [[ -d "/tmp/releases" ]]
+then
+    # Check if the /tmp/releases/kubeadm file exists
+    if [[ ! -f "/tmp/releases/kubeadm" ]]; then
+      sudo cp /usr/local/bin/{kubeadm,calicoctl,hyperkube} /tmp/releases/.
+    fi
+else
+    sudo mkdir /tmp/releases
+    sudo cp /usr/local/bin/{kubeadm,calicoctl,hyperkube} /tmp/releases/.
+fi
 
 # Run ansible kubespray install
-/usr/bin/ansible-playbook -i inventory/turbocluster/hosts.yml -b --become-user=root cluster.yml
+/usr/bin/ansible-playbook --flush-cache -i inventory/turbocluster/hosts.yml -b --become-user=root cluster.yml
 # Check on ansible status and exit out if there are any failures.
 ansibleStatus=$?
 # Reset the kubespray yaml back to the original source
@@ -237,12 +272,15 @@ cp "${glusterStorageJson}.template" "${glusterStorageJson}"
 sed -i '/nodes/r /tmp/topology.json' "${glusterStorageJson}"
 rm -rf /tmp/topology.json
 
+# Set the heketi admin key (used also in the turboEnv.sh script
+export ADMIN_KEY=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+
 # Run the heketi/gluster setup
 pushd ${glusterStorage}/deploy > /dev/null
 if (( ${tLen} >= 1 ))
 then
   # This is for a single node setup.
-  /opt/gluster-kubernetes/deploy/gk-deploy --single-node -gyv
+  /opt/gluster-kubernetes/deploy/gk-deploy --single-node -gyv --admin-key ${ADMIN_KEY}
   heketiStatus=$?
   if [ "X${heketiStatus}" == "X0" ]
   then
@@ -265,7 +303,7 @@ then
     exit 0
   fi
 else
-  /opt/gluster-kubernetes/deploy/gk-deploy -gyv
+  /opt/gluster-kubernetes/deploy/gk-deploy -gyv --admin-key ${ADMIN_KEY}
   heketiStatus=$?
   if [ "X${heketiStatus}" == "X0" ]
   then
@@ -317,26 +355,88 @@ then
     exit 0
   fi
   echo "######################################################################"
-  echo "                 Helm Chart Installation                              "
+  echo "                   Operator Installation                              "
   echo "######################################################################"
-   /usr/local/bin/helm init --client-only --skip-refresh
-   cp /opt/turbonomic/kubernetes/yaml/offline/offline-repository.yaml /opt/turbonomic/.helm/repository/repositories.yaml
-   /usr/local/bin/helm init
-   /usr/local/bin/kubectl apply -f /opt/turbonomic/kubernetes/yaml/helm/rbac_service_account.yaml
-   /usr/local/bin/helm dependency build /opt/turbonomic/kubernetes/helm/xl
-   /usr/local/bin/helm init --service-account tiller --upgrade
-   /usr/local/bin/helm install /opt/turbonomic/kubernetes/helm/xl --name xl-release --namespace ${namespace} \
-                                                                    --set-string global.tag=${turboVersion} \
-                                                                    --set-string global.externalIP=${node} \
-                                                                    --set vcenter.enabled=true \
-                                                                    --set hyperv.enabled=true \
-                                                                    --set actionscript.enabled=true \
-                                                                    --set netapp.enabled=true \
-                                                                    --set pure.enabled=true \
-                                                                    --set oneview.enabled=true \
-                                                                    --set ucs.enabled=true \
-                                                                    --set hpe3par.enabled=true \
-                                                                    --set vmax.enabled=true \
-                                                                    --set vmm.enabled=true \
-                                                                    --set appdynamics.enabled=true
+  # See if the operator has an external ip
+  sed -i "s/tag:.*/tag: ${turboVersion}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
+  sed -i "s/tag:.*/tag: ${turboVersion}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-128gb.yaml
+  grep -r "externalIP:" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+  result="$?"
+  if [ $result -ne 0 ]; then
+    sed -i "/tag:/a\
+\    externalIP: ${node}\n" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
+    sed -i "/tag:/a\
+\    externalIP: ${node}\n" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-128gb.yaml
+  fi
+
+  # Set branding if not turbonomic
+  if [ ! -z "${deploymentBrand}" ]
+  then
+    # Adjust regular installs
+    echo "  api:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+    echo "    image:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+    echo "      repository: ${deploymentBrand}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+    echo "      tag: ${turboVersion}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+
+    # Adjust 32gb installs
+    echo "  api:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-32gb.yaml
+    echo "    image:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-32gb.yaml
+    echo "      repository: ${deploymentBrand}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-32gb.yaml
+    echo "      tag: ${turboVersion}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-32gb.yaml
+
+    # Adjust 64gb installs
+    echo "  api:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
+    echo "    image:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
+    echo "      repository: ${deploymentBrand}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
+    echo "      tag: ${turboVersion}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
+
+    # Adjust 128gb installs
+    sed -i "/api:/a\\
+    image: \\
+      repository: ${deploymentBrand} \\
+      tag: ${turboVersion}\ " /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-128gb.yaml
+  fi
+
+  # Enable services for gluster
+  sudo sed -i '/^After=.*/i Before=gfsck.service' /etc/systemd/system/kubelet.service
+  sudo systemctl enable gfsck.service
+  sudo systemctl daemon-reload
+
+  # Setup mariadb before brining up XL components
+  #./mariadb_storage_setup.sh
+  # Check to see if an external db is being used.  If so, do not run mariadb locally
+  egrep "externalDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+  externalDB=$(echo $?)
+  if [ X${externalDB} = X0 ]
+  then
+    externalDB=$(egrep "externalDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml)
+    echo "The database is external from this server"
+    echo "${externalDB}"
+  else
+    /opt/local/bin/configure_mariadb.sh
+  fi
+
+  # Setup timescaledb before bringing up XL components
+  # ./configure_timescaledb.sh
+  # Check to see if an external timescaledb is being used. If so, do not run timescaledb locally
+  egrep "externalTimescaleDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+  externalTimescaleDB=$(echo $?)
+  if [ X${externalTimescaleDB} = X0 ]
+  then
+    externalTimescaleDB=$(egrep "externalTimescaleDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml)
+    echo "The TimescaleDB database is external from this server"
+    echo "${externalTimescaleDB}"
+  else
+    /opt/local/bin/configure_timescaledb.sh
+    # Create mount point for both pgsql and mariadb
+    /opt/local/bin/switch_dbs_mount_point.sh
+  fi
+
+  # Create the operator
+  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/service_account.yaml -n turbonomic
+  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/cluster_role.yaml -n turbonomic
+  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/cluster_role_binding.yaml -n turbonomic
+  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_crd.yaml -n turbonomic
+  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/operator.yaml -n turbonomic
+  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml -n turbonomic
 fi

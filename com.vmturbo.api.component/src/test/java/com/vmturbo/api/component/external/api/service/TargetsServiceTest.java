@@ -1,9 +1,13 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
@@ -22,6 +26,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.gson.Gson;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
@@ -55,18 +64,25 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
+import org.springframework.web.socket.BinaryMessage;
+import org.springframework.web.socket.WebSocketSession;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.gson.Gson;
-
+import com.vmturbo.api.NotificationDTO.Notification;
+import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
-import com.vmturbo.api.component.external.api.service.MarketsServiceTest.PlanServiceMock;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
+import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.utils.ParamStrings;
@@ -74,13 +90,19 @@ import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.AccountValue;
@@ -102,7 +124,10 @@ import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.AccountField;
 public class TargetsServiceTest {
 
     private static final String TGT_NOT_FOUND = "Target not found: ";
+    private static final String TGT_NOT_EDITABLE = "cannot be changed through public APIs.";
     private static final String PROBE_NOT_FOUND = "Probe not found: ";
+
+    private static final String TARGET_DISPLAY_NAME = "target name";
 
     @Autowired
     private TopologyProcessor topologyProcessor;
@@ -116,13 +141,17 @@ public class TargetsServiceTest {
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsServiceBackend);
 
-    ActionsServiceGrpc.ActionsServiceBlockingStub actionsRpcService;
+    private ActionsServiceGrpc.ActionsServiceBlockingStub actionsRpcService;
 
-    ActionSpecMapper actionSpecMapper;
+    private ActionSpecMapper actionSpecMapper;
 
-    SearchServiceBlockingStub searchServiceRpc;
+    private SearchServiceBlockingStub searchServiceRpc;
 
-    SeverityPopulator severityPopulator;
+    private ActionSearchUtil actionSearchUtil;
+
+    private RepositoryApi repositoryApi = mock(RepositoryApi.class);
+
+    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
 
     private MockMvc mockMvc;
 
@@ -138,6 +167,7 @@ public class TargetsServiceTest {
     private long idCounter;
 
     private static final long REALTIME_CONTEXT_ID = 7777777;
+    private ApiWebsocketHandler apiWebsocketHandler;
 
     @Before
     public void init() throws TopologyProcessorException, CommunicationException {
@@ -146,9 +176,14 @@ public class TargetsServiceTest {
         actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         searchServiceRpc = SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
         actionSpecMapper = Mockito.mock(ActionSpecMapper.class);
-        severityPopulator = wac.getBean(SeverityPopulator.class);
         registeredTargets = new HashMap<>();
         registeredProbes = new HashMap<>();
+        actionSearchUtil = new ActionSearchUtil(actionsRpcService, actionSpecMapper,
+                                                Mockito.mock(PaginationMapper.class),
+                                                Mockito.mock(SupplyChainFetcherFactory.class),
+                                                Mockito.mock(GroupExpander.class),
+                                                serviceProviderExpander,
+                                                REALTIME_CONTEXT_ID);
         when(topologyProcessor.getProbe(Mockito.anyLong()))
                         .thenAnswer(new Answer<ProbeInfo>() {
 
@@ -202,15 +237,23 @@ public class TargetsServiceTest {
                 return new HashSet<>(registeredTargets.values());
             }
         });
+        apiWebsocketHandler = new ApiWebsocketHandler();
     }
 
-    private ProbeInfo createMockProbeInfo(long probeId, String type, String category,
-                    AccountDefEntry... entries) throws Exception {
+    private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
+            AccountDefEntry... entries) throws Exception {
+        return createMockProbeInfo(probeId, type, category, uiCategory, CreationMode.STAND_ALONE, entries);
+    }
+
+    private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
+            CreationMode creationMode, AccountDefEntry... entries) throws Exception {
         final ProbeInfo newProbeInfo = Mockito.mock(ProbeInfo.class);
         when(newProbeInfo.getId()).thenReturn(probeId);
         when(newProbeInfo.getType()).thenReturn(type);
         when(newProbeInfo.getCategory()).thenReturn(category);
+        when(newProbeInfo.getUICategory()).thenReturn(uiCategory);
         when(newProbeInfo.getAccountDefinitions()).thenReturn(Arrays.asList(entries));
+        when(newProbeInfo.getCreationMode()).thenReturn(creationMode);
         if (entries.length > 0) {
             when(newProbeInfo.getIdentifyingFields())
                             .thenReturn(Collections.singletonList(entries[0].getName()));
@@ -230,6 +273,7 @@ public class TargetsServiceTest {
                         new HashSet<>(Arrays.asList(accountValues)));
         when(targetInfo.getStatus()).thenReturn("Validated");
         when(targetInfo.isHidden()).thenReturn(false);
+        when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
         registeredTargets.put(targetId, targetInfo);
         return targetInfo;
     }
@@ -254,8 +298,8 @@ public class TargetsServiceTest {
      */
     @Test
     public void getTarget() throws Exception {
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category",
-                        createAccountDef("field1"), createAccountDef("field2"));
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory",
+                createAccountDef("field1"), createAccountDef("field2"));
         final TargetInfo target = createMockTargetInfo(probe.getId(), 3,
                         createAccountValue("field1", "value1"),
                         createAccountValue("field2", "value2"));
@@ -269,14 +313,14 @@ public class TargetsServiceTest {
     }
 
     /**
-     * Tests that 'displayName' is set from the 'address' property.
+     * Tests that 'displayName' is correct.
      *
      * @throws Exception on exceptions occur.
      */
     @Test
-    public void getTargetDisplayname() throws Exception {
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category",
-                        createAccountDef("address"));
+    public void getTargetDisplayName() throws Exception {
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory",
+                createAccountDef("address"));
         final TargetInfo target = createMockTargetInfo(probe.getId(), 3,
                 createAccountValue("address", "targetAddress"));
 
@@ -285,7 +329,7 @@ public class TargetsServiceTest {
                         .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
         final TargetApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
                         TargetApiDTO.class);
-        assertThat(resp.getDisplayName(), equalTo("targetAddress"));
+        assertThat(resp.getDisplayName(), equalTo(TARGET_DISPLAY_NAME));
     }
 
     /**
@@ -296,8 +340,8 @@ public class TargetsServiceTest {
      */
     @Test
     public void getTargetWithInvalidField() throws Exception {
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category",
-                        createAccountDef("field1"), createAccountDef("field2"));
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory",
+                createAccountDef("field1"), createAccountDef("field2"));
         createMockTargetInfo(probe.getId(), 3,
                         createAccountValue("field1", "value1"),
                         createAccountValue("field3", "value2"));
@@ -318,7 +362,7 @@ public class TargetsServiceTest {
      */
     @Test
     public void getAbsentTarget() throws Exception {
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category");
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory");
         createMockTargetInfo(probe.getId(), 3);
         final MvcResult result = mockMvc.perform(get("/targets/4").accept(MediaType
                 .APPLICATION_JSON_UTF8_VALUE))
@@ -331,19 +375,36 @@ public class TargetsServiceTest {
     /**
      * Tests for retrieval of all the targets.
      *
-     * @throws Exception on exceptions occur.
+     * @throws Exception should not happen.
      */
     @Test
     public void testGetAllTargets() throws Exception {
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category");
+        fetchAllTargets(false);
+    }
+
+    /**
+     * Tests for retrieval of all the targets with environment type filter
+     * {@link com.vmturbo.api.enums.EnvironmentType#HYBRID}. All targets should
+     * be fetched.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetAllTargetsWithHybridFilter() throws Exception {
+        fetchAllTargets(true);
+    }
+
+    private void fetchAllTargets(boolean hybridFilterExists) throws Exception {
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory");
         final Collection<TargetInfo> targets = new ArrayList<>();
         targets.add(createMockTargetInfo(probe.getId(), 2));
         targets.add(createMockTargetInfo(probe.getId(), 3));
         targets.add(createMockTargetInfo(probe.getId(), 4));
         when(targets.iterator().next().getStatus()).thenReturn("Connection refused");
 
+        final String url = "/targets" + (hybridFilterExists ? "?environmentType=HYBRID" : "");
         final MvcResult result = mockMvc
-                        .perform(get("/targets").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                        .perform(get(url).accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
                         .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
         final TargetApiDTO[] resp = GSON.fromJson(result.getResponse().getContentAsString(),
                         TargetApiDTO[].class);
@@ -357,6 +418,74 @@ public class TargetsServiceTest {
     }
 
     /**
+     * Tests if the service can filter and return the cloud targets.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetAllCloudTargets() throws Exception {
+        testFilterTargetsByEnvironment(true);
+    }
+
+    /**
+     * Tests if the service can filter and return the onprem targets.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetAllOnPremTargets() throws Exception {
+        testFilterTargetsByEnvironment(false);
+    }
+
+    private void testFilterTargetsByEnvironment(boolean cloud) throws Exception {
+        final long cloudProbeId = 1L;
+        final long onPremProbeId = 2L;
+        final long cloudTargetId = 3L;
+        final long onPremTargetId = 4L;
+        createMockProbeInfo(cloudProbeId, SDKProbeType.AWS.getProbeType(), "dummy", "uiCategory");
+        createMockProbeInfo(onPremProbeId, SDKProbeType.VCENTER.getProbeType(), "dummy", "uiCategory");
+        createMockTargetInfo(cloudProbeId, cloudTargetId);
+        createMockTargetInfo(onPremProbeId, onPremTargetId);
+
+        final String url = "/targets?environment_type=" + (cloud ? "CLOUD" : "ONPREM");
+        final MvcResult result = mockMvc.perform(get(url).accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                                    .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final TargetApiDTO[] resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                TargetApiDTO[].class);
+        Assert.assertEquals(1, resp.length);
+        Assert.assertEquals(Long.toString(cloud ? cloudTargetId : onPremTargetId), resp[0].getUuid());
+    }
+
+    /**
+     * Tests the case where the user's environment includes a "parent" target and two derived targets.
+     * Verifies that the parent's derivedTarget Dtos have been created correctly.
+     *
+     * @throws Exception Not expected to happen.
+     */
+    @Test
+    public void testGetAllTargets_withDerivedTargetRelationships() throws Exception {
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory");
+        final TargetInfo parentTargetInfo = createMockTargetInfo(probe.getId(), 2);
+        final TargetInfo childTargetInfo1 = createMockTargetInfo(probe.getId(), 3);
+        final TargetInfo childTargetInfo2 = createMockTargetInfo(probe.getId(), 4);
+        when(parentTargetInfo.getDerivedTargetIds()).thenReturn(Lists.newArrayList(3L, 4L));
+
+        final MvcResult result = mockMvc
+                .perform(get("/targets").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final TargetApiDTO[] resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                TargetApiDTO[].class);
+        final Map<Long, TargetApiDTO> allTargetDtosMap =
+                Maps.uniqueIndex(Arrays.asList(resp), targetInfo -> Long.valueOf(targetInfo.getUuid()));
+        final TargetApiDTO parentDto = allTargetDtosMap.get(parentTargetInfo.getId());
+        final Map<Long, TargetApiDTO> derivedTargetDtosMap =
+                Maps.uniqueIndex(parentDto.getDerivedTargets(), targetInfo -> Long.valueOf(targetInfo.getUuid()));
+
+        assertEquals(childTargetInfo1, probe, derivedTargetDtosMap.get(childTargetInfo1.getId()));
+        assertEquals(childTargetInfo2, probe, derivedTargetDtosMap.get(childTargetInfo2.getId()));
+    }
+
+    /**
      * Tests for retrieval of all the targets with out the filtered targets, e.g. hidden targets.
      *
      * @throws Exception on exceptions occur.
@@ -364,7 +493,7 @@ public class TargetsServiceTest {
     @Test
     public void testGetAllTargetsWithoutFilteredTargets() throws Exception {
         final int hiddenTargetsCount = 1;
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category");
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory");
         final Collection<TargetInfo> targets = new ArrayList<>();
         targets.add(createMockTargetInfo(probe.getId(), 2));
         targets.add(createMockTargetInfo(probe.getId(), 3));
@@ -422,7 +551,7 @@ public class TargetsServiceTest {
     @Test
     public void testAddTarget() throws Exception {
         final long probeId = 1;
-        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", createAccountDef
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory", createAccountDef
                 ("key"));
         final TargetApiDTO targetDto = new TargetApiDTO();
         targetDto.setType(probe.getType());
@@ -457,7 +586,7 @@ public class TargetsServiceTest {
     @Test
     public void testAddFirstTarget() throws Exception {
         final long probeId = 1;
-        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", createAccountDef
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory", createAccountDef
                 ("key"));
         final TargetApiDTO targetDto = new TargetApiDTO();
         targetDto.setType(probe.getType());
@@ -482,7 +611,7 @@ public class TargetsServiceTest {
     @Test
     public void testAddSecondTarget() throws Exception {
         final long probeId = 1;
-        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", createAccountDef
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory", createAccountDef
                 ("key"));
         final TargetApiDTO targetDto = new TargetApiDTO();
         targetDto.setType(probe.getType());
@@ -525,9 +654,9 @@ public class TargetsServiceTest {
      */
     @Test
     public void testEditTarget() throws Exception {
-        final long prpbeId = 1;
+        final long probeId = 1;
         final long targetId = 2;
-        final ProbeInfo probe = createMockProbeInfo(prpbeId, "type", "category");
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory");
         final TargetInfo targetInfo = createMockTargetInfo(probe.getId(), targetId);
 
         final TargetApiDTO targetDto = new TargetApiDTO();
@@ -551,6 +680,36 @@ public class TargetsServiceTest {
     }
 
     /**
+     * Tests the case when there is an attempt at modifying a read-only target.
+     * OperationFailedException is expected to be thrown.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testEditTarget_readOnlyTarget() throws Exception {
+        final long probeId = 5;
+        final long targetId = 10;
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory");
+        final TargetInfo targetInfo = createMockTargetInfo(probe.getId(), targetId);
+        when(targetInfo.isReadOnly()).thenReturn(true);
+
+        final TargetApiDTO targetDto = new TargetApiDTO();
+        targetDto.setType(probe.getType());
+        targetDto.setInputFields(Arrays.asList(inputField("key", "value2")));
+        final String targetString = GSON.toJson(targetDto);
+
+        final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.put("/targets/" + targetId)
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(targetString)
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().is4xxClientError()).andReturn();
+        final ErrorApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                ErrorApiDTO.class);
+
+        Assert.assertThat(resp.getMessage(), CoreMatchers.containsString(TGT_NOT_EDITABLE));
+    }
+
+    /**
      * Tests removal of existing target.
      *
      * @throws Exception on exceptions occurred.
@@ -559,7 +718,7 @@ public class TargetsServiceTest {
     public void deleteExistingTarget() throws Exception {
         final long prpbeId = 1;
         final long targetId = 2;
-        final ProbeInfo probe = createMockProbeInfo(prpbeId, "type", "category");
+        final ProbeInfo probe = createMockProbeInfo(prpbeId, "type", "category", "uiCategory");
         final TargetInfo targetInfo = createMockTargetInfo(probe.getId(), targetId);
         final MvcResult result = mockMvc
                         .perform(MockMvcRequestBuilders.delete("/targets/" + targetId).accept(
@@ -642,21 +801,54 @@ public class TargetsServiceTest {
 
         final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
         final TargetsService targetsService = new TargetsService(
-            topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
-            Duration.ofMillis(50), Duration.ofMillis(100), null,
-            apiComponentTargetListener,searchServiceRpc,severityPopulator,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID);
+                                                    topologyProcessor, Duration.ofMillis(50),
+                                                    Duration.ofMillis(100), Duration.ofMillis(50),
+                                                    Duration.ofMillis(100), null,
+                                                    apiComponentTargetListener, repositoryApi,
+                                                    actionSpecMapper, actionsRpcService, actionSearchUtil,
+                                                    REALTIME_CONTEXT_ID, apiWebsocketHandler, true);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
         when(targetInfo.getProbeId()).thenReturn(probeId);
-        when(targetInfo.getStatus()).thenReturn(TargetsService.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
+        when(targetInfo.getStatus()).thenReturn(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
 
         when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
         TargetInfo validationInfo = targetsService.validateTargetSynchronously(targetId);
 
         Mockito.verify(topologyProcessor, times(2)).getTarget(targetId);
         org.junit.Assert.assertEquals(
-            TargetsService.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, validationInfo.getStatus());
+            StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, validationInfo.getStatus());
+    }
+
+    @Test
+    public void testFailedTargetValidationNotification() throws Exception {
+        WebSocketSession session = mock(WebSocketSession.class);
+        apiWebsocketHandler.afterConnectionEstablished(session);
+        ArgumentCaptor<BinaryMessage> notificationCaptor = ArgumentCaptor.forClass(BinaryMessage.class);
+        IdentityGenerator.initPrefix(0);
+
+        final long targetId = 1;
+        final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
+        final TargetsService targetsService = new TargetsService(
+            topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
+            Duration.ofMillis(50), Duration.ofMillis(100), null, apiComponentTargetListener,
+            repositoryApi, actionSpecMapper, actionsRpcService, actionSearchUtil, REALTIME_CONTEXT_ID,
+            apiWebsocketHandler, true);
+
+        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
+        when(targetInfo.getId()).thenReturn(targetId);
+        when(targetInfo.getStatus()).thenReturn("Validation failed.");
+
+        when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
+        targetsService.validateTargetSynchronously(targetId);
+
+        verify(session).sendMessage(notificationCaptor.capture());
+        final Notification notification = Notification.parseFrom(
+            notificationCaptor.getValue().getPayload().array());
+        Assert.assertEquals("1", notification.getTargetNotification().getTargetId());
+        Assert.assertEquals("Validation failed.", notification.getTargetNotification().getStatusNotification().getDescription());
+        Assert.assertEquals(TargetStatus.NOT_VALIDATED, notification.getTargetNotification().getStatusNotification().getStatus());
     }
 
     @Test
@@ -666,21 +858,24 @@ public class TargetsServiceTest {
 
         final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
         final TargetsService targetsService = new TargetsService(
-            topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
-            Duration.ofMillis(50), Duration.ofMillis(100), null,
-            apiComponentTargetListener,searchServiceRpc,severityPopulator,actionSpecMapper,actionsRpcService,REALTIME_CONTEXT_ID);
+                                                topologyProcessor, Duration.ofMillis(50),
+                                                Duration.ofMillis(100), Duration.ofMillis(50),
+                                                Duration.ofMillis(100), null,
+                                                apiComponentTargetListener, repositoryApi, actionSpecMapper,
+                                                actionsRpcService, actionSearchUtil, REALTIME_CONTEXT_ID,
+                                                apiWebsocketHandler, true);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
         when(targetInfo.getProbeId()).thenReturn(probeId);
-        when(targetInfo.getStatus()).thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+        when(targetInfo.getStatus()).thenReturn(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
 
         when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
         TargetInfo discoveryInfo = targetsService.discoverTargetSynchronously(targetId);
 
         Mockito.verify(topologyProcessor, times(2)).getTarget(targetId);
         org.junit.Assert.assertEquals(
-                TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, discoveryInfo.getStatus());
+            StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, discoveryInfo.getStatus());
     }
 
     /**
@@ -694,14 +889,14 @@ public class TargetsServiceTest {
         final String field1 = "field11";
         final String field2 = "field22";
         final String field3 = "field3";
-        probesCollection.add(createMockProbeInfo(1, "type1", "category1",
-                        createAccountDef(field1), createAccountDef("field12")));
-        probesCollection.add(createMockProbeInfo(2, "type2", "category2",
-                        createAccountDef(field2), createAccountDef("field22")));
-        probesCollection.add(createMockProbeInfo(3, "type3", "category4",
-                        createAccountDef(field3)));
+        probesCollection.add(createMockProbeInfo(1, "type1", "category1", "uiCategory1",
+                createAccountDef(field1), createAccountDef("field12")));
+        probesCollection.add(createMockProbeInfo(2, "type2", "category2", "uiCategory2",
+                createAccountDef(field2), createAccountDef("field22")));
+        probesCollection.add(createMockProbeInfo(3, "type3", "category4", "uiCategory4",
+                createAccountDef(field3)));
         final Map<String, ProbeInfo> probeByType = probesCollection.stream().collect(
-                        Collectors.toMap(pr -> pr.getType(), pr -> pr));
+                Collectors.toMap(pr -> pr.getType(), pr -> pr));
 
         final MvcResult result = mockMvc
                         .perform(MockMvcRequestBuilders.get("/targets/specs").accept(
@@ -733,12 +928,14 @@ public class TargetsServiceTest {
         final String field1 = "field11";
         final String field2 = "field22";
         final String field3 = "field3";
-        probesCollection.add(createMockProbeInfo(1, "type1", "category1",
-                        createAccountDef(field1), createAccountDef("field12")));
+        probesCollection.add(createMockProbeInfo(1, "type1", "category1", "uiCategory1",
+                createAccountDef(field1), createAccountDef("field12")));
         probesCollection.add(createMockProbeInfo(2, "type2", ProbeCategory.BILLING.getCategory(),
-                        createAccountDef(field2), createAccountDef("field22")));
+                ProbeCategory.BILLING.getCategory(),
+                CreationMode.DERIVED, createAccountDef(field2), createAccountDef("field22")));
         probesCollection.add(createMockProbeInfo(3, "type3", ProbeCategory.STORAGE_BROWSING.getCategory(),
-                        createAccountDef(field3)));
+                ProbeCategory.STORAGE_BROWSING.getCategory(),
+                CreationMode.DERIVED, createAccountDef(field3)));
         final Map<String, ProbeInfo> probeByType = probesCollection.stream().collect(
                         Collectors.toMap(pr -> pr.getType(), pr -> pr));
 
@@ -765,7 +962,7 @@ public class TargetsServiceTest {
     @Test
     public void testGetProbeWrongIdentifyingFields() throws Exception {
         final ProbeInfo probe =
-                        createMockProbeInfo(1, "type1", "category1", createAccountDef("targetId"));
+                createMockProbeInfo(1, "type1", "category1", "uiCategory1", createAccountDef("targetId"));
         when(probe.getIdentifyingFields())
                         .thenReturn(Collections.singletonList("non-target-id"));
         final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.get("/targets/specs")
@@ -785,10 +982,11 @@ public class TargetsServiceTest {
     @Test
     public void testProbeAccountValueTypes() throws Exception {
         final ProbeInfo probeInfo = createMockProbeInfo(1, "type1", "category1",
-                        createAccountDef("fieldStr", AccountFieldValueType.STRING),
-                        createAccountDef("fieldNum", AccountFieldValueType.NUMERIC),
-                        createAccountDef("fieldBool", AccountFieldValueType.BOOLEAN),
-                        createAccountDef("fieldGrp", AccountFieldValueType.GROUP_SCOPE));
+                "uiCategory1",
+                createAccountDef("fieldStr", AccountFieldValueType.STRING),
+                createAccountDef("fieldNum", AccountFieldValueType.NUMERIC),
+                createAccountDef("fieldBool", AccountFieldValueType.BOOLEAN),
+                createAccountDef("fieldGrp", AccountFieldValueType.GROUP_SCOPE));
         final MvcResult result = mockMvc
                         .perform(MockMvcRequestBuilders.get("/targets/specs")
                                         .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -802,6 +1000,36 @@ public class TargetsServiceTest {
         Assert.assertEquals(InputValueType.NUMERIC, fields.get(1).getValueType());
         Assert.assertEquals(InputValueType.BOOLEAN, fields.get(2).getValueType());
         Assert.assertEquals(InputValueType.GROUP_SCOPE, fields.get(3).getValueType());
+        Assert.assertEquals(".*", fields.get(0).getVerificationRegex());
+
+    }
+
+    /**
+     * Tests that "allowedValues" field gets populated correctly into a TargetApiDTO's InputFields.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void testAllowedValues() throws Exception {
+        final String key = "allowedValues";
+        final List<String> allowedValuesList = Lists.newArrayList("A", "B", "C");
+        final AccountField allowedValuesField =
+                new AccountField(key, key + "-name", key + "-description", false, false,
+                        AccountFieldValueType.LIST, null, allowedValuesList, ".*", null);
+        final ProbeInfo probeInfo =
+                createMockProbeInfo(1, "type1", "category1", "uiCategory1", allowedValuesField);
+        final MvcResult result = mockMvc
+                .perform(MockMvcRequestBuilders.get("/targets/specs")
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final List<TargetApiDTO> resp = Arrays.asList(GSON
+                .fromJson(result.getResponse().getContentAsString(), TargetApiDTO[].class));
+        Assert.assertEquals(1, resp.size());
+        final TargetApiDTO probe = resp.iterator().next();
+        final List<InputFieldApiDTO> fields = probe.getInputFields();
+        Assert.assertEquals(allowedValuesList, fields.get(0).getAllowedValues());
+        Assert.assertNull(fields.get(0).getDependencyKey());
+        Assert.assertNull(fields.get(0).getDependencyValue());
     }
 
     /**
@@ -817,7 +1045,7 @@ public class TargetsServiceTest {
         for (AccountFieldValueType value : AccountFieldValueType.values()) {
             accountEntries[i++] = createAccountDef("field-" + value.name(), value);
         }
-        createMockProbeInfo(1, "type1", "category1", accountEntries);
+        createMockProbeInfo(1, "type1", "category1", "uiCategory1", accountEntries);
         final MvcResult result = mockMvc
                         .perform(MockMvcRequestBuilders.get("/targets/specs")
                                         .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -833,13 +1061,40 @@ public class TargetsServiceTest {
         }
     }
 
+    /**
+     * Tests that "dependencyField" is propagated from {@link ProbeInfo} to {@link TargetApiDTO}.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void testAccountValueFieldDependency() throws Exception {
+        final String key = "allowedValues";
+        final AccountField field =
+                new AccountField(key, key + "-name", key + "-description", false, false,
+                        AccountFieldValueType.LIST, null, null, ".*",
+                        Pair.create("field", "value"));
+        final ProbeInfo probeInfo =
+                createMockProbeInfo(1, "type1", "category1", "uiCategory1", field);
+        final MvcResult result = mockMvc
+                .perform(MockMvcRequestBuilders.get("/targets/specs")
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final List<TargetApiDTO> resp = Arrays.asList(GSON
+                .fromJson(result.getResponse().getContentAsString(), TargetApiDTO[].class));
+        Assert.assertEquals(1, resp.size());
+        final TargetApiDTO probe = resp.iterator().next();
+        final List<InputFieldApiDTO> fields = probe.getInputFields();
+        Assert.assertEquals("field", fields.get(0).getDependencyKey());
+        Assert.assertEquals("value", fields.get(0).getDependencyValue());
+    }
+
     // If no prior validation, discovery in progress should display as "Validating"
     // This is so that adding a target shows up as "Validating" in the UI.
     @Test
     public void testDiscoveryInProgressValidationStatusNoPriorValidation() throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getStatus())
-            .thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+            .thenReturn(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
         when(targetInfo.getLastValidationTime()).thenReturn(null);
 
         org.junit.Assert.assertEquals(TargetsService.UI_VALIDATING_STATUS,
@@ -851,11 +1106,147 @@ public class TargetsServiceTest {
     public void testDiscoveryInProgressValidationStatusWithPriorValidation() throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getStatus())
-            .thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+            .thenReturn(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
         when(targetInfo.getLastValidationTime()).thenReturn(LocalDateTime.now());
 
         org.junit.Assert.assertEquals(TargetsService.UI_VALIDATING_STATUS,
             TargetsService.mapStatusToApiDTO(targetInfo));
+    }
+
+    // verify adding VC target without setting "isStorageBrowsingEnabled" filed,
+    // it will be added with value set to "false".
+    @Test
+    public void testAddVCTargetWithNoStorageBrowsingFiled() throws Exception {
+        final long probeId = 1;
+        final String isStorageBrowsingEnabled = "isStorageBrowsingEnabled";
+        final String key = "key";
+        final ProbeInfo probe = createMockProbeInfo(probeId, SDKProbeType.VCENTER.getProbeType(), "category", "category", createAccountDef
+            (key), createAccountDef(isStorageBrowsingEnabled));
+        final TargetApiDTO targetDto = new TargetApiDTO();
+        targetDto.setType(probe.getType());
+        targetDto.setInputFields(Arrays.asList(inputField(key, "value")));
+        final String targetString = GSON.toJson(targetDto);
+        final MvcResult result = mockMvc
+            .perform(MockMvcRequestBuilders.post("/targets")
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(targetString)
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+            .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final ArgumentCaptor<TargetData> captor = ArgumentCaptor.forClass(TargetData.class);
+        Mockito.verify(topologyProcessor).addTarget(Mockito.eq(probeId), captor.capture());
+        final Set<AccountValue> accountDataSet = captor.getValue().getAccountData();
+        assertTrue(accountDataSet.stream().anyMatch(accountValue -> accountValue.getName().equals(isStorageBrowsingEnabled)
+            && accountValue.getStringValue().equals("false")));
+        assertTrue(accountDataSet.stream().anyMatch(accountValue -> accountValue.getName().equals(key)));
+        Mockito.verify(topologyProcessor, Mockito.never()).validateAllTargets();
+        Mockito.verify(topologyProcessor, Mockito.never()).discoverAllTargets();
+
+        final TargetApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+            TargetApiDTO.class);
+        Assert.assertEquals(Long.toString(registeredTargets.keySet().iterator().next()),
+            resp.getUuid());
+    }
+
+
+    // Verify use case: probeType: vCenter, isStorageBrowsingEnabled: false
+    @Test
+    public void testAddVCTargetWithStorageBrowsingFiledFalse() throws Exception {
+        final long probeId = 1;
+        final String isStorageBrowsingEnabled = "isStorageBrowsingEnabled";
+        final String key = "key";
+        final ProbeInfo probe = createMockProbeInfo(probeId, SDKProbeType.VCENTER.getProbeType(), "category", "category", createAccountDef
+            (key), createAccountDef(isStorageBrowsingEnabled));
+        final TargetApiDTO targetDto = new TargetApiDTO();
+        targetDto.setType(probe.getType());
+        targetDto.setInputFields(Arrays.asList(inputField(isStorageBrowsingEnabled, "false"), inputField(key, "value")));
+        final String targetString = GSON.toJson(targetDto);
+        final MvcResult result = mockMvc
+            .perform(MockMvcRequestBuilders.post("/targets")
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(targetString)
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+            .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final ArgumentCaptor<TargetData> captor = ArgumentCaptor.forClass(TargetData.class);
+        Mockito.verify(topologyProcessor).addTarget(Mockito.eq(probeId), captor.capture());
+        final Set<AccountValue> accountDataSet = captor.getValue().getAccountData();
+        assertTrue(accountDataSet.stream().anyMatch(accountValue -> accountValue.getName().equals(isStorageBrowsingEnabled)
+            && accountValue.getStringValue().equals("false")));
+        assertTrue(accountDataSet.stream().anyMatch(accountValue -> accountValue.getName().equals(key)));
+        Mockito.verify(topologyProcessor, Mockito.never()).validateAllTargets();
+        Mockito.verify(topologyProcessor, Mockito.never()).discoverAllTargets();
+
+        final TargetApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+            TargetApiDTO.class);
+        Assert.assertEquals(Long.toString(registeredTargets.keySet().iterator().next()),
+            resp.getUuid());
+    }
+
+    // Verify use case: probeType: vCenter, isStorageBrowsingEnabled: true
+    @Test
+    public void testAddVCTargetWithStorageBrowsingFiledTrue() throws Exception {
+        final long probeId = 1;
+        final String isStorageBrowsingEnabled = "isStorageBrowsingEnabled";
+        final String key = "key";
+        final ProbeInfo probe = createMockProbeInfo(probeId, SDKProbeType.VCENTER.getProbeType(), "category", "category", createAccountDef
+            (key), createAccountDef(isStorageBrowsingEnabled));
+        final TargetApiDTO targetDto = new TargetApiDTO();
+        targetDto.setType(probe.getType());
+        final String value = "true";
+        targetDto.setInputFields(Arrays.asList(inputField(isStorageBrowsingEnabled, value), inputField(key, "value")));
+        final String targetString = GSON.toJson(targetDto);
+        final MvcResult result = mockMvc
+            .perform(MockMvcRequestBuilders.post("/targets")
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(targetString)
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+            .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final ArgumentCaptor<TargetData> captor = ArgumentCaptor.forClass(TargetData.class);
+        Mockito.verify(topologyProcessor).addTarget(Mockito.eq(probeId), captor.capture());
+        final Set<AccountValue> accountDataSet = captor.getValue().getAccountData();
+        assertTrue(accountDataSet.stream().anyMatch(accountValue -> accountValue.getName().equals(isStorageBrowsingEnabled)
+            && accountValue.getStringValue().equals(value)));
+        assertTrue(accountDataSet.stream().anyMatch(accountValue -> accountValue.getName().equals(key)));
+        Mockito.verify(topologyProcessor, Mockito.never()).validateAllTargets();
+        Mockito.verify(topologyProcessor, Mockito.never()).discoverAllTargets();
+
+        final TargetApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+            TargetApiDTO.class);
+        Assert.assertEquals(Long.toString(registeredTargets.keySet().iterator().next()),
+            resp.getUuid());
+    }
+
+    /**
+     * Verify target management public APIs are not allowed when `allowTargetManagement` is set to false.
+     *
+     * @throws Exception security exception.
+     */
+    @Test(expected = IllegalStateException.class)
+    public void testDisableTargetChangesInIntegrationMode() throws Exception {
+        final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
+        final TargetsService targetsService =
+                new TargetsService(topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
+                        Duration.ofMillis(50), Duration.ofMillis(100), null,
+                        apiComponentTargetListener, repositoryApi, actionSpecMapper,
+                        actionsRpcService, actionSearchUtil, REALTIME_CONTEXT_ID,
+                        apiWebsocketHandler, false);
+        // Get is allowed
+        targetsService.getTargets(EnvironmentType.HYBRID);
+        try {
+            // create is NOT allowed
+            targetsService.createTarget("", Collections.emptyList());
+            fail("should fail to manage target");
+        } catch (IllegalStateException e) {
+            // expected
+        }
+        try {
+            // Edit is is NOT allowed
+            targetsService.editTarget("111", Collections.emptyList());
+            fail("should fail to manage target");
+        } catch (IllegalStateException e) {
+            // expected
+        }
+        // Delete is NOT allowed
+        targetsService.deleteTarget("111");
     }
 
     private TargetApiDTO postAndReturn(String query) throws Exception {
@@ -869,7 +1260,7 @@ public class TargetsServiceTest {
     }
 
     private ProbeInfo createDefaultProbeInfo() throws Exception {
-        return createMockProbeInfo(1, "type1", "category1", createAccountDef("targetId"));
+        return createMockProbeInfo(1, "type1", "category1", "category1", createAccountDef("targetId"));
     }
 
     private InputFieldApiDTO inputField(String key, String value) {
@@ -890,7 +1281,7 @@ public class TargetsServiceTest {
 
     private void assertEquals(ProbeInfo probe, TargetApiDTO dto) {
         Assert.assertEquals(probe.getType(), dto.getType());
-        Assert.assertEquals(probe.getCategory(), dto.getCategory());
+        Assert.assertEquals(probe.getUICategory(), dto.getCategory());
         Assert.assertEquals(probe.getAccountDefinitions().size(), dto.getInputFields().size());
         final Map<String, AccountDefEntry> defEntries = probe.getAccountDefinitions().stream()
                         .collect(Collectors.toMap(de -> de.getName(), de -> de));
@@ -914,6 +1305,7 @@ public class TargetsServiceTest {
         filledInputFields.forEach(inputField -> {
             assertEquals(accountValues.get(inputField.getName()), inputField);
         });
+        Assert.assertEquals(target.isReadOnly(), dto.isReadonly());
     }
 
     private void assertEquals(AccountValue accountValue, InputFieldApiDTO dto) {
@@ -934,7 +1326,7 @@ public class TargetsServiceTest {
 
     private static AccountDefEntry createAccountDef(String key, AccountFieldValueType valueType) {
         return new AccountField(key, key + "-name", key + "-description", true, false, valueType,
-                null);
+                null, Collections.emptyList(), ".*", null);
     }
 
     /**
@@ -953,10 +1345,20 @@ public class TargetsServiceTest {
         public TargetsService targetsService() {
             return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1),
                 Duration.ofSeconds(60), Duration.ofSeconds(1), null,
-                apiComponentTargetListener(), searchServiceRpc(), severityPopulator(),
-                actionSpecMapper(),
-                actionRpcService(),
-                REALTIME_CONTEXT_ID);
+                apiComponentTargetListener(), repositoryApi(), actionSpecMapper(), actionRpcService(),
+                new ActionSearchUtil(actionRpcService(), actionSpecMapper(),
+                                     Mockito.mock(PaginationMapper.class),
+                                     Mockito.mock(SupplyChainFetcherFactory.class),
+                                     Mockito.mock(GroupExpander.class),
+                                     Mockito.mock(ServiceProviderExpander.class),
+                                     REALTIME_CONTEXT_ID),
+                REALTIME_CONTEXT_ID,
+                new ApiWebsocketHandler(), true);
+        }
+
+        @Bean
+        public RepositoryApi repositoryApi() {
+            return Mockito.mock(RepositoryApi.class);
         }
 
         @Bean
@@ -970,8 +1372,8 @@ public class TargetsServiceTest {
         }
 
         @Bean
-        public PlanServiceMock planService() {
-            return new PlanServiceMock();
+        public PlanServiceMole planService() {
+            return spy(PlanServiceMole.class);
         }
 
         @Bean
@@ -999,16 +1401,6 @@ public class TargetsServiceTest {
         @Bean
         public ActionsServiceBlockingStub actionRpcService() {
             return ActionsServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public SearchServiceBlockingStub searchServiceRpc() {
-            return SearchServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public SeverityPopulator severityPopulator() {
-            return Mockito.mock(SeverityPopulator.class);
         }
 
         @Bean

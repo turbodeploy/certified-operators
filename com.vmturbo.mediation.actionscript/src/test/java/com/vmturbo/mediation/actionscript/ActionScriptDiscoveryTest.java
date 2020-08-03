@@ -5,10 +5,8 @@ import java.nio.charset.Charset;
 import java.security.GeneralSecurityException;
 import java.util.regex.Pattern;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.sshd.server.SshServer;
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -29,12 +27,8 @@ import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
  * which the ActionScript probe will invoke in the Executor.
  */
 public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
-
-    private static Logger logger = LogManager.getLogger(ActionScriptDiscoveryTest.class);
-
-    private SshServer sshd;
-    // must be > 8000 for non-privileged process to create it
-    private ActionScriptProbeAccount accountValues;
+    // certain production functionality (manifest validation) is not cross-platform
+    private static boolean IS_WINDOWS = System.getProperty("os.name").toLowerCase().contains("win");
     private int testPort;
 
     @Rule
@@ -63,12 +57,14 @@ public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
 
     @Test
     public void testCanReadValidYAMLManifest() throws IOException {
+        Assume.assumeFalse(IS_WINDOWS);
         final ValidationResponse result = new ActionScriptDiscovery(createAccountValues("/scripts/manifest.yaml")).validateManifestFile();
         assertEquals(0, result.getErrorDTOCount());
     }
 
     @Test
     public void testCanReadValidJSONManifest() throws IOException {
+        Assume.assumeFalse(IS_WINDOWS);
         final ValidationResponse result = new ActionScriptDiscovery(createAccountValues("/scripts/manifest.json")).validateManifestFile();
         assertEquals(0, result.getErrorDTOCount());
     }
@@ -99,6 +95,7 @@ public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
 
     @Test
     public void testCantReadJsonManifestWithUnrecognizedProperties() throws IOException {
+        Assume.assumeFalse(IS_WINDOWS);
         final ValidationResponse result = new ActionScriptDiscovery(createAccountValues("/scripts/unrec-props-manifest.json")).validateManifestFile();
         assertEquals(1, result.getErrorDTOCount());
         String msg = result.getErrorDTO(0).getDescription();
@@ -107,6 +104,7 @@ public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
 
     @Test
     public void testCantReadYamlManifestWithUnrecognizedProperties() throws IOException {
+        Assume.assumeFalse(IS_WINDOWS);
         final ValidationResponse result = new ActionScriptDiscovery(createAccountValues("/scripts/unrec-props-manifest.yaml")).validateManifestFile();
         assertEquals(1, result.getErrorDTOCount());
         String msg = result.getErrorDTO(0).getDescription();
@@ -121,6 +119,7 @@ public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
 
     @Test
     public void testCanDiscoverActions() throws IOException {
+        Assume.assumeFalse(IS_WINDOWS);
         ActionScriptProbeAccount accountValues = createAccountValues("/scripts/manifest.yaml");
         final ActionScriptDiscovery discovery = new ActionScriptDiscovery(accountValues);
         discovery.validateManifestFile();
@@ -146,6 +145,32 @@ public class ActionScriptDiscoveryTest extends ActionScriptTestBase {
         ValidationResponse result = new ActionScriptDiscovery(createAccountValues("/scripts/manifest")).validateManifestFile();
         assertEquals(1, result.getErrorDTOCount());
         result = new ActionScriptDiscovery(createAccountValues("/scripts/manifest.json.bogus")).validateManifestFile();
+        assertEquals(1, result.getErrorDTOCount());
+    }
+
+    /**
+     * If the manifest file contains a null value for "scripts", validation should fail.
+     *
+     * @throws Exception if there's a problem running the test
+     */
+    @Test
+    public void testFailIfScriptsPropertyIsNull() throws Exception {
+        ValidationResponse result = new ActionScriptDiscovery(
+            createAccountValues("/scripts/manifest-null-scripts-property.yaml"))
+            .validateManifestFile();
+        assertEquals(1, result.getErrorDTOCount());
+    }
+
+    /**
+     * If the manifest file defines no scripts, validation should fail.
+     *
+     * @throws Exception if there's a problem running the test
+     */
+    @Test
+    public void testFailIfNoScriptsDefined() throws Exception {
+        ValidationResponse result = new ActionScriptDiscovery(
+            createAccountValues("/scripts/manifest-no-scripts-defined.yaml"))
+            .validateManifestFile();
         assertEquals(1, result.getErrorDTOCount());
     }
 

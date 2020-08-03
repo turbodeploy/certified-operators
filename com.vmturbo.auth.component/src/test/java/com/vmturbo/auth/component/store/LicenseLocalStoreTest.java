@@ -20,14 +20,15 @@ import com.vmturbo.licensing.utils.LicenseDeserializer;
  */
 public class LicenseLocalStoreTest {
 
-    // TODO: this license will expire near the end of 2019. When that happens, we need to either
-    // replace it or change the test.
-    public static final String C1_LICENSE = "INCREMENT C1-ECS-WOM-A cisco 1 07-dec-2019 uncounted \\\n" +
-            "      VENDOR_STRING=<Count>10</Count> HOSTID=ANY \\\n" +
-            "      NOTICE=\"<LicFileID>20171207194925449</LicFileID><LicLineID>1</LicLineID> \\\n" +
-            "      <PAK></PAK>\" SIGN=\"1CB2 3A13 FBBC C231 8887 9337 204D D93C \\\n" +
-            "      7EAF 212D B43F 24D5 821D 1F0F 1344 172A 830E 1CFF 1DD3 5C92 \\\n" +
-            "      DAA0 2102 13C7 FB11 1215 DC4D F153 0C1D C50D 81B2\"";
+    // when this license is coming up for expiration, we should make sure to address
+    // https://vmturbo.atlassian.net/browse/OM-53399 so we don't have to update these again. (unless
+    // they change for other reasons)
+    public static final String C1_LICENSE = "INCREMENT C1-ECS-WOM-A cisco 1 15-jan-2022 uncounted \\\n" +
+            "\tVENDOR_STRING=<Count>50</Count> HOSTID=ANY \\\n" +
+            "\tNOTICE=\"<LicFileID>20191210073846581</LicFileID><LicLineID>1</LicLineID> \\\n" +
+            "\t<PAK></PAK>\" SIGN=\"168C 9BF8 E102 E42D 4F02 C1FF 85AB A65F \\\n" +
+            "\t2485 C056 13D0 3683 329A 85B6 C2D7 1928 5373 7021 0380 0E52 \\\n" +
+            "\t7AA2 FC47 7697 A46F FF5E 29A9 2300 0B56 6E84 6C19\"";
     public static final String C1_INVALID_LICENSE = "INCREMENT C1-ECS-WOM-P cisco 1 05-dec-2017 uncounted \\\n" +
             "      VENDOR_STRING=<Count>200</Count> HOSTID=ANY \\\n" +
             "      NOTICE=\"<LicFileID>20171120165449055</LicFileID><LicLineID>1</LicLineID> \\\n" +

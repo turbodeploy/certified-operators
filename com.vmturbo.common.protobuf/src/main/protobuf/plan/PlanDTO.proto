@@ -3,411 +3,26 @@ package plan;
 
 option java_package = "com.vmturbo.common.protobuf.plan";
 
-import "CommonDTO.proto";
-import "group/PolicyDTO.proto";
-import "setting/Setting.proto";
-import "CloudCostDTO.proto";
-
-// A scenario specifies the changes to the topology, and changes to configuration
-// to be used when running a plan.
-message Scenario {
-    // The ID of the scenario
-    optional int64 id = 1;
-
-    // Information describing the scenario
-    optional ScenarioInfo scenario_info = 2;
-}
-
-// Information describing the scenario.
-message ScenarioInfo {
-    // The name of the scenario
-    optional string name = 1;
-
-    // The list of changes to be made
-    repeated ScenarioChange changes = 2;
-
-    // The "type" of the scenario - for example "ADD_WORKLOAD", "DECOMMISION_HOST" - as specified
-    // in the API.
-    // We use a string instead of an enum because at the time of this writing the source of truth
-    // for available types is the UI (!!!), and the type of a scenario has no server-side effect.
-    // Its main purpose is to limit the UI options presented to the user (e.g. with DECOMMISION_HOST
-    // the user will only see changes related to removing hosts).
-    //
-    // (roman, June 1 2017): In the future, if there are many of these strings that we only need
-    // to preserve for the UI, we can add a "metadata" message (or map), where "type" would be
-    // one of the fields.
-    optional string type = 3;
-
-    // The plan scope
-    optional PlanScope scope = 4;
-}
-
-// The Plan Scope is a set of entity groups chosen as part of the plan. This scope is used to filter
-// the topology (according to the entities in scope) down to a "scoped topology", which is the minimal
-// subset of the economy needed to fully analyze the scoped plan.
-message PlanScope {
-    // A list of scope entries (groups) to include in scope.
-    repeated PlanScopeEntry scope_entries = 1;
-}
-
-// A reference to an entity or group id to be included in the plan scope. In the future, this entry
-// may also have some kind of operator representing whether the group should be included or excluded
-// from scope, but for now all entries are treated as being included in the scope.
-message PlanScopeEntry {
-    // the id of the object this scope entry refers to.
-    optional int64 scope_object_oid = 1;
-
-    // class name of the scope entry type -- for UI compatibility and may be removed in the future
-    optional string class_name = 3;
-
-    // display name of the group -- for UI compatibility and may be removed in the future
-    optional string display_name = 4;
-}
-
-// A plan project is a container that acts as a context for a series of related (and/or interrelated)
-// plan runs that happen on some schedule.
-message PlanProject {
-    // The ID of the plan project
-    optional int64 plan_project_id = 1;
-
-    // Information describing the plan project
-    optional PlanProjectInfo plan_project_info = 2;
-}
-
-enum PlanProjectType {
-    // A custom plan project is created by the user
-    // and has no special behaviour/server-side code.
-    USER = 0;
-
-    // A headroom plan project is responsible for calculating
-    // per-cluster headroom (i.e. how many VMs can still fit into the cluster).
-    // There is always exactly one headroom plan project in the system.
-    CLUSTER_HEADROOM = 1;
-
-    // A initial placement plan
-    INITAL_PLACEMENT = 2;
-}
-
-// Information describing the plan project.
-message PlanProjectInfo {
-
-    // The name of the plan project. Names should be unique.
-    // This field should always be present.
-    optional string name = 1;
-
-    // How often to run the plan project.
-    // Running the plan project involves running all the different plans required
-    // to get the project's results.
-    //
-    // If this is not set, run this plan project on demand only.
-    optional Recurrence recurrence = 3;
-
-    // The type of the plan project
-    optional PlanProjectType type = 4 [default = USER];
-
-    // Create one plan for each cluster in the system.
-    //
-    // IMPORTANT:
-    // If set, there should be no scenario in "scenarios" with "scope" set.
-    //
-    // When set:
-    //    For each planProjScenario in "scenarios"
-    //       For each cluster in the system
-    //            Create a PlanProjectScenario with scope = cluster.id and
-    //            scenario = planProjScenario.scenario
-    //
-    // Then run each of the created scenarios.
-    optional bool per_cluster_scope = 10 [default = false];
-
-    // The scenarios involved in this plan project.
-    // Each scenario will run independently of the other.
-    repeated PlanProjectScenario scenarios = 11;
-
-    // A wrapper around a "regular" scenario to allow separate scopes
-    // (and other properties) for the different scenarios that are part of
-    // a plan project.
-    message PlanProjectScenario {
-        // Static scope to apply this scenario to.
-        // If set, apply the changes in the scenario to whatever entities the scope
-        // resolves to (which will be some subset of the topology).
-        // If not set, apply the changes in the scenario to the entire topology.
-        optional StaticScope scope = 1;
-
-        // The scenario changes to apply. This captures the topology and settings-related changes
-        // that need to be made to the entities in the selected scope.
-        repeated ScenarioChange changes = 2;
-    }
-
-    // A statically configured scope.
-    // The scope can be resolved to a specific subset of a topology.
-    message StaticScope {
-        // The oids of groups in the scope.
-        repeated int64 id = 1;
-    }
-}
-
-// Used to deserialize a collection of SPlanProjectInfo from a single JSON file
-message PlanProjectInfoCollection {
-    repeated PlanProjectInfo plan_project_info = 1;
-}
-
-// The Recurrence of the execution
-message Recurrence {
-    // The schedule of the recurrence.
-    // This determines the days on which to run the project.
-    optional Schedule schedule = 1;
-
-    // The time of the run in the days determined by schedule.
-    optional TimeOfRun time_of_run = 2;
-
-    message Daily {}
-
-    enum DayOfWeek {
-        MON = 1;
-        TUE = 2;
-        WED = 3;
-        THU = 4;
-        FRI = 5;
-        SAT = 6;
-        SUN = 7;
-    }
-
-    message Weekly {
-        // specify the day(s) of the week, default to Sunday
-        optional DayOfWeek day_of_week = 1;
-    }
-
-    message Monthly {
-        // specify the day(s) of the month (1-31). default to first day of the month
-        optional int32 day_of_month = 1 [default = 1];
-    }
-
-    message TimeOfRun {
-        // specify the hour in a day (0-23), default to 4AM
-        optional int32 hour = 1 [default = 4];
-    }
-
-    message Schedule {
-        oneof recurrence {
-            Daily daily = 1;
-            Weekly weekly = 2;
-            Monthly monthly = 3;
-        }
-    }
-}
-
-message GetPlanProjectRequest {
-    required int64 project_id = 1;
-}
-
-message GetPlanProjectResponse {
-    // If set, the get the plan project
-    // Will be unset if the project_id in
-    // the request referred to a non-existing plan project.
-    optional PlanProject project = 1;
-}
-
-message DeletePlanProjectRequest {
-    required int64 project_id = 1;
-}
-
-message DeletePlanProjectResponse {
-    // If set, the deleted project_id.
-    // Will be unset if the project_id in
-    // the request referred to a non-existing plan project.
-    optional int64 project_id = 1;
-}
-
-message ScenarioChange {
-    // Specific details about the change that should be made. Can be one of many different cases.
-    oneof details {
-        TopologyAddition topology_addition = 15;
-        TopologyRemoval topology_removal = 16;
-        TopologyReplace topology_replace = 17;
-
-        SettingOverride setting_override = 21;
-        PlanChanges plan_changes = 22;
-        RISetting ri_setting = 23;
-    };
-
-    message RISetting {
-        optional common_dto.ReservedInstanceType.OfferingClass preferred_offering_class = 1;
-        optional common_dto.ReservedInstanceType.PaymentOption preferred_payment_option = 2;
-        optional int32 preferred_term = 3;
-        optional int64 purchase_date = 4;
-    }
-
-    message PlanChanges {
-        repeated IgnoreConstraint ignore_constraints = 1;
-
-        optional PolicyChange policy_change = 2;
-
-        optional UtilizationLevel utilization_level = 3;
-
-        optional MaxUtilizationLevel max_utilization_level = 6;
-
-        // User specified multiple constraints for initial placement, the logic between them is AND.
-        repeated ReservationConstraintInfo initial_placement_constraints = 4;
-
-        optional HistoricalBaseline historical_baseline = 5;
-
-        message IgnoreConstraint {
-            // Constraints can be set per group/cluster, for all entities of a specific type
-            // or for all entities in the topology.
-            oneof ignore {
-                ConstraintGroup ignore_group = 1;
-
-                IgnoreEntityTypes ignore_entity_types = 2;
-
-                bool ignore_all_entities = 3;
-            }
-        }
-
-        // ignore constraint for the specific group and commodity type.
-        message ConstraintGroup {
-            optional string commodity_type = 1;
-            optional int64 group_uuid = 2;
-        }
-
-        message IgnoreEntityTypes {
-           repeated  common_dto.EntityDTO.EntityType entityTypes = 1;
-        }
-
-        // A change to a placement policy or a new policy altogether.
-        message PolicyChange {
-            optional bool enabled = 1 [default = true];
-            oneof policy {
-                int64 policy_id = 2;
-                .group.Policy plan_only_policy = 3;
-            }
-        }
-
-        // Represents UtilizationLevel plan setting. When this setting comes from UI it has only
-        // percentage and display name which is always "Virtual machine".
-        // Since we apply this setting only for VMs we need only percentage field.
-        message UtilizationLevel {
-            required int32 percentage = 2;
-        }
-
-        // Represents the max utilization level a group of entities should support. This is used to
-        // model HA allocation in a plan.
-        // TODO: Can this be modeled as a SettingOverride instead, once we expand that message to
-        // allow scoping the override to a group?
-        message MaxUtilizationLevel {
-            required int32 percentage = 2;
-            // the group to apply this to. This is expected to be a group of hosts or storages.
-            optional int64 group_oid = 3;
-        }
-
-        // Represents baseline date selected from UI. It is used to get the used and peak values from historical data
-        // to run the plan with those values.
-        message HistoricalBaseline {
-            // It is milliseconds elapsed since epoch.
-            required int64 baseline_date = 1;
-        }
-    }
-
-    // A change to supply or demand made by cloning an entity in the topology
-    message TopologyAddition {
-        // How many days in the future to apply the change. More than one value in the list means that the change
-        // will be repeated, once at each time in the list. The list should be in ascending order and all members
-        // should be >= 0.
-        repeated int32 change_application_days = 1;
-
-        // The number of times the entity will be cloned. Should be a positive number.
-        optional int32 addition_count = 2;
-
-        // The type of the object being added.
-        oneof addition_type {
-            int64 entity_id = 16;
-            int64 template_id = 17;
-            int64 group_id = 18;
-        }
-    }
-
-    // A change to supply or demand made by removing an entity from the topology
-    message TopologyRemoval {
-        // How many days in the future to apply the change. More than one value in the list means that the change
-        // will be repeated, once at each time in the list. The list should be in ascending order and all members
-        // should be >= 0.
-        optional int32 change_application_day = 1;
-
-        // The type of the object being removed.
-        oneof removal_type {
-            int64 entity_id = 16;
-            int64 group_id = 17;
-        }
-    }
-
-    // A change to supply or demand made by cloning an entity in the topology
-    // With a replace, commodity constraints and relationships are copied from the removed entity
-    // onto the entity being added.
-    message TopologyReplace {
-        // How many days in the future to apply the change. More than one value in the list means that the change
-        // will be repeated, once at each time in the list. The list should be in ascending order and all members
-        // should be >= 0.
-        optional int32 change_application_day = 1;
-
-        // The id of the template to replace the items being removed in the change.
-        optional int64 add_template_id = 2;
-
-        // The type of the object being replaced.
-        oneof replace_type {
-            int64 remove_entity_id = 16;
-            int64 remove_group_id = 17;
-        }
-    }
-
-    // A change to set the value of some setting to some particular value.
-    message SettingOverride {
-        // The setting to override.
-        optional .setting.Setting setting = 1;
-
-        // If present, the entity type to override the setting for.
-        // This is one of the ways to narrow down setting overrides.
-        optional int32 entity_type = 2;
-        // TODO: extends this to support other ways to specify the override scope, such as for
-        // a group.
-    }
-}
-
-// The constraints user specified when running initial placement or reservation limit where
-// templates could be placed.
-message ReservationConstraintInfo {
-    // It can be the id of cluster, data center, virtual data ceneter
-    optional int64 constraint_id = 1;
-    // The type of constraint
-    optional Type type = 2;
-
-    enum Type {
-        // Cluster constraint and constraint id is cluster id
-        CLUSTER = 1;
-        // Data center constraint and constraint id is data center id
-        DATA_CENTER = 2;
-        // Virtual data center constraint and constraint id is virtual data center id
-        VIRTUAL_DATA_CENTER = 3;
-        // Placement policy constraint which means reservation entities will be part of policy
-        // consumer group.
-        POLICY = 4;
-    }
-}
-
-message ScenarioList {
-    repeated Scenario scenarios = 1;
-}
-
-message ScenarioId {
-    optional int64 scenario_id = 1;
-}
-
+import "cost/CostNotification.proto";
+import "topology/TopologyDTO.proto";
+import "plan/PlanProject.proto";
+import "plan/PlanProgressStatusEnum.proto";
+import "plan/Scenario.proto";
+
+// NB Informational (most) messages in this set of declarations are serialized in rdbms.
+// They are not modifiable, only extendable.
 message PlanInstance {
     // The plan ID. Plan ID is used as TopologyContextId.
     required int64 plan_id = 1;
 
-    //  ID of the plan input topology
-    optional int64 topology_id = 3;
+    // ID of the plan input topology
+    // This is generally the plan source topology output by the Market after performing
+    // plan market scoping (but before running actual Market analysis).
+    // In the case of plan-over-plan, this will be set to the projected_topology_id of the
+    // previous plan which this plan is using as a starting point.
+    optional int64 source_topology_id = 3;
 
-    // The scenario to be applied over existing topology befor run a plan
+    // The scenario to be applied over existing topology before running a plan
     // This is a deep-copy of the scenario at the creation time of the
     // plan instance. Subsequent changes to the scenario will not affect
     // this.
@@ -426,6 +41,9 @@ message PlanInstance {
     // TODO (roman, Jan 20 2016): This is more of an internal record, so maybe we can keep
     // track of it somewhere else.
     optional bool stats_available = 11;
+
+    // The status of the notifications received by the plan orchestrator.
+    optional PlanProgress plan_progress = 13;
 
     // The current status of the plan
     required PlanStatus status = 7;
@@ -447,6 +65,9 @@ message PlanInstance {
     // the user id that created the plan, if triggered by a human user. Will be set to "SYSTEM" if
     // the plan was created by the system.
     optional string created_by_user = 20;
+
+    // Plan name, on creation derived from Scenario.ScenarioInfo.Name
+    optional string name = 21;
 
     enum PlanStatus {
         // Plan is ready to be executed, but has not been
@@ -483,6 +104,60 @@ message PlanInstance {
     }
 }
 
+// A notification about a change to a plan, broadcast from the plan orchestrator to any components
+// that care to listen.
+message PlanStatusNotification {
+    // The plan changed status. This happens as the plan continues through its stages of execution,
+    // until it eventually reaches a terminal state (SUCCEEDED, FAILED, or STOPPED).
+    message StatusUpdate {
+        // The id of the plan with the new status.
+        required int64 plan_id = 1;
+
+        // The new status of the plan.
+        required PlanInstance.PlanStatus new_plan_status = 2;
+    }
+
+    // The plan was deleted. This can be user-triggered (clicked delete in UI) or system-triggered
+    // (e.g. plan retention period exceeded). The plan no longer exists in the plan orchestrator.
+    message PlanDeleted {
+        // The id of the plan that got deleted.
+        // Note - at the time the client receives the notification, this ID will no longer refer
+        // to an actual plan known to the plan orchestrator.
+        required int64 plan_id = 1;
+
+        // The status of the plan before it was deleted.
+        required PlanInstance.PlanStatus status_before_delete = 2;
+    }
+
+    // The type of notification.
+    oneof type {
+        // The plan changed state/status.
+        StatusUpdate update = 1;
+
+        // The plan got deleted and no longer exists.
+        PlanDeleted delete = 2;
+    }
+}
+
+// The status of the notifications received by the plan orchestrator.
+message PlanProgress {
+    // The status of the notifications received by the plan orchestrator related to cost.
+    optional Status projected_cost_status = 1 [default = UNKNOWN];
+
+    // The status of the notifications received by the plan orchestrator realted to RI Coverage.
+    optional Status projected_ri_coverage_status = 2 [default = UNKNOWN];
+
+    // The status of the market analysis run.  Re-using statuses defined in CostNotification.proto
+    optional Status analysis_status = 3 [default = UNKNOWN];
+
+    // If set, summary describing the source topology broadcast for this plan - including whether
+    // or not it failed.
+    //
+    // If unset, the source topology for this plan is still being processed in the topology
+    // processor.
+    optional .topology.TopologySummary source_topology_summary = 10;
+}
+
 // A request to create a plan.
 message CreatePlanRequest {
     //  ID of the plan input topology
@@ -505,7 +180,6 @@ message PlanScenario {
     optional int64 scenario_id = 2;
 }
 
-message Empty {}
 
 // Message that can hold plan instance, or may not.
 message OptionalPlanInstance {
@@ -518,136 +192,15 @@ message GetPlansOptions {
     // TODO: Support for pagination and filtering by user
 }
 
-// Options for looking up scenarios.
-message GetScenariosOptions {
-    // TODO: Support for pagination and filtering by user
-}
 
-message UpdateScenarioRequest {
-    required int64 scenario_id = 1;
+//Message to update the PlanInstance
+//Currently only support updating a plan's name
+message UpdatePlanRequest {
+    // ID of the plan
+    required int64 plan_id = 1;
 
-    // If set, overrides the scenario's info with
-    // this info.
-    optional ScenarioInfo new_info = 2;
-
-    // (roman, Dec 8 2016): If necessary we can provide
-    // other options to allow partial edits of the scenario
-    // info. Addition of new ScenarioChanges is easy. Deletion
-    // of ScenarioChanges is a bit more difficult.
-}
-
-message UpdateScenarioResponse {
-    // If set, the updated scenario.
-    // Will be unset if the scenario_id in
-    // the request refers to a non-existing scenario.
-    optional Scenario scenario = 1;
-}
-
-message DeleteScenarioRequest {
-    // The ID of the scenario to delete.
-    required int64 scenario_id = 1;
-}
-
-message DeleteScenarioResponse {
-}
-
-// A service responsible for CRUD operations for plan scenarios.
-// A PlanScenario contains a list, possibly empty, of ScenarioChange objects to be applied to
-// a topology prior to execution. PlanScenarios are persisted to the Plan database.
-service ScenarioService {
-
-    // Create a scenario given the information about a scenario.
-    // The newly created Scenario will be persisted to the Plan database.
-    //
-    // @returns the newly created scenario
-    rpc CreateScenario (ScenarioInfo) returns (Scenario);
-
-    // Get a scenario by its ID.
-    // Searches the scenarios persisted previously to the Plan database.
-    //
-    // @parameter ScenarioId indicates the ID of the scenario to search for.
-    // @returns the Scenario with the given ID; if not found, the scenario_info will not be set
-    rpc GetScenario(ScenarioId) returns (Scenario);
-
-    // Get scenarios from the Plan database, filtered by certain options.
-    // Currently there are no filter options, and so this call returns all the known scenarios.
-    //
-    // @parameter GetScenarioOptions options for paginating and filtering known scenarios - not impl.
-    // @returns a stream of Scenario objects that match the filters.
-    rpc GetScenarios(GetScenariosOptions) returns (stream Scenario);
-
-    // Update an existing scenario given the ID and a new ScenarioInfo.
-    // Replaces all the fields of the scenario from the new ScenarioInfo.
-    // The ScenarioInfo is persisted to the database with the same ID as before.
-    //
-    // @param UpdateScenarioRequest the ID of the scenario to be updated, and the ScenarioInfo
-    // to be stored
-    // @returns the ID of the Scenario updated if found; else the ID in the response will be unset
-    rpc UpdateScenario(UpdateScenarioRequest) returns (UpdateScenarioResponse);
-
-    // Delete an existing scenario from the Plan database.
-    // Note that, since we store the PlanInstances as blobs, we cannot check that no PlanInstance
-    // depends on the Scenario to be deleted.
-    //
-    // @param ScenarioId the unique ID of the scenario to be deleted
-    // @returns the ID of the Scenario that was deleted, if found,
-    // or the ID in the response will be unset if not found.
-    rpc DeleteScenario(ScenarioId) returns (DeleteScenarioResponse);
-}
-
-message GetAllPlanProjectsRequest {
-}
-
-message GetAllPlanProjectsResponse {
-    // The list of all plan projects.
-    repeated PlanProject projects = 1;
-}
-
-message RunPlanProjectRequest {
-    optional int64 id = 1;
-}
-
-message RunPlanProjectResponse {
-}
-
-// A service responsible for CRUD operations for plan project.
-// A plan project contains:
-// * An ID
-// * A name
-// * A list of Plan Scenarios
-// * Recurrence information - when and how often the plan project will be executed
-// Plan project will be persisted to the Plan database.
-service PlanProjectService {
-
-    // Attemp to run a specific plan project.
-    //
-    // This is currently (Dec 4 2017) for testing/demonstration purposes.
-    // If/when we make this part of the API, we'll need to implement and document
-    // the relationship between this call and the recurrence in the plan project.
-    rpc RunPlanProject(RunPlanProjectRequest) returns (RunPlanProjectResponse);
-
-    // Create a project given the information about a project.
-    // The newly created Project will be persisted to the Plan database.
-    //
-    // @returns the newly created project
-    rpc CreatePlanProject (PlanProjectInfo) returns (PlanProject);
-
-    // Get a project by its ID.
-    // Searches the plan project persisted previously to the Plan database.
-    //
-    // @parameter GetPlanProjectRequest indicates the ID of the plan project to search for.
-    // @returns the Project with the given ID; if not found, the PlanProject will not be set
-    rpc GetPlanProject(GetPlanProjectRequest) returns (GetPlanProjectResponse);
-
-    // Get all the existing plan projects.
-    rpc GetAllPlanProjects(GetAllPlanProjectsRequest) returns (GetAllPlanProjectsResponse);
-
-    // Delete an existing plan project from the Plan database.
-    //
-    // @param DeletePlanProjectRequest the unique ID of the project to be deleted
-    // @returns the ID of the Project that was deleted, if found,
-    // or the ID in the response will be unset if not found.
-    rpc DeletePlanProject(DeletePlanProjectRequest) returns (DeletePlanProjectResponse);
+    // New name of the plan
+    optional string name = 2;
 }
 
 // A service responsible for CRUD operations for plan instances.
@@ -660,6 +213,12 @@ service PlanService {
     // @param createPlanRequest indicates the source topology id and the ID of a scenario to apply
     // @throws Status.INTERNAL if either the source topology or the scenario are not found
     rpc CreatePlan (CreatePlanRequest) returns (PlanInstance);
+
+    // Update a PlanInstance and persist in DB.
+    //
+    // @param UpdatePlanRequest the plan ID to information to update
+    // @returns the updated PlanInstance
+    rpc UpdatePlan (UpdatePlanRequest) returns (PlanInstance);
 
     // Update the scenario for an existing PlanInstance and persist the result back to the database.
     // The update does not impact the plan if currently running.

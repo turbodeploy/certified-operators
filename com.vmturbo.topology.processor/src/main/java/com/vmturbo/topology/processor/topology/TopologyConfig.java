@@ -1,29 +1,36 @@
 package com.vmturbo.topology.processor.topology;
 
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-import com.vmturbo.matrix.component.external.MatrixInterface;
-import com.vmturbo.topology.processor.ncm.MatrixConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.matrix.component.external.MatrixInterface;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.topology.processor.ClockConfig;
+import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
+import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.cost.CloudCostConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.historical.HistoricalUtilizationDatabase;
+import com.vmturbo.topology.processor.history.HistoryAggregationConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
-import com.vmturbo.topology.processor.plan.PlanConfig;
+import com.vmturbo.topology.processor.ncm.MatrixConfig;
+import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.reservation.ReservationConfig;
@@ -32,8 +39,9 @@ import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.CloudPlanScopingStage;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
+import com.vmturbo.topology.processor.topology.pipeline.LivePipelineFactory;
+import com.vmturbo.topology.processor.topology.pipeline.PlanPipelineFactory;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
 import com.vmturbo.topology.processor.workflow.WorkflowConfig;
 
 /**
@@ -47,7 +55,6 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     IdentityProviderConfig.class,
     GroupConfig.class,
     StitchingConfig.class,
-    PlanConfig.class,
     RepositoryConfig.class,
     TemplateConfig.class,
     ClockConfig.class,
@@ -58,7 +65,13 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     WorkflowConfig.class,
     HistoryClientConfig.class,
     CloudCostConfig.class,
-    MatrixConfig.class
+    OperationConfig.class,
+    MatrixConfig.class,
+    HistoryAggregationConfig.class,
+    LicenseCheckClientConfig.class,
+    TopologyProcessorDBConfig.class,
+    ConsistentScalingConfig.class,
+    ActionsConfig.class
 })
 public class TopologyConfig {
 
@@ -73,9 +86,6 @@ public class TopologyConfig {
 
     @Autowired
     private GroupConfig groupConfig;
-
-    @Autowired
-    private PlanConfig planConfig;
 
     @Autowired
     private RepositoryConfig repositoryConfig;
@@ -114,23 +124,60 @@ public class TopologyConfig {
     private CloudCostConfig cloudCostConfig;
 
     @Autowired
-    private SQLDatabaseConfig sqlDatabaseConfig;
+    private TopologyProcessorDBConfig topologyProcessorDBConfig;
 
     @Autowired
     private MatrixConfig matrixConfig;
 
+    @Autowired
+    private HistoryAggregationConfig historyAggregationConfig;
+
+    @Autowired
+    private LicenseCheckClientConfig licenseCheckClientConfig;
+
+    @Autowired
+    private ConsistentScalingConfig consistentScalingConfig;
+
+    @Autowired
+    private ActionsConfig actionsConfig;
+
+    @Autowired
+    private OperationConfig operationConfig;
+
+    @Autowired
+    private PlanOrchestratorClientConfig planClientConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
+
+    @Value("${waitForBroadcastTimeoutMin:60}")
+    private long waitForBroadcastTimeoutMin;
+
+    @Value("${concurrentPlanPipelinesAllowed:1}")
+    private int concurrentPlanPipelinesAllowed;
+
+    @Value("${maxQueuedPipelinesAllowed:1000}")
+    private int maxQueuedPlanPipelinesAllowed;
+
+    @Value("${useReservationPipeline:true}")
+    private boolean useReservationPipeline;
+
+    /**
+     * How long we will wait to successfully discover targets at startup before allowing broadcasts.
+     */
+    @Value("${startupDiscovery.maxDiscoveryWaitMins:360}")
+    private long startupDiscoveryMaxDiscoveryWaitMinutes;
 
     @Bean
     public TopologyHandler topologyHandler() {
         return new TopologyHandler(realtimeTopologyContextId(),
-                topologyPipelineFactory(),
-                identityProviderConfig.identityProvider(),
-                entityConfig.entityStore(),
-                probeConfig.probeStore(),
-                targetConfig.targetStore(),
-                clockConfig.clock());
+            pipelineExecutorService(),
+            identityProviderConfig.identityProvider(),
+            probeConfig.probeStore(),
+            targetConfig.targetStore(),
+            clockConfig.clock(),
+            waitForBroadcastTimeoutMin,
+            TimeUnit.MINUTES);
     }
 
     @Bean
@@ -143,8 +190,13 @@ public class TopologyConfig {
     }
 
     @Bean
-    public CloudTopologyScopeEditor cloudTopologyScopeEditor() {
-        return new CloudTopologyScopeEditor();
+    public PlanTopologyScopeEditor planTopologyScopeEditor() {
+        return new PlanTopologyScopeEditor(groupConfig.groupServiceBlockingStub());
+    }
+
+    @Bean
+    public DemandOverriddenCommodityEditor dmandOverriddenCommodityEditor() {
+        return new DemandOverriddenCommodityEditor(groupConfig.groupServiceBlockingStub());
     }
 
     @Bean
@@ -166,22 +218,24 @@ public class TopologyConfig {
         return matrixConfig.matrixInterface();
     }
 
+    /**
+     * A bean configuration to instantiate a live pipeline factory.
+     *
+     * @return A {@link LivePipelineFactory} instance.
+     */
     @Bean
-    public TopologyPipelineFactory topologyPipelineFactory() {
-        return new TopologyPipelineFactory(apiConfig.topologyProcessorNotificationSender(),
+    public LivePipelineFactory livePipelineFactory() {
+        return new LivePipelineFactory(apiConfig.topologyProcessorNotificationSender(),
                 groupConfig.policyManager(),
                 stitchingConfig.stitchingManager(),
-                cloudTopologyScopeEditor(),
-                planConfig.discoveredTemplatesUploader(),
+                templateConfig.discoveredTemplatesUploader(),
                 groupConfig.discoveredGroupUploader(),
                 workflowConfig.discoveredWorkflowUploader(),
                 cloudCostConfig.discoveredCloudCostUploader(),
                 groupConfig.settingsManager(),
                 groupConfig.entitySettingsApplicator(),
                 environmentTypeInjector(),
-                topologyEditor(),
-                repositoryConfig.repository(),
-                groupConfig.topologyFilterFactory(),
+                groupConfig.searchResolver(),
                 groupConfig.groupServiceBlockingStub(),
                 reservationConfig.reservationManager(),
                 discoveredSettingPolicyScanner(),
@@ -191,10 +245,73 @@ public class TopologyConfig {
                 groupConfig.discoveredClusterConstraintCache(),
                 applicationCommodityKeyChanger(),
                 controllableConfig.controllableManager(),
-                commoditiesEditor(),
                 historicalEditor(),
-                matrixInterface()
+                matrixInterface(),
+                actionsConfig.cachedTopology(),
+                probeActionCapabilitiesApplicatorEditor(),
+                historyAggregationConfig.historyAggregationStage(),
+                licenseCheckClientConfig.licenseCheckClient(),
+                consistentScalingConfig.consistentScalingManager(),
+                actionsConfig.actionConstraintsUploader(),
+                actionsConfig.actionMergeSpecsUploader(),
+                requestCommodityThresholdsInjector(),
+                ephemeralEntityEditor(),
+                ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel())
         );
+    }
+
+    /**
+     * A bean configuration to instantiate a plan pipeline factory.
+     *
+     * @return A {@link PlanPipelineFactory} instance.
+     */
+    @Bean
+    public PlanPipelineFactory planPipelineFactory() {
+        return new PlanPipelineFactory(apiConfig.topologyProcessorNotificationSender(),
+                groupConfig.policyManager(),
+                stitchingConfig.stitchingManager(),
+                groupConfig.settingsManager(),
+                groupConfig.entitySettingsApplicator(),
+                environmentTypeInjector(),
+                topologyEditor(),
+                repositoryConfig.repository(),
+                groupConfig.searchResolver(),
+                groupConfig.groupServiceBlockingStub(),
+                reservationConfig.reservationManager(),
+                entityConfig.entityValidator(),
+                groupConfig.discoveredClusterConstraintCache(),
+                applicationCommodityKeyChanger(),
+                commoditiesEditor(),
+                planTopologyScopeEditor(),
+                probeActionCapabilitiesApplicatorEditor(),
+                historicalEditor(),
+                matrixInterface(),
+                actionsConfig.cachedTopology(),
+                historyAggregationConfig.historyAggregationStage(),
+                dmandOverriddenCommodityEditor(),
+                consistentScalingConfig.consistentScalingManager(),
+                requestCommodityThresholdsInjector(),
+                ephemeralEntityEditor()
+        );
+    }
+
+    /**
+     * The entrance point for triggering broadcasts.
+     *
+     * @return The {@link TopologyPipelineExecutorService}.
+     */
+    @Bean
+    public TopologyPipelineExecutorService pipelineExecutorService() {
+        return new TopologyPipelineExecutorService(concurrentPlanPipelinesAllowed,
+            maxQueuedPlanPipelinesAllowed,
+            livePipelineFactory(),
+            planPipelineFactory(),
+            entityConfig.entityStore(),
+            apiConfig.topologyProcessorNotificationSender(),
+            targetConfig.targetStore(),
+            clockConfig.clock(),
+            startupDiscoveryMaxDiscoveryWaitMinutes,
+            TimeUnit.MINUTES);
     }
 
     /**
@@ -223,11 +340,26 @@ public class TopologyConfig {
 
     @Bean
     public HistoricalUtilizationDatabase historicalUtilizationDatabase() {
-        return new HistoricalUtilizationDatabase(sqlDatabaseConfig.dsl());
+        return new HistoricalUtilizationDatabase(topologyProcessorDBConfig.dsl());
     }
 
     @Bean
     public HistoricalEditor historicalEditor() {
         return new HistoricalEditor(historicalUtilizationDatabase(), Executors.newSingleThreadExecutor());
+    }
+
+    @Bean
+    public RequestAndLimitCommodityThresholdsInjector requestCommodityThresholdsInjector() {
+        return new RequestAndLimitCommodityThresholdsInjector();
+    }
+
+    @Bean
+    public EphemeralEntityEditor ephemeralEntityEditor() {
+        return new EphemeralEntityEditor();
+    }
+
+    @Bean
+    public ProbeActionCapabilitiesApplicatorEditor probeActionCapabilitiesApplicatorEditor() {
+        return new ProbeActionCapabilitiesApplicatorEditor(targetConfig.targetStore());
     }
 }

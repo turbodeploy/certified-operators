@@ -3,12 +3,14 @@ package com.vmturbo.market.topology.conversions;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -25,10 +27,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
+import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -53,9 +56,14 @@ public class TopologyConverterGuaranteedTest {
             .setType(CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE)
             .build();
     private static Map<Long, TopologyEntityDTO> entities;
+
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
 
     private CloudCostData ccd = mock(CloudCostData.class);
+
+    private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
+    private ConsistentScalingHelperFactory consistentScalingHelperFactory =
+            mock(ConsistentScalingHelperFactory.class);
 
     /**
      * Create a topology with two VDCs, one that qualifies as guaranteed buyer and one that doesn't,
@@ -105,6 +113,12 @@ public class TopologyConverterGuaranteedTest {
         entities = Stream.of(vdc1, vdc2, dpod, pm, vm1, vm2)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList());
+        when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
+        ConsistentScalingHelper consistentScalingHelper = mock(ConsistentScalingHelper.class);
+        when(consistentScalingHelper.getScalingGroupId(any())).thenReturn(Optional.empty());
+        when(consistentScalingHelper.getScalingGroupUsage(any())).thenReturn(Optional.empty());
+        when(consistentScalingHelperFactory.newConsistentScalingHelper(any(), any()))
+            .thenReturn(consistentScalingHelper);
     }
 
     /**
@@ -114,10 +128,11 @@ public class TopologyConverterGuaranteedTest {
     public void testExcludeVDCs() {
         // includeVDC is false
         TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd, CommodityIndex.newFactory());
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd,
+                CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
         Set<TraderTO> traders = converter.convertToMarket(entities);
-        // VDCs are skipped, VMs in maintenance and unknown state are skipped
-        assertEquals(1, traders.size());
+        // VDCs are skipped, VMs in maintenance and unknown state are not skipped for trader creation
+        assertEquals(3, traders.size());
         List<Long> traderOids = traders.stream().map(TraderTO::getOid).collect(Collectors.toList());
         assertFalse(traderOids.contains(DPOD_OID));
         assertTrue(traderOids.contains(HOST_OID));
@@ -135,10 +150,11 @@ public class TopologyConverterGuaranteedTest {
     public void testIncludeVDCs() {
         TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, ccd, CommodityIndex.newFactory());
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory);
         Set<TraderTO> traders = converter.convertToMarket(entities);
-        assertEquals(4, traders.size());
+        assertEquals(6, traders.size());
         List<Long> guaranteedBuyers = traders.stream()
             .filter(trader ->  trader.getSettings().getGuaranteedBuyer())
             .map(TraderTO::getOid).collect(Collectors.toList());

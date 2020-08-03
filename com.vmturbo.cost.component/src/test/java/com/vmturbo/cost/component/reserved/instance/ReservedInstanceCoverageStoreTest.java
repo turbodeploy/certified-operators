@@ -3,47 +3,56 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageLatestRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class ReservedInstanceCoverageStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private final static double DELTA = 0.000001;
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
-
-    private Flyway flyway;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private ReservedInstanceCoverageStore reservedInstanceCoverageStore;
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
-    private DSLContext dsl;
+    private PriceTableStore priceTableStore;
+
+    private ReservedInstanceSpecStore reservedInstanceSpecStore;
+
+    private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
 
     private final ServiceEntityReservedInstanceCoverageRecord firstEntity =
             ServiceEntityReservedInstanceCoverageRecord.newBuilder()
@@ -75,18 +84,11 @@ public class ReservedInstanceCoverageStoreTest {
 
     @Before
     public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
+        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
+        reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
         reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0));
+                new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore);
         reservedInstanceCoverageStore = new ReservedInstanceCoverageStore(dsl);
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     @Test
@@ -120,10 +122,20 @@ public class ReservedInstanceCoverageStoreTest {
     public void testGetReservedInstanceCoverageStatsRecords() {
         reservedInstanceCoverageStore.updateReservedInstanceCoverageStore(dsl,
                 Arrays.asList(firstEntity, secondEntity, thirdEntity));
-        final ReservedInstanceCoverageFilter filer = ReservedInstanceCoverageFilter.newBuilder().build();
+        List<Long> ids = new ArrayList<>();
+        ids.add(123L);
+        ids.add(124L);
+        ids.add(125L);
+        final ReservedInstanceCoverageFilter filter = ReservedInstanceCoverageFilter
+                .newBuilder()
+                .timeFrame(TimeFrame.LATEST)
+                .entityFilter(EntityFilter.newBuilder()
+                        .addAllEntityId(ids)
+                        .build())
+                .build();
         final List<ReservedInstanceStatsRecord> riStatsRecords =
-                reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(filer);
-        assertEquals(1L, riStatsRecords.size());
+                reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(filter);
+        assertEquals(1, riStatsRecords.size());
         final ReservedInstanceStatsRecord riStatsRecord = riStatsRecords.get(0);
         assertEquals(200L, riStatsRecord.getCapacity().getMax(), DELTA);
         assertEquals(50L, riStatsRecord.getCapacity().getMin(), DELTA);
@@ -131,5 +143,11 @@ public class ReservedInstanceCoverageStoreTest {
         assertEquals(30L, riStatsRecord.getValues().getMax(), DELTA);
         assertEquals(10L, riStatsRecord.getValues().getMin(), DELTA);
         assertEquals(60L, riStatsRecord.getValues().getTotal(), DELTA);
+
+        final Collection<ReservedInstanceStatsRecord> riLatestStatsRecords =
+                reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(filter);
+        assertEquals(1, riLatestStatsRecords.size());
     }
+
+
 }

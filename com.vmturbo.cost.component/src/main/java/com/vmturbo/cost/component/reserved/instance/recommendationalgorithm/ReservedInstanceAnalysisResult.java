@@ -8,7 +8,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
 
 import javax.annotation.Nonnull;
 
@@ -16,15 +17,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
-import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore.BuyReservedInstanceInfo;
 
 /**
  * The results of the reserved instance recommendation algorithms: a set of recommended actions, plus
@@ -36,6 +36,8 @@ public class ReservedInstanceAnalysisResult {
 
     // Buy RI store
     private final BuyReservedInstanceStore buyRiStore;
+
+    private final ActionContextRIBuyStore actionContextRIBuyStore;
 
     /**
      * This class describes the context of the recommended actions, to aid in understanding the
@@ -53,8 +55,9 @@ public class ReservedInstanceAnalysisResult {
         private final ReservedInstanceAnalysisScope analysisScope;
 
         // The  constraints specifying what kind of reservations may be purchased, eg
-        // the user wants standard 1-year all up front reservations.
-        private final ReservedInstancePurchaseConstraints purchaseConstraints;
+        // the user wants standard 1-year all up front reservations. The constraints are
+        // mapped to the service provider display name.
+        private final Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints;
 
         // Id of the topology on which the analysis was run.
         private final long topologyContextId;
@@ -67,7 +70,7 @@ public class ReservedInstanceAnalysisResult {
         public Manifest(long analysisStartTime,
                         long analysisCompletionTime,
                         @Nonnull ReservedInstanceAnalysisScope analysisScope,
-                        @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
+                        @Nonnull Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints,
                         long topologyContextId,
                         int contextsAnalyzed) {
             this.analysisStartTime = analysisStartTime;
@@ -92,7 +95,7 @@ public class ReservedInstanceAnalysisResult {
         }
 
         @Nonnull
-        public ReservedInstancePurchaseConstraints getPurchaseConstraints() {
+        public Map<String, ReservedInstancePurchaseConstraints> getPurchaseConstraints() {
             return purchaseConstraints;
         }
 
@@ -110,13 +113,14 @@ public class ReservedInstanceAnalysisResult {
     private final ImmutableList<ReservedInstanceAnalysisRecommendation> recommendations;
 
     public ReservedInstanceAnalysisResult(@Nonnull ReservedInstanceAnalysisScope analysisScope,
-                          @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
+                          @Nonnull Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints,
                           @Nonnull List<ReservedInstanceAnalysisRecommendation> recommendations,
                           long topologyId,
                           long analysisStartTime,
                           long analysisCompletionTime,
                           int contextsAnalyzed,
-                          @Nonnull BuyReservedInstanceStore buyRiStore) {
+                          @Nonnull BuyReservedInstanceStore buyRiStore,
+                          @Nonnull ActionContextRIBuyStore actionContextRIBuyStore) {
 
         Objects.requireNonNull(analysisScope);
         Objects.requireNonNull(purchaseConstraints);
@@ -125,6 +129,7 @@ public class ReservedInstanceAnalysisResult {
                 purchaseConstraints, topologyId, contextsAnalyzed);
         this.recommendations = ImmutableList.copyOf(recommendations);
         this.buyRiStore = buyRiStore;
+        this.actionContextRIBuyStore = actionContextRIBuyStore;
     }
 
     @Nonnull
@@ -187,9 +192,14 @@ public class ReservedInstanceAnalysisResult {
     public ActionPlan createActionPlan() {
 
         List<Action> actions = new ArrayList<>();
+        Map<Action, ReservedInstanceAnalysisRecommendation> actionToRecommendationMapping = new HashMap<>();
         for (ReservedInstanceAnalysisRecommendation recommendation : recommendations) {
-            actions.add(recommendation.createAction());
+            final Action action = recommendation.createAction();
+            actionToRecommendationMapping.put(action, recommendation);
+            actions.add(action);
         }
+
+        insertActionsIntoContextTable(actionToRecommendationMapping);
 
         return ActionPlan.newBuilder()
             .setId(IdentityGenerator.next())
@@ -204,13 +214,19 @@ public class ReservedInstanceAnalysisResult {
 
     /**
      * Creates RI Bought from the RI recommendations.
+     * Also insert RI Buy recommendations into action_context_ri_buy table.
      */
     public void persistResults() {
-        // We create BuyReservedInstanceInfos from the recommendations and then persist them in the store.
-        Set<BuyReservedInstanceInfo> buyRiInfos = Sets.newHashSet();
-        for (ReservedInstanceAnalysisRecommendation recommendation : recommendations) {
-            buyRiInfos.add(recommendation.createBuyRiInfo(manifest.getTopologyContextId()));
-        }
-        buyRiStore.udpateBuyReservedInstances(buyRiInfos);
+        buyRiStore.updateBuyReservedInstances(recommendations, manifest.getTopologyContextId());
+
+    }
+
+    /**
+     * Insert actions into action context ri buy table
+     * @param actionToRecommendationMapping
+     */
+    public void insertActionsIntoContextTable(Map<Action, ReservedInstanceAnalysisRecommendation> actionToRecommendationMapping) {
+        actionContextRIBuyStore.insertIntoActionContextRIBuy(actionToRecommendationMapping,
+                manifest.getTopologyContextId());
     }
 }

@@ -19,16 +19,17 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.SourceTopologyCreator;
-import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
 /**
@@ -45,35 +46,37 @@ public class TopologyEntitiesListenerExceptionTest {
     private GraphDatabaseDriver graphDatabaseBuilder;
 
     @Mock
-    private TopologyRelationshipRecorder globalSupplyChainRecorder;
-
-    @Mock
     private TopologyLifecycleManager topologyManager;
 
     @Mock
-    private SourceTopologyCreator topologyCreator;
+    private TopologyCreator<TopologyEntityDTO> topologyCreator;
 
     private final long realtimeTopologyContextId = 77L;
 
     @Mock
-    private RemoteIterator<TopologyEntityDTO> entityIterator;
+    private RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator;
 
     @Mock
     private RepositoryNotificationSender notificationSender;
 
-    private final TopologyEntityDTO vmDTO;
-    private final TopologyEntityDTO pmDTO;
+    @Mock
+    private LiveTopologyStore liveTopologyStore;
+
+    private final TopologyDTO.Topology.DataSegment vmDTO;
+    private final TopologyDTO.Topology.DataSegment pmDTO;
 
     public TopologyEntitiesListenerExceptionTest() throws IOException {
-        vmDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
-        pmDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json");
+        TopologyEntityDTO vmDTOE = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
+        TopologyEntityDTO pmDTOE = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json");
+        vmDTO = TopologyDTO.Topology.DataSegment.newBuilder().setEntity(vmDTOE).build();
+        pmDTO = TopologyDTO.Topology.DataSegment.newBuilder().setEntity(pmDTOE).build();
     }
 
     @Before
     public void setUp() throws Exception {
         topologyEntitiesListener = new TopologyEntitiesListener(
                 topologyManager,
-                globalSupplyChainRecorder,
+                liveTopologyStore,
                 notificationSender);
 
         // Simulates one chunk and then an exception
@@ -89,22 +92,20 @@ public class TopologyEntitiesListenerExceptionTest {
         final long creationTime = 33333L;
         final TopologyID tid = new TopologyID(topologyContextId, topologyId,
                 TopologyID.TopologyType.SOURCE);
+        final TopologyInfo tInfo = TopologyInfo.newBuilder()
+            .setTopologyContextId(topologyContextId)
+            .setTopologyId(topologyId)
+            .setCreationTime(creationTime)
+            .build();
 
-        when(topologyManager.newSourceTopologyCreator(eq(tid))).thenReturn(topologyCreator);
+        when(topologyManager.newSourceTopologyCreator(eq(tid), eq(tInfo))).thenReturn(topologyCreator);
 
-        topologyEntitiesListener.onTopologyNotification(
-                TopologyInfo.newBuilder()
-                        .setTopologyContextId(topologyContextId)
-                        .setTopologyId(topologyId)
-                        .setCreationTime(creationTime)
-                        .build(),
-                entityIterator);
+        topologyEntitiesListener.onTopologyNotification(tInfo, entityIterator);
 
         verify(topologyCreator).initialize();
         verify(topologyCreator, never()).complete();
         verify(topologyCreator, times(1)).rollback();
         verify(topologyCreator, times(1)).addEntities(any());
-        verify(globalSupplyChainRecorder, never()).setGlobalSupplyChainProviderRels(any());
         verify(notificationSender, never()).onSourceTopologyAvailable(anyLong(), anyLong());
         verify(notificationSender).onSourceTopologyFailure(anyLong(), anyLong(), anyString());
     }

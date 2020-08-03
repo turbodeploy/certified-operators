@@ -8,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -17,10 +15,12 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value;
 
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore.MatchedActionGroups;
+import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore.QueryResult;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
@@ -32,8 +32,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats.ActionStatSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**
@@ -93,7 +93,7 @@ public class HistoricalActionStatReader {
         }
 
         final Optional<QueryResult> mgmtUnitSubgroupResult =
-            mgmtUnitSubgroupStore.query(actionCountsQuery.getMgmtUnitSubgroupFilter());
+            mgmtUnitSubgroupStore.query(actionCountsQuery.getMgmtUnitSubgroupFilter(), actionCountsQuery.getGroupBy());
         // We don't support querying "all" management units, so if there is no result
         // there will be no stats. There may be no result - for example, if the
         // stats for the management unit haven't been saved yet.
@@ -103,7 +103,7 @@ public class HistoricalActionStatReader {
         }
 
         final Optional<Long> targetMgmtUnit = mgmtUnitSubgroupResult.get().mgmtUnit();
-        final Set<Integer> targetMgmtUnitSubgroups = mgmtUnitSubgroupResult.get().mgmtUnitSubgroups();
+        final Map<Integer, MgmtUnitSubgroup> targetMgmtUnitSubgroups = mgmtUnitSubgroupResult.get().mgmtUnitSubgroups();
 
         // Find action groups after finding the mgmt unit, so that we don't issue a query
         // if there is no target mgmt unit.
@@ -123,7 +123,7 @@ public class HistoricalActionStatReader {
 
         final List<QueryResultsFromSnapshot> queryResultsFromSnapshots =
             targetTableReader.query(actionCountsQuery.getTimeRange(),
-                targetMgmtUnitSubgroups,
+                targetMgmtUnitSubgroups.keySet(),
                 applicableAgIds.get());
 
         final ActionStats.Builder retStatsBuilder = ActionStats.newBuilder();
@@ -134,7 +134,9 @@ public class HistoricalActionStatReader {
                 .setTime(queryResult.time().toInstant(ZoneOffset.UTC).toEpochMilli());
             final CombinedStatsBuckets buckets =
                 statsBucketsFactory.arrangeIntoBuckets(actionCountsQuery.getGroupBy(),
-                    queryResult.numActionSnapshots(), queryResult.statsByGroupAndMu());
+                    queryResult.numActionSnapshots(),
+                    queryResult.statsByGroupAndMu(),
+                    targetMgmtUnitSubgroups);
 
             buckets.toActionStats().forEach(thisTimeSnapshot::addStats);
 
@@ -179,64 +181,100 @@ public class HistoricalActionStatReader {
          *                into buckets. For example, if the criteria is "CATEGORY" then all
          *                action groups that share the same category will be combined into a single
          *                bucket.
+         * @param numSnapshots The number of snapshots that the stats were aggregated across.
          * @param statsByGroupAndMu The {@link RolledUpActionGroupStat}s, arranged by their action group
          *                          and management unit subgroup.
+         * @param muById The {@link MgmtUnitSubgroup}s, arranged by id.
          * @return {@link CombinedStatsBuckets}, with one bucket for each distinct grouping
          *          criteria value (i.e. the stat values of all action groups that share the same
          *          grouping criteria will be combined into a single value). If the grouping
          *          criteria is "NONE", all stats will be combined into a single bucket.
          */
         @Nonnull
-        CombinedStatsBuckets arrangeIntoBuckets(@Nonnull final GroupBy groupBy,
-                final int numSnapshots,
-                @Nonnull final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroupAndMu);
+        CombinedStatsBuckets arrangeIntoBuckets(@Nonnull GroupBy groupBy,
+                int numSnapshots,
+                @Nonnull Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroupAndMu,
+                @Nonnull Map<Integer, MgmtUnitSubgroup> muById);
 
         /**
          * The default implementation of {@link CombinedStatsBucketsFactory}.
          */
         class DefaultBucketsFactory implements CombinedStatsBucketsFactory {
 
-            /**
-             * {@inheritDoc}
-             */
             @Override
+            @Nonnull
             public CombinedStatsBuckets arrangeIntoBuckets(@Nonnull final GroupBy groupBy,
                     final int numSnapshots,
-                    @Nonnull final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroupAndMu) {
+                    @Nonnull final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroupAndMu,
+                    @Nonnull final Map<Integer, MgmtUnitSubgroup> muById) {
                 final CombinedStatsBuckets buckets = new CombinedStatsBuckets();
                 switch (groupBy) {
                     case NONE: {
-                        // Everything gets aggregated into a single ActionStat.
-                        buckets.createBucket(statsByGroupAndMu.keySet(),
-                            numSnapshots,
-                            ActionDTO.ActionStat::newBuilder);
+                        // Everything goes into a single bucket.
+                        final GroupByBucketKey bucketKey = ImmutableGroupByBucketKey.builder().build();
+                        buckets.addStatsForGroup(bucketKey, numSnapshots, statsByGroupAndMu.values().stream()
+                            .flatMap(statsByMu -> statsByMu.values().stream()));
                         break;
                     }
                     case ACTION_STATE:
-                        final Map<ActionState, List<ActionGroup>> groupsByState = statsByGroupAndMu.keySet().stream()
-                            .collect(Collectors.groupingBy(ag -> ag.key().getActionState()));
-                        groupsByState.forEach((state, groupsForState) -> {
-                            buckets.createBucket(groupsForState, numSnapshots,
-                                () -> ActionDTO.ActionStat.newBuilder().setActionState(state));
+                        final Map<ActionState, List<Collection<RolledUpActionGroupStat>>> statsByState =
+                            statsByGroupAndMu.entrySet().stream()
+                                .collect(Collectors.groupingBy(ag -> ag.getKey().key().getActionState(),
+                                    Collectors.mapping(e -> e.getValue().values(), Collectors.toList())));
+                        statsByState.forEach((distinctState, statsForAllMu) -> {
+                            final GroupByBucketKey bucketKey = ImmutableGroupByBucketKey.builder()
+                                .state(distinctState)
+                                .build();
+                            buckets.addStatsForGroup(bucketKey, numSnapshots, statsForAllMu.stream()
+                                .flatMap(Collection::stream));
                         });
                         break;
                     case ACTION_CATEGORY:
-                        final Map<ActionCategory, List<ActionGroup>> groupsByCat = statsByGroupAndMu.keySet().stream()
-                            .collect(Collectors.groupingBy(ag -> ag.key().getCategory()));
-                        groupsByCat.forEach((category, groupsForCat) -> {
-                            buckets.createBucket(groupsForCat, numSnapshots,
-                                () -> ActionDTO.ActionStat.newBuilder().setActionCategory(category));
+                        final Map<ActionCategory, List<Collection<RolledUpActionGroupStat>>> statsByCat =
+                            statsByGroupAndMu.entrySet().stream()
+                                .collect(Collectors.groupingBy(ag -> ag.getKey().key().getCategory(),
+                                    Collectors.mapping(e -> e.getValue().values(), Collectors.toList())));
+                        statsByCat.forEach((distinctCategory, statsForAllMu) -> {
+                            final GroupByBucketKey bucketKey = ImmutableGroupByBucketKey.builder()
+                                .category(distinctCategory)
+                                .build();
+                            buckets.addStatsForGroup(bucketKey, numSnapshots, statsForAllMu.stream()
+                                .flatMap(Collection::stream));
+                        });
+                        break;
+                    case BUSINESS_ACCOUNT_ID:
+                        final Map<Long, List<RolledUpActionGroupStat>> statsByBusinessAccount = new HashMap<>();
+                        statsByGroupAndMu.forEach((group, statsByMu) -> {
+                            statsByMu.forEach((muId, stats) -> {
+                                final MgmtUnitSubgroup mu = muById.get(muId);
+                                if (mu != null && mu.key().mgmtUnitType() == ManagementUnitType.BUSINESS_ACCOUNT) {
+                                    statsByBusinessAccount.computeIfAbsent(mu.key().mgmtUnitId(), k -> new ArrayList<>())
+                                        .add(stats);
+                                } else if (mu != null) {
+                                    // This shouldn't happen, unless we found the wrong mgmt unit types
+                                    // upstream.
+                                    logger.warn("Unexpected management unit subgroup {} when grouping by business account." +
+                                        " Expected all relevant management subgroups to have type {}.",
+                                        mu, ManagementUnitType.BUSINESS_ACCOUNT);
+                                } else {
+                                    // This shouldn't happen, because the management units in the
+                                    // full query response should be a subset of the management units
+                                    // in the initial "mgmt unit subgroup" search.
+                                    logger.warn("Management unit {} missing from index.", muId);
+                                }
+                            });
+                        });
+                        statsByBusinessAccount.forEach((distinctAccountId, stats) -> {
+                            final GroupByBucketKey bucketKey = ImmutableGroupByBucketKey.builder()
+                                .businessAccountId(distinctAccountId)
+                                .build();
+                            buckets.addStatsForGroup(bucketKey, numSnapshots, stats.stream());
                         });
                         break;
                     default:
                         logger.error("Unhandled split by: {}", groupBy);
                 }
 
-                statsByGroupAndMu.forEach((actionGroup, statsByMuId) -> {
-                    statsByMuId.values().forEach(stat -> {
-                        buckets.addStatsForGroup(actionGroup, stat);
-                    });
-                });
                 return buckets;
             }
         }
@@ -247,29 +285,19 @@ public class HistoricalActionStatReader {
      * share a particular criteria.
      */
     static class CombinedStatsBuckets {
-        private final Map<ActionGroup, CombinedStatsBucket> bucketForGroup = new HashMap<>();
-
-        private final List<CombinedStatsBucket> buckets = new ArrayList<>();
+        private final Map<GroupByBucketKey, CombinedStatsBucket> bucketsByKey = new HashMap<>();
 
         /**
          * Use {@link CombinedStatsBucketsFactory}.
          */
         private CombinedStatsBuckets() {}
 
-        private void createBucket(@Nonnull final Collection<ActionGroup> bucketGroups,
-                                 final int numSnapshots,
-                                 @Nonnull final Supplier<ActionDTO.ActionStat.Builder> statBuilderFactory) {
-            final CombinedStatsBucket bucket = new CombinedStatsBucket(numSnapshots, statBuilderFactory);
-            bucketGroups.forEach(group -> bucketForGroup.put(group, bucket));
-            buckets.add(bucket);
-        }
-
-        private void addStatsForGroup(@Nonnull final ActionGroup group,
-                                     @Nonnull final RolledUpActionGroupStat statsForGroup) {
-            final CombinedStatsBucket bucket = bucketForGroup.get(group);
-            if (bucket != null) {
-                bucket.add(statsForGroup);
-            }
+        private void addStatsForGroup(@Nonnull final GroupByBucketKey bucketKey,
+                                     final int numSnapshots,
+                                     @Nonnull final Stream<RolledUpActionGroupStat> statsForGroup) {
+            final CombinedStatsBucket bucket = bucketsByKey.computeIfAbsent(bucketKey,
+                k -> new CombinedStatsBucket(numSnapshots, bucketKey.toStatGroup()));
+            statsForGroup.forEach(bucket::add);
         }
 
         /**
@@ -277,14 +305,16 @@ public class HistoricalActionStatReader {
          */
         @Nonnull
         Stream<ActionDTO.ActionStat> toActionStats() {
-            return buckets.stream()
+            return bucketsByKey.values().stream()
                 .map(CombinedStatsBucket::toStat);
         }
 
         private static class CombinedStatsBucket {
-            private final Supplier<ActionDTO.ActionStat.Builder> statBuilderFactory;
+            private final ActionDTO.ActionStat.StatGroup statGroup;
 
             private int numSnapshots;
+
+            private int       totalActionCount = 0;
 
             private int       avgActionCount = 0;
             private int       minActionCount = 0;
@@ -303,12 +333,16 @@ public class HistoricalActionStatReader {
             private double    maxInvestment = 0;
 
             CombinedStatsBucket(final int numSnapshots,
-                                @Nonnull final Supplier<ActionDTO.ActionStat.Builder> statBuilderFactory) {
+                                @Nonnull final ActionDTO.ActionStat.StatGroup statGroup) {
                 this.numSnapshots = numSnapshots;
-                this.statBuilderFactory = Objects.requireNonNull(statBuilderFactory);
+                this.statGroup = Objects.requireNonNull(statGroup);
             }
 
             public void add(@Nonnull final RolledUpActionGroupStat statsForGroup) {
+
+                totalActionCount += statsForGroup.newActionCount() +
+                    statsForGroup.priorActionCount();
+
                 avgActionCount += statsForGroup.avgActionCount();
                 minActionCount += statsForGroup.minActionCount();
                 maxActionCount += statsForGroup.maxActionCount();
@@ -328,13 +362,14 @@ public class HistoricalActionStatReader {
 
             @Nonnull
             ActionDTO.ActionStat toStat() {
-                final ActionDTO.ActionStat.Builder statBuilder = statBuilderFactory.get();
+                final ActionDTO.ActionStat.Builder statBuilder = ActionDTO.ActionStat.newBuilder()
+                    .setStatGroup(statGroup);
                 if (maxActionCount > 0) {
                     statBuilder.setActionCount(ActionDTO.ActionStat.Value.newBuilder()
                         .setAvg(avgActionCount)
                         .setMin(minActionCount)
                         .setMax(maxActionCount)
-                        .setTotal(avgActionCount * numSnapshots));
+                        .setTotal(totalActionCount));
                 }
                 if (maxEntityCount > 0) {
                     statBuilder.setEntityCount(ActionDTO.ActionStat.Value.newBuilder()
@@ -359,6 +394,47 @@ public class HistoricalActionStatReader {
                 }
                 return statBuilder.build();
             }
+        }
+    }
+
+    /**
+     * Identifies the "key" of a bucket used to group action stats.
+     * The "key" is the unique combination of bucket identifiers.
+     */
+    @Value.Immutable
+    public interface GroupByBucketKey {
+        /**
+         * The {@link ActionState} for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the state.
+         */
+        Optional<ActionState> state();
+
+        /**
+         * The {@link ActionCategory} for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the category.
+         */
+        Optional<ActionCategory> category();
+
+        /**
+         * The business account associated with the actions in this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the business account.
+         */
+        Optional<Long> businessAccountId();
+
+        /**
+         * Convert to a protobuf stat group that can be returned to gRPC users.
+         *
+         * @return The {@link ActionDTO.ActionStat.StatGroup}.
+         */
+        default ActionDTO.ActionStat.StatGroup toStatGroup() {
+            ActionDTO.ActionStat.StatGroup.Builder bldr = ActionDTO.ActionStat.StatGroup.newBuilder();
+            state().ifPresent(bldr::setActionState);
+            category().ifPresent(bldr::setActionCategory);
+            businessAccountId().ifPresent(bldr::setBusinessAccountId);
+            return bldr.build();
         }
     }
 

@@ -5,25 +5,23 @@ import java.util.zip.ZipOutputStream;
 
 import javax.servlet.http.HttpServletResponse;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 
 /**
@@ -35,6 +33,7 @@ import com.vmturbo.components.common.health.CompositeHealthMonitor;
 @RequestMapping(path = "/",
         produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
 public class ComponentController {
+    private static final Logger logger = LogManager.getLogger();
 
     public static final String HEALTH_PATH = "/health";
 
@@ -93,39 +92,6 @@ public class ComponentController {
     }
 
     /**
-     * Initiate a state change, moving from the current state to a target {@link ExecutionStatus}. This state transition
-     * is asynchronous. As such, the current state as returned from this request may not be equal to the new state.
-     *
-     * @param newState the target state to initiate a transition to; this transition is asynchronous
-     * @return the current state after the transition, which may not (yet) be equal to the requested target state
-     */
-    @RequestMapping(path = "/state",
-            method = RequestMethod.PUT,
-            consumes = {MediaType.TEXT_PLAIN_VALUE},
-            produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
-    @ApiOperation("Initiate a state change, moving from the current state to a target " +
-            "ExecutionStatus. This state transition is asynchronous. " +
-            "As such, the current state as returned from this request may not be equal to the new state.")
-    @ResponseBody
-    public String putComponentStatus(@RequestBody String newState) {
-        switch (ExecutionStatus.valueOf(newState)) {
-            case STARTING:
-                theComponent.startComponent();
-                break;
-            case STOPPING:
-                theComponent.stopComponent();
-                break;
-            case PAUSED:
-                theComponent.pauseComponent();
-                break;
-            case RUNNING:
-                theComponent.resumeComponent();
-                break;
-        }
-        return theComponent.getComponentStatus().toString();
-    }
-
-    /**
      * Fetch the diagnostic information for this component, packed into a .zip file.
      * Set the response type to indicate that this is a .zip file. The output is streamed
      * directly onto the OutputStream for the HTTPServletResponse.
@@ -145,7 +111,10 @@ public class ComponentController {
         } catch (IOException e) {
             throw new RuntimeException("Error accessing the servlet response output stream", e);
         }
-        theComponent.dumpDiags(diagnosticZip);
+        try {
+            theComponent.dumpDiags(diagnosticZip);
+        } catch (DiagnosticsException e) {
+            throw new RuntimeException("Error dumping diagnostics", e);
+        }
     }
-
 }

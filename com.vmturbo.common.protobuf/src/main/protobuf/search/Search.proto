@@ -7,6 +7,28 @@ import "common/EnvironmentTypeEnum.proto";
 import "common/Pagination.proto";
 import "topology/TopologyDTO.proto";
 import "tag/Tag.proto";
+import "CommonDTO.proto";
+
+enum LogicalOperator {
+    AND = 1;
+    OR = 2;
+    XOR = 3;
+}
+
+// A query contains a list of search parameters (which outline the subqueries to perform), and an
+// operator that's used to combine the subquery results.
+message SearchQuery {
+
+    // The set of search criteria in this query.
+    //
+    // WARNING - this field is persisted with group definitions. Do not change the type or index.
+    repeated SearchParameters search_parameters = 1;
+
+    // Specifies how to combine the search parameters.
+    //
+    // WARNING - this field is persisted with group definitions. Do not change the type or index.
+    optional LogicalOperator logical_operator = 2 [default = AND];
+}
 
 // A search definition that needs to be performed on a topology, represented as a DAG.
 message SearchParameters {
@@ -39,14 +61,12 @@ message SearchFilter {
     // There are 3 types of filters.
     // - traversal filter: used to traverse graph relationship
     // - property filter: used to specify specific criteria on properties of the element
-    // - cluster membership filter: this is a special-case filter that will target members of
-    // a cluster or set of clusters. This means storages or pm's. When you combine cluster filters
-    // with other filter types, take care to ensure that the input to cluster filters
-    // are storages or pm's, or you may get unexpected results (probably no results at all!).
+    // - group filter: this is a special-case filter that will target members of
+    // a group/set of groups or owners of groups
     oneof filterType {
         TraversalFilter traversal_filter = 1;
         PropertyFilter property_filter = 2;
-        ClusterMembershipFilter cluster_membership_filter = 3;
+        GroupFilter group_filter = 3;
     }
 }
 
@@ -102,8 +122,28 @@ message TraversalFilter {
         // BusinessAccount ---- ConnectedTo   ---> VirtualMachine
         // VirtualMachine  <--- ConnectedFrom ---- BusinessAccount
         // where ConnectedFrom is the opposite direction (on the same edge) of ConnectedTo
+        // This case includes all connections, i.e, normal, aggregation, and ownership.
+        // Owners and aggregators are "connected to" owned and aggregated entities, resp.
+        // Owned and aggregated entities are "connected from" owners and aggregators, resp.
         CONNECTED_TO = 2;
         CONNECTED_FROM = 3;
+        // BusinessAccount ---- Owns   ---> VirtualMachine
+        // VirtualMachine  <--- Owned by ---- BusinessAccount
+        // Zone ---- Aggregates   ---> VirtualMachine
+        // VirtualMachine  <--- Aggregated by ---- Zone
+        // This filter accepts aggregations and ownerships, but not other connections.
+        AGGREGATES = 4;
+        AGGREGATED_BY = 5;
+        // BusinessAccount ---- Owns   ---> VirtualMachine
+        // VirtualMachine  <--- Owned by ---- BusinessAccount
+        // This filter accepts only ownerships.
+        OWNS = 6;
+        OWNED_BY = 7;
+        // WorkloadController ---- Controls   ---> VirtualMachine/Container/Pod
+        // VirtualMachine/Container/Pod  <--- Controlled by ---- WorkloadController
+        // This filter accepts only controls connection.
+        CONTROLS = 8;
+        CONTROLLED_BY = 9;
     }
 }
 
@@ -132,17 +172,20 @@ message PropertyFilter {
     message StringFilter {
         // Regular expression to be matched used against the property'sGroupMapper value
         // (use (1) of the filter).
+        // If set, takes precedence over "options."
         optional string string_property_regex = 1;
+
+        // List of strings: the string-valued property must be contained here
+        // (use (2) of the filter)
+        // Ignored if string_property_regex is set.
+        // If empty, none match.
+        repeated string options = 4;
 
         // If false, then negate the result
         optional bool positive_match = 2 [default = true];
 
         // If true, the case of the letters should match
         optional bool case_sensitive = 3 [default = false];
-
-        // List of strings: the string-valued property must be contained here
-        // (use (2) of the filter)
-        repeated string options = 4;
     }
 
     message NumericFilter {
@@ -153,27 +196,33 @@ message PropertyFilter {
         optional int64 value = 2;
     }
 
-    // This is a filter for properties whose value is a map from strings to strings.
-    // Key matching is exact string matching.
-    // Value matching can be either exact string matching or regex matching.
-    // Value matching can also be negated.
+    // This is a filter for properties whose value is a map from strings to strings
+    // (for example, tags).
+    // Three kinds of matching are supported:
+    // 1. given a key and a set of values an entity matches if and only if it has
+    //    an entry with that key and one of the values. The string matching of both
+    //    key and value is exact (no regex matching)
+    // 2. given a regex, an entity matches if it has an entry with key k and value v
+    //    such that k=v match that regex
+    // 3. given a key and a regex, a key matches if it has an entry with key k
+    //    and value that matches that regex
+    // A map that negates the result of the match is also supported
     message MapFilter {
-        // String checked against the tag key
-        // The value in this field must much one of the tag keys of the entity
+        // If non-empty, string checked against the entry key (cases 1 and 3)
         optional string key = 1;
 
-        // Strings checked against the tag value
-        // one of the strings in this field must match
-        // one of the tag values of the entity exactly
-        // If empty, this field is ignored
+        // If non-empty, strings checked against the entry value(s) (case 2)
         repeated string values = 2;
 
         // True iff this is a multimap (multiple values per key are possible)
+        // For tags searching, this flag should be set to true
         optional bool is_multimap = 3 [default = true];
 
-        // If non-empty, it is a regex that values are mapped against.
-        // If non-empty, then field "values" should be empty.
-        // If empty, then it is ignored.
+        // If non-empty and key is not empty, then match entry value(s)
+        // against this regex (case 3)
+        // If non-empty and key is empty, then for every entry (key;value)
+        // match string key=value against this regex (case 2)
+        // If empty, then it is ignored
         optional string regex = 4;
 
         // If false, then negate the result
@@ -210,22 +259,35 @@ message PropertyFilter {
     }
 }
 
-// used to check if entities are part of a cluster.
+// Used to check if entities are part of a group or group is owned by appropriate owner.
 //
 // This filter gets special handling in SearchService, where the group information is resolved in a
-// separate step from the other filtering mechanisms and then is translated to a String RegEx filter
-// for checking if an entity id is part of the cluster.
+// separate step from the other filtering mechanisms and then is translated to a String Filter
+// for checking if an entity id is part of the group or if this group is owned by certain owner.
 //
 // This is due to the group membership information being stored in a separate arango database from
 // the topology information and disallowing "joining" the topology documents with group info
 // documents. Perhaps, in the future, we can unify these in a way that allows the group filter to
 // be handled in a way that is consistent with the other search filters, e.g. direct graph
-// traversals in a single database/context. We could also generalize this to a "Group" filter if
-// the need ever arises.
+// traversals in a single database/context.
 //
-message ClusterMembershipFilter {
-    // Specifies the group(s) to filter membership based on.
-    optional PropertyFilter cluster_specifier = 1;
+message GroupFilter {
+    // Specifies the group(s) to filter group membership or owners of groups based on.
+    optional PropertyFilter group_specifier = 1;
+    // Type of a group requested. If not specified, query will not distinguish between group types.
+    optional common_dto.GroupDTO.GroupType group_type = 2;
+
+    // Defines relationship between entity and group.
+    optional EntityToGroupType entityToGroupType = 3 [default = MEMBER_OF];
+
+    // Used in GroupFilter for searching entities depending on their relationship to the group.
+    enum EntityToGroupType {
+        // Check that entities are members of groups.
+        MEMBER_OF = 0;
+
+        // Check that entities are owners of groups.
+        OWNER_OF = 1;
+    }
 }
 
 enum ComparisonOperator {
@@ -252,7 +314,7 @@ enum ComparisonOperator {
 // oids not need to perform pagination, because all the request needs to fetch all matched entity
 //oids, and the search entity oid query should be finish quickly even in large topology environment.
 message SearchEntityOidsRequest {
-    repeated SearchParameters searchParameters = 1;
+    optional SearchQuery search = 1;
 
     // If the entity oids list is not empty, it means the search parameters will be only applied to those
     // entity oids, the response will be subset of those entity oids. If the entity oids list is empty,
@@ -265,26 +327,16 @@ message SearchEntityOidsResponse {
     repeated int64 entities = 1;
 }
 
-message Entity {
-    required int32 type = 1;
-
-    required int64 oid = 2;
-
-    optional string displayName = 3;
-
-    optional int32 state = 4;
-
-    // ids of the targets from which this entity was discovered
-    repeated int64 target_ids = 5;
-}
-
 message SearchEntitiesRequest {
-    repeated SearchParameters searchParameters = 1;
+    optional SearchQuery search = 1;
 
     // If the entity oids list is not empty, it means the search parameters will be only applied to those
     // entity oids, the response will be subset of those entity oids. If the entity oids list is empty,
     // it means the search parameters will be applied to global entities.
     repeated int64 entity_oid = 2;
+
+    // Allows caller to control return type.
+    optional .topology.PartialEntity.Type return_type = 5;
 
     // If not set, use the default instance of PaginationParameters. The backend
     // will enforce a default ordering and limit, and retrieve the first page.
@@ -293,40 +345,13 @@ message SearchEntitiesRequest {
 
 message SearchEntitiesResponse {
     // A list of matched entities.
-    repeated Entity entities = 1;
+    repeated .topology.PartialEntity entities = 1;
 
     optional common.PaginationResponse pagination_response = 2;
 }
 
-message SearchTopologyEntityDTOsRequest {
-    repeated SearchParameters searchParameters = 1;
-
-    // If the entity oids list is not empty, it means the search parameters will be only applied to those
-    // entity oids, the response will be subset of those entity oids. If the entity oids list is empty,
-    // it means the search parameters will be applied to global entities.
-    repeated int64 entity_oid = 2;
-}
-
-message SearchTopologyEntityDTOsResponse {
-    // A list of matched entities.
-    repeated .topology.TopologyEntityDTO topology_entity_dtos = 1;
-}
-
-message SearchPlanTopologyEntityDTOsRequest {
-    // The id of the plan topology context.
-    optional int64 topology_context_id = 1;
-
-    // ids of the entities to fetch from plan topology
-    repeated int64 entity_oid = 2;
-}
-
-message SearchPlanTopologyEntityDTOsResponse {
-    // A list of matched plan entities.
-    repeated .topology.TopologyEntityDTO topology_entity_dtos = 1;
-}
-
 message CountEntitiesRequest {
-    repeated SearchParameters searchParameters = 1;
+    optional SearchQuery search = 1;
 }
 
 // response to CountEntitiesRequest messages
@@ -361,15 +386,22 @@ service SearchService {
     rpc SearchEntityOids(SearchEntityOidsRequest) returns (SearchEntityOidsResponse);
 
     // Search for entities based on the search parameters and return entity objects
+    // This method is the non-stream alternative to do pagination.
     rpc SearchEntities(SearchEntitiesRequest) returns (SearchEntitiesResponse);
 
-    // Search for TopologyEntityDTOs based on the search parameters and return TopologyEntityDTO objects
-    rpc SearchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest) returns (SearchTopologyEntityDTOsResponse);
-
-    // Search for TopologyEntityDTOs in the plan topology based on the request and return TopologyEntityDTO objects
-    rpc SearchPlanTopologyEntityDTOs(SearchPlanTopologyEntityDTOsRequest) returns (SearchPlanTopologyEntityDTOsResponse);
+    // This is meant for internal use between components - streams instead of pagination.
+    rpc SearchEntitiesStream(SearchEntitiesRequest) returns (stream .topology.PartialEntityBatch);
 
     rpc CountEntities(CountEntitiesRequest) returns (EntityCountResponse);
 
     rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse);
+}
+
+message SearchTargetsResponse {
+    repeated int64 targets = 1;
+}
+
+service TargetSearchService {
+    // Search targets for a specific filter
+    rpc SearchTargets(PropertyFilter) returns (SearchTargetsResponse);
 }

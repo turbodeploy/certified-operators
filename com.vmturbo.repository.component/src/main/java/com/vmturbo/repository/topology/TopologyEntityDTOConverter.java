@@ -8,23 +8,25 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
-import com.vmturbo.components.common.mapping.UIEntityState;
-import com.vmturbo.components.common.mapping.UIEnvironmentType;
-import com.vmturbo.repository.constant.RepoObjectType;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.dto.ApplicationInfoRepoDTO;
 import com.vmturbo.repository.dto.BusinessAccountInfoRepoDTO;
+import com.vmturbo.repository.dto.BusinessUserInfoRepoDTO;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.ComputeTierInfoRepoDTO;
 import com.vmturbo.repository.dto.DatabaseInfoRepoDTO;
+import com.vmturbo.repository.dto.DesktopPoolInfoRepoDTO;
 import com.vmturbo.repository.dto.DiskArrayInfoRepoDTO;
 import com.vmturbo.repository.dto.EntityPipelineErrorsRepoDTO;
 import com.vmturbo.repository.dto.LogicalPoolInfoRepoDTO;
@@ -35,6 +37,7 @@ import com.vmturbo.repository.dto.StorageInfoRepoDTO;
 import com.vmturbo.repository.dto.TypeSpecificInfoRepoDTO;
 import com.vmturbo.repository.dto.VirtualMachineInfoRepoDTO;
 import com.vmturbo.repository.dto.VirtualVolumeInfoRepoDTO;
+import com.vmturbo.repository.dto.WorkloadControllerInfoRepoDTO;
 
 /**
  * Map TopologyEntityDTO to ServiceEntityRepoDTO.
@@ -56,6 +59,9 @@ class TopologyEntityDTOConverter {
                     .put(TypeCase.VIRTUAL_VOLUME, VirtualVolumeInfoRepoDTO.class)
                     .put(TypeCase.VIRTUAL_MACHINE, VirtualMachineInfoRepoDTO.class)
                     .put(TypeCase.PHYSICAL_MACHINE, PhysicalMachineInfoRepoDTO.class)
+                    .put(TypeCase.DESKTOP_POOL, DesktopPoolInfoRepoDTO.class)
+                    .put(TypeCase.BUSINESS_USER, BusinessUserInfoRepoDTO.class)
+                    .put(TypeCase.WORKLOAD_CONTROLLER, WorkloadControllerInfoRepoDTO.class)
                     .build();
 
 
@@ -71,10 +77,10 @@ class TopologyEntityDTOConverter {
         ServiceEntityRepoDTO se = new ServiceEntityRepoDTO();
         se.setOid(seOid);
         se.setDisplayName(t.getDisplayName());
-        se.setEntityType(RepoObjectType.mapEntityType(t.getEntityType()));
-        se.setEnvironmentType(UIEnvironmentType.fromEnvType(t.getEnvironmentType()).getApiEnumStringValue());
+        se.setEntityType(ApiEntityType.fromEntity(t).apiStr());
+        se.setEnvironmentType(EnvironmentTypeUtil.toApiString(t.getEnvironmentType()));
         se.setUuid(String.valueOf(t.getOid()));
-        se.setState(UIEntityState.fromEntityState(t.getEntityState()).getValue());
+        se.setState(UIEntityState.fromEntityState(t.getEntityState()).apiStr());
         se.setTags(new HashMap<>());
         t.getTags().getTagsMap().forEach((key, value) -> se.getTags().put(key, value.getValuesList()));
 
@@ -103,11 +109,15 @@ class TopologyEntityDTOConverter {
         se.setCommoditySoldList(t.getCommoditySoldListList().stream().map(comm ->
                 CommodityMapper.convertToCommoditySoldRepoDTO(seOid, comm)).collect(Collectors.toList()));
 
-        // save discovering target ids
+        // save discovering target ids - use empty strings for serialization
         if (t.hasOrigin() && t.getOrigin().hasDiscoveryOrigin()) {
-            se.setTargetIds(t.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList().stream()
-                .map(String::valueOf)
-                .collect(Collectors.toList()));
+            se.setTargetVendorIds(t.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap()
+                            .entrySet().stream()
+                            .collect(Collectors
+                                    .toMap(target2id -> String.valueOf(target2id.getKey()),
+                                           target2id -> target2id.getValue().hasVendorId()
+                                               ? target2id.getValue().getVendorId()
+                                               : "")));
         }
 
         if (t.hasPipelineErrors()) {

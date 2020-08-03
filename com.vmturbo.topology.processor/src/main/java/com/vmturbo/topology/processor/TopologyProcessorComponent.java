@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor;
 
-import java.util.Optional;
+import java.util.Arrays;
+import java.util.List;
 import java.util.SortedMap;
 import java.util.zip.ZipOutputStream;
 
@@ -8,24 +9,20 @@ import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 import javax.servlet.ServletException;
 
+import io.grpc.BindableService;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.websocket.jsr356.server.deploy.WebSocketServerContainerInitializer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
+import org.springframework.web.context.ConfigurableWebApplicationContext;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.analysis.AnalysisConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
@@ -38,7 +35,6 @@ import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.migration.MigrationsConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
-import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.rest.RESTConfig;
@@ -49,6 +45,7 @@ import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
+import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineBlockingConfig;
 
 /**
  * The main class of the Topology Processor.
@@ -69,7 +66,6 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     KVConfig.class,
     MigrationsConfig.class,
     OperationConfig.class,
-    PlanConfig.class,
     ProbeConfig.class,
     RepositoryConfig.class,
     RESTConfig.class,
@@ -77,14 +73,15 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     SupplyChainValidationConfig.class,
     SchedulerConfig.class,
     StitchingConfig.class,
-    SQLDatabaseConfig.class,
     TargetConfig.class,
     TemplateConfig.class,
     TopologyConfig.class,
     TopologyProcessorApiConfig.class,
     TopologyProcessorApiSecurityConfig.class,
+    TopologyProcessorDBConfig.class,
     TopologyProcessorDiagnosticsConfig.class,
-    TopologyProcessorRpcConfig.class
+    TopologyProcessorRpcConfig.class,
+    PipelineBlockingConfig.class
 })
 public class TopologyProcessorComponent extends BaseVmtComponent {
 
@@ -98,9 +95,6 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
 
     @Autowired
     private ActionsConfig actionsConfig;
-
-    @Autowired
-    private SQLDatabaseConfig dbConfig;
 
     @Autowired
     private EntityConfig entityConfig;
@@ -127,6 +121,9 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     private TopologyProcessorApiConfig topologyProcessorApiConfig;
 
     @Autowired
+    private TopologyProcessorDBConfig topologyProcessorDBConfig;
+
+    @Autowired
     private TopologyProcessorRpcConfig topologyProcessorRpcConfig;
 
 
@@ -136,15 +133,14 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
-        getHealthMonitor().addHealthCheck(
-            new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                dbConfig.dataSource()::getConnection));
-        getHealthMonitor().addHealthCheck(topologyProcessorApiConfig.kafkaProducerHealthMonitor());
+        getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+            topologyProcessorDBConfig.dataSource()::getConnection));
+        getHealthMonitor().addHealthCheck(topologyProcessorApiConfig.messageProducerHealthMonitor());
     }
 
     @Override
     protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
-        diagsConfig.diagsHandler().dumpDiags(diagnosticZip);
+        diagsConfig.diagsHandler().dump(diagnosticZip);
     }
 
     @Override
@@ -153,37 +149,31 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
             return migrationsConfig.migrationsList().getMigrationsList();
     }
 
-    @Override
     @Nonnull
-    protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        // Monitor for server metrics with prometheus.
-        final MonitoringServerInterceptor monitoringInterceptor =
-            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
-
-        return Optional.of(builder
-            .addService(ServerInterceptors.intercept(analysisConfig.analysisService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(actionsConfig.actionExecutionService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(schedulerConfig.scheduleRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(entityConfig.entityInfoRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.topologyRpcService(),
-                monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.stitchingJournalRpcService(),
-                monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(identityProviderConfig.identityRpcService(),
-                monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.discoveredGroupRpcService(),
-                monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(probeConfig.probeActionPoliciesService(),
-                monitoringInterceptor))
-            .addService(
-                ServerInterceptors.intercept(topologyProcessorRpcConfig.probeService(), monitoringInterceptor))
-            .build());
+    @Override
+    public List<BindableService> getGrpcServices() {
+        return Arrays.asList(analysisConfig.analysisService(),
+            actionsConfig.actionExecutionService(),
+            schedulerConfig.scheduleRpcService(),
+            entityConfig.entityInfoRpcService(),
+            topologyProcessorRpcConfig.topologyRpcService(),
+            topologyProcessorRpcConfig.stitchingJournalRpcService(),
+            identityProviderConfig.identityRpcService(),
+            topologyProcessorRpcConfig.discoveredGroupRpcService(),
+            probeConfig.probeActionPoliciesService(),
+            topologyProcessorRpcConfig.probeService(),
+            topologyProcessorRpcConfig.targetSearchRpcService());
     }
 
+    /**
+     * Starts the component.
+     *
+     * @param args The mandatory arguments.
+     */
     public static void main(String[] args) {
         startContext((contextServer) -> {
             try {
-                final ConfigurableApplicationContext context =
+                final ConfigurableWebApplicationContext context =
                         attachSpringContext(contextServer, TopologyProcessorComponent.class);
                 WebSocketServerContainerInitializer.configureContext(contextServer);
                 return context;

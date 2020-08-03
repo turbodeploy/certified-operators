@@ -2,8 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -12,6 +11,14 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -19,73 +26,71 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Matchers;
 
-import com.google.common.collect.ImmutableList;
-
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.SearchMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
-import com.vmturbo.api.component.external.api.util.action.SearchUtil;
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
-import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.ActionChunk;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchTopologyEntityDTOsResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.mapping.UIEntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.reporting.api.protobuf.ReportingMoles.ReportingServiceMole;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Tests for {@link EntitiesService}.
@@ -97,31 +102,50 @@ public class EntitiesServiceTest {
     // mocked services and mappers
     private final TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
     private final ActionSpecMapper actionSpecMapper = mock(ActionSpecMapper.class);
+    private final UuidMapper uuidMapper = mock(UuidMapper.class);
+    private final GroupExpander groupExpander = mock(GroupExpander.class);
 
     // data objects
     private TargetInfo targetInfo;
     private ProbeInfo probeInfo;
 
     private final SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
+    private final PriceIndexPopulator priceIndexPopulator = mock(PriceIndexPopulator.class);
     private final ActionsServiceMole actionsService = spy(new ActionsServiceMole());
-    private final SearchServiceMole searchService = spy(new SearchServiceMole());
-    private final GroupServiceImplBase groupService = spy(new GroupServiceMole());
+    private final GroupServiceMole groupService = spy(new GroupServiceMole());
     private final StatsHistoryServiceMole historyService = spy(new StatsHistoryServiceMole());
+    private final ReportingServiceMole reportingService = spy(new ReportingServiceMole());
+    private final RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
     private final SupplyChainFetcherFactory supplyChainFetcherFactory =
             mock(SupplyChainFetcherFactory.class);
+    private final PolicyServiceMole policyService = spy(new PolicyServiceMole());
+
+    private RepositoryApi repositoryApi = mock(RepositoryApi.class);
+
+    private EntitySettingQueryExecutor entitySettingQueryExecutor = mock(EntitySettingQueryExecutor.class);
+
+    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
+
+    private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
     // gRPC servers
     @Rule
     public final GrpcTestServer grpcServer =
-        GrpcTestServer.newServer(actionsService, searchService, groupService, historyService);
+        GrpcTestServer.newServer(actionsService, groupService, historyService, reportingService,
+            repositoryService, policyService);
+    private final ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
 
     // a sample topology ST -> PM -> VM
     private static final long CONTEXT_ID = 777777L;
+    private static final String UI_REAL_TIME_MARKET = "Market";
+    private static final String MARKET_DISPLAY_NAME = "ST";
+    private static final EntityState MARKET_STATE = EntityState.POWERED_ON;
     private static final long TARGET_ID = 7L;
     private static final String TARGET_DISPLAY_NAME = "target";
     private static final long PROBE_ID = 70L;
     private static final String PROBE_TYPE = "probe";
     private static final long VM_ID = 1L;
+    private static final long GROUP_ID = 2L;
     private static final String VM_DISPLAY_NAME = "VM";
     private static final EntityState VM_STATE = EntityState.POWERED_OFF;
     private static final String TAG_KEY = "TAG_KEY";
@@ -133,19 +157,17 @@ public class EntitiesServiceTest {
     private static final String ST_DISPLAY_NAME = "ST";
     private static final EntityState ST_STATE = EntityState.POWERED_ON;
     private static final long NON_EXISTENT_ID = 999L;
-    private static final TopologyEntityDTO VM =
-        TopologyEntityDTO.newBuilder()
+    private static final String LOCAL_NAME = "qqq";
+    private static final PerTargetEntityInformation PER_TARGET_INFO = PerTargetEntityInformation
+                    .newBuilder().setVendorId(LOCAL_NAME).build();
+
+    private static final ApiPartialEntity VM =
+        ApiPartialEntity.newBuilder()
             .setOid(VM_ID)
             .setDisplayName(VM_DISPLAY_NAME)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setEntityState(VM_STATE)
-            .setOrigin(
-                Origin.newBuilder()
-                    .setDiscoveryOrigin(
-                        DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(TARGET_ID)
-                            .build())
-                    .build())
+            .putDiscoveredTargetData(TARGET_ID, PER_TARGET_INFO)
             .setTags(
                     Tags.newBuilder()
                             .putTags(
@@ -153,42 +175,29 @@ public class EntitiesServiceTest {
                                     TagValuesDTO.newBuilder().addAllValues(TAG_VALUES).build())
                             .build())
             .build();
-    private static final TopologyEntityDTO PM =
-        TopologyEntityDTO.newBuilder()
+    private static final ApiPartialEntity PM =
+        ApiPartialEntity.newBuilder()
             .setOid(PM_ID)
             .setDisplayName(PM_DISPLAY_NAME)
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .setEntityState(PM_STATE)
-            .setOrigin(
-                Origin.newBuilder()
-                    .setDiscoveryOrigin(
-                        DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(TARGET_ID)
-                            .build())
-                    .build())
+            .putDiscoveredTargetData(TARGET_ID, PER_TARGET_INFO)
             .build();
-    private static final TopologyEntityDTO ST =
-        TopologyEntityDTO.newBuilder()
+
+    private static final ApiPartialEntity ST =
+        ApiPartialEntity.newBuilder()
             .setOid(ST_ID)
             .setDisplayName(ST_DISPLAY_NAME)
             .setEntityType(EntityType.STORAGE_VALUE)
             .setEntityState(ST_STATE)
-            .setOrigin(
-                Origin.newBuilder()
-                    .setDiscoveryOrigin(
-                        DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(TARGET_ID)
-                            .build())
-                    .build())
+            .putDiscoveredTargetData(TARGET_ID, PER_TARGET_INFO)
             .build();
 
     /**
      * Set up a mock topology processor server and a {@link ProbesService} client and connects them.
-     *
-     * @throws Exception should not happen.
      */
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         // mock target and probe info
         final AccountValue accountValue =
             new InputField("nameOrAddress", TARGET_DISPLAY_NAME, Optional.empty());
@@ -201,15 +210,19 @@ public class EntitiesServiceTest {
         when(probeInfo.getType()).thenReturn(PROBE_TYPE);
 
         // create inputs for the service
-        final SearchServiceBlockingStub searchServiceRpc =
-            SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final ActionsServiceBlockingStub actionOrchestratorRpcService =
             ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final PaginationMapper paginationMapper = new PaginationMapper();
-        final SearchUtil searchUtil =
-            new SearchUtil(
-                searchServiceRpc, topologyProcessor, actionOrchestratorRpcService, actionSpecMapper,
-                paginationMapper, supplyChainFetcherFactory, CONTEXT_ID);
+
+        final ActionSearchUtil actionSearchUtil =
+            new ActionSearchUtil(
+                actionOrchestratorRpcService, actionSpecMapper,
+                paginationMapper, supplyChainFetcherFactory, groupExpander,
+                    serviceProviderExpander,
+                    CONTEXT_ID);
+
+        when(groupExpander.expandOids(any()))
+            .thenAnswer(invocation -> invocation.getArgumentAt(0, Set.class));
 
         // Create service
         service =
@@ -218,21 +231,23 @@ public class EntitiesServiceTest {
                 actionSpecMapper,
                 CONTEXT_ID,
                 supplyChainFetcherFactory,
-                paginationMapper,
-                searchServiceRpc,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(EntityAspectMapper.class),
-                topologyProcessor,
                 severityPopulator,
+                priceIndexPopulator,
                 mock(StatsService.class),
                 mock(ActionStatsQueryExecutor.class),
-                mock(UuidMapper.class),
+                uuidMapper,
                 StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(SettingsMapper.class),
-                searchUtil,
-                mock(RepositoryApi.class));
+                actionSearchUtil,
+                repositoryApi, entitySettingQueryExecutor,
+                EntityConstraintsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                thinTargetCache,
+                paginationMapper,
+                serviceEntityMapper);
     }
 
     /**
@@ -243,83 +258,74 @@ public class EntitiesServiceTest {
      */
     @Test
     public void testGetEntityByUuid() throws Exception {
-        // add target and probe
-        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
-        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
+        ServiceEntityApiDTO pm = new ServiceEntityApiDTO();
+        pm.setUuid(Long.toString(PM_ID));
+        pm.setDisplayName(PM_DISPLAY_NAME);
 
-        doAnswer(invocation -> {
-            Optional<TopologyEntityDTO> retEntity = Optional.empty();
-            final SearchTopologyEntityDTOsRequest req = invocation.getArgumentAt(0, SearchTopologyEntityDTOsRequest.class);
-            if (req.getEntityOidCount() > 0) {
-                retEntity = Optional.of(PM);
-            } else if (req.getSearchParametersCount() == 1) {
-                switch (req.getSearchParameters(0).getSearchFilter(0).getTraversalFilter().getTraversalDirection()) {
-                    case CONSUMES:
-                        retEntity = Optional.of(ST);
-                        break;
-                    case PRODUCES:
-                        retEntity = Optional.of(VM);
-                        break;
-                }
-            }
-            return retEntity.map(entity -> SearchTopologyEntityDTOsResponse.newBuilder()
-                .addTopologyEntityDtos(entity)
-                .build()).orElse(SearchTopologyEntityDTOsResponse.getDefaultInstance());
-        }).when(searchService).searchTopologyEntityDTOs(any());
+        MinimalEntity vm = MinimalEntity.newBuilder()
+            .setOid(VM.getOid())
+            .setEntityType(VM.getEntityType())
+            .setDisplayName(VM.getDisplayName())
+            .build();
+
+        MinimalEntity st = MinimalEntity.newBuilder()
+            .setOid(ST.getOid())
+            .setEntityType(ST.getEntityType())
+            .setDisplayName(ST.getDisplayName())
+            .build();
+
+        SingleEntityRequest pmReq = ApiTestUtils.mockSingleEntityRequest(pm);
+        when(repositoryApi.entityRequest(PM_ID)).thenReturn(pmReq);
+
+        SearchRequest s1Req = ApiTestUtils.mockSearchMinReq(Lists.newArrayList(vm));
+        when(repositoryApi.newSearchRequest(SearchProtoUtil.neighbors(PM_ID, TraversalDirection.PRODUCES)))
+            .thenReturn(s1Req);
+
+        SearchRequest s2Req = ApiTestUtils.mockSearchMinReq(Lists.newArrayList(st));
+        when(repositoryApi.newSearchRequest(SearchProtoUtil.neighbors(PM_ID, TraversalDirection.CONSUMES)))
+            .thenReturn(s2Req);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(PM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(PM_ID))).thenReturn(apiId);
 
         // call service
         final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(PM_ID), false);
 
-        verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-            .addEntityOid(PM_ID)
-            .build());
-        verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-            .addSearchParameters(SearchMapper.neighbors(PM_ID, TraversalDirection.CONSUMES))
-            .build());
-        verify(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-            .addSearchParameters(SearchMapper.neighbors(PM_ID, TraversalDirection.PRODUCES))
-            .build());
-
         // check basic information
         Assert.assertEquals(Long.toString(PM_ID), result.getUuid());
         Assert.assertEquals(PM_DISPLAY_NAME, result.getDisplayName());
-        Assert.assertEquals(
-            EntityType.PHYSICAL_MACHINE_VALUE, ServiceEntityMapper.fromUIEntityType(result.getClassName()));
-        Assert.assertEquals(PM_STATE, UIEntityState.fromString(result.getState()).toEntityState());
-
-        // check target information
-        final TargetApiDTO resultTargetInfo = result.getDiscoveredBy();
-        Assert.assertEquals(TARGET_ID, (long)Long.valueOf(resultTargetInfo.getUuid()));
-        Assert.assertEquals(TARGET_DISPLAY_NAME, resultTargetInfo.getDisplayName());
-        Assert.assertEquals(PROBE_TYPE, resultTargetInfo.getType());
 
         // check providers and consumers
         final List<BaseApiDTO> providers = result.getProviders();
         Assert.assertEquals(1, providers.size());
         Assert.assertEquals(ST_ID, (long)Long.valueOf(providers.get(0).getUuid()));
         Assert.assertEquals(ST_DISPLAY_NAME, providers.get(0).getDisplayName());
-        Assert.assertEquals(UIEntityType.STORAGE.getValue(), providers.get(0).getClassName());
+        Assert.assertEquals(ApiEntityType.STORAGE.apiStr(), providers.get(0).getClassName());
         final List<BaseApiDTO> consumers = result.getConsumers();
         Assert.assertEquals(1, consumers.size());
         Assert.assertEquals(VM_ID, (long)Long.valueOf(consumers.get(0).getUuid()));
         Assert.assertEquals(VM_DISPLAY_NAME, consumers.get(0).getDisplayName());
-        Assert.assertEquals(UIEntityType.VIRTUAL_MACHINE.getValue(), consumers.get(0).getClassName());
+        Assert.assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), consumers.get(0).getClassName());
 
-        // check tags
-        Assert.assertEquals(0, result.getTags().size());
+        // check that priceIndexPopulator has been called correctly
+        verify(priceIndexPopulator).populateRealTimeEntities(eq(Collections.singletonList(result)));
+    }
 
-        // check that history stats service has been called correctly
-        verify(historyService).getEntityStats(GetEntityStatsRequest.newBuilder()
-            .setScope(
-                EntityStatsScope.newBuilder()
-                    .setEntityList(EntityList.newBuilder().addEntities(PM_ID)).build())
-            .setFilter(
-                StatsFilter.newBuilder()
-                    .addCommodityRequests(
-                        CommodityRequest.newBuilder()
-                            .setCommodityName(EntitiesService.PRICE_INDEX_COMMODITY).build())
-                    .build())
-            .build());
+    /**
+     * Tests the illegal entity id 'Market'.
+     *
+     * @throws Exception in case of illegal entity id.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetEntityByStringUuid() throws Exception {
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isEntity()).thenReturn(false);
+        when(uuidMapper.fromUuid(UI_REAL_TIME_MARKET)).thenReturn(apiId);
+
+        // call service and fail
+        service.getEntityByUuid(UI_REAL_TIME_MARKET, false);
     }
 
     /**
@@ -329,9 +335,13 @@ public class EntitiesServiceTest {
      */
     @Test(expected = UnknownObjectException.class)
     public void testGetEntityByUuidNonExistent() throws Exception {
-        // add target and probe
-        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
-        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityEmptyRequest();
+        when(repositoryApi.entityRequest(NON_EXISTENT_ID)).thenReturn(req);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(NON_EXISTENT_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(NON_EXISTENT_ID))).thenReturn(apiId);
 
         // call service and fail
         service.getEntityByUuid(Long.toString(NON_EXISTENT_ID), false);
@@ -345,29 +355,16 @@ public class EntitiesServiceTest {
      */
     @Test(expected = UnknownObjectException.class)
     public void testGetEntityByUuidMissingTarget() throws Exception {
-        // error while fetching the target
-        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID)))
-            .thenThrow(new TopologyProcessorException("boom"));
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityEmptyRequest();
+        when(repositoryApi.entityRequest(ST_ID)).thenReturn(req);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(ST_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(ST_ID))).thenReturn(apiId);
 
         // call service and fail
-        final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(ST_ID), false);
-    }
-
-    /**
-     * When topology processor fails to return information about the probe
-     * that discovers the target, the whole process should fail.
-     *
-     * @throws Exception expected: probe not found.
-     */
-    @Test(expected = UnknownObjectException.class)
-    public void testGetEntityByUuidMissingProbe() throws Exception {
-        // error while fetching the target
-        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
-        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID)))
-            .thenThrow(new TopologyProcessorException("boom"));
-
-        // call service and fail
-        final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(ST_ID), false);
+        service.getEntityByUuid(Long.toString(ST_ID), false);
     }
 
     /**
@@ -379,25 +376,22 @@ public class EntitiesServiceTest {
      */
     @Test
     public void testGetEntityByUuidMissingProducers() throws Exception {
-        // add target and probe
-        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
-        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
+        final ServiceEntityApiDTO vm = new ServiceEntityApiDTO();
+        vm.setUuid(Long.toString(VM.getOid()));
+        vm.setDisplayName(VM.getDisplayName());
 
-        // pretend that traversal queries will not work
-        doAnswer(invocation -> {
-            final SearchTopologyEntityDTOsRequest req =
-                invocation.getArgumentAt(0, SearchTopologyEntityDTOsRequest.class);
-            if (req.getSearchParametersCount() > 0) {
-                return Optional.of(Status.INTERNAL.withDescription("traversal query failed")
-                        .asException());
-            } else {
-                return Optional.empty();
-            }
-        }).when(searchService).searchTopologyEntityDTOsError(any());
+        final SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(vm);
+        when(repositoryApi.entityRequest(VM_ID)).thenReturn(req);
 
-        doReturn(SearchTopologyEntityDTOsResponse.newBuilder()
-            .addTopologyEntityDtos(VM)
-            .build()).when(searchService).searchTopologyEntityDTOs(any());
+        SearchRequest relatedReq = ApiTestUtils.mockSearchMinReq(Collections.emptyList());
+        when(relatedReq.getMinimalEntities())
+            .thenThrow(new StatusRuntimeException(Status.NOT_FOUND));
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(relatedReq);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
 
         // call service
         final ServiceEntityApiDTO result = service.getEntityByUuid(Long.toString(VM_ID), false);
@@ -405,23 +399,10 @@ public class EntitiesServiceTest {
         // check basic information
         Assert.assertEquals(Long.toString(VM_ID), result.getUuid());
         Assert.assertEquals(VM_DISPLAY_NAME, result.getDisplayName());
-        Assert.assertEquals(
-                EntityType.VIRTUAL_MACHINE_VALUE, ServiceEntityMapper.fromUIEntityType(result.getClassName()));
-        Assert.assertEquals(VM_STATE, UIEntityState.fromString(result.getState()).toEntityState());
-
-        // check target information
-        final TargetApiDTO resultTargetInfo = result.getDiscoveredBy();
-        Assert.assertEquals(TARGET_ID, (long)Long.valueOf(resultTargetInfo.getUuid()));
-        Assert.assertEquals(TARGET_DISPLAY_NAME, resultTargetInfo.getDisplayName());
-        Assert.assertEquals(PROBE_TYPE, resultTargetInfo.getType());
 
         // there should no provider or consumer information; not even empty lists
         Assert.assertNull(result.getConsumers());
         Assert.assertNull(result.getProviders());
-
-        // check tags
-        Assert.assertEquals(1, result.getTags().size());
-        Assert.assertArrayEquals(TAG_VALUES.toArray(), result.getTags().get(TAG_KEY).toArray());
     }
 
     /**
@@ -435,11 +416,13 @@ public class EntitiesServiceTest {
         when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
         when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
 
-        doReturn(SearchTopologyEntityDTOsResponse.newBuilder()
-            .addTopologyEntityDtos(VM)
-            .build()).when(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-                .addEntityOid(VM_ID)
-                .build());
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(VM);
+        when(repositoryApi.entityRequest(VM_ID)).thenReturn(req);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
 
         // call service
         final List<TagApiDTO> result = service.getTagsByEntityUuid(Long.toString(VM_ID));
@@ -448,6 +431,36 @@ public class EntitiesServiceTest {
         Assert.assertEquals(1, result.size());
         Assert.assertEquals(TAG_KEY, result.get(0).getKey());
         Assert.assertArrayEquals(TAG_VALUES.toArray(), result.get(0).getValues().toArray());
+    }
+
+    /**
+     * Test get tags for groups.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetTagsForGroup() throws Exception {
+        final GetTagsResponse tagsForGroupsResponse = GetTagsResponse.newBuilder()
+                .putTags(GROUP_ID, Tags.newBuilder()
+                        .putTags(TAG_KEY,
+                                TagValuesDTO.newBuilder().addAllValues(TAG_VALUES).build())
+                        .build())
+                .build();
+        when(groupService.getTags(
+                GetTagsRequest.newBuilder().addGroupId(GROUP_ID).build())).thenReturn(
+                tagsForGroupsResponse);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(GROUP_ID);
+        when(apiId.isEntity()).thenReturn(false);
+        when(apiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(GROUP_ID))).thenReturn(apiId);
+
+        final List<TagApiDTO> tags = service.getTagsByEntityUuid(String.valueOf(GROUP_ID));
+        Assert.assertEquals(1, tags.size());
+        final TagApiDTO tagInfo = tags.iterator().next();
+        Assert.assertEquals(TAG_KEY, tagInfo.getKey());
+        Assert.assertEquals(TAG_VALUES, tagInfo.getValues());
     }
 
     /**
@@ -461,11 +474,13 @@ public class EntitiesServiceTest {
         when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
         when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
 
-        doReturn(SearchTopologyEntityDTOsResponse.newBuilder()
-            .addTopologyEntityDtos(PM)
-            .build()).when(searchService).searchTopologyEntityDTOs(SearchTopologyEntityDTOsRequest.newBuilder()
-            .addEntityOid(PM_ID)
-            .build());
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(PM);
+        when(repositoryApi.entityRequest(PM_ID)).thenReturn(req);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(PM_ID);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(PM_ID))).thenReturn(apiId);
 
         // call service
         final List<TagApiDTO> result = service.getTagsByEntityUuid(Long.toString(PM_ID));
@@ -475,86 +490,91 @@ public class EntitiesServiceTest {
     }
 
     /**
-     * An action returned by {@link EntitiesService#getActionByEntityUuid(String, String)}
-     * will contain the discovery target information for all entities it refers to.
+     * An action returned by {@link EntitiesService#getActionByEntityUuid(String, String,
+     * com.vmturbo.api.enums.ActionDetailLevel)}.
+     * will be obtained through the action orchestrator service and the action mapper.
      *
      * @throws Exception should not happen.
      */
     @Test
     public void testGetActionByEntityUuid() throws Exception {
-        // add target and probe
-        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
-        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
-
         // fake an action and its translation by the ActionSpecMapper
         final ActionSpec dummyActionSpec = ActionSpec.getDefaultInstance();
         final ActionOrchestratorAction dummyActionOrchestratorResponse =
             ActionOrchestratorAction.newBuilder().setActionSpec(dummyActionSpec).build();
+        final ActionApiDTO actionApiDTO = mock(ActionApiDTO.class);
+        final ServiceEntityApiDTO entity = new ServiceEntityApiDTO();
+        entity.setUuid(Long.toString(VM_ID));
+        when(actionApiDTO.getCurrentEntity()).thenReturn(entity);
         when(actionsService.getAction(any())).thenReturn(dummyActionOrchestratorResponse);
-        final ActionApiDTO actionApiDTO = new ActionApiDTO();
-        final ServiceEntityApiDTO targetEntity = new ServiceEntityApiDTO();
-        targetEntity.setUuid(Long.toString(VM_ID));
-        actionApiDTO.setTarget(targetEntity);
         when(actionSpecMapper.mapActionSpecToActionApiDTO(
-                    Matchers.eq(dummyActionSpec), Matchers.eq(CONTEXT_ID)))
+                Matchers.eq(dummyActionSpec), Matchers.eq(CONTEXT_ID), Matchers.eq(ActionDetailLevel.STANDARD)))
             .thenReturn(actionApiDTO);
-        when(searchService.searchTopologyEntityDTOs(
-                Matchers.eq(SearchTopologyEntityDTOsRequest.newBuilder().addEntityOid(VM_ID).build())))
-            .thenReturn(
-                SearchTopologyEntityDTOsResponse.newBuilder()
-                    .addTopologyEntityDtos(VM)
-                    .build());
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(VM);
+        when(repositoryApi.entityRequest(VM_ID)).thenReturn(req);
+
+        final long dummy = 0L;
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(dummy);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+        when(uuidMapper.fromUuid(Long.toString(dummy))).thenReturn(apiId);
 
         // call the service
-        final long dummy = 0L;
         final ActionApiDTO result =
-            service.getActionByEntityUuid(Long.toString(VM_ID), Long.toString(dummy));
+                service.getActionByEntityUuid(Long.toString(VM_ID), Long.toString(dummy), ActionDetailLevel.STANDARD);
 
-        // check that the targets of the entities of the retrieved action are added correctly
-        Assert.assertEquals(PROBE_TYPE, result.getTarget().getDiscoveredBy().getType());
-        Assert.assertEquals(
-            TARGET_ID, (long)Long.valueOf(result.getTarget().getDiscoveredBy().getUuid()));
-        Assert.assertEquals(
-            TARGET_DISPLAY_NAME, result.getTarget().getDiscoveredBy().getDisplayName());
-        Assert.assertEquals(PROBE_TYPE, result.getTarget().getDiscoveredBy().getType());
-        Assert.assertNull(result.getNewEntity());
-        Assert.assertNull(result.getCurrentEntity());
+        // check that the result is the faked translation
+        Assert.assertEquals(actionApiDTO, result);
     }
 
     /**
      * An action returned by {@link EntitiesService#getActionsByEntityUuid}
-     * will contain the discovery target information for all entities it refers to.
+     * will be obtained through the action orchestrator service and the action mapper.
      *
      * @throws Exception should not happen.
      */
     @Test
     public void testGetActionsByEntityUuid() throws Exception {
-        // add target and probe
-        when(topologyProcessor.getTarget(Matchers.eq(TARGET_ID))).thenReturn(targetInfo);
-        when(topologyProcessor.getProbe(Matchers.eq(PROBE_ID))).thenReturn(probeInfo);
-
         // fake an action and its translation by the ActionSpecMapper
         final ActionSpec dummyActionSpec = ActionSpec.getDefaultInstance();
         final FilteredActionResponse dummyActionOrchestratorResponse =
             FilteredActionResponse.newBuilder()
-                .addActions(ActionOrchestratorAction.newBuilder().setActionSpec(dummyActionSpec).build())
+                    .setActionChunk(ActionChunk.newBuilder()
+                            .addActions(ActionOrchestratorAction.newBuilder()
+                                    .setActionSpec(dummyActionSpec)))
+                    .build();
+
+        final MinimalEntity minimalEntityVM = MinimalEntity.newBuilder()
+                .setOid(VM_ID)
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setDisplayName("VM")
                 .build();
-        when(actionsService.getAllActions(any())).thenReturn(dummyActionOrchestratorResponse);
-        final ActionApiDTO actionApiDTO = new ActionApiDTO();
-        final ServiceEntityApiDTO targetEntity = new ServiceEntityApiDTO();
-        targetEntity.setUuid(Long.toString(VM_ID));
-        actionApiDTO.setTarget(targetEntity);
-        when(actionSpecMapper.mapActionSpecsToActionApiDTOs(any(), anyLong()))
+
+        when(actionsService.getAllActions(any())).thenReturn(Collections.singletonList(dummyActionOrchestratorResponse));
+        final ActionApiDTO actionApiDTO = mock(ActionApiDTO.class);
+        when(actionSpecMapper.mapActionSpecsToActionApiDTOs(any(), anyLong(), any()))
             .thenReturn(Collections.singletonList(actionApiDTO));
         final ActionApiInputDTO trivialQuery = new ActionApiInputDTO();
-        when(actionSpecMapper.createActionFilter(Matchers.eq(trivialQuery), any()))
+        when(actionSpecMapper.createActionFilter(Matchers.eq(trivialQuery), any(), any()))
             .thenReturn(ActionQueryFilter.getDefaultInstance());
-        when(searchService.searchTopologyEntityDTOs(
-            Matchers.eq(SearchTopologyEntityDTOsRequest.newBuilder().addEntityOid(VM_ID).build())))
-            .thenReturn(
-                SearchTopologyEntityDTOsResponse.newBuilder()
-                    .addTopologyEntityDtos(VM)
-                    .build());
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(VM);
+        when(repositoryApi.entityRequest(VM_ID)).thenReturn(req);
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(VM_ID);
+        when(apiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE)));
+        when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
+
+        RepositoryApi.MultiEntityRequest minimalEntityVMRequest = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(minimalEntityVM));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(Long.valueOf(VM_ID)))).thenReturn(minimalEntityVMRequest);
+
+        Set<Long> scope = Collections.singleton(VM_ID);
+        when(serviceProviderExpander.expand(scope)).thenReturn(scope);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(scope)).thenReturn(scope);
 
         // call the service
         final ActionPaginationRequest paginationRequest =
@@ -565,14 +585,34 @@ public class EntitiesServiceTest {
                 .getRawResults()
                 .get(0);
 
-        // check that the targets of the entities of the retrieved action are added correctly
-        Assert.assertEquals(PROBE_TYPE, result.getTarget().getDiscoveredBy().getType());
-        Assert.assertEquals(
-                TARGET_ID, (long)Long.valueOf(result.getTarget().getDiscoveredBy().getUuid()));
-        Assert.assertEquals(
-                TARGET_DISPLAY_NAME, result.getTarget().getDiscoveredBy().getDisplayName());
-        Assert.assertEquals(PROBE_TYPE, result.getTarget().getDiscoveredBy().getType());
-        Assert.assertNull(result.getNewEntity());
-        Assert.assertNull(result.getCurrentEntity());
+        // check that the result is the faked translation
+        Assert.assertEquals(actionApiDTO, result);
+
+        long regionId = 2L;
+        ApiId regionApiId = mock(ApiId.class);
+        when(regionApiId.oid()).thenReturn(regionId);
+        when(regionApiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(ApiEntityType.REGION)));
+        when(uuidMapper.fromUuid(Long.toString(regionId))).thenReturn(regionApiId);
+
+        final MinimalEntity minimalEntityRegion = MinimalEntity.newBuilder()
+                .setOid(regionId)
+                .setEntityType(ApiEntityType.REGION.typeNumber())
+                .setDisplayName("Region1")
+                .build();
+
+        RepositoryApi.MultiEntityRequest minimalEntityRegionRequest = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(minimalEntityRegion));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(regionId))).thenReturn(minimalEntityRegionRequest);
+
+        scope = Collections.singleton(regionId);
+        when(serviceProviderExpander.expand(scope)).thenReturn(scope);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(scope)).thenReturn(scope);
+
+        final ActionApiDTO regionResult =
+            service
+                .getActionsByEntityUuid(Long.toString(regionId), trivialQuery, paginationRequest)
+                .getRawResults()
+                .get(0);
+
+        Assert.assertEquals(actionApiDTO, regionResult);
     }
 }

@@ -17,23 +17,31 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
+import com.vmturbo.market.topology.RiDiscountedMarketTier;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -60,39 +68,55 @@ public class CloudTopologyConverter {
     private final ReservedInstanceConverter riConverter;
     private final StorageTierConverter storageTierConverter;
     private final Map<Integer, TierConverter> converterMap;
-    private TopologyInfo topologyInfo;
     private final BiCliquer pmBasedBicliquer;
     private final BiCliquer dsBasedBicliquer;
-    private final CommodityConverter commodityConverter;
     private final Map<Long, TopologyEntityDTO> topology;
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap;
     private final Set<TopologyEntityDTO> businessAccounts;
-    private final CloudCostData cloudCostData;
+    private final CloudCostData<TopologyEntityDTO> cloudCostData;
+    private Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid = new HashMap<>();
+    private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
     /**
-     * This constructor will be used by tests. Mock converters can be passed in.
+     * @param topology the topologyEntityDTOs which came into market-component
+     * @param topologyInfo the topology info
+     * @param pmBasedBicliquer PM based bicliquer which stores connections between PM and DSs
+     * @param dsBasedBicliquer DS based bicliquer which stores connections between DS and PMs
+     * @param commodityConverter commodity converter
+     * @param azToRegionMap mapping of AZs to Regions
+     * @param businessAccounts The set of business accounts
+     * @param marketPriceTable The market price table
+     * @param cloudCostData Cloud Cost data
+     * @param tierExcluder tier exclusion applicator which is used to apply tier
+     *                                exclusion settings
+     * @param cloudTopology instance to look up topology relationships
      */
      @VisibleForTesting
      CloudTopologyConverter(
-             @Nonnull Map<Long, TopologyEntityDTO> topology, @Nonnull TopologyInfo topologyInfo,
-             @Nonnull BiCliquer pmBasedBicliquer, @Nonnull BiCliquer dsBasedBicliquer,
+             @Nonnull Map<Long, TopologyEntityDTO> topology,
+             @Nonnull TopologyInfo topologyInfo,
+             @Nonnull BiCliquer pmBasedBicliquer,
+             @Nonnull BiCliquer dsBasedBicliquer,
              @Nonnull CommodityConverter commodityConverter,
              @Nonnull Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap,
-             @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull MarketPriceTable marketPriceTable,
-             @Nonnull CloudCostData cloudCostData) {
+             @Nonnull Set<TopologyEntityDTO> businessAccounts,
+             @Nonnull MarketPriceTable marketPriceTable,
+             @Nonnull CloudCostData cloudCostData,
+             @Nonnull TierExcluder tierExcluder,
+             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
          this.topology = topology;
-         this.topologyInfo = topologyInfo;
-         this.commodityConverter = commodityConverter;
          this.pmBasedBicliquer = pmBasedBicliquer;
          this.dsBasedBicliquer = dsBasedBicliquer;
          this.azToRegionMap = azToRegionMap;
          CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, marketPriceTable);
-         this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costDTOCreator);
+         this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costDTOCreator, tierExcluder);
          this.storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter, costDTOCreator);
-         this.riConverter = new ReservedInstanceConverter(topologyInfo, commodityConverter, costDTOCreator);
+         this.riConverter = new ReservedInstanceConverter(topologyInfo, commodityConverter,
+                 costDTOCreator, tierExcluder, cloudTopology);
          this.businessAccounts = businessAccounts;
          this.cloudCostData = cloudCostData;
          converterMap = Collections.unmodifiableMap(createConverterMap());
+         this.cloudTopology = cloudTopology;
      }
 
     /**
@@ -109,12 +133,13 @@ public class CloudTopologyConverter {
         List<TraderTO.Builder> traderTOBuilders = new ArrayList<>();
         List<TraderTO.Builder> computeMarketTierBuilders = new ArrayList<>();
         logger.info("Beginning creation of market tier trader TOs");
+        Set<AccountPricingData> uniqueAccountPricingData = ImmutableSet.copyOf(accountPricingDataByBusinessAccountOid.values());
         for (Entry<Long, TopologyEntityDTO> entry : checkNotNull(topology.entrySet())) {
             TopologyEntityDTO entity = entry.getValue();
             TierConverter converter = converterMap.get(entity.getEntityType());
             if (converter != null) {
                 Map<TraderTO.Builder, MarketTier> traderTOBuildersForEntity =
-                        converter.createMarketTierTraderTOs(entity, topology, businessAccounts);
+                        converter.createMarketTierTraderTOs(entity, topology, businessAccounts, uniqueAccountPricingData);
                 traderTOBuilders.addAll(traderTOBuildersForEntity.keySet());
                 if (entity.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
                     computeMarketTierBuilders.addAll(traderTOBuildersForEntity.keySet());
@@ -130,7 +155,7 @@ public class CloudTopologyConverter {
         // since riData does not come along with the topologyEntityDTOs, RiDiscountedMarketTier creation
         // happens outside the for loop processing topologyEntityDTOs
         Map<TraderTO.Builder, MarketTier> traderTOBuildersForRis =
-                riConverter.createMarketTierTraderTOs(cloudCostData, topology, businessAccounts);
+                riConverter.createMarketTierTraderTOs(cloudCostData, topology, accountPricingDataByBusinessAccountOid);
         traderTOBuilders.addAll(traderTOBuildersForRis.keySet());
         computeMarketTierBuilders.addAll(traderTOBuildersForRis.keySet());
         // Add all the traderTO oids to MarketTier mappings to
@@ -169,6 +194,25 @@ public class CloudTopologyConverter {
         return traderTOOidToMarketTier.inverse().get(checkNotNull(marketTier));
     }
 
+    @Nonnull
+    Optional<RiDiscountedMarketTier> getRIDiscountedMarketTierFromRIData(@Nonnull ReservedInstanceData riData) {
+        return riConverter.getMarketTierForRIData(riData);
+    }
+
+    /**
+     * find the oid of the RIDiscountedMarketTier for the given riData.
+     *
+     * @param riData given RI data.
+     * @return the oid of the RIDiscountedMarketTier.
+     */
+    @Nullable
+    public Long getRIDiscountedMarketTierIDFromRIData(ReservedInstanceData riData) {
+
+        return getRIDiscountedMarketTierFromRIData(riData)
+                .map(this::getTraderTOOid)
+                .orElse(null);
+    }
+
     /**
      * Get the MarketTier corresponding to the traderTO oid.
      *
@@ -179,6 +223,23 @@ public class CloudTopologyConverter {
     @Nullable
     MarketTier getMarketTier(long traderToOid) {
         return traderTOOidToMarketTier.get(traderToOid);
+    }
+
+    /**
+     * Return value if there is a DiscountedMarketTier corresponding to the traderTOOid
+     *
+     * @param traderToOid the traderToOid for which the corresponding RiDiscountedMarketTier
+     *                    will be found.
+     * @return {@link MarketTier} which corresponds to the traderTO oid
+     */
+    @Nullable
+    Optional<MarketTier> getRiDiscountedMarketTier(long traderToOid) {
+        MarketTier mt = getMarketTier(traderToOid);
+        if (mt != null && mt.hasRIDiscount()) {
+            return Optional.of(mt);
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**
@@ -210,10 +271,6 @@ public class CloudTopologyConverter {
     @Nonnull
     Set<Long> getMarketTierProviderOidOfType(@Nonnull TopologyEntityDTO entity, int providerType) {
         Set<Long> providerOids =  new HashSet<>();
-        if (azToRegionMap.isEmpty()) {
-            logger.error("azToRegionMap not yet initialized.");
-            return providerOids;
-        }
         if (!TopologyDTOUtil.isTierEntityType(providerType)) {
             logger.error("{} is not a tier. Cannot fetch market tier providers for {}"
                     , providerType, entity.getDisplayName());
@@ -230,7 +287,7 @@ public class CloudTopologyConverter {
             return providerOids;
         }
         for (TopologyEntityDTO connectedEntity : connectedEntities) {
-            MarketTier provider = new OnDemandMarketTier(connectedEntity, region);
+            MarketTier provider = new OnDemandMarketTier(connectedEntity);
             Long oid = getTraderTOOid(provider);
             if (oid != null) {
                 providerOids.add(oid);
@@ -253,12 +310,12 @@ public class CloudTopologyConverter {
     Set<TopologyEntityDTO> getTopologyEntityDTOProvidersOfType(
             @Nonnull TopologyEntityDTO entity, int providerType) {
         return entity.getCommoditiesBoughtFromProvidersList().stream()
-                .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-                .filter(commBought -> commBought.getProviderEntityType() == providerType)
-                .filter(Objects::nonNull)
-                .map(commBought -> commBought.getProviderId())
-                .map(providerOid -> topology.get(providerOid))
-                .collect(Collectors.toCollection(HashSet::new));
+            .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+            .filter(commBought -> commBought.getProviderEntityType() == providerType)
+            .map(CommoditiesBoughtFromProvider::getProviderId)
+            .filter(topology::containsKey)
+            .map(topology::get)
+            .collect(Collectors.toCollection(HashSet::new));
     }
 
     /**
@@ -288,11 +345,88 @@ public class CloudTopologyConverter {
         if (primaryMarketTiers.size() != 1) {
             logger.error("Trader {} is connected to {} primary tiers - {}",
                     trader.getDebugInfoNeverUseInCode(), primaryMarketTiers.size(),
-                    primaryMarketTiers.stream().map(t ->
-                            t.getDisplayName()).collect(Collectors.joining(",")));
+                    primaryMarketTiers.stream()
+                            .map(MarketTier::getDisplayName)
+                            .collect(Collectors.joining(",")));
             return null;
         }
         return primaryMarketTiers.get(0);
+    }
+
+    /**
+     * Get the index of the compute shopping list for the trader.
+     * @param trader the trader of interest.
+     * @return index of the compute shopping list. -1 if there is none.
+     */
+    int getIndexOfSlSuppliedByPrimaryTier(TraderTO trader) {
+        for (int i = 0; i < trader.getShoppingListsList().size(); i++) {
+            ShoppingListTO sl = trader.getShoppingListsList().get(i);
+            MarketTier mTier = traderTOOidToMarketTier.get(sl.getSupplier());
+            if (mTier != null && TopologyDTOUtil.isPrimaryTierEntityType(
+                    mTier.getTier().getEntityType())) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Gets the primary market tier(compute tier) which is a supplier
+     * for the trader.
+     *
+     * @param trader TraderTO.
+     * @return Optional of the primary market tier
+     */
+    @Nullable
+    Optional<MarketTier> getComputeTier(TraderTO trader) {
+        List<MarketTier> primaryMarketTiers =  trader.getShoppingListsList().stream()
+                .map(sl -> traderTOOidToMarketTier.get(sl.getSupplier()))
+                .filter(Objects::nonNull)
+                .filter(mTier -> EntityType.COMPUTE_TIER_VALUE == mTier.getTier().getEntityType())
+                .collect(Collectors.toList());
+        if (primaryMarketTiers.size() != 1) {
+            return Optional.empty();
+        }
+        return Optional.of(primaryMarketTiers.get(0));
+    }
+
+    /**
+     * Determines a trader's reserved instance coverage capacity. If the trader is connected to a
+     * compute tier, its capacity with either mirror the capacity of the compute tier or it will be
+     * 0, based on {@code traderState}.
+     * @param trader The target {@link TraderTO}, expected to be a workload (VM, DB, DBS).
+     * @param traderState The trader's state. This is accepted as a separate argument from the trader
+     *                    due to projected {@link TraderTO} instances always having a state of ACTIVE,
+     *                    which is not indicative of their power state
+     * @return If the trader is connected to a compute tier, its coverage capacity based on the
+     * {@code traderState}. If the trader is not connected to a compute tier, returns {@link Optional#empty()}.
+     */
+    @Nonnull
+    public Optional<Integer> getReservedInstanceCoverageCapacity(@Nonnull TraderTO trader,
+                                                                 @Nonnull TraderStateTO traderState) {
+        return getComputeTier(trader)
+                .map(MarketTier::getTier)
+                .map(TopologyEntityDTO::getTypeSpecificInfo)
+                .map(TypeSpecificInfo::getComputeTier)
+                .map(computeTierInfo -> traderState == TraderStateTO.ACTIVE ?
+                        computeTierInfo.getNumCoupons() : 0);
+    }
+
+    /**
+     * Given a trader, get the region comm type from it shopping list.
+     *
+     * @param trader the trader
+     * @return the Integer corresponding to the region comm type
+     */
+    public Long getRegionCommTypeIntFromShoppingList(TraderTO trader) {
+        Optional<ShoppingListTO> shoppingListTO = trader.getShoppingListsList()
+                .stream()
+                .filter(ShoppingListTO::hasContext)
+                .findFirst();
+        if (shoppingListTO.isPresent()) {
+            return shoppingListTO.get().getContext().getRegionId();
+        }
+        return null;
     }
 
     /**
@@ -304,6 +438,15 @@ public class CloudTopologyConverter {
      */
     @Nullable
     TopologyEntityDTO getRegionOfCloudConsumer(@Nonnull TopologyEntityDTO entity) {
+        List<TopologyEntityDTO> regions = TopologyDTOUtil.getConnectedEntitiesOfType(
+            entity, EntityType.REGION_VALUE, topology);
+        // For Azure, a VM is directly connected to Region. It's not connected to Availability Zone.
+        // So if an entity is connected to Region, then return this region.
+        // Otherwise, find the Region through Availability Zone.
+        if (!regions.isEmpty()) {
+            return regions.get(0);
+        }
+
         TopologyEntityDTO region = null;
         if (azToRegionMap.isEmpty()) {
             logger.error("azToRegionMap not yet initialized.");
@@ -327,7 +470,7 @@ public class CloudTopologyConverter {
         List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(entity,
                 EntityType.AVAILABILITY_ZONE_VALUE, topology);
         if (AZs.isEmpty()) {
-            logger.error("{} not connected to any AZs", entity.getDisplayName());
+            logger.debug("{} not connected to any AZs", entity.getDisplayName());
             return null;
         }
         if (AZs.size() > 1) {
@@ -354,13 +497,14 @@ public class CloudTopologyConverter {
     }
 
     /**
-     * Returns {@link ReservedInstanceData} for a given riId
+     * Get the {@link ReservedInstanceData} by id.
      *
-     * @param riId
-     * @return ReservedInstanceData corresponding to that riId
+     * @param reservedInstanceId reserved instance id
+     * @return the {@link ReservedInstanceData}
      */
-    public ReservedInstanceData getRiDataById(long riId) {
-        return riConverter.getRiDataById(riId);
+    @Nullable
+    public ReservedInstanceData getRiDataById(long reservedInstanceId) {
+        return riConverter.getRiDataById(reservedInstanceId);
     }
 
     /**
@@ -370,6 +514,29 @@ public class CloudTopologyConverter {
      * @return EntityReservedInstanceCoverage corresponding to the given entity
      */
     public Optional<EntityReservedInstanceCoverage> getRiCoverageForEntity(long entityId) {
-        return cloudCostData.getRiCoverageForEntity(entityId);
+        return cloudCostData.getFilteredRiCoverage(entityId);
+    }
+
+    /**
+     * Get the AccountPricing Id from the business account.
+     *
+     * @param businessAccountOid The business account oid.
+     *
+     * @return An optional of AccountPricingData
+     */
+    public Optional<AccountPricingData<TopologyEntityDTO>> getAccountPricingIdFromBusinessAccount(
+            Long businessAccountOid) {
+        return cloudCostData.getAccountPricingData(businessAccountOid);
+    }
+
+    /**
+     * Populate the accountPricingDataByBusinessAccountOid map.
+     *
+     * @param businessAccountOid The business account oid.
+     * @param accountPricingData The account pricing data.
+     */
+    public void insertIntoAccountPricingDataByBusinessAccountOidMap(Long businessAccountOid,
+                                                                    AccountPricingData accountPricingData) {
+        accountPricingDataByBusinessAccountOid.put(businessAccountOid, accountPricingData);
     }
 }

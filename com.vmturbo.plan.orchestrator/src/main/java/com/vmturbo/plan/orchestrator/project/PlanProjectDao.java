@@ -5,18 +5,16 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProject;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 
 /**
  * DAO for plan project.
  */
-public interface PlanProjectDao extends Diagnosable {
+public interface PlanProjectDao extends DiagsRestorable {
 
     /**
      * Creates a plan project, based on plan project information.
@@ -25,7 +23,7 @@ public interface PlanProjectDao extends Diagnosable {
      * @return plan project, if created
      */
     @Nonnull
-    PlanDTO.PlanProject createPlanProject(@Nonnull PlanProjectInfo info);
+    PlanProjectOuterClass.PlanProject createPlanProject(@Nonnull PlanProjectInfo info);
 
     /**
      * Returns the plan project by id, or empty object if there is no plan project with the
@@ -35,7 +33,7 @@ public interface PlanProjectDao extends Diagnosable {
      * @return optional value
      */
     @Nonnull
-    Optional<PlanDTO.PlanProject> getPlanProject(long id);
+    Optional<PlanProjectOuterClass.PlanProject> getPlanProject(long id);
 
     /**
      * Return a list plan projects selected by project type.
@@ -44,7 +42,7 @@ public interface PlanProjectDao extends Diagnosable {
      * @return all plan projects of the specified type
      */
     @Nonnull
-    public List<PlanDTO.PlanProject> getPlanProjectsByType(@Nonnull PlanProjectType type);
+    List<PlanProjectOuterClass.PlanProject> getPlanProjectsByType(@Nonnull PlanProjectType type);
 
     /**
      * Returns all the existing plan projects.
@@ -61,7 +59,5 @@ public interface PlanProjectDao extends Diagnosable {
      * @return The plan project representing the plan project before deletion.
      */
     @Nonnull
-    Optional<PlanDTO.PlanProject> deletePlan(long id);
-
-    SystemLoadInfoResponse getSystemLoadInfo(SystemLoadInfoRequest request);
+    Optional<PlanProjectOuterClass.PlanProject> deletePlan(long id);
 }

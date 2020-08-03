@@ -1,0 +1,21 @@
+syntax = "proto2";
+package group_api_dto;
+
+option java_package = "com.vmturbo.group.api";
+option java_outer_classname = "SettingMessages";
+
+import "setting/Setting.proto";
+
+// A setting notification which is broadcasted whenever a setting is changed.
+message SettingNotification {
+
+    // The type of setting.
+    oneof type {
+        GlobalSettingChange global = 1;
+    }
+}
+
+// The message specifying which setting has been changed.
+message GlobalSettingChange {
+    optional .setting.Setting setting = 1;
+}

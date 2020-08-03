@@ -7,16 +7,19 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 
-import com.google.common.collect.ImmutableMap;
-
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
+import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
 import com.vmturbo.platform.sdk.common.EntityPropertyName;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver.GroupScopedEntity;
@@ -35,9 +38,9 @@ public class GroupScopePropertyExtractor {
 
     /**
      * A map from each property that might appear in the group scope to a
-     * {@link EntityPropertyExtractor} that can extract that property from an {@link Entity}
+     * {@link EntityPropertyExtractor} that can extract that property from an {@link Entity}.
      */
-    private final static Map<EntityPropertyName, EntityPropertyExtractor> extractorMap =
+    private static final Map<EntityPropertyName, EntityPropertyExtractor> extractorMap =
             ImmutableMap.<EntityPropertyName, EntityPropertyExtractor>builder()
                     .put(EntityPropertyName.DISPLAY_NAME, groupScopedEntity -> {
                             final TopologyEntityDTO topologyEntityDTO =
@@ -82,8 +85,20 @@ public class GroupScopePropertyExtractor {
                     .put(EntityPropertyName.GUEST_LOAD_UUID, groupScopedEntity -> {
                             return groupScopedEntity.getGuestLoadEntityOid();
                     })
+                    .put(EntityPropertyName.LOCAL_NAME, groupScopedEntity -> {
+                        return groupScopedEntity.getLocalName();
+                    })
                     .put(EntityPropertyName.MEM_BALLOONING,
                             new CommodityCapacityExtractor(CommodityType.BALLOONING))
+                    .put(EntityPropertyName.DYNAMIC_MEMORY, groupScopedEntity -> {
+                        TopologyDTO.TypeSpecificInfo info =
+                                groupScopedEntity.getTopologyEntityDTO().getTypeSpecificInfo();
+
+                        boolean dynamic = info.hasVirtualMachine()
+                                && info.getVirtualMachine().hasDynamicMemory()
+                                && info.getVirtualMachine().getDynamicMemory();
+                        return Optional.of(Boolean.toString(dynamic));
+                    })
                     .put(EntityPropertyName.VCPU_CAPACITY,
                             new CommodityCapacityExtractor(CommodityType.VCPU))
                     .put(EntityPropertyName.VMEM_CAPACITY,
@@ -112,6 +127,34 @@ public class GroupScopePropertyExtractor {
                         return Optional.of(VC_VSTORAGE_UUID_PREFIX + BACKSLASH +
                             targetAddress.get() + BACKSLASH + localName.get());
                     })
+                .put(EntityPropertyName.OFFER_ID, groupScopedEntity -> {
+                    final TopologyEntityDTO topologyEntityDTO =
+                        groupScopedEntity.getTopologyEntityDTO();
+                    if (topologyEntityDTO.hasTypeSpecificInfo() &&
+                        topologyEntityDTO.getTypeSpecificInfo().hasBusinessAccount()) {
+                        return topologyEntityDTO.getTypeSpecificInfo()
+                            .getBusinessAccount().getPricingIdentifiersList().stream()
+                            .filter(pricingId -> pricingId.getIdentifierName() ==
+                                PricingIdentifierName.OFFER_ID)
+                            .map(PricingIdentifier::getIdentifierValue)
+                            .findFirst();
+                    }
+                    return Optional.empty();
+                })
+                .put(EntityPropertyName.ENROLLMENT_NUMBER, groupScopedEntity -> {
+                    final TopologyEntityDTO topologyEntityDTO =
+                        groupScopedEntity.getTopologyEntityDTO();
+                    if (topologyEntityDTO.hasTypeSpecificInfo() &&
+                        topologyEntityDTO.getTypeSpecificInfo().hasBusinessAccount()) {
+                        return topologyEntityDTO.getTypeSpecificInfo()
+                            .getBusinessAccount().getPricingIdentifiersList().stream()
+                            .filter(pricingId -> pricingId.getIdentifierName() ==
+                                PricingIdentifierName.ENROLLMENT_NUMBER)
+                            .map(PricingIdentifier::getIdentifierValue)
+                            .findFirst();
+                    }
+                    return Optional.empty();
+                })
                     .build();
 
     /**

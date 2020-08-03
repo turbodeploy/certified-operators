@@ -17,6 +17,8 @@ import io.grpc.Channel;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -24,9 +26,13 @@ public class FakeRepositoryClient extends RepositoryClient {
 
     private final Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
 
-    // Create a fake repository client, using a mock repository channel
+    // The  realtime topology context Id.
+    private static final Long realtimeTopologyContextId = 777777L;
+
+    // Create a fake repository client, using a mock repository channel.
+    // Pass in the real-time context id.
     public FakeRepositoryClient() {
-        super(Mockito.mock(Channel.class));
+        super(Mockito.mock(Channel.class), realtimeTopologyContextId);
     }
 
     @Override
@@ -34,7 +40,7 @@ public class FakeRepositoryClient extends RepositoryClient {
         List<RetrieveTopologyResponse> response = Lists.newArrayList();
         response.add(RetrieveTopologyResponse.newBuilder()
                 // Retrieve just the single entity for now -- update as needed for new tests
-                .addEntities(entityMap.get(topologyId))
+                .addEntities(PartialEntity.newBuilder().setFullEntity(entityMap.get(topologyId)))
                 .build());
         return response.iterator();
     }
@@ -53,7 +59,9 @@ public class FakeRepositoryClient extends RepositoryClient {
     }
 
     @Override
-    public RepositoryOperationResponse deleteTopology(final long topologyId, final long topologyContextId) {
+    public RepositoryOperationResponse deleteTopology(final long topologyId,
+                                                      final long topologyContextId,
+                                                      final TopologyType topologyType) {
         entityMap.put(topologyId, null);
         return RepositoryOperationResponse.newBuilder()
                 .setResponseCode(RepositoryOperationResponseCode.OK)

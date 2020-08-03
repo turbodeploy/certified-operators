@@ -1,0 +1,339 @@
+{
+  "Contexts": [
+    {
+      "context": {
+        "os": "LINUX",
+        "csp": "AWS",
+        "region": 31,
+        "billingAccount": 1,
+        "tenancy": "DEFAULT"
+      },
+      "Templates": [
+        {
+          "oid": 100001,
+          "name": "t3.nano",
+          "family": "t3",
+          "onDemandCost": [
+            {
+              "compute": 1.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 1
+        },
+        {
+          "oid": 100002,
+          "name": "t3.micro",
+          "family": "t3",
+          "onDemandCost": [
+            {
+              "compute": 2.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 2
+        },
+        {
+          "oid": 100003,
+          "name": "t3.small",
+          "family": "t3",
+          "onDemandCost": [
+            {
+              "compute": 4.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 4
+        },
+        {
+          "oid": 100011,
+          "name": "t3a.nano",
+          "family": "t3a",
+          "onDemandCost": [
+            {
+              "compute": 1.1,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 1
+        },
+        {
+          "oid": 100012,
+          "name": "t3a.micro",
+          "family": "t3a",
+          "onDemandCost": [
+            {
+              "compute": 2.1,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 2
+        },
+        {
+          "oid": 100013,
+          "name": "t3a.small",
+          "family": "t3a",
+          "onDemandCost": [
+            {
+              "compute": 4.1,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 4
+        }
+      ],
+      "VirtualMachines": [
+        {
+          "oid": 2000001,
+          "name": "VM1",
+          "businessAccount": 10,
+          "count": 2,
+          "providers": [
+            100011,
+            100002,
+            100012,
+            100003,
+            100013
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100001,
+          "os": "LINUX"
+        },
+        {
+          "oid": 2000002,
+          "name": "VM2",
+          "businessAccount": 10,
+          "count": 2,
+          "providers": [
+            100012,
+            100003,
+            100013
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100011,
+          "os": "LINUX"
+        },
+        {
+          "oid": 2000003,
+          "name": "VM3",
+          "businessAccount": 10,
+          "count": 2,
+          "providers": [
+            100012,
+            100003,
+            100013
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100003,
+          "os": "LINUX"
+        },
+        {
+          "oid": 2000004,
+          "name": "VM4",
+          "businessAccount": 10,
+          "count": 2,
+          "providers": [
+            100013
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100011,
+          "os": "LINUX"
+        },
+        {
+          "oid": 2000005,
+          "name": "VM5",
+          "businessAccount": 10,
+          "count": 2,
+          "providers": [
+            100003,
+            100013
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100002,
+          "os": "LINUX"
+        },
+        {
+          "oid": 2000006,
+          "name": "VM6",
+          "businessAccount": 10,
+          "count": 2,
+          "providers": [
+            100003,
+            100013
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100001,
+          "os": "LINUX"
+        },
+        {
+          "oid": 2000007,
+          "name": "VM7",
+          "businessAccount": 10,
+          "count": 2,
+          "providers": [
+            100011,
+            100002,
+            100012,
+            100003,
+            100013
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100002,
+          "os": "LINUX"
+        },
+        {
+          "oid": 2000008,
+          "name": "VM8",
+          "businessAccount": 10,
+          "count": 2,
+          "providers": [
+            100011,
+            100002,
+            100012,
+            100003,
+            100013
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100001,
+          "os": "LINUX"
+        }
+      ],
+      "ReservedInstances": [
+        {
+          "oid": 1000001,
+          "keyOid":3000001,
+          "name": "RI1",
+          "businessAccount": 10,
+          "utilization": 0,
+          "zone": 21,
+          "template": 100001,
+          "count": 2,
+          "isf": false
+        },
+        {
+          "oid": 1000004,
+          "keyOid":3000004,
+          "name": "RI4",
+          "businessAccount": 10,
+          "utilization": 0,
+          "zone": 21,
+          "template": 100012,
+          "count": 2,
+          "isf": false
+        },
+        {
+          "oid": 1000005,
+          "keyOid":3000005,
+          "name": "RI5",
+          "businessAccount": 10,
+          "utilization": 0,
+          "zone": 21,
+          "template": 100003,
+          "count": 2,
+          "isf": false
+        },
+        {
+          "oid": 1000002,
+          "keyOid":3000002,
+          "name": "RI2",
+          "businessAccount": 10,
+          "utilization": 0,
+          "zone": 21,
+          "template": 100011,
+          "count": 2,
+          "isf": false
+        },
+        {
+          "oid": 1000003,
+          "keyOid":3000003,
+          "name": "RI3",
+          "businessAccount": 10,
+          "utilization": 0,
+          "zone": 21,
+          "template": 100002,
+          "count": 2,
+          "isf": false
+        },
+        {
+          "oid": 1000006,
+          "keyOid":3000006,
+          "name": "RI6",
+          "businessAccount": 10,
+          "utilization": 0,
+          "zone": 21,
+          "template": 100013,
+          "count": 2,
+          "isf": false
+        }
+      ]
+    }
+  ]
+}

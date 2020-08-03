@@ -1,13 +1,13 @@
 package com.vmturbo.stitching.poststitching;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.joda.time.Duration;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -76,11 +76,15 @@ public class SetResizeDownAnalysisSettingPostStitchingOperation implements PostS
      */
     private boolean isEligibleForResizeDown(@Nonnull final TopologyEntity entity) {
         // only set resize down to true for active entities.
-        if (entity.getTopologyEntityDtoBuilder().getEntityState() != EntityState.POWERED_ON) {
+        if (entity.getTopologyEntityDtoBuilder().getEntityState() != EntityState.POWERED_ON
+                // It is possible that resize down flag was already set due to action execution.
+                // If it was entity becomes ineligible for setting of this flag again.
+                || entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().hasIsEligibleForResizeDown()) {
             return false;
         }
+
         final long entityDiscoveredTime = IdentityGenerator.toMilliTime(entity.getOid());
         final long diffMillis = clock.millis() - entityDiscoveredTime;
-        return Duration.millis(diffMillis).getStandardMinutes() >= resizeDownWarmUpIntervalHours * 60;
+        return Duration.ofMillis(diffMillis).toMinutes() >= resizeDownWarmUpIntervalHours * 60;
     }
 }

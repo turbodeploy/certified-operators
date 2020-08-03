@@ -1,0 +1,357 @@
+apiVersion: charts.helm.k8s.io/v1alpha1
+kind: Xl
+metadata:
+  name: xl-release
+spec:
+
+  # Global settings
+  global:
+    repository: turbonomic
+    tag: 7.22.6-SNAPSHOT
+    externalIP: 10.0.2.15
+    externalDbIP: 10.0.2.15
+    externalTimescaleDBIP: 10.0.2.15
+    debug: true
+    dev_options: "-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n"
+
+  grafana:
+    # Grafana is disabled by default. To enable it, uncomment:
+    #enabled: true
+    adminPassword: admin
+    grafana.ini:
+      database:
+        # Store data in sqlite3 (no persistence across restarts) by default. To persist, uncomment:
+        #type: postgres
+
+        # The password. TODO - figure out the correct/ideal way to deploy this without risking
+        # losing/resetting the password on upgrade.
+        # See: https://github.com/helm/charts/issues/5167
+        password: grafana
+
+  # Component selector - Core
+  nginxingress:
+    enabled: true
+  istioingress:
+    enabled: false
+  platform:
+    enabled: true
+  metron:
+    enabled: false
+  prometheus:
+    enabled: false
+
+  # Component selector - Probes
+  actionscript:
+    enabled: false
+  aix:
+    enabled: false
+  appdynamics:
+    enabled: false
+  udt:
+    enabled: true
+  appinsight:
+    enabled: false
+  aws:
+    enabled: true
+  awslambda:
+    enabled: false
+  azure:
+    enabled: true
+  cloudfoundry:
+    enabled: false
+  compellent:
+    enabled: false
+  datadog:
+    enabled: false
+  dynatrace:
+    enabled: false
+  gcp:
+    enabled: false
+  hpe3par:
+    enabled: false
+  hds:
+    enabled: false
+  horizon:
+    enabled: false
+  hyperflex:
+    enabled: false
+  hyperv:
+    enabled: false
+  istio:
+    enabled: false
+  mssql:
+    enabled: false
+  mysql:
+    enabled: false
+  netapp:
+    enabled: false
+  netflow:
+    enabled: false
+  nutanix:
+    enabled: false
+  oneview:
+    enabled: false
+  openstack:
+    enabled: false
+  pivotal:
+    enabled: false
+  pure:
+    enabled: false
+  rhv:
+    enabled: false
+  scaleio:
+    enabled: false
+  snmp:
+    enabled: false
+  tetration:
+    enabled: false
+  ucs:
+    enabled: false
+  ucsdirector:
+    enabled: false
+  vcd:
+    enabled: false
+  vcenter:
+    enabled: false
+  vmax:
+    enabled: false
+  vmm:
+    enabled: false
+  vplex:
+    enabled: false
+  wmi:
+    enabled: false
+  xtremio:
+    enabled: false
+
+  # Resource limits - Core Services
+  action-orchestrator:
+    resources:
+      limits:
+        memory: 2Gi
+  api:
+    resources:
+      limits:
+        memory: 1Gi
+  auth:
+    resources:
+      limits:
+        memory: 768Mi
+  clustermgr:
+    resources:
+      limits:
+        memory: 512Mi
+  cost:
+    resources:
+      limits:
+        memory: 1Gi
+  group:
+    resources:
+      limits:
+        memory: 768Mi
+  history:
+    resources:
+      limits:
+        memory: 2Gi
+  market:
+    resources:
+      limits:
+        memory: 3Gi
+  ml-datastore:
+    resources:
+      limits:
+        memory: 512Mi
+  ml-training:
+    resources:
+      limits:
+        memory: 512Mi
+  plan-orchestrator:
+    resources:
+      limits:
+        memory: 1Gi
+  reporting:
+    resources:
+      limits:
+        memory: 768Mi
+  repository:
+    resources:
+      limits:
+        memory: 3Gi
+  topology-processor:
+    resources:
+      limits:
+        memory: 4Gi
+
+  # Resource limits - Core 3rd party
+  arangodb:
+    resources:
+      limits:
+        memory: 2Gi
+  kafka:
+    resources:
+      limits:
+        memory: 2Gi
+  zookeeper:
+    resources:
+      limits:
+        memory: 512Mi
+
+  # Resources limits - Probes
+  # Don't specify resource limits for AWS or Azure here, instead obtain the resource limits from the
+  # helm-chars/probes values.yaml files.
+  mediation-actionscript:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-aix:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-appdynamics:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-cloudfoundry:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-compellent:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-datadog:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-dynatrace:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-gcp:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-gcpcost:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-hds:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-horizon:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-hpe3par:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-hyperflex:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-hyperv:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-istio:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-mssql:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-mysql:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-netapp:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-netflow:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-nutanix:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-oneview:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-openstack:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-pivotal:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-pure:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-rhv:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-scaleio:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-snmp:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-tetration:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-ucs:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-ucsdirector:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-vcd:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-vcenter:
+    resources:
+      limits:
+        memory: 2Gi
+  mediation-vcenterbrowsing:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-vmax:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-vmm:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-vplex:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-wmi:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-udt:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-xtremio:
+    resources:
+      limits:
+        memory: 512Mi

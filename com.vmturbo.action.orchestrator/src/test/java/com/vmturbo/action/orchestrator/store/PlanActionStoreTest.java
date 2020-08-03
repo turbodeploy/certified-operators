@@ -1,13 +1,16 @@
 package com.vmturbo.action.orchestrator.store;
 
-import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.passthroughTranslator;
 import static com.vmturbo.action.orchestrator.db.tables.MarketAction.MARKET_ACTION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -16,34 +19,37 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import org.apache.commons.collections4.ListUtils;
-import org.flywaydb.core.Flyway;
-import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
+import org.apache.commons.collections4.ListUtils;
+import org.jooq.DSLContext;
+import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeaturesRequiredException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
@@ -53,24 +59,28 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionP
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Integration tests related to the {@link PlanActionStoreTest}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    loader = AnnotationConfigContextLoader.class,
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class PlanActionStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(com.vmturbo.action.orchestrator.db.Action.ACTION);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private final long firstPlanId = 0xBEADED;
     private final long secondPlanId = 0xDADDA;
@@ -78,39 +88,91 @@ public class PlanActionStoreTest {
     private final long firstContextId = 0xFED;
     private final long secondContextId = 0xFEED;
 
+    private static final long hostA = 0xA;
+    private static final long hostB = 0xB;
+
+    private static final long realtimeId = 777777L;
+    /**
+     * Permit spying on actions inserted into the store so that their state can be mocked
+     * out for testing purposes.
+     */
+    private class SpyActionFactory implements IActionFactory {
+        /**
+         * {@inheritDoc}
+         */
+        @Nonnull
+        @Override
+        public Action newAction(@Nonnull final ActionDTO.Action recommendation, long actionPlanId, long recommendationOid) {
+            return spy(new Action(recommendation, actionPlanId, actionModeCalculator, recommendationOid));
+        }
+
+        @Nonnull
+        @Override
+        public Action newPlanAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
+                                    long actionPlanId, String description,
+                                    @Nullable final Long associatedAccountId,
+                                    @Nullable final Long associatedResourceGroupId) {
+            return spy(new Action(recommendation, recommendationTime, actionPlanId,
+                    actionModeCalculator, description, associatedAccountId, associatedResourceGroupId, 2244L));
+        }
+    }
+
     private final LocalDateTime actionRecommendationTime = LocalDateTime.now();
     private final IActionFactory actionFactory = mock(IActionFactory.class);
+    private SpyActionFactory spyActionFactory = spy(new SpyActionFactory());
     private PlanActionStore actionStore;
 
-    private final ActionTranslator actionTranslator = passthroughTranslator();
+    private final EntitiesAndSettingsSnapshotFactory entitiesSnapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
+    private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
+    private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
+    private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
 
-    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator(actionTranslator);
+    private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
+
+    private LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
 
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
-        actionStore = new PlanActionStore(actionFactory, dsl, firstContextId);
+        actionStore = new PlanActionStore(spyActionFactory, dsl, firstContextId,
+            entitiesSnapshotFactory, actionTranslator, realtimeId,
+            actionTargetSelector, licenseCheckClient);
 
         // Enforce that all actions created with this factory get the same recommendation time
         // so that actions can be easily compared.
-        when(actionFactory.newAction(any(ActionDTO.Action.class),
-                any(LocalDateTime.class), anyLong())).thenAnswer(
+        when(actionFactory.newPlanAction(any(ActionDTO.Action.class),
+            any(LocalDateTime.class), anyLong(), anyString(), any(), any())).thenAnswer(
             invocation -> {
                 Object[] args = invocation.getArguments();
                 return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2],
-                        actionModeCalculator);
+                        actionModeCalculator, "Move VM from H1 to H2", 321L, 121L, 2244L);
             });
+        setEntitiesOIDs();
+        when(actionTargetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
+            Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
+            return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action ->
+                ImmutableActionTargetInfo.builder()
+                    .targetId(100L).supportingLevel(SupportLevel.SUPPORTED).build()));
+        });
     }
 
-    @After
-    public void teardown() throws Exception {
-        flyway.clean();
+    public void setEntitiesOIDs() {
+        when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong())).thenReturn(snapshot);
+        // Hack: if plan source topology is not available, the fall back on realtime.
+        when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong(), eq(realtimeId))).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), any(), eq(realtimeId))).thenReturn(snapshot);
+        for (long i=1; i<10;i++) {
+            createMockEntity(i,EntityType.VIRTUAL_MACHINE.getNumber());
+        }
+        createMockEntity(hostA,EntityType.PHYSICAL_MACHINE.getNumber());
+        createMockEntity(hostB,EntityType.PHYSICAL_MACHINE.getNumber());
+    }
+
+    private void createMockEntity(long id, int type) {
+        when(snapshot.getEntityFromOid(eq(id)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(id, type));
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -155,13 +217,13 @@ public class PlanActionStoreTest {
         assertTrue(actionStore.getActionViews().isEmpty());
     }
 
-        @Test
+    @Test
     public void testGetActionViews() throws Exception {
         final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 1, 3, 1, 4);
         final ActionPlan actionPlan = marketActionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
         actionStore.populateRecommendedActions(actionPlan);
 
-        Collection<ActionView> actionViews = actionStore.getActionViews().values();
+        Collection<ActionView> actionViews = actionStore.getActionViews().getAll().collect(Collectors.toList());
         assertEquals(1, actionViews.size());
         assertEquals(action, actionViews.iterator().next().getRecommendation());
     }
@@ -176,7 +238,7 @@ public class PlanActionStoreTest {
         assertEquals(action, actionView.getRecommendation());
         assertEquals(firstPlanId, actionView.getActionPlanId());
         assertTrue(actionView.getRecommendation().getExecutable());
-        assertEquals(ActionMode.MANUAL, actionView.getMode());
+        assertEquals(ActionMode.RECOMMEND, actionView.getMode());
         assertFalse(actionView.getDecision().isPresent());
         assertFalse(actionView.getCurrentExecutableStep().isPresent());
     }
@@ -198,7 +260,8 @@ public class PlanActionStoreTest {
         actionStore.populateRecommendedActions(actionPlan);
 
         ActionOrchestratorTestUtils.assertActionsEqual(
-            actionFactory.newAction(action, actionRecommendationTime, firstPlanId),
+            actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "", null,
+                null),
             actionStore.getAction(1L).get()
         );
     }
@@ -206,6 +269,17 @@ public class PlanActionStoreTest {
     @Test
     public void testGetActionsFromEmptyStore() throws Exception {
         assertTrue(actionStore.getActions().isEmpty());
+    }
+
+    /**
+     * Test that getAction() is not available on the PlanActionStore if the "planner" feature is
+     * not available on the license.
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetActionUnlicensed() {
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(ProbeLicense.PLANNER)))
+            .when(licenseCheckClient).checkFeatureAvailable(ProbeLicense.PLANNER);
+        actionStore.getAction(1);
     }
 
     @Test
@@ -217,26 +291,38 @@ public class PlanActionStoreTest {
         Map<Long, Action> actionsMap = actionStore.getActions();
         actionList.forEach(action ->
             ActionOrchestratorTestUtils.assertActionsEqual(
-                actionFactory.newAction(action, actionRecommendationTime, firstPlanId),
+                actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "",
+                    null, null),
                 actionsMap.get(action.getId())
             )
         );
     }
 
+    /**
+     * Test that getActions() is not available on the PlanActionStore if the "planner" feature is
+     * not available on the license.
+     */
+    @Test(expected = LicenseFeaturesRequiredException.class)
+    public void testGetActionsUnlicensed() {
+        doThrow(new LicenseFeaturesRequiredException(Collections.singleton(ProbeLicense.PLANNER)))
+                .when(licenseCheckClient).checkFeatureAvailable(ProbeLicense.PLANNER);
+        actionStore.getActions();
+    }
+
     @Test
     public void testOverwriteActionsEmptyStore() throws Exception {
         final List<Action> actionList = actionList(3).stream()
-            .map(marketAction -> actionFactory.newAction(marketAction, actionRecommendationTime,
-                    firstPlanId))
+            .map(marketAction -> actionFactory.newPlanAction(marketAction, actionRecommendationTime,
+                firstPlanId, "", null, null))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(ImmutableMap.of(ActionPlanType.MARKET, actionList));
         Map<Long, Action> actionsMap = actionStore.getActions();
         actionList.forEach(action ->
-                ActionOrchestratorTestUtils.assertActionsEqual(
-                    action,
-                    actionsMap.get(action.getId())
-                )
+            ActionOrchestratorTestUtils.assertActionsEqual(
+                action,
+                actionsMap.get(action.getId())
+            )
         );
     }
 
@@ -249,12 +335,12 @@ public class PlanActionStoreTest {
 
         final int numOverwriteActions = 2;
         final List<Action> marketOverwriteActions = actionList(numOverwriteActions).stream()
-            .map(marketAction -> actionFactory.newAction(marketAction, actionRecommendationTime,
-                firstPlanId))
+            .map(marketAction -> actionFactory.newPlanAction(marketAction, actionRecommendationTime,
+                firstPlanId, "", null, null))
             .collect(Collectors.toList());
         final List<Action> buyRIOverwriteActions = actionList(numOverwriteActions).stream()
-            .map(buyRIAction -> actionFactory.newAction(buyRIAction, actionRecommendationTime,
-                secondPlanId))
+            .map(buyRIAction -> actionFactory.newPlanAction(buyRIAction, actionRecommendationTime,
+                secondPlanId, "", null, null))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(ImmutableMap.of(
@@ -299,7 +385,8 @@ public class PlanActionStoreTest {
     @Test
     public void testStoreLoaderWithNoStores() {
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId,
+                null, null, actionTargetSelector, licenseCheckClient).loadActionStores();
 
         assertTrue(loadedStores.isEmpty());
     }
@@ -319,13 +406,16 @@ public class PlanActionStoreTest {
 
         // Setup second planActionStore. This has 9 Buy RI Actions
         final ActionPlan buyRIActionPlan2 = buyRIActionPlan(3L, secondContextId, actionList(9));
-        PlanActionStore actionStore2 = new PlanActionStore(actionFactory, dsl, secondContextId);
+        PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId,
+            entitiesSnapshotFactory, actionTranslator, realtimeId,
+            actionTargetSelector, licenseCheckClient);
         actionStore2.populateRecommendedActions(buyRIActionPlan2);
         expectedActionStores.put(secondContextId, actionStore2);
 
         // Load the stores from DB
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId,
+            null, null, actionTargetSelector, licenseCheckClient).loadActionStores();
         loadedStores.forEach(store -> actualActionStores.put(store.getTopologyContextId(), store));
 
         // Assert that what we load from DB is the same as what we setup initially
@@ -374,15 +464,16 @@ public class PlanActionStoreTest {
     }
 
     private static List<ActionDTO.Action> actionList(final int numActions) {
-        return IntStream.range(0, numActions)
-            .mapToObj(i -> ActionOrchestratorTestUtils.createMoveRecommendation(IdentityGenerator.next()))
+        List<ActionDTO.Action> actions =  IntStream.range(0, numActions)
+            .mapToObj(i -> ActionOrchestratorTestUtils.createMoveRecommendation(IdentityGenerator.next(),i+1,hostA,14,hostB,14))
             .collect(Collectors.toList());
+        return actions;
     }
 
     private static ActionPlan marketActionPlan(final long planId, final long topologyContextId,
                                                @Nonnull final Collection<ActionDTO.Action> actions) {
 
-        return ActionPlan.newBuilder()
+        ActionPlan plan = ActionPlan.newBuilder()
             .setId(planId)
             .setInfo(ActionPlanInfo.newBuilder()
                 .setMarket(MarketActionPlanInfo.newBuilder()
@@ -392,10 +483,11 @@ public class PlanActionStoreTest {
                         .setTopologyType(TopologyType.PLAN))))
             .addAllAction(Objects.requireNonNull(actions))
             .build();
+        return plan;
     }
 
     private static ActionPlan buyRIActionPlan(final long planId, final long topologyContextId,
-                                               @Nonnull final Collection<ActionDTO.Action> actions) {
+                                              @Nonnull final Collection<ActionDTO.Action> actions) {
 
         return ActionPlan.newBuilder()
             .setId(planId)

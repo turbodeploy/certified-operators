@@ -1,21 +1,28 @@
 package com.vmturbo.topology.processor.cost;
 
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.CLOUD_COST_UPLOAD_TIME;
+import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.MILLIS_PER_3_YEAR;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.MILLIS_PER_YEAR;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.RI_DATA_SECTION;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UPLOAD_REQUEST_BUILD_STAGE;
 import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UPLOAD_REQUEST_UPLOAD_STAGE;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,14 +32,22 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
-import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.mediation.hybrid.cloud.common.PropertyName;
+import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
@@ -46,6 +61,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
  * RICostDataUploader collects Account expense data and Reserved Instance coverage and purchases
@@ -65,14 +81,42 @@ public class RICostDataUploader {
     // track the last upload time. We want to space the uploads apart, to once-per-hour.
     private Instant lastUploadTime = null;
 
-    public RICostDataUploader(RIAndExpenseUploadServiceBlockingStub costServiceClient,
-                              int minimumRIDataUploadIntervalMins, Clock clock) {
-        this.costServiceClient = costServiceClient;
+    private static final int DELTA_RI_DURATION_DAYS = 1;
+
+    private final boolean discardRIsWithoutPurchasingAccountData;
+
+    private final boolean riSupportInPartialCloudEnvironment;
+
+    /**
+     * Constructor.
+     *
+     * @param costServiceClient the {@link RIAndExpenseUploadServiceBlockingStub}
+     * @param minimumRIDataUploadIntervalMins the minimum number of minutes to wait between
+     *         RI data uploads
+     * @param clock the {@link Clock}
+     * @param fullAzureEARIDiscovery not discard reserved instances if the purchasing
+     *         account information has not been discovered
+     * @param riSupportInPartialCloudEnvironment OM-58310: Improve handling partially
+     *         discovered cloud environment feature flag. Not discard reserved instances if the
+     *         purchasing account information has not been discovered. Send entity level coverages
+     *         for all discovered workloads covered by discovered and undiscovered reserved
+     *         instances.
+     */
+    public RICostDataUploader(
+            @Nonnull final RIAndExpenseUploadServiceBlockingStub costServiceClient,
+            final int minimumRIDataUploadIntervalMins, @Nonnull final Clock clock,
+            final boolean fullAzureEARIDiscovery,
+            final boolean riSupportInPartialCloudEnvironment) {
         if (minimumRIDataUploadIntervalMins < 0) {
-            throw new IllegalArgumentException("minimumRIDataUploadIntervalMins cannot be less than 0.");
+            throw new IllegalArgumentException(
+                    "minimumRIDataUploadIntervalMins cannot be less than 0.");
         }
+        this.costServiceClient = costServiceClient;
         this.minimumRIDataUploadIntervalMins = minimumRIDataUploadIntervalMins;
         this.clock = clock;
+        this.riSupportInPartialCloudEnvironment = riSupportInPartialCloudEnvironment;
+        this.discardRIsWithoutPurchasingAccountData =
+                !fullAzureEARIDiscovery && !riSupportInPartialCloudEnvironment;
     }
 
     /**
@@ -121,13 +165,12 @@ public class RICostDataUploader {
         UploadRIDataRequest.Builder requestBuilder = UploadRIDataRequest.newBuilder();
         requestBuilder.addAllReservedInstanceSpecs(riCostComponentData.riSpecs);
 
-        riCostComponentData.riBoughtByLocalId.values().forEach(riBought -> {
-            requestBuilder.addReservedInstanceBought(riBought.build());
-        });
-
-        riCostComponentData.riCoverages.forEach(riCoverage -> {
-            requestBuilder.addReservedInstanceCoverage(riCoverage.build());
-        });
+        riCostComponentData.riBoughtByLocalId.values().forEach(
+                requestBuilder::addReservedInstanceBought);
+        riCostComponentData.entityLevelReservedInstanceCoverages.forEach(
+                requestBuilder::addReservedInstanceCoverage);
+        riCostComponentData.accountLevelReservedInstanceCoverages.forEach(
+                requestBuilder::addAccountLevelReservedInstanceCoverage);
 
         buildTimer.observe();
         logger.debug("Building cost component request took {} secs", buildTimer.getTimeElapsedSecs());
@@ -140,8 +183,8 @@ public class RICostDataUploader {
         // is expected to change each iteration.
         long requestHash = requestBuilder.build().hashCode();
         if (requestHash != lastProcessedHash) {
-            // set the topology id after calculating the hash, so it doesn't affect the hash calc
-            requestBuilder.setTopologyId(topologyInfo.getTopologyId());
+            // set the topology ID after calculating the hash, so it doesn't affect the hash calc
+            requestBuilder.setTopologyContextId(topologyInfo.getTopologyId());
             requestBuilder.setChecksum(requestHash);
             requestBuilder.setCreatedTime(System.currentTimeMillis());
 
@@ -153,7 +196,7 @@ public class RICostDataUploader {
                 // "clear" data when all cloud targets are removed.
                 UploadRIDataRequest request = requestBuilder.build();
                 logger.info("Uploading RI cost data ({} bytes)", request.getSerializedSize());
-                UploadRIDataResponse response = costServiceClient.uploadRIData(requestBuilder.build());
+                costServiceClient.uploadRIData(requestBuilder.build());
                 logger.info("Cloud cost upload took {} secs", uploadTimer.getTimeElapsedSecs());
                 lastUploadTime = clock.instant();
             } catch (Exception e) {
@@ -176,14 +219,14 @@ public class RICostDataUploader {
     RICostComponentData createRICostComponentData(StitchingContext stitchingContext,
                                                          CloudEntitiesMap cloudEntitiesMap,
                                                          Map<Long, TargetCostData> costDataByTargetIdSnapshot) {
-        RICostComponentData riCostComponentData = new RICostComponentData();
-
+        final RICostComponentData riCostComponentData = new RICostComponentData();
         // pull the RI's from the context and transform them into RI specs and bought info for the
         // cost component
         addRISpecsAndBoughtInfo(riCostComponentData, stitchingContext, cloudEntitiesMap);
 
         // next, get the coverage information
-        addRICoverageData(riCostComponentData, stitchingContext, costDataByTargetIdSnapshot, cloudEntitiesMap);
+        addRICoverageData(riCostComponentData, stitchingContext, costDataByTargetIdSnapshot,
+                cloudEntitiesMap);
 
         return riCostComponentData;
     }
@@ -201,257 +244,469 @@ public class RICostDataUploader {
      * @param stitchingContext the stitching context to consume the RI's from
      * @param cloudEntitiesMap a map from cloud entity local id -> oid
      */
-    private void addRISpecsAndBoughtInfo(@Nonnull RICostComponentData riCostComponentData,
-                                         @Nonnull StitchingContext stitchingContext,
-                                         @Nonnull CloudEntitiesMap cloudEntitiesMap) {
-
-        Map<ReservedInstanceSpecInfo, Integer> riSpecInfoToInternalId = new HashMap<>();
+    private void addRISpecsAndBoughtInfo(@Nonnull final RICostComponentData riCostComponentData,
+            @Nonnull final StitchingContext stitchingContext,
+            @Nonnull final CloudEntitiesMap cloudEntitiesMap) {
         // find all of the RI specs and RI bought info in the stitching context
         // keep a map of RI local id -> RI Bought. We will use this to gradually assemble the
         // RIBought info, which comes from multiple sources.
-        Map<String, ReservedInstanceBought.Builder> riBoughtByLocalId = new HashMap<>();
+        final Map<String, ReservedInstanceBought.Builder> riBoughtByLocalId = new HashMap<>();
 
-        stitchingContext.getEntitiesOfType(EntityType.RESERVED_INSTANCE)
-                .forEach(riStitchingEntity -> {
-                    if (riStitchingEntity.getEntityBuilder() == null) {
-                        logger.warn("No entity builder found for RI stitching entity {}", riStitchingEntity.getLocalId());
+        // Map of reserved instance spec to generated id.
+        // When topology processor uploading reserved instance bought data to cost component,
+        // topology processor will create a local id of this reserved instance spec,
+        // and cost component needs to change local id to a real id.
+        final Map<ReservedInstanceSpecInfo, Integer> riSpecInfoToInternalId = new HashMap<>();
+
+        final Set<Long> accountsWithDiscoveredData = stitchingContext
+                .getEntitiesOfType(EntityType.BUSINESS_ACCOUNT)
+                .filter(ba -> ba.getEntityBuilder().getBusinessAccountData().getDataDiscovered())
+                .map(TopologyStitchingEntity::getOid)
+                .collect(Collectors.toSet());
+
+        stitchingContext.getEntitiesOfType(EntityType.RESERVED_INSTANCE).forEach(ri -> {
+            final ReservedInstanceData riData = ri.getEntityBuilder().getReservedInstanceData();
+            Long purchasingAccountOId = null;
+            if (riData.hasPurchasingAccountId()) {
+                purchasingAccountOId = cloudEntitiesMap.get(riData.getPurchasingAccountId());
+                if (purchasingAccountOId != null) {
+                    if (!accountsWithDiscoveredData.contains(purchasingAccountOId)
+                            && discardRIsWithoutPurchasingAccountData) {
+                        logger.info(
+                                "Ignoring RI {} because the data for purchasing account {} has not been discovered.",
+                                ri.getLocalId(), purchasingAccountOId);
                         return;
                     }
-                    // create an RI spec based on the details of the entity
-                    ReservedInstanceData riData = riStitchingEntity.getEntityBuilder().getReservedInstanceData();
-                    ReservedInstanceSpecInfo.Builder riSpecInfoBuilder = ReservedInstanceSpecInfo.newBuilder()
-                            .setType(ReservedInstanceType.newBuilder()
-                                    .setOfferingClass(OfferingClass.forNumber(riData.getOfferingClass().getNumber()))
-                                    .setPaymentOption(PaymentOption.forNumber(riData.getOfferingType().getNumber()))
-                                    // convert duration from millis to years. Can't guarantee precision here, so we will
-                                    // round to the nearest number of years.
-                                    .setTermYears((int)Math.round((double)riData.getDuration()/MILLIS_PER_YEAR)))
-                            .setTenancy(Tenancy.forNumber(riData.getInstanceTenancy().getNumber()))
-                            .setOs(CloudCostUtils.platformToOSType(riData.getPlatform()));
-                    // haz region?
-                    if (riData.hasRegion() && cloudEntitiesMap.containsKey(riData.getRegion())) {
-                        riSpecInfoBuilder.setRegionId(cloudEntitiesMap.get(riData.getRegion()));
-                    }
-                    // haz tier?
-                    if (riData.hasRelatedProfileId() && cloudEntitiesMap.containsKey(riData.getRelatedProfileId())) {
-                        riSpecInfoBuilder.setTierId(cloudEntitiesMap.get(riData.getRelatedProfileId()));
-                    }
+                } else {
+                    purchasingAccountOId = cloudEntitiesMap.getFallbackAccountOid(ri.getTargetId());
+                    logger.warn(
+                            "Could not retrieve purchasing account oid by id {}"
+                                    + " {}. Using the fall back account : {} from target: {}.",
+                            riData.getPurchasingAccountId(), ri.getLocalId(),
+                            purchasingAccountOId, ri.getTargetId());
+                }
+            } else {
+                purchasingAccountOId = cloudEntitiesMap.getFallbackAccountOid(ri.getTargetId());
+                logger.warn("RI {} does not have a purchasing account in the"
+                                + " ReservedInstanceData. Using the fall back account : {} from target: {}.",
+                        ri.getLocalId(), purchasingAccountOId, ri.getTargetId());
+            }
 
-                    ReservedInstanceSpecInfo riSpecInfo = riSpecInfoBuilder.build();
+            // We skip partial term Reserved Instances ie RI's whose term is not 1 or 3 years
+            if (!isRIDurationStandard(riData)) {
+                logger.info("Ignoring partial term RI {}.", ri.getLocalId());
+                return;
+            }
 
-                    // if we haven't already saved this spec, add it to the list.
-                    if (!riSpecInfoToInternalId.containsKey(riSpecInfo)) {
-                        riSpecInfoToInternalId.put(riSpecInfo, riSpecInfoToInternalId.size());
-                    }
+            final ReservedInstanceType.Builder reservedInstanceType =
+                    ReservedInstanceType.newBuilder()
+                            .setOfferingClass(
+                                    OfferingClass.forNumber(riData.getOfferingClass().getNumber()))
+                            .setPaymentOption(
+                                    PaymentOption.forNumber(riData.getOfferingType().getNumber()));
+            // Convert duration from millis to years.
+            // Precision can't be guaranteed here, rounding to the nearest number of years.
+            reservedInstanceType.setTermYears(
+                    (int)Math.round((double)riData.getDuration() / MILLIS_PER_YEAR));
+            final ReservedInstanceSpecInfo.Builder reservedInstanceSpecInfo =
+                    ReservedInstanceSpecInfo.newBuilder().setType(reservedInstanceType).setTenancy(
+                            Tenancy.forNumber(riData.getInstanceTenancy().getNumber())).setOs(
+                            CloudCostUtils.platformToOSType(riData.getPlatform()));
+            if (riData.hasRegion()) {
+                final Long regionId = cloudEntitiesMap.get(riData.getRegion());
+                if (regionId != null) {
+                    reservedInstanceSpecInfo.setRegionId(regionId);
+                } else {
+                    logger.warn("Could not find region oid by id {} for reserved instance {}.",
+                            riData.getRegion(), ri.getLocalId());
+                }
+            }
+            if (riData.hasRelatedProfileId()) {
+                final Long tierId = cloudEntitiesMap.get(riData.getRelatedProfileId());
+                if (tierId != null) {
+                    reservedInstanceSpecInfo.setTierId(tierId);
+                } else {
+                    logger.warn(
+                            "Could not find tier oid by related profile id {} for reserved instance {}.",
+                            riData.getRelatedProfileId(), ri.getLocalId());
+                }
+            }
+            if (riData.hasInstanceSizeFlexible()) {
+                reservedInstanceSpecInfo.setSizeFlexible(riData.getInstanceSizeFlexible());
+            }
+            if (riData.hasPlatformFlexible()) {
+                reservedInstanceSpecInfo.setPlatformFlexible(riData.getPlatformFlexible());
+            }
+            final ReservedInstanceSpecInfo riSpecInfo = reservedInstanceSpecInfo.build();
+            if (!riSpecInfoToInternalId.containsKey(riSpecInfo)) {
+                // Generate reserved instance spec id.
+                // The sign of increasing map size is used as the emitter of the new id.
+                riSpecInfoToInternalId.put(riSpecInfo, riSpecInfoToInternalId.size());
+            }
 
-                    // Now we will create an RIBought object.
+            final ReservedInstanceBoughtCost.Builder riBoughtCost =
+                    ReservedInstanceBoughtCost.newBuilder();
+            if (riData.hasFixedCost()) {
+                riBoughtCost.setFixedCost(
+                        CurrencyAmount.newBuilder().setAmount(riData.getFixedCost()));
+            }
+            if (riData.hasUsageCost()) {
+                riBoughtCost.setUsageCostPerHour(
+                        CurrencyAmount.newBuilder().setAmount(riData.getUsageCost()));
+            }
+            if (riData.hasRecurringCost()) {
+                riBoughtCost.setRecurringCostPerHour(
+                        CurrencyAmount.newBuilder().setAmount(riData.getRecurringCost()));
+            }
 
-                    // First, create the cost object for it.
-                    ReservedInstanceBoughtCost.Builder riBoughtCost = ReservedInstanceBoughtCost.newBuilder();
-                    if (riData.hasFixedCost()) {
-                        riBoughtCost.setFixedCost(CurrencyAmount.newBuilder()
-                                .setAmount(riData.getFixedCost()));
-                    }
-                    if (riData.hasUsageCost()) {
-                        riBoughtCost.setUsageCostPerHour(CurrencyAmount.newBuilder()
-                                .setAmount(riData.getUsageCost()));
-                    }
-                    if (riData.hasRecurringCost()) {
-                        riBoughtCost.setRecurringCostPerHour(CurrencyAmount.newBuilder()
-                                .setAmount(riData.getRecurringCost()));
-                    }
-                    // Create the RI Bought Coupons entry for it too
-                    ReservedInstanceBoughtCoupons.Builder riBoughtCoupons = ReservedInstanceBoughtCoupons.newBuilder()
-                            .setNumberOfCoupons(riData.getNumberOfCoupons())
-                            // NOTE: num coupons used always seems to be 0 (from discovery) or -1 (from
-                            // billing), so we will build this value up by totalling the individual
-                            // "used" amounts in the coverage information related to this RI.
-                            // So even though a "numberOfCouponsUsed" getter is available on
-                            // ReservedInstanceData, we will not call it because if this value does
-                            // end up getting filled in during discovery, it will cause us to
-                            // double-count used coupons since our counting algorithm will still be
-                            // running. If/when the probe sends "used" directly, we should remove
-                            // our counting algorithm, or activate it only as a fallback for cases
-                            // where used is not available.
-                            //.setNumberOfCouponsUsed(riData.getNumberOfCouponsUsed())
+            // NOTE: num coupons used always seems to be 0 (from discovery) or -1 (from billing),
+            // so we will build this value up by totalling the individual "used" amounts in the coverage
+            // information related to this RI. So even though a "numberOfCouponsUsed" getter is available
+            // on ReservedInstanceData, we will not call it because if this value does end up getting
+            // filled in during discovery, it will cause us to double-count used coupons since our
+            // counting algorithm will still be running. If/when the probe sends "used" directly,
+            // we should remove our counting algorithm, or activate it only as a fallback for cases
+            // where used is not available.
+            int numberOfCoupons = riData.getNumberOfCoupons();
+            if (numberOfCoupons == 0) {
+                numberOfCoupons = getNumberOfCouponsFromInstanceFamily(riData.getRelatedProfileId(),
+                        stitchingContext);
+                logger.info("Number of coupons not set for RI {},"
+                                + " setting as max ({}) from Instance family",
+                        ri.getLocalId(), numberOfCoupons);
+            }
+            final ReservedInstanceBoughtCoupons.Builder riBoughtCoupons =
+                    ReservedInstanceBoughtCoupons.newBuilder()
+                            .setNumberOfCoupons(numberOfCoupons)
                             .setNumberOfCouponsUsed(0);
 
-                    // Finally, create the RI Bought instance itself
-                    ReservedInstanceBought.Builder riBought = ReservedInstanceBought.newBuilder()
-                            .setId(riStitchingEntity.getOid()) // using the oid from TP for this upload
-                            .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                                    // we are defaulting the business account owner to the fallback
-                                    // account for this probe. This *should* get overwritten by an
-                                    // actual owner when we process coverage information later.
-                                    // However, not all RI's are accounted for in the coverage info,
-                                    // so this helps ensure assignment of a plausible owner for
-                                    // those cases.
-                                    .setBusinessAccountId(cloudEntitiesMap.getFallbackAccountOid(riStitchingEntity.getTargetId()))
-                                    .setProbeReservedInstanceId(riStitchingEntity.getLocalId())
-                                    .setStartTime(riData.getStartTime())
-                                    .setNumBought(riData.getInstanceCount())
-                                    .setReservedInstanceSpec(riSpecInfoToInternalId.get(riSpecInfo))
-                                    .setReservedInstanceBoughtCost(riBoughtCost)
-                                    .setReservedInstanceBoughtCoupons(riBoughtCoupons)
-                            );
-                    // set AZ, if it exists
-                    if (riData.hasAvailabilityZone()
-                            && cloudEntitiesMap.containsKey(riData.getAvailabilityZone())) {
-                        riBought.getReservedInstanceBoughtInfoBuilder()
-                                .setAvailabilityZoneId(cloudEntitiesMap.get(
-                                        riData.getAvailabilityZone()));
-                    }
-                    riBoughtByLocalId.put(riStitchingEntity.getLocalId(), riBought);
-                });
+            final ReservedInstanceBoughtInfo.Builder reservedInstanceBoughtInfo =
+                    ReservedInstanceBoughtInfo.newBuilder()
+                            .setProbeReservedInstanceId(ri.getLocalId())
+                            .setReservedInstanceSpec(riSpecInfoToInternalId.get(riSpecInfo))
+                            .setReservedInstanceBoughtCost(riBoughtCost)
+                            .setReservedInstanceBoughtCoupons(riBoughtCoupons);
+
+            if (riData.hasStartTime()) {
+                reservedInstanceBoughtInfo.setStartTime(riData.getStartTime());
+            }
+
+            if (riData.hasInstanceCount()) {
+                reservedInstanceBoughtInfo.setNumBought(riData.getInstanceCount());
+            }
+            // Fall back if purchasingAccountOId comes through as null.
+            if (purchasingAccountOId != null) {
+                // If purchasing account is set in RI data then get it from there.
+                reservedInstanceBoughtInfo.setBusinessAccountId(purchasingAccountOId);
+            } else {
+                // Otherwise use fallback target account.
+                reservedInstanceBoughtInfo.setBusinessAccountId(
+                        cloudEntitiesMap.getFallbackAccountOid(ri.getTargetId()));
+                logger.warn("Using fallback account for reserved instance {}", ri.getLocalId());
+            }
+
+            if (ri.getEntityBuilder().hasDisplayName()) {
+                reservedInstanceBoughtInfo.setDisplayName(ri.getDisplayName());
+            }
+
+            if (riData.hasEndTime()) {
+                reservedInstanceBoughtInfo.setEndTime(riData.getEndTime());
+            }
+
+            if (riData.hasReservationOrderId()) {
+                reservedInstanceBoughtInfo.setReservationOrderId(riData.getReservationOrderId());
+            }
+
+            if (riData.hasAvailabilityZone()) {
+                final Long availabilityZoneId = cloudEntitiesMap.get(riData.getAvailabilityZone());
+                if (availabilityZoneId != null) {
+                    reservedInstanceBoughtInfo.setAvailabilityZoneId(availabilityZoneId);
+                } else {
+                    logger.warn(
+                            "Could not find availability zone oid by id {} for reserved instance {}.",
+                            riData.getAvailabilityZone(), ri.getLocalId());
+                }
+            }
+
+            final ReservedInstanceScopeInfo.Builder scopeInfo =
+                    ReservedInstanceScopeInfo.newBuilder();
+            if (riData.hasAppliedScope()) {
+                switch (riData.getAppliedScope().getAppliedScopeTypeCase()) {
+                    case SHARED_RESERVED_INSTANCE_SCOPE:
+                        scopeInfo.setShared(true);
+                        break;
+                    case MULTIPLE_ACCOUNTS_RESERVED_INSTANCE_SCOPE:
+                        scopeInfo.setShared(false);
+                        for (final String accountId : riData.getAppliedScope()
+                                .getMultipleAccountsReservedInstanceScope()
+                                .getAccountIdList()) {
+                            final Long accountOid = cloudEntitiesMap.get(accountId);
+                            if (accountOid != null) {
+                                scopeInfo.addApplicableBusinessAccountId(accountOid);
+                            } else {
+                                logger.error(
+                                        "Cannot find account from RI applied scopes. RI: {}, account: {}",
+                                        ri.getLocalId(), accountId);
+                            }
+                        }
+                        break;
+                    case APPLIEDSCOPETYPE_NOT_SET:
+                    default:
+                        logger.debug("RI {} has unknown applied scope", ri.getLocalId());
+                        break;
+                }
+            }
+            reservedInstanceBoughtInfo.setReservedInstanceScopeInfo(scopeInfo);
+
+            final ReservedInstanceBought.Builder riBought = ReservedInstanceBought.newBuilder()
+                    .setId(ri.getOid())
+                    .setReservedInstanceBoughtInfo(reservedInstanceBoughtInfo);
+
+            riBoughtByLocalId.put(ri.getLocalId(), riBought);
+        });
 
         // add the extracted data to the cost component data object.
         // create the RISpec objects, setting the spec ids to indices in the spec info list.
-        List<ReservedInstanceSpec> riSpecs = new ArrayList<>(riSpecInfoToInternalId.size());
-        riSpecInfoToInternalId.forEach((spec,id) -> {
-            riSpecs.add(ReservedInstanceSpec.newBuilder()
-                    .setId(id)
-                    .setReservedInstanceSpecInfo(spec)
-                    .build());
-        });
+        final List<ReservedInstanceSpec> riSpecs = new ArrayList<>(riSpecInfoToInternalId.size());
+        riSpecInfoToInternalId.forEach((spec, id) -> riSpecs.add(ReservedInstanceSpec.newBuilder()
+                .setId(id)
+                .setReservedInstanceSpecInfo(spec)
+                .build()));
         riCostComponentData.riSpecs = riSpecs;
         riCostComponentData.riBoughtByLocalId = riBoughtByLocalId;
+    }
+
+    private int getNumberOfCouponsFromInstanceFamily(final String instanceType,
+                                                     final StitchingContext stitchingContext) {
+        return stitchingContext.getEntitiesOfType(EntityType.COMPUTE_TIER)
+                .filter(tier -> tier.getEntityBuilder().getId().equals(instanceType))
+                .filter(tier -> tier.getEntityBuilder().hasComputeTierData())
+                .findFirst()
+                .map(tier -> tier.getEntityBuilder().getComputeTierData().getNumCoupons())
+                .orElse(0);
+    }
+
+    /**
+     * The RI duration should be within 1 day of 1*365 days (1 year RI term) or 3*365 days (3 year RI term).
+     * @param riData RI spec based on the details of the entity
+     * @return true if a standard RI duration.
+     */
+    private boolean isRIDurationStandard(final ReservedInstanceData riData) {
+        return (Duration.ofMillis(riData.getDuration()).minusMillis(MILLIS_PER_YEAR).abs().toDays()
+                < DELTA_RI_DURATION_DAYS)
+                || (Duration.ofMillis(riData.getDuration()).minusMillis(MILLIS_PER_3_YEAR).abs().toDays()
+                < DELTA_RI_DURATION_DAYS);
     }
 
     /**
      * Find the RI coverage information in the cost data cache, and use it to populate the coverage
      * information in the {@link RICostComponentData} object we are assembling.
      *
-     * This method requires that the {@link RICostComponentData} object is already partially
-     * populated, with the RI specs and RI Bought data.
+     * <p>This method requires that the {@link RICostComponentData} object is already partially
+     * populated, with the RI specs and RI Bought data.<p/>
      *
-     * @param riCostComponentData
-     * @param costDataByTargetIdSnapshot
-     * @param cloudEntitiesMap
+     * @param riCostComponentData the {@link RICostComponentData}
+     * @param stitchingContext the {@link StitchingContext}
+     * @param costDataByTargetIdSnapshot mapping from target oid to the {@link TargetCostData}
+     * @param cloudEntitiesMap the {@link CloudEntitiesMap}
      */
-    private void addRICoverageData(@Nonnull RICostComponentData riCostComponentData,
-                                   @Nonnull StitchingContext stitchingContext,
-                                   @Nonnull Map<Long, TargetCostData> costDataByTargetIdSnapshot,
-                                   @Nonnull CloudEntitiesMap cloudEntitiesMap) {
-        // a little more null checking here since we do have a dependency on the data in the RI Cost
-        // data so far.
+    private void addRICoverageData(@Nonnull final RICostComponentData riCostComponentData,
+            @Nonnull final StitchingContext stitchingContext,
+            @Nonnull final Map<Long, TargetCostData> costDataByTargetIdSnapshot,
+            @Nonnull final CloudEntitiesMap cloudEntitiesMap) {
         Objects.requireNonNull(riCostComponentData);
         Objects.requireNonNull(stitchingContext);
         Objects.requireNonNull(costDataByTargetIdSnapshot);
         Objects.requireNonNull(cloudEntitiesMap);
-        // ensure we have the data structures in place we need.
-        if (riCostComponentData.riBoughtByLocalId == null || riCostComponentData.riSpecs == null) {
-            throw new IllegalStateException("Missing RI Bought and/or RI Spec structures.");
-        }
+        Objects.requireNonNull(riCostComponentData.riBoughtByLocalId);
+        Objects.requireNonNull(riCostComponentData.riSpecs);
 
-        // now comb through the cloud services, and extract the remaining RI-related information from them.
-        List<EntityRICoverageUpload.Builder> riCoverages = new ArrayList<>();
-        // we will lazily-populate the map of VM local id -> oid mapping, since we should only need
-        // it when RI's are in use.
-        Map<String,Long> vmLocalIdToOid = new HashMap<>();
-        costDataByTargetIdSnapshot.forEach((targetId, targetCostData) -> {
-            targetCostData.cloudServiceEntities.stream()
-                    .filter(NonMarketEntityDTO::hasCloudServiceData)
-                    .forEach(nme -> {
-                        if (!nme.getCloudServiceData().hasBillingData()) {
-                            return;
-                        }
-                        CloudServiceData cloudServiceData = nme.getCloudServiceData();
-                        BillingData billingData = nme.getCloudServiceData().getBillingData();
-                        long accountOid = cloudEntitiesMap.getOrDefault(cloudServiceData.getAccountId(),
-                                cloudEntitiesMap.getFallbackAccountOid(targetId));
-                        if (!cloudEntitiesMap.containsKey(cloudServiceData.getAccountId())) {
-                            logger.warn("Account {} not found in stitching data, using fallback account {}.",
-                                    cloudServiceData.getAccountId(),
-                                    accountOid);
-                        }
-                        // assign this account id to any RI bought by this account
-                        billingData.getReservedInstancesList().forEach(riEntity -> {
-                            // get the RI object we've created that has the matching local id.
-                            if (riCostComponentData.riBoughtByLocalId.containsKey(riEntity.getId())) {
-                                logger.debug("Assigning RI {} to Account {}", riEntity.getId(),
-                                        cloudServiceData.getAccountId());
-                                riCostComponentData.riBoughtByLocalId.get(riEntity.getId())
-                                        .getReservedInstanceBoughtInfoBuilder()
-                                        .setBusinessAccountId(accountOid);
-                            }
-                        });
-                        // map RI coverages on any VM's too.
-                        billingData.getVirtualMachinesList().forEach(vmEntity -> {
-                            // create an EntityRICoverage object if any coupons are traded by this VM
-                            EntityRICoverageUpload.Builder entityRIBought =
-                                    vmEntity.getCommoditiesSoldList().stream()
-                                            .filter(commSold -> CommodityType.COUPON.equals(commSold.getCommodityType()))
-                                            .findFirst()
-                                            .map(commSold -> {
-                                                if (vmLocalIdToOid.isEmpty()) {
-                                                    // lazily initialize the vm id map
-                                                    logger.debug("Building VM local id -> oid map");
-                                                    stitchingContext.getEntitiesOfType(EntityType.VIRTUAL_MACHINE)
-                                                            .forEach(vm -> {
-                                                                vmLocalIdToOid.put(vm.getLocalId(), vm.getOid());
-                                                            });
-                                                }
-                                                if (vmLocalIdToOid.containsKey(vmEntity.getId())) {
-                                                    return EntityRICoverageUpload.newBuilder()
-                                                            .setEntityId(vmLocalIdToOid.get(vmEntity.getId()))
-                                                            .setTotalCouponsRequired(commSold.getCapacity());
-                                                }
-                                                // skip this entity since the VM was not found
-                                                logger.warn("VM not found with local id {} -- skipping RI coverage data",
-                                                        vmEntity.getId());
-                                                return null;
-                                            })
-                                            .orElse(null);
-                            // if we have no coupons sold, exit now.
-                            if (entityRIBought == null) {
-                                return;
-                            }
-                            // add to the return list
-                            riCoverages.add(entityRIBought);
-                            // get the coverage info
-                            vmEntity.getCommoditiesBoughtList().stream()
-                                    .filter(commBought -> EntityType.RESERVED_INSTANCE.equals(commBought.getProviderType()))
-                                    .forEach(commBought -> {
-                                        commBought.getBoughtList().forEach(commodityDTO -> {
-                                            if (CommodityType.COUPON.equals(commodityDTO.getCommodityType())) {
-                                                logger.debug("Mapping RI {} to account {} vm {}",
-                                                        commBought.getProviderId(),
-                                                        cloudServiceData.getAccountId(), vmEntity.getId());
-                                                long riOid = cloudEntitiesMap.getOrDefault(commBought.getProviderId(), 0L);
-                                                if (riOid == 0) {
-                                                    logger.warn("Couldn't find RI oid for local id {}", commBought.getProviderId());
-                                                }
-                                                entityRIBought.addCoverage(EntityRICoverageUpload.Coverage.newBuilder()
-                                                        .setProbeReservedInstanceId(commBought.getProviderId())
-                                                        .setCoveredCoupons(commodityDTO.getUsed()));
-                                                // increment the RI Bought coupons used by the used amount.
-                                                ReservedInstanceBought.Builder rib = riCostComponentData.riBoughtByLocalId.get(commBought.getProviderId());
-                                                if (rib != null) {
-                                                    ReservedInstanceBoughtCoupons.Builder coupons =
-                                                            rib.getReservedInstanceBoughtInfoBuilder().getReservedInstanceBoughtCouponsBuilder();
-                                                    coupons.setNumberOfCouponsUsed(commodityDTO.getUsed() + coupons.getNumberOfCouponsUsed());
-                                                }
-                                            }
-                                        });
-                                    });
+        // we will lazily-populate the map of VM local id -> oid mapping,
+        // since we should only need it when RI's are in use.
+        final Map<String, Long> vmLocalIdToOid = new HashMap<>();
+        riCostComponentData.entityLevelReservedInstanceCoverages = new ArrayList<>();
+        riCostComponentData.accountLevelReservedInstanceCoverages = new ArrayList<>();
+        for (final Entry<Long, TargetCostData> entry : costDataByTargetIdSnapshot.entrySet()) {
+            final TargetCostData costData = entry.getValue();
+            for (final NonMarketEntityDTO nme : costData.cloudServiceEntities) {
+                if (!nme.hasCloudServiceData()) {
+                    logger.debug(
+                            "Skipping non market entity processing {} because no cloud service data specified.",
+                            nme.getId());
+                    continue;
+                }
+                final CloudServiceData csd = nme.getCloudServiceData();
+                if (!csd.hasBillingData()) {
+                    logger.debug(
+                            "Skipping non market entity processing {} because no billing data specified.",
+                            nme.getId());
+                    continue;
+                }
+                Long accountOid = null;
+                if (csd.hasAccountId()) {
+                    accountOid = cloudEntitiesMap.get(csd.getAccountId());
+                } else {
+                    logger.warn("No account specified for non market entity {}.", nme.getId());
+                }
 
-                        });
+                if (riSupportInPartialCloudEnvironment && accountOid == null) {
+                    logger.warn(
+                            "Account oid not found for non market entity {}, account level coverage by reserved instances will not be uploaded.",
+                            nme.getId());
+                }
+                final Map<String, Double> accountCoverageByRIs = new HashMap<>();
+                final List<EntityRICoverageUpload.Builder> entityRICoverages = new ArrayList<>();
+                final BillingData billingData = csd.getBillingData();
+                if (!billingData.getVirtualMachinesList().isEmpty() && vmLocalIdToOid.isEmpty()) {
+                    logger.debug("Building VM local id -> oid map");
+                    stitchingContext.getEntitiesOfType(EntityType.VIRTUAL_MACHINE)
+                            .forEach(vm -> {
+                                vmLocalIdToOid.put(getBillingId(vm),
+                                        vm.getOid());
+                            });
+                }
+                for (final EntityDTO vm : billingData.getVirtualMachinesList()) {
+                    final Long entityOid = vmLocalIdToOid.get(vm.getId());
+                    EntityRICoverageUpload.Builder entityRICoverageUpload = null;
+                    if (entityOid != null) {
+                        final Optional<Double> totalCouponsRequired =
+                                vm.getCommoditiesSoldList().stream().filter(
+                                        c -> c.getCommodityType() == CommodityType.COUPON).map(
+                                        CommodityDTO::getCapacity).reduce(Double::sum);
+                        if (totalCouponsRequired.isPresent()) {
+                            entityRICoverageUpload = EntityRICoverageUpload.newBuilder()
+                                    .setEntityId(entityOid)
+                                    .setTotalCouponsRequired(totalCouponsRequired.get());
+                        }
+                    } else {
+                        logger.debug(
+                                "Could not find virtual machine oid by id {}, entity level coverage by reserved instances will not be uploaded.",
+                                vm.getId());
+                    }
+
+                    for (final CommodityBought commodityBought : vm.getCommoditiesBoughtList()) {
+                        if (commodityBought.getProviderType() != EntityType.RESERVED_INSTANCE) {
+                            continue;
+                        }
+                        for (final CommodityDTO commodity : commodityBought.getBoughtList()) {
+                            if (commodity.getCommodityType() != CommodityType.COUPON) {
+                                continue;
+                            }
+                            final String reservedInstanceId = commodityBought.getProviderId();
+                            final Long reservedInstanceOid = cloudEntitiesMap.get(
+                                    reservedInstanceId);
+                            if (reservedInstanceOid == null) {
+                                logger.warn("Could not find reserved instance oid by id {}",
+                                        reservedInstanceId);
+                            }
+                            final ReservedInstanceBought.Builder reservedInstanceBought =
+                                    riCostComponentData.riBoughtByLocalId.get(reservedInstanceId);
+                            if (reservedInstanceBought != null) {
+                                final ReservedInstanceBoughtCoupons.Builder
+                                        reservedInstanceBoughtCoupons =
+                                        reservedInstanceBought
+                                                .getReservedInstanceBoughtInfoBuilder()
+                                                .getReservedInstanceBoughtCouponsBuilder();
+                                reservedInstanceBoughtCoupons
+                                        .setNumberOfCouponsUsed(commodity.getUsed()
+                                                + reservedInstanceBoughtCoupons.getNumberOfCouponsUsed());
+                            }
+
+                            if (entityOid != null) {
+                                if (entityRICoverageUpload == null) {
+                                    entityRICoverageUpload = EntityRICoverageUpload.newBuilder()
+                                            .setEntityId(entityOid);
+                                }
+                                final Coverage.Builder coverage = Coverage.newBuilder()
+                                        .setProbeReservedInstanceId(reservedInstanceId)
+                                        .setCoveredCoupons(commodity.getUsed())
+                                        .setRiCoverageSource(RICoverageSource.BILLING);
+                                setCoverageUsageTimestamps(coverage, billingData);
+                                if (reservedInstanceOid != null) {
+                                    coverage.setReservedInstanceId(reservedInstanceOid);
+                                }
+                                entityRICoverageUpload.addCoverage(coverage);
+                                logger.debug("Mapping RI {} to account {} vm {}",
+                                        reservedInstanceId, csd.getAccountId(), vm.getId());
+                            }
+                            if (riSupportInPartialCloudEnvironment && accountOid != null) {
+                                accountCoverageByRIs.compute(reservedInstanceId,
+                                        (probeReservedInstanceId, coveredCoupons) ->
+                                                coveredCoupons != null ? coveredCoupons
+                                                        + commodity.getUsed()
+                                                        : commodity.getUsed());
+                                logger.debug("Mapping RI {} to account {}", reservedInstanceId,
+                                        csd.getAccountId());
+                            }
+                        }
+                    }
+                    if (entityRICoverageUpload != null) {
+                        entityRICoverages.add(entityRICoverageUpload);
+                    }
+                }
+                riCostComponentData.entityLevelReservedInstanceCoverages.addAll(entityRICoverages);
+                if (accountOid != null && !accountCoverageByRIs.isEmpty()) {
+                    final AccountRICoverageUpload.Builder accountRICoverageUpload =
+                            AccountRICoverageUpload.newBuilder().setAccountId(accountOid);
+                    accountCoverageByRIs.forEach((probeReservedInstanceId, coveredCoupons) -> {
+                        final Coverage.Builder coverage =
+                                Coverage.newBuilder()
+                                        .setProbeReservedInstanceId(probeReservedInstanceId)
+                                        .setCoveredCoupons(coveredCoupons)
+                                        .setRiCoverageSource(RICoverageSource.BILLING);
+                        setCoverageUsageTimestamps(coverage, billingData);
+                        final Long reservedInstanceOid = cloudEntitiesMap.get(
+                                probeReservedInstanceId);
+                        if (reservedInstanceOid != null) {
+                            coverage.setReservedInstanceId(reservedInstanceOid);
+                        } else {
+                            logger.warn("Could not find reserved instance oid by id {}",
+                                    probeReservedInstanceId);
+                        }
+                        accountRICoverageUpload.addCoverage(coverage);
                     });
-        });
+                    riCostComponentData.accountLevelReservedInstanceCoverages.add(
+                            accountRICoverageUpload);
+                }
+            }
+        }
+    }
 
-        riCostComponentData.riCoverages = riCoverages;
+    private static void setCoverageUsageTimestamps(@Nonnull final Coverage.Builder coverage,
+            @Nonnull final BillingData billingData) {
+        if (billingData.hasBillingWindowStart()) {
+            coverage.setUsageStartTimestamp(billingData.getBillingWindowStart());
+        }
+        if (billingData.hasBillingWindowEnd()) {
+            coverage.setUsageEndTimestamp(billingData.getBillingWindowEnd());
+        }
     }
 
     /**
-     * Holds the RI records that will be sent to the Cost component
+     * Gets the {@link PropertyName#BILLING_ID} from {@link EntityDTO#getEntityPropertiesList()} of
+     * {@code vm}, if this property is available, otherwise returns the {@link EntityDTO#getId()}.
+     * NOTE: Hack for Azure Subscription and Azure EA probe, which sends different id for the same
+     * virtual machine.
+     *
+     * @param vm the {@link TopologyStitchingEntity}
+     * @return the billing id of virtual machine.
+     */
+    private static String getBillingId(final TopologyStitchingEntity vm) {
+        return vm.getEntityBuilder()
+            .getEntityPropertiesList().stream()
+            .filter(property -> property.getName().equals(PropertyName.BILLING_ID))
+            .map(CommonDTO.EntityDTO.EntityProperty::getValue)
+            .findAny()
+            .orElse(vm.getLocalId());
+    }
+
+    /**
+     * Holds the RI records that will be sent to the cost component.
      */
     public static class RICostComponentData {
         List<ReservedInstanceSpec> riSpecs;
-
         Map<String, ReservedInstanceBought.Builder> riBoughtByLocalId;
-
-        List<EntityRICoverageUpload.Builder> riCoverages;
-
+        List<EntityRICoverageUpload.Builder> entityLevelReservedInstanceCoverages;
+        List<AccountRICoverageUpload.Builder> accountLevelReservedInstanceCoverages;
     }
-
 }

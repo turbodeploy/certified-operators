@@ -1,67 +1,55 @@
 package com.vmturbo.plan.orchestrator.plan;
 
 import java.util.List;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Predicate;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Status;
+import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
-import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisResponse;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.RISetting;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
+import com.vmturbo.components.api.RetriableOperation;
+import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * Plan gRPC service implementation.
@@ -74,6 +62,10 @@ public class PlanRpcService extends PlanServiceImplBase {
 
     private final BuyRIAnalysisServiceBlockingStub buyRIService;
 
+    private final RepositoryServiceBlockingStub repositoryServiceClient;
+
+    private final GroupServiceBlockingStub groupServiceClient;
+
     private final Logger logger = LogManager.getLogger();
 
     private final PlanNotificationSender planNotificationSender;
@@ -82,18 +74,39 @@ public class PlanRpcService extends PlanServiceImplBase {
 
     private final UserSessionContext userSessionContext;
 
+    private final long startAnalysisRetryMs;
+
+    private final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtService;
+
+    private final PlanReservedInstanceServiceBlockingStub planRIService;
+
+    private Long realtimeTopologyContextId;
+
     public PlanRpcService(@Nonnull final PlanDao planDao,
                           @Nonnull final AnalysisServiceBlockingStub analysisService,
                           @Nonnull final PlanNotificationSender planNotificationSender,
                           @Nonnull final ExecutorService analysisExecutor,
                           @Nonnull final UserSessionContext userSessionContext,
-                          @Nonnull final BuyRIAnalysisServiceBlockingStub buyRIService) {
+                          @Nonnull final BuyRIAnalysisServiceBlockingStub buyRIService,
+                          @Nonnull final GroupServiceBlockingStub groupServiceClient,
+                          @Nonnull final RepositoryServiceBlockingStub repositoryServiceClient,
+                          @Nonnull final PlanReservedInstanceServiceBlockingStub planRIService,
+                          @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtService,
+                          final long startAnalysisRetryTimeout,
+                          @Nonnull final TimeUnit startAnalysisRetryTimeUnit,
+                          final Long realtimeTopologyContextId) {
         this.planDao = Objects.requireNonNull(planDao);
         this.analysisService = Objects.requireNonNull(analysisService);
         this.planNotificationSender = Objects.requireNonNull(planNotificationSender);
         this.analysisExecutor = analysisExecutor;
         this.userSessionContext = userSessionContext;
         this.buyRIService = buyRIService;
+        this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
+        this.repositoryServiceClient = Objects.requireNonNull(repositoryServiceClient);
+        this.planRIService = planRIService;
+        this.reservedInstanceBoughtService = reservedInstanceBoughtService;
+        this.startAnalysisRetryMs = startAnalysisRetryTimeUnit.toMillis(startAnalysisRetryTimeout);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Override
@@ -103,6 +116,11 @@ public class PlanRpcService extends PlanServiceImplBase {
             final PlanInstance plan = planDao.createPlanInstance(request);
             responseObserver.onNext(plan);
             responseObserver.onCompleted();
+            // save the user selected RI/Coupons included in the plan.
+            PlanReservedInstanceClient planRIClient = new PlanReservedInstanceClient(
+                         planRIService, reservedInstanceBoughtService, realtimeTopologyContextId);
+            planRIClient.savePlanIncludedCoupons(plan, PlanRpcServiceUtil.getScopeSeedIds(plan,
+                    this.groupServiceClient, this.repositoryServiceClient));
             logger.info("Plan {} successfully created", plan.getPlanId());
         } catch (IntegrityException e) {
             logger.warn("Error creating a plan " + request, e);
@@ -114,29 +132,42 @@ public class PlanRpcService extends PlanServiceImplBase {
     @Override
     public void cancelPlan(PlanId request, StreamObserver<PlanInstance> responseObserver) {
         // stop analysis
+        final long planId = request.getPlanId();
         analysisExecutor.submit(() -> {
             try {
-                logger.info("Triggering plan cancellation for plan {}.", request.getPlanId());
-                planDao.updatePlanInstance(request.getPlanId(), oldInstance ->
+                logger.info("Triggering plan cancellation for plan {}.", planId);
+                planDao.updatePlanInstance(planId, oldInstance ->
                         oldInstance.setStatus(PlanStatus.STOPPED));
+                PlanInstance planInstance = planDao.getPlanInstance(planId)
+                    .orElseThrow(() -> new NoSuchObjectException("Invalid Plan ID: " + planId));
+                responseObserver.onNext(planInstance);
+                responseObserver.onCompleted();
             } catch (NoSuchObjectException e) {
                 // This could happen in the rare case where the plan got deleted
                 // between queueing the analysis and starting it.
-                logger.warn("Failed to stop analysis for plan " + request.getPlanId() +
+                logger.warn("Failed to stop analysis for plan " + planId +
                         ". Did the plan get deleted?", e);
+                responseObserver.onError(
+                        Status.NOT_FOUND.withDescription(e.getMessage()).asException());
             } catch (IntegrityException e) {
                 // This could happen in the rare case where some of the plan's
                 // dependencies got deleted between queueing the analysis and starting it.
-                logger.warn("Failed to stop analysis of plan " + request.getPlanId() +
+                logger.warn("Failed to stop analysis of plan " + planId +
                         " due to integrity exception.", e);
+                responseObserver.onError(
+                        Status.NOT_FOUND.withDescription(e.getMessage()).asException());
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to stop analysis of plan {}  because the gRPC " +
                                 "call to the Analysis Service failed with status: {}",
-                        request.getPlanId(),
+                                planId,
                         e.getStatus());
+                responseObserver.onError(
+                        Status.NOT_FOUND.withDescription(e.getMessage()).asException());
             } catch (RuntimeException e) {
-                logger.error("Failed to stop analysis of plan " + request.getPlanId() + " due " +
+                logger.error("Failed to stop analysis of plan " + planId + " due " +
                         "to unexpected runtime exception.", e);
+                responseObserver.onError(
+                        Status.NOT_FOUND.withDescription(e.getMessage()).asException());
             }
         });
     }
@@ -233,7 +264,7 @@ public class PlanRpcService extends PlanServiceImplBase {
         @Nullable ScenarioInfo scenarioInfo = planInstance.hasScenario() ?
                 planInstance.getScenario().getScenarioInfo() : null;
         long planId = planInstance.getPlanId();
-        if (scenarioInfo != null && scenarioInfo.getType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)) {
+        if (scenarioInfo != null && scenarioInfo.getType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN)) {
             List<ScenarioChange> riScenario = scenarioInfo.getChangesList()
                     .stream()
                     .filter(c -> c.hasRiSetting())
@@ -257,49 +288,53 @@ public class PlanRpcService extends PlanServiceImplBase {
      * Trigger buy RI recommendation algorithm in cost component
      *
      * @param scenarioInfo the scenarioInfo of plan instance
-     * @param riScenario the scenario change related with RI 
+     * @param riScenario the scenario change related with RI
      * @param planId the plan id
      */
     @VisibleForTesting
     void triggerBuyRI(@Nonnull ScenarioInfo scenarioInfo,
                               @Nonnull ScenarioChange riScenario, long planId) {
-        try {
-            StartBuyRIAnalysisRequest request = PlanRpcServiceUtil.createBuyRIRequest(scenarioInfo,
-                    riScenario, planId);
-            buyRIService.startBuyRIAnalysis(request);
-            planDao.updatePlanInstance(planId, oldInstance ->
-                    oldInstance.setStatus(PlanStatus.STARTING_BUY_RI));
-            logger.info("Started buy RI for plan {} on region {} account {}", planId,
-                    request.getRegionsList(), request.getAccountsList());
-        } catch (IntegrityException | NoSuchObjectException e) {
-            logger.warn("Failed to update status after run buy RI for plan {}", planId);
-        } catch (StatusRuntimeException statusException) {
+        analysisExecutor.submit(() -> {
             try {
-                logger.error("Failed to start buy RI for plan {}  because the gRPC call failed with status: {}",
-                        planId, statusException.getStatus());
-                planDao.updatePlanInstance(planId, oldInstance -> {
-                        oldInstance.setStatus(PlanStatus.FAILED);});
-            } catch (IntegrityException integrityException) {
-                logger.warn("Referential integrity violated while changing plan status to failed for plan {}"
+                StartBuyRIAnalysisRequest request = PlanRpcServiceUtil.createBuyRIRequest(scenarioInfo,
+                        riScenario, planId, groupServiceClient, repositoryServiceClient);
+                buyRIService.startBuyRIAnalysis(request);
+                planDao.updatePlanInstance(planId, oldInstance ->
+                        oldInstance.setStatus(PlanStatus.STARTING_BUY_RI));
+                logger.info("Started buy RI for plan {} on region {} account {}", planId,
+                        request.getRegionsList(), request.getAccountsList());
+            } catch (IntegrityException | NoSuchObjectException e) {
+                logger.warn("Failed to update status after run buy RI for plan {}", planId);
+            } catch (StatusRuntimeException statusException) {
+                try {
+                    logger.error("Failed to start buy RI for plan {}  because the gRPC call failed with status: {}",
+                            planId, statusException.getStatus());
+                    planDao.updatePlanInstance(planId, oldInstance -> {
+                        oldInstance.setStatus(PlanStatus.FAILED);
+                    });
+                } catch (IntegrityException integrityException) {
+                    logger.warn("Referential integrity violated while changing plan status to failed for plan {}"
                             + " after starting buy RI", planId);
-            } catch (NoSuchObjectException noObjectException) {
-                // This could happen in the rare case where the plan got deleted
-                // between queueing the analysis and starting it.
-                logger.warn("Can not find plan object while changing plan status to failed for plan {}."
+                } catch (NoSuchObjectException noObjectException) {
+                    // This could happen in the rare case where the plan got deleted
+                    // between queueing the analysis and starting it.
+                    logger.warn("Can not find plan object while changing plan status to failed for plan {}."
                             + " Did the plan get deleted?", planId);
-            }
-        } catch (RuntimeException runtimeEx) {
-            logger.error("Failed to start buy RI analysis for plan " + planId +
+                }
+            } catch (RuntimeException runtimeEx) {
+                logger.error("Failed to start buy RI analysis for plan " + planId +
                         "due to unexpected runtime exception.", runtimeEx);
-        }
+            }
+        });
     }
+
     public void triggerAnalysis(@Nonnull PlanInstance planInstance) {
         final StartAnalysisRequest.Builder builder = StartAnalysisRequest.newBuilder();
         ScenarioInfo scenarioInfo = planInstance.getScenario().getScenarioInfo();
         builder.setPlanId(planInstance.getPlanId());
 
-        if (planInstance.hasTopologyId()) {
-            builder.setTopologyId(planInstance.getTopologyId());
+        if (planInstance.hasSourceTopologyId()) {
+            builder.setTopologyId(planInstance.getSourceTopologyId());
         }
         if (planInstance.hasScenario()) {
             builder.addAllScenarioChange(scenarioInfo.getChangesList());
@@ -308,6 +343,9 @@ public class PlanRpcService extends PlanServiceImplBase {
             }
             if (scenarioInfo.hasType()) {
                 builder.setPlanType(scenarioInfo.getType());
+            }
+            if (StringConstants.OPTIMIZE_CLOUD_PLAN.equals(scenarioInfo.getType())) {
+                builder.setPlanSubType(PlanRpcServiceUtil.getPlanSubType(scenarioInfo));
             }
         }
         builder.setPlanProjectType(planInstance.getProjectType());
@@ -345,7 +383,9 @@ public class PlanRpcService extends PlanServiceImplBase {
             PlanInstance updatedPlanInstance = planDao.updatePlanInstance(planSpec.getPlanId(),
                     planInstanceBuilder -> {
                         planInstanceBuilder
-                                .setTopologyId(planInstance.getProjectedTopologyId())
+                                // In Plan over plan, the projected topology from the previous plan
+                                // becomes the source topology for the next plan.
+                                .setSourceTopologyId(planInstance.getProjectedTopologyId())
                                 .setProjectedTopologyId(0)
                                 .addActionPlanId(0)
                                 .clearStatsAvailable()
@@ -395,34 +435,46 @@ public class PlanRpcService extends PlanServiceImplBase {
         // running more than one plan under a plan project (once we have those) or
         // a scenario.
         analysisExecutor.submit(() -> {
-            // TODO (roman, Dec. 29 2016): If this try block throws an exception
-            // we should send a notification indicating that the plan has failed.
             try {
                 planDao.updatePlanInstance(request.getPlanId(), oldInstance ->
                         oldInstance.setStatus(PlanStatus.CONSTRUCTING_TOPOLOGY));
 
-                final StartAnalysisResponse response = analysisService.startAnalysis(request);
-                logger.info("Started analysis for plan {} on topology {} with {} entities", request.getPlanId(),
-                        request.getTopologyId(), response.getEntitiesBroadcast());
+                try {
+                    final StartAnalysisResponse response = RetriableOperation.newOperation(
+                            () -> analysisService.startAnalysis(request))
+                        // Retry if unavailable.
+                        .retryOnException(e -> (e instanceof StatusRuntimeException) &&
+                            ((StatusRuntimeException)e).getStatus().getCode() == Code.UNAVAILABLE)
+                        .run(startAnalysisRetryMs, TimeUnit.MILLISECONDS);
+                    logger.info("Started analysis for plan {} on topology {}",
+                        request.getPlanId(), response.getTopologyId());
+                } catch (InterruptedException | TimeoutException | RetriableOperationFailedException e) {
+                    if (e instanceof InterruptedException) {
+                        // Reset interrupt status.
+                        Thread.currentThread().interrupt();
+                    }
+                    // This can happen if there is an error calling the topology processor. In this
+                    // case we should mark the plan as failed.
+                    logger.error("Failed to start analysis for plan " + request.getPlanId()
+                            + " because the gRPC call to the Analysis Service failed.", e);
 
-                // TODO (roman, Dec. 29 2016): Consider doing this
-                // to a notification from the market instead of assuming
-                // that once startAnalysis returns the analysis has actually started.
-                // For instance, the plan could be queued in the market component and not
-                // running yet at the time startAnalysis returns.
-                planDao.updatePlanInstance(request.getPlanId(),
+                    // Set the plan status to failed, since it didn't even get out of the gate.
+                    planDao.updatePlanInstance(request.getPlanId(),
                         oldInstance -> {
-                            oldInstance.setStatus(PlanStatus.RUNNING_ANALYSIS);
+                            oldInstance.setStatus(PlanStatus.FAILED);
+                            oldInstance.setStatusMessage("Failed to start analysis due to " +
+                                "Topology Processor error: " + e.getMessage());
                         });
+                }
             } catch (NoSuchObjectException e) {
                 // This could happen in the rare case where the plan got deleted
                 // between queueing the analysis and starting it.
-                logger.warn("Failed to start analysis for plan " + request.getPlanId() +
+                logger.error("Failed to start analysis for plan " + request.getPlanId() +
                         ". Did the plan get deleted?", e);
             } catch (IntegrityException e) {
                 // This could happen in the rare case where some of the plan's
                 // dependencies got deleted between queueing the analysis and starting it.
-                logger.warn("Failed to start analysis for plan " + request.getPlanId() +
+                logger.error("Failed to start analysis for plan " + request.getPlanId() +
                         " due to integrity exception.", e);
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to start analysis for plan {}  because the gRPC " +
@@ -434,5 +486,25 @@ public class PlanRpcService extends PlanServiceImplBase {
                         "to unexpected runtime exception.", e);
             }
         });
+    }
+
+    @Override
+    public void updatePlan(UpdatePlanRequest request, StreamObserver<PlanInstance> responseObserver) {
+        try {
+            PlanInstance planInstance = planDao.updatePlanInstance(request.getPlanId(),
+                    oldInstance -> oldInstance.setName(request.getName()));
+
+            responseObserver.onNext(planInstance);
+            responseObserver.onCompleted();
+        } catch (IntegrityException e) {
+            responseObserver.onError(Status.FAILED_PRECONDITION
+                    .withDescription("Plan ID (" + request.getPlanId() + ") cannot be run: " +
+                            e.getMessage())
+                    .asException());
+        } catch (NoSuchObjectException e) {
+            responseObserver.onError(Status.NOT_FOUND
+                    .withDescription("Plan ID (" + request.getPlanId() + ") not found.")
+                    .asException());
+        }
     }
 }

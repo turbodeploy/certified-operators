@@ -3,6 +3,8 @@ package cost;
 
 option java_package = "com.vmturbo.common.protobuf.cost";
 
+import "cca/CloudCommitmentAnalysis.proto";
+
 message EnableCostRecordingRequest {
     message EntityFilter {
         // Cannot be empty - empty will be a no op.
@@ -56,6 +58,49 @@ message RecordedCost {
     optional string cost_journal_description = 1;
 }
 
+message LogEntityRIMappingRequest {
+    // A list of entity oids whose RI coverage details need to be logged.
+    // If the list is left empty, we log the coverage information of all entities having coverage.
+    repeated int64 entity_id = 1;
+}
+
+message LogRIEntityMappingRequest {
+    // A list of RI oids whose Entity coverage details need to be logged.
+    // If the list is left empty, we log the coverage information of all utilized RIs.
+    repeated int64 ri_id = 1;
+}
+
+message LogEntityRIMappingResponse {
+
+}
+
+message LogRIEntityMappingResponse {
+
+}
+
+message TriggerBuyRIAlgorithmRequest {
+}
+
+message TriggerBuyRIAlgorithmResponse {
+}
+
+message GetBuyRIImpactCsvRequest {
+
+    optional int64 topology_context_id = 1;
+}
+
+message GetBuyRIImpactCsvResponse {
+    optional string csv_string = 1;
+}
+
+message StartFullAllocatedRIBuyRequest {
+    //Empty message
+}
+
+message StartFullAllocatedRIBuyResponse {
+    optional cca.CloudCommitmentAnalysisInfo cloud_commitment_analysis_info = 1;
+}
+
 // A service for debugging-related information in the cost component.
 // This shouldn't be called from the core "application" code - it's helper
 // methods to help diagnose errors.
@@ -75,11 +120,31 @@ service CostDebugService {
 
     // Disable cost journal recording.
     // This reverses the effects of EnableCostRecording.
-    rpc DisableCostRecording(DisableCostRecordingRequest) returns (DisableCostRecordingResponse);
+    rpc DisableCostRecording (DisableCostRecordingRequest) returns (DisableCostRecordingResponse);
 
     // Get the cost journals.
     // This is an alternative to POST <containerIp>/costJournal.
     // TODO (roman, Oct 25 2018): Extend the gRPC REST plugin to allow this call to be mapped
     // directly to the POST.
-    rpc GetRecordedCosts(GetRecordedCostsRequest) returns (stream RecordedCost);
+    rpc GetRecordedCosts (GetRecordedCostsRequest) returns (stream RecordedCost);
+
+    // On demand logger to log mapping for Entity -> RI Mapping by providing a list of Entity OIDs.
+    // For empty lists, all Entity -> RI coverages will be logged.
+    rpc LogEntityRIMapping (LogEntityRIMappingRequest) returns (LogEntityRIMappingResponse);
+
+    // On demand logger to log mapping for RI -> Entity Mapping by providing a list of RI OIDs.
+    // For empty lists, all RI -> Entity coverages will be logged.
+    rpc LogRIEntityMapping (LogRIEntityMappingRequest) returns (LogRIEntityMappingResponse);
+
+    // Trigger the regular buyRI algorithm.
+    // This is a way to get around the fact that we run it at regular intervals - for debugging
+    // we may want to force it.
+    rpc TriggerBuyRIAlgorithm(TriggerBuyRIAlgorithmRequest) returns (TriggerBuyRIAlgorithmResponse);
+
+    // Generates a csv-formatted report of Buy RI savings. This is a way to verify the
+    // BuyRIImpactAnalysis output from the market component.
+    rpc GetBuyRIImpactCsv(GetBuyRIImpactCsvRequest) returns (GetBuyRIImpactCsvResponse);
+
+    rpc StartFullAllocatedRIBuyAnalysis(StartFullAllocatedRIBuyRequest)
+    returns (StartFullAllocatedRIBuyResponse);
 }

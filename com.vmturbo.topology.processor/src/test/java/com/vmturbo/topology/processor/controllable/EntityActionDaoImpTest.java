@@ -12,73 +12,72 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.flywaydb.core.Flyway;
+import com.google.common.collect.Sets;
+
 import org.jooq.DSLContext;
 import org.jooq.Result;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.google.common.collect.Sets;
-
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
-import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ActionRecordNotFoundException;
+import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.topology.processor.db.enums.EntityActionStatus;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=topology_processor"})
 public class EntityActionDaoImpTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(TopologyProcessor.TOPOLOGY_PROCESSOR);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    private Flyway flyway;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private EntityActionDaoImp controllableDaoImp;
+    private EntityActionDaoImp controllableDaoImp = new EntityActionDaoImp(dsl, SUCCEED_EXPIRED_SECONDS,
+                                                IN_PROGRESS_EXPIRED_SECONDS, ACTIVATE_SUCCEED_SECONDS,
+                                                SCALE_SUCCEED_SECONDS, RESIZE_SUCCEED_SECONDS);
 
-    private final int IN_PROGRESS_EXPIRED_SECONDS = 3000;
+    private static final int IN_PROGRESS_EXPIRED_SECONDS = 3000;
 
-    private final int SUCCEED_EXPIRED_SECONDS = 1000;
+    private static final int SUCCEED_EXPIRED_SECONDS = 1000;
 
-    private final int ACTIVATE_SUCCEED_SECONDS = 3600;
+    private static final int ACTIVATE_SUCCEED_SECONDS = 3600;
+
+    private static final int RESIZE_SUCCEED_SECONDS = 1000;
+
+    private static final int SCALE_SUCCEED_SECONDS = 2000;
 
     final long actionId = 123L;
 
     final Set<Long> entityIds = Sets.newHashSet(1L, 2L);
 
-    private DSLContext dsl;
+    private static final long MOVE_ACTION_ID = 20L;
 
-    @Before
-    public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        controllableDaoImp = new EntityActionDaoImp(dsl, SUCCEED_EXPIRED_SECONDS,
-                IN_PROGRESS_EXPIRED_SECONDS, ACTIVATE_SUCCEED_SECONDS);
-    }
+    private static final long RESIZE_ACTION_ID = 30L;
 
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
+    private static final long SCALE_ACTION_ID = 40L;
+
+    private static final long MOVE_ENTITY_ID = 200L;
+
+    private static final long RESIZE_ENTITY_ID = 300L;
+
+    private static final long SCALE_ENTITY_ID = 400L;
 
     @Test
     public void testInsertQueuedControllable() {
@@ -94,7 +93,7 @@ public class EntityActionDaoImpTest {
     }
 
     @Test
-    public void testUpdateInProgressControllable() throws ControllableRecordNotFoundException {
+    public void testUpdateInProgressControllable() throws ActionRecordNotFoundException {
         final long newActionId = 456L;
         final Set<Long> newEntityIds = Sets.newHashSet(3L);
         controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
@@ -109,15 +108,16 @@ public class EntityActionDaoImpTest {
     }
 
     @Test
-    public void testUpdateInProgressControllableNotFoundException() throws ControllableRecordNotFoundException {
+    public void testUpdateInProgressControllableNotFoundException() throws
+            ActionRecordNotFoundException {
         final long newActionId = 456L;
         controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
-        expectedException.expect(ControllableRecordNotFoundException.class);
+        expectedException.expect(ActionRecordNotFoundException.class);
         controllableDaoImp.updateActionState(newActionId, ActionState.IN_PROGRESS);
     }
 
     @Test
-    public void testUpdateSucceedControllable() throws ControllableRecordNotFoundException {
+    public void testUpdateSucceedControllable() throws ActionRecordNotFoundException {
         final long newActionId = 456L;
         final Set<Long> newEntityIds = Sets.newHashSet(3L);
         controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
@@ -132,15 +132,16 @@ public class EntityActionDaoImpTest {
     }
 
     @Test
-    public void testUpdatedSucceedControllableNotFoundException() throws ControllableRecordNotFoundException {
+    public void testUpdatedSucceedControllableNotFoundException() throws
+            ActionRecordNotFoundException {
         final long newActionId = 456L;
         controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
-        expectedException.expect(ControllableRecordNotFoundException.class);
+        expectedException.expect(ActionRecordNotFoundException.class);
         controllableDaoImp.updateActionState(newActionId, ActionState.SUCCEEDED);
     }
 
     @Test
-    public void testUpdateFailedControllable() throws ControllableRecordNotFoundException {
+    public void testUpdateFailedControllable() throws ActionRecordNotFoundException {
         final long newActionId = 456L;
         final Set<Long> newEntityIds = Sets.newHashSet(3L);
         controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
@@ -155,10 +156,11 @@ public class EntityActionDaoImpTest {
     }
 
     @Test
-    public void testUpdatedFailedControllableNotFoundException() throws ControllableRecordNotFoundException {
+    public void testUpdatedFailedControllableNotFoundException() throws
+            ActionRecordNotFoundException {
         final long newActionId = 456L;
         controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
-        expectedException.expect(ControllableRecordNotFoundException.class);
+        expectedException.expect(ActionRecordNotFoundException.class);
         controllableDaoImp.updateActionState(newActionId, ActionState.FAILED);
     }
 
@@ -273,4 +275,68 @@ public class EntityActionDaoImpTest {
         assertTrue(results.size() == 1);
         assertTrue(results.contains(202l));
     }
+
+    /**
+     * Check resize (scale) and resize down eligibility for expired action Ids.
+     */
+    @Test
+    public void testIneligibleForResizeAndResizeDownEntityIdsExpired() {
+        insertActions();
+        assertEquals(1, controllableDaoImp.ineligibleForScaleEntityIds().size());
+        assertEquals(1, controllableDaoImp.ineligibleForResizeDownEntityIds().size());
+        assertTrue(controllableDaoImp.ineligibleForScaleEntityIds().contains(SCALE_ENTITY_ID));
+        assertTrue(controllableDaoImp.ineligibleForResizeDownEntityIds().contains(RESIZE_ENTITY_ID));
+
+        final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
+
+        // Test InProgress Expired
+        dsl.update(ENTITY_ACTION)
+                .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(IN_PROGRESS_EXPIRED_SECONDS + 1))
+                .set(ENTITY_ACTION.STATUS, EntityActionStatus.queued)
+                .where(ENTITY_ACTION.ACTION_ID.eq(SCALE_ACTION_ID))
+                .execute();
+
+        assertTrue(controllableDaoImp.ineligibleForScaleEntityIds().isEmpty());
+
+        // Test SUCCEEDED Expired
+        dsl.update(ENTITY_ACTION)
+                .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(SCALE_SUCCEED_SECONDS + 1))
+                .set(ENTITY_ACTION.STATUS, EntityActionStatus.succeed)
+                .where(ENTITY_ACTION.ACTION_ID.eq(RESIZE_ACTION_ID))
+                .execute();
+
+        assertTrue(controllableDaoImp.ineligibleForResizeDownEntityIds().isEmpty());
+    }
+
+    /**
+     * Check resize (scale) and resize down eligibility for FAILED action state.
+     * @throws ActionRecordNotFoundException if action record not found.
+     */
+    @Test
+    public void testIneligibleForResizeAndResizeDownEntityIds() throws ActionRecordNotFoundException {
+        insertActions();
+
+        assertEquals(1, controllableDaoImp.ineligibleForScaleEntityIds().size());
+        assertEquals(1, controllableDaoImp.ineligibleForResizeDownEntityIds().size());
+        assertTrue(controllableDaoImp.ineligibleForScaleEntityIds().contains(SCALE_ENTITY_ID));
+        assertTrue(controllableDaoImp.ineligibleForResizeDownEntityIds().contains(RESIZE_ENTITY_ID));
+
+        // Update state of one of the actions to 'FAILED' -> DB should clear this action
+        controllableDaoImp.updateActionState(SCALE_ACTION_ID, ActionState.FAILED);
+
+        // Only scale action is affected
+        assertTrue(controllableDaoImp.ineligibleForScaleEntityIds().isEmpty());
+        assertTrue(controllableDaoImp.ineligibleForResizeDownEntityIds().contains(RESIZE_ENTITY_ID));
+
+        // Update state of RESIZE action
+        controllableDaoImp.updateActionState(RESIZE_ACTION_ID, ActionState.FAILED);
+        assertTrue(controllableDaoImp.ineligibleForResizeDownEntityIds().isEmpty());
+    }
+
+    private void insertActions() {
+        controllableDaoImp.insertAction(MOVE_ACTION_ID, ActionItemDTO.ActionType.MOVE, Sets.newHashSet(MOVE_ENTITY_ID));
+        controllableDaoImp.insertAction(RESIZE_ACTION_ID, ActionType.RIGHT_SIZE, Sets.newHashSet(RESIZE_ENTITY_ID));
+        controllableDaoImp.insertAction(SCALE_ACTION_ID, ActionType.SCALE, Sets.newHashSet(SCALE_ENTITY_ID));
+    }
+
 }

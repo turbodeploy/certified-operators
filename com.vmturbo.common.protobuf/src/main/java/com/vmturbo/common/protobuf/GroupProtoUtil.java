@@ -1,37 +1,53 @@
 package com.vmturbo.common.protobuf;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupOrBuilder;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinitionOrBuilder;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupingOrBuilder;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.CreationOriginCase;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * Miscellaneous utilities for messages defined in group/GroupDTO.proto.
  */
 public class GroupProtoUtil {
+
+    private static final Logger logger = LogManager.getLogger();
 
     public final static String GROUP_KEY_SEP = "-";
 
@@ -57,148 +73,104 @@ public class GroupProtoUtil {
     );
 
     /**
+     * The mapping from cluster entity type to new group type. For example: for host cluster, the
+     * entity type is PhysicalMachine, but in new group proto we use the
+     * {@link GroupType#COMPUTE_HOST_CLUSTER} to represent host cluster.
+     * Todo: this should be removed once all probes are changed to set new GroupType
+     */
+    private static final Map<EntityType, GroupType> CLUSTER_ENTITY_TYPE_TO_GROUP_TYPE_MAPPING =
+            ImmutableMap.of(
+                    EntityType.PHYSICAL_MACHINE, GroupType.COMPUTE_HOST_CLUSTER,
+                    EntityType.STORAGE, GroupType.STORAGE_CLUSTER,
+                    EntityType.VIRTUAL_MACHINE, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER
+            );
+
+
+    /**
+     * The types of group that are considered clusters.
+     */
+    public static final Set<GroupType> CLUSTER_GROUP_TYPES = ImmutableSet.of(
+                    GroupType.COMPUTE_HOST_CLUSTER,
+                    GroupType.STORAGE_CLUSTER,
+                    GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER);
+
+    /**
+     * The entity types that we consider WORKLOAD.
+     */
+    public static final Set<ApiEntityType> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
+        ApiEntityType.VIRTUAL_MACHINE, ApiEntityType.DATABASE, ApiEntityType.DATABASE_SERVER);
+
+    /**
+     * The API String for entity types that we consider as workload.
+     */
+    public static final Set<String> WORKLOAD_ENTITY_TYPES_API_STR = WORKLOAD_ENTITY_TYPES
+        .stream().map(ApiEntityType::apiStr).collect(Collectors.toSet());
+
+    /**
+     * Match the name with filter. If the filter has case sensitive set to true,
+     * matching is case sensitive; otherwise matching is case insensitive.
      * @param name The name to compare with the filter.
      * @param filter The name filter.
      * @return True if the name matches the filter.
      */
     public static boolean nameFilterMatches(@Nonnull final String name,
                                             @Nonnull final StringFilter filter) {
-        return Pattern.matches(filter.getStringPropertyRegex(), name) == filter.getPositiveMatch();
+        if (filter.hasCaseSensitive() && filter.getCaseSensitive()) {
+            return Pattern.matches(filter.getStringPropertyRegex(), name) == filter.getPositiveMatch();
+        }
+        final Pattern pattern = Pattern.compile(filter.getStringPropertyRegex(), Pattern.CASE_INSENSITIVE);
+        return pattern.matcher(name).find() == filter.getPositiveMatch();
     }
 
     /**
-     * Check that the input {@link Group} has a valid entity type.
+     * Check that the input {@link Grouping} has a valid entity type for a policy. For now a valid
+     * entity type for a policy is a group with a single type.
      *
-     * @param group The {@link Group}.
-     * @throws IllegalArgumentException If the {@link Group} does not have a valid entity type.
+     * @param group The {@link Grouping}.
+     * @throws IllegalArgumentException If the {@link Grouping} does not have a valid entity type.
      */
-    public static void checkEntityType(@Nonnull final GroupOrBuilder group) {
-        if (group.getType() == Type.NESTED_GROUP) {
-            // Nested groups don't have an explicitly-specified type. We currently support
-            // just one type of nested group - a group of clusters - in which case we can infer
-            // the entity type from the type of clusters in the group.
-            Preconditions.checkArgument(group.getNestedGroup().getTypeCase() ==
-                TypeCase.CLUSTER);
-        } else {
-            Preconditions.checkArgument(group.getType().equals(Type.CLUSTER) ||
-                group.getTempGroup().hasEntityType() ||
-                group.getGroup().hasEntityType());
+    public static void checkEntityTypeForPolicy(@Nonnull final GroupingOrBuilder group) {
+        final Set<ApiEntityType> entityTypes = getEntityTypes(group);
+        if (entityTypes.isEmpty()) {
+            throw new IllegalArgumentException(String.format("Cannot define policy for group " +
+                    "'%s' (ID: %s). Entity types are empty.",
+                    group.getDefinition().getDisplayName(), group.getId()));
+        } else if (entityTypes.size() > 1) {
+            throw new IllegalArgumentException(String.format("Cannot define policy for group " +
+                    "'%s' (ID: %s). Multiple entity types found: %s",
+                    group.getDefinition().getDisplayName(), group.getId(), entityTypes));
         }
     }
 
     /**
-     * Get the entity type of entities in a {@link Group}.
+     * Returns a set of entity types of expected members of the specified group.
      *
-     * @param group The {@link Group}.
-     * @return An integer representing the entity type.
-     * @throws IllegalArgumentException If the {@link Group} does not have a valid entity type.
+     * @param group group to analyze
+     * @return set of entity types.
      */
-    public static int getEntityType(@Nonnull final GroupOrBuilder group) {
-        checkEntityType(group);
-        switch (group.getType()) {
-            case GROUP:
-                return group.getGroup().getEntityType();
-            case CLUSTER:
-                switch (group.getCluster().getClusterType()) {
-                    case COMPUTE:
-                        return EntityType.PHYSICAL_MACHINE_VALUE;
-                    case STORAGE:
-                        return EntityType.STORAGE_VALUE;
-                    default:
-                        throw new IllegalArgumentException("Unknown cluster type: " +
-                            group.getCluster().getClusterType());
-                }
-            case TEMP_GROUP:
-                return group.getTempGroup().getEntityType();
-            case NESTED_GROUP:
-                if (group.getNestedGroup().getTypeCase() == TypeCase.CLUSTER) {
-                    switch (group.getNestedGroup().getCluster()) {
-                        case COMPUTE:
-                            return EntityType.PHYSICAL_MACHINE_VALUE;
-                        case STORAGE:
-                            return EntityType.STORAGE_VALUE;
-                        default:
-                            throw new IllegalArgumentException("Unknown nested cluster type: " +
-                                group.getNestedGroup().getCluster());
-                    }
-                } else {
-                    throw new IllegalArgumentException("Unknown nested group type: " +
-                        group.getNestedGroup().getTypeCase());
-                }
-            default:
-                throw new IllegalArgumentException("Unknown group type: " + group.getType());
-        }
+    public static Set<ApiEntityType> getEntityTypes(GroupingOrBuilder group) {
+        return group.getExpectedTypesList()
+                        .stream()
+                        .filter(MemberType::hasEntity)
+                        .map(MemberType::getEntity)
+                        .map(ApiEntityType::fromType)
+                        .collect(Collectors.toSet());
+
     }
 
     /**
-     * Get the name of a {@link Group}.
+     * Get the source identifier of a {@link Grouping}.
      *
-     * @param group The {@link Group}.
-     * @return The name of the {@link Group}.
-     * @throws IllegalArgumentException If the {@link Group} is not properly formatted and does not
-     *                                  have a name.
+     * @param group The {@link Grouping}.
+     * @return The source identifier of the {@link Grouping} if present.
+     * @throws IllegalArgumentException If the {@link Grouping} is not properly formatted.
      */
     @Nonnull
-    public static String getGroupName(@Nonnull final Group group) {
-        final String name;
-        switch (group.getType()) {
-            case GROUP:
-                Preconditions.checkArgument(group.hasGroup() && group.getGroup().hasName());
-                name = group.getGroup().getName();
-                break;
-            case CLUSTER:
-                Preconditions.checkArgument(group.hasCluster() && group.getCluster().hasName());
-                name = group.getCluster().getName();
-                break;
-            case TEMP_GROUP:
-                Preconditions.checkArgument(group.hasTempGroup() && group.getTempGroup().hasName());
-                name = group.getTempGroup().getName();
-                break;
-            case NESTED_GROUP:
-                Preconditions.checkArgument(group.hasNestedGroup() && group.getNestedGroup().hasName());
-                name = group.getNestedGroup().getName();
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown group type: " + group.getType());
+    public static Optional<String> getGroupSourceIdentifier(@Nonnull final Grouping group) {
+        if (group.getOrigin().getCreationOriginCase() == CreationOriginCase.DISCOVERED) {
+            return Optional.ofNullable(group.getOrigin().getDiscovered().getSourceIdentifier());
         }
-        return name;
-    }
-
-    /**
-     * Get the display name of a {@link Group}.
-     *
-     * @param group The {@link Group}.
-     * @return The display name of the {@link Group}.
-     * @throws IllegalArgumentException If the {@link Group} is not properly formatted.
-     */
-    @Nonnull
-    public static String getGroupDisplayName(@Nonnull final Group group) {
-        final String name;
-        switch (group.getType()) {
-            case GROUP:
-                Preconditions.checkArgument(group.hasGroup());
-                name = group.getGroup().hasDisplayName() ?
-                    group.getGroup().getDisplayName() :
-                    group.getGroup().getName();
-                break;
-            case CLUSTER:
-                Preconditions.checkArgument(group.hasCluster());
-                name = group.getCluster().hasDisplayName() ?
-                    group.getCluster().getDisplayName() :
-                    group.getCluster().getName();
-                break;
-            case TEMP_GROUP:
-                Preconditions.checkArgument(group.hasTempGroup());
-                name = group.getTempGroup().getName();
-                break;
-            case NESTED_GROUP:
-                Preconditions.checkArgument(group.hasNestedGroup() && group.getNestedGroup().hasName());
-                name = group.getNestedGroup().getName();
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown group type: " + group.getType());
-        }
-        return name;
+        return Optional.empty();
     }
 
     /**
@@ -262,72 +234,6 @@ public class GroupProtoUtil {
     }
 
     /**
-     * For groups, the identifiers used by the group component are built from the name and entity
-     * type of groups. This is done to distinguish groups of the same name but different entity types
-     * (ie we may discover two groups named "foo" one for storage, one for hosts), and they need
-     * to be distinguished from each other.
-     *
-     * This method operates on the SDK groups (ie as discovered by probes)
-     *
-     * @param group The group whose id should be constructed from its name.
-     * @return The id of the discovered group as used by the group component.
-     */
-    @Nonnull
-    public static String discoveredIdFromName(@Nonnull final CommonDTO.GroupDTO group,
-                                              @Nonnull final long targetId) {
-        return createGroupCompoundKey(extractId(group), group.getEntityType(), targetId);
-    }
-
-    /**
-     * For groups, the identifiers used by the group component are built from the name and entity
-     * type of groups. This is done to distinguish groups of the same name but different entity types
-     * (ie we may discover two groups named "foo" one for storage, one for hosts), and they need
-     * to be distinguished from each other.
-     *
-     * This method operates on XL-internal groups.
-     *
-     * @param group The group whose id should be constructed from its name.
-     * @return The id of the discovered group as used by the group component.
-     */
-    @Nonnull
-    public static String discoveredIdFromName(@Nonnull final GroupInfo group,
-                                              @Nonnull final long targetId) {
-        return createGroupCompoundKey(group.getName(), EntityType.forNumber(group.getEntityType()),
-                targetId);
-    }
-
-    /**
-     * For clusters, the identifiers used by the group component are built from the name and entity
-     * type of groups. This is done to distinguish clusters of the same name but different entity types
-     * (ie we may discover two clusters named "foo" one for storage, one for hosts), and they need
-     * to be distinguished from each other.
-     *
-     * @param clusterInfo The cluster whose id should be constructed from its name.
-     * @return The id of the discovered cluster as used by the group component.
-     */
-    @Nonnull
-    public static String discoveredIdFromName(@Nonnull final ClusterInfo clusterInfo,
-                                              @Nonnull final long targetId) {
-        return createGroupCompoundKey(clusterInfo.getName(), getClusterEntityType(clusterInfo),
-                targetId);
-    }
-
-    /**
-     *  Clusters can either have members which are all of type Host entities or
-     *  all of type Storage(In the future it may involve more entity types).
-     *  This is a helper function to determine the entity
-     *  type the cluster contains.
-     *
-     * @param clusterInfo The cluster whose entity type needs to be displayed.
-     * @return The entity type of the cluster.
-     */
-    @Nonnull
-    public static EntityType getClusterEntityType(@Nonnull final ClusterInfo clusterInfo) {
-        return clusterInfo.getClusterType() == ClusterInfo.Type.COMPUTE ?
-                EntityDTO.EntityType.PHYSICAL_MACHINE : EntityDTO.EntityType.STORAGE;
-    }
-
-    /**
      *  Create the composite key for the Group.
      *
      * @param groupName Discovered name of the group
@@ -335,6 +241,7 @@ public class GroupProtoUtil {
      * @param targetId Id of the target that discovered the group.
      * @return
      */
+    // todo: remove once TargetClusterUpdate is removed (OM-51757)
     public static String createGroupCompoundKey(@Nonnull final String groupName,
                                                  @Nonnull final EntityType entityType,
                                                  @Nonnull final long targetId) {
@@ -343,76 +250,129 @@ public class GroupProtoUtil {
     }
 
     /**
-     * Check whether a {@link Group} matches a {@link ClusterFilter}.
+     * Create the identifying key for the given group, which is used to uniquely identify a group.
+     * Currently it's a combination of source identifier and group type. This is used to set the
+     * reference group "id" on the policy, so in group component it can find the correct oid for
+     * this unique string "id".
      *
-     * @param group The {@link Group}.
-     * @param filter The {@link ClusterFilter} to use for
-     * @return True if the filter matches. False otherwise. If the {@link Group} is not a cluster,
-     *         the filter is not applicable, and this method will return true.
+     * @param sdkDTO the original sdk group dto coming from the probe
+     * @return unique identifying key for the group
      */
-    public static boolean clusterFilterMatcher(@Nonnull final Group group,
-                                               @Nonnull final ClusterFilter filter) {
-        if (!group.getType().equals(Type.CLUSTER)) {
-            return true;
-        }
-
-        return !filter.hasTypeFilter() ||
-            group.getCluster().getClusterType().equals(filter.getTypeFilter());
+    public static String createIdentifyingKey(@Nonnull final GroupDTO sdkDTO) {
+        return createIdentifyingKey(getGroupType(sdkDTO), extractId(sdkDTO));
     }
 
     /**
-     * If the group is a static group, get the list of members. This method is useful when we have
-     * a {@link Group} outside the group component and want its members, but want to avoid an extra
-     * RPC call.
+     * Create the identifying key for the given group, which is used to uniquely identify a group.
+     * Currently it's a combination of source identifier and group type. This is used to set the
+     * reference group "id" on the policy, so in group component it can find the correct oid for
+     * this unique string "id".
      *
-     * @param group The {@link Group} object.
+     * @param uploadedGroup the group uploaded to group component
+     * @return unique identifying key for the group
+     */
+    public static String createIdentifyingKey(@Nonnull final UploadedGroup uploadedGroup) {
+        return createIdentifyingKey(uploadedGroup.getDefinition().getType(),
+                uploadedGroup.getSourceIdentifier());
+    }
+
+    /**
+     * Create the identifying key for the given group, which is used to uniquely identify a group.
+     * Currently it's a combination of source identifier and group type.
+     *
+     * @param groupType type of the group
+     * @param sourceId original identifier coming from the probe
+     * @return unique identifying key for the group
+     */
+    public static String createIdentifyingKey(@Nonnull GroupType groupType,
+                                              @Nonnull String sourceId) {
+        return String.join(GROUP_KEY_SEP, String.valueOf(groupType.getNumber()), sourceId);
+    }
+
+    /**
+     * Get the group type of the given sdk dto.
+     * Todo: this should be removed once all probes are changed to set new GroupType
+     *
+     * @param sdkDTO the group dto coming from probe
+     * @return {@link GroupType}
+     */
+    public static GroupType getGroupType(@Nonnull GroupDTO sdkDTO) {
+        if (sdkDTO.hasConstraintInfo() &&
+                sdkDTO.getConstraintInfo().getConstraintType().equals(ConstraintType.CLUSTER)) {
+            if (CLUSTER_ENTITY_TYPE_TO_GROUP_TYPE_MAPPING.containsKey(sdkDTO.getEntityType())) {
+                return CLUSTER_ENTITY_TYPE_TO_GROUP_TYPE_MAPPING.get(sdkDTO.getEntityType());
+            } else {
+                logger.warn("New cluster type found, no GroupType mapping type for group {}, " +
+                        "using {}", sdkDTO, sdkDTO.getGroupType());
+            }
+        }
+        return sdkDTO.getGroupType();
+    }
+
+    /**
+     * If the group is a static group of entities, get the list of immediate members.
+     *
+     * @param group The {@link Grouping} object.
      * @return If the group is a static group (of any type), return an {@link Optional} containing
-     *         the static members. If the group is a dynamic group, return an empty optional.
+     *         the immediate static members. If the group is a dynamic group, return an empty optional.
      */
-    public static Optional<List<Long>> getStaticMembers(@Nonnull final Group group) {
-        List<Long> retGroup = null;
-        switch (group.getType()) {
-            case GROUP:
-                if (group.getGroup().getSelectionCriteriaCase() == GroupInfo.SelectionCriteriaCase.STATIC_GROUP_MEMBERS) {
-                    retGroup = group.getGroup().getStaticGroupMembers().getStaticMemberOidsList();
-                }
-                break;
-            case CLUSTER:
-                retGroup = group.getCluster().getMembers().getStaticMemberOidsList();
-                break;
-            case TEMP_GROUP:
-                retGroup = group.getTempGroup().getMembers().getStaticMemberOidsList();
-                break;
-            case NESTED_GROUP:
-                if (group.getNestedGroup().getSelectionCriteriaCase() == NestedGroupInfo.SelectionCriteriaCase.STATIC_GROUP_MEMBERS) {
-                    retGroup = group.getNestedGroup().getStaticGroupMembers().getStaticMemberOidsList();
-                }
-                break;
-            default:
-                throw new IllegalArgumentException("Unhandled group type: " + group.getType());
+    public static List<Long> getStaticMembers(@Nonnull final Grouping group) {
+        if (!group.getDefinition().hasStaticGroupMembers()) {
+            return Collections.emptyList();
         }
-        return Optional.ofNullable(retGroup);
+        return group.getDefinition()
+                        .getStaticGroupMembers()
+                        .getMembersByTypeList()
+                        .stream()
+                        .map(StaticMembersByType::getMembersList)
+                        .flatMap(List::stream)
+                        .collect(Collectors.toList());
     }
 
     /**
-     * Get the list of members in a group with type == CLUSTER.
-     *
-     * @param cluster A {@link Group} representing a cluster.
-     * @return The set of IDS of members in the cluster.
-     * @throws IllegalArgumentException If the {@link Group} is not a cluster.
+     * Returns true if the input is a group of groups.
+     * @param group input group.
+     * @return true if it is nested group and false otherwise.
      */
-    @Nonnull
-    public static Set<Long> getClusterMembers(@Nonnull final Group cluster) {
-        Preconditions.checkArgument(cluster.getType().equals(Type.CLUSTER) &&
-                cluster.hasCluster());
-        return new HashSet<>(cluster.getCluster().getMembers().getStaticMemberOidsList());
+    public static boolean isNestedGroup(@Nonnull final Grouping group) {
+        return group.getDefinition().hasGroupFilters()
+                || (group.getDefinition().hasStaticGroupMembers()
+                        && group.getExpectedTypesList().stream().anyMatch(MemberType::hasGroup));
+    }
+
+    /**
+     * Returns true if and only if the input is a cluster.
+     *
+     * @param group the input group
+     * @return true iff the input group is a cluster
+     */
+    public static boolean isCluster(@Nonnull final Grouping group) {
+        return CLUSTER_GROUP_TYPES.contains(group.getDefinition().getType());
+    }
+
+    /**
+     * Returns true if and only if the input is a group of clusters.
+     *
+     * @param group the input group
+     * @return true iff the input group is a group of clusters
+     * @throws IllegalArgumentException if the input {@link Grouping} is missing definition.
+     */
+    public static boolean isGroupOfClusters(@Nonnull final Grouping group)
+            throws IllegalArgumentException {
+        if (!group.hasDefinition()) {
+            throw new IllegalArgumentException("Missing definition for group " + group.getId());
+        }
+        List<MemberType> directMemberTypes = getDirectMemberTypes(group.getDefinition()).collect(
+                Collectors.toList());
+        return directMemberTypes.size() == 1 && directMemberTypes.get(0).hasGroup()
+                    && CLUSTER_GROUP_TYPES.contains(directMemberTypes.get(0).getGroup());
     }
 
     /**
      * Get the IDs of groups specified in a {@link Policy}.
      *
      * @param policy The {@link Policy}.
-     * @return A set containing the IDs of {@link Group}s the policy relates to.
+     * @return A set containing the IDs of {@link Grouping}s the policy relates to.
      */
     @Nonnull
     public static Set<Long> getPolicyGroupIds(@Nonnull final Policy policy) {
@@ -454,5 +414,64 @@ public class GroupProtoUtil {
                 break;
         }
         return result;
+    }
+
+    /**
+     * Get all the static member oids in the given group definition.
+     *
+     * @param groupDefinition the group to get static member oids for
+     * @return set of member oids
+     */
+    public static Set<Long> getAllStaticMembers(@Nonnull GroupDefinitionOrBuilder groupDefinition) {
+        return groupDefinition.getStaticGroupMembers().getMembersByTypeList().stream()
+                .map(StaticMembersByType::getMembersList)
+                .flatMap(List::stream)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Creates group filter to retrieve groups by the specified IDs.
+     *
+     * @param ids OIDs to query groups by
+     * @return a valid {@link GroupFilter}
+     */
+    @Nonnull
+    public static GroupFilter createGroupFilterByIds(@Nonnull Collection<Long> ids) {
+        final Set<String> options = ids.stream().map(String::valueOf).collect(Collectors.toSet());
+        return GroupFilter.newBuilder()
+                .addPropertyFilters(
+                        SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.OID,
+                                options))
+                .build();
+    }
+
+    /**
+     * Get direct member types of the given group.
+     *
+     * @param groupDefinition definition of the group
+     * @return list of {@link MemberType}
+     */
+    public static Stream<MemberType> getDirectMemberTypes(@Nonnull GroupDefinition groupDefinition) {
+        switch (groupDefinition.getSelectionCriteriaCase()) {
+            case STATIC_GROUP_MEMBERS:
+                return groupDefinition.getStaticGroupMembers().getMembersByTypeList()
+                        .stream()
+                        .map(StaticMembersByType::getType)
+                        .filter(Objects::nonNull);
+            case ENTITY_FILTERS:
+                return groupDefinition.getEntityFilters().getEntityFilterList().stream()
+                        .map(filter -> MemberType.newBuilder()
+                                .setEntity(filter.getEntityType())
+                                .build())
+                        .distinct();
+            case GROUP_FILTERS:
+                return groupDefinition.getGroupFilters().getGroupFilterList().stream()
+                        .map(filter -> MemberType.newBuilder()
+                                .setGroup(filter.getGroupType())
+                                .build())
+                        .distinct();
+            default:
+                return Stream.empty();
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.vmturbo.auth.component.userscope;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,21 +15,23 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import com.google.common.collect.ImmutableSet;
+import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.grpc.stub.StreamObserver;
-
-import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.AccessScopeCacheKey;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeRequest;
@@ -38,8 +41,6 @@ import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO.AllOids;
 import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO.NoOids;
 import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO.OidArray;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc.UserScopeServiceImplBase;
-import com.vmturbo.components.common.ClassicEnumMapper;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.repository.api.RepositoryListener;
 
@@ -110,16 +111,11 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
             .build()
             .register();
 
-    // entity types available to "shared" roles. Modeled after SHARED_USER_ENTITIES_LIST in classic's
-    // ScopedUserUtil.java.
-    public static final Set<String> SHARED_USER_ENTITY_TYPES = ImmutableSet.of(
-            ClassicEnumMapper.ENTITY_TYPE_MAPPINGS.inverse().get(EntityType.APPLICATION),
-            ClassicEnumMapper.ENTITY_TYPE_MAPPINGS.inverse().get(EntityType.VIRTUAL_MACHINE));
-
-
     private final GroupServiceBlockingStub groupServiceStub;
 
     private final SupplyChainServiceBlockingStub supplyChainServiceStub;
+
+    private final SearchServiceBlockingStub searchServiceStub;
 
     private final Clock clock;
 
@@ -127,13 +123,16 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
 
     // cache of EntityAccessScopeContents objects. Synchronized map for now, but can be made
     // concurrent if performance is a problem.
-    private final Map<List<Long>, AccessScopeDataCacheEntry> accessScopeContentsForGroups
+    private final Map<AccessScopeCacheKey, AccessScopeDataCacheEntry> accessScopeContentsForGroups
             = Collections.synchronizedMap(new HashMap<>());
 
     public UserScopeService(GroupServiceBlockingStub groupServiceStub,
-                            SupplyChainServiceBlockingStub supplyChainServiceStub, Clock clock) {
+                            SupplyChainServiceBlockingStub supplyChainServiceStub,
+                            SearchServiceBlockingStub searchServiceStub,
+                            Clock clock) {
         this.groupServiceStub = groupServiceStub;
         this.supplyChainServiceStub = supplyChainServiceStub;
+        this.searchServiceStub = searchServiceStub;
         this.clock = clock;
     }
 
@@ -208,8 +207,9 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         if (cacheEnabled) {
             // get the response from cache
             int prevSize = accessScopeContentsForGroups.size();
-            contents = accessScopeContentsForGroups.computeIfAbsent(scopeGroupOids,
-                    oids -> calculateScope(oids, excludeInfrastructureEntities)).contents;
+            contents = accessScopeContentsForGroups.computeIfAbsent(
+                    new AccessScopeCacheKey(scopeGroupOids, excludeInfrastructureEntities),
+                    key -> calculateScope(key.getScopeGroupOids(), excludeInfrastructureEntities)).contents;
             // if the cache size has changed, update the metrics
             if (accessScopeContentsForGroups.size() != prevSize) {
                 updateCacheMetrics();
@@ -244,11 +244,12 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
      * @param scopeGroupOids the groups to calculate the supply chain scope for.
      * @return a {@link AccessScopeDataCacheEntry} object containing the scope data.
      */
-    private synchronized AccessScopeDataCacheEntry calculateScope(List<Long> scopeGroupOids,
+    private synchronized AccessScopeDataCacheEntry calculateScope(Collection<Long> scopeGroupOids,
                                                                   boolean excludeInfrastructureEntities) {
         // double check if the cache entry exists in case the current thread was blocking on entry
         // into this function and the previous caller populated the cache in the meantime.
-        AccessScopeDataCacheEntry doubleCheckEntry = accessScopeContentsForGroups.get(scopeGroupOids);
+        AccessScopeDataCacheEntry doubleCheckEntry = accessScopeContentsForGroups.get(
+                new AccessScopeCacheKey(scopeGroupOids, excludeInfrastructureEntities));
         if (doubleCheckEntry != null) {
             logger.debug("UserScopeService found a cached access scope on the second try, using it.");
             return doubleCheckEntry;
@@ -261,21 +262,36 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
 
         // get the scope groups
         logger.debug("User has scope with {} groups. Will create an access scope.", scopeGroupOids.size());
-        // turn the user's scope groups into the entity set they have access to.
+        // turn the user's scopes into the entity set they have access to.
         // We will do this by:
-        // 1) Getting the members of all the groups in the user's access scope.
+        // 1) Getting the members of all the groups in the user's access scope if it's a group, or
+        //    the entity itself if it's an entity
         // 2) Getting the supply chain for all of the entities in the set created in step (1)
         // 3) The resulting set of entities will become the user's entity access scope.
         Set<Long> scopeGroupEntityOids = new HashSet<>();
-        for (Long groupOid : scopeGroupOids) {
-            GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
-                    .setId(groupOid)
-                    .setExpectPresent(false)
-                    .build();
-            GetMembersResponse groupMembersResponse = groupServiceStub.getMembers(getGroupMembersReq);
-            List<Long> members = groupMembersResponse.getMembers().getIdsList();
-            logger.debug("Adding {} members from group {} to user scope", members.size(), groupOid);
-            members.forEach(scopeGroupEntityOids::add);
+        for (Long scopeOid : scopeGroupOids) {
+            // check if this scope is an entity or group
+            SearchEntityOidsResponse searchEntityOidsResponse = searchServiceStub.searchEntityOids(
+                    SearchEntityOidsRequest.newBuilder().addEntityOid(scopeOid).build());
+            if (searchEntityOidsResponse.getEntitiesCount() == 1 &&
+                    searchEntityOidsResponse.getEntities(0) == scopeOid) {
+                // this is an entity, for example: DataCenter
+                logger.debug("Adding entity {} to user scope", scopeOid);
+                scopeGroupEntityOids.add(scopeOid);
+            } else {
+                // this is a group, for example: host cluster. try to get its members
+                GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
+                        .addId(scopeOid)
+                        .setEnforceUserScope(false) // disable this for the purposes of calculating scope
+                        .setExpandNestedGroups(true)
+                        .setExpectPresent(false)
+                        .build();
+                final GetMembersResponse groupMembersResponse =
+                        groupServiceStub.getMembers(getGroupMembersReq).next();
+                final List<Long> members = groupMembersResponse.getMemberIdList();
+                logger.debug("Adding {} members from group {} to user scope", members.size(), scopeOid);
+                scopeGroupEntityOids.addAll(members);
+            }
         }
         Instant groupFetchTime = clock.instant();
         logger.debug("fetching {} groups for user scope took {} ms", scopeGroupOids.size(),
@@ -283,12 +299,14 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
 
         // now, use the set of entities to make a supply chain request.
         final GetSupplyChainRequest.Builder supplyChainRequestBuilder = GetSupplyChainRequest.newBuilder()
-                .addAllStartingEntityOid(scopeGroupEntityOids);
+            .setScope(SupplyChainScope.newBuilder()
+                .addAllStartingEntityOid(scopeGroupEntityOids))
+                .setFilterForDisplay(false);
 
         // for "shared" users, we should only include specific entity types.
         if (excludeInfrastructureEntities) {
-            logger.debug("Adding filter for shared entity types: {}", SHARED_USER_ENTITY_TYPES);
-            supplyChainRequestBuilder.addAllEntityTypesToInclude(SHARED_USER_ENTITY_TYPES);
+            logger.debug("Adding filter for shared entity types: {}", UserScopeUtils.SHARED_USER_ENTITY_TYPES);
+            supplyChainRequestBuilder.getScopeBuilder().addAllEntityTypesToInclude(UserScopeUtils.SHARED_USER_ENTITY_TYPES);
         }
         final GetSupplyChainRequest supplyChainRequest = supplyChainRequestBuilder.build();
 
@@ -315,10 +333,8 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
                             });
                     contentsBuilder.putAccessibleOidsByEntityType(node.getEntityType(), typeSetBuilder.build());
                 });
-
         // convert the set to a primitive array, which we will both cache and send back to the caller
         OidArray.Builder accessibleOidArrayBuilder = OidArray.newBuilder();
-        int x = 0;
         for (Long oid : accessibleEntities) {
             accessibleOidArrayBuilder.addOids(oid);
         }
@@ -351,8 +367,8 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         int largestNumGroups = 0;
         int largestSetSize = 0;
         int largestEstimatedSetSize = 0;
-        for (Map.Entry<List<Long>, AccessScopeDataCacheEntry> entry : accessScopeContentsForGroups.entrySet()) {
-            int numGroups = entry.getKey().size();
+        for (Map.Entry<AccessScopeCacheKey, AccessScopeDataCacheEntry> entry : accessScopeContentsForGroups.entrySet()) {
+            int numGroups = entry.getKey().getScopeGroupOids().size();
             totalGroups += numGroups;
             if (numGroups > largestNumGroups) {
                 largestNumGroups = numGroups;

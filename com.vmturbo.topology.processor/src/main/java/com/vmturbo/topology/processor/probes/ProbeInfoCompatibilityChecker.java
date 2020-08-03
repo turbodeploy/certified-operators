@@ -83,8 +83,6 @@ public class ProbeInfoCompatibilityChecker {
         checks.add(new EqualityCheck(ProbeInfo::getProbeType, "type"));
         checks.add(new EqualityCheck(ProbeInfo::getProbeCategory, "category"));
         // Lists are converted to Sets so that ordering does not affect equality checking
-        checks.add(new EqualityCheck(probe -> new HashSet<>(probe.getAccountDefinitionList()),
-            "accountDefinitionList"));
         checks.add(new EqualityCheck(probe -> new HashSet<>(probe.getTargetIdentifierFieldList()),
             "targetIdentifierFieldList"));
         checks.add(new IdentityMetadataCheck());
@@ -182,28 +180,21 @@ public class ProbeInfoCompatibilityChecker {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-            if (!removedEntityTypes.isEmpty() || !modifiedEntityTypes.isEmpty()) {
-                StringBuilder errBuilder = new StringBuilder();
-                // TODO (roman, May 2 2019): OM-45656 - Support removing entity types.
-                // We will probably need to clear out all entities of these types known to the
-                // IdentityProvider.
-                if (!removedEntityTypes.isEmpty()) {
-                    errBuilder.append("Identity metadata for existing entity types " +
-                        removedEntityTypes + " removed! Need migration.");
-                }
-
-                // TODO (roman, May 2 2019): OM-45657 - Support modifying entity types.
-                // For probes that we own we may still require server-side migrations to preserve
-                // the IDs. For third-party probes we may need to clear out all entities of these
-                // types known to the IdentityProvider and re-assign IDs.
-                if (!modifiedEntityTypes.isEmpty()) {
-                    errBuilder.append("Identity metadata for existing entity types " +
-                        modifiedEntityTypes + " changed! Need migration.");
-                }
-                return Optional.of(errBuilder.toString());
-            } else {
-                return Optional.empty();
+            if (!removedEntityTypes.isEmpty()) {
+                // Log a warning and continue.
+                logger.warn("Identity metadata for existing entity types '{}' removed for '{}' probe type!",
+                                removedEntityTypes, newInfo.getProbeType());
             }
+            // TODO (roman, May 2 2019): OM-45657 - Support modifying entity types.
+            // For probes that we own we may still require server-side migrations to preserve
+            // the IDs. For third-party probes we may need to clear out all entities of these
+            // types known to the IdentityProvider and re-assign IDs.
+            if (!modifiedEntityTypes.isEmpty()) {
+                return Optional.of(
+                                String.format("Identity metadata for existing entity types %s changed! Need migration.",
+                                                modifiedEntityTypes));
+            }
+            return Optional.empty();
         }
     }
 }

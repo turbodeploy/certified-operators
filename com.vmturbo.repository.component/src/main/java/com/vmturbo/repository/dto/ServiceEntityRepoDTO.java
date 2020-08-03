@@ -21,9 +21,6 @@ public class ServiceEntityRepoDTO {
 
     private String entityType;
 
-    /**
-     * This should be a {@link com.vmturbo.components.common.mapping.UIEnvironmentType}.
-     */
     private String environmentType;
 
     private Float priceIndex;
@@ -47,7 +44,7 @@ public class ServiceEntityRepoDTO {
     private List<ConnectedEntityRepoDTO> connectedEntityList;
 
     // see ScopedEntity.targetIds for why we use string for targetIds here
-    private List<String> targetIds;
+    private Map<String, String> targetVendorIds;
 
     private EntityPipelineErrorsRepoDTO entityPipelineErrorsRepoDTO;
 
@@ -63,6 +60,9 @@ public class ServiceEntityRepoDTO {
     private VirtualMachineInfoRepoDTO virtualMachineInfoRepoDTO;
     private VirtualVolumeInfoRepoDTO virtualVolumeInfoRepoDTO;
     private BusinessAccountInfoRepoDTO businessAccountInfoRepoDTO;
+    private DesktopPoolInfoRepoDTO desktopPoolInfoRepoDTO;
+    private BusinessUserInfoRepoDTO businessUserInfoRepoDTO;
+    private WorkloadControllerInfoRepoDTO workloadControllerInfoRepoDTO;
 
     public String getUuid() {
         return uuid;
@@ -176,12 +176,12 @@ public class ServiceEntityRepoDTO {
         this.connectedEntityList = connectedEntityList;
     }
 
-    public List<String> getTargetIds() {
-        return targetIds;
+    public Map<String, String> getTargetVendorIds() {
+        return targetVendorIds;
     }
 
-    public void setTargetIds(List<String> targetIds) {
-        this.targetIds = targetIds;
+    public void setTargetVendorIds(Map<String, String> targetVendorIds) {
+        this.targetVendorIds = targetVendorIds;
     }
 
     public ApplicationInfoRepoDTO getApplicationInfoRepoDTO() {
@@ -272,12 +272,36 @@ public class ServiceEntityRepoDTO {
         this.businessAccountInfoRepoDTO = businessAccountInfoRepoDTO;
     }
 
+    public WorkloadControllerInfoRepoDTO getWorkloadControllerInfoRepoDTO() {
+        return workloadControllerInfoRepoDTO;
+    }
+
+    public void setWorkloadControllerInfoRepoDTO(final WorkloadControllerInfoRepoDTO workloadControllerInfoRepoDTO) {
+        this.workloadControllerInfoRepoDTO = workloadControllerInfoRepoDTO;
+    }
+
     public EntityPipelineErrorsRepoDTO getEntityPipelineErrorsRepoDTO() {
         return entityPipelineErrorsRepoDTO;
     }
 
     public void setEntityPipelineErrorsRepoDTO(final EntityPipelineErrorsRepoDTO entityPipelineErrorsRepoDTO) {
         this.entityPipelineErrorsRepoDTO = entityPipelineErrorsRepoDTO;
+    }
+
+    public DesktopPoolInfoRepoDTO getDesktopPoolInfoRepoDTO() {
+        return desktopPoolInfoRepoDTO;
+    }
+
+    public void setDesktopPoolInfoRepoDTO(DesktopPoolInfoRepoDTO desktopPoolInfoRepoDTO) {
+        this.desktopPoolInfoRepoDTO = desktopPoolInfoRepoDTO;
+    }
+
+    public BusinessUserInfoRepoDTO getBusinessUserInfoRepoDTO() {
+        return businessUserInfoRepoDTO;
+    }
+
+    public void setBusinessUserInfoRepoDTO(BusinessUserInfoRepoDTO businessUserInfoRepoDTO) {
+        this.businessUserInfoRepoDTO = businessUserInfoRepoDTO;
     }
 
     @Override
@@ -300,7 +324,7 @@ public class ServiceEntityRepoDTO {
                     that.commoditiesBoughtRepoFromProviderDTOList) &&
                 Objects.equals(commoditySoldList, that.commoditySoldList) &&
                 Objects.equals(connectedEntityList, that.connectedEntityList) &&
-                Objects.equals(targetIds, that.targetIds) &&
+                Objects.equals(targetVendorIds, that.targetVendorIds) &&
                 Objects.equals(applicationInfoRepoDTO, that.applicationInfoRepoDTO) &&
                 Objects.equals(databaseInfoRepoDTO, that.databaseInfoRepoDTO) &&
                 Objects.equals(computeTierInfoRepoDTO, that.computeTierInfoRepoDTO) &&
@@ -311,7 +335,9 @@ public class ServiceEntityRepoDTO {
                 Objects.equals(storageControllerInfoRepoDTO, that.storageControllerInfoRepoDTO) &&
                 Objects.equals(virtualMachineInfoRepoDTO, that.virtualMachineInfoRepoDTO) &&
                 Objects.equals(virtualVolumeInfoRepoDTO, that.virtualVolumeInfoRepoDTO) &&
-                Objects.equals(businessAccountInfoRepoDTO, that.businessAccountInfoRepoDTO);
+                Objects.equals(businessAccountInfoRepoDTO, that.businessAccountInfoRepoDTO) &&
+                Objects.equals(desktopPoolInfoRepoDTO, that.desktopPoolInfoRepoDTO) &&
+                Objects.equals(businessUserInfoRepoDTO, that.businessUserInfoRepoDTO);
     }
 
     @Override
@@ -319,10 +345,11 @@ public class ServiceEntityRepoDTO {
         return Objects.hash(uuid, displayName, entityType, environmentType, priceIndex,
             priceIndexProjected, state, severity, oid, tags, providers,
             commoditiesBoughtRepoFromProviderDTOList, commoditySoldList, connectedEntityList,
-            targetIds, applicationInfoRepoDTO, databaseInfoRepoDTO, computeTierInfoRepoDTO,
+            targetVendorIds, applicationInfoRepoDTO, databaseInfoRepoDTO, computeTierInfoRepoDTO,
             physicalMachineInfoRepoDTO, storageInfoRepoDTO, diskArrayInfoRepoDTO,
             logicalPoolInfoRepoDTO, storageControllerInfoRepoDTO, virtualMachineInfoRepoDTO,
-            virtualVolumeInfoRepoDTO, businessAccountInfoRepoDTO);
+            virtualVolumeInfoRepoDTO, businessAccountInfoRepoDTO, desktopPoolInfoRepoDTO,
+            businessUserInfoRepoDTO);
     }
 
     @Override
@@ -342,7 +369,7 @@ public class ServiceEntityRepoDTO {
                 ", commoditiesBoughtRepoFromProviderDTOList=" + commoditiesBoughtRepoFromProviderDTOList +
                 ", commoditySoldList=" + commoditySoldList +
                 ", connectedEntityList=" + connectedEntityList +
-                ", targetIds=" + targetIds +
+                ", targetVendorIds=" + targetVendorIds +
                 ", applicationInfoRepoDTO=" + applicationInfoRepoDTO +
                 ", databaseInfoRepoDTO=" + databaseInfoRepoDTO +
                 ", computeTierInfoRepoDTO=" + computeTierInfoRepoDTO +
@@ -354,6 +381,8 @@ public class ServiceEntityRepoDTO {
                 ", virtualMachineInfoRepoDTO=" + virtualMachineInfoRepoDTO +
                 ", virtualVolumeInfoRepoDTO=" + virtualVolumeInfoRepoDTO +
                 ", businessAccountInfoRepoDTO=" + businessAccountInfoRepoDTO +
+                ", businessUserInfoRepoDTO=" + businessUserInfoRepoDTO +
+                ", desktopPoolInfoRepoDTO=" + desktopPoolInfoRepoDTO +
                 ", entityPipelineErrorsRepoDTO=" + entityPipelineErrorsRepoDTO +
                 '}';
     }

@@ -1,23 +1,17 @@
 package com.vmturbo.stitching.storage;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
-
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingScope;
@@ -53,7 +47,7 @@ import com.vmturbo.stitching.utilities.MergeEntities;
  *                       SC
  */
 @Deprecated
-public class StorageStitchingOperation implements StitchingOperation<List<String>, List<String>> {
+public class StorageStitchingOperation implements StitchingOperation<String, String> {
     private static final Logger logger = LogManager.getLogger();
 
     @Nonnull
@@ -76,13 +70,13 @@ public class StorageStitchingOperation implements StitchingOperation<List<String
     }
 
     @Override
-    public Optional<List<String>> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
+    public Collection<String> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
         final List<String> externalNames = internalEntity.getEntityBuilder().getStorageData().getExternalNameList();
-        return externalNames.isEmpty() ? Optional.empty() : Optional.of(externalNames);
+        return externalNames.isEmpty() ? Collections.emptySet() : externalNames;
     }
 
     @Override
-    public Optional<List<String>> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
+    public Collection<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
         return getInternalSignature(externalEntity);
     }
 
@@ -137,41 +131,5 @@ public class StorageStitchingOperation implements StitchingOperation<List<String
             // Merge the hypervisor diskArray onto the storage DiskArray.
             .queueEntityMerger(MergeEntities.mergeEntity(hypervisorDiskArray)
                     .onto(storageDiskArrayOrLogicalPool));
-    }
-
-    @Nonnull
-    @Override
-    public StitchingIndex<List<String>, List<String>> createIndex(final int expectedSize) {
-        return new StorageStitchingIndex(expectedSize);
-    }
-
-    /**
-     * An index that permits matching for the external name lists of storages.
-     * The rule for identifying a storage match by external name is as follows:
-     *
-     * For two storages with lists of external names, treat those lists as sets and intersect
-     * them. If the intersection is empty, it is not a match. If the intersection is non-empty,
-     * it is a match.
-     *
-     * This index maintains a map of each external name to the entire list.
-     */
-    public static class StorageStitchingIndex implements StitchingIndex<List<String>, List<String>> {
-
-        private final Multimap<String, List<String>> index;
-
-        public StorageStitchingIndex(final int expectedSize) {
-            index = Multimaps.newListMultimap(new HashMap<>(expectedSize), ArrayList::new);
-        }
-
-        @Override
-        public void add(@Nonnull List<String> internalSignature) {
-            internalSignature.forEach(externalName -> index.put(externalName, internalSignature));
-        }
-
-        @Override
-        public Stream<List<String>> findMatches(@Nonnull List<String> externalSignature) {
-            return externalSignature.stream()
-                .flatMap(partnerExternalName -> index.get(partnerExternalName).stream());
-        }
     }
 }

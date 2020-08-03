@@ -45,6 +45,8 @@ import com.vmturbo.stitching.TopologyEntity;
 public class StorageAccessCapacityPostStitchingOperation implements PostStitchingOperation {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final double IOPS_CAPACITY_GLOBAL_DEFAULT =
+            EntitySettingSpecs.IOPSCapacity.getSettingSpec().getNumericSettingValueType().getDefault();
 
     /* The constant Strings and regexes below are used to retrieve information about the number
        and type of disks in the entity. All of this information is currently in the form of a
@@ -118,9 +120,10 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
                         queueSingleUpdate(defaultValue, entity, resultBuilder);
                     } else {
                         // TODO switched this from warn to debug to reduce logging load - does it need more visibility?
-                        logger.debug("Could not set Storage Access capacity for entity {} ({}) " +
-                                "because no valid IOPS Capacity settings were found",
-                            entity.getOid(), entity.getDisplayName());
+                        logger.debug("Could not find default Storage Access setting for entity {} ({}) "
+                                        + "because no valid IOPS Capacity settings were found.  Setting IOPS capacity to {}. ",
+                                entity.getOid(), entity.getDisplayName(), IOPS_CAPACITY_GLOBAL_DEFAULT);
+                        queueSingleUpdate(IOPS_CAPACITY_GLOBAL_DEFAULT, entity, resultBuilder);
                     }
                 }
             }
@@ -178,6 +181,7 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
                 .mapToDouble(consumer -> consumer.getTopologyEntityDtoBuilder()
                         .getCommoditySoldListList().stream()
                         .filter(IS_STORAGE_ACCESS)
+                        .filter(comm -> comm.hasCapacity() && comm.getCapacity() > 0)
                         .map(CommoditySoldDTO::getCapacity)
                         .findAny().orElse(0d))
                 .sum();

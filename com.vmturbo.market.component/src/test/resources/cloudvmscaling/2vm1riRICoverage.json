@@ -1,0 +1,121 @@
+{
+  "Contexts": [
+    {
+      "context": {
+        "os": "LINUX",
+        "csp": "AWS",
+        "region": 31,
+        "billingAccount": 1,
+        "tenancy": "DEFAULT"
+      },
+      "Templates": [
+        {
+          "oid": 100001,
+          "name": "template1",
+          "family": "family1",
+          "onDemandCost": {
+            "compute": 100.0,
+            "license": 20.0,
+            "businessAccount": 10,
+            "os": "LINUX"
+          },
+          "discountedCost": {
+            "compute": 0.0,
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
+          },
+          "coupons": 3
+        },
+        {
+          "oid": 100002,
+          "name": "template2",
+          "family": "family2",
+          "onDemandCost": {
+            "compute": 120.0,
+            "license": 20.0,
+            "businessAccount": 10,
+            "os": "LINUX"
+          },
+          "discountedCost": {
+            "compute": 0.0,
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
+          },
+          "coupons": 3
+        },
+        {
+          "oid": 100003,
+          "name": "template3",
+          "family": "family3",
+          "onDemandCost": {
+            "compute": 140.0,
+            "license": 20.0,
+            "businessAccount": 10,
+            "os": "LINUX"
+          },
+          "discountedCost": {
+            "compute": 0.0,
+            "license": 0.0,
+            "businessAccount": 10,
+            "os": "LINUX"
+          },
+          "coupons": 3
+        }
+      ],
+      "VirtualMachines": [
+        {
+          "oid": 1000002,
+          "name": "VM2",
+          "businessAccount": 10,
+          "providers": [
+            100002,
+            100003
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100001,
+          "os": "LINUX"
+        },
+        {
+          "oid": 1000001,
+          "name": "VM1",
+          "businessAccount": 10,
+          "providers": [
+            100002,
+            100003
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100001,
+          "os": "LINUX"
+        }
+      ],
+      "ReservedInstances": [
+        {
+          "oid": 2000001,
+          "name": "RI1",
+          "businessAccount": 10,
+          "utilization": 0,
+          "zone": 21,
+          "template": 100003,
+          "count": 1,
+          "isf": false
+        }
+      ],
+      "Matching": [
+        {
+          "VirtualMachine": 1000001,
+          "Template": 100002
+        },
+        {
+          "VirtualMachine": 1000002,
+          "ReservedInstance": 2000001,
+          "Template": 100003,
+          "DiscountedCoupons": 3
+        }
+      ]
+    }
+  ]
+}

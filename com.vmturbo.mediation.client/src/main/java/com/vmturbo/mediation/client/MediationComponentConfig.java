@@ -29,15 +29,23 @@ public class MediationComponentConfig implements ConnectionConfig {
     private String serverAddress;
 
     // ssl connection values - by default, the empty string -> no SSL connection
-    @Value("${sslKeystorePath:''}")
+    @Value("${sslTrustAllServerCertificates:false}")
+    private boolean sslTrustAllServerCertificates;
+    @Value("${sslTruststorePath:server.jks}")
+    private String sslTruststorePath;
+    @Value("${sslTruststorePassword:#{null}}")
+    private String sslTruststorePassword;
+    @Value("${sslKeystorePath:client.jks}")
     private String sslKeystorePath;
-    @Value("${sslKeystorePassword:''}")
+    @Value("${sslKeystorePassword:#{null}}")
     private String sslKeystorePassword;
+    @Value("${sslKeystoreKeyPassword:#{null}}")
+    private String sslKeystoreKeyPassword;
 
     // configuration value to use for authentication when creating the connection to the Validator
-    @Value("${userName:vmtRemoteMediation}")
+    @Value("${userName:#{null}}")
     private String userName;
-    @Value("${userPassword:vmtRemoteMediation}")
+    @Value("${userPassword:#{null}}")
     private String userPassword;
 
     // configuration value to control the number of retries that are handled silently, i.e. not logged.
@@ -48,7 +56,7 @@ public class MediationComponentConfig implements ConnectionConfig {
     @Value("${connRetryIntervalSeconds:10}")
     private long connRetryInterval;
 
-    @Value("${websocket.pong.timeout:30000}")
+    @Value("${websocket.pong.timeout:120000}")
     private long pongMessageTimeout;
 
     @Value("${websocket.send.atomic.timeout:30}")
@@ -78,13 +86,33 @@ public class MediationComponentConfig implements ConnectionConfig {
     }
 
     @Override
+    public boolean getSSLTrustAllServerCertificates() {
+        return sslTrustAllServerCertificates;
+    }
+
+    @Override
+    public File getSSLTruststoreFile() {
+        return null != sslTruststorePath ? new File(sslTruststorePath) : null;
+    }
+
+    @Override
+    public String getSSLTruststorePassword() {
+        return sslTruststorePassword;
+    }
+
+    @Override
     public File getSSLKeystoreFile() {
-        return new File(sslKeystorePath);
+        return null != sslKeystorePath ? new File(sslKeystorePath) : null;
     }
 
     @Override
     public String getSSLKeystorePassword() {
-        return sslKeystorePassword;
+        return  sslKeystorePassword;
+    }
+
+    @Override
+    public String getSSLKeystoreKeyPassword() {
+        return sslKeystoreKeyPassword;
     }
 
     @Override
@@ -124,10 +152,13 @@ public class MediationComponentConfig implements ConnectionConfig {
         return MoreObjects.toStringHelper(this)
                 .add("instance_id", instance_id)
                 .add("serverAddress", serverAddress)
-                .add("sslKeystorePath", sslKeystorePath)
-                .add("sslKeystorePassword", sslKeystorePassword)
                 .add("userName", userName)
                 .add("userPassword", userPassword == null ? "null" : "xxxx")
+                .add("sslTruststorePath", sslTruststorePath)
+                .add("sslTruststorePassword", sslTruststorePassword == null ? "null" : "xxxx")
+                .add("sslKeystorePath", sslKeystorePath)
+                .add("sslKeystorePassword", sslKeystorePassword == null ? "null" : "xxxx")
+                .add("sslKeystoreKeyPassword", sslKeystoreKeyPassword == null ? "null" : "xxxx")
                 .add("silentRetryTime", silentRetryTime)
                 .toString();
     }

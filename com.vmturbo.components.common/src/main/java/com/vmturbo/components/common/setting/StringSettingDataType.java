@@ -1,11 +1,12 @@
 package com.vmturbo.components.common.setting;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 
 import org.apache.commons.lang3.Validate;
 
-import jdk.nashorn.internal.ir.annotations.Immutable;
-
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.Builder;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 
@@ -44,5 +45,13 @@ public class StringSettingDataType extends AbstractSettingDataType<String> {
                 .setValidationRegex(regexp)
                 .putAllEntityDefaults(getEntityDefaults())
                 .build());
+    }
+
+    @Override
+    @Nullable
+    public String getValue(@Nullable Setting setting) {
+        return setting == null || !setting.hasStringSettingValue()
+                        || !setting.getStringSettingValue().hasValue() ? null
+                                        : setting.getStringSettingValue().getValue();
     }
 }

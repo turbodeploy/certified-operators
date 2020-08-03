@@ -1,10 +1,13 @@
 package com.vmturbo.clustermgr;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -13,12 +16,16 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.FormHttpMessageConverter;
+import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
+import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.http.converter.xml.SourceHttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
@@ -28,11 +35,19 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 import com.vmturbo.clustermgr.aggregator.DataAggregator;
 import com.vmturbo.clustermgr.collectors.DataMetricLogs;
+import com.vmturbo.clustermgr.management.ComponentRegistrationConfig;
 import com.vmturbo.clustermgr.transfer.DataTransfer;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
+import com.vmturbo.common.protobuf.logging.LoggingREST.TracingConfigurationServiceController;
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.OsCommandProcessRunner;
 import com.vmturbo.components.common.OsProcessFactory;
 import com.vmturbo.components.common.logging.LogConfigurationService;
+import com.vmturbo.components.common.logging.TracingConfigurationRpcService;
+import com.vmturbo.components.common.tracing.TracingManager;
+import com.vmturbo.components.common.utils.BuildProperties;
+import com.vmturbo.kvstore.ConsulKeyValueStore;
 import com.vmturbo.proactivesupport.DataCollectorFramework;
 
 /**
@@ -40,10 +55,16 @@ import com.vmturbo.proactivesupport.DataCollectorFramework;
  */
 @Configuration
 @EnableWebMvc
+@Import({ComponentRegistrationConfig.class})
 public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
+    /**
+     * Instance ID property name.
+     */
+    public static final String INSTANCE_ID_NAME = "instanceID";
+
     @Value("${consul_host}")
     private String consulHost;
-    @Value("${clustermgr.consul.port:8500}")
+    @Value("${consul_port:8500}")
     private int consulPort;
 
     /**
@@ -86,6 +107,18 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     @Value("${anonymized:false}")
     private boolean anonymized;
 
+    @Value("${authHost:auth}")
+    private String authHost;
+
+    @Value("${serverGrpcPort:9001}")
+    private int serverGrpcPort;
+
+    @Value("${consulNamespace:}")
+    private String consulNamespace;
+
+    @Value("${enableConsulNamespace:false}")
+    private boolean enableConsulNamespace;
+
     /**
      * The hardLock key.
      */
@@ -109,6 +142,14 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
             "//UmRakTbyByhkwwB3NbRUsxFWgeHAc8YxI9msdhliBa2R3b0rh4+fqrFI9DJc48u05L2bdD22mvr1StAl" +
             "+5l6GDQUrX09s3rU8JgZnOTY0ruj+GABnXfW7GT4L64llX64xbylJDGSjH1pAgMBAAE=";
 
+    @Autowired
+    private ComponentRegistrationConfig componentRegistrationConfig;
+
+    /**
+     * The {@link RequestMappingHandlerAdapter} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public RequestMappingHandlerAdapter requestMappingHandlerAdapter() {
         final RequestMappingHandlerAdapter adapter = new RequestMappingHandlerAdapter();
@@ -120,54 +161,140 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
         return adapter;
     }
 
+    /**
+     * The {@link ClusterMgrController} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public ClusterMgrController clusterMgrController() {
         return new ClusterMgrController(clusterMgrService());
     }
 
+    /**
+     * Declare the Spring GlobalExceptionHandler class to define special-case handling
+     * for how different Java exceptions within a Controller execution are mapped to HTTP
+     * responses.
+     *
+     * @return the GlobalExceptionHandler instance to configure controller error mapping
+     */
     @Bean
-    public ClusterMgrService clusterMgrService() {
-        final ClusterMgrService clusterMgrService = new ClusterMgrService(consulService(),
-            osCommandProcessRunner());
-        return clusterMgrService;
+    public ClusterMgrRestExceptionHandler globalExceptionHandler() {
+        return new ClusterMgrRestExceptionHandler();
     }
 
+    /**
+     * The {@link DiagEnvironmentSummary} bean.
+     *
+     * @return The object.
+     */
+    @Bean
+    public DiagEnvironmentSummary diagFileNameFormatter() {
+        return new DiagEnvironmentSummary(BuildProperties.get(),
+            Clock.systemUTC(), (host, port) -> ComponentGrpcServer.newChannelBuilder(host, port).build(), authHost, serverGrpcPort);
+    }
 
+    /**
+     * The {@link ClusterMgrService} bean.
+     *
+     * @return The object.
+     */
+    @Bean
+    public ClusterMgrService clusterMgrService() {
+        return new ClusterMgrService(consulService(), osCommandProcessRunner(),
+            diagFileNameFormatter(), componentRegistrationConfig.componentRegistry());
+    }
+
+    /**
+     * The {@link LogConfigurationService} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public LogConfigurationService logConfigurationService() {
         return new LogConfigurationService();
     }
 
+    /**
+     * The {@link LogConfigurationServiceController} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public LogConfigurationServiceController logConfigurationServiceController() {
         return new LogConfigurationServiceController(logConfigurationService());
     }
 
+    /**
+     * The {@link TracingConfigurationRpcService} in the cluster manager.
+     *
+     * @return The service.
+     */
+    @Bean
+    public TracingConfigurationRpcService tracingConfigurationRpcService() {
+        return new TracingConfigurationRpcService(TracingManager.get());
+    }
+
+    /**
+     * A {@link TracingConfigurationServiceController}.
+     *
+     * @return Controller for the tracing RPC service.
+     */
+    @Bean
+    public TracingConfigurationServiceController tracingConfigurationServiceController() {
+        return new TracingConfigurationServiceController(tracingConfigurationRpcService());
+    }
+
+    /**
+     * The {@link ConsulService} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public ConsulService consulService() {
-        return new ConsulService(consulHost, consulPort);
+        return new ConsulService(consulHost, consulPort,
+            ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace));
     }
 
-    @Bean
-    public DockerInterfaceService dockerInterfaceService() {
-        return new DockerInterfaceService();
-    }
+    @Value("${aggregator.base.path:/tmp/datapoint}")
+    private String aggregatorBasePath;
 
+    /**
+     * The {@link DataAggregator} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public DataAggregator dataAggregator() {
-        return new DataAggregator();
+        return new DataAggregator(aggregatorBasePath);
     }
 
+    /**
+     * The {@link TcpIpAggegatorReceiverBridge} bean.
+     *
+     * @return The object.
+     * @throws IOException If there is an initialization error.
+     */
     @Bean
     public TcpIpAggegatorReceiverBridge tcpIpAggegatorReceiverBridge() throws IOException {
         return new TcpIpAggegatorReceiverBridge(bridgePort, dataAggregator());
     }
 
+    /**
+     * The {@link OsCommandProcessRunner} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public OsCommandProcessRunner osCommandProcessRunner() {
         return new OsCommandProcessRunner();
     }
 
+    /**
+     * The {@link OsProcessFactory} bean.
+     *
+     * @return The object.
+     */
     @Bean
     public OsProcessFactory scriptProcessFactory() {
         return new OsProcessFactory();
@@ -196,13 +323,12 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
      * @param str The string to be digested.
      * @return The massaged Base64-encoded SHA-1 digest of the str.
      * @throws NoSuchAlgorithmException     In case SHA-1 is unsupported.
-     * @throws UnsupportedEncodingException In case UTF-8 is unsupported.
      */
     private @Nonnull String digest(final @Nonnull String str)
-            throws NoSuchAlgorithmException, UnsupportedEncodingException {
+            throws NoSuchAlgorithmException {
         MessageDigest md = MessageDigest.getInstance("SHA-1");
-        byte[] digest = md.digest(str.getBytes("UTF-8"));
-        return new String(Base64.getEncoder().encode(digest), "UTF-8")
+        byte[] digest = md.digest(str.getBytes(StandardCharsets.UTF_8));
+        return new String(Base64.getEncoder().encode(digest), StandardCharsets.UTF_8)
                 .replace('/', '.')
                 .replace('+', '-')
                 .replace('=', '_');
@@ -238,10 +364,10 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
         }
         instance.start(TimeUnit.SECONDS.toMillis(collectionIntervalUrgent),
                        TimeUnit.SECONDS.toMillis(collectionIntervalOffline));
-        String instanceID = consulService().getValueAsString("instanceID", "-");
+        String instanceID = consulService().getValueAsString(INSTANCE_ID_NAME, "-");
         if ("-".equals(instanceID)) {
             instanceID = UUID.randomUUID().toString();
-            consulService().putValue("instanceID", instanceID);
+            consulService().putValue(INSTANCE_ID_NAME, instanceID);
         }
         String customerID = getValue("customer_id", "CUSTOMER_ID");
         String accessKey = getValue("access_key", "AWS_ACCESS_KEY_ID");
@@ -251,8 +377,8 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
             if (!Strings.isNullOrEmpty(customerID) && !Strings.isNullOrEmpty(instanceID)) {
                 s3FilePrefix = digest(customerID) + "_" + digest(instanceID);
             }
-        } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
-            throw new IllegalStateException("The SHA-1 or UTF-8 are unsupported", e);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-1 is unsupported", e);
         }
         DataTransfer transfer = new DataTransfer(TimeUnit.SECONDS.toMillis(dataForwardInterval),
                                                  dataAggregator(),
@@ -275,5 +401,24 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     @Override
     public void configurePathMatch(PathMatchConfigurer matcher) {
         matcher.setUseRegisteredSuffixPatternMatch(true);
+    }
+
+    /**
+     * Add a new instance of the {@link GsonHttpMessageConverter} to the list of available {@link HttpMessageConverter}s in use.
+     *
+     * @param converters is the list of {@link HttpMessageConverter}s to which the new converter instance is added.
+     */
+    @Override
+    public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
+        // Handle text-plain.
+        final StringHttpMessageConverter stringMessageConverter =
+            new StringHttpMessageConverter(Charset.forName("UTF-8"));
+        converters.add(stringMessageConverter);
+
+        // GSON for application-json serialization.
+        final GsonHttpMessageConverter msgConverter = new GsonHttpMessageConverter();
+        msgConverter.setGson(ComponentGsonFactory.createGson());
+
+        converters.add(msgConverter);
     }
 }

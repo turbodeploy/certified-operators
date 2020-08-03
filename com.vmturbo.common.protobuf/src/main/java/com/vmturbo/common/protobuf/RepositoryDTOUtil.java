@@ -9,10 +9,11 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityBatch;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 
@@ -31,7 +32,11 @@ public class RepositoryDTOUtil {
                                               @Nonnull final TopologyEntityFilter filter) {
         // If the filter wants only unplaced entities, and this entity is placed, the entity
         // doesn't match.
-        return !(filter.getUnplacedOnly() && TopologyDTOUtil.isPlaced(entity));
+        return !(filter.getUnplacedOnly() && TopologyDTOUtil.isPlaced(entity))
+            // Entity is valid if filter has no entity type or it contains the entity type
+            // of given entity.
+            && (filter.getEntityTypesList().isEmpty() ||
+                filter.getEntityTypesList().contains(entity.getEntityType()));
     }
 
     /**
@@ -67,9 +72,9 @@ public class RepositoryDTOUtil {
      * @param batchIterator
      * @return
      */
-    public static Stream<TopologyEntityDTO> topologyEntityStream(Iterator<EntityBatch> batchIterator) {
+    public static Stream<PartialEntity> topologyEntityStream(Iterator<PartialEntityBatch> batchIterator) {
 
-        Iterable<EntityBatch> batchIterable = () -> batchIterator;
+        Iterable<PartialEntityBatch> batchIterable = () -> batchIterator;
         return StreamSupport.stream(batchIterable.spliterator(), false)
                 .flatMap(entityBatch -> entityBatch.getEntitiesList().stream());
     }

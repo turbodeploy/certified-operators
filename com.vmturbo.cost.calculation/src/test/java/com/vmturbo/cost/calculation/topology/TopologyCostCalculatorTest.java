@@ -18,7 +18,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
-import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
@@ -58,11 +58,11 @@ public class TopologyCostCalculatorTest {
     @Test
     public void testCalculateCosts() throws CloudCostDataRetrievalException {
         when(cloudCostData.getCurrentRiCoverage()).thenReturn(Maps.newHashMap());
-        when(localCostDataProvider.getCloudCostData(topoInfo)).thenReturn(cloudCostData);
-        final TopologyCostCalculator topologyCostCalculator = factory.newCalculator(topoInfo);
+        final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
+        when(localCostDataProvider.getCloudCostData(topoInfo, cloudTopology, topologyEntityInfoExtractor)).thenReturn(cloudCostData);
+        final TopologyCostCalculator topologyCostCalculator = factory.newCalculator(topoInfo, cloudTopology);
 
         final Map<Long, TopologyEntityDTO> cloudEntities = ImmutableMap.of(ENTITY.getOid(), ENTITY);
-        final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
         when(cloudTopology.getEntities()).thenReturn(cloudEntities);
 
         final CloudCostCalculator<TopologyEntityDTO> costCalculator = mock(CloudCostCalculator.class);
@@ -72,7 +72,6 @@ public class TopologyCostCalculatorTest {
                 eq(cloudCostData),
                 eq(cloudTopology),
                 eq(topologyEntityInfoExtractor),
-                eq(discountApplicatorFactory),
                 eq(reservedInstanceApplicatorFactory),
                 any(), any()))
             .thenReturn(costCalculator);
@@ -85,9 +84,10 @@ public class TopologyCostCalculatorTest {
 
     @Test
     public void testCalculateCostsEmptyData() throws CloudCostDataRetrievalException {
-        when(localCostDataProvider.getCloudCostData(topoInfo)).thenThrow(CloudCostDataRetrievalException.class);
+        final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
+        when(localCostDataProvider.getCloudCostData(topoInfo, cloudTopology, topologyEntityInfoExtractor)).thenThrow(CloudCostDataRetrievalException.class);
 
-        final TopologyCostCalculator calculator = factory.newCalculator(topoInfo);
+        final TopologyCostCalculator calculator = factory.newCalculator(topoInfo, cloudTopology);
         assertThat(calculator.getCloudCostData(), is(CloudCostData.empty()));
     }
 }

@@ -1,18 +1,17 @@
 package com.vmturbo.auth.component;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
-import java.util.Optional;
+import java.util.List;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 import javax.servlet.DispatcherType;
 import javax.servlet.Servlet;
 
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,9 +20,9 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.filter.DelegatingFilterProxy;
@@ -31,11 +30,12 @@ import org.springframework.web.servlet.DispatcherServlet;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
-import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.licensing.LicensingConfig;
+import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.userscope.UserScopeServiceConfig;
 import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.config.PropertiesLoader;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 
 /**
@@ -45,7 +45,7 @@ import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 @Import({AuthRESTSecurityConfig.class, AuthDBConfig.class, SpringSecurityConfig.class,
         WidgetsetConfig.class, LicensingConfig.class, UserScopeServiceConfig.class})
 public class AuthComponent extends BaseVmtComponent {
-    public static final String PATH_SPEC = "/*";
+    private static final String PATH_SPEC = "/*";
     /**
      * The logger.
      */
@@ -80,8 +80,14 @@ public class AuthComponent extends BaseVmtComponent {
         logger.info("Adding MariaDB health check to the component health monitor.");
         getHealthMonitor()
             .addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                                    authDBConfig.dataSource()::getConnection))
-            .addHealthCheck(licensingConfig.kafkaProducerHealthMonitor());
+                                    authDBConfig.dataSource()::getConnection));
+                    // (May 20, 2019, Gary Zeng) Current Kafka monitor only updates status when
+                    // "SendMessageCallbackHandler" is triggered. We do trigger "handler" when
+                    // auth start (to send out license related to notification ), so if Kafka is down,
+                    // the status will be updated as "not healthy" to K8s. But auth will NOT trigger
+                    // the "handler", until the "updateLicenseSummaryPeriodically" logic kicked in,
+                    // which is everyday at midnight. OM-46416 is opened to fix the monitor.
+                    // .addHealthCheck(licensingConfig.kafkaProducerHealthMonitor());
     }
 
     /**
@@ -93,26 +99,20 @@ public class AuthComponent extends BaseVmtComponent {
         startContext(AuthComponent::createContext);
     }
 
-    @Override
     @Nonnull
-    protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        // Monitor for server metrics with prometheus.
-        final MonitoringServerInterceptor monitoringInterceptor =
-            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+    @Override
+    public List<ServerInterceptor> getServerInterceptors() {
+        final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiAuthKVStore());
+        return Collections.singletonList(jwtInterceptor);
+    }
 
-        // gRPC JWT token interceptor
-        final JwtServerInterceptor jwtInterceptor =
-                new JwtServerInterceptor(securityConfig.apiAuthKVStore());
-        return Optional.of(builder
-                .addService(ServerInterceptors.intercept(widgetsetConfig.widgetsetRpcService(
-                        authRESTSecurityConfig.targetStore()), jwtInterceptor, monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(licensingConfig.licenseManager(),
-                        jwtInterceptor, monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(licensingConfig.licenseCheckService(),
-                        jwtInterceptor, monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(userScopeServiceConfig.userScopeService(),
-                        jwtInterceptor, monitoringInterceptor))
-                .build());
+    @Nonnull
+    @Override
+    public List<BindableService> getGrpcServices() {
+        return Arrays.asList(widgetsetConfig.widgetsetRpcService(authRESTSecurityConfig.targetStore()),
+            licensingConfig.licenseManager(),
+            licensingConfig.licenseCheckService(),
+            userScopeServiceConfig.userScopeService());
     }
 
     /**
@@ -120,16 +120,19 @@ public class AuthComponent extends BaseVmtComponent {
      * (springSecurityFilterChain). Special DispatcherServlet instance is created upon REST Spring
      * context.
      *
-     * Spring security filters, which includes custom {@link SpringAuthFilter}, are added to
+     * <p>Spring security filters, which includes custom {@link SpringAuthFilter}, are added to
      * REST DispatcherServlet.
      *
      * @param contextServer Jetty context handler to register with
      * @return rest application context
+     * @throws ContextConfigurationException if there is an error loading the external configuration
+     * properties
      */
-    private static ConfigurableApplicationContext createContext(
-            @Nonnull ServletContextHandler contextServer) {
+    private static ConfigurableWebApplicationContext createContext(
+            @Nonnull ServletContextHandler contextServer) throws ContextConfigurationException {
         final AnnotationConfigWebApplicationContext rootContext =
                 new AnnotationConfigWebApplicationContext();
+        PropertiesLoader.addConfigurationPropertySources(rootContext);
         rootContext.register(AuthComponent.class);
 
         final AnnotationConfigWebApplicationContext restContext =

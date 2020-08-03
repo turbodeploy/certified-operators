@@ -23,8 +23,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.identity.OidSet;
-import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.GlobalSupplyChainFluxResult;
@@ -58,7 +59,7 @@ public class ReactiveArangoDBExecutor implements ReactiveGraphDBExecutor {
             .add("hasEnvType", globalSupplyChainCmd.getEnvironmentType().isPresent());
 
         globalSupplyChainCmd.getEnvironmentType().ifPresent(envType ->
-                queryTemplate.add("envType", envType.getApiEnumStringValue()));
+                queryTemplate.add("envType", EnvironmentTypeUtil.toApiString(envType)));
 
         globalSupplyChainCmd.getEntityAccessScope().ifPresent( accessScope -> {
             // add an accessible oids list if the access scope is restricted
@@ -92,7 +93,7 @@ public class ReactiveArangoDBExecutor implements ReactiveGraphDBExecutor {
      */
     private static String entityTypesListToAQL(@Nonnull Set<Integer> entityTypes) {
         final String entityTypesAQL = entityTypes.stream()
-                .map(RepoObjectType::mapEntityType)
+                .map(ApiEntityType::fromType)
                 .map(entityType -> "\"" + entityType + "\"")
                 .collect(Collectors.joining(","));
         return "[" + entityTypesAQL + "]";

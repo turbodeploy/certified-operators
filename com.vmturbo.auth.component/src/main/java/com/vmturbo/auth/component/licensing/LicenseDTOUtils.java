@@ -1,18 +1,15 @@
 package com.vmturbo.auth.component.licensing;
 
 import java.util.Collection;
-import java.util.Date;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
-import org.joda.time.DateTime;
-import org.joda.time.format.ISODateTimeFormat;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
 import com.vmturbo.api.dto.license.ILicense.ErrorReason;
-import com.vmturbo.api.dto.license.LicenseApiDTO;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.licensing.License;
@@ -164,6 +161,7 @@ public class LicenseDTOUtils {
     static public License combineLicenses(Collection<LicenseDTO> licenseDTOs) {
         // we have licenses -- convert them to model licenses, validate them, and merge them together.
         License aggregateLicense = new License();
+
         for (LicenseDTO licenseDTO : licenseDTOs) {
             License license = LicenseDTOUtils.licenseDTOtoLicense(licenseDTO);
             license.setErrorReasons(LicenseDTOUtils.validateXLLicense(license));
@@ -177,11 +175,11 @@ public class LicenseDTOUtils {
     /**
      * Convert a {@link License } to a {@link LicenseSummary} object.
      *
-     * @param aggregateLicense The source aggregate license object.
+     * @param aggregateLicense An aggregate license created by merging all of the valid licenses.
      * @param isOverLimit true, if the workload count is over the license limit.
      * @return A shiny new LicenseSummary.
      */
-    static public LicenseSummary licenseToLicenseSummary(ILicense aggregateLicense, boolean isOverLimit) {
+    static public LicenseSummary createLicenseSummary(ILicense aggregateLicense, boolean isOverLimit) {
         LicenseSummary.Builder summaryBuilder = LicenseSummary.newBuilder();
 
         if (StringUtils.isNotBlank(aggregateLicense.getExpirationDate())) {
@@ -207,7 +205,7 @@ public class LicenseDTOUtils {
         summaryBuilder.setIsValid(aggregateLicense.isValid());
 
         // set generation date to now.
-        summaryBuilder.setGenerationDate(new DateTime().toString(ISODateTimeFormat.dateTime()));
+        summaryBuilder.setGenerationDate(DateTimeUtil.getNow());
 
         return summaryBuilder.build();
     }

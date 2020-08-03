@@ -6,6 +6,7 @@ import static com.vmturbo.action.orchestrator.workflow.store.WorkflowAttributeEx
 
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -13,13 +14,16 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.persistence.Column;
 
+import com.google.common.collect.Maps;
+import com.google.gson.Gson;
+
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.google.common.collect.Maps;
-import com.google.gson.Gson;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.attributes.SimpleMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
@@ -61,8 +65,7 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore 
      * {@inheritDoc}
      */
     @Override
-    public void saveOidMappings(@Nonnull Map<IdentityMatchingAttributes, Long> attrsToOidMap)
-            throws IdentityStoreException {
+    public void saveOidMappings(@Nonnull Map<IdentityMatchingAttributes, Long> attrsToOidMap) {
         // run the update as a transaction; if there is an exception, the transaction will be rolled back
         dsl.transaction(configuration -> {
             DSLContext transactionDsl = DSL.using(configuration);
@@ -141,22 +144,23 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore 
     }
 
     @Override
-    public List<String> collectDiags() throws DiagnosticsException  {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
         try {
-            return fetchAllOidMappings().entrySet().stream()
-                    .map(entry -> {
-                        try {
-                            return new WorkflowHeader(entry.getKey(), entry.getValue());
-                        } catch (NumberFormatException | IdentityStoreException e) {
-                            return null;
-                        }
-                    })
-                    .filter(Objects::nonNull)
-                    .map(workflowHeader -> GSON.toJson(workflowHeader, WorkflowHeader.class))
-                    .collect(Collectors.toList());
+            for (Entry<IdentityMatchingAttributes, Long> entry : fetchAllOidMappings().entrySet()) {
+                final WorkflowHeader workflowHeader;
+                try {
+                    workflowHeader = new WorkflowHeader(entry.getKey(), entry.getValue());
+                } catch (NumberFormatException | IdentityStoreException e) {
+                    throw new DiagnosticsException("Failed to create workflow header for " + entry,
+                            e);
+                }
+                final String string = GSON.toJson(workflowHeader, WorkflowHeader.class);
+                appender.appendString(string);
+            }
         } catch (IdentityStoreException e) {
-            throw new DiagnosticsException(String.format("Retrieving workflow identifiers from database "
-                    + "failed. %s", e));
+            throw new DiagnosticsException(
+                    String.format("Retrieving workflow identifiers from database " + "failed. %s",
+                            e));
         }
     }
 
@@ -178,6 +182,12 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore 
                         + "failed. %s", e));
             }
         });
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return getClass().getSimpleName();
     }
 
     /**

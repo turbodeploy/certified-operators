@@ -6,10 +6,13 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -18,11 +21,14 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.AccountLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
-import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class DiscountApplicatorTest {
@@ -33,16 +39,23 @@ public class DiscountApplicatorTest {
     private EntityInfoExtractor<TestEntityClass> infoExtractor =
             (EntityInfoExtractor<TestEntityClass>)mock(EntityInfoExtractor.class);
 
-    private CloudCostData cloudCostData = mock(CloudCostData.class);
-
-    private CloudCostCalculatorFactory<TestEntityClass> calculatorFactory =
-            CloudCostCalculator.<TestEntityClass>newFactory();
+    private CloudCostData<TestEntityClass> cloudCostData = mock(CloudCostData.class);
 
     private DiscountApplicatorFactory<TestEntityClass> factory = DiscountApplicator.newFactory();
 
+    private final AccountPricingData<TestEntityClass> accountPricingData =
+            mock(AccountPricingData.class);
+
+    private CloudCostData<TestEntityClass> emptyCloudCostData =
+            new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+
     @Before
     public void setup() {
-        when(cloudCostData.getDiscountForAccount(anyLong())).thenReturn(Optional.empty());
+        when(cloudCostData.getAccountPricingData(anyLong())).thenReturn(Optional.ofNullable(accountPricingData));
+        when(cloudCostData.getAccountPricingData(anyLong())
+                .get().getDiscountApplicator())
+                .thenReturn(null);
         when(topology.getOwner(anyLong())).thenReturn(Optional.empty());
     }
 
@@ -59,10 +72,10 @@ public class DiscountApplicatorTest {
         final Discount discount = Discount.newBuilder()
                 .setId(100)
                 .build();
-        when(cloudCostData.getDiscountForAccount(owner.getId())).thenReturn(Optional.of(discount));
-
+        when(topology.getEntity(entity.getId())).thenReturn(Optional.of(entity));
+        when(topology.getEntity(owner.getId())).thenReturn(Optional.of(owner));
         final DiscountApplicator<TestEntityClass> applicator =
-                factory.entityDiscountApplicator(entity, topology, infoExtractor, cloudCostData);
+                factory.accountDiscountApplicator(owner.getId(), topology, infoExtractor, Optional.ofNullable(discount));
         assertThat(applicator.getDiscount(), is(discount));
     }
 
@@ -85,10 +98,11 @@ public class DiscountApplicatorTest {
         final Discount discount = Discount.newBuilder()
                 .setId(100)
                 .build();
-        when(cloudCostData.getDiscountForAccount(masterAccount.getId())).thenReturn(Optional.of(discount));
 
+        when(topology.getEntity(entity.getId())).thenReturn(Optional.of(entity));
+        when(topology.getEntity(masterAccount.getId())).thenReturn(Optional.of(masterAccount));
         final DiscountApplicator<TestEntityClass> applicator =
-                factory.entityDiscountApplicator(entity, topology, infoExtractor, cloudCostData);
+                factory.accountDiscountApplicator(masterAccount.getId(), topology, infoExtractor, Optional.of(discount));
         assertThat(applicator.getDiscount(), is(discount));
     }
 
@@ -101,21 +115,11 @@ public class DiscountApplicatorTest {
                 .setType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .build(infoExtractor);
 
+        when(topology.getEntity(entity.getId())).thenReturn(Optional.of(entity));
         when(topology.getOwner(entity.getId())).thenReturn(Optional.of(owner));
-
+        Optional<Discount> discount = Optional.empty();
         final DiscountApplicator<TestEntityClass> applicator =
-                factory.entityDiscountApplicator(entity, topology, infoExtractor, cloudCostData);
-        assertThat(applicator, is(DiscountApplicator.noDiscount()));
-    }
-
-    @Test
-    public void testFactoryEntityNoOwner() {
-        final TestEntityClass entity = TestEntityClass.newBuilder(7)
-                .build(infoExtractor);
-
-
-        final DiscountApplicator<TestEntityClass> applicator =
-                factory.entityDiscountApplicator(entity, topology, infoExtractor, cloudCostData);
+                factory.accountDiscountApplicator(entity.getId(), topology, infoExtractor, discount);
         assertThat(applicator, is(DiscountApplicator.noDiscount()));
     }
 
@@ -138,10 +142,9 @@ public class DiscountApplicatorTest {
         final Discount discount = Discount.newBuilder()
                 .setId(100)
                 .build();
-        when(cloudCostData.getDiscountForAccount(masterAccount.getId())).thenReturn(Optional.of(discount));
 
         final DiscountApplicator<TestEntityClass> applicator =
-                factory.accountDiscountApplicator(subAccount.getId(), topology, infoExtractor, cloudCostData);
+                factory.accountDiscountApplicator(subAccount.getId(), topology, infoExtractor, Optional.ofNullable(discount));
         assertThat(applicator.getDiscount(), is(discount));
     }
 
@@ -157,7 +160,7 @@ public class DiscountApplicatorTest {
                 .build(infoExtractor);
         when(topology.getConnectedService(tier.getId())).thenReturn(Optional.of(service));
 
-        final double discountPercentage = 0.2;
+        final double discountPercentage = 20;
 
         final Discount discount = Discount.newBuilder()
                 .setId(100)
@@ -165,14 +168,14 @@ public class DiscountApplicatorTest {
                     .setTierLevelDiscount(TierLevelDiscount.newBuilder()
                         .putDiscountPercentageByTierId(tier.getId(), discountPercentage))
                     .setAccountLevelDiscount(AccountLevelDiscount.newBuilder()
-                        .setDiscountPercentage(0.5))
+                        .setDiscountPercentage(50))
                         .setServiceLevelDiscount(ServiceLevelDiscount.newBuilder()
-                                .putDiscountPercentageByServiceId(service.getId(), 0.7)))
+                                .putDiscountPercentageByServiceId(service.getId(), 70)))
                 .build();
         final DiscountApplicator<TestEntityClass> applicator = makeDiscountApplicator(entity, discount);
 
         // The input to the applicator is the tier, because the applicator itself is entity-specific.
-        assertThat(applicator.getDiscountPercentage(tier.getId()), is(discountPercentage));
+        assertThat(applicator.getDiscountPercentage(tier.getId()).getValue(), is(discountPercentage / 100));
     }
 
     @Test
@@ -187,20 +190,20 @@ public class DiscountApplicatorTest {
                 .build(infoExtractor);
         when(topology.getConnectedService(tier.getId())).thenReturn(Optional.of(service));
 
-        final double discountPercentage = 0.2;
+        final double discountPercentage = 20;
 
         final Discount discount = Discount.newBuilder()
                 .setId(100)
                 .setDiscountInfo(DiscountInfo.newBuilder()
                         .setAccountLevelDiscount(AccountLevelDiscount.newBuilder()
-                                .setDiscountPercentage(0.5))
+                                .setDiscountPercentage(50))
                         .setServiceLevelDiscount(ServiceLevelDiscount.newBuilder()
                                 .putDiscountPercentageByServiceId(service.getId(), discountPercentage)))
                 .build();
         final DiscountApplicator<TestEntityClass> applicator = makeDiscountApplicator(entity, discount);
 
         // The input to the applicator is the tier, because the applicator itself is entity-specific.
-        assertThat(applicator.getDiscountPercentage(tier.getId()), is(discountPercentage));
+        assertThat(applicator.getDiscountPercentage(tier.getId()).getValue(), is(discountPercentage / 100));
     }
 
     @Test
@@ -215,7 +218,7 @@ public class DiscountApplicatorTest {
                 .build(infoExtractor);
         when(topology.getConnectedService(tier.getId())).thenReturn(Optional.of(service));
 
-        final double discountPercentage = 0.2;
+        final double discountPercentage = 20;
 
         final Discount discount = Discount.newBuilder()
                 .setId(100)
@@ -226,7 +229,23 @@ public class DiscountApplicatorTest {
         final DiscountApplicator<TestEntityClass> applicator = makeDiscountApplicator(entity, discount);
 
         // The input to the applicator is the tier, because the applicator itself is entity-specific.
-        assertThat(applicator.getDiscountPercentage(tier.getId()), is(discountPercentage));
+        assertThat(applicator.getDiscountPercentage(tier.getId()).getValue(), is(discountPercentage / 100));
+    }
+
+    @Test
+    public void testEmptyCloudCostData(){
+        Assert.assertFalse(emptyCloudCostData.getRiCoverageForEntity(1L).isPresent());
+        Assert.assertTrue(emptyCloudCostData.getCurrentRiCoverage().isEmpty());
+        Assert.assertFalse(emptyCloudCostData.getExistingRiBoughtData(1L).isPresent());
+        Assert.assertTrue(emptyCloudCostData.getExistingRiBought().isEmpty());
+        Assert.assertTrue(emptyCloudCostData.getAllRiBought().isEmpty());
+    }
+
+    @Test
+    public void testInvalidReservedInstanceData(){
+        final ReservedInstanceData reservedInstanceData =
+            new ReservedInstanceData(ReservedInstanceBought.getDefaultInstance(), ReservedInstanceSpec.getDefaultInstance());
+        Assert.assertFalse(reservedInstanceData.isValid(new HashMap<>()));
     }
 
     @Test
@@ -258,10 +277,10 @@ public class DiscountApplicatorTest {
                 .build(infoExtractor);
 
         when(topology.getOwner(entity.getId())).thenReturn(Optional.of(owner));
-        when(cloudCostData.getDiscountForAccount(owner.getId())).thenReturn(Optional.of(discount));
+        when(topology.getEntity(entity.getId())).thenReturn(Optional.of(entity));
 
         final DiscountApplicator<TestEntityClass> applicator =
-                factory.entityDiscountApplicator(entity, topology, infoExtractor, cloudCostData);
+                factory.accountDiscountApplicator(entity.getId(), topology, infoExtractor, Optional.ofNullable(discount));
         assertThat(applicator.getDiscount(), is(discount));
         return applicator;
     }

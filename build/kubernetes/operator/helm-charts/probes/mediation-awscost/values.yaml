@@ -2,6 +2,8 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+annotations: {}
+
 replicaCount: 1
 
 image:
@@ -9,17 +11,27 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
-java:
-  options: ""
+javaComponentOptions: "-Dorg.eclipse.jetty.websocket.jsr356.ssl-trust-all=true
+    -DLog4jContextSelector=com.vmturbo.mediation.common.context.ThreadGroupPrefixContextSelector"
+
+env:
+  - name: component_type
+    value: mediation-awscost
+  - name: instance_id
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+  - name: instance_ip
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+  - name: clustermgr_host
+    value: clustermgr
+  - name: clustermgr_port
+    value: "8080"
 
 resources:
   limits:
-    memory: 512Mi
+    memory: 4500Mi
   requests:
     memory: 384Mi
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}

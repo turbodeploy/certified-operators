@@ -1,7 +1,5 @@
 package com.vmturbo.components.common;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -93,22 +91,6 @@ public class ComponentControllerTest {
         // Assert
         Assert.assertEquals(ExecutionStatus.RUNNING.toString(),
                 new Gson().fromJson(result.getResponse().getContentAsString(), String.class));
-    }
-
-    @Test
-    public void testPutState() throws Exception {
-
-        // Arrange
-        when(componentMock.getComponentStatus()).thenReturn(ExecutionStatus.RUNNING);
-        // Act
-        MvcResult result = mockMvc.perform(put(API_PREFIX + "/state")
-                .contentType(MediaType.TEXT_PLAIN)
-                .content(ExecutionStatus.PAUSED.toString())
-                .accept(MediaType.TEXT_PLAIN))
-                .andExpect(status().isOk())
-                .andReturn();
-        // Assert
-        verify(componentMock).pauseComponent();
     }
 
     @Configuration

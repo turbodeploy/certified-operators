@@ -1,25 +1,21 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static com.vmturbo.api.component.external.api.mapper.UuidMapper.UI_REAL_TIME_MARKET_STR;
 import static org.junit.Assert.assertEquals;
 
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-
-import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 
-import com.vmturbo.api.component.communication.RepositoryApi;
+import org.junit.Test;
+
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
-import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
-import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.AzureRIScopeType;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.PaymentOption;
 import com.vmturbo.api.enums.Platform;
 import com.vmturbo.api.enums.ReservedInstanceType;
@@ -28,26 +24,36 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord.StatValue;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
+/**
+ * Unit tests for {@link ReservedInstanceMapper} class.
+ */
 public class ReservedInstanceMapperTest {
 
-    final RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
+    private static final long ACCOUNT_1_ID = 111L;
+    private static final long ACCOUNT_2_ID = 222L;
+    private static final long NOT_EXISTING_ACCOUNT_ID = 333L;
+    private static final long REGION_1_ID = 44L;
 
-    private ReservedInstanceMapper reservedInstanceMapper = new ReservedInstanceMapper(repositoryApi);
+    private ReservedInstanceMapper reservedInstanceMapper =
+        new ReservedInstanceMapper(new CloudTypeMapper());
 
     private ReservedInstanceBought riBought = ReservedInstanceBought.newBuilder()
             .setId(123L)
             .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                    .setBusinessAccountId(11L)
+                    .setProbeReservedInstanceId("RI_ID")
+                    .setDisplayName("RI display name")
+                    .setBusinessAccountId(ACCOUNT_1_ID)
                     .setNumBought(10)
                     .setAvailabilityZoneId(22L)
                     .setReservedInstanceSpec(99L)
+                    .setReservationOrderId("ResOrder-1")
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtCost.newBuilder()
                             .setFixedCost(CurrencyAmount.newBuilder()
                                     .setAmount(100.0))
@@ -57,7 +63,13 @@ public class ReservedInstanceMapperTest {
                                     .setAmount(300.0)))
                     .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                             .setNumberOfCouponsUsed(10)
-                            .setNumberOfCoupons(100)))
+                            .setNumberOfCoupons(100))
+                    .setReservedInstanceScopeInfo(ReservedInstanceScopeInfo.newBuilder()
+                            .setShared(false)
+                            .addApplicableBusinessAccountId(ACCOUNT_1_ID)
+                            .addApplicableBusinessAccountId(ACCOUNT_2_ID)
+                            .addApplicableBusinessAccountId(NOT_EXISTING_ACCOUNT_ID)
+                            .build()))
             .build();
 
     private ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
@@ -70,44 +82,43 @@ public class ReservedInstanceMapperTest {
                     .setTenancy(CloudCostDTO.Tenancy.DEFAULT)
                     .setOs(CloudCostDTO.OSType.LINUX)
                     .setTierId(33L)
-                    .setRegionId(44L))
+                    .setRegionId(REGION_1_ID))
             .build();
-
-    private ReservedInstanceStatsRecord riStatsrecord = ReservedInstanceStatsRecord.newBuilder()
-            .setCapacity(StatValue.newBuilder()
-                    .setMin(10)
-                    .setMax(20)
-                    .setAvg(15)
-                    .setTotal(30))
-            .setValues(StatValue.newBuilder()
-                    .setMax(5)
-                    .setMin(1)
-                    .setAvg(3)
-                    .setTotal(6))
-            .build();
-
-    private Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = new HashMap<>();
-
-    private static float DELTA = 0.000001f;
 
     @Test
     public void testMapToReservedInstanceApiDTO() throws Exception {
+        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = new HashMap<>();
         final float delta = 0.000001f;
+        final TargetApiDTO target = new TargetApiDTO();
+        target.setType(CloudType.AWS.name());
+        final ServiceEntityApiDTO mainAccount = new ServiceEntityApiDTO();
+        mainAccount.setDiscoveredBy(target);
+        mainAccount.setDisplayName("Account");
+        final ServiceEntityApiDTO siblingAccount = new ServiceEntityApiDTO();
+        siblingAccount.setDiscoveredBy(target);
+        siblingAccount.setDisplayName("Sibling Account");
         ServiceEntityApiDTO availabilityZoneEntity = new ServiceEntityApiDTO();
         availabilityZoneEntity.setUuid("22");
         availabilityZoneEntity.setDisplayName("us-east-1a");
         ServiceEntityApiDTO regionEntity = new ServiceEntityApiDTO();
         regionEntity.setUuid("44");
         regionEntity.setDisplayName("us-east-1");
+        regionEntity.setDiscoveredBy(target);
         ServiceEntityApiDTO templateEntity = new ServiceEntityApiDTO();
         templateEntity.setUuid("33");
         templateEntity.setDisplayName("c3.xlarge");
+        serviceEntityApiDTOMap.put(ACCOUNT_1_ID, mainAccount);
+        serviceEntityApiDTOMap.put(ACCOUNT_2_ID, siblingAccount);
         serviceEntityApiDTOMap.put(22L, availabilityZoneEntity);
         serviceEntityApiDTOMap.put(33L, templateEntity);
         serviceEntityApiDTOMap.put(44L, regionEntity);
         final ReservedInstanceApiDTO reservedInstanceApiDTO =
                 reservedInstanceMapper.mapToReservedInstanceApiDTO(riBought, riSpec, serviceEntityApiDTOMap);
-        assertEquals("11", reservedInstanceApiDTO.getAccountId());
+        assertEquals("RI_ID", reservedInstanceApiDTO.getTrueID());
+        assertEquals(String.valueOf(ACCOUNT_1_ID), reservedInstanceApiDTO.getAccountId());
+        assertEquals("Account", reservedInstanceApiDTO.getAccountDisplayName());
+        assertEquals("ResOrder-1", reservedInstanceApiDTO.getOrderID());
+        assertEquals(AzureRIScopeType.SINGLE, reservedInstanceApiDTO.getScopeType());
         assertEquals(Platform.LINUX, reservedInstanceApiDTO.getPlatform());
         assertEquals(ReservedInstanceType.STANDARD, reservedInstanceApiDTO.getType());
         assertEquals("us-east-1a", reservedInstanceApiDTO.getLocation().getDisplayName());
@@ -117,93 +128,72 @@ public class ReservedInstanceMapperTest {
         assertEquals(100.0f, reservedInstanceApiDTO.getCoupons().getCapacity().getAvg(), delta);
         assertEquals(10, reservedInstanceApiDTO.getInstanceCount().intValue());
         assertEquals(Tenancy.DEFAULT, reservedInstanceApiDTO.getTenancy());
-        assertEquals("c3.xlarge", reservedInstanceApiDTO.getDisplayName());
+        assertEquals("RI display name", reservedInstanceApiDTO.getDisplayName());
         assertEquals("ReservedInstance", reservedInstanceApiDTO.getClassName());
         assertEquals(100.0, reservedInstanceApiDTO.getUpFrontCost(), delta);
         assertEquals(300.0, reservedInstanceApiDTO.getActualHourlyCost(), delta);
+        assertEquals(CloudType.AWS, reservedInstanceApiDTO.getCloudType());
+        assertEquals(Arrays.asList("Account", "Sibling Account"), reservedInstanceApiDTO.getAppliedScopes());
+    }
+
+    /**
+     * Test mapping for Azure RI.
+     *
+     * @throws Exception in case of any error.
+     */
+    @Test
+    public void testMapToReservedInstanceApiDTOForAzure() throws Exception {
+        testMapToReservedInstanceApiDTOForAzureProbeType(SDKProbeType.AZURE);
+    }
+
+    /**
+     * Test mapping for Azure EA RI.
+     *
+     * @throws Exception in case of any error.
+     */
+    @Test
+    public void testMapToReservedInstanceApiDTOForAzureEA() throws Exception {
+        testMapToReservedInstanceApiDTOForAzureProbeType(SDKProbeType.AZURE_EA);
     }
 
     @Test
-    public void testRiCountToEntityStatsApiDTO() {
-        final float delta = 0.000001f;
-        final Map<Long, Long> riCountMap = ImmutableMap.of(11L, 5L, 12L, 10L,
-                13L, 15L);
-        ServiceEntityApiDTO templateEntityOne = new ServiceEntityApiDTO();
-        templateEntityOne.setUuid("11");
-        templateEntityOne.setDisplayName("c3.xlarge");
-        ServiceEntityApiDTO templateEntityTwo = new ServiceEntityApiDTO();
-        templateEntityTwo.setUuid("12");
-        templateEntityTwo.setDisplayName("m3.xlarge");
-        ServiceEntityApiDTO templateEntityThree = new ServiceEntityApiDTO();
-        templateEntityThree.setUuid("13");
-        templateEntityThree.setDisplayName("r3.xlarge");
-        serviceEntityApiDTOMap.put(11L, templateEntityOne);
-        serviceEntityApiDTOMap.put(12L, templateEntityTwo);
-        serviceEntityApiDTOMap.put(13L, templateEntityThree);
-        final EntityStatsApiDTO entityStatsApiDTO =
-                reservedInstanceMapper.riCountMapToEntityStatsApiDTO(riCountMap, serviceEntityApiDTOMap);
-        assertEquals(1L, entityStatsApiDTO.getStats().size());
-        assertEquals(3L, entityStatsApiDTO.getStats().get(0).getStatistics().size());
-        final List<StatApiDTO> statApiDTOList = entityStatsApiDTO.getStats().get(0).getStatistics();
-        assertEquals(5L, statApiDTOList.stream()
-                .filter(stat -> stat.getFilters().get(0).getValue().equals("c3.xlarge"))
-                .mapToDouble(StatApiDTO::getValue)
-                .sum(), delta);
-        assertEquals(5L, statApiDTOList.stream()
-                .filter(stat -> stat.getFilters().size() == 1
-                        && stat.getFilters().get(0).getValue().equals("c3.xlarge"))
-                .mapToDouble(StatApiDTO::getValue)
-                .sum(), delta);
-        assertEquals(10L, statApiDTOList.stream()
-                .filter(stat -> stat.getFilters().size() == 1
-                        && stat.getFilters().get(0).getValue().equals("m3.xlarge"))
-                .mapToDouble(StatApiDTO::getValue)
-                .sum(), delta);
-        assertEquals(15L, statApiDTOList.stream()
-                .filter(stat -> stat.getFilters().size() == 1
-                        && stat.getFilters().get(0).getValue().equals("r3.xlarge"))
-                .mapToDouble(StatApiDTO::getValue)
-                .sum(), delta);
+    public void testMapToReservedInstanceWithExplicitEndDate() throws Exception {
+        // Arrange
+        final ServiceEntityApiDTO region = new ServiceEntityApiDTO();
+        final TargetApiDTO target = new TargetApiDTO();
+        target.setType(SDKProbeType.AWS.getProbeType());
+        region.setDiscoveredBy(target);
+        region.setDisplayName("Main Account");
+        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = ImmutableMap
+                .of(REGION_1_ID, region);
+
+        Instant endTime = Instant.ofEpochMilli(1L);
+        ReservedInstanceBoughtInfo reservedInstanceBoughtInfo = riBought.getReservedInstanceBoughtInfo()
+                .toBuilder().setEndTime(endTime.toEpochMilli()).build();
+        ReservedInstanceBought reservedInstanceBought = riBought.toBuilder().setReservedInstanceBoughtInfo(reservedInstanceBoughtInfo)
+                .build();
+        // Act
+        final ReservedInstanceApiDTO reservedInstanceApiDTO = reservedInstanceMapper
+                .mapToReservedInstanceApiDTO(reservedInstanceBought, riSpec, serviceEntityApiDTOMap);
+        assertEquals(reservedInstanceApiDTO.getExpDateEpochTime(), new Long(1L));
     }
 
-    @Test
-    public void testRiUtilizationStatsRecordsToEntityStatsApiDTO() throws Exception {
-        final EntityStatsApiDTO entityStatsApiDTO =
-                reservedInstanceMapper.convertRIStatsRecordsToEntityStatsApiDTO(
-                        Lists.newArrayList(riStatsrecord), UI_REAL_TIME_MARKET_STR,
-                        Optional.empty(), Optional.empty(), false);
-        final List<StatSnapshotApiDTO> statSnapshotApiDTOS = entityStatsApiDTO.getStats();
-        assertEquals(1L, statSnapshotApiDTOS.size());
+    private void testMapToReservedInstanceApiDTOForAzureProbeType(SDKProbeType probeType)
+            throws Exception {
+        // Arrange
+        final ServiceEntityApiDTO region = new ServiceEntityApiDTO();
+        final TargetApiDTO target = new TargetApiDTO();
+        target.setType(probeType.getProbeType());
+        region.setDiscoveredBy(target);
+        region.setDisplayName("Main Account");
+        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = ImmutableMap
+                .of(REGION_1_ID, region);
 
-        assertEquals(1L, statSnapshotApiDTOS.get(0).getStatistics().size());
-        final StatApiDTO statApiDTO = statSnapshotApiDTOS.get(0).getStatistics().get(0);
-        assertEquals(10, statApiDTO.getCapacity().getMin(), DELTA);
-        assertEquals(20, statApiDTO.getCapacity().getMax(), DELTA);
-        assertEquals(15, statApiDTO.getCapacity().getAvg(), DELTA);
-        assertEquals(30, statApiDTO.getCapacity().getTotal(), DELTA);
-        assertEquals(5, statApiDTO.getValues().getMax(), DELTA);
-        assertEquals(1, statApiDTO.getValues().getMin(), DELTA);
-        assertEquals(3, statApiDTO.getValues().getAvg(), DELTA);
-        assertEquals(6, statApiDTO.getValues().getTotal(), DELTA);
+        // Act
+        final ReservedInstanceApiDTO reservedInstanceApiDTO = reservedInstanceMapper
+            .mapToReservedInstanceApiDTO(riBought, riSpec, serviceEntityApiDTOMap);
+
+        // Assert
+        assertEquals(CloudType.AZURE, reservedInstanceApiDTO.getCloudType());
     }
-
-    @Test
-    public void testRiCoverageStatsRecordsToStatSnapshotApiDTO() {
-        final List<StatSnapshotApiDTO> statSnapshotApiDTOS =
-                reservedInstanceMapper.convertRIStatsRecordsToStatSnapshotApiDTO(
-                        Lists.newArrayList(riStatsrecord), true);
-        assertEquals(1L, statSnapshotApiDTOS.size());
-
-        assertEquals(1L, statSnapshotApiDTOS.get(0).getStatistics().size());
-        final StatApiDTO statApiDTO = statSnapshotApiDTOS.get(0).getStatistics().get(0);
-        assertEquals(10, statApiDTO.getCapacity().getMin(), DELTA);
-        assertEquals(20, statApiDTO.getCapacity().getMax(), DELTA);
-        assertEquals(15, statApiDTO.getCapacity().getAvg(), DELTA);
-        assertEquals(30, statApiDTO.getCapacity().getTotal(), DELTA);
-        assertEquals(5, statApiDTO.getValues().getMax(), DELTA);
-        assertEquals(1, statApiDTO.getValues().getMin(), DELTA);
-        assertEquals(3, statApiDTO.getValues().getAvg(), DELTA);
-        assertEquals(6, statApiDTO.getValues().getTotal(), DELTA);
-    }
-
 }

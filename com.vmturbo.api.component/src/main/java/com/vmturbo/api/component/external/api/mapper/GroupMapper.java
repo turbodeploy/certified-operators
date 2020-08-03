@@ -1,461 +1,574 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import java.util.Arrays;
+import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
+
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
+import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
+import io.grpc.Status;
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-
-import jdk.nashorn.internal.ir.annotations.Immutable;
-
-import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
+import com.vmturbo.api.component.communication.FutureObserver;
+import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator.SeverityMapImpl;
+import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
-import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
+import com.vmturbo.api.component.external.api.util.ObjectsPage;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.group.FilterApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
+import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.dto.group.ResourceGroupApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.pagination.SearchOrderBy;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.SelectionCriteriaCase;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfoOrBuilder;
+import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceStub;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.OptimizationMetadata;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
-import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
-import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.PropertyTypeCase;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
-import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditionOrBuilder;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.components.common.ClassicEnumMapper;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Maps groups between their API DTO representation and their protobuf representation.
  */
 public class GroupMapper {
     private static final Logger logger = LogManager.getLogger();
+    private static final long REQUEST_TIMEOUT_SEC = 5 * 60;
+
+    /**
+     * The set of probe types whose environment type should be treated as CLOUD. This is different
+     * from the target category "CLOUD MANAGEMENT". This is also defined in classic in
+     * DiscoveryConfigService#cloudTargetTypes.
+     */
+    public static final Set<String> CLOUD_ENVIRONMENT_PROBE_TYPES = ImmutableSet.of(
+            SDKProbeType.AWS.getProbeType(), SDKProbeType.AWS_BILLING.getProbeType(),
+            SDKProbeType.GCP.getProbeType(),
+            SDKProbeType.AZURE.getProbeType(), SDKProbeType.AZURE_EA.getProbeType(),
+            SDKProbeType.AZURE_SERVICE_PRINCIPAL.getProbeType());
+
+    /**
+     * This bimap maps from the class name that use in API level for groups to the
+     * group type that we use internally to represent that group.
+     */
+    public static final BiMap<String, GroupType> API_GROUP_TYPE_TO_GROUP_TYPE =
+        ImmutableBiMap.<String, GroupType>builder()
+            .put(StringConstants.GROUP, GroupType.REGULAR)
+            .put(StringConstants.CLUSTER, GroupType.COMPUTE_HOST_CLUSTER)
+            .put(StringConstants.STORAGE_CLUSTER, GroupType.STORAGE_CLUSTER)
+            .put(StringConstants.VIRTUAL_MACHINE_CLUSTER, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
+            .put(StringConstants.RESOURCE_GROUP, GroupType.RESOURCE)
+            .put(StringConstants.BILLING_FAMILY, GroupType.BILLING_FAMILY)
+            .build();
+
+    /**
+     * This maps className used by external API to default filter type.
+     */
+    public static final Map<String, String> API_GROUP_TYPE_TO_FILTER_GROUP_TYPE =
+        ImmutableMap.<String, String>builder()
+            .put(StringConstants.GROUP, GroupFilterMapper.GROUPS_FILTER_TYPE)
+            .put(StringConstants.CLUSTER, GroupFilterMapper.CLUSTERS_FILTER_TYPE)
+            .put(StringConstants.STORAGE_CLUSTER, GroupFilterMapper.STORAGE_CLUSTERS_FILTER_TYPE)
+            .put(StringConstants.VIRTUAL_MACHINE_CLUSTER, GroupFilterMapper.VIRTUALMACHINE_CLUSTERS_FILTER_TYPE)
+            .put(StringConstants.RESOURCE_GROUP, GroupFilterMapper.RESOURCE_GROUP_BY_NAME_FILTER_TYPE)
+            .put(StringConstants.BILLING_FAMILY, GroupFilterMapper.BILLING_FAMILY_FILTER_TYPE)
+            .build();
+
+    /**
+     * This maps the protobuf logical operators to the API strings used to represent them.
+     */
+    private static final BiMap<LogicalOperator, String> LOGICAL_OPERATOR_MAPPING =
+        ImmutableBiMap.<LogicalOperator, String>builder()
+            .put(LogicalOperator.AND, "AND")
+            .put(LogicalOperator.OR, "OR")
+            .put(LogicalOperator.XOR, "XOR")
+            .build();
+
 
     /**
      * The API "class types" (as returned by {@link BaseApiDTO#getClassName()}
      * which indicate that the {@link BaseApiDTO} in question is a group.
      */
-    public static final Set<String> GROUP_CLASSES = ImmutableSet.of(StringConstants.GROUP,
-        StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER);
-
-    public static final String GROUPS_FILTER_TYPE = "groupsByName";
-
-    public static final String CLUSTERS_FILTER_TYPE = "clustersByName";
-
-    public static final String CLUSTERS_BY_TAGS_FILTER_TYPE = "clustersByTag";
-
-    public static final String STORAGE_CLUSTERS_FILTER_TYPE = "storageClustersByName";
-
-    public static final Set<String> GROUP_NAME_FILTER_TYPES = ImmutableSet.of(
-        GROUPS_FILTER_TYPE, CLUSTERS_FILTER_TYPE, STORAGE_CLUSTERS_FILTER_TYPE);
-
-    public static final Set<String> GROUP_TAG_FILTER_TYPES =
-        Collections.singleton(CLUSTERS_BY_TAGS_FILTER_TYPE);
-
-    // For normal criteria, user just need to provide a string (like a display name). But for
-    // some criteria, UI allow user to choose from list of available options (like tags, state and
-    // account id for now). These special criteria are hardcoded in UI side (see
-    // "criteriaKeysWithOptions" in filter.registry.service.ts). UI will call another API
-    // "/criteria/{elements}/options" to get a list of options for user to select from.
-    // Note: these needs to be consistent with UI side and also the "elements" field defined in
-    // "groupBuilderUseCases.json". If not, "/criteria/{elements}/options" will not be called
-    // since UI gets all criteria from "groupBuilderUseCases.json" and check if the criteria
-    // matches that inside "groupBuilderUseCases.json".
-    public static final String ACCOUNT_OID = "BusinessAccount:oid:CONNECTED_TO:1";
-    public static final String STATE = "state";
-
-    private static final String CONSUMES = "CONSUMES";
-    private static final String PRODUCES = "PRODUCES";
-    private static final String CONNECTED_TO = "CONNECTED_TO";
-    private static final String CONNECTED_FROM = "CONNECTED_FROM";
-
-    // set of supported traversal types, the string should be the same as groupBuilderUsecases.json
-    private static Set<String> TRAVERSAL_TYPES = ImmutableSet.of(
-            CONSUMES, PRODUCES, CONNECTED_TO, CONNECTED_FROM);
-
-    public static final String ELEMENTS_DELIMITER = ":";
-    public static final String NESTED_FIELD_DELIMITER = "\\.";
-
-    public static final String EQUAL = "EQ";
-    public static final String NOT_EQUAL = "NEQ";
-    public static final String GREATER_THAN = "GT";
-    public static final String LESS_THAN = "LT";
-    public static final String GREATER_THAN_OR_EQUAL = "GTE";
-    public static final String LESS_THAN_OR_EQUAL = "LTE";
-    public static final String REGEX_MATCH = "RXEQ";
-    public static final String REGEX_NO_MATCH = "RXNEQ";
-
-    // map from the comparison string to the ComparisonOperator enum
-    private static final Map<String, ComparisonOperator> COMPARISON_STRING_TO_COMPARISON_OPERATOR =
-            ImmutableMap.<String, ComparisonOperator>builder()
-                    .put(EQUAL, ComparisonOperator.EQ)
-                    .put(NOT_EQUAL, ComparisonOperator.NE)
-                    .put(GREATER_THAN, ComparisonOperator.GT)
-                    .put(LESS_THAN, ComparisonOperator.LT)
-                    .put(GREATER_THAN_OR_EQUAL, ComparisonOperator.GTE)
-                    .put(LESS_THAN_OR_EQUAL, ComparisonOperator.LTE)
-                    .build();
-
-    // map from the comparison symbol to the ComparisonOperator enum
-    // the order matters, since when this is used for checking whether a string contains
-    // ">" or ">=", we should check ">=" first
-    private static final Map<String, ComparisonOperator> COMPARISON_SYMBOL_TO_COMPARISON_OPERATOR;
-    static {
-        Map<String, ComparisonOperator> symbolToOperator = new LinkedHashMap<>();
-        symbolToOperator.put("!=", ComparisonOperator.NE);
-        symbolToOperator.put(">=", ComparisonOperator.GTE);
-        symbolToOperator.put("<=", ComparisonOperator.LTE);
-        symbolToOperator.put("=", ComparisonOperator.EQ);
-        symbolToOperator.put(">", ComparisonOperator.GT);
-        symbolToOperator.put("<", ComparisonOperator.LT);
-        COMPARISON_SYMBOL_TO_COMPARISON_OPERATOR = Collections.unmodifiableMap(symbolToOperator);
-    }
-
-    private static final Map<String, Function<SearchFilterContext, List<SearchFilter>>> FILTER_TYPES_TO_PROCESSORS;
-    static {
-        final TraversalFilterProcessor traversalFilterProcessor = new TraversalFilterProcessor();
-        final ImmutableMap.Builder<String, Function<SearchFilterContext, List<SearchFilter>>>
-                filterTypesToProcessors = new ImmutableMap.Builder<>();
-        filterTypesToProcessors.put(
-                StringConstants.TAGS_ATTR,
-                context -> {
-                    //TODO: the expression value coming from the UI is currently unsanitized.
-                    // It is assumed that the tag keys and values do not contain characters such as = and |.
-                    // This is reported as a JIRA issue OM-39039.
-                    final String operator = context.getFilter().getExpType();
-                    final boolean positiveMatch = isPositiveMatchingOperator(operator);
-                    if (isRegexOperator(operator)) {
-                        // regex match is required
-                        // break input into key and value
-                        final String[] keyval = context.getFilter().getExpVal().split("=");
-                        final String key = keyval[0];
-                        final String value = keyval[1];
-                        final PropertyFilter tagsFilter =
-                                SearchMapper.mapPropertyFilterForMultimapsRegex(
-                                        StringConstants.TAGS_ATTR, key, value, positiveMatch);
-                        return Collections.singletonList(SearchMapper.searchFilterProperty(tagsFilter));
-                    } else {
-                        // exact match is required
-                        final PropertyFilter tagsFilter =
-                                SearchMapper.mapPropertyFilterForMultimapsExact(
-                                        StringConstants.TAGS_ATTR,
-                                        context.getFilter().getExpVal(),
-                                        positiveMatch);
-                        return Collections.singletonList(SearchMapper.searchFilterProperty(tagsFilter));
-                    }
-                });
-        filterTypesToProcessors.put(
-                StringConstants.CLUSTER,
-                context -> {
-                    ClusterMembershipFilter clusterFilter =
-                            SearchMapper.clusterFilter(
-                                SearchMapper.nameFilterRegex(
-                                    context.getFilter().getExpVal(),
-                                    context.getFilter().getExpType().equals(REGEX_MATCH),
-                                    context.getFilter().getCaseSensitive()));
-                    return Collections.singletonList(SearchMapper.searchFilterCluster(clusterFilter));
-                });
-        filterTypesToProcessors.put(CONSUMES, traversalFilterProcessor);
-        filterTypesToProcessors.put(PRODUCES, traversalFilterProcessor);
-        filterTypesToProcessors.put(CONNECTED_FROM, traversalFilterProcessor);
-        filterTypesToProcessors.put(CONNECTED_TO, traversalFilterProcessor);
-        FILTER_TYPES_TO_PROCESSORS = filterTypesToProcessors.build();
-    }
-
-    private static StoppingCondition.Builder buildStoppingCondition(String currentToken) {
-        return StoppingCondition.newBuilder().setStoppingPropertyFilter(
-                        SearchMapper.entityTypeFilter(currentToken));
-    }
-
-    private final GroupUseCaseParser groupUseCaseParser;
+    public static final Set<String> GROUP_CLASSES = API_GROUP_TYPE_TO_GROUP_TYPE.keySet();
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
+    private final RepositoryApi repositoryApi;
+
     private final GroupExpander groupExpander;
 
-    public GroupMapper(@Nonnull final GroupUseCaseParser groupUseCaseParser,
-                       @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                       @Nonnull final GroupExpander groupExpander) {
-        this.groupUseCaseParser = Objects.requireNonNull(groupUseCaseParser);
+    private final EntityFilterMapper entityFilterMapper;
+
+    private final GroupFilterMapper groupFilterMapper;
+
+    private final SeverityPopulator severityPopulator;
+
+    private final BusinessAccountRetriever businessAccountRetriever;
+
+    private final CostServiceStub costServiceStub;
+
+    private final long realtimeTopologyContextId;
+
+    private final ThinTargetCache thinTargetCache;
+
+    private final CloudTypeMapper cloudTypeMapper;
+
+    private final Map<SearchOrderBy, PaginatorSupplier> paginators;
+    private final PaginatorSupplier defaultPaginator;
+
+    /**
+     * Creates an instance of GroupMapper using all the provided dependencies.
+     *  @param supplyChainFetcherFactory for getting supply chain info.
+     * @param groupExpander for getting members of groups.
+     * @param repositoryApi for communicating with the api.
+     * @param entityFilterMapper for converting between internal and api filter representation.
+     * @param groupFilterMapper for converting between internal and api filter representation.
+     * @param severityPopulator for get severity information.
+     * @param businessAccountRetriever for getting business account information for billing families.
+     * @param costServiceStub for getting information about costs.
+     * @param realtimeTopologyContextId the topology context id, used for getting severity.
+     * @param thinTargetCache for retrieving targets without making a gRPC call.
+     * @param cloudTypeMapper for getting information about cloud mappers.
+     */
+    public GroupMapper(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
+                       @Nonnull final GroupExpander groupExpander,
+                       @Nonnull final RepositoryApi repositoryApi,
+                       @Nonnull final EntityFilterMapper entityFilterMapper,
+                       @Nonnull final GroupFilterMapper groupFilterMapper,
+                       @Nonnull final SeverityPopulator severityPopulator,
+                       @Nonnull final BusinessAccountRetriever businessAccountRetriever,
+                       @Nonnull final CostServiceStub costServiceStub,
+                       long realtimeTopologyContextId, ThinTargetCache thinTargetCache, CloudTypeMapper cloudTypeMapper) {
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.groupExpander = Objects.requireNonNull(groupExpander);
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.entityFilterMapper = entityFilterMapper;
+        this.groupFilterMapper = groupFilterMapper;
+        this.severityPopulator = Objects.requireNonNull(severityPopulator);
+        this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
+        this.costServiceStub = Objects.requireNonNull(costServiceStub);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.thinTargetCache = thinTargetCache;
+        this.cloudTypeMapper = cloudTypeMapper;
+        final Map<SearchOrderBy, PaginatorSupplier> paginators = new EnumMap<>(SearchOrderBy.class);
+        paginators.put(SearchOrderBy.COST, PaginatorCost::new);
+        paginators.put(SearchOrderBy.SEVERITY, PaginatorSeverity::new);
+        this.paginators = Collections.unmodifiableMap(paginators);
+        this.defaultPaginator = PaginatorName::new;
     }
 
     /**
-     * Convert a {@link GroupApiDTO} for a temporary group to the associated
-     * {@link TempGroupInfo}.
+     * Converts an input API definition of a group represented as a {@link GroupApiDTO} object to a
+     * {@link GroupDefinition} object.
      *
-     * @param apiDTO The {@link GroupApiDTO} for a temporary group.
-     * @return A {@link TempGroupInfo} to describe the temporary group in XL.
-     * @throws OperationFailedException If there is an error obtaining associated information.
-     * @throws InvalidOperationException If the {@link GroupApiDTO} is illegal in some way.
+     * @param groupDto input API representation of a group object.
+     * @return input object converted to a {@link GroupDefinition} object.
+     * @throws ConversionException if the conversion fails.
      */
-    @Nonnull
-    public TempGroupInfo toTempGroupProto(@Nonnull final GroupApiDTO apiDTO)
-            throws OperationFailedException, InvalidOperationException {
-        if (!Boolean.TRUE.equals(apiDTO.getTemporary())) {
-            throw new InvalidOperationException("Attempting to create temp group out of " +
-                    "non-temp group request.");
-        } else if (apiDTO.getDisplayName() == null) {
-            throw new InvalidOperationException("No name for temp group!");
-        }
+    public GroupDefinition toGroupDefinition(@Nonnull final GroupApiDTO groupDto) throws ConversionException {
+        GroupDefinition.Builder groupBuilder = GroupDefinition.newBuilder()
+                        .setDisplayName(groupDto.getDisplayName())
+                        .setType(GroupType.REGULAR)
+                        .setIsTemporary(Boolean.TRUE.equals(groupDto.getTemporary()));
 
-        // Save the list of explicitly-requested member OIDs.
-        final Set<Long> explicitMemberIds =
-            CollectionUtils.emptyIfNull(apiDTO.getMemberUuidList()).stream()
-                .map(uuid -> {
-                    try {
-                        // We expect the memberUuid list to be composed of entity IDs, so
-                        // we don't expand them.
-                        return Optional.of(Long.parseLong(uuid));
-                    } catch (NumberFormatException e) {
-                        logger.error("Invalid group member uuid: {}. Expecting numeric members only.", uuid);
-                        return Optional.<Long>empty();
-                    }
-                })
-                .filter(Optional::isPresent).map(Optional::get)
-                .collect(Collectors.toSet());
-
-        final Set<Long> groupMembers;
-        final boolean isGlobalScopeGroup;
-        if (!CollectionUtils.isEmpty(apiDTO.getScope())) {
-            // Derive the members from the scope
-            final Map<String, SupplyChainNode> supplyChainForScope =
-                    supplyChainFetcherFactory.newNodeFetcher()
-                            .addSeedUuids(apiDTO.getScope())
-                            .entityTypes(Collections.singletonList(apiDTO.getGroupType()))
-                            .apiEnvironmentType(apiDTO.getEnvironmentType())
-                            .fetch();
-            final SupplyChainNode node = supplyChainForScope.get(apiDTO.getGroupType());
-            if (node == null) {
-                throw new InvalidOperationException("Group type: " + apiDTO.getGroupType() +
-                        " not found in supply chain for scopes: " + apiDTO.getScope());
-            }
-            final Set<Long> entitiesInScope = RepositoryDTOUtil.getAllMemberOids(node);
-            // Check if the user only wants a specific set of entities within the scope.
-            if (!explicitMemberIds.isEmpty()) {
-                groupMembers = Sets.intersection(entitiesInScope, explicitMemberIds);
-            } else {
-                groupMembers = entitiesInScope;
-            }
-            // check if the temp group's scope is Market or not.
-            // TODO (roman, June 19 2018): We shouldn't need to retrieve members if it's a global
-            // scope group. We should just set this flag.
-            isGlobalScopeGroup = apiDTO.getScope().size() == 1 &&
-                    apiDTO.getScope().get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR);
-        } else if (!CollectionUtils.isEmpty(apiDTO.getMemberUuidList())) {
-            groupMembers = explicitMemberIds;
-            isGlobalScopeGroup = false;
-        } else {
-            // At the time of this writing temporary groups are always created from some scope or
-            // an explicit list of members, so we can't handle the case where neither is provided.
-            throw new InvalidOperationException("No scope/member list for temp group " + apiDTO.getDisplayName());
-        }
-
-        final TempGroupInfo.Builder tempGroupBuilder = TempGroupInfo.newBuilder()
-                .setEntityType(ServiceEntityMapper.fromUIEntityType(apiDTO.getGroupType()))
-                .setMembers(StaticGroupMembers.newBuilder()
-                        .addAllStaticMemberOids(groupMembers))
-                .setName(apiDTO.getDisplayName())
-                .setIsGlobalScopeGroup(isGlobalScopeGroup);
-        if (apiDTO.getEnvironmentType() != null &&
-                apiDTO.getEnvironmentType() != EnvironmentType.HYBRID) {
-            tempGroupBuilder.setEnvironmentType(
-                apiDTO.getEnvironmentType() == EnvironmentType.CLOUD ?
-                    EnvironmentTypeEnum.EnvironmentType.CLOUD :
-                    EnvironmentTypeEnum.EnvironmentType.ON_PREM);
-        }
-        return tempGroupBuilder.build();
-    }
-
-    /**
-     * Converts from {@link GroupApiDTO} to {@link GroupInfo}.
-     *
-     * @param groupDto The {@link GroupApiDTO} object
-     * @return         The {@link GroupInfo} object
-     */
-    public GroupInfo toGroupInfo(@Nonnull final GroupApiDTO groupDto) {
-        final GroupInfo.Builder requestBuilder = GroupInfo.newBuilder()
-                .setName(groupDto.getDisplayName())
-                .setEntityType(ServiceEntityMapper.fromUIEntityType(groupDto.getGroupType()));
+        final GroupType nestedMemberGroupType = API_GROUP_TYPE_TO_GROUP_TYPE.get(groupDto.getGroupType());
 
         if (groupDto.getIsStatic()) {
-            requestBuilder.setStaticGroupMembers(
-                    StaticGroupMembers.newBuilder().addAllStaticMemberOids(
-                            groupDto.getMemberUuidList().stream().map(Long::parseLong).collect(Collectors.toList())));
-        } else {
-            requestBuilder
-                    .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                            .addAllSearchParameters(convertToSearchParameters(groupDto, groupDto.getGroupType(), null)))
-                    .build();
-        }
-        return requestBuilder.build();
-    }
+            // for the case static group and static group of groups
 
-    public NestedGroupInfo toNestedGroupInfo(@Nonnull final GroupApiDTO groupDto) throws InvalidOperationException {
-        NestedGroupInfo.Builder nestedGroupBuilder = NestedGroupInfo.newBuilder()
-            .setName(groupDto.getDisplayName());
-        if (StringUtils.equals(groupDto.getGroupType(), StringConstants.CLUSTER)) {
-            nestedGroupBuilder.setCluster(Type.COMPUTE);
-        } else if (StringUtils.equals(groupDto.getGroupType(), StringConstants.STORAGE_CLUSTER)) {
-            nestedGroupBuilder.setCluster(Type.STORAGE);
-        } else {
-            throw new InvalidOperationException("Nested groups of type: " +
-                groupDto.getGroupType() + " not supported.");
-        }
+            final Set<Long> memberUuids = getGroupMembersAsLong(groupDto);
 
-        if (groupDto.getIsStatic()) {
-            nestedGroupBuilder.setStaticGroupMembers(
-                StaticGroupMembers.newBuilder().addAllStaticMemberOids(
-                    groupDto.getMemberUuidList().stream().map(Long::parseLong).collect(Collectors.toList())));
-        } else {
-            final GroupPropertyFilterList groupPropFilters =
-                apiFiltersToGroupPropFilters(nestedGroupBuilder, groupDto.getCriteriaList());
-            nestedGroupBuilder.setPropertyFilterList(groupPropFilters);
-        }
-        return nestedGroupBuilder.build();
-    }
+            if (groupBuilder.getIsTemporary()
+                            && !CollectionUtils.isEmpty(groupDto.getScope())) {
+                final boolean isGlobalScope = groupDto.getScope().size() == 1 &&
+                                groupDto.getScope().get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR);
+                final EnvironmentType uiEnvType = getEnvironmentTypeForTempGroup(groupDto.getEnvironmentType());
 
-    @Nonnull
-    private GroupApiDTO createGroupApiDto(@Nonnull final Group group) {
-        GroupInfo groupInfo = group.getGroup();
-        final GroupApiDTO outputDTO = new GroupApiDTO();
-        outputDTO.setClassName(StringConstants.GROUP);
-        outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(GroupProtoUtil.getEntityType(group)));
+                final OptimizationMetadata.Builder optimizationMetaData = OptimizationMetadata
+                                .newBuilder()
+                                .setIsGlobalScope(isGlobalScope);
 
-        switch (groupInfo.getSelectionCriteriaCase()) {
-            case STATIC_GROUP_MEMBERS:
-                outputDTO.setIsStatic(true);
-                break;
-            case SEARCH_PARAMETERS_COLLECTION:
-                outputDTO.setIsStatic(false);
-                outputDTO.setCriteriaList(convertToFilterApis(groupInfo));
-                break;
-            default:
-                // Nothing to do
-                logger.error("Unknown groupMembersCase: " +
-                        groupInfo.getSelectionCriteriaCase());
-        }
-        return outputDTO;
-    }
-
-    @Nonnull
-    private GroupApiDTO createClusterApiDto(@Nonnull final Group cluster) {
-        final GroupApiDTO outputDTO = new GroupApiDTO();
-        final ClusterInfo clusterInfo = cluster.getCluster();
-        if (clusterInfo.getClusterType() == ClusterInfo.Type.COMPUTE) {
-            outputDTO.setClassName(StringConstants.CLUSTER);
-        } else if (clusterInfo.getClusterType() == ClusterInfo.Type.STORAGE) {
-            outputDTO.setClassName(StringConstants.STORAGE_CLUSTER);
-        } else {
-            logger.error("Unexpected cluster type: {}. Defaulting to \"CLUSTER\" (compute)",
-                clusterInfo.getClusterType());
-            outputDTO.setClassName(StringConstants.CLUSTER);
-        }
-        outputDTO.setIsStatic(true);
-        outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(GroupProtoUtil.getEntityType(cluster)));
-        return outputDTO;
-    }
-
-    @Nonnull
-    private GroupApiDTO createNestedGroupApiDTO(@Nonnull final Group nestedGroup) {
-        Preconditions.checkArgument(nestedGroup.hasNestedGroup());
-        final GroupApiDTO outputDTO = new GroupApiDTO();
-        outputDTO.setClassName(StringConstants.GROUP);
-
-        switch (nestedGroup.getNestedGroup().getTypeCase()) {
-            case CLUSTER:
-                if (nestedGroup.getNestedGroup().getCluster() == ClusterInfo.Type.COMPUTE) {
-                    outputDTO.setGroupType(StringConstants.CLUSTER);
-                } else if (nestedGroup.getNestedGroup().getCluster() == ClusterInfo.Type.STORAGE) {
-                    outputDTO.setGroupType(StringConstants.STORAGE_CLUSTER);
+                if (uiEnvType != null && uiEnvType != EnvironmentType.HYBRID) {
+                    optimizationMetaData.setEnvironmentType(uiEnvType == EnvironmentType.CLOUD ?
+                        EnvironmentTypeEnum.EnvironmentType.CLOUD : EnvironmentTypeEnum.EnvironmentType.ON_PREM);
                 }
-                break;
-            default:
-                // In the future we will probably also need to support:
-                //    - Nested discovered groups (e.g. VC folders)
-                //    - Groups of resource groups.
-                logger.error("Unhandled nested group type: {}", nestedGroup.getNestedGroup().getTypeCase());
-                throw new IllegalArgumentException("Unhandled nested group type: " + nestedGroup.getNestedGroup().getTypeCase());
+                groupBuilder.setOptimizationMetadata(optimizationMetaData);
+            }
+
+            groupBuilder.setStaticGroupMembers(getStaticGroupMembers(nestedMemberGroupType,
+                            groupDto, memberUuids));
+
+        } else if (nestedMemberGroupType == null) {
+            // this means this is dynamic group of entities
+            final List<SearchParameters> searchParameters = entityFilterMapper
+                            .convertToSearchParameters(groupDto.getCriteriaList(),
+                                            groupDto.getGroupType(), null);
+
+            groupBuilder.setEntityFilters(EntityFilters.newBuilder()
+                .addEntityFilter(EntityFilter.newBuilder()
+                    .setEntityType(ApiEntityType.fromString(groupDto.getGroupType()).typeNumber())
+                    .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                        .addAllSearchParameters(searchParameters))
+                    .setLogicalOperator(mapLogicalOperator(groupDto.getLogicalOperator())))
+            );
+        } else {
+            // this means this a dynamic group of groups
+            final GroupFilter groupFilter;
+            try {
+                groupFilter = groupFilterMapper.apiFilterToGroupFilter(nestedMemberGroupType,
+                        mapLogicalOperator(groupDto.getLogicalOperator()),
+                        groupDto.getCriteriaList());
+            } catch (OperationFailedException e) {
+                throw new ConversionException(
+                        "Failed to apply filter criteria list for group " + groupDto.getUuid(), e);
+            }
+            groupBuilder.setGroupFilters(GroupFilters.newBuilder().addGroupFilter(groupFilter));
         }
 
-        outputDTO.setIsStatic(nestedGroup.getNestedGroup().getSelectionCriteriaCase() ==
-            SelectionCriteriaCase.STATIC_GROUP_MEMBERS);
-        if (nestedGroup.getNestedGroup().getSelectionCriteriaCase() == SelectionCriteriaCase.PROPERTY_FILTER_LIST) {
-            outputDTO.setCriteriaList(groupPropFiltersToApiFilters(nestedGroup.getNestedGroup()));
-        }
-
-        return outputDTO;
+        return groupBuilder.build();
     }
 
-    @Nonnull
-    private GroupApiDTO createTempGroupApiDTO(@Nonnull final Group tempGroup) {
-        Preconditions.checkArgument(tempGroup.hasTempGroup());
-        final GroupApiDTO outputDTO = new GroupApiDTO();
-        outputDTO.setClassName(StringConstants.GROUP);
-        outputDTO.setIsStatic(true);
-        outputDTO.setTemporary(true);
-        outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(GroupProtoUtil.getEntityType(tempGroup)));
-        return outputDTO;
+    private LogicalOperator mapLogicalOperator(@Nullable final String logicalOperatorStr) {
+        if (logicalOperatorStr == null) {
+            return LogicalOperator.AND;
+        }
+        LogicalOperator ret = LOGICAL_OPERATOR_MAPPING.inverse().get(logicalOperatorStr);
+        if (ret == null) {
+            ret = LogicalOperator.AND;
+            logger.warn("Invalid logical operator {}. Returning default: {}",
+                logicalOperatorStr, ret);
+        }
+        return ret;
+    }
+
+    private String logicalOperatorToApiStr(@Nonnull final LogicalOperator logicalOperator) {
+        String ret = LOGICAL_OPERATOR_MAPPING.get(logicalOperator);
+        if (ret == null) {
+            ret = "AND";
+            // This most likely indicates a programming error, or we removed a previously-valid
+            // enum from the map (which shouldn't happen).
+            logger.error("Unhandled logical operator: {}. Returning default: {}", logicalOperator, ret);
+        }
+        return ret;
+    }
+
+    @Nullable
+    private EntityEnvironment getApplianceEnvironment() {
+        final boolean applicationTargetsInEnv = applicationTargetsInEnv();
+        final Set<Optional<CloudType>> cloudType = thinTargetCache.getAllTargets()
+                .stream()
+                .map(ThinTargetInfo::probeInfo)
+                .map(probe -> cloudTypeMapper.fromTargetType(probe.type()))
+                .collect(Collectors.toSet());
+        if (cloudType.isEmpty() || cloudType.equals(Collections.singleton(Optional.empty()))) {
+            if (applicationTargetsInEnv) {
+                return new EntityEnvironment(EnvironmentType.HYBRID, CloudType.UNKNOWN);
+            }
+            return new EntityEnvironment(EnvironmentType.ONPREM, CloudType.UNKNOWN);
+        } else if (cloudType.size() == 1) {
+            return new EntityEnvironment(EnvironmentType.CLOUD, cloudType.iterator().next().get());
+        } else {
+            if (applicationTargetsInEnv) {
+                return new EntityEnvironment(EnvironmentType.HYBRID, cloudType.stream()
+                    .filter(Optional::isPresent).collect(Collectors.toSet()).iterator().next().get());
+            }
+            return null;
+        }
+    }
+
+    private boolean applicationTargetsInEnv() {
+        return thinTargetCache.getAllTargets()
+            .stream()
+            .map(ThinTargetInfo::probeInfo)
+            .anyMatch(probe -> ProbeCategory.isAppOrContainerCategory(ProbeCategory.create(probe.category())));
     }
 
     /**
-     * Converts from {@link Group} to {@link GroupApiDTO} using default EnvironmentType.ONPREM
-     * TODO switch to use {@link GroupMapper#toGroupApiDto(Group)} for Cloud group
-     *
-     * @param group The {@link Group} object
-     * @return  The {@link GroupApiDTO} object
+     * Return the environment type and the cloud type for a given group.
+     * @param groupAndMembers - the parsed groupAndMembers object for a given group.
+     * @param entities map of all the entities (this map contains members of a group, not
+     *         vice versa).
+     * @return the EnvCloudMapper:
+     * EnvironmentType:
+     *  - CLOUD if all group members are CLOUD entities or it is empty cloud group or regular
+     *          group with cloud group members
+     *  - ON_PREM if all group members are ON_PREM entities
+     *  - HYBRID if the group contains members both CLOUD entities and ON_PREM entities.
+     *  CloudType:
+     *  - AWS if all group members are AWS entities
+     *  - AZURE if all group members are AZURE entities
+     *  - HYBRID if the group contains members both AWS entities and AZURE entities.
+     *  - UNKNOWN if the group type cannot be determined
      */
-    public GroupApiDTO toGroupApiDto(@Nonnull final Group group) {
-        return toGroupApiDto(groupExpander.getMembersForGroup(group), EnvironmentType.ONPREM);
+    private EntityEnvironment getEnvironmentAndCloudTypeForGroup(
+            @Nonnull final GroupAndMembers groupAndMembers,
+            @Nonnull Map<Long, MinimalEntity> entities) {
+        // parse the entities members of groupDto
+        final Set<CloudType> cloudTypes = EnumSet.noneOf(CloudType.class);
+        EnvironmentTypeEnum.EnvironmentType envType = null;
+        final Set<Long> targetSet = new HashSet<>(groupAndMembers.entities());
+        if (!targetSet.isEmpty()) {
+            for (MinimalEntity entity : groupAndMembers.entities()
+                    .stream()
+                    .map(entities::get)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList())) {
+                if (envType != entity.getEnvironmentType()) {
+                    envType = (envType == null) ? entity.getEnvironmentType() : EnvironmentTypeEnum.EnvironmentType.HYBRID;
+                }
+                // Trying to determine the cloud type
+                if (entity.getDiscoveringTargetIdsCount() > 0 && !envType.equals(EnvironmentTypeEnum.EnvironmentType.ON_PREM)) {
+                    // If entity is discovered by several targets iterate over
+                    // loop before finding target with cloud type
+                    for (Long targetId : entity.getDiscoveringTargetIdsList()) {
+                        Optional<ThinTargetCache.ThinTargetInfo> thinInfo = thinTargetCache.getTargetInfo(targetId);
+                        if (thinInfo.isPresent() && (!thinInfo.get().isHidden())) {
+                            ThinTargetCache.ThinTargetInfo getProbeInfo = thinInfo.get();
+                            Optional<CloudType> cloudType = cloudTypeMapper.fromTargetType(getProbeInfo.probeInfo().type());
+                            // Multiple targets might have stitched to the cloud entity. For instance,
+                            // in OM-54171, AppD stitched to a cloud VM, causing an NPE.
+                            if (cloudType.isPresent()) {
+                                cloudTypes.add(cloudType.get());
+                                break;
+                            }
+                        }
+                    }
+                    // Once we get more than one cloudType, we know that cloudType is HYBRID.
+                    // Also check that environmentType is already Hybrid.
+                    // If two conditions is true we can break loop through the entities in other case continue iterating in
+                    // order to not to miss entities with environmentType different from current envType.
+                    if (cloudTypes.size() > 1 && envType == EnvironmentTypeEnum.EnvironmentType.HYBRID) {
+                        break;
+                    }
+                }
+            }
+        } else {
+            final GroupType groupType = groupAndMembers.group().getDefinition().getType();
+            final List<MemberType> expectedTypes = groupAndMembers.group().getExpectedTypesList();
+            // case for empty cloud groups or regular groups with cloud groups
+            if (groupType == GroupType.RESOURCE || groupType == GroupType.BILLING_FAMILY ||
+                    expectedTypes.contains(
+                            MemberType.newBuilder().setGroup(GroupType.RESOURCE).build()) ||
+                    expectedTypes.contains(
+                            MemberType.newBuilder().setGroup(GroupType.BILLING_FAMILY).build())) {
+                envType = EnvironmentTypeEnum.EnvironmentType.CLOUD;
+            }
+        }
+
+        final EnvironmentTypeEnum.EnvironmentType environmentType;
+        final OptimizationMetadata optMetaData =
+                getGroupOptimizationMetaData(groupAndMembers.group());
+        if (optMetaData != null && optMetaData.hasEnvironmentType()) {
+            environmentType = optMetaData.getEnvironmentType();
+        } else if (envType != null) {
+            environmentType = envType;
+        } else {
+            // Case for group of non-cloud entities.
+            environmentType = EnvironmentTypeEnum.EnvironmentType.ON_PREM;
+        }
+
+        final CloudType cloudType;
+        if (cloudTypes.size() == 1) {
+            cloudType = cloudTypes.iterator().next();
+        } else if (cloudTypes.size() > 1) {
+            cloudType = CloudType.HYBRID;
+        } else {
+            cloudType = CloudType.UNKNOWN;
+        }
+
+        return new EntityEnvironment(
+                EnvironmentTypeMapper.fromXLToApi(environmentType), cloudType);
+    }
+
+    /**
+     * Returns a {@link OptimizationMetadata} from a given {@link Grouping} object.
+     *
+     * @param group The parsed {@link Grouping} object for a given {@link GroupAndMembers}.
+     * @return A {@link OptimizationMetadata} if exists, otherwise null.
+     */
+    private OptimizationMetadata getGroupOptimizationMetaData(
+                                        @Nullable final Grouping group) {
+        if (group != null && group.hasDefinition()
+                && group.getDefinition().hasOptimizationMetadata()) {
+            return group.getDefinition().getOptimizationMetadata();
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Converts an internal representation of a group represented as a {@link Grouping} object
+     * to API representation of the object. Resulting groups are guaranteed to be in the same
+     * size and order as source {@code group}.
+     *
+     * @param groups The internal representation of the object.
+     * @param populateSeverity whether or not to populate severity of the group
+     * @return the converted object.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     */
+    @Nonnull
+    public Map<Long, GroupApiDTO> groupsToGroupApiDto(@Nonnull final Collection<Grouping> groups,
+            boolean populateSeverity) throws ConversionException, InterruptedException {
+        final List<GroupAndMembers> groupsAndMembers =
+                groups.stream().map(groupExpander::getMembersForGroup).collect(Collectors.toList());
+        final List<GroupApiDTO> apiGroups;
+        try {
+            apiGroups = toGroupApiDto(groupsAndMembers, populateSeverity, null, null).getObjects();
+        } catch (InvalidOperationException e) {
+            throw new ConversionException("Failed to convert groups " +
+                    groups.stream().map(Grouping::getId).collect(Collectors.toList()) + ": " +
+                    e.getLocalizedMessage(), e);
+        }
+
+        final Map<Long, GroupApiDTO> result = new LinkedHashMap<>(groups.size());
+        for (GroupApiDTO apiGroup : apiGroups) {
+            result.put(Long.parseLong(apiGroup.getUuid()), apiGroup);
+        }
+        return result;
+    }
+
+    @Nonnull
+    private PaginatorSupplier getPaginator(@Nullable SearchPaginationRequest paginationRequest) {
+        if (paginationRequest != null) {
+            final PaginatorSupplier paginator = paginators.get(paginationRequest.getOrderBy());
+            if (paginator != null) {
+                return paginator;
+            }
+        }
+        return defaultPaginator;
+    }
+
+    /**
+     * Converts groups and members to API objects.
+     *
+     * @param groupsAndMembers source groups to convert
+     * @param populateSeverity whether to calculate and set severity values.
+     * @param paginationRequest pagination request, if any
+     * @param requestedEnvironment requested environment type, if any
+     * @return resulting groups. This list could be shorter then incoming list as some of the groups
+     *         could be filtered out
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     * @throws InvalidOperationException if pagination request is invalid
+     */
+    @Nonnull
+    public ObjectsPage<GroupApiDTO> toGroupApiDto(@Nonnull List<GroupAndMembers> groupsAndMembers,
+            boolean populateSeverity, @Nullable SearchPaginationRequest paginationRequest,
+            @Nullable EnvironmentType requestedEnvironment)
+            throws ConversionException, InterruptedException, InvalidOperationException {
+        final PaginatorSupplier paginatorSupplier = getPaginator(paginationRequest);
+        final ObjectsPage<GroupAndMembers> groupsPage;
+        final GroupConversionContext context;
+        try {
+            final AbstractPaginator paginator =
+                    paginatorSupplier.createPaginator(groupsAndMembers, paginationRequest,
+                            requestedEnvironment);
+            if (paginator.isEmptyResult()) {
+                return ObjectsPage.createEmptyPage();
+            }
+            groupsPage = paginator.getGroupsPage();
+            context = paginator.createContext();
+        } catch (ExecutionException | TimeoutException e) {
+            throw new ConversionException("Failed to convert groups " +
+                    groupsAndMembers.stream().map(GroupAndMembers::group).map(Grouping::getId), e);
+        }
+        final List<GroupApiDTO> result = new ArrayList<>(groupsAndMembers.size());
+        for (GroupAndMembers group : groupsPage.getObjects()) {
+            try {
+                result.add(toGroupApiDto(group, context, populateSeverity));
+            } catch (ConversionException | RuntimeException e) {
+                // We log the error, but we continue converting other groups or else we will
+                // return no results when a single group has an error.
+                logger.error("Failed to convert group " +
+                    group.group().getId()  + " (name: " + group.group().getDefinition().getDisplayName() + ")", e);
+            }
+        }
+        return new ObjectsPage<>(result, groupsPage.getTotalCount(), groupsPage.getNextCursor());
+    }
+
+    @Nonnull
+    private Future<Map<Long, EntityEnvironment>> getGroupEnvironments(
+            @Nonnull Collection<GroupAndMembers> groups, @Nonnull Set<Long> members) {
+        final EnvironmentMapObserver observer = new EnvironmentMapObserver(groups);
+        repositoryApi.entitiesRequest(members).getMinimalEntities(observer);
+        return observer.getFuture();
     }
 
     /**
@@ -463,748 +576,1213 @@ public class GroupMapper {
      *
      * @param groupAndMembers The {@link GroupAndMembers} object (get it from {@link GroupExpander})
      *                        describing the XL group and its members.
-     * @param environmentType The environment type of the group.
+     * @param conversionContext group conversion context
+     * @param populateSeverity whether or not to populate severity of the group
      * @return The {@link GroupApiDTO} object.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
-    public GroupApiDTO toGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers,
-                                     @Nonnull final EnvironmentType environmentType) {
-        final GroupApiDTO outputDTO;
-        final Group group = groupAndMembers.group();
-        switch (group.getType()) {
-            case GROUP:
-                outputDTO = createGroupApiDto(groupAndMembers.group());
-                break;
-            case CLUSTER:
-                outputDTO = createClusterApiDto(groupAndMembers.group());
-                break;
-            case TEMP_GROUP:
-                outputDTO = createTempGroupApiDTO(groupAndMembers.group());
-                break;
-            case NESTED_GROUP:
-                outputDTO = createNestedGroupApiDTO(groupAndMembers.group());
-                break;
-            default:
-                throw new IllegalArgumentException("Unrecognized group type: " + group.getType());
-        }
+    private GroupApiDTO toGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers,
+            @Nonnull GroupConversionContext conversionContext, boolean populateSeverity)
+            throws ConversionException, InterruptedException {
 
-        outputDTO.setDisplayName(GroupProtoUtil.getGroupDisplayName(group));
+        final EntityEnvironment envCloudType =
+                conversionContext.getEntityEnvironment(groupAndMembers.group().getId());
+        final GroupApiDTO outputDTO;
+        final Grouping group = groupAndMembers.group();
+        outputDTO = convertToGroupApiDto(groupAndMembers, conversionContext);
+
+        outputDTO.setDisplayName(group.getDefinition().getDisplayName());
         outputDTO.setUuid(Long.toString(group.getId()));
 
-        outputDTO.setMembersCount(groupAndMembers.members().size());
-        outputDTO.setMemberUuidList(groupAndMembers.members().stream()
-            .map(oid -> Long.toString(oid))
-            .collect(Collectors.toList()));
-        outputDTO.setEntitiesCount(groupAndMembers.entities().size());
-        // TODO (roman, Jul 9 2018) OM-36862: Support getting the active entities count for
-        // a group because the UI needs that information in some screens.
-        outputDTO.setActiveEntitiesCount(groupAndMembers.entities().size());
+        outputDTO.setEnvironmentType(getEnvironmentTypeForTempGroup(envCloudType.getEnvironmentType()));
+        outputDTO.setActiveEntitiesCount(
+                getActiveEntitiesCount(groupAndMembers, conversionContext.getActiveEntities()));
 
-        // XL RESTRICTION: Only ONPREM entities for now. see com.vmturbo.platform.VMTRoot.
-        //     OperationalEntities.PresentationLayer.Services.impl.ServiceEntityUtilsImpl
-        //     #getEntityInformation() to determine environmentType
-        outputDTO.setEnvironmentType(environmentType);
-
+        final Float cost = conversionContext.getGroupCosts().get(groupAndMembers.group().getId());
+        if (cost != null) {
+            outputDTO.setCostPrice(cost);
+        }
+        // only populate severity if required and if the group is not empty, since it's expensive
+        if (populateSeverity && !groupAndMembers.entities().isEmpty()) {
+            outputDTO.setSeverity(conversionContext.getSeverityMap()
+                    .calculateSeverity(groupAndMembers.entities())
+                    .name());
+        }
+        outputDTO.setCloudType(envCloudType.getCloudType());
         return outputDTO;
     }
 
-   /**
-     * Converts from {@link Group} to {@link GroupApiDTO}.
-     *
-     * @param group The {@link Group} object
-     * @param environmentType The {@link EnvironmentType} object
-     * @return  The {@link GroupApiDTO} object
-     */
-    public GroupApiDTO toGroupApiDto(@Nonnull final Group group,
-                                     @Nonnull EnvironmentType environmentType) {
-        return toGroupApiDto(groupExpander.getMembersForGroup(group), environmentType);
+    private Set<Long> getMembersConsideredInMembersCount(GroupAndMembers groupAndMembers) {
+        if (groupAndMembers.group().getDefinition().getType() == GroupType.RESOURCE) {
+            return groupAndMembers.group()
+                .getDefinition()
+                .getStaticGroupMembers()
+                .getMembersByTypeList()
+                .stream()
+                .filter(membersByType -> membersByType.getType().hasEntity()
+                    && WORKLOAD_ENTITY_TYPES.contains(
+                        ApiEntityType.fromType(membersByType.getType().getEntity())))
+                .map(StaticMembersByType::getMembersList)
+                .flatMap(List::stream)
+                .collect(Collectors.toSet());
+
+        } else {
+            return Sets.newHashSet(groupAndMembers.members());
+        }
     }
 
     /**
-     * Convert a filter given by the API to a group property filter.
+     * Returns a map from BusinessAccount OID -> BusinessAccount name.
      *
-     * @param filter the API filter to convert.
-     * @return the equivalent group property filter or {@code null} if {@code filter} is not
-     *         a group filter.
+     * @param groupsAndMembers groups to query onwers for
+     * @return map future
      */
     @Nonnull
-    public Optional<PropertyFilter> apiFilterToGroupPropFilter(@Nonnull FilterApiDTO filter) {
-        if (GROUP_NAME_FILTER_TYPES.contains(filter.getFilterType())) {
-            return
-                Optional.of(
-                        SearchMapper.nameFilterRegex(
-                            filter.getExpVal(),
-                            isPositiveMatchingOperator(filter.getExpType()),
-                            filter.getCaseSensitive()));
-        } else if (GROUP_TAG_FILTER_TYPES.contains(filter.getFilterType())) {
-            final boolean positiveMatch = isPositiveMatchingOperator(filter.getExpType());
-            if (isRegexOperator(filter.getExpType())) {
-                final String[] kv = filter.getExpVal().split("=");
-                return
-                    Optional.of(
-                        SearchMapper.mapPropertyFilterForMultimapsRegex(
-                                StringConstants.TAGS_ATTR, kv[0], kv[1], positiveMatch));
+    private Future<Map<Long, String>> getOwnerDisplayNames(
+            @Nonnull Collection<GroupAndMembers> groupsAndMembers) {
+        final Set<Long> ownerIds = groupsAndMembers.stream()
+                .map(GroupAndMembers::group)
+                .map(Grouping::getDefinition)
+                .filter(def -> def.getType() == GroupType.RESOURCE)
+                .filter(GroupDefinition::hasOwner)
+                .map(GroupDefinition::getOwner)
+                .collect(Collectors.toSet());
+        if (ownerIds.isEmpty()) {
+            return CompletableFuture.completedFuture(Collections.emptyMap());
+        }
+        final MembersDisplayNamesObserver observer = new MembersDisplayNamesObserver();
+        repositoryApi.entitiesRequest(ownerIds).getMinimalEntities(observer);
+        return observer.getFuture();
+    }
+
+    /**
+     * Converts an internal representation of a group represented as a {@link Grouping} object
+     * to API representation of the object.
+     *
+     * @param groupAndMembers The internal representation of the object.
+     * @param conversionContext group conversion context
+     * @return the converted object with some of the details filled in.
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     */
+    private GroupApiDTO convertToGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers,
+            @Nonnull GroupConversionContext conversionContext)
+            throws ConversionException, InterruptedException {
+         final Grouping group = groupAndMembers.group();
+         final GroupDefinition groupDefinition = group.getDefinition();
+         final GroupApiDTO outputDTO;
+         switch (groupDefinition.getType()) {
+             case BILLING_FAMILY:
+                outputDTO = extractBillingFamilyInfo(groupAndMembers);
+                break;
+             case RESOURCE:
+                final ResourceGroupApiDTO resourceGroup = new ResourceGroupApiDTO();
+                outputDTO = resourceGroup;
+                 if (groupDefinition.hasOwner()) {
+                    final String ownerName = conversionContext.getOwnerDisplayName()
+                            .get(groupDefinition.getOwner());
+                    if (ownerName != null) {
+                        resourceGroup.setParentUuid(Long.toString(groupDefinition.getOwner()));
+                        resourceGroup.setParentDisplayName(ownerName);
+                    }
+                 } else {
+                     logger.error("The resource group '{}'({}) doesn't have owner",
+                            groupDefinition.getDisplayName(), group.getId());
+                 }
+                 break;
+             default:
+                outputDTO = new GroupApiDTO();
+         }
+         outputDTO.setUuid(String.valueOf(group.getId()));
+
+         outputDTO.setClassName(convertGroupTypeToApiType(groupDefinition.getType()));
+
+         List<String> directMemberTypes = GroupProtoUtil.getDirectMemberTypes(groupDefinition)
+                 .map(GroupMapper::convertMemberTypeToApiType)
+                 .filter(StringUtils::isNotEmpty)
+                 .collect(Collectors.toList());
+
+         if (!directMemberTypes.isEmpty()) {
+             if (groupDefinition.getType() == GroupType.RESOURCE) {
+                 outputDTO.setGroupType(StringConstants.WORKLOAD);
+             } else {
+                 outputDTO.setGroupType(String.join(",", directMemberTypes));
+             }
+         } else {
+             outputDTO.setGroupType(ApiEntityType.UNKNOWN.apiStr());
+         }
+
+         outputDTO.setMemberTypes(directMemberTypes);
+         outputDTO.setEntityTypes(group.getExpectedTypesList()
+                        .stream()
+                        .filter(MemberType::hasEntity)
+                        .map(MemberType::getEntity)
+                        .map(ApiEntityType::fromType)
+                        .map(ApiEntityType::apiStr)
+                        .collect(Collectors.toList()));
+
+         outputDTO.setIsStatic(groupDefinition.hasStaticGroupMembers());
+         outputDTO.setTemporary(groupDefinition.getIsTemporary());
+
+         switch (groupDefinition.getSelectionCriteriaCase()) {
+             case STATIC_GROUP_MEMBERS:
+                 if (outputDTO.getMemberUuidList().isEmpty()) {
+                     List<Long> groupMembers = GroupProtoUtil.getStaticMembers(group);
+                     Set<Long> groupValidEntities;
+                     Set<Long> validEntities = conversionContext.getValidEntities();
+                     final int missingEntitiesCount;
+                     if (GroupProtoUtil.isNestedGroup(groupAndMembers.group())) {
+                         // Retain the valid entities of the group.
+                         groupValidEntities = Sets.newHashSet(groupAndMembers.entities());
+                         groupValidEntities.retainAll(validEntities);
+                         missingEntitiesCount =
+                                 groupAndMembers.entities().size() - groupValidEntities.size();
+                         if (missingEntitiesCount > 0) {
+                             logger.warn("{} entities for static group {} not found in repository.",
+                                     missingEntitiesCount, groupDefinition.getDisplayName());
+                         }
+                         // TODO: In case of nested group, we should also only return the valid
+                         //       direct members of the group like we only return its valid entities
+                         //       See OM-60187
+                         outputDTO.setMemberUuidList(groupMembers
+                                 .stream()
+                                 .map(String::valueOf)
+                                 .collect(Collectors.toList()));
+                     } else {
+                         // Retain valid entities of group members/entities.
+                         groupValidEntities = Sets.newHashSet(groupMembers);
+                         groupValidEntities.retainAll(validEntities);
+                         missingEntitiesCount = groupMembers.size() - groupValidEntities.size();
+                         if (missingEntitiesCount > 0) {
+                             logger.warn("{} members for static group {} not found in repository.",
+                                     missingEntitiesCount, groupDefinition.getDisplayName());
+                         }
+                         outputDTO.setMemberUuidList(groupValidEntities
+                                 .stream()
+                                 .map(String::valueOf)
+                                 .collect(Collectors.toList()));
+
+                         Set<Long> membersConsideredInMembersCount = getMembersConsideredInMembersCount(groupAndMembers);
+                         membersConsideredInMembersCount.retainAll(validEntities);
+                         outputDTO.setMembersCount(membersConsideredInMembersCount.size());
+                     }
+                     outputDTO.setEntitiesCount(groupValidEntities.size());
+                 }
+                 break;
+
+             case ENTITY_FILTERS:
+                 if (groupDefinition.getEntityFilters().getEntityFilterCount() == 0) {
+                     logger.error("The dynamic group does not have any filters. Group {}",
+                                    group);
+                     break;
+                 }
+                 // currently api only supports homogeneous dynamic groups
+                 if (groupDefinition.getEntityFilters().getEntityFilterCount() > 1) {
+                     logger.error("API does not support heterogeneous dynamic groups. Group {}",
+                                     group);
+                 }
+
+                 final EntityFilter entityFilter = groupDefinition.getEntityFilters().getEntityFilter(0);
+                 outputDTO.setLogicalOperator(logicalOperatorToApiStr(entityFilter.getLogicalOperator()));
+                 outputDTO.setCriteriaList(entityFilterMapper.convertToFilterApis(entityFilter));
+                 break;
+
+             case GROUP_FILTERS:
+                 if (groupDefinition.getGroupFilters().getGroupFilterCount() == 0) {
+                     logger.error("The dynamic group of groups does not have any filters. Group {}",
+                                    group);
+                     break;
+                 }
+                 // currently api only supports homogeneous dynamic group of groups. It means
+                 // it does not support a dynamic group of resource group and cluster
+                 if (groupDefinition.getGroupFilters().getGroupFilterCount() > 1) {
+                     logger.error("API does not support heterogeneous dynamic groups of groups. Group {}",
+                                    group);
+                 }
+
+                 final GroupFilter groupFilter = groupDefinition.getGroupFilters().getGroupFilter(0);
+                 outputDTO.setLogicalOperator(logicalOperatorToApiStr(groupFilter.getLogicalOperator()));
+                 outputDTO.setCriteriaList(groupFilterMapper.groupFilterToApiFilters(groupFilter));
+                 break;
+             default:
+                 break;
+         }
+
+         // BillingFamily has custom code for determining the number of members. An undiscovered
+         // account is not considered a member in classic.
+         if (outputDTO.getMembersCount() == null) {
+             outputDTO.setMembersCount(getMembersConsideredInMembersCount(groupAndMembers).size());
+         }
+        if (outputDTO.getMemberUuidList().isEmpty()) {
+             outputDTO.setMemberUuidList(groupAndMembers.members().stream()
+                     .map(oid -> Long.toString(oid))
+                     .collect(Collectors.toList()));
+         }
+         if (outputDTO.getEntitiesCount() == null) {
+             outputDTO.setEntitiesCount(groupAndMembers.entities().size());
+         }
+
+        if (group.hasOrigin() && group.getOrigin().hasDiscovered()) {
+            ThinTargetInfo source = null;
+            for (long targetId : group.getOrigin().getDiscovered().getDiscoveringTargetIdList()) {
+                Optional<ThinTargetInfo> thinTargetInfo = thinTargetCache.getTargetInfo(targetId);
+                if (thinTargetInfo.isPresent()) {
+                    source = chooseTarget(source, thinTargetInfo.get());
+                }
+            }
+            if (source != null) {
+                outputDTO.setSource(createTargetApiDto(source));
             } else {
-                return
-                    Optional.of(
-                        SearchMapper.mapPropertyFilterForMultimapsExact(
-                                StringConstants.TAGS_ATTR, filter.getExpVal(), positiveMatch));
+                logger.debug("Failed to locate source target information for {}", outputDTO.getUuid());
             }
         }
-        return Optional.empty();
+         return outputDTO;
     }
 
     /**
-     * Convert a list of {@link FilterApiDTO}s meant to be applied to groups (to create a
-     * nested group) to a {@link GroupPropertyFilterList} used inside XL.
+     * Chooses if we must replace the currently selected target for return.
+     * The logic is that non-hidden targets have priority over hidden targets, and in the case that
+     * there are only targets with the same visibility then the one with the lowest oid will be
+     * returned. In most cases there will be only 1 target, so only the first case will be used.
+     * TODO: this is a **convention** used as a temporary workaround to ensure consistency in the
+     * case of multiple targets; it should be removed when logic for handling multiple targets is
+     * added, see OM-59547.
+     * @param current the currently selected target
+     * @param candidate the candidate target to be selected
+     * @return whether the current target should be replaced.
+     */
+    private ThinTargetInfo chooseTarget(ThinTargetInfo current, ThinTargetInfo candidate) {
+        if (current == null) {
+            return  candidate;
+        } else if (current.isHidden() && !candidate.isHidden()) {
+            return candidate;
+        } else if (!current.isHidden() && candidate.isHidden()) {
+            return current;
+        }
+        // same visibility
+        return candidate.oid() < current.oid() ? candidate : current;
+    }
+
+    /**
+     * Creates a {@link TargetApiDTO} and populated its basic fields using the values from
+     * thinTargetInfo.
      *
-     * @param groupInfo The {@link NestedGroupInfoOrBuilder} describing the nested group.
-     *                  Used to narrow down which criteria actually apply.
-     * @param criteria The list of {@link FilterApiDTO}s to apply.
-     * @return The {@link GroupPropertyFilterList}.
+     * @param thinTargetInfo the {@link ThinTargetInfo} object used as input
+     * @return the newly created TargetApiDTO
      */
     @Nonnull
-    public GroupPropertyFilterList apiFiltersToGroupPropFilters(
-            @Nonnull final NestedGroupInfoOrBuilder groupInfo,
-            @Nullable List<FilterApiDTO> criteria) {
-        if (CollectionUtils.isEmpty(criteria)) {
-            return GroupPropertyFilterList.getDefaultInstance();
+    private TargetApiDTO createTargetApiDto(@Nonnull final ThinTargetInfo thinTargetInfo) {
+        final TargetApiDTO apiDTO = new TargetApiDTO();
+        apiDTO.setType(thinTargetInfo.probeInfo().type());
+        apiDTO.setUuid(Long.toString(thinTargetInfo.oid()));
+        apiDTO.setDisplayName(thinTargetInfo.displayName());
+        apiDTO.setCategory(thinTargetInfo.probeInfo().category());
+        return apiDTO;
+    }
+
+    private BillingFamilyApiDTO extractBillingFamilyInfo(GroupAndMembers groupAndMembers)
+            throws ConversionException, InterruptedException {
+        BillingFamilyApiDTO billingFamilyApiDTO = new BillingFamilyApiDTO();
+        Set<Long> oidsToQuery = new HashSet<>(groupAndMembers.members());
+        List<BusinessUnitApiDTO> businessUnitApiDTOList = new ArrayList<>();
+        Map<String, String> uuidToDisplayNameMap = new HashMap<>();
+        float cost = 0f;
+        boolean hasCost = false;
+        List<String> discoveredAccountUuids = Lists.newArrayList();
+
+        for (BusinessUnitApiDTO businessUnit : businessAccountRetriever.getBusinessAccounts(oidsToQuery)) {
+            Float businessUnitCost = businessUnit.getCostPrice();
+            if (businessUnitCost != null) {
+                hasCost = true;
+                cost += businessUnitCost;
+            }
+
+            if (businessUnit.getCloudType() != null) {
+                billingFamilyApiDTO.setCloudType(businessUnit.getCloudType());
+            }
+
+            String displayName = businessUnit.getDisplayName();
+            uuidToDisplayNameMap.put(businessUnit.getUuid(), displayName);
+
+            if (businessUnit.isMaster()) {
+                billingFamilyApiDTO.setMasterAccountUuid(businessUnit.getUuid());
+            }
+
+            businessUnitApiDTOList.add(businessUnit);
+
+            // OM-53266: Member count should only consider accounts that are monitored by a probe.
+            // Accounts that are only submitted as a member of a BillingFamily should not be counted.
+            if (businessUnit.getAssociatedTargetId() != null) {
+                discoveredAccountUuids.add(businessUnit.getUuid());
+            }
         }
 
-        final GroupPropertyFilterList.Builder filterListBldr = GroupPropertyFilterList.newBuilder();
-        criteria.stream()
-            .filter(GroupMapper::isGroupFilter)
-            .filter(filter -> {
-                if (groupInfo.getTypeCase() == TypeCase.CLUSTER) {
-                    switch (groupInfo.getCluster()) {
-                        case COMPUTE:
-                            return
-                                filter.getFilterType().equals(CLUSTERS_FILTER_TYPE) ||
-                                filter.getFilterType().equals(CLUSTERS_BY_TAGS_FILTER_TYPE);
-                        case STORAGE:
-                            return filter.getFilterType().equals(STORAGE_CLUSTERS_FILTER_TYPE);
-                        default:
-                            return false;
-                    }
-                }
-                return false;
-            })
-            .map(this::apiFilterToGroupPropFilter)
-            .forEach(optionalFilter -> optionalFilter.map(filterListBldr::addPropertyFilters));
-        return filterListBldr.build();
+        if (hasCost) {
+            billingFamilyApiDTO.setCostPrice(cost);
+        }
+        billingFamilyApiDTO.setUuidToNameMap(uuidToDisplayNameMap);
+        billingFamilyApiDTO.setBusinessUnitApiDTOList(businessUnitApiDTOList);
+        billingFamilyApiDTO.setMembersCount(discoveredAccountUuids.size());
+        billingFamilyApiDTO.setEntitiesCount(discoveredAccountUuids.size());
+        billingFamilyApiDTO.setMemberUuidList(discoveredAccountUuids);
+
+        return billingFamilyApiDTO;
     }
 
-    private static boolean isGroupFilter(@Nonnull FilterApiDTO filterApiDTO) {
-        return
-            GROUP_NAME_FILTER_TYPES.contains(filterApiDTO.getFilterType()) ||
-            GROUP_TAG_FILTER_TYPES.contains(filterApiDTO.getFilterType());
-    }
-
-    /**
-     * Convert the list of group property filters (used for dynamic nested groups) into the
-     * API/UI-compatible list of {@link FilterApiDTO}s.
-     *
-     * @param groupInfo The {@link NestedGroupInfo} of the nested group.
-     * @return The list of {@link FilterApiDTO} objects.
-     */
     @Nonnull
-    private List<FilterApiDTO> groupPropFiltersToApiFilters(
-            @Nonnull final NestedGroupInfo groupInfo) {
-        return groupInfo.getPropertyFilterList().getPropertyFiltersList().stream()
-            .map(propFilter -> {
-                if (propFilter.getPropertyTypeCase() == PropertyTypeCase.STRING_FILTER) {
-                    // the property corresponds to the display name of the cluster
-                    final StringFilter stringFilter = propFilter.getStringFilter();
-                    final FilterApiDTO filterApiDTO = new FilterApiDTO();
-
-                    // remove leading ^ and trailing $ from the regex
-                    final String unfilteredRegex = stringFilter.getStringPropertyRegex();
-                    filterApiDTO.setExpVal(
-                            unfilteredRegex.substring(1, unfilteredRegex.length() - 1));
-
-                    filterApiDTO.setExpType(stringFilter.getPositiveMatch() ? REGEX_MATCH : REGEX_NO_MATCH);
-                    filterApiDTO.setCaseSensitive(stringFilter.getCaseSensitive());
-                    switch (groupInfo.getCluster()) {
-                        case COMPUTE:
-                            filterApiDTO.setFilterType(CLUSTERS_FILTER_TYPE);
-                            break;
-                        case STORAGE:
-                            filterApiDTO.setFilterType(STORAGE_CLUSTERS_FILTER_TYPE);
-                            break;
-                        default:
-                            // Error.
-                            return null;
+    private Set<Long> getGroupMembersAsLong(GroupApiDTO groupDto) {
+            if (groupDto.getMemberUuidList() == null) {
+                return Collections.emptySet();
+            } else {
+                Set<Long> result = new HashSet<>();
+                for (String uuid : groupDto.getMemberUuidList()) {
+                    try {
+                      //parse the uuids for the members
+                      result.add(Long.parseLong(uuid));
+                    } catch (NumberFormatException e) {
+                        logger.error("Invalid group member uuid in the list of group `{}` members: `{}`. Only long values as uuid are accepted.",
+                                        groupDto.getDisplayName(), String.join(",", groupDto.getMemberUuidList()));
                     }
-                    return filterApiDTO;
-                } else if (propFilter.getPropertyTypeCase() == PropertyTypeCase.MAP_FILTER) {
-                    // the property corresponds to the tags of the cluster
-                    final MapFilter mapFilter = propFilter.getMapFilter();
-                    final FilterApiDTO filterApiDTO = new FilterApiDTO();
-                    if (mapFilter.hasRegex()) {
-                        // regex matching
-                        filterApiDTO.setExpVal(
-                                mapFilter.getKey() + "=" +
-                                mapFilter.getRegex().substring(1, mapFilter.getRegex().length() - 1));
-                        filterApiDTO.setExpType(mapFilter.getPositiveMatch() ? REGEX_MATCH : REGEX_NO_MATCH);
-                    } else {
-                        // exact matching
-                        filterApiDTO.setExpVal(
-                                mapFilter.getValuesList().stream()
-                                        .map(v -> mapFilter.getKey() + "=" + v)
-                                        .collect(Collectors.joining("|")));
-                        filterApiDTO.setExpType(mapFilter.getPositiveMatch() ? EQUAL : NOT_EQUAL);
-                    }
-                    filterApiDTO.setCaseSensitive(false);
-                    if (groupInfo.getCluster() == Type.COMPUTE) {
-                            filterApiDTO.setFilterType(CLUSTERS_BY_TAGS_FILTER_TYPE);
-                    } else {
-                        // Error.
-                        return null;
-                    }
-                    return filterApiDTO;
                 }
-                return null;
-            })
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+                return result;
+            }
     }
 
-    /**
-     * Convert a {@link GroupApiDTO} to a list of search parameters. Right now the entity type sources
-     * have inconsistency between search service with group service requests. For search service
-     * request, UI use class name field store entityType, but for creating group request,
-     * UI use groupType field store entityType.
-     *
-     * @param inputDTO received from the UI
-     * @param entityType the name of entity type, such as VirtualMachine
-     * @param nameQuery user specified search query for entity name. If it is not null, it will be
-     *                  converted to a entity name filter.
-     * @return list of search parameters to use for querying the repository
-     */
-    public List<SearchParameters> convertToSearchParameters(@Nonnull GroupApiDTO inputDTO,
-                                                            @Nonnull String entityType,
-                                                            @Nullable String nameQuery) {
-        final List<FilterApiDTO> criteriaList = inputDTO.getCriteriaList();
-        Optional<List<FilterApiDTO>> filterApiDTOList =
-                (criteriaList != null && !criteriaList.isEmpty())
-                        ? Optional.of(criteriaList)
-                        : Optional.empty();
-        return filterApiDTOList
-                .map(filterApiDTOs -> filterApiDTOs.stream()
-                        .map(filterApiDTO -> filter2parameters(filterApiDTO, entityType, nameQuery))
-                        .collect(Collectors.toList()))
-                .orElse(ImmutableList.of(searchParametersForEmptyCriteria(entityType, nameQuery)));
-    }
-
-    /**
-     * Convert a {@link GroupInfo} to a list of FilterApiDTO.
-     *
-     * @param groupInfo {@link GroupInfo} A message contains all information to represent a static or
-     *                  dynamic group
-     * @return a list of FilterApiDTO which contains different filter rules for dynamic group
-     */
-    public List<FilterApiDTO> convertToFilterApis(GroupInfo groupInfo) {
-        return groupInfo.getSearchParametersCollection()
-                .getSearchParametersList().stream()
-                .map(this::toFilterApiDTO)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Generate search parameters for getting all entities under current entity type. It handles the edge case
-     * when users create dynamic group, not specify any criteria rules, this dynamic group should
-     * contains all entities under selected type.
-     *
-     * @param entityType entity type from UI
-     * @param nameQuery user specified search query for entity name. If it is not null, it will be
-     *                  converted to a entity name filter.
-     * @return a search parameters object only contains starting filter with entity type
-     */
-    private SearchParameters searchParametersForEmptyCriteria(@Nonnull final String entityType,
-                                                              @Nullable final String nameQuery) {
-        PropertyFilter byType = SearchMapper.entityTypeFilter(entityType);
-        final SearchParameters.Builder searchParameters = SearchParameters.newBuilder().setStartingFilter(byType);
-        if (!StringUtils.isEmpty(nameQuery)) {
-            // For the query string, we want to use a "contains"-type query.
-            searchParameters.addSearchFilter(SearchMapper.searchFilterProperty(SearchMapper.nameFilterRegex(".*" + nameQuery + ".*")));
-        }
-        return searchParameters.build();
-    }
-
-    /**
-     * Convert one filter DTO to search parameters. The byName filter must have a filter type. If
-     * it also has an expVal then use it to filter the results.
-     *
-     * <p>Examples of "elements" with 2 and 3  elements:
-     *
-     * <p>1. <b>Storage:PRODUCES</b> - start with instances of Storage, traverse to PRODUCES and stop
-     * when reaching instances of byNameClass<br>
-     * 2. <b>PhysicalMachine:PRODUCES:1</b> - start with instances of PhysicalMachine, traverse to
-     * PRODUCES and stop after one hop.
-     *
-     * TODO: if the filter language keeps getting expanded on, we might want to use an actual
-     * grammar and parser. This implementation is pretty loose in regards to checks and assumes the
-     * input set is controlled via groupBuilderUsescases.json. We are not checking all boundary
-     * conditions. If this becomes necessary then we'll need to update this implementation.
-     *
-     * @param filter a filter
-     * @param entityType class name of the byName filter
-     * @param nameQuery user specified search query for entity name. If it is not null, it will be
-     *                  converted to a entity name filter.
-     * @return parameters full search parameters
-     */
-    private SearchParameters filter2parameters(@Nonnull FilterApiDTO filter,
-                                               @Nonnull String entityType,
-                                               @Nullable String nameQuery) {
-        GroupUseCaseCriteria useCase = groupUseCaseParser.getUseCasesByFilterType().get(filter.getFilterType());
-
-        if (useCase == null) {
-            throw new IllegalArgumentException("Not existing filter type provided: " + filter.getFilterType());
-        }
-        // build the search parameters based on the filter criteria
-        SearchParameters.Builder parametersBuilder = SearchParameters.newBuilder();
-
-        final List<String> elements = Arrays.asList(useCase.getElements().split(ELEMENTS_DELIMITER));
-
-        Iterator<String> iterator = elements.iterator();
-        final String firstToken = iterator.next();
-        if (ClassicEnumMapper.ENTITY_TYPE_MAPPINGS.keySet().contains(firstToken)) {
-            parametersBuilder.setStartingFilter(SearchMapper.entityTypeFilter(firstToken));
+    @Nonnull
+    private StaticMembers getStaticGroupMembers(@Nullable final GroupType groupType,
+            @Nonnull final GroupApiDTO groupDto, @Nonnull Set<Long> memberUuids)
+            throws ConversionException {
+        final MemberType memberType;
+        if (groupType != null) {
+            // if this is group of groups
+            memberType = MemberType.newBuilder().setGroup(groupType).build();
         } else {
-            parametersBuilder.setStartingFilter(SearchMapper.entityTypeFilter(entityType));
-            iterator = elements.iterator();
+            // otherwise it is assumed this a group of entities
+            memberType = MemberType.newBuilder().setEntity(
+                            ApiEntityType.fromString(groupDto.getGroupType()).typeNumber()
+                        ).build();
         }
 
-        final ImmutableList.Builder<SearchFilter> searchFilters = new ImmutableList.Builder<>();
-        while (iterator.hasNext()) {
-            searchFilters.addAll(processToken(filter, entityType, iterator, useCase.getInputType(), firstToken));
-        }
-        if (!StringUtils.isEmpty(nameQuery)) {
-            searchFilters.add(SearchMapper.searchFilterProperty(SearchMapper.nameFilterExact(nameQuery)));
-        }
-        parametersBuilder.addAllSearchFilter(searchFilters.build());
-        parametersBuilder.setSourceFilterSpecs(toFilterSpecs(filter));
-        return parametersBuilder.build();
-    }
+        final Set<Long> groupMembers;
 
-    /**
-     * Process the given tokens which comes from the elements in "groupBuilderUsecases.json" and
-     * convert those criteria into list of SearchFilter which will be used by repository to fetch
-     * matching entities.
-     *
-     * @param filter the FilterApiDTO provided by user in UI, which contains the criteria for this group
-     * @param entityType the entity type of the group to create
-     * @param iterator the Iterator containing all the tokens to process, for example:
-     * "PRODUCES:1:VirtualMachine", first is PRODUCES, then 1, and then VirtualMachine
-     * @param inputType the type of the input, such as "*" or "#"
-     * @param firstToken the first token defined in the "groupBuilderUsecases.json", for example:
-     * "PRODUCES:1:VirtualMachine", first is PRODUCES.
-     * @return list of SearchFilters for given tokens
-     */
-    private List<SearchFilter> processToken(@Nonnull FilterApiDTO filter,
-                                            @Nonnull String entityType,
-                                            @Nonnull Iterator<String> iterator,
-                                            @Nonnull String inputType,
-                                            @Nonnull String firstToken) {
-        final String currentToken = iterator.next();
-
-        final SearchFilterContext filterContext = new SearchFilterContext(filter, iterator,
-                entityType, currentToken, firstToken);
-        final Function<SearchFilterContext, List<SearchFilter>> filterApiDtoProcessor =
-                        FILTER_TYPES_TO_PROCESSORS.get(currentToken);
-
-        if (filterApiDtoProcessor != null) {
-            return filterApiDtoProcessor.apply(filterContext);
-        } else if (ClassicEnumMapper.ENTITY_TYPE_MAPPINGS.keySet().contains(currentToken)) {
-            return ImmutableList.of(SearchMapper.searchFilterProperty(
-                    SearchMapper.entityTypeFilter(currentToken)));
-        } else {
-            final PropertyFilter propertyFilter = isListToken(currentToken) ?
-                    createPropertyFilterForListToken(currentToken, inputType, filter) :
-                    createPropertyFilterForNormalToken(currentToken, inputType, filter);
-            return ImmutableList.of(SearchMapper.searchFilterProperty(propertyFilter));
-        }
-    }
-
-    /**
-     * Create PropertyFilter for a list token.
-     * The list token starts with the name of the property which is a list, and then wrap filter
-     * criteria with "[" and "]". Each criteria is a key value pair combined using "=". If the
-     * criteria starts with "#", it means this value is numeric, otherwise it is a string. The last
-     * criteria may be a special one which doesn't start with "#" or contains "=", it is just a
-     * single property whose value and type are provided by UI.
-     * For example: currentToken: "commoditySoldList[type=VMem,#used>0,capacity]". It means finds
-     * entities whose VMem commodity's used is more than 0 and capacity meets the value defined in
-     * FilterApiDTO.
-     *
-     * @param currentToken the token which contains nested fields
-     * @param inputType the type of the input from UI, which can be "*" (string) or "#" (number)
-     * @param filter the FilterApiDTO which contains values provided by user in UI
-     * @return PropertyFilter
-     */
-    private PropertyFilter createPropertyFilterForListToken(@Nonnull String currentToken,
-            @Nonnull String inputType, @Nonnull FilterApiDTO filter) {
-        // list, for example: "commoditySoldList[type=VMem,#used>0,capacity]"
-        int left = currentToken.indexOf('[');
-        int right = currentToken.lastIndexOf(']');
-        // name of the property which is a list, for example: commoditySoldList
-        final String listFieldName = currentToken.substring(0, left);
-
-        ListFilter.Builder listFilter = ListFilter.newBuilder();
-        // there is no nested property inside list, the list is a list of strings or numbers
-        // for example: targetIds[]
-        if (left == right) {
-            switch (inputType) {
-                case "s":
-                case "s|*":
-                case "*|s":
-                case "*":
-                    // string matching
-                    // the input types "s" and "*" represent exact string matching
-                    // and regex matching respectively.  their combination allows for both.
-                    // all cases are treated in the same way here (the distinction is only
-                    // helpful to the UI side).  we can distinguish the cases by looking at
-                    // the operator
-                    final boolean positiveMatch = isPositiveMatchingOperator(filter.getExpType());
-                    if (isRegexOperator(filter.getExpType())) {
-                        listFilter.setStringFilter(
-                            SearchMapper.stringFilterRegex(
-                                filter.getExpVal(),
-                                positiveMatch,
-                                false));
-                    } else {
-                        listFilter.setStringFilter(
-                            SearchMapper.stringFilterExact(
-                                Arrays.stream(filter.getExpVal().split("\\|"))
-                                        .collect(Collectors.toList()),
-                                positiveMatch,
-                                false));
-                    }
-                    break;
-                case "#":
-                    // numeric comparison
-                    listFilter.setNumericFilter(SearchMapper.numericFilter(
-                        Long.valueOf(filter.getExpVal()),
-                            COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(filter.getExpType())));
-                    break;
-                default:
-                    throw new UnsupportedOperationException("Input type: " + inputType +
-                            " is not supported for ListFilter");
+        if (!CollectionUtils.isEmpty(groupDto.getScope())) {
+            // Derive the members from the scope
+            final Map<String, SupplyChainNode> supplyChainForScope;
+            try {
+                supplyChainForScope = supplyChainFetcherFactory.newNodeFetcher()
+                        .addSeedUuids(groupDto.getScope())
+                        .entityTypes(Collections.singletonList(groupDto.getGroupType()))
+                        .apiEnvironmentType(groupDto.getEnvironmentType())
+                        .fetch();
+            } catch (OperationFailedException e) {
+                throw new ConversionException(
+                        "Failed to get static members for group " + groupDto.getUuid(), e);
+            }
+            final SupplyChainNode node = supplyChainForScope.getOrDefault(groupDto.getGroupType(),
+                SupplyChainNode.getDefaultInstance());
+            final Set<Long> entitiesInScope = RepositoryDTOUtil.getAllMemberOids(node);
+            // Check if the user only wants a specific set of entities within the scope.
+            if (!memberUuids.isEmpty()) {
+                groupMembers = Sets.intersection(entitiesInScope, memberUuids);
+            } else {
+                groupMembers = entitiesInScope;
             }
         } else {
-            ObjectFilter.Builder objectFilter = ObjectFilter.newBuilder();
-            // for example: "type=VMem,#used>0,capacity"
-            final String nestedListField = currentToken.substring(left + 1, right);
-            for (String criteria : nestedListField.split(",")) {
-                if (isListToken(criteria)) {
-                    // create nested list filter recursively
-                    objectFilter.addFilters(createPropertyFilterForListToken(criteria,
-                            inputType, filter));
-                } else if (criteria.startsWith("#")) {
-                    // this is numeric, find the symbol (>) in "#used>0"
-                    String symbol = null;
-                    int indexOfSymbol = 0;
-                    for (String sb : COMPARISON_SYMBOL_TO_COMPARISON_OPERATOR.keySet()) {
-                        int indexOfSb = criteria.indexOf(sb);
-                        if (indexOfSb != -1) {
-                            symbol = sb;
-                            indexOfSymbol = indexOfSb;
-                            break;
-                        }
-                    }
-                    if (symbol == null) {
-                        throw new IllegalArgumentException("No comparison symbol found in"
-                                + " criteria: " + criteria);
-                    }
-                    // key: "used"
-                    final String key = criteria.substring(1, indexOfSymbol);
-                    // value: "2"
-                    final String value = criteria.substring(indexOfSymbol + symbol.length());
-                    // ComparisonOperator for ">="
-                    final ComparisonOperator co = COMPARISON_SYMBOL_TO_COMPARISON_OPERATOR.get(symbol);
-
-                    objectFilter.addFilters(PropertyFilter.newBuilder()
-                            .setPropertyName(key)
-                            .setNumericFilter(NumericFilter.newBuilder()
-                                    .setComparisonOperator(co)
-                                    .setValue(Integer.valueOf(value))
-                                    .build())
-                            .build());
-                } else if (criteria.contains("=")) {
-                    // if no # provided, it means string by default, for example: "type=VMem"
-                    String[] keyValue = criteria.split("=");
-                    objectFilter.addFilters(
-                        SearchMapper.stringPropertyFilterExact(
-                            keyValue[0], Collections.singletonList(keyValue[1]), true, false));
-                } else {
-                    // if no "=", it means this is final field, whose comparison operator and value
-                    // are provided by UI in FilterApiDTO, for example: capacity
-                    objectFilter.addFilters(createPropertyFilterForNormalToken(criteria,
-                            inputType, filter));
-                }
-            }
-            listFilter.setObjectFilter(objectFilter.build());
+            groupMembers = memberUuids;
         }
 
-        return PropertyFilter.newBuilder()
-                .setPropertyName(listFieldName)
-                .setListFilter(listFilter.build())
+        return StaticMembers
+                .newBuilder()
+                .addMembersByType(StaticMembersByType
+                                .newBuilder()
+                                .setType(memberType)
+                                .addAllMembers(groupMembers)
+                                )
                 .build();
     }
 
-    /**
-     * Create SearchFilter for a normal token (string/numeric) which may contain nested fields.
-     * For example: currentToken: "virtualMachineInfoRepoDTO.numCpus"
-     *
-     * @param currentToken the token which may contain nested fields
-     * @param inputType the type of the input from UI, which can be "*" (string) or "#" (number)
-     * @param filter the FilterApiDTO which contains values provided by user in UI
-     * @return PropertyFilter
-     */
-    private PropertyFilter createPropertyFilterForNormalToken(@Nonnull String currentToken,
-            @Nonnull String inputType, @Nonnull FilterApiDTO filter) {
-        final String[] nestedFields = currentToken.split(NESTED_FIELD_DELIMITER);
-        // start from last field, create the innermost PropertyFilter
-        String lastField = nestedFields[nestedFields.length - 1];
-        PropertyFilter currentFieldPropertyFilter;
-        switch (inputType) {
-            case "s":
-            case "s|*":
-            case "*|s":
-            case "*":
-                // string matching
-                // the input types "s" and "*" represent exact string matching
-                // and regex matching respectively.  their combination allows for both.
-                // all cases are treated in the same way here (the distinction is only
-                // helpful to the UI side).  we can distinguish the cases by looking at
-                // the operator
-                final boolean positiveMatch = isPositiveMatchingOperator(filter.getExpType());
-                if (isRegexOperator(filter.getExpType())) {
-                    currentFieldPropertyFilter =
-                        SearchMapper.stringPropertyFilterRegex(
-                            lastField,
-                            filter.getExpVal(),
-                            positiveMatch,
-                            filter.getCaseSensitive());
-                } else {
-                    currentFieldPropertyFilter =
-                        SearchMapper.stringPropertyFilterExact(
-                            lastField,
-                            Arrays.stream(filter.getExpVal().split("\\|"))
-                                    .collect(Collectors.toList()),
-                            positiveMatch,
-                            filter.getCaseSensitive());
-                }
-                break;
-            case "#":
-                // numeric comparison
-                currentFieldPropertyFilter = SearchMapper.numericPropertyFilter(lastField,
-                        Long.valueOf(filter.getExpVal()),
-                        COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(filter.getExpType()));
-                break;
+    @Nullable
+    private static String convertMemberTypeToApiType(@Nonnull MemberType memberType) {
+        switch (memberType.getTypeCase()) {
+            case ENTITY:
+                return ApiEntityType.fromType(memberType.getEntity()).apiStr();
+            case GROUP:
+                return convertGroupTypeToApiType(memberType.getGroup());
             default:
-                throw new UnsupportedOperationException("Input type: " + inputType +
-                        " is not supported");
+                logger.error("The member type is `{}` is unknown to API.", memberType);
+                return null;
         }
-
-        // process nested fields from second last in descending order
-        for (int i = nestedFields.length - 2; i >= 0; i--) {
-            currentFieldPropertyFilter = PropertyFilter.newBuilder()
-                    .setPropertyName(nestedFields[i])
-                    .setObjectFilter(ObjectFilter.newBuilder()
-                            .addFilters(currentFieldPropertyFilter)
-                            .build())
-                    .build();
-        }
-        return currentFieldPropertyFilter;
     }
 
-    private static boolean isRegexOperator(@Nonnull String operator) {
-        return operator.equals(REGEX_MATCH) || operator.equals(REGEX_NO_MATCH);
-    }
-
-    private static boolean isPositiveMatchingOperator(@Nonnull String operator) {
-        return operator.equals(REGEX_MATCH) || operator.equals(EQUAL);
+    @Nonnull
+    public static String convertGroupTypeToApiType(@Nonnull GroupType type) {
+        return API_GROUP_TYPE_TO_GROUP_TYPE
+                        .inverse().getOrDefault(type,
+                                        type.name());
     }
 
     /**
-     * Check whether the token is a list token.
-     * For example: "commoditySoldList[type=VMem,capacity]".
+     * Returns mapping from oid to entity in repository, based on the specified OIDs.
      *
-     * @param token the token to check list for
-     * @return true if the token is a list, otherwise false
+     * @param oids oids.
+     * @return a subset of {@code members} containing only valid entities in repository.
      */
-    private boolean isListToken(@Nonnull String token) {
-        int left = token.indexOf('[');
-        int right = token.lastIndexOf(']');
-        return left != -1 && right != -1 && left < right;
-    }
-
-    private SearchParameters.FilterSpecs toFilterSpecs(FilterApiDTO filter) {
-        return SearchParameters.FilterSpecs.newBuilder()
-                        .setExpressionType(filter.getExpType())
-                        .setExpressionValue(filter.getExpVal())
-                        .setFilterType(filter.getFilterType())
-                        .setIsCaseSensitive(filter.getCaseSensitive())
-                        .build();
+    @Nonnull
+    private Future<Map<Long, MinimalEntity>> getMinimalEntities(@Nonnull Set<Long> oids) {
+        if (oids.isEmpty()) {
+            return CompletableFuture.completedFuture(Collections.emptyMap());
+        }
+        final MinimalEntitiesObserver observer = new MinimalEntitiesObserver();
+        repositoryApi.entitiesRequest(oids).getMinimalEntities(observer);
+        return observer.getFuture();
     }
 
     /**
-     * Converts SearchParameters object to FilterApiDTO
+     * Get the number of active entities from a {@link GroupAndMembers}.
      *
-     * @param searchParameters represent one search query
-     * @return The {@link FilterApiDTO} object which contains filter rule for dynamic group
+     * @param groupAndMembers The {@link GroupAndMembers} object (get it from {@link GroupExpander})
+     *                        describing the XL group and its members.
+     * @param activeEntities active entities for the current context. They are entities from
+     *          different group, so here we have to calculate actual count. Does not work for
+     *          temprary groups
+     * @return The number of active entities
      */
-    private FilterApiDTO toFilterApiDTO(@Nonnull SearchParameters searchParameters) {
-
-        final FilterApiDTO filterApiDTO = new FilterApiDTO();
-        final SearchParameters.FilterSpecs sourceFilter = searchParameters.getSourceFilterSpecs();
-        filterApiDTO.setExpType(Objects.requireNonNull(sourceFilter.getExpressionType()));
-        filterApiDTO.setExpVal(Objects.requireNonNull(sourceFilter.getExpressionValue()));
-        filterApiDTO.setFilterType(Objects.requireNonNull(sourceFilter.getFilterType()));
-        filterApiDTO.setCaseSensitive(Objects.requireNonNull(sourceFilter.getIsCaseSensitive()));
-        return filterApiDTO;
+    private int getActiveEntitiesCount(@Nonnull final GroupAndMembers groupAndMembers,
+            @Nonnull Set<Long> activeEntities) {
+        // Set the active entities count.
+        final Grouping group = groupAndMembers.group();
+        // We need to find the number of active entities in the group. The best way to do that
+        // is to do a search, and return only the counts. This minimizes the amount of
+        // traffic across the network - although for large groups this is still a lot!
+        final PropertyFilter startingFilter;
+        if (group.getDefinition().getIsTemporary() &&
+                group.getDefinition().hasOptimizationMetadata() &&
+                group.getDefinition().getOptimizationMetadata().getIsGlobalScope()) {
+            // In a global temp group we can just set the environment type.
+            startingFilter = SearchProtoUtil.entityTypeFilter(group.getDefinition()
+                    .getStaticGroupMembers()
+                    .getMembersByType(0)
+                    .getType()
+                    .getEntity());
+            try {
+                return (int)repositoryApi.newSearchRequest(
+                        SearchProtoUtil.makeSearchParameters(startingFilter)
+                                .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                                        SearchProtoUtil.stateFilter(UIEntityState.ACTIVE)))
+                                .build()).count();
+            } catch (StatusRuntimeException e) {
+                logger.error("Search for active entities in group {} failed. Error: {}", group.getId(), e.getMessage());
+                // As a fallback, assume every entity is active.
+                return groupAndMembers.entities().size();
+            }
+        } else {
+            final Set<Long> entities = new HashSet<>(groupAndMembers.entities());
+            entities.retainAll(activeEntities);
+            return entities.size();
+        }
     }
 
+    /**
+     * Get the environment type for temporary group. If it's not created from HYBRID view in UI,
+     * return the environment type passed from UI. If it's created from HYBRID view, we should also
+     * check added targets, if no cloud targets, set it to ONPREM.
+     * Note: We don't want to fetch all entities in this group and go through all of them to decide
+     * the environment type like that in classic, since it's expensive for large groups. A better
+     * solution will be done on develop.
+     *
+     * @param environmentTypeFromUI the EnvironmentType passed from UI
+     * @return the {@link EnvironmentType} for the temporary group
+     */
+    private EnvironmentType getEnvironmentTypeForTempGroup(@Nonnull final EnvironmentType environmentTypeFromUI) {
+        if (environmentTypeFromUI != EnvironmentType.HYBRID) {
+            return environmentTypeFromUI;
+        }
+        final Set<ThinProbeInfo> addedProbeTypes = thinTargetCache.getAllTargets()
+                .stream()
+                .map(ThinTargetInfo::probeInfo)
+                .collect(Collectors.toSet());
+        final boolean hasCloudEnvironmentTarget = addedProbeTypes.stream()
+                .anyMatch(probeInfo -> CLOUD_ENVIRONMENT_PROBE_TYPES.contains(probeInfo.type()));
+        return hasCloudEnvironmentTarget ? EnvironmentType.HYBRID : EnvironmentType.ONPREM;
+    }
 
     /**
-     * Context with parameters which SearchFilterProducer needs for all cases
+     * Helper structure, holding all the data necessary for batch conversion of groups.
      */
-    private static class SearchFilterContext {
+    private static class GroupConversionContext {
+        private final Set<Long> validEntities;
+        private final Set<Long> activeEntities;
+        private final Map<Long, String> ownerDisplayName;
+        private final Map<Long, EntityEnvironment> entities;
+        private final EntityEnvironment entityEnvironment;
+        private final SeverityMap severityMap;
+        private final Map<Long, Float> groupCosts;
 
-        private final FilterApiDTO filter;
+        /**
+         * Errors encountered during construction of the context.
+         * TODO (roman, March 19 2020) OM-56615: Propagate to the user to notify them that the
+         * group we are returning from the API may not be complete.
+         */
+        private final Map<String, Exception> retrievalErrors;
 
-        private final Iterator<String> iterator;
-
-        private final String entityType;
-
-        private final String currentToken;
-
-        // the first token of the elements defined in groupBuilderUsecases.json, for example:
-        // "PhysicalMachine:displayName:PRODUCES:1", the first token is "PhysicalMachine"
-        private final String firstToken;
-
-        public SearchFilterContext(@Nonnull FilterApiDTO filter, @Nonnull Iterator<String> iterator,
-                        @Nonnull String entityType, @Nonnull String currentToken, @Nonnull String firstToken) {
-            this.filter = Objects.requireNonNull(filter);
-            this.iterator = Objects.requireNonNull(iterator);
-            this.entityType = Objects.requireNonNull(entityType);
-            this.currentToken = Objects.requireNonNull(currentToken);
-            this.firstToken = Objects.requireNonNull(firstToken);
-        }
-
-        @Nonnull
-        public FilterApiDTO getFilter() {
-            return filter;
-        }
-
-        @Nonnull
-        public Iterator<String> getIterator() {
-            return iterator;
-        }
-
-        @Nonnull
-        public String getEntityType() {
-            return entityType;
-        }
-
-        @Nonnull
-        public String getCurrentToken() {
-            return currentToken;
-        }
-
-        public boolean isHopCountBasedTraverse(@Nonnull StoppingConditionOrBuilder stopper) {
-            return !iterator.hasNext() && stopper.hasNumberHops();
+        GroupConversionContext(@Nonnull Set<Long> validEntities,
+                @Nonnull Set<Long> activeEntities,
+                @Nonnull Map<Long, String> ownerDisplayName,
+                @Nullable Map<Long, EntityEnvironment> entities,
+                @Nullable EntityEnvironment entityEnvironment,
+                @Nonnull SeverityMap severityMap,
+                @Nonnull Map<Long, Float> groupCosts,
+                @Nonnull final Map<String, Exception> retrievalErrors) {
+            this.validEntities = validEntities;
+            this.activeEntities = activeEntities;
+            this.ownerDisplayName = ownerDisplayName;
+            this.entities = entities;
+            this.entityEnvironment = entityEnvironment;
+            this.retrievalErrors = retrievalErrors;
+            this.severityMap = Objects.requireNonNull(severityMap);
+            this.groupCosts = Objects.requireNonNull(groupCosts);
+            if ((entities == null) == (entityEnvironment == null)) {
+                throw new IllegalArgumentException(
+                        "Either entities or entity environment is expected to be set for groups " +
+                                groupCosts.keySet());
+            }
         }
 
         /**
-         * Check if this SearchFilter should filter by number of connected vertices. For example:
-         * filter PMs by number of hosted VMs.
+         * Returns a set of valid entities OIDs.
+         *
+         * @return a set of OIDs
          */
-        public boolean shouldFilterByNumConnectedVertices() {
-            return TRAVERSAL_TYPES.contains(firstToken);
+        @Nonnull
+        public Set<Long> getValidEntities() {
+            return validEntities;
+        }
+
+        /**
+         * Returns a set of active entities OIDs.
+         *
+         * @return a set of OIDs
+         */
+        @Nonnull
+        public Set<Long> getActiveEntities() {
+            return activeEntities;
+        }
+
+        /**
+         * Get any errors that were encountered when gathering data for this context.
+         * This can be used to notify the user that some parts of the group's information may be missing.
+         *
+         * @return The map of error description -> {@link Exception} that caused the error.
+         */
+        @Nonnull
+        public Map<String, Exception> getRetrievalErrors() {
+            return retrievalErrors;
+        }
+
+        /**
+         * Returns a map from owner OID -> owner display name.
+         *
+         * @return map of owner display names
+         */
+        @Nonnull
+        public Map<Long, String> getOwnerDisplayName() {
+            return ownerDisplayName;
+        }
+
+        /**
+         * Returns global entity environment. If this value is set, this means, that all the
+         * entities in the environment have the same environment and cloud types.
+         *
+         * @param groupOid OID of the group to return environment of
+         * @return global entity environment
+         */
+        @Nonnull
+        public EntityEnvironment getEntityEnvironment(long groupOid) {
+            if (entityEnvironment != null) {
+                return entityEnvironment;
+            } else {
+                // According to the code, every group will have a record in this map. If the value
+                // is absent - it is a error in the code.
+                return Objects.requireNonNull(entities.get(groupOid),
+                        "entity environment has not been calculated for group " + groupOid);
+            }
+        }
+
+        /**
+         * Severity map of all the entities in the request.
+         *
+         * @return severity map
+         */
+        @Nonnull
+        public SeverityMap getSeverityMap() {
+            return severityMap;
+        }
+
+        /**
+         * Returns a map of group costs.
+         *
+         * @return map group OID -> cost (if any)
+         */
+        @Nonnull
+        public Map<Long, Float> getGroupCosts() {
+            return groupCosts;
         }
     }
 
     /**
-     * Processor for filter which has PRODUCES type of token
+     * Observer collecting minimal entities into a map, mapping from oid to MinimalEntity.
      */
-    @Immutable
-    private static class TraversalFilterProcessor implements Function<SearchFilterContext, List<SearchFilter>> {
+    private static class MinimalEntitiesObserver extends
+            FutureObserver<MinimalEntity, Map<Long, MinimalEntity>> {
+        private final Map<Long, MinimalEntity> result = new HashMap<>();
+
+        @Nonnull
+        @Override
+        protected Map<Long, MinimalEntity> createResult() {
+            return Collections.unmodifiableMap(result);
+        }
 
         @Override
-        public List<SearchFilter> apply(SearchFilterContext context) {
-            // add a traversal filter
-            TraversalDirection direction = TraversalDirection.valueOf(context.getCurrentToken());
-            final StoppingCondition.Builder stopperBuilder;
-            final Iterator<String> iterator = context.getIterator();
-            final String entityType = context.getEntityType();
-            if (iterator.hasNext()) {
-                final String currentToken = iterator.next();
-                // An explicit stopper can either be the number of hops, or an
-                // entity type. And note that hops number can not contains '+' or '-'.
-                if (StringUtils.isNumeric(currentToken)) {
-                    // For example: Produces:1:VirtualMachine
-                    final int hops = Integer.valueOf(currentToken);
-                    if (hops <= 0) {
-                        throw new IllegalArgumentException("Illegal hops number " + hops
-                                        + "; should be positive.");
-                    }
-                    stopperBuilder = StoppingCondition.newBuilder().setNumberHops(hops);
-                    // set condition for number of connected vertices if required
-                    if (context.shouldFilterByNumConnectedVertices()) {
-                        setVerticesCondition(stopperBuilder, iterator.next(), context);
-                    }
-                } else {
-                    // For example: Produces:VirtualMachine
-                    stopperBuilder = buildStoppingCondition(currentToken);
-                    // set condition for number of connected vertices if required
-                    if (context.shouldFilterByNumConnectedVertices()) {
-                        setVerticesCondition(stopperBuilder, currentToken, context);
+        public void onNext(MinimalEntity value) {
+            result.put(value.getOid(), value);
+        }
+    }
+
+    /**
+     * Observer collecting minimal entities into a map from OID to entity.
+     */
+    private static class MembersDisplayNamesObserver extends
+            FutureObserver<MinimalEntity, Map<Long, String>> {
+        private final Map<Long, String> result = new HashMap<>();
+
+        @Nonnull
+        @Override
+        protected Map<Long, String> createResult() {
+            return Collections.unmodifiableMap(result);
+        }
+
+        @Override
+        public void onNext(MinimalEntity value) {
+            result.put(value.getOid(), value.getDisplayName());
+        }
+    }
+
+    /**
+     * Observer collecting group environment types.
+     */
+    private class EnvironmentMapObserver extends
+            FutureObserver<MinimalEntity, Map<Long, EntityEnvironment>> {
+        private final Map<Long, MinimalEntity> entities = new HashMap<>();
+        private final Collection<GroupAndMembers> groups;
+
+        EnvironmentMapObserver(@Nonnull Collection<GroupAndMembers> groups) {
+            this.groups = Objects.requireNonNull(groups);
+        }
+
+        @Nonnull
+        @Override
+        protected Map<Long, EntityEnvironment> createResult() {
+            final Map<Long, EntityEnvironment> entityEnvironmentMap = new HashMap<>(groups.size());
+            for (GroupAndMembers group : groups) {
+                entityEnvironmentMap.put(group.group().getId(),
+                        getEnvironmentAndCloudTypeForGroup(group, entities));
+            }
+            return Collections.unmodifiableMap(entityEnvironmentMap);
+        }
+
+        @Override
+        public void onNext(MinimalEntity value) {
+            entities.put(value.getOid(), value);
+        }
+    }
+
+    /**
+     * Stream observer to collect groups cost information. It collects cost summarized by groups.
+     */
+    private class GroupsCostObserver extends
+            FutureObserver<GetCloudCostStatsResponse, Map<Long, Float>> {
+        private final Map<Long, Float> vmCosts = new HashMap<>();
+        private final Collection<GroupAndMembers> groupsAndMembers;
+
+        GroupsCostObserver(@Nonnull Collection<GroupAndMembers> groupsAndMembers) {
+            this.groupsAndMembers = Objects.requireNonNull(groupsAndMembers);
+        }
+
+        @Nonnull
+        @Override
+        protected Map<Long, Float> createResult() {
+            final Map<Long, Float> groupsCost = new HashMap<>(groupsAndMembers.size());
+            for (GroupAndMembers groupAndMembers: groupsAndMembers) {
+                final long oid = groupAndMembers.group().getId();
+                boolean hasAnyCost = false;
+                float cost = 0;
+                for (Long member: groupAndMembers.entities()) {
+                    Float nextCost = vmCosts.get(member);
+                    if (nextCost != null) {
+                        cost += nextCost;
+                        hasAnyCost = true;
                     }
                 }
+                if (hasAnyCost) {
+                    groupsCost.put(oid, cost);
+                }
+            }
+            return Collections.unmodifiableMap(groupsCost);
+        }
+
+        @Override
+        public void onNext(GetCloudCostStatsResponse cloudCostStatsResponse) {
+            for (CloudCostStatRecord record : cloudCostStatsResponse.getCloudStatRecordList()) {
+                for (StatRecord statRecord : record.getStatRecordsList()) {
+                    // exclude cost with category STORAGE for VMs, because this cost is duplicate STORAGE cost for volumes
+                    if (!(statRecord.getCategory() == CostCategory.STORAGE) &&
+                            (statRecord.getAssociatedEntityId() ==
+                                    EntityType.VIRTUAL_MACHINE_VALUE)) {
+                        final long oid = statRecord.getAssociatedEntityId();
+                        final float cost = statRecord.getValues().getTotal();
+                        vmCosts.put(oid, vmCosts.getOrDefault(oid, 0F) + cost);
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void onError(Throwable t) {
+            if (Optional.of(Code.UNAVAILABLE).equals(getStatus(t).map(Status::getCode))) {
+                // Any component may be down at any time. APIs like search should not fail
+                // when the cost component is down. We must log a warning when this happens,
+                // or else it will be difficult for someone to explain why search does not
+                // have cost data.
+                logger.warn("The cost component is not available. As a result, we will not fill in the response with cost details for groups");
+                super.onCompleted();
             } else {
-                stopperBuilder = buildStoppingCondition(entityType);
+                // Cost component responded, so it's up an running. We need to make this
+                // exception visible because there might be a bug in the cost component.
+                super.onError(t);
+            }
+        }
+    }
+
+    private static int getSkipCount(@Nonnull SearchPaginationRequest paginationRequest)
+            throws InvalidOperationException {
+        final int skipCount;
+        if (paginationRequest.getCursor().isPresent()) {
+            try {
+                skipCount = Integer.parseInt(paginationRequest.getCursor().get());
+                if (skipCount < 0) {
+                    throw new InvalidOperationException(
+                            "Illegal cursor: " + skipCount + ". Must be be a positive integer");
+                }
+            } catch (InvalidOperationException e) {
+                throw new InvalidOperationException("Cursor " + paginationRequest.getCursor() +
+                        " is invalid. Should be a number.");
+            }
+        } else {
+            skipCount = 0;
+        }
+        return skipCount;
+    }
+
+    @Nonnull
+    private ObjectsPage<GroupAndMembers> applyPagination(@Nonnull List<GroupAndMembers> groups,
+            @Nonnull Comparator<GroupAndMembers> comparator,
+            @Nullable SearchPaginationRequest paginationRequest,
+            @Nullable Predicate<GroupAndMembers> groupFilter) throws InvalidOperationException {
+        if (paginationRequest == null && groupFilter == null) {
+            return new ObjectsPage<>(groups, groups.size(), groups.size());
+        }
+        final int skipCount = paginationRequest == null ? 0 : getSkipCount(paginationRequest);
+        final int limit = paginationRequest == null ? groups.size() : paginationRequest.getLimit();
+        final List<GroupAndMembers> filteredGroups;
+        if (groupFilter != null) {
+            filteredGroups = groups.stream().filter(groupFilter).collect(Collectors.toList());
+        } else {
+            filteredGroups = groups;
+        }
+        final List<GroupAndMembers> groupsPage;
+        if (paginationRequest != null) {
+            final Comparator<GroupAndMembers> effectiveComparator =
+                    paginationRequest.isAscending() ? comparator : Collections.reverseOrder(comparator);
+            final List<GroupAndMembers> sortedGroups = new ArrayList<>(filteredGroups);
+            sortedGroups.sort(effectiveComparator);
+            groupsPage = sortedGroups.subList(getSkipCount(paginationRequest),
+                    Math.min(limit + skipCount, sortedGroups.size()));
+        } else {
+            groupsPage = filteredGroups;
+        }
+        final int nextCursor = Math.min(filteredGroups.size(), skipCount + limit);
+        return new ObjectsPage<>(groupsPage, filteredGroups.size(), nextCursor);
+    }
+
+    @Nonnull
+    private Future<SeverityMap> fetchSeverityMap(@Nonnull Set<Long> members) {
+        return severityPopulator.getSeverityMap(realtimeTopologyContextId, members);
+    }
+
+    @Nonnull
+    private Future<Map<Long, Float>> fetchGroupCosts(
+            @Nonnull Collection<GroupAndMembers> groupsAndMembers, @Nonnull Set<Long> members) {
+        if (members.isEmpty()) {
+            return CompletableFuture.completedFuture(Collections.emptyMap());
+        }
+        final GroupsCostObserver observer = new GroupsCostObserver(groupsAndMembers);
+        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
+                .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+                        .setEntityFilter(
+                                Cost.EntityFilter.newBuilder().addAllEntityId(members).build())
+                        .build())
+                .build();
+        costServiceStub.getCloudCostStats(request, observer);
+        return observer.getFuture();
+    }
+
+    /**
+     * Abstract paginator holds default behaviour for various paginators.
+     */
+    private abstract class AbstractPaginator {
+
+        private final EntityEnvironment globalEnvironment;
+        private final Future<Map<Long, EntityEnvironment>> groupEnvironments;
+        private final EnvironmentType requestedEnvironmentType;
+        private final Set<Long> allMembers;
+        private final boolean emptyResult;
+
+        protected AbstractPaginator(@Nonnull List<GroupAndMembers> groups,
+                @Nullable EnvironmentType requestedEnvironmentType) {
+            allMembers = Collections.unmodifiableSet(groups.stream()
+                    .map(GroupAndMembers::entities)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet()));
+            globalEnvironment = getApplianceEnvironment();
+            if ((requestedEnvironmentType == null) ||
+                    (requestedEnvironmentType == EnvironmentType.HYBRID)) {
+                // If no filtering by environment type is selected
+                // of if hybrid environment is selected - we do not apply environment filters
+                this.requestedEnvironmentType = null;
+                this.groupEnvironments = null;
+                this.emptyResult = false;
+            } else if (globalEnvironment != null) {
+                // If global environment is homogeneous we either return nothing or do not
+                // apply filters
+                this.emptyResult =
+                        globalEnvironment.getEnvironmentType() != requestedEnvironmentType;
+                this.requestedEnvironmentType = null;
+                this.groupEnvironments = null;
+            } else {
+                // We still need to filter by environment type
+                this.emptyResult = false;
+                this.groupEnvironments = getGroupsEnvironment(groups, allMembers);
+                this.requestedEnvironmentType = requestedEnvironmentType;
+            }
+        }
+
+        @Nullable
+        protected final Predicate<GroupAndMembers> getFilter()
+                throws ExecutionException, InterruptedException, TimeoutException {
+            if (requestedEnvironmentType == null) {
+                return null;
+            }
+            final Map<Long, EntityEnvironment> groupsEnvironment =
+                    groupEnvironments.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+            return group -> groupEnvironmentMatchesRequested(
+                    groupsEnvironment.get(group.group().getId()).getEnvironmentType(),
+                    requestedEnvironmentType);
+        }
+
+        private boolean groupEnvironmentMatchesRequested(@Nonnull EnvironmentType groupEnv,
+                @Nullable EnvironmentType requestedEnvironmentType) {
+            return groupEnv == EnvironmentType.HYBRID || groupEnv.equals(requestedEnvironmentType);
+        }
+
+        @Nonnull
+        protected final Future<Map<Long, EntityEnvironment>> getGroupsEnvironment(
+                @Nonnull Collection<GroupAndMembers> groups, @Nonnull Set<Long> members) {
+            if (groupEnvironments != null) {
+                return groupEnvironments;
+            } else {
+                return GroupMapper.this.getGroupEnvironments(groups, members);
+            }
+        }
+
+        public Set<Long> getAllMembers() {
+            return allMembers;
+        }
+
+        @Nonnull
+        public abstract ObjectsPage<GroupAndMembers> getGroupsPage();
+
+        @Nonnull
+        public GroupConversionContext createContext()
+                throws InterruptedException, TimeoutException, ExecutionException {
+            final ObjectsPage<GroupAndMembers> groupsPage = getGroupsPage();
+            final List<GroupAndMembers> groupsAndMembers = groupsPage.getObjects();
+            final Set<Long> members = groupsAndMembers.stream()
+                    .map(GroupAndMembers::entities)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
+            final EntityEnvironment entityEnvironment = getApplianceEnvironment();
+            final Future<Map<Long, MinimalEntity>> entitiesFuture = getMinimalEntities(members);
+            final Future<Map<Long, String>> ownerEntitiesFuture = getOwnerDisplayNames(groupsAndMembers);
+            final Future<SeverityMap> severityMapFuture = getSeverityMap(members);
+            final Future<Map<Long, Float>> groupCostsFuture = getCosts(groupsAndMembers, members);
+
+            final GroupConversionContext context;
+
+            // Collect the errors we encounter so we can print all of them.
+            final Map<String, Exception> errors = new HashMap<>();
+            // We may encounter errors retrieving some of the related information. For example, if
+            // the action orchestrator is down we will not be able to get severity information. We
+            // try to get as much as we can, and prevent a failure in a single component from
+            // stopping ANY group results from being displayed.
+
+            // Wait for the entities.
+            Map<Long, MinimalEntity> entitiesFromRepository;
+            Set<Long> validEntities;
+            Set<Long> activeEntities;
+            try {
+                entitiesFromRepository = Objects.requireNonNull(entitiesFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
+                validEntities = Sets.newHashSet(entitiesFromRepository.keySet());
+                activeEntities = entitiesFromRepository.values().stream()
+                        .filter(e -> e.getEntityState() == EntityState.POWERED_ON)
+                        .map(MinimalEntity::getOid).collect(Collectors.toSet());
+            } catch (ExecutionException | TimeoutException e) {
+                errors.put("Failed to get entities from repository. Error: " + e.getMessage(), e);
+                entitiesFromRepository = Collections.emptyMap();
+                // fallback values for valid/active entities
+                validEntities = Sets.newHashSet(members);
+                activeEntities = Sets.newHashSet(members);
             }
 
-            TraversalFilter traversal = TraversalFilter.newBuilder()
-                            .setTraversalDirection(direction)
-                            .setStoppingCondition(stopperBuilder)
-                            .build();
-            final ImmutableList.Builder<SearchFilter> searchFilters = ImmutableList.builder();
-            searchFilters.add(SearchMapper.searchFilterTraversal(traversal));
-            // add a final entity type filter if the last filer is a hop-count based traverse
-            // and it's not a filter based on number of connected vertices
-            // for example: get all PMs which hosted more than 2 VMs, we've already get all PMs
-            // if it's a filter by number of connected vertices, we don't need to filter on PM type again
-            if (context.isHopCountBasedTraverse(stopperBuilder) && !context.shouldFilterByNumConnectedVertices()) {
-                searchFilters.add(SearchMapper.searchFilterProperty(SearchMapper
-                                .entityTypeFilter(entityType)));
+            Map<Long, EntityEnvironment> groupEnvironments = null;
+            if (entityEnvironment == null) {
+                groupEnvironments = new HashMap<>();
+                for (GroupAndMembers group : groupsAndMembers) {
+                    groupEnvironments.put(group.group().getId(),
+                            getEnvironmentAndCloudTypeForGroup(group, entitiesFromRepository));
+                }
             }
-            return searchFilters.build();
+
+            // Wait for the owner display names.
+            Map<Long, String> ownerDisplayName;
+            try {
+                ownerDisplayName = ownerEntitiesFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+            } catch (ExecutionException | TimeoutException e) {
+                errors.put("Failed to get owner display name. Error: " + e.getMessage(), e);
+                ownerDisplayName = Collections.emptyMap();
+            }
+
+            // Wait for the severity map.
+            SeverityMap severityMap;
+            try {
+                severityMap = Objects.requireNonNull(severityMapFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
+            } catch (ExecutionException | TimeoutException e) {
+                errors.put("Failed to get severity information. Error: " + e.getMessage(), e);
+                severityMap = SeverityMapImpl.empty();
+            }
+
+            // Wait for the group costs.
+            Map<Long, Float> groupCosts;
+            try {
+                groupCosts = Objects.requireNonNull(groupCostsFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
+            } catch (ExecutionException | TimeoutException e) {
+                errors.put("Failed to get cost information. Error: " + e.getMessage(), e);
+                groupCosts = Collections.emptyMap();
+            }
+
+            if (!errors.isEmpty()) {
+                logger.error("Errors constructing group conversion context." +
+                    " Some group field may be empty. Turn on debug logging for stack traces. Errors: {}", errors.keySet());
+                if (logger.isDebugEnabled()) {
+                    errors.forEach(logger::debug);
+                }
+            }
+            context = new GroupConversionContext(validEntities, activeEntities, ownerDisplayName, groupEnvironments,
+                    entityEnvironment, severityMap, groupCosts, errors);
+            return context;
+        }
+
+        @Nonnull
+        protected Future<SeverityMap> getSeverityMap(@Nonnull Set<Long> members) {
+            return fetchSeverityMap(members);
+        }
+
+        @Nonnull
+        protected Future<Map<Long, Float>> getCosts(
+                @Nonnull Collection<GroupAndMembers> groupsAndMembers,
+                @Nonnull Set<Long> members) {
+            return fetchGroupCosts(groupsAndMembers, members);
         }
 
         /**
-         * Add vertices condition to the given StoppingCondition. For example, group of PMs by
-         * number of hosted VMs, the stopping condition contains number of hops, which is 1. This
-         * function add one more condition: filter by number of vms hosted by this PM.
+         * Returns whether there will be no results in the groups request based on conflict between
+         * requested parameters and global environment parameters.
          *
-         * @param stopperBuilder the StoppingCondition builder to add vertices condition to
-         * @param stoppingEntityType the entity type to count number of connected vertices for
-         * when the traversal stops. for example: PMs by number of hosted VMs, then the
-         * stoppingEntityType is the integer value of VM entity type
-         * @param context the SearchFilterContext with parameters provided by user for the group
+         * @return whether result is empty
          */
-        private void setVerticesCondition(@Nonnull StoppingCondition.Builder stopperBuilder,
-                @Nonnull String stoppingEntityType, @Nonnull SearchFilterContext context) {
-            int vertexEntityType = ServiceEntityMapper.fromUIEntityType(stoppingEntityType);
-            stopperBuilder.setVerticesCondition(VerticesCondition.newBuilder()
-                    .setNumConnectedVertices(NumericFilter.newBuilder()
-                            .setValue(Long.valueOf(context.getFilter().getExpVal()))
-                            .setComparisonOperator(COMPARISON_STRING_TO_COMPARISON_OPERATOR.get(
-                                    context.getFilter().getExpType())))
-                    .setEntityType(vertexEntityType)
-                    .build());
+        public boolean isEmptyResult() {
+            return emptyResult;
         }
+    }
+
+    /**
+     * Parinator sorting groups by display name.
+     */
+    private class PaginatorName extends AbstractPaginator {
+        private final ObjectsPage<GroupAndMembers> groupsPage;
+
+        /**
+         * Constructs display name sorting paginator.
+         *
+         * @param groups groups to paginate
+         * @param paginationRequest pagination request. May be empty - it will mean that no
+         *         pagination logic should be applied.
+         * @param requestedEnvironmentType requested environment type
+         * @throws InterruptedException if current thread interrupted during execution
+         * @throws ExecutionException if any of async tasks faled
+         * @throws TimeoutException if any of async tasks timed out
+         * @throws InvalidOperationException if pagination requet is invalid
+         */
+        PaginatorName(@Nonnull List<GroupAndMembers> groups,
+                @Nullable SearchPaginationRequest paginationRequest,
+                @Nullable EnvironmentType requestedEnvironmentType)
+                throws InterruptedException, ExecutionException, TimeoutException,
+                InvalidOperationException {
+            super(groups, requestedEnvironmentType);
+            final Comparator<GroupAndMembers> comparator =
+                    Comparator.comparing(group -> group.group().getDefinition().getDisplayName());
+            this.groupsPage = applyPagination(groups, comparator, paginationRequest, getFilter());
+        }
+
+        @Nonnull
+        @Override
+        public ObjectsPage<GroupAndMembers> getGroupsPage() {
+            return groupsPage;
+        }
+    }
+
+    /**
+     * Paginator implementation sorting groups by severity.
+     */
+    private class PaginatorSeverity extends AbstractPaginator {
+        private final ObjectsPage<GroupAndMembers> groupsPage;
+        private final Future<SeverityMap> severityMapFuture;
+
+        /**
+         * Constructs severity sorting paginator.
+         *
+         * @param groups groups to paginate
+         * @param paginationRequest pagination request. May be empty - it will mean that no
+         *         pagination logic should be applied.
+         * @param requestedEnvironmentType requested environment type
+         * @throws InterruptedException if current thread interrupted during execution
+         * @throws ExecutionException if any of async tasks faled
+         * @throws TimeoutException if any of async tasks timed out
+         * @throws InvalidOperationException if pagination requet is invalid
+         */
+        PaginatorSeverity(@Nonnull List<GroupAndMembers> groups,
+                @Nullable SearchPaginationRequest paginationRequest,
+                @Nullable EnvironmentType requestedEnvironmentType)
+                throws InterruptedException, ExecutionException, TimeoutException,
+                InvalidOperationException {
+            super(groups, requestedEnvironmentType);
+            this.severityMapFuture = fetchSeverityMap(getAllMembers());
+
+            SeverityMap severityMap;
+            try {
+                severityMap = severityMapFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+            } catch (ExecutionException | TimeoutException e) {
+                logger.error("Failed to get severities from Action Orchestrator. Defaulting to NORMAL.", e);
+                severityMap = SeverityMapImpl.empty();
+            }
+
+            final Map<Long, Integer> groupsSeverities = new HashMap<>(groups.size());
+            for (GroupAndMembers group: groups) {
+                final int severity;
+                if (group.members().isEmpty()) {
+                    severity = -1;
+                } else {
+                    severity = severityMap.calculateSeverity(group.entities()).getNumber();
+                }
+                groupsSeverities.put(group.group().getId(), severity);
+            }
+            final Comparator<GroupAndMembers> comparator =
+                    Comparator.comparing(group -> groupsSeverities.get(group.group().getId()));
+            this.groupsPage = applyPagination(groups, comparator, paginationRequest, getFilter());
+        }
+
+        @Nonnull
+        @Override
+        public ObjectsPage<GroupAndMembers> getGroupsPage() {
+            return groupsPage;
+        }
+
+        @Nonnull
+        @Override
+        protected Future<SeverityMap> getSeverityMap(@Nonnull Set<Long> members) {
+            return severityMapFuture;
+        }
+    }
+
+    /**
+     * Paginator used to sort groups by costs.
+     */
+    private class PaginatorCost extends AbstractPaginator {
+
+        private final ObjectsPage<GroupAndMembers> groupsPage;
+        private final Future<Map<Long, Float>> groupCostsFuture;
+
+        /**
+         * Constructs cost sorting paginator.
+         *
+         * @param groups groups to paginate
+         * @param paginationRequest pagination request. May be empty - it will mean that no
+         *         pagination logic should be applied.
+         * @param requestedEnvironmentType requested environment type
+         * @throws InterruptedException if current thread interrupted during execution
+         * @throws ExecutionException if any of async tasks faled
+         * @throws TimeoutException if any of async tasks timed out
+         * @throws InvalidOperationException if pagination requet is invalid
+         */
+        PaginatorCost(@Nonnull List<GroupAndMembers> groups,
+                @Nullable SearchPaginationRequest paginationRequest,
+                @Nullable EnvironmentType requestedEnvironmentType)
+                throws InvalidOperationException, InterruptedException, ExecutionException,
+                TimeoutException {
+            super(groups, requestedEnvironmentType);
+            this.groupCostsFuture = fetchGroupCosts(groups, getAllMembers());
+            final Map<Long, Float> groupCosts =
+                    groupCostsFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+            final Comparator<GroupAndMembers> comparator = Comparator.comparing(
+                    group -> groupCosts.getOrDefault(group.group().getId(), 0F));
+            groupsPage = applyPagination(groups, comparator, paginationRequest, getFilter());
+        }
+
+        @Nonnull
+        @Override
+        public ObjectsPage<GroupAndMembers> getGroupsPage() {
+            return groupsPage;
+        }
+
+        @Nonnull
+        @Override
+        protected Future<Map<Long, Float>> getCosts(
+                @Nonnull Collection<GroupAndMembers> groupsAndMembers,
+                @Nonnull Set<Long> members) {
+            return groupCostsFuture;
+        }
+    }
+
+    /**
+     * A function to create a paginator.
+     */
+    private interface PaginatorSupplier {
+        @Nonnull
+        AbstractPaginator createPaginator(@Nonnull List<GroupAndMembers> groups,
+                @Nullable SearchPaginationRequest paginationRequest,
+                @Nullable EnvironmentType environmentType)
+                throws InvalidOperationException, InterruptedException, ExecutionException,
+                TimeoutException;
     }
 }

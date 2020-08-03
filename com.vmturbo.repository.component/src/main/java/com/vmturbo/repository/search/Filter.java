@@ -21,7 +21,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
-import com.vmturbo.repository.constant.RepoObjectType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 
 /**
@@ -242,15 +242,14 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
                     // translate the entityType number to a string; make sure matches entire value
                     // Match the case as well - entity type is driven by enum.
                     PropertyFilter pf = PropertyFilter.newBuilder()
-                            .setPropertyName(propertyName)
-                            .setStringFilter(
-                                StringFilter.newBuilder()
-                                    .addOptions(
-                                        RepoObjectType.mapEntityType(
-                                            Math.toIntExact(numericFilter.getValue())))
-                                    .setCaseSensitive(true)
-                                    .build())
-                            .build();
+                        .setPropertyName(propertyName)
+                        .setStringFilter(
+                            StringFilter.newBuilder()
+                                .addOptions(ApiEntityType.fromType(
+                                    Math.toIntExact(numericFilter.getValue())).apiStr())
+                                .setCaseSensitive(true)
+                                .build())
+                        .build();
                     return createAQLForPropertyFilter(pf, objectName);
                 }
 

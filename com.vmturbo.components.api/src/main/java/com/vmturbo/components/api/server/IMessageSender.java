@@ -26,4 +26,20 @@ public interface IMessageSender<S> {
      */
     void sendMessage(@Nonnull final S serverMsg) throws CommunicationException,
             InterruptedException;
+
+    /**
+     * Get the maximum size of messages allowed to be sent via this sender. Any messages larger
+     * than this may not be sent.
+     *
+     * @return The maximum size of messages sent via this sender, in bytes.
+     */
+    int getMaxRequestSizeBytes();
+
+    /**
+     * Get the recommended size for messages sent via this sender. Clients should try to stick to this
+     * size for optimal performance.
+     *
+     * @return The recommended size for messages sent via this sender, in bytes.
+     */
+    int getRecommendedRequestSizeBytes();
 }

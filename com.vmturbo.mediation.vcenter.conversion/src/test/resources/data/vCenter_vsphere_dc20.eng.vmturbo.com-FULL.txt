@@ -1707,7 +1707,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "2f36f42451c20d66f8f5f912ad82ce837593e9a5"
   displayName: "GuestLoad[S01-P01-P02-01]"
   commoditiesBought {
@@ -1761,7 +1761,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "7ae768769132de7c802e595eb81c3b391e1d587e"
   displayName: "GuestLoad[S01-P01-P02-02]"
   commoditiesBought {
@@ -1815,7 +1815,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "5522f6ddfcb8f4165221b25d7308d7885b17955f"
   displayName: "GuestLoad[S01-P01-P02-09]"
   commoditiesBought {

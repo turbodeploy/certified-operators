@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -37,6 +38,8 @@ public class ActionTypeMapper {
                 .put(ActionDTO.ActionType.NONE, ActionType.NONE)
                 .put(ActionDTO.ActionType.START, ActionType.START)
                 .put(ActionDTO.ActionType.MOVE, ActionType.MOVE)
+                .put(ActionDTO.ActionType.SCALE, ActionType.SCALE)
+                .put(ActionDTO.ActionType.ALLOCATE, ActionType.ALLOCATE)
                 .put(ActionDTO.ActionType.SUSPEND, ActionType.SUSPEND)
                 .put(ActionDTO.ActionType.PROVISION, ActionType.PROVISION)
                 .put(ActionDTO.ActionType.RECONFIGURE, ActionType.RECONFIGURE)
@@ -44,6 +47,7 @@ public class ActionTypeMapper {
                 .put(ActionDTO.ActionType.ACTIVATE, ActionType.START)
                 .put(ActionDTO.ActionType.DEACTIVATE, ActionType.SUSPEND)
                 .put(ActionDTO.ActionType.DELETE, ActionType.DELETE)
+                .put(ActionDTO.ActionType.BUY_RI, ActionType.BUY_RI)
                 .build();
 
     private ActionTypeMapper() {}
@@ -81,6 +85,11 @@ public class ActionTypeMapper {
     public static Set<ActionDTO.ActionType> fromApi(@Nonnull final ActionType actionType) {
         final Set<ActionDTO.ActionType> matchingTypes =
                 XL_TO_API_APPROXIMATE_TYPE.asMultimap().inverse().get(actionType);
-        return matchingTypes == null ? Collections.emptySet() : matchingTypes;
+        if (matchingTypes == null || matchingTypes.size() == 0) {
+            // If the ActionType is not mapped, return NONE. If we don't return NONE, requesting
+            // unmapped types will return all results.
+            return new HashSet<>(Arrays.asList(ActionDTO.ActionType.NONE));
+        }
+        return  matchingTypes;
     }
 }

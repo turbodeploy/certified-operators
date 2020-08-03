@@ -25,6 +25,11 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private Boolean local;
 
+    // Do not generate delete wasted files actions for this Storage
+    // Deprecated since this flag is no longer used in TopologyEntityDTO.
+    @Deprecated
+    private boolean ignoreWastedFiles;
+
     public List<String> getExternalNames() {
         return externalNames;
     }
@@ -47,6 +52,27 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     public void setLocal(Boolean local) {
         this.local = local;
+    }
+
+    /**
+     * Getter for ignoreWastedFiles.
+     *
+     * @return True if wasted files actions should be suppressed for this storage.
+     */
+    @Deprecated
+    public boolean getIgnoreWastedFiles() {
+        return ignoreWastedFiles;
+    }
+
+    /**
+     * Setter for ignoreWastedFiles.  Set to true for storages that we don't want to generate
+     * wasted files actions for.
+     *
+     * @param ignoreWastedFiles flag indicating that we shouldn't generate wasted files actions.
+     */
+    @Deprecated
+    public void setIgnoreWastedFiles(final boolean ignoreWastedFiles) {
+        this.ignoreWastedFiles = ignoreWastedFiles;
     }
 
     @Override
@@ -90,12 +116,13 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         final StorageInfoRepoDTO that = (StorageInfoRepoDTO) o;
         return Objects.equals(externalNames, that.externalNames) &&
                 Objects.equals(storageType, that.storageType) &&
-                Objects.equals(local, that.local);
+                Objects.equals(local, that.local) &&
+                Objects.equals(ignoreWastedFiles, that.ignoreWastedFiles);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(externalNames, storageType, local);
+        return Objects.hash(externalNames, storageType, local, ignoreWastedFiles);
     }
 
     @Override
@@ -104,6 +131,7 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 "externalNames=" + externalNames +
                 ", storageType='" + storageType + '\'' +
                 ", local=" + local +
+                ", ignoreWastedFiles=" + ignoreWastedFiles +
                 '}';
     }
 }

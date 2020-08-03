@@ -1,392 +1,932 @@
 package com.vmturbo.api.component.communication;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Future;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 
+import io.grpc.stub.StreamObserver;
+
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
+import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.api.utils.ParamStrings;
-
+import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.Builder;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceStub;
+import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
+import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
- * This class is an API wrapper for the Repository Component.
+ * This is the preferred way to access the repository from the API.
+ * Using the {@link RepositoryApi} involves three steps:
+ *    1) Get a "request" object using one of the {@link RepositoryApi} methods.
+ *    2) Customize the request object (if necessary).
+ *    3) Retrieve the results at the appropriate detail level from the request object.
  *
- * TODO (roman, Dec 19 2016): This stuff shouldn't live here. We should migrate the API's to
- * gRPC instead :)
+ * If you know the IDs of the entities you're looking for, use:
+ *    {@link RepositoryApi#entitiesRequest(Set)} or {@link RepositoryApi#entityRequest(long)}
+ *
+ * If not, use {@link RepositoryApi#newSearchRequest(SearchParameters)}.
  */
 public class RepositoryApi {
-
-    /**
-     * The prefix to paths in the repository.
-     */
-    private static final String REPOSITORY_PATH_PREFIX = "/repository/";
-
-    /**
-     * The supply chain URI component.
-     */
-    private static final String SUPPLYCHAIN_URI_COMPONENT = "/supplychain/";
-
-    /**
-     * The search URI component.
-     */
-    private static final String SEARCH_URI_COMPONENT = "/search/";
-
-    /**
-     * The SE URI component.
-     */
-    private static final String SERVICE_ENTITY_URI_COMPONENT = "/serviceentity/";
-
-    /**
-     * The URI path to search for service entities by OID.
-     */
-    private static final String SERVICE_ENTITY_MULTIGET_URI = SERVICE_ENTITY_URI_COMPONENT + "query/id";
-
-    /**
-     * The URI path to search for service entities by display name.
-     */
-    private static final String SERVICE_ENTITY_DISPLAY_NAME_URI = SERVICE_ENTITY_URI_COMPONENT + "query/displayname";
-
-    /**
-     * The query parameter used to specify the desired display name.
-     */
-    private static final String DISPLAY_NAME_QUERY_PARAM = "q";
-
-    /**
-     * The query parameter to specify whether to search in the projected topology.
-     */
-    private static final String PROJECTED_TOPOLOGY_QUERY_PARAM = "projected";
-
-    /**
-     * The query parameter to specify the topology context to search in.
-     */
-    private static final String CONTEXT_ID_QUERY_PARAM = "contextId";
-
-    private final Logger logger = LogManager.getLogger();
-
-    private final String repositoryHost;
-
-    private final int repositoryPort;
-
-    private final RestTemplate restTemplate;
 
     private final SeverityPopulator severityPopulator;
 
     private final long realtimeTopologyContextId;
 
-    public RepositoryApi(@Nonnull final String repositoryHost,
-                         final int repositoryPort,
-                         @Nonnull final RestTemplate restTemplate,
-                         @Nonnull final SeverityPopulator severityPopulator,
+    private final RepositoryServiceBlockingStub repositoryService;
+    private final RepositoryServiceStub repositoryServiceAsyncStub;
+
+    private final SearchServiceBlockingStub searchServiceBlockingStub;
+    private final SearchServiceStub searchServiceAsyncStub;
+
+    private final ServiceEntityMapper serviceEntityMapper;
+    private final BusinessAccountMapper businessAccountMapper;
+
+    public RepositoryApi(@Nonnull final SeverityPopulator severityPopulator,
+                         @Nonnull final RepositoryServiceBlockingStub repositoryService,
+                         @Nonnull final RepositoryServiceStub repositoryServiceAsyncStub,
+                         @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
+                         @Nonnull final SearchServiceStub searchServiceAsyncStub,
+                         @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                         @Nonnull BusinessAccountMapper businessAccountMapper,
                          final long realtimeTopologyContextId) {
-        this.restTemplate = Objects.requireNonNull(restTemplate);
-        this.repositoryHost = repositoryHost;
-        this.repositoryPort = repositoryPort;
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.searchServiceBlockingStub = Objects.requireNonNull(searchServiceBlockingStub);
+        this.searchServiceAsyncStub = Objects.requireNonNull(searchServiceAsyncStub);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
+        this.repositoryService = Objects.requireNonNull(repositoryService);
+        this.businessAccountMapper = Objects.requireNonNull(businessAccountMapper);
+        this.repositoryServiceAsyncStub = Objects.requireNonNull(repositoryServiceAsyncStub);
     }
 
     /**
-     * Request a collection of {@link ServiceEntityApiDTO}s from the repository, where each
-     * DTO's display name contains a word starting with the provided string.
+     * Create a new search request.
      *
-     * <p>Note: At the time of this writing (Sep 26, 2016), the details of legal query strings
-     * depend on ArangoDB's implementation. For example, ArangoDB doesn't handle things like
-     * ":" in the string. Also, it will return entities where the displayNamePrefix is the prefix
-     * of any word in the display name.
-     *
-     * @param displayNamePrefix The prefix of the display name to search for.
-     * @return The {@link ServiceEntityApiDTO}s matching the query.
-     *         The severity is not present for the entities.
+     * @param params The {@link SearchParameters} to use for the request. Use the utility methods
+     *               in {@link com.vmturbo.common.protobuf.search.SearchProtoUtil} where possible.
+     * @return The {@link SearchRequest}, which can be further customized.
      */
     @Nonnull
-    public Collection<ServiceEntityApiDTO> getServiceEntityByDisplayName(
-            @Nonnull final String displayNamePrefix) {
-        final String getEntitiesRequest = newUriBuilder()
-            .path(SERVICE_ENTITY_DISPLAY_NAME_URI)
-            .queryParam(DISPLAY_NAME_QUERY_PARAM, displayNamePrefix)
-            .build()
-            .toUriString();
-
-        try {
-            final ResponseEntity<List<ServiceEntityApiDTO>> response =
-                    restTemplate.exchange(getEntitiesRequest, HttpMethod.GET, null,
-                        new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {});
-            return response.getBody();
-        } catch (RestClientException e) {
-            logger.error("Error retrieving data through REST call {}: {}", getEntitiesRequest, e);
-            throw new RuntimeException(
-                    "Error retrieving data through REST call " + getEntitiesRequest, e);
-        }
+    public SearchRequest newSearchRequest(@Nonnull final SearchParameters params) {
+        return newSearchRequestMulti(Collections.singleton(params));
     }
 
     /**
-     * Request a collection of {@link ServiceEntityApiDTO}s from the repository. Currently, only
-     * support searching with entity types and scope.
+     * Create a new search request.
      *
-     * @param query Not yet used
-     * @param types The types of entities, e.g., VirtualMachine, PhysicalMachine, ...
-     * @param scope The scope used for searching, e.g., a single entity or the global environment
-     * @param state Not yet used
-     * @param groupType Not yet used
-     * @return collection of service entity DTOs that match the search
-     * @throws Exception if the search fails
+     * @param params The {@link SearchParameters} to use for the request. Use the utility methods
+     *               in {@link com.vmturbo.common.protobuf.search.SearchProtoUtil} where possible.
+     * @return The {@link SearchRequest}, which can be further customized.
      */
     @Nonnull
-    public Collection<ServiceEntityApiDTO> getSearchResults(String query,
-                                                            @Nullable List<String> types,
-                                                            @Nonnull String scope,
-                                                            @Nullable String state,
-                                                            @Nullable String groupType) {
-        // TODO Now, we only support one type of entities in the search
-        if (types == null || types.isEmpty()) {
-            IllegalArgumentException e = new IllegalArgumentException(
-                      "Invalid types argument for searching results of scope " + scope);
-            logger.error(e);
-            throw e;
-        }
-        final UriComponentsBuilder uriBuilder = newUriBuilder().path(SEARCH_URI_COMPONENT);
-        // Allow multi-type search, e.g.
-        // http://localhost:9000/repository/search/?types=Application&types=VirtualMachine&scope=Market
-        types.stream().forEach(type -> uriBuilder.queryParam(ParamStrings.TYPES, type));
-        final String getEntitiesRequest = uriBuilder
-            .queryParam(ParamStrings.SCOPE, scope)
-            .build()
-            .toUriString();
+    public SearchRequest newSearchRequestMulti(@Nonnull Collection<SearchParameters> params) {
+        return new SearchRequest(realtimeTopologyContextId, searchServiceBlockingStub,
+                searchServiceAsyncStub, severityPopulator, serviceEntityMapper, params);
+    }
 
-        try {
-            final List<ServiceEntityApiDTO> entityDtos =
-                        restTemplate.exchange(getEntitiesRequest, HttpMethod.GET, null,
-                        new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {})
-                        .getBody();
-            // TODO: We should populate the type in the discoveredBy field before returning the entities
-            // To do this, we need to retrieve the probe type associated with that target
-            return severityPopulator.populate(realtimeTopologyContextId, entityDtos);
-        } catch (RestClientException e) {
-            logger.error("Error retrieving data through REST call {}: {}", getEntitiesRequest, e);
+    /**
+     * Create a new entity request for a single entity.
+     *
+     * @param oid The OID of the target entity.
+     * @return The {@link SingleEntityRequest}, which can be further customized.
+     */
+    @Nonnull
+    public SingleEntityRequest entityRequest(final long oid) {
+        return new SingleEntityRequest(realtimeTopologyContextId, repositoryService,
+                repositoryServiceAsyncStub, severityPopulator, serviceEntityMapper, oid);
+    }
+
+    /**
+     * Create a new entity request for a collection of entities.
+     *
+     * @param oids The OIDs of the target entities. Note - if the set is empty, there will be no
+     *             results unless you also call {@link MultiEntityRequest#allowGetAll()}.
+     * @return The {@link MultiEntityRequest}, which can be further customized.
+     */
+    @Nonnull
+    public MultiEntityRequest entitiesRequest(@Nonnull final Set<Long> oids) {
+        return new MultiEntityRequest(realtimeTopologyContextId, repositoryService,
+                repositoryServiceAsyncStub, severityPopulator, serviceEntityMapper, oids);
+    }
+
+    /**
+     * Create a new request to fetch the region in which some entities reside.
+     *
+     * @param oids the collection of entities
+     * @return a search request for the region
+     */
+    public SearchRequest getRegion(@Nonnull Collection<Long> oids) {
+        return requestForTypeBasedTraversal(oids,
+                                            TraversalDirection.AGGREGATED_BY,
+                                            EntityType.REGION);
+    }
+
+    /**
+     * Create a new request to traverse a specific direction and search
+     * for entities of a specific type.
+     *
+     * @param oids the collection of entities to start from
+     * @param traversalDirection the direction to travel
+     * @param entityType the entity type to look for
+     * @return the search request
+     */
+    public SearchRequest requestForTypeBasedTraversal(@Nonnull Collection<Long> oids,
+                                                      @Nonnull TraversalDirection traversalDirection,
+                                                      @Nonnull EntityType entityType) {
+        final SearchParameters searchParameters =
+                SearchParameters.newBuilder()
+                        .setStartingFilter(SearchProtoUtil.idFilter(oids))
+                        .addSearchFilter(SearchProtoUtil.searchFilterTraversal(
+                                SearchProtoUtil.traverseToType(traversalDirection, entityType)))
+                        .build();
+        return new SearchRequest(realtimeTopologyContextId, searchServiceBlockingStub,
+                                 searchServiceAsyncStub,
+                                 severityPopulator, serviceEntityMapper,
+                                 Collections.singleton(searchParameters));
+    }
+
+    /**
+     * Method returns repository contents by the specified OIDs. All the contents are mapped to the
+     * required types.
+     *
+     * @param oids oids of entities to retrieve
+     * @param entityTypes entity types to retrieve
+     * @param allAccounts whether all accounts are queried (true) of only some of them
+     *         (false). This value is used for queries optimization purpose. {@code false} value
+     *         does not affect results, it is just executed a little bit longer.
+     * @return query result, mapped to REST classes
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     */
+    @Nonnull
+    public RepositoryRequestResult getByIds(@Nonnull Collection<Long> oids,
+            @Nonnull Set<EntityType> entityTypes, boolean allAccounts)
+            throws ConversionException, InterruptedException {
+        if (oids.isEmpty()) {
+            return new RepositoryRequestResult(Collections.emptySet(), Collections.emptySet());
+        }
+        final Collection<ServiceEntityApiDTO> seList = getServiceEntities(oids, entityTypes);
+        final Collection<BusinessUnitApiDTO> buList;
+        if (entityTypes.isEmpty() || entityTypes.contains(EntityType.BUSINESS_ACCOUNT)) {
+            final Collection<Long> buOids = new LinkedList<>(oids);
+            // Load all the rest OIDs. We assume that only BusinessAccounts should be left here
+            buOids.removeAll(Collections2.transform(seList, se -> Long.parseLong(se.getUuid())));
+            buList = getBusinessUnits(buOids, allAccounts);
+        } else {
+            buList = Collections.emptyList();
+        }
+        severityPopulator.populate(realtimeTopologyContextId, seList);
+        return new RepositoryRequestResult(buList, seList);
+    }
+
+    /**
+     * Expand the list of oids of service providers to the list of oids of the connected regions.
+     *
+     * @param serviceProviders set of service provider oids
+     * @return set of region oids
+     */
+    public Set<Long> expandServiceProvidersToRegions(@Nonnull final Set<Long> serviceProviders) {
+        return this.entitiesRequest(serviceProviders)
+                .getEntitiesWithConnections()
+                .flatMap(e -> e.getConnectedEntitiesList().stream())
+                .filter(ConnectedEntity::hasConnectedEntityId)
+                .filter(ConnectedEntity::hasConnectedEntityType)
+                .filter(c -> c.getConnectedEntityType() == EntityType.REGION_VALUE
+                        && c.getConnectionType() == ConnectionType.OWNS_CONNECTION)
+                .map(ConnectedEntity::getConnectedEntityId)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Returns converted service entity DTOs.
+     * Business users require another request to Repository in order to get all the required
+     * data that's why business accounts in the repository response are just omited in this method.
+     *
+     * @param oids OIDs to retrieve
+     * @param entityTypes entity types to retrieve
+     * @return collection of converted service entities WITHOUT any business accounts
+     */
+    @Nonnull
+    private Collection<ServiceEntityApiDTO> getServiceEntities(@Nonnull Collection<Long> oids,
+            @Nonnull Set<EntityType> entityTypes) {
+        if (entityTypes.equals(Collections.singleton(EntityType.BUSINESS_ACCOUNT)) || oids.isEmpty()) {
             return Collections.emptyList();
         }
-    }
-
-    /**
-     * Request the full Service Entity description, {@link ServiceEntityApiDTO}, from the
-     * Repository Component.
-     *
-     * @param serviceEntityId the unique id (uuid/oid) for the service entity to be retrieved.
-     * @return the {@link ServiceEntityApiDTO} describing the Service Entity with the requested ID.
-     * @throws UnknownObjectException if there is no service entity with the given UUID.
-     */
-    public ServiceEntityApiDTO getServiceEntityForUuid(long serviceEntityId)
-            throws UnknownObjectException {
-
-        final String getServiceEntityRequest = newUriBuilder()
-                .pathSegment(SERVICE_ENTITY_URI_COMPONENT, Long.toString(serviceEntityId))
-                .build()
-                .toUriString();
-
-        try {
-            // this call may return a list of matches. The size is expected to be 1, or 0 for not
-            // found. More than one is a serious error; The sort-of-baroque usage of
-            // restTemplate.exchange() is required to specify the return type from the REST request
-            // as a typed List.
-            ResponseEntity<List<ServiceEntityApiDTO>> response =
-                    restTemplate.exchange(getServiceEntityRequest, HttpMethod.GET, null,
-                                          new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {
-                                          });
-            List<ServiceEntityApiDTO> results = response.getBody();
-            if (results.size() == 0) {
-                logger.error("Service entity not found for id: {}", serviceEntityId);
-                throw new UnknownObjectException(
-                        "service entity not found for id: " + serviceEntityId);
+        final RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
+                .addAllEntityOids(oids)
+                .setTopologyContextId(realtimeTopologyContextId)
+                .setTopologyType(TopologyType.SOURCE)
+                .addAllEntityType(entityTypes.stream()
+                        .filter(entityType -> entityType != EntityType.BUSINESS_ACCOUNT)
+                        .map(EntityType::getNumber)
+                        .collect(Collectors.toSet()))
+                .setReturnType(Type.API)
+                .build();
+        final Iterator<PartialEntityBatch> iterator =
+                repositoryService.retrieveTopologyEntities(request);
+        final Collection<ApiPartialEntity> serviceEntitiesTE = new ArrayList<>();
+        while (iterator.hasNext()) {
+            final PartialEntityBatch batch = iterator.next();
+            for (PartialEntity partialEntity : batch.getEntitiesList()) {
+                final ApiPartialEntity entity = partialEntity.getApi();
+                if (entity.getEntityType() != EntityType.BUSINESS_ACCOUNT_VALUE) {
+                    // Business accounts will be loaded separately. Just ignore them here.
+                    serviceEntitiesTE.add(entity);
+                }
             }
-            if (results.size() > 1) {
-                logger.error("More than one entity found for id: {}", serviceEntityId);
-                throw new RuntimeException("more than one entity found for id: " + serviceEntityId);
-            }
-            // TODO: We should populate the type in the discoveredBy field before returning the entity
-            // To do this, we need to retrieve the probe type associated with that target
-            return severityPopulator.populate(realtimeTopologyContextId, results)
-                .iterator()
-                .next();
-        } catch (RestClientException e) {
-            logger.error("Error retrieving data through REST call {}: {}", getServiceEntityRequest, e);
-            throw new RuntimeException(
-                    "Error retrieving data through REST call " + getServiceEntityRequest, e);
         }
+        return serviceEntitiesTE.stream()
+                .map(serviceEntityMapper::toServiceEntityApiDTO)
+                .collect(Collectors.toList());
     }
 
-    /**
-     * Request several service entity descriptions from the Repository.
-     *
-     * @param request The {@link ServiceEntitiesRequest} describing the search.
-     * @return A map of OID -> an optional containing the entity, or an empty optional if the entity was not found.
-     *         Each OID in entityIds will have a matching entry in the returned map.
-     */
     @Nonnull
-    public Map<Long, Optional<ServiceEntityApiDTO>> getServiceEntitiesById(@Nonnull final ServiceEntitiesRequest request) {
-        final long contextId = request.getTopologyContextId().orElse(realtimeTopologyContextId);
-        final String getEntitiesByIdSetRequest = newUriBuilder()
-                .path(SERVICE_ENTITY_MULTIGET_URI)
-                .queryParam(PROJECTED_TOPOLOGY_QUERY_PARAM, request.searchProjectedTopology())
-                .queryParam(CONTEXT_ID_QUERY_PARAM, contextId)
-                .build()
-                .toUriString();
-        final Set<Long> requestedIds = request.getEntityIds();
-        final Map<Long, Optional<ServiceEntityApiDTO>> retMap =
-                new HashMap<>(requestedIds.size());
-        requestedIds.forEach(id -> retMap.put(id, Optional.empty()));
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Set> idList = new HttpEntity<>(requestedIds, headers);
-        try {
-            final ResponseEntity<List<ServiceEntityApiDTO>> response =
-                    restTemplate.exchange(getEntitiesByIdSetRequest, HttpMethod.POST, idList,
-                            new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {});
-            final List<ServiceEntityApiDTO> results = response.getBody();
-            // TODO: We should populate the type in the discoveredBy field before returning the entities
-            // To do this, we need to retrieve the probe type associated with that target
-            results.forEach(seDTO -> retMap.put(Long.parseLong(seDTO.getUuid()), Optional.of(seDTO)));
-
-            return retMap;
-        } catch (RestClientException e) {
-            logger.error("Error retrieving service entities by ID during {}: {}",
-                    getEntitiesByIdSetRequest, e);
-            throw new RuntimeException("Error retrieving service entities by ID during: " +
-                    getEntitiesByIdSetRequest, e);
+    private Collection<BusinessUnitApiDTO> getBusinessUnits(@Nonnull Collection<Long> oids,
+            boolean allAccounts) {
+        if (oids.isEmpty()) {
+            return Collections.emptyList();
         }
+        final RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
+                .addAllEntityOids(oids)
+                .setTopologyContextId(realtimeTopologyContextId)
+                .setTopologyType(TopologyType.SOURCE)
+                .addEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setReturnType(Type.FULL)
+                .build();
+        final Iterator<PartialEntityBatch> iterator =
+                repositoryService.retrieveTopologyEntities(request);
+        final List<TopologyEntityDTO> businessAccountsTE = new ArrayList<>();
+        while (iterator.hasNext()) {
+            final PartialEntityBatch batch = iterator.next();
+            for (PartialEntity partialEntity : batch.getEntitiesList()) {
+                final TopologyEntityDTO entity = partialEntity.getFullEntity();
+                    businessAccountsTE.add(entity);
+            }
+        }
+        return businessAccountMapper.convert(businessAccountsTE, allAccounts);
     }
 
     /**
-     * A request for a multi-get for information about a set of service entities.
+     * Utility interface to abstract away the details of the RPC call that returns a
+     * {@link PartialEntityBatch}.
      */
-    public static class ServiceEntitiesRequest {
-
-        private final Set<Long> entityIds;
-
-        /**
-         * See: {@link Builder#setTopologyContextId(long)}.
-         */
-        private final Optional<Long> topologyContextId;
+    @FunctionalInterface
+    private interface BatchRPC {
 
         /**
-         * See: {@link Builder#searchProjectedTopology()}.
+         * Perform the RPC call, given a particular {@link PartialEntity.Type}.
          */
-        private final boolean searchProjectedTopology;
+        Iterator<PartialEntityBatch> doRpc(@Nonnull PartialEntity.Type type);
+    }
 
-        private ServiceEntitiesRequest(final Optional<Long> topologyContextId,
-                                       @Nonnull final Set<Long> entityIds,
-                                       final boolean searchProjectedTopology) {
-            this.topologyContextId = topologyContextId;
-            this.entityIds = Objects.requireNonNull(entityIds);
-            this.searchProjectedTopology = searchProjectedTopology;
+    /**
+     * Utility class to retrieve {@link PartialEntity}s at various detail levels.
+     * Used internally by the various request classes.
+     */
+    static class PartialEntityRetriever {
+        private final BatchRPC retriever;
+        private final ServiceEntityMapper serviceEntityMapper;
+        private final SeverityPopulator severityPopulator;
+
+        private PartialEntityRetriever(@Nonnull final BatchRPC retriever,
+                                       @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                                       @Nonnull final SeverityPopulator severityPopulator) {
+            this.retriever = retriever;
+            this.serviceEntityMapper = serviceEntityMapper;
+            this.severityPopulator = severityPopulator;
         }
 
-        public Optional<Long> getTopologyContextId() {
-            return topologyContextId;
+        private Stream<PartialEntity> entityStream(@Nonnull final Type type) {
+            return RepositoryDTOUtil.topologyEntityStream(retriever.doRpc(type));
         }
 
-        public Set<Long> getEntityIds() {
-            return entityIds;
+        @Nonnull
+        Stream<TopologyEntityDTO> getFullEntities() {
+            return entityStream(Type.FULL)
+                .map(PartialEntity::getFullEntity);
         }
 
-        public boolean searchProjectedTopology() {
-            return searchProjectedTopology;
+        @Nonnull
+        Stream<MinimalEntity> getMinimalEntities() {
+            return entityStream(Type.MINIMAL)
+                .map(PartialEntity::getMinimal);
         }
 
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) {
-                return true;
-            } else if (!(other instanceof ServiceEntitiesRequest)) {
-                return false;
+        @Nonnull
+        Stream<EntityWithConnections> getEntitiesWithConnections() {
+            return entityStream(Type.WITH_CONNECTIONS)
+                .map(PartialEntity::getWithConnections);
+        }
+
+        @Nonnull
+        Stream<ApiPartialEntity> getEntities() {
+            return entityStream(Type.API)
+                .map(PartialEntity::getApi);
+        }
+
+        @Nonnull
+        Map<Long, ServiceEntityApiDTO> getSEMap(final long contextId,
+                @Nullable final EntityAspectMapper aspectMapper,
+                @Nullable final Collection<String> requestedAspects)
+                throws InterruptedException, ConversionException {
+            final Map<Long, ServiceEntityApiDTO> entities;
+            if (aspectMapper != null) {
+                entities = serviceEntityMapper.entitiesWithAspects(
+                        getFullEntities().collect(Collectors.toList()), aspectMapper,
+                        requestedAspects);
             } else {
-                final ServiceEntitiesRequest otherReq = (ServiceEntitiesRequest)other;
-                return Objects.equals(entityIds, otherReq.entityIds) &&
-                    Objects.equals(topologyContextId, otherReq.topologyContextId) &&
-                    searchProjectedTopology == otherReq.searchProjectedTopology;
+                entities = serviceEntityMapper.toServiceEntityApiDTOMap(
+                        getEntities().collect(Collectors.toList()));
+            }
+            severityPopulator.populate(contextId, entities.values());
+            return entities;
+        }
+
+        @Nonnull
+        List<ServiceEntityApiDTO> getSEList(final long contextId,
+                @Nullable final EntityAspectMapper aspectMapper,
+                @Nullable final Collection<String> requestedAspects)
+                throws ConversionException, InterruptedException {
+            return new ArrayList<>(getSEMap(contextId, aspectMapper, requestedAspects).values());
+        }
+    }
+
+    /**
+     * A request for a dynamic search over the entities in the realtime topology.
+     */
+    public static class SearchRequest {
+        private final long realtimeContextId;
+
+        private final SearchServiceBlockingStub searchServiceBlockingStub;
+        private final SearchServiceStub searchServiceStub;
+
+        private final Collection<SearchParameters> params;
+
+        private EntityAspectMapper aspectMapper = null;
+
+        private PartialEntityRetriever retriever;
+
+        private SearchRequest(final long realtimeContextId,
+                             @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
+                             @Nonnull final SearchServiceStub searchServiceStub,
+                             @Nonnull final SeverityPopulator severityPopulator,
+                             @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                             @Nonnull final Collection<SearchParameters> params) {
+            this.realtimeContextId = realtimeContextId;
+            this.searchServiceBlockingStub = searchServiceBlockingStub;
+            this.searchServiceStub = Objects.requireNonNull(searchServiceStub);
+            this.params = params;
+
+            this.retriever = new PartialEntityRetriever(type ->
+                searchServiceBlockingStub.searchEntitiesStream(SearchEntitiesRequest.newBuilder()
+                    .setSearch(SearchQuery.newBuilder()
+                        .addAllSearchParameters(params))
+                    .setReturnType(type)
+                    .build()),
+                serviceEntityMapper,
+                severityPopulator);
+        }
+
+        /**
+         * Use a particular {@link EntityAspectMapper} when converting the entities returned by
+         * this request to {@link ServiceEntityApiDTO}s.
+         *
+         * Note: Aspect mapping can be quite expensive. Avoid if the API doesn't require it!
+         *
+         * @param aspectMapper The mapper.
+         * @return The request, for chaining.
+         */
+        @Nonnull
+        public SearchRequest useAspectMapper(@Nonnull final EntityAspectMapper aspectMapper) {
+            this.aspectMapper = aspectMapper;
+            return this;
+        }
+
+        /**
+         * Execute the request and return the set of matching OIDs. Note: this involves making
+         * a remote call.
+         */
+        @Nonnull
+        public Set<Long> getOids() {
+            return Sets.newHashSet(searchServiceBlockingStub.searchEntityOids(
+                SearchEntityOidsRequest.newBuilder()
+                    .setSearch(SearchQuery.newBuilder()
+                        .addAllSearchParameters(params))
+                    .build()).getEntitiesList());
+        }
+
+        /**
+         * Returns a future to retrieve OIDs from the request.
+         *
+         * @return a future for OIDs retrieved from the request
+         */
+        @Nonnull
+        public Future<Set<Long>> getOidsFuture() {
+            final OidSetObserver observer = new OidSetObserver();
+            searchServiceStub.searchEntityOids(
+                    SearchEntityOidsRequest.newBuilder()
+                        .setSearch(SearchQuery.newBuilder()
+                            .addAllSearchParameters(params))
+                        .build(),
+                    observer);
+            return observer.getFuture();
+        }
+
+        /**
+         * Execute the request and return the number of matches. Note: this involves making
+         * a remote call.
+         */
+        public long count() {
+            return searchServiceBlockingStub.countEntities(CountEntitiesRequest.newBuilder()
+                .setSearch(SearchQuery.newBuilder()
+                    .addAllSearchParameters(params))
+                .build()).getEntityCount();
+        }
+
+        /**
+         * Get the full {@link TopologyEntityDTO}s. Note - this is expensive. Only do this
+         * if absolutely necessary. Try {@link SearchRequest#getEntities()} instead!
+         */
+        @Nonnull
+        public Stream<TopologyEntityDTO> getFullEntities() {
+            return retriever.getFullEntities();
+        }
+
+        @Nonnull
+        public Stream<MinimalEntity> getMinimalEntities() {
+            return retriever.getMinimalEntities();
+        }
+
+        /**
+         * Get the {@link EntityWithConnections} representation of entities that match this
+         * search.
+         *
+         * @return The {@link EntityWithConnections} stream.
+         */
+        @Nonnull
+        public Stream<EntityWithConnections> getEntitiesWithConnections() {
+            return retriever.getEntitiesWithConnections();
+        }
+
+        @Nonnull
+        public Stream<ApiPartialEntity> getEntities() {
+            return retriever.getEntities();
+        }
+
+        /**
+         * Get the {@link ServiceEntityApiDTO}s that match the search, arranged by OID.
+         *
+         * The {@link ServiceEntityApiDTO}s will be fully populated with target information,
+         * and aspects if an aspect mapper was added via {@link SearchRequest#useAspectMapper(EntityAspectMapper)}.
+         *
+         * @throws InterruptedException if thread has been interrupted
+         * @throws ConversionException if errors faced during converting data to API DTOs
+         */
+        @Nonnull
+        public Map<Long, ServiceEntityApiDTO> getSEMap()
+                throws InterruptedException, ConversionException {
+            return retriever.getSEMap(realtimeContextId, aspectMapper, null);
+        }
+
+        /**
+         * Get the {@link ServiceEntityApiDTO}s that match the search.
+         *
+         * The {@link ServiceEntityApiDTO}s will be fully populated with target information,
+         * and aspects if an aspect mapper was added via {@link SearchRequest#useAspectMapper(EntityAspectMapper)}.
+         *
+         * @throws InterruptedException if thread has been interrupted
+         * @throws ConversionException on error converting to API DTOs
+         */
+        @Nonnull
+        public List<ServiceEntityApiDTO> getSEList()
+                throws InterruptedException, ConversionException {
+            return retriever.getSEList(realtimeContextId, aspectMapper, null);
+        }
+
+    }
+
+    /**
+     * A request for a single entity.
+     * This is a convenient alternative to {@link MultiEntityRequest} so that callers can operate
+     * on {@link Optional}s instead of entities.
+     */
+    public static class SingleEntityRequest extends EntitiesRequest<SingleEntityRequest> {
+
+        private SingleEntityRequest(final long realtimeContextId,
+                @Nonnull final RepositoryServiceBlockingStub repositoryServiceBlockingStub,
+                @Nonnull final RepositoryServiceStub repositoryServiceStub,
+                @Nonnull final SeverityPopulator severityPopulator,
+                @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                final long oid) {
+            super(SingleEntityRequest.class, realtimeContextId, repositoryServiceBlockingStub,
+                    repositoryServiceStub, severityPopulator, serviceEntityMapper,
+                    Collections.singleton(oid));
+        }
+
+        /**
+         * Get the full {@link TopologyEntityDTO}. Note - this is expensive. Only do this
+         * if absolutely necessary. Try {@link SearchRequest#getEntities()} instead!
+         */
+        @Nonnull
+        public Optional<TopologyEntityDTO> getFullEntity() {
+            return retriever.getFullEntities().findFirst();
+        }
+
+        @Nonnull
+        public Optional<MinimalEntity> getMinimalEntity() {
+            return retriever.getMinimalEntities().findFirst();
+        }
+
+        /**
+         * Get the {@link EntityWithConnections} representation of this entity.
+         *
+         * @return  The {@link EntityWithConnections}.
+         */
+        @Nonnull
+        public Optional<EntityWithConnections> getEntityWithConnections() {
+            return retriever.getEntitiesWithConnections().findFirst();
+        }
+
+        @Nonnull
+        public Optional<ApiPartialEntity> getEntity() {
+            return retriever.getEntities().findFirst();
+        }
+
+        /**
+         * Get the {@link ServiceEntityApiDTO}s that matches the OID.
+         *
+         * The {@link ServiceEntityApiDTO} will be fully populated with target information,
+         * and aspects if an aspect mapper was added via {@link SingleEntityRequest#useAspectMapper(EntityAspectMapper)}.
+         *
+         * @throws InterruptedException if thread has been interrupted
+         * @throws ConversionException if errors faced during converting data to API DTOs
+         */
+        @Nonnull
+        public Optional<ServiceEntityApiDTO> getSE()
+                throws ConversionException, InterruptedException {
+            return retriever.getSEList(getContextId(), aspectMapper, aspects).stream().findFirst();
+        }
+    }
+
+    /**
+     * A multi-get for entities in the topology, by ID.
+     */
+    public static class MultiEntityRequest extends EntitiesRequest<MultiEntityRequest> {
+        public MultiEntityRequest(final long realtimeContextId,
+                  @Nonnull final RepositoryServiceBlockingStub repositoryServiceBlockingStub,
+                  @Nonnull final RepositoryServiceStub repositoryServiceStub,
+                  @Nonnull final SeverityPopulator severityPopulator,
+                  @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                  @Nonnull final Set<Long> oids) {
+            super(MultiEntityRequest.class, realtimeContextId, repositoryServiceBlockingStub,
+                    repositoryServiceStub, severityPopulator, serviceEntityMapper, oids);
+        }
+
+        /**
+         * Get the full {@link TopologyEntityDTO}s. Note - this is expensive. Only do this
+         * if absolutely necessary. Try {@link SearchRequest#getEntities()} instead!
+         */
+        @Nonnull
+        public Stream<TopologyEntityDTO> getFullEntities() {
+            return retriever.getFullEntities();
+        }
+
+        @Nonnull
+        public Stream<MinimalEntity> getMinimalEntities() {
+            return retriever.getMinimalEntities();
+        }
+
+        /**
+         * Returns a collection of a minimal entities in a async fashion - using {@link
+         * StreamObserver}.
+         *
+         * @param observer observer to append minimal entities to
+         */
+        @Nonnull
+        public void getMinimalEntities(StreamObserver<MinimalEntity> observer) {
+            final StreamObserver<PartialEntityBatch> effectiveObserver =
+                    new MappingObserver<>(observer, batch -> batch.getEntitiesList()
+                            .stream()
+                            .map(PartialEntity::getMinimal)
+                            .collect(Collectors.toList()));
+            getRepositoryServiceStub().retrieveTopologyEntities(
+                    getRequestBuilder().setReturnType(Type.MINIMAL).build(), effectiveObserver);
+        }
+
+        /**
+         * Get the entities targetted by this request as {@link EntityWithConnections}.
+         *
+         * @return {@link EntityWithConnections} stream.
+         */
+        @Nonnull
+        public Stream<EntityWithConnections> getEntitiesWithConnections() {
+            return retriever.getEntitiesWithConnections();
+        }
+
+        @Nonnull
+        public Stream<ApiPartialEntity> getEntities() {
+            return retriever.getEntities();
+        }
+
+        /**
+         * Get the {@link ServiceEntityApiDTO}s that match the search, arranged by OID.
+         *
+         * The {@link ServiceEntityApiDTO}s will be fully populated with target information,
+         * and aspects if an aspect mapper was added via {@link SearchRequest#useAspectMapper(EntityAspectMapper)}.
+         *
+         * @throws InterruptedException if thread has been interrupted
+         * @throws ConversionException if errors faced during converting data to API DTOs
+         */
+        @Nonnull
+        public Map<Long, ServiceEntityApiDTO> getSEMap()
+                throws InterruptedException, ConversionException {
+            return retriever.getSEMap(getContextId(), aspectMapper, aspects);
+        }
+
+        /**
+         * Get the {@link ServiceEntityApiDTO}s that match the search.
+         *
+         * The {@link ServiceEntityApiDTO}s will be fully populated with target information,
+         * and aspects if an aspect mapper was added via {@link MultiEntityRequest#useAspectMapper(EntityAspectMapper)}.
+         *
+         * @throws InterruptedException if thread has been interrupted
+         * @throws ConversionException if errors faced during converting data to API DTOs
+         */
+        @Nonnull
+        public List<ServiceEntityApiDTO> getSEList()
+                throws InterruptedException, ConversionException {
+            return retriever.getSEList(getContextId(), aspectMapper, aspects);
+        }
+    }
+
+    public static class EntitiesRequest<REQ extends EntitiesRequest> {
+        private final long realtimeContextId;
+
+        private final Class<REQ> clazz;
+
+        private boolean allowGetAll = false;
+
+        protected EntityAspectMapper aspectMapper = null;
+
+        protected Collection<String> aspects = null;
+
+        protected final PartialEntityRetriever retriever;
+        private final RetrieveTopologyEntitiesRequest.Builder requestBuilder;
+        private final RepositoryServiceStub repositoryServiceStub;
+
+        private EntitiesRequest(@Nonnull final Class<REQ> clazz,
+                                final long realtimeContextId,
+                                @Nonnull final RepositoryServiceBlockingStub repositoryServiceBlockingStub,
+                                @Nonnull final RepositoryServiceStub repositoryServiceStub,
+                                @Nonnull final SeverityPopulator severityPopulator,
+                                @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                                @Nonnull final Set<Long> targetId) {
+            this.clazz = clazz;
+            this.realtimeContextId = realtimeContextId;
+            this.repositoryServiceStub = Objects.requireNonNull(repositoryServiceStub);
+
+            requestBuilder = RetrieveTopologyEntitiesRequest.newBuilder()
+                    .addAllEntityOids(targetId)
+                    .setTopologyContextId(realtimeContextId)
+                    .setTopologyType(TopologyType.SOURCE);
+            final BatchRPC batchRetriever = type -> {
+                if (targetId.isEmpty() && !allowGetAll) {
+                    return Collections.emptyIterator();
+                } else {
+                    return repositoryServiceBlockingStub.retrieveTopologyEntities(
+                            requestBuilder.setReturnType(type).build());
+                }
+            };
+            this.retriever = new PartialEntityRetriever(batchRetriever, serviceEntityMapper,
+                    severityPopulator);
+        }
+
+        @Nonnull
+        public REQ contextId(@Nullable final Long contextId) {
+            this.requestBuilder.setTopologyContextId(
+                    contextId != null ? contextId : realtimeContextId);
+            return clazz.cast(this);
+        }
+
+        /**
+         * By default, if the input list of OIDs is empty we will return nothing.
+         * If you REALLY REALLY need it, you can use this to return all.
+         */
+        @Nonnull
+        public REQ allowGetAll() {
+            allowGetAll = true;
+            return clazz.cast(this);
+        }
+
+        /**
+         * Get the entities from the projected topology.
+         *
+         * Note: retrieving from the projected topology may be more expensive than retrieving from
+         * the source topology. Therefore, callers should only retrieve from the projected topology
+         * if truly necessary (e.g. entity is not in original topology).
+         */
+        @Nonnull
+        public REQ projectedTopology() {
+            requestBuilder.setTopologyType(TopologyType.PROJECTED);
+            return clazz.cast(this);
+        }
+
+        /**
+         * Use a particular {@link EntityAspectMapper} when converting the entities returned by
+         * this request to {@link ServiceEntityApiDTO}s.
+         *
+         * Note: Aspect mapping can be quite expensive. Avoid if the API doesn't require it!
+         *
+         * @param aspectMapper The mapper.
+         * @return The request, for chaining.
+         */
+        @Nonnull
+        public REQ useAspectMapper(EntityAspectMapper aspectMapper) {
+            this.aspectMapper = aspectMapper;
+            return clazz.cast(this);
+        }
+
+        /**
+         * Use a particular {@link EntityAspectMapper} when converting the entities returned by
+         * this request to {@link ServiceEntityApiDTO}s.
+         *
+         * @param aspectMapper The input aspect mapper.
+         * @param aspectNames The input list of aspect names.
+         *
+         * @return The request, for chaining.
+         */
+        @Nonnull
+        public REQ useAspectMapper(EntityAspectMapper aspectMapper,
+                @Nonnull Collection<String> aspectNames) {
+            this.aspectMapper = aspectMapper;
+            this.aspects = aspectNames;
+            return clazz.cast(this);
+        }
+
+        /**
+         * Restrict the request to a set of entity types.
+         *
+         * @param types The entity types.
+         * @return The request, for chaining.
+         */
+        @Nonnull
+        public REQ restrictTypes(@Nonnull final Collection<ApiEntityType> types) {
+            types.forEach(type -> requestBuilder.addEntityType(type.typeNumber()));
+            return clazz.cast(this);
+        }
+
+        protected long getContextId() {
+            return requestBuilder.getTopologyContextId();
+        }
+
+        @Nonnull
+        protected RepositoryServiceStub getRepositoryServiceStub() {
+            return repositoryServiceStub;
+        }
+
+        @Nonnull
+        protected Builder getRequestBuilder() {
+            return requestBuilder;
+        }
+    }
+
+    /**
+     * Response from a repository holding all the available data: entities, business accounts.
+     */
+    public static class RepositoryRequestResult {
+        private final Collection<BusinessUnitApiDTO> businessAccounts;
+        private final Collection<ServiceEntityApiDTO> serviceEntities;
+
+        /**
+         * Constructs repository response.
+         *
+         * @param businessAccounts collection of business accounts retrieved
+         * @param serviceEntities collection of service entities retrieved.
+         */
+        public RepositoryRequestResult(@Nonnull Collection<BusinessUnitApiDTO> businessAccounts,
+                @Nonnull Collection<ServiceEntityApiDTO> serviceEntities) {
+            this.businessAccounts = Objects.requireNonNull(businessAccounts);
+            this.serviceEntities = Objects.requireNonNull(serviceEntities);
+        }
+
+        @Nonnull
+        public Collection<BusinessUnitApiDTO> getBusinessAccounts() {
+            return businessAccounts;
+        }
+
+        @Nonnull
+        public Collection<ServiceEntityApiDTO> getServiceEntities() {
+            return serviceEntities;
+        }
+
+        @Nonnull
+        public Iterable<BaseApiDTO> getAllResults() {
+            return Iterables.concat(businessAccounts, serviceEntities);
+        }
+    }
+
+    /**
+     * Observer for entity oids response.
+     */
+    private static class OidSetObserver extends
+            FutureObserver<SearchEntityOidsResponse, Set<Long>> {
+        private Set<Long> result;
+
+        @Override
+        public void onNext(SearchEntityOidsResponse value) {
+            this.result = new HashSet<>(value.getEntitiesList());
+        }
+
+        @Nonnull
+        @Override
+        protected Set<Long> createResult() {
+            return result;
+        }
+    }
+
+    /**
+     * Protobuf observer for retrieving a map from a streaming response in batched mode and pass it
+     * to non-batched observer.
+     *
+     * @param <S> source message (received by gRPC)
+     * @param <R> result message (sent to a non-batching observer)
+     */
+    private static class MappingObserver<S, R> implements StreamObserver<S> {
+        private final StreamObserver<R> receiver;
+        private final Function<S, Collection<R>> mapping;
+
+        MappingObserver(@Nonnull StreamObserver<R> receiver,
+                @Nonnull Function<S, Collection<R>> mapping) {
+            this.receiver = Objects.requireNonNull(receiver);
+            this.mapping = Objects.requireNonNull(mapping);
+        }
+
+        @Override
+        public void onNext(S value) {
+            for (R converted : mapping.apply(value)) {
+                receiver.onNext(converted);
             }
         }
 
         @Override
-        public int hashCode() {
-            return Objects.hash(entityIds, topologyContextId, searchProjectedTopology);
+        public void onError(Throwable t) {
+            receiver.onError(t);
         }
 
-        public static Builder newBuilder(@Nonnull final Set<Long> entityIds) {
-            return new Builder(entityIds);
+        @Override
+        public void onCompleted() {
+            receiver.onCompleted();
         }
-
-        public static class Builder {
-            private Optional<Long> topologyContextId = Optional.empty();
-            private boolean searchProjectedTopology = false;
-            private final Set<Long> entityIds;
-
-            public Builder(@Nonnull final Set<Long> entityIds) {
-                this.entityIds = entityIds;
-            }
-
-            /**
-             * Override the topology context ID to use for the request. The default is to
-             * search in the realtime topology context.
-             *
-             * @param contextId The desired topology context ID.
-             * @return The builder, for method chaining.
-             */
-            public Builder setTopologyContextId(final long contextId) {
-                this.topologyContextId = Optional.of(contextId);
-                return this;
-            }
-
-            /**
-             * Request the search of entities in the projected topology instead of the source
-             * topology. The projected topology is the simulated result of applying all actions
-             * recommended by the market to the source topology in the same topology context.
-             * <p>
-             * Search in the projected topology if the entities you're looking for may include
-             * entities created (in the simulation) by the market - e.g. if the market recommends
-             * provisioning a host, and you're looking for that host.
-             *
-             * @return The builder, for method chaining.
-             */
-            public Builder searchProjectedTopology() {
-                this.searchProjectedTopology = true;
-                return this;
-            }
-
-            public ServiceEntitiesRequest build() {
-                return new ServiceEntitiesRequest(topologyContextId, entityIds,
-                        searchProjectedTopology);
-            }
-        }
-    }
-
-    @Nonnull
-    private UriComponentsBuilder newUriBuilder() {
-        return UriComponentsBuilder.newInstance()
-                .scheme("http")
-                .host(repositoryHost)
-                .port(repositoryPort)
-                .path(REPOSITORY_PATH_PREFIX);
     }
 }

@@ -1,23 +1,25 @@
 package com.vmturbo.action.orchestrator.action;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.base.Preconditions;
-
+import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.ActionOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -45,26 +47,25 @@ public class ActionPaginator {
 
     static {
         final Map<ActionOrderBy, Comparator<ActionView>> registry = new EnumMap<>(ActionOrderBy.class);
-        // TODO (roman, 5 April 2018): The action types in ActionDTO.ActionType are not completely
-        // in sync with the action types we return to the API. Using these types for the sort
-        // order means there may be some inconsistencies - i.e. two action with the same
-        // ActionDTO.ActionType will be treated as equivalent for sorting purposes even if they are
-        // mapped to two different types in the API component.
-        //
-        // We need to have a single source-of-truth for action types, and it needs to be the
-        // action orchestrator for pagination to work properly.
-        registry.put(ActionOrderBy.ACTION_TYPE, Comparator.comparing(actionView ->
-                        ActionDTOUtil.getActionInfoActionType(actionView.getRecommendation())));
+        registry.put(ActionOrderBy.ACTION_NAME,
+            new StableActionComparator(Comparator.comparing(ActionView::getDescription)));
         registry.put(ActionOrderBy.ACTION_SEVERITY,
-                Comparator.comparingDouble(view -> view.getRecommendation().getImportance()));
-        registry.put(ActionOrderBy.ACTION_RISK_CATEGORY, (a1, a2) -> {
-            final ActionCategory a1Category = a1.getActionCategory();
-            final ActionCategory a2Category = a2.getActionCategory();
-            return a1Category.compareTo(a2Category);
-        });
-        // We don't have savings/cost implemented for actions in XL, so all actions
-        // are the same in this regard.
-        registry.put(ActionOrderBy.ACTION_SAVINGS, (a1, a2) -> 0);
+                     new StableActionComparator(Comparator.comparing(ActionView::getActionSeverity)));
+        registry.put(ActionOrderBy.ACTION_RISK_CATEGORY, new StableActionComparator((a1, a2) -> {
+            final String a1CategoryName = a1.getActionCategory().name();
+            final String a2CategoryName = a2.getActionCategory().name();
+            return a1CategoryName.compareTo(a2CategoryName);
+        }));
+        registry.put(ActionOrderBy.ACTION_SAVINGS,
+            new StableActionComparator(Comparator.comparingDouble(view ->
+                    view.getTranslationResultOrOriginal().getSavingsPerHour().getAmount())));
+        registry.put(ActionOrderBy.ACTION_RECOMMENDATION_TIME,
+            new StableActionComparator((a1, a2) -> {
+            final LocalDateTime a1Time = a1.getRecommendationTime();
+            final LocalDateTime a2Time = a2.getRecommendationTime();
+            return a1Time.compareTo(a2Time);
+        }));
+
 
         COMPARATOR_REGISTRY = Collections.unmodifiableMap(registry);
     }
@@ -101,29 +102,37 @@ public class ActionPaginator {
                 skipCount = Long.parseLong(paginationParameters.getCursor());
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("Cursor " + paginationParameters.getCursor() +
-                        " is invalid. Should be a number.");
+                    " is invalid. Should be a number.");
             }
         } else {
             skipCount = 0;
         }
 
         final long limit;
-        if (paginationParameters.hasLimit()) {
+        if (!paginationParameters.getEnforceLimit()) {
+            // We allow internal calls to disable the limit in very specific circumstances.
+            logger.debug("Client requested unbounded (non-paged) response. "
+                    + "Limits will not be enforced on this request.");
+            limit = Integer.MAX_VALUE;
+        } else if (paginationParameters.hasLimit()) {
             if (paginationParameters.getLimit() > maxPaginationLimit) {
                 logger.warn("Client-requested limit {} exceeds maximum!" +
-                        " Lowering the limit to {}!", paginationParameters.getLimit(), maxPaginationLimit);
+                    " Lowering the limit to {}!", paginationParameters.getLimit(), maxPaginationLimit);
                 limit = maxPaginationLimit;
             } else if (paginationParameters.getLimit() > 0) {
                 limit = paginationParameters.getLimit();
             } else {
                 throw new IllegalArgumentException("Illegal pagination limit: " +
-                        paginationParameters.getLimit() + ". Must be be a positive integer");
+                    paginationParameters.getLimit() + ". Must be be a positive integer");
             }
         } else {
             limit = defaultPaginationLimit;
         }
 
         final Comparator<ActionView> comparator = getComparator(paginationParameters.getOrderBy());
+
+        // Set up a counter to get the size of the entire result set as we process the stream
+        final AtomicInteger totalRecordCount = new AtomicInteger();
 
         // Apply pagination parameters after sorting.
         // Unfortunately, because we do filtering here instead of in the individual action stores
@@ -132,20 +141,22 @@ public class ActionPaginator {
         // It's better to do the sort + limit + offset calculation after filtering, so that we're
         // working with a (potentially) smaller data set.
         final List<ActionView> results = actionViews
-                // Sort according to sort parameter
-                .sorted(paginationParameters.getAscending() ? comparator : comparator.reversed())
-                .skip(skipCount)
-                // Add 1 so we know if there are more results or not.
-                .limit(limit + 1)
-                .collect(Collectors.toList());
+            // Count every record, pre-pagination to get the total record count
+            .peek(actionView -> totalRecordCount.incrementAndGet())
+            // Sort according to sort parameter
+            .sorted(paginationParameters.getAscending() ? comparator : comparator.reversed())
+            .skip(skipCount)
+            // Add 1 so we know if there are more results or not.
+            .limit(limit + 1)
+            .collect(Collectors.toList());
         if (results.size() > limit) {
             final String nextCursor = Long.toString(skipCount + limit);
             // Remove the last element to conform to limit boundaries.
             results.remove(results.size() - 1);
-            return new PaginatedActionViews(results, Optional.of(nextCursor));
+            return new PaginatedActionViews(results, Optional.of(nextCursor), totalRecordCount.get());
         } else {
-            // No more results.
-            return new PaginatedActionViews(results, Optional.empty());
+            // Final page of results.
+            return new PaginatedActionViews(results, Optional.empty(), totalRecordCount.get());
         }
     }
 
@@ -202,11 +213,14 @@ public class ActionPaginator {
     public static class PaginatedActionViews {
         private final List<ActionView> views;
         private final Optional<String> nextCursor;
+        private final int totalRecordCount;
 
         private PaginatedActionViews(@Nonnull final List<ActionView> views,
-                                     @Nonnull Optional<String> nextCursor) {
+                                     @Nonnull Optional<String> nextCursor,
+                                     int totalRecordCount) {
             this.views = views;
             this.nextCursor = nextCursor;
+            this.totalRecordCount = totalRecordCount;
         }
 
         @Nonnull
@@ -218,5 +232,29 @@ public class ActionPaginator {
         public List<ActionView> getResults() {
             return views;
         }
+
+        public int getTotalRecordCount() {
+            return totalRecordCount;
+        }
     }
+
+    /**
+     * A comparator that guarantees a stable sort order for {@link ActionView}s by using the
+     * action's ID as a backup.
+     */
+    private static class StableActionComparator implements Comparator<ActionView> {
+
+        private final Comparator<ActionView> internalComparator;
+
+        private StableActionComparator(@Nonnull final Comparator<ActionView> internalComparator) {
+            this.internalComparator = internalComparator;
+        }
+
+        @Override
+        public int compare(@Nonnull final ActionView a1, @Nonnull final ActionView a2) {
+            final int compareResult = internalComparator.compare(a1, a2);
+            return compareResult == 0 ? Long.compare(a1.getId(), a2.getId()) : compareResult;
+        }
+    }
+
 }

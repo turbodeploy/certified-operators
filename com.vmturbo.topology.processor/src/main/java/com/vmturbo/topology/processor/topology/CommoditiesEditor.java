@@ -13,18 +13,19 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableSet;
-
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
@@ -32,16 +33,17 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * Editor to update values for commodities.
@@ -70,7 +72,7 @@ public class CommoditiesEditor {
      * @param topologyInfo to find VMs in current scope or to find plan type.
      * @param scope to get information about plan scope.
      */
-    public void applyCommodityEdits(@Nonnull final TopologyGraph graph,
+    public void applyCommodityEdits(@Nonnull final TopologyGraph<TopologyEntity> graph,
                     @Nonnull final List<ScenarioChange> changes,
                     TopologyDTO.TopologyInfo topologyInfo, @Nonnull final PlanScope scope) {
         editCommoditiesForBaselineChanges(graph, changes, topologyInfo);
@@ -84,7 +86,7 @@ public class CommoditiesEditor {
      * @param changes to iterate over and find relevant to baseline change.
      * @param topologyInfo to find VMs in current scope.
      */
-    private void editCommoditiesForBaselineChanges(@Nonnull final TopologyGraph graph,
+    private void editCommoditiesForBaselineChanges(@Nonnull final TopologyGraph<TopologyEntity> graph,
                     @Nonnull final List<ScenarioChange> changes,
                     TopologyDTO.TopologyInfo topologyInfo) {
         changes.stream()
@@ -109,7 +111,7 @@ public class CommoditiesEditor {
      * @param baselineDate for which data is fetched for.
      */
     private void fetchAndApplyHistoricalData(Set<TopologyEntity> vmSet,
-                    final TopologyGraph graph, long baselineDate) {
+                                             final TopologyGraph<TopologyEntity> graph, long baselineDate) {
         EntityStatsScope.Builder scope = EntityStatsScope.newBuilder();
 
         // Empty set implies global scope hence set scope to all VMs.
@@ -187,7 +189,7 @@ public class CommoditiesEditor {
      * @param used value as fetched from database for this VM's commodity.
      */
     private void updateCommodityValuesForVmAndProvider(TopologyEntity vm, CommodityType commType,
-                    final TopologyGraph graph,
+                    final TopologyGraph<TopologyEntity> graph,
                     final Map<Integer, Queue<Long>> providerIdsByCommodityType,
                     final double peak,
                     final double used) {
@@ -204,14 +206,14 @@ public class CommoditiesEditor {
                 .filter(comm -> comm.getCommodityType().getType() == commType.getNumber())
                 .findFirst();
         if (commoditySold.isPresent()) {
-            commoditySold.get().setUsed(used);
-
+            CommoditySoldDTO.Builder commBuilder = commoditySold.get();
             if (peak < 0) {
                 logger.error("Peak quantity = {} for commodity type {} of topology entity {}",
                         peak, commoditySold.get().getCommodityType(), vm.getDisplayName());
             }
 
-            commoditySold.get().setPeak(peak);
+            commBuilder.setUsed(used);
+            commBuilder.setPeak(peak);
         // Otherwise, handle commodity bought by VM
         } else if (providerIdsByCommodityType.containsKey(commType.getNumber())) {
             // Get first provider and add it to the end because we want
@@ -252,9 +254,9 @@ public class CommoditiesEditor {
                             logger.error("Peak quantity = {} for commodity type {} of topology entity {}"
                                     , newPeak, commSold.getCommodityType(), provider.getDisplayName());
                         }
+                        double newUsed = Math.max(commSold.getUsed() - commodityBought.getUsed(), 0) + used;
+                        commSold.setUsed(newUsed);
                         commSold.setPeak(newPeak);
-                        commSold.setUsed(Math.max(commSold.getUsed() - commodityBought.getUsed(), 0)
-                                        + used);
                     }
 
                     // Set value for consumer.
@@ -262,8 +264,8 @@ public class CommoditiesEditor {
                     // we will set value for commodity bought from last record. It is not a problem because
                     // price in market is calculated by providers based on commodity sold. Mismatch in commodity
                     // bought and sold values will be reflected as overhead.
-                   commodityBought.setPeak(peak);
-                   commodityBought.setUsed(used);
+                    commodityBought.setUsed(used);
+                    commodityBought.setPeak(peak);
                 });
             });
         }
@@ -275,7 +277,7 @@ public class CommoditiesEditor {
      * @param oid in current scope.
      * @return stream of VMs in scope found via supply chain traversal.
      */
-    private Stream<TopologyEntity> findVMsInScope(final TopologyGraph graph, long oid) {
+    private Stream<TopologyEntity> findVMsInScope(final TopologyGraph<TopologyEntity> graph, long oid) {
         Optional<TopologyEntity> optionalEntity = graph.getEntity(oid);
         if (!optionalEntity.isPresent()) {
             return Stream.empty();
@@ -325,7 +327,7 @@ public class CommoditiesEditor {
      * @param scope which contains cluster oid.
      * @param topologyInfo to identify if it is a Cluster headroom plan.
      */
-    private void editCommoditiesForClusterHeadroom(@Nonnull final TopologyGraph graph,
+    private void editCommoditiesForClusterHeadroom(@Nonnull final TopologyGraph<TopologyEntity> graph,
                     @Nonnull final PlanScope scope,
                     @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
 
@@ -333,43 +335,45 @@ public class CommoditiesEditor {
             return;
         }
 
-        if (scope.getScopeEntriesCount() != 1) {
-            logger.error("Cluster headroom plan  has invalid scope entry count : "
-                            + scope.getScopeEntriesCount());
-            return;
-        }
+        SystemLoadInfoRequest.Builder requestBuilder = SystemLoadInfoRequest.newBuilder();
+        scope.getScopeEntriesList().stream().map(PlanScopeEntry::getScopeObjectOid)
+            .forEach(requestBuilder::addClusterId);
 
-        long clusterOid = scope.getScopeEntriesList().get(0).getScopeObjectOid();
+        historyClient.getSystemLoadInfo(requestBuilder.build())
+            .forEachRemaining(response -> {
+                final long clusterId = response.getClusterId();
+                if (response.hasError()) {
+                    logger.error("Limited system load data will be applied to the" +
+                            " cluster {}. Failed to retrieve system load info due to error: {}",
+                        clusterId, response.getError());
+                }
 
-        SystemLoadInfoRequest request = SystemLoadInfoRequest.newBuilder()
-                            .setClusterId(clusterOid).build();
+                // Order response by VM's oid.
+                // Note : Ideally response should contain one record for one comm bought type per VM.
+                // So if there is repetition  for "VM1" with comm bought "MEM" it should be flagged
+                // here but there are commodities like Storage Amount which have multiple records and
+                // are valid. So it becomes difficult to differentiate and hence, currently we rely
+                // on response to contain accurate values.
+                final Map<Long, List<SystemLoadRecord>> oidToSystemLoadInfo = response.getRecordList().stream()
+                    .filter(SystemLoadRecord::hasUuid)
+                    .collect(Collectors.groupingBy(SystemLoadRecord::getUuid));
 
-        SystemLoadInfoResponse response = historyClient.getSystemLoadInfo(request);
-
-        // Order response by VM's oid.
-        // Note : Ideally response should contain one record for one comm bought type per VM.
-        // So if there is repetition  for "VM1" with comm bought "MEM" it should be flagged
-        // here but there are commodities like Storage Amount which have multiple records and
-        // are valid. So it becomes difficult to differentiate and hence, currently we rely
-        // on response to contain accurate values.
-        Map<Long, List<SystemLoadRecord>> resp = response.getRecordList().stream()
-            .filter(SystemLoadRecord::hasUuid)
-            .collect(Collectors.groupingBy(SystemLoadRecord::getUuid));
-
-        resp.keySet().forEach(oid -> {
-            graph.getEntity(oid).ifPresent(vm -> {
-                // Create map for this VM and its providers.
-                Map<Integer, Queue<Long>> providerIdsByCommodityType =
-                                getProviderIdsByCommodityType(vm);
-                resp.get(oid).forEach(record -> {
-                    double peak = record.getMaxValue();
-                    double used = record.getAvgValue();
-                    // Update commodity value for this entity
-                    CommodityType commType = CommodityType.valueOf(record.getPropertyType());
-                    updateCommodityValuesForVmAndProvider(vm, commType, graph,
-                                    providerIdsByCommodityType, peak, used);
+                oidToSystemLoadInfo.keySet().forEach(oid -> {
+                    graph.getEntity(oid).ifPresent(vm -> {
+                        // Create map for this VM and its providers.
+                        Map<Integer, Queue<Long>> providerIdsByCommodityType =
+                            getProviderIdsByCommodityType(vm);
+                        oidToSystemLoadInfo.get(oid).forEach(record -> {
+                            double peak = record.getMaxValue();
+                            double used = record.getAvgValue();
+                            // Update commodity value for this entity
+                            CommodityType commType = CommodityType.valueOf(record.getPropertyType());
+                            updateCommodityValuesForVmAndProvider(vm, commType, graph,
+                                providerIdsByCommodityType, peak, used);
+                        });
+                    });
                 });
-            });
         });
     }
+
 }

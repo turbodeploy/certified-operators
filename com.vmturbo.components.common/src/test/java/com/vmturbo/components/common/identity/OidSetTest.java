@@ -11,7 +11,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Generic base tests for OidSet implementations
+ * Generic base tests for OidSet implementations.
  */
 public abstract class OidSetTest<T extends OidSet> {
 
@@ -41,17 +41,49 @@ public abstract class OidSetTest<T extends OidSet> {
 
     @Test
     public void testContainsCollection() {
-        T testFilter = createOidSet(new long[]{1L,2L,3L});
+        T testFilter = createOidSet(new long[]{1L, 2L, 3L});
         Assert.assertTrue(testFilter.contains(Collections.emptyList()));
         Assert.assertTrue(testFilter.contains(Arrays.asList(1L, 2L)));
         Assert.assertTrue(testFilter.contains(Arrays.asList(1L, 2L, 3L)));
         Assert.assertFalse(testFilter.contains(Arrays.asList(1L, 5L)));
     }
 
+    /**
+     * Test if the oidset contains any elements of an input collection of Longs.
+     */
+    @Test
+    public void testContainsAnyCollection() {
+        T testFilter = createOidSet(new long[]{1L, 2L, 3L});
+        Assert.assertFalse(testFilter.containsAny(Collections.emptyList()));
+        Assert.assertTrue(testFilter.containsAny(Arrays.asList(1L, 2L)));
+        Assert.assertTrue(testFilter.containsAny(Arrays.asList(1L, 2L, 3L)));
+        Assert.assertTrue(testFilter.containsAny(Arrays.asList(1L, 5L)));
+        Assert.assertFalse(testFilter.containsAny(Arrays.asList(4L, 5L)));
+    }
+
+    /**
+     * Test if the oidset contains any elements of an input oidset
+     */
+    @Test
+    public void testContainsAnyOidSet() {
+        T testFilter = createOidSet(new long[]{1L, 2L, 3L});
+        Assert.assertFalse(testFilter.containsAny(createOidSet(null)));
+        Assert.assertTrue(testFilter.containsAny(createOidSet(new long[]{1L, 2L})));
+        Assert.assertTrue(testFilter.containsAny(createOidSet(new long[]{1L, 2L, 3L})));
+        Assert.assertTrue(testFilter.containsAny(createOidSet(new long[]{1L, 5L})));
+        Assert.assertFalse(testFilter.containsAny(createOidSet(new long[]{4L, 5L})));
+    }
+
     @Test
     public void testEmptySet() {
         T testFilter = createOidSet(new long[0]);
         Assert.assertFalse(testFilter.contains(5L));
+    }
+
+    @Test
+    public void testNullConstructorParameter() {
+        T testFilter = createOidSet(null);
+        Assert.assertEquals(0, testFilter.size());
     }
 
     @Test
@@ -109,5 +141,37 @@ public abstract class OidSetTest<T extends OidSet> {
         Assert.assertEquals(4L, iterator.nextLong());
         Assert.assertEquals(5L, iterator.nextLong());
         Assert.assertFalse(iterator.hasNext());
+    }
+
+    /**
+     * test to ensure that the oid set hash code is order-independent.
+     */
+    @Test
+    public void testHashCodeStability() {
+        // make sure that the hash code is the same for two sets with the same contents regardless of
+        // order.
+        T testSetA = createOidSet(new long[]{1, 2, 3, 4});
+        T testSetB = createOidSet(new long[]{4, 3, 2, 1});
+        Assert.assertEquals(testSetA.hashCode(), testSetB.hashCode());
+    }
+
+    /**
+     * test to ensure that the oid set equals() is order-independent.
+     */
+    @Test
+    public void testEqualsStability() {
+        T testSetA = createOidSet(new long[]{1, 2, 3, 4});
+        T testSetB = createOidSet(new long[]{4, 3, 2, 1});
+        Assert.assertEquals(testSetA, testSetB);
+    }
+
+    /**
+     * test to ensure that the oid set equals() will fail if one set is contained within the other.
+     */
+    @Test
+    public void testNotEquals() {
+        T testSetA = createOidSet(new long[]{1, 2, 3, 4});
+        T testSetB = createOidSet(new long[]{1, 2, 3});
+        Assert.assertNotEquals(testSetA, testSetB);
     }
 }

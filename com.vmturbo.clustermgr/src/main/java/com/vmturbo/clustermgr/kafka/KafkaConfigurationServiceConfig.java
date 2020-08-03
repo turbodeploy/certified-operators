@@ -23,7 +23,8 @@ public class KafkaConfigurationServiceConfig extends BaseKafkaConfig {
 
     @Bean
     public KafkaConfigurationService kafkaConfigurationService() {
-        return new KafkaConfigurationService(bootstrapServer(), kafkaConfigMaxRetryTimeSecs, kafkaConfigRetryDelayMs);
+        return new KafkaConfigurationService(bootstrapServer(), kafkaConfigMaxRetryTimeSecs,
+                kafkaConfigRetryDelayMs, kafkaNamespacePrefix());
     }
 
 }

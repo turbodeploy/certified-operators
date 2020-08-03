@@ -1,14 +1,16 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
-import com.vmturbo.topology.processor.operation.ActionConversions;
+import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 
 /**
@@ -52,18 +54,7 @@ public interface ActionExecutionContext {
      * @return the SDK (probe-facing) type of the over-arching action being executed
      */
     @Nonnull
-    default ActionItemDTO.ActionType getSDKActionType() {
-        return ActionConversions.convertActionType(getActionType());
-    }
-
-    /**
-     * Get the type of the over-arching action being executed
-     * {@link ActionDTO.ActionType} is what is used throughout XL to identify the type of an action.
-     *
-     * @return the type of the over-arching action being executed
-     */
-    @Nonnull
-    ActionDTO.ActionType getActionType();
+    ActionItemDTO.ActionType getSDKActionType();
 
     /**
      * The id of the overarching action. This is the ID that gets assigned by the Action Orchestrator.
@@ -80,12 +71,13 @@ public interface ActionExecutionContext {
     long getTargetId();
 
     /**
-     * Indicates whether this action has a workflow associated with it.
+     * Returns the workflow associated with this action.
      * Workflows allow actions to be executed through a third party action orchestrator.
      *
-     * @return true, if this action has a workflow associated with it; otherwise, false.
+     * @return workflow or empty {@link Optional}.
      */
-    boolean hasWorkflow();
+    @Nonnull
+    Optional<Workflow> getWorkflow();
 
     /**
      * Return a Set of entities to that are directly involved in the action
@@ -93,7 +85,7 @@ public interface ActionExecutionContext {
      * @return a Set of entities involved in the action
      */
     @Nonnull
-    Set<Long> getAffectedEntities();
+    Set<Long> getControlAffectedEntities();
 
     /**
      * Get the ID of the secondary target involved in this action, or null if no secondary target is
@@ -101,7 +93,18 @@ public interface ActionExecutionContext {
      *
      * @return the secondary target involved in this action, or null if no secondary target is
      *         involved
+     * @throws ContextCreationException if error occurred while retrieving secondary target
      */
     @Nullable
-    Long getSecondaryTargetId() throws TargetNotFoundException;
+    Long getSecondaryTargetId() throws ContextCreationException;
+
+    /**
+     * Creates {@link ActionExecutionDTO} for this action in a form suitable for SDK probes to
+     * work with.
+     *
+     * @return action execution DTO
+     * @throws ContextCreationException if failure occurred while constructing context
+     */
+    @Nonnull
+    ActionExecutionDTO buildActionExecutionDto() throws ContextCreationException;
 }

@@ -14,12 +14,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.collect.ImmutableList;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -28,9 +29,10 @@ import org.junit.rules.ExpectedException;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableList;
-
+import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionSchedule;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
@@ -55,12 +57,12 @@ public class ActionStorehouseTest {
     private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
     private final ActionModeCalculator actionModeCalculator = mock(ActionModeCalculator.class);
     private final long topologyContextId = 0xCAFE;
+    private ActionApprovalSender actionApprovalSender;
 
-    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            executor, actionStoreLoader, actionModeCalculator);
+    private ActionStorehouse actionStorehouse;
     private final Action moveAction = Action.newBuilder()
         .setId(9999L)
-        .setImportance(0)
+        .setDeprecatedImportance(0)
         .setExplanation(Explanation.getDefaultInstance())
         .setInfo(ActionInfo.getDefaultInstance())
         .build();
@@ -79,8 +81,11 @@ public class ActionStorehouseTest {
 
     @Before
     public void setup() {
+        this.actionApprovalSender = Mockito.mock(ActionApprovalSender.class);
+        actionStorehouse = new ActionStorehouse(actionStoreFactory,
+                executor, actionStoreLoader, actionApprovalSender);
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStore);
-        when(actionStore.getEntitySeverityCache()).thenReturn(severityCache);
+        when(actionStore.getEntitySeverityCache()).thenReturn(Optional.of(severityCache));
         when(actionStore.allowsExecution()).thenReturn(true);
         when(actionStore.getStoreTypeName()).thenReturn("test");
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");
@@ -130,13 +135,13 @@ public class ActionStorehouseTest {
     }
 
     @Test
-    public void testStoreActionsExecutesAutomaticActions() {
+    public void testStoreActionsExecutesAutomaticActions() throws Exception {
         actionStorehouse.storeActions(actionPlan);
         verify(executor).executeAutomatedFromStore(actionStore);
     }
 
     @Test
-    public void testStoreActionsPopulateRefreshExecuteRefreshFlow() {
+    public void testStoreActionsPopulateRefreshExecuteRefreshFlow() throws Exception {
         InOrder inOrder = Mockito.inOrder(executor, severityCache, actionStore);
         actionStorehouse.storeActions(actionPlan);
         inOrder.verify(actionStore).populateRecommendedActions(actionPlan);
@@ -193,7 +198,7 @@ public class ActionStorehouseTest {
     public void testMultipleStores() throws Exception {
         final Action otherMoveAction = Action.newBuilder()
             .setId(19999L)
-            .setImportance(0)
+            .setDeprecatedImportance(0)
             .setExplanation(Explanation.getDefaultInstance())
             .setInfo(ActionInfo.getDefaultInstance())
             .build();
@@ -229,7 +234,7 @@ public class ActionStorehouseTest {
         when(actionStoreLoader.loadActionStores()).thenReturn(ImmutableList.of(persistedStore));
 
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-                executor, actionStoreLoader, actionModeCalculator);
+                executor, actionStoreLoader, actionApprovalSender);
         assertEquals(1, actionStorehouse.size());
         assertEquals(persistedStore, actionStorehouse.getStore(topologyContextId).get());
     }
@@ -270,17 +275,43 @@ public class ActionStorehouseTest {
     }
 
     @Test
-    public void testCancelQueuedActions() {
+    public void testCancelQueuedActions() throws Exception {
         com.vmturbo.action.orchestrator.action.Action action =
                 mock(com.vmturbo.action.orchestrator.action.Action.class);
         List<ActionExecutionTask> actionExecutionTaskList = new ArrayList<>();
         actionExecutionTaskList.add(new AutomatedActionExecutor.ActionExecutionTask(action,
-                new FutureMock<com.vmturbo.action.orchestrator.action.Action>(action)));
+                new FutureMock<>(action)));
         when(action.getState()).thenReturn(ActionState.QUEUED);
         when(executor.executeAutomatedFromStore(any()))
             .thenReturn(actionExecutionTaskList);
         actionStorehouse.storeActions(actionPlan);
         assertThat(actionStorehouse.cancelQueuedActions(), is(1));
+    }
+
+    /**
+     * Tests case when action is removing from queue (state is rolled back from QUEUED) because of
+     * non active status of execution window.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testCancelActionsWithNonActiveExecutionWindows() throws Exception {
+        final ActionSchedule nonActiveSchedule = Mockito.mock(ActionSchedule.class);
+        final com.vmturbo.action.orchestrator.action.Action action =
+                mock(com.vmturbo.action.orchestrator.action.Action.class);
+        final List<ActionExecutionTask> actionExecutionTaskList = new ArrayList<>();
+        actionExecutionTaskList.add(
+                new AutomatedActionExecutor.ActionExecutionTask(action, new FutureMock<>(action)));
+        Mockito.when(action.getState()).thenReturn(ActionState.QUEUED);
+        Mockito.when(executor.executeAutomatedFromStore(any())).thenReturn(actionExecutionTaskList);
+        actionStorehouse.storeActions(actionPlan);
+
+        Mockito.when(actionStore.getAction(action.getId())).thenReturn(Optional.of(action));
+        Mockito.when(action.getSchedule()).thenReturn(Optional.of(nonActiveSchedule));
+        Mockito.when(nonActiveSchedule.isActiveScheduleNow()).thenReturn(false);
+        // emulate next market cycle
+        actionStorehouse.storeActions(actionPlan);
+        Mockito.verify(action).receive(Mockito.any(RollBackToAcceptedEvent.class));
     }
 
     private class FutureMock<V> implements Future<V> {

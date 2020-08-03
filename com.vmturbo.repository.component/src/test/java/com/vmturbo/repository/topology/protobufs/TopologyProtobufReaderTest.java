@@ -22,6 +22,7 @@ import com.arangodb.ArangoDatabase;
 import com.arangodb.entity.BaseDocument;
 import com.arangodb.entity.CollectionEntity;
 import com.arangodb.entity.CollectionPropertiesEntity;
+import com.arangodb.model.CollectionCreateOptions;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
@@ -36,6 +37,7 @@ public class TopologyProtobufReaderTest {
     ArangoDatabaseFactory factory;
     ArangoDB db;
     ArangoDatabase database;
+    CollectionCreateOptions collectionCreateOptions;
     private ArangoCollection collection;
 
     @Before
@@ -44,10 +46,10 @@ public class TopologyProtobufReaderTest {
         factory = mock(ArangoDatabaseFactory.class);
         database = mock(ArangoDatabase.class);
         collection = mock(ArangoCollection.class);
+        collectionCreateOptions = mock(CollectionCreateOptions.class);
         CollectionPropertiesEntity count = mock(CollectionPropertiesEntity.class);
         when(factory.getArangoDriver()).thenReturn(db);
         when(db.getDatabases()).thenReturn(Lists.newArrayList());
-        when(db.createDatabase(Mockito.any())).thenReturn(true);
         when(db.db(Mockito.any())).thenReturn(database);
         when(database.collection(Mockito.eq("topology-dtos-1111"))).thenReturn(collection);
         when(collection.count()).thenReturn(count);
@@ -63,10 +65,10 @@ public class TopologyProtobufReaderTest {
         when(doc.getProperties()).thenReturn(Maps.newHashMap());
         when(collection.getDocument(anyString(), any())).thenReturn(doc);
 
-        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory);
+        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory, "Tturbonomic",
+                collectionCreateOptions);
         final TopologyProtobufReader reader = tpm.createTopologyProtobufReader(1111,
                 Optional.empty());
-        verify(db).createDatabase(Mockito.eq("topology-protobufs"));
         verify(database).collection(Mockito.eq("topology-dtos-1111"));
         // Reader does not create the collection
         verify(database, never()).createCollection(Mockito.eq("topology-dtos-1111"));

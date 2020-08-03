@@ -25,6 +25,7 @@ import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.jooq.types.ULong;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.util.StringUtils;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -38,7 +39,7 @@ import javaslang.Tuple2;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.reports.component.FailedToInsertGroupException;
 import com.vmturbo.reports.component.data.ReportDataUtils.MetaGroup;
@@ -84,30 +85,31 @@ public class ReportDBDataWriter {
      * @return primary key for the special "VMs" group. And group -> primary key map.
      * @throws DbException if exception is thrown
      */
-    public EntitiesTableGeneratedId insertGroupIntoEntitiesTable(@Nonnull final List<Group> groups, @Nonnull final MetaGroup metaGroup) throws DbException {
+    public EntitiesTableGeneratedId insertGroupIntoEntitiesTable(@Nonnull final List<Grouping> groups, @Nonnull final MetaGroup metaGroup) throws DbException {
         cleanGroup(metaGroup);
         final long defaultGroupPk = insertStaticMetaGroups(metaGroup)._1;
-        final Map<Group, Long> groupToPK = insertGroupsInternal(groups, metaGroup)._1;
+        final Map<Grouping, Long> groupToPK = insertGroupsInternal(groups, metaGroup)._1;
         return new EntitiesTableGeneratedId(defaultGroupPk, groupToPK);
     }
 
     // Tuple (group -> group PK, group uuid)
     // Caller must clean the existing group before calling this method, e.g. calling this::cleanGroup
-    private Tuple2<Map<Group, Long>, List<String>> insertGroupsInternal(@Nonnull final List<Group> groups
+    private Tuple2<Map<Grouping, Long>, List<String>> insertGroupsInternal(@Nonnull final List<Grouping> groups
         , @Nonnull final MetaGroup metaGroup) throws DbException {
         logger.info("Populating groups to entities tables. Groups: " + groups);
         // group -> group primary key in entities table
-        final Map<Group, Long> groupToPk = Maps.newHashMap();
+        final Map<Grouping, Long> groupToPk = Maps.newHashMap();
         final List<String> uuidList = Lists.newArrayList();
         try {
             groups.forEach(group -> {
                 final String groupUuid = String.valueOf(IdentityGenerator.next());
-                String name = GroupProtoUtil.getGroupName(group);
+                String name = GroupProtoUtil.getGroupSourceIdentifier(group).orElse(group.getDefinition()
+                    .getDisplayName());
                 // During debugging, I encountered some empty cases.
                 if (StringUtils.isEmpty(name)) {
                     name = GROUP;
                 }
-                String displayName = GroupProtoUtil.getGroupDisplayName(group);
+                String displayName = group.getDefinition().getDisplayName();
                 // same as above.
                 if (StringUtils.isEmpty(displayName)) {
                     displayName = GROUP;
@@ -127,8 +129,6 @@ public class ReportDBDataWriter {
 
     private Tuple2<Long, String> insertStaticMetaGroups(final @Nonnull MetaGroup metaGroup) throws DbException {
         logger.info("Populating default group to entities tables. Groups: " + metaGroup.getGroupName());
-        // group -> group primary key in entities table
-        final Map<Group, Tuple2<Long, String>> groupToPKUuid = Maps.newHashMap();
         try {
             // Special group representing all VMs/PMs/STs
             final String defaultGroupUuId = String.valueOf(IdentityGenerator.next());
@@ -148,12 +148,12 @@ public class ReportDBDataWriter {
      * @return {@link EntitiesTableGeneratedId} and newly created group UUID
      * @throws DbException if exception is thrown
      */
-    public Tuple2<EntitiesTableGeneratedId, Optional<String>> insertGroup(@Nonnull final Group group,
+    public Tuple2<EntitiesTableGeneratedId, Optional<String>> insertGroup(@Nonnull final Grouping group,
                                                                           @Nonnull final MetaGroup metaGroup) throws DbException {
         cleanGroup(metaGroup);
         final long defaultGroupPk = insertStaticMetaGroups(metaGroup)._1;
-        final Tuple2<Map<Group, Long>, List<String>> tuple = insertGroupsInternal(Collections.singletonList(group), metaGroup);
-        final Map<Group, Long> groupToPK = tuple._1;
+        final Tuple2<Map<Grouping, Long>, List<String>> tuple = insertGroupsInternal(Collections.singletonList(group), metaGroup);
+        final Map<Grouping, Long> groupToPK = tuple._1;
         return Tuple.of(new EntitiesTableGeneratedId(defaultGroupPk, groupToPK), tuple._2.stream().findFirst());
     }
 
@@ -188,6 +188,8 @@ public class ReportDBDataWriter {
 
         } catch (DataAccessException e) {
             throw new DbException("Error cleaning up entity_assns table." + e);
+        } catch (RuntimeException e2) {
+            logger.warn("runtime exception", e2);
         }
     }
 
@@ -200,7 +202,7 @@ public class ReportDBDataWriter {
      */
     public EntitiesTableGeneratedId insertEntityAssns(final EntitiesTableGeneratedId results) throws DbException {
         // group -> group primary key in entities table
-        final Map<Group, Long> newGroupToPK = Maps.newHashMap();
+        final Map<Grouping, Long> newGroupToPK = Maps.newHashMap();
 
         final long newDefaultGroupPK = insertEntityAssnsInternal(results.getDefaultGroupPK());
         results.getGroupToPK().entrySet().forEach(entry ->
@@ -225,6 +227,8 @@ public class ReportDBDataWriter {
                         transactionContext.insertInto(ENTITY_ASSNS)
                             .set(ENTITY_ASSNS.NAME, "")
                             .set(ENTITY_ASSNS.ENTITY_ENTITY_ID, 0L)
+                            .onDuplicateKeyIgnore()
+
                     );
                     chunk.forEach(id -> batch.bind(ALL_GROUP_MEMBERS, id));
 
@@ -258,7 +262,9 @@ public class ReportDBDataWriter {
                         transactionContext.insertInto(ENTITY_ATTRS)
                             .set(ENTITY_ATTRS.NAME, "")
                             .set(ENTITY_ATTRS.VALUE, "")
-                            .set(ENTITY_ATTRS.ENTITY_ENTITY_ID, 0L)
+                            .set(ENTITY_ATTRS.ENTITY_ENTITY_ID, 0L).
+                            onDuplicateKeyIgnore()
+
                     );
 
                     chunk.forEach(id -> batch.bind(S_E_TYPE_NAME, entityType, id));
@@ -291,6 +297,7 @@ public class ReportDBDataWriter {
                             transactionContext.insertInto(ENTITY_ASSNS_MEMBERS_ENTITIES)
                                 .set(ENTITY_ASSNS_MEMBERS_ENTITIES.ENTITY_ASSN_SRC_ID, 0L)
                                 .set(ENTITY_ASSNS_MEMBERS_ENTITIES.ENTITY_DEST_ID, 0L)
+                                .onDuplicateKeyIgnore()
                         );
 
                         chunk.forEach(id -> batch.bind(entry.getKey(), id));
@@ -302,6 +309,10 @@ public class ReportDBDataWriter {
             });
         } catch (DataAccessException e) {
             throw new DbException("Error inserting group members to entity_assn_members_entities table." + e);
+        } catch (DataIntegrityViolationException e1) {
+            // it's possible a VM in different group, and cause key violation exception when trying to add to default
+            // VM group again.
+            logger.warn("Data integrity violation exception", e1);
         }
     }
 
@@ -312,13 +323,6 @@ public class ReportDBDataWriter {
      */
     public void insertRightSizeActions(final List<ActionSpec> actionsList) throws DbException {
         try {
-            dsl.transaction(transaction -> {
-                final DSLContext transactionContext = using(transaction);
-                transactionContext
-                    .deleteFrom(ENTITY_ATTRS)
-                    .where(ENTITY_ATTRS.NAME.eq(RIGHTSIZING_INFO))
-                    .execute();
-            });
             Lists.partition(actionsList, CHUNK_SIZE).forEach(chunk -> {
                 dsl.transaction(transaction -> {
                     final DSLContext transactionContext = using(transaction);
@@ -327,6 +331,7 @@ public class ReportDBDataWriter {
                             .set(ENTITY_ATTRS.NAME, "")
                             .set(ENTITY_ATTRS.VALUE, "")
                             .set(ENTITY_ATTRS.ENTITY_ENTITY_ID, 0L)
+                            .onDuplicateKeyIgnore()
                     );
 
                     chunk.forEach(action -> {
@@ -336,7 +341,7 @@ public class ReportDBDataWriter {
                             batch.bind(RIGHTSIZING_INFO, json,
                                 action.getRecommendation().getInfo().getResize().getTarget().getId());
                         } catch (JsonProcessingException e) {
-                            e.printStackTrace();
+                            logger.error("Failed to process Json: ", e);
                         }
                     });
                     if (batch.size() > 0) {
@@ -347,8 +352,29 @@ public class ReportDBDataWriter {
             });
         } catch (DataAccessException e) {
             throw new DbException("Error inserting right size actions to entity_attrs table." + e);
+        } catch (RuntimeException e2) {
+            logger.warn("runtime exception", e2);
         }
 
+    }
+
+    /**
+     * Clean up all the right size actions in entity_attrs tables.
+     */
+    public void cleanUpRightSizeActions() throws DbException {
+        try {
+            dsl.transaction(transaction -> {
+                final DSLContext transactionContext = using(transaction);
+                transactionContext
+                    .deleteFrom(ENTITY_ATTRS)
+                    .where(ENTITY_ATTRS.NAME.eq(RIGHTSIZING_INFO))
+                    .execute();
+            });
+        } catch (DataAccessException e) {
+            throw new DbException("Error inserting right size actions to entity_attrs table." + e);
+        } catch (RuntimeException e2) {
+            logger.warn("runtime exception", e2);
+        }
     }
 
     /**
@@ -368,15 +394,12 @@ public class ReportDBDataWriter {
                                               @Nonnull final String groupNamePrefix,
                                               @Nonnull final String uuid) throws FailedToInsertGroupException {
         try {
-            return dsl.transactionResult(configuration -> {
-                final DSLContext context = DSL.using(configuration);
-                context.insertInto(ENTITIES).columns(ENTITIES.NAME, ENTITIES.DISPLAY_NAME, ENTITIES.UUID, ENTITIES.CREATION_CLASS)
-                    .values(isStaticGroup(creationClass) ? groupNamePrefix : groupNamePrefix + "_hostname\\" +
-                        groupDisplayName + "\\" + groupName, groupDisplayName, uuid, creationClass)
+            long id = IdentityGenerator.next();
+            dsl.insertInto(ENTITIES).columns(ENTITIES.ID, ENTITIES.NAME, ENTITIES.DISPLAY_NAME, ENTITIES.UUID, ENTITIES.CREATION_CLASS)
+                    .values(id, isStaticGroup(creationClass) ? groupNamePrefix : groupNamePrefix + "_hostname\\" +
+                            groupDisplayName + "\\" + groupName, groupDisplayName, uuid, creationClass)
                     .execute();
-                Result<? extends Record> idResult = context.fetch(SELECT_LAST_INSERT_ID);
-                return ((ULong) idResult.get(0).getValue(0)).longValue();
-            });
+            return id;
         } catch (DataAccessException e) {
             throw new FailedToInsertGroupException(e);
         }

@@ -93,10 +93,15 @@ public class SupplyChainTestUtils {
                  commodityBoughtTemplates);
     }
 
+    private static TemplateCommodity createCommodityTemplate(CommodityType commodityType, String key) {
+        return createCommodityTemplate(commodityType, key, false);
+    }
+
     private static TemplateCommodity createCommodityTemplate(CommodityType commodityType,
-            String key) {
+            String key, boolean optional) {
         final TemplateCommodity.Builder builder = TemplateCommodity.newBuilder()
-                .setCommodityType(commodityType);
+                .setCommodityType(commodityType)
+                .setOptional(optional);
         if (!Strings.isEmpty(key)) {
             builder.setKey(key);
         }
@@ -167,7 +172,8 @@ public class SupplyChainTestUtils {
             return Arrays.asList(
                     createCommodityTemplate(CommodityType.VCPU, null),
                     createCommodityTemplate(CommodityType.VMEM, null),
-                    createCommodityTemplate(CommodityType.APPLICATION, KEY));
+                    createCommodityTemplate(CommodityType.APPLICATION, KEY),
+                    createCommodityTemplate(CommodityType.MEM_ALLOCATION, null, true));
         }
 
         private static Collection<CommBoughtProviderProp> getVMBoughtCommodityTemplates() {

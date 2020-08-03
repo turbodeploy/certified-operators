@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.targets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -11,9 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.identity.exceptions.IdentityStoreException;
-import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.DerivedTargetSpecificationDTO;
-import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue.PropertyValueList;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -38,6 +37,26 @@ public class DerivedTargetParser {
     }
 
     /**
+     * Get the derived target display name for logs, in case of failure.
+     *
+     * @param probeId the probe ID
+     * @param derivedTargetDTO the derived target for which we want to get the display name.
+     * @return the derived target display name for logging.
+     */
+    private String getDerivedTargetDisplayName(long probeId, DerivedTargetSpecificationDTO derivedTargetDTO) {
+        TargetSpec.Builder targetSpecBuilder = TargetSpec.newBuilder();
+        targetSpecBuilder.setProbeId(probeId);
+        // convert Discovery.AccountValue to TopologyProcessorDTO.AccountValue
+        derivedTargetDTO.getAccountValueList().forEach(accountValue -> {
+            targetSpecBuilder.addAccountValue(AccountValue.newBuilder()
+                    .setKey(accountValue.getKey())
+                    .setStringValue(accountValue.getStringValue())
+                    .build());
+        });
+        return Target.computeDisplayName(targetSpecBuilder.build(), probeStore);
+    }
+
+    /**
      * Instantiates all derived targets and parses the DerivedTargetSpecificationDTO that returned from
      * discovery responses.
      *
@@ -49,39 +68,38 @@ public class DerivedTargetParser {
         logger.trace(derivedTargetsList.size() + " derived targets found.");
         final List<TargetSpec> derivedTargetSpecs = new ArrayList<>();
         derivedTargetsList.forEach(derivedTargetDTO -> {
-            final String targetName = derivedTargetDTO.getAccountValueList().stream()
-                        .filter(accountValue -> accountValue.getKey().equalsIgnoreCase(
-                                PredefinedAccountDefinition.Address.name()))
-                        .map(Discovery.AccountValue::getStringValue)
-                        .findFirst()
-                        .orElse(derivedTargetDTO.toString());
             try {
                 final long probeId = probeStore.getProbeIdForType(derivedTargetDTO.getProbeType())
                         .orElseThrow(() -> new InvalidTargetException(
                                 String.format("No probe type %s found.", derivedTargetDTO.getProbeType())));
-                final TargetSpec targetSpec = parseDerivedTargetSpec(probeId, parentTargetId,
-                                derivedTargetDTO);
-                // If the target is dependent on the parent target, then we create it as derived target, or
-                // we should create the target as normal way as the case for VCD creating VC targets.
-                if (targetSpec.hasParentId()) {
-                    derivedTargetSpecs.add(targetSpec);
-                } else {
-                    try {
-                        targetStore.createTarget(targetSpec);
-                    } catch (DuplicateTargetException e) {
-                        logger.debug("Derived target {} already exists, parsing will be skipped.",
-                                targetName);
+                String targetName = getDerivedTargetDisplayName(probeId, derivedTargetDTO);
+                try {
+                    final TargetSpec targetSpec = parseDerivedTargetSpec(probeId, parentTargetId,
+                            derivedTargetDTO);
+                    // If the target is dependent on the parent target, then we create it as derived target, or
+                    // we should create the target as normal way as the case for VCD creating VC targets.
+                    if (derivedTargetDTO.hasDependent() && derivedTargetDTO.getDependent()) {
+                        derivedTargetSpecs.add(targetSpec);
+                    } else {
+                        try {
+                            targetStore.createTarget(targetSpec);
+                        } catch (DuplicateTargetException e) {
+                            logger.debug("Derived target {} already exists, parsing will be skipped.",
+                                    targetName, e);
+                        }
                     }
+                } catch (InvalidTargetException | IdentityStoreException e) {
+                    logger.error("Parse derived target {} failed", targetName, e);
                 }
-            } catch (InvalidTargetException | IdentityStoreException e) {
-                logger.error("Parse derived target {} failed. {}", targetName, e);
+            } catch (InvalidTargetException e) {
+                logger.error("Probe not registered", e);
             }
         });
         try {
-            targetStore.createOrUpdateDerivedTargets(derivedTargetSpecs);
+            targetStore.createOrUpdateDerivedTargets(derivedTargetSpecs, parentTargetId);
         } catch (IdentityStoreException e) {
             logger.error("Error when fetching derived target identifiers and OIDs, derived targets creation "
-                    + "or update failed. {}", e);
+                    + "or update failed", e);
         }
     }
 
@@ -98,11 +116,9 @@ public class DerivedTargetParser {
             });
             targetSpec.addAccountValue(accountValue);
         });
+        targetSpec.setReadOnly(derivedTargetDTO.getReadonly());
         targetSpec.setProbeId(probeId);
         targetSpec.setIsHidden(derivedTargetDTO.getHidden());
-        if (derivedTargetDTO.hasDependent() && derivedTargetDTO.getDependent()) {
-            targetSpec.setParentId(parentTargetId);
-        }
         return targetSpec.build();
     }
 }

@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.action;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -13,6 +14,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
 /**
@@ -75,6 +77,15 @@ public interface ActionView {
     ActionMode getMode();
 
     /**
+     * Get visibility level of the action. Visibility level defines whether action is visible for
+     * other components.
+     *
+     * @return {@link VisibilityLevel} of the action.
+     */
+    @Nonnull
+    VisibilityLevel getVisibilityLevel();
+
+    /**
      * Get the ID of the action. This ID is the same as the one provided by the market in its
      * recommendation.
      *
@@ -107,6 +118,16 @@ public interface ActionView {
     ActionTranslation getActionTranslation();
 
     /**
+     * If translation has succeeded, get the result of translation. If translation has not yet succeeded,
+     * return the untranslated recommendation.
+     *
+     * @return Either the result of the translation or the untranslated recommendation depending on
+     *         whether translation has succeeded.
+     */
+    @Nonnull
+    ActionDTO.Action getTranslationResultOrOriginal();
+
+    /**
      * Get the status of the translation associated with this action. See
      * {@link ActionTranslation} for more details.
      *
@@ -125,17 +146,84 @@ public interface ActionView {
     ActionCategory getActionCategory();
 
     /**
+     * Gets the execution schedule associated for this action if any.
+     *
+     * @return the execution schedule associated for this action if any.
+     */
+    @Nonnull
+    Optional<ActionSchedule> getSchedule();
+
+    /**
+     * Sets the schedule for action. We should have this method in order to update
+     * information about schedule (i.e. acceptingUser) when action was accepted manually.
+     *
+     * @param schedule the execution schedule associated for this action
+     */
+    void setSchedule(@Nonnull ActionSchedule schedule);
+
+    /**
+     * Gets the list of associated policies for this action.
+     * If there are no associated policies then return empty collection.
+     *
+     * @return the list of associated policies ids for this action
+     */
+    @Nonnull
+    Collection<Long> getAssociatedSettingsPolicies();
+
+    /**
+     * Get the severity of the action. Currently, the severity of an action
+     * is determined solely by its category; hence the default method.
+     *
+     * @return the severity of the action
+     */
+    @Nonnull
+    default Severity getActionSeverity() {
+        switch (getActionCategory()) {
+            case PERFORMANCE_ASSURANCE:
+            case COMPLIANCE:
+                return Severity.CRITICAL;
+            case PREVENTION:
+                return Severity.MAJOR;
+            case EFFICIENCY_IMPROVEMENT:
+                return Severity.MINOR;
+            default:
+                return Severity.NORMAL;
+        }
+    }
+
+    /**
+     * Get the OIDs of business accounts this action is associated with.
+     * This will be the business accounts that own the entities targetted by the action.
+     *
+     * @return A list of business account OIDs. This will be empty for on-prem actions.
+     *         The list will be ordered by "proximity" - i.e. the first account in the list will
+     *         be the immediate owner of the target entity. The second account will be the owner
+     *         of the immediate owner, and so on, until the "master" account, which will appear
+     *         last.
+     */
+    @Nonnull
+    Optional<Long> getAssociatedAccount();
+
+    /**
+     * Get the OID of resource group this action is associated with. Resource group for
+     * "primaryEntity" involved in the action.
+     *
+     * @return resource group OID. This will be empty for on-prem actions.
+     */
+    Optional<Long> getAssociatedResourceGroupId();
+
+    /**
      * Determine whether the action is executable.
      * An action is generally executable when its recommendation is marked as executable
-     * by the market and its state is ready.
+     * by the market and its state is ready or accepted.
      *
-     * @return True if the action is executable and ready, false otherwise.
+     * @return True if the action is executable and ready or accepted, false otherwise.
      */
     default boolean determineExecutability() {
         // An action is considered "Executable" if the initial recommendation is marked as
-        // executable by the market, and it has not been accepted/cleared.
+        // executable by the market, and it has ready or accepted state
         return getRecommendation().getExecutable() &&
-            getState().equals(ActionState.READY);
+                (getState().equals(ActionState.READY) || getState().equals(ActionState.ACCEPTED));
     }
 
     /**
@@ -169,4 +257,21 @@ public interface ActionView {
      * corresponding Action type.
      */
     Optional<WorkflowDTO.Workflow> getWorkflow(WorkflowStore workflowStore);
+
+    /**
+     * Gets the action description.
+     *
+     * @return The action description string.
+     */
+    @Nonnull
+    String getDescription();
+
+    /**
+     * Return a market recommendation OID. This OID is used for distinguishing between different
+     * action recommended by market. All the actions with the same recommendation OIDs are treated
+     * as logically equal market recommendations.
+     *
+     * @return market recommendation OID
+     */
+    long getRecommendationOid();
 }

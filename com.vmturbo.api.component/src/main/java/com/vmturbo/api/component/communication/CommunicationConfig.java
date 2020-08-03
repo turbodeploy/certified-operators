@@ -1,8 +1,6 @@
 package com.vmturbo.api.component.communication;
 
 import java.net.URISyntaxException;
-import java.time.Duration;
-import java.util.EnumSet;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
@@ -12,31 +10,44 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.web.client.RestTemplate;
-
-import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStatus;
+import com.vmturbo.api.component.ApiComponentGlobalConfig;
+import com.vmturbo.api.component.external.api.mapper.MapperConfig;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
-import com.vmturbo.api.component.external.api.util.action.SearchUtil;
+import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
+import com.vmturbo.api.component.external.api.util.businessaccount.SupplementaryDataFactory;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
+import com.vmturbo.auth.api.AuthClientConfig;
+import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
-import com.vmturbo.auth.api.widgets.AuthClientConfig;
-import com.vmturbo.clustermgr.api.ClusterMgrClient;
+import com.vmturbo.clustermgr.api.ClusterMgrClientConfig;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceStub;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceCostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceCostServiceGrpc.ReservedInstanceCostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
@@ -47,6 +58,8 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc;
+import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc.TopologyDataDefinitionServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
@@ -56,17 +69,29 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceFutureStub;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc.TemplateSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc.ProbeRpcServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc;
+import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
@@ -79,9 +104,13 @@ import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentRestTemplate;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
+import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
+import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.notification.NotificationInMemoryStore;
 import com.vmturbo.notification.NotificationStore;
@@ -91,10 +120,15 @@ import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.reporting.api.ReportListener;
 import com.vmturbo.reporting.api.ReportingClientConfig;
 import com.vmturbo.reporting.api.ReportingNotificationReceiver;
+import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
+import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Configuration for the communication between the API component
@@ -105,7 +139,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Sub
         ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class,
         GroupClientConfig.class, HistoryClientConfig.class, NotificationClientConfig.class,
         RepositoryClientConfig.class, ReportingClientConfig.class, AuthClientConfig.class,
-        CostClientConfig.class})
+        CostClientConfig.class, ApiComponentGlobalConfig.class, ClusterMgrClientConfig.class,
+        UserSessionConfig.class, ApiWebsocketConfig.class, BaseKafkaConsumerConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -128,10 +163,21 @@ public class CommunicationConfig {
     private AuthClientConfig authClientConfig;
     @Autowired
     private CostClientConfig costClientConfig;
-    @Value("${clustermgr_host}")
-    private String clusterMgrHost;
-    @Value("${clustermgr_port}")
-    private int clusterMgrPort;
+    @Autowired
+    private ApiComponentGlobalConfig apiComponentGlobalConfig;
+    @Autowired
+    private UserSessionConfig userSessionConfig;
+    @Autowired
+    private BaseKafkaConsumerConfig kafkaConsumerConfig;
+
+    /**
+     * No explicit import to avoid circular dependency.
+     */
+    @Autowired
+    private MapperConfig mapperConfig;
+
+    @Autowired
+    private ClusterMgrClientConfig clusterMgrClientConfig;
 
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
@@ -153,7 +199,7 @@ public class CommunicationConfig {
         throws CommunicationException, InterruptedException, URISyntaxException {
         final ApiComponentActionListener actionsListener =
             new ApiComponentActionListener(websocketConfig.websocketHandler());
-        aoClientConfig.actionOrchestratorClient().addActionsListener(actionsListener);
+        aoClientConfig.actionOrchestratorClient().addListener(actionsListener);
         return actionsListener;
     }
 
@@ -165,8 +211,8 @@ public class CommunicationConfig {
     @Bean
     public ActionsServiceBlockingStub actionsRpcService() {
         return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel())
-                // Intercept client call and add JWT token to the metadata
-                .withInterceptors(jwtClientInterceptor());
+            // Intercept client call and add JWT token to the metadata
+            .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -174,15 +220,30 @@ public class CommunicationConfig {
         return TopologyServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
     }
 
+    /**
+     * Blocking stub for Topology Data Definition service.
+     *
+     * @return blocking stub
+     */
     @Bean
-    public PolicyServiceBlockingStub policyRpcService() {
-        return PolicyServiceGrpc.newBlockingStub(groupChannel())
-                .withInterceptors(jwtClientInterceptor());
+    public TopologyDataDefinitionServiceBlockingStub topologyDataDefinitionServiceBlockingStub() {
+        return TopologyDataDefinitionServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    /**
+     * gRPC service to perform target-related searches.
+     *
+     * @return target search service
+     */
+    @Bean
+    public TargetSearchServiceBlockingStub targetSearchService() {
+        return TargetSearchServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
     }
 
     @Bean
-    public Channel groupChannel() {
-        return groupClientConfig.groupChannel();
+    public PolicyServiceBlockingStub policyRpcService() {
+        return PolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel())
+                .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -198,44 +259,70 @@ public class CommunicationConfig {
 
     @Bean
     public EntitySeverityServiceBlockingStub entitySeverityService() {
-        return EntitySeverityServiceGrpc.newBlockingStub(
-                aoClientConfig.actionOrchestratorChannel());
+        return EntitySeverityServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
     }
 
     @Bean
+    public EntitySeverityServiceStub entitySeverityServiceStub() {
+        return EntitySeverityServiceGrpc.newStub(aoClientConfig.actionOrchestratorChannel());
+    }
+
+    /**
+     * Repository API bean.
+     *
+     * @return repository API bean
+     */
+    @Bean
     public RepositoryApi repositoryApi() {
-        return new RepositoryApi(repositoryClientConfig.getRepositoryHost(),
-                repositoryClientConfig.getRepositoryPort(), serviceRestTemplate(),
-                severityPopulator(), getRealtimeTopologyContextId());
+        return new RepositoryApi(severityPopulator(),
+            repositoryRpcService(),
+            repositoryAsyncService(),
+            searchServiceBlockingStub(),
+            searchServiceStub(),
+            serviceEntityMapper(),
+            businessAccountMapper(),
+            realtimeTopologyContextId);
     }
 
     @Bean
     public RepositoryServiceBlockingStub repositoryRpcService() {
-        return RepositoryServiceGrpc.newBlockingStub(repositoryChannel());
+        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    /**
+     * Repository service asynchronous stub.
+     *
+     * @return Repository service asynchronous stub
+     */
+    @Bean
+    public RepositoryServiceStub repositoryAsyncService() {
+        return RepositoryServiceGrpc.newStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    @Bean
+    public EntityConstraintsServiceBlockingStub entityConstraintRpcService() {
+        return EntityConstraintsServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
     }
 
     @Bean
     public WorkflowServiceBlockingStub fetchWorkflowRpcService() {
-        return WorkflowServiceGrpc.newBlockingStub(actionOrchestratorChannel());
+        return WorkflowServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
     }
 
     @Bean
     public ClusterMgrRestClient clusterMgr() {
-        return ClusterMgrClient.createClient(ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(clusterMgrHost, clusterMgrPort)
-                .build());
+        return clusterMgrClientConfig.restClient();
     }
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        return tpClientConfig.topologyProcessorRpcOnly();
+        return tpClientConfig.topologyProcessor(
+            TopologyProcessorSubscription.forTopic(Topic.Notifications));
     }
 
     @Bean
     public ProbeRpcServiceBlockingStub probeRpcService() {
-        return
-            ProbeRpcServiceGrpc.newBlockingStub(
-                tpClientConfig.topologyProcessorChannel());
+        return ProbeRpcServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
     }
 
     @Bean
@@ -246,17 +333,37 @@ public class CommunicationConfig {
         return new ApiComponentPlanListener(websocketConfig.websocketHandler());
     }
 
+    // overriding the repository client receiver because we don't want to read from beginning.
+    @Primary
+    @Bean
+    protected IMessageReceiver<RepositoryNotification> repositoryClientMessageReceiver() {
+        return kafkaConsumerConfig.kafkaConsumer().messageReceiverWithSettings(
+                new TopicSettings(RepositoryNotificationReceiver.TOPOLOGY_TOPIC, StartFrom.LAST_COMMITTED),
+                RepositoryNotification::parseFrom);
+    }
+
+    /**
+     * Create an {@link ApiComponentReservationListener}.
+     *
+     * @return the API Component Reservation Listener.
+     */
+    @Bean
+    public ApiComponentReservationListener apiComponentReservationListener() {
+        return new ApiComponentReservationListener(websocketConfig.websocketHandler());
+    }
+
     @Bean
     public PlanOrchestrator planOrchestrator() {
         final PlanOrchestrator planOrchestrator = planClientConfig.planOrchestrator();
         planOrchestrator.addPlanListener(apiComponentPlanListener());
+        planOrchestrator.addReservationListener(apiComponentReservationListener());
         return planOrchestrator;
     }
 
     @Bean
     public GroupServiceBlockingStub groupRpcService() {
         return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel())
-                .withInterceptors(jwtClientInterceptor());
+            .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -265,13 +372,22 @@ public class CommunicationConfig {
     }
 
     @Bean
-    public Channel historyChannel() {
-        return historyClientConfig.historyChannel();
+    public SettingPolicyServiceBlockingStub settingPolicyRpcService() {
+        return SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    public ScheduleServiceBlockingStub scheduleRpcService() {
+        return ScheduleServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    @Bean
+    public ReportingServiceBlockingStub reportingRpcService() {
+        return ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel());
     }
 
     @Bean
     public StatsHistoryServiceBlockingStub historyRpcService() {
-        return StatsHistoryServiceGrpc.newBlockingStub(historyChannel())
+        return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel())
                 .withInterceptors(jwtClientInterceptor());
     }
 
@@ -281,19 +397,32 @@ public class CommunicationConfig {
     }
 
     @Bean
-    public Channel repositoryChannel() {
-        return repositoryClientConfig.repositoryChannel();
+    public SearchServiceGrpc.SearchServiceBlockingStub searchServiceBlockingStub() {
+        return SearchServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel())
+                .withInterceptors(jwtClientInterceptor());
     }
 
+    /**
+     * Search service asynchronous stub.
+     *
+     * @return search service asynchronous stub
+     */
     @Bean
-    public SearchServiceGrpc.SearchServiceBlockingStub searchServiceBlockingStub() {
-        return SearchServiceGrpc.newBlockingStub(repositoryChannel())
+    public SearchServiceGrpc.SearchServiceStub searchServiceStub() {
+        return SearchServiceGrpc.newStub(repositoryClientConfig.repositoryChannel())
                 .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
     public SupplyChainServiceBlockingStub supplyChainRpcService() {
-        return SupplyChainServiceGrpc.newBlockingStub(repositoryChannel());
+        return SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel())
+                .withInterceptors(jwtClientInterceptor());
+    }
+
+    @Bean
+    public ScenarioServiceBlockingStub scenarioRpcService() {
+        return ScenarioServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel())
+            .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -306,6 +435,11 @@ public class CommunicationConfig {
         return TemplateSpecServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
     }
 
+    /**
+     * A shared gRPC stub for the CPU capacity service.
+     *
+     * @return The {@link CpuCapacityServiceBlockingStub}.
+     */
     @Bean
     public CpuCapacityServiceBlockingStub cpuCapacityServiceBlockingStub() {
         return CpuCapacityServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
@@ -321,39 +455,55 @@ public class CommunicationConfig {
         return ReservedInstanceSpecServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
+    /**
+     * Grpc stub for the plan RI service.
+     *
+     * @return The {@link PlanReservedInstanceServiceBlockingStub}.
+     */
+    @Bean
+    public PlanReservedInstanceServiceBlockingStub planReservedInstanceServiceBlockingStub() {
+        return PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    @Bean
+    public ReservedInstanceCostServiceBlockingStub reservedInstanceCostServiceBlockingStub() {
+        return ReservedInstanceCostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
     @Bean
     public CostServiceBlockingStub costServiceBlockingStub() {
         return CostServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     @Bean
+    public CostServiceStub costServiceStub() {
+        return CostServiceGrpc.newStub(costClientConfig.costChannel());
+    }
+
+    /**
+     * Reserved instance utilization coverage blocking stub.
+     *
+     * @return reserved instance utilization coverage blocking stub
+     */
+    @Bean
     public ReservedInstanceUtilizationCoverageServiceBlockingStub
             reservedInstanceUtilizationCoverageServiceBlockingStub() {
-        return ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(costClientConfig.costChannel());
-    }
-
-    @Bean
-    public Channel planOrchestratorChannel() {
-        return planClientConfig.planOrchestratorChannel();
-    }
-
-    @Bean
-    public Channel actionOrchestratorChannel() {
-        return aoClientConfig.actionOrchestratorChannel();
+        return ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(
+                costClientConfig.costChannel());
     }
 
     @Bean
     public WidgetsetsServiceBlockingStub widgetsetsServiceBlockingStub() {
         return WidgetsetsServiceGrpc.newBlockingStub(authClientConfig.authClientChannel())
-        // Intercept client call and add JWT token to the metadata
-                .withInterceptors(jwtClientInterceptor());
+            // Intercept client call and add JWT token to the metadata
+            .withInterceptors(jwtClientInterceptor());
 
     }
 
     @Bean
     public LicenseManagerServiceBlockingStub licenseManagerStub() {
         return LicenseManagerServiceGrpc.newBlockingStub(authClientConfig.authClientChannel())
-                .withInterceptors(jwtClientInterceptor());
+            .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean
@@ -362,22 +512,45 @@ public class CommunicationConfig {
     }
 
     @Bean
+    public RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riBuyContextFetchStub() {
+        return RIBuyContextFetchServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    @Bean
     public SupplyChainFetcherFactory supplyChainFetcher() {
-        return new SupplyChainFetcherFactory(repositoryChannel(),
-                actionOrchestratorChannel(),
+        return new SupplyChainFetcherFactory(supplyChainRpcService(),
+                entitySeverityService(),
                 repositoryApi(),
                 groupExpander(),
+                mapperConfig.entityAspectMapper(),
+                costServiceBlockingStub(),
                 realtimeTopologyContextId);
     }
 
     @Bean
     public GroupExpander groupExpander() {
-        return new GroupExpander(groupRpcService());
+        return new GroupExpander(groupRpcService(),
+                new GroupMemberRetriever(groupRpcService()));
+    }
+
+    @Bean
+    public ServiceProviderExpander serviceProviderExpander() {
+        return new ServiceProviderExpander(mapperConfig.uuidMapper(), supplyChainFetcher());
     }
 
     @Bean
     public SeverityPopulator severityPopulator() {
-        return new SeverityPopulator(entitySeverityService());
+        return new SeverityPopulator(entitySeverityServiceStub());
+    }
+
+    /**
+     * An instance of {@link PriceIndexPopulator} managed by spring.
+     *
+     * @return {@link PriceIndexPopulator}
+     */
+    @Bean
+    public PriceIndexPopulator priceIndexPopulator() {
+        return new PriceIndexPopulator(historyRpcService(), repositoryRpcService());
     }
 
     @Bean
@@ -425,10 +598,9 @@ public class CommunicationConfig {
     public ApiComponentTargetListener apiComponentTargetListener() {
         final ApiComponentTargetListener apiComponentTargetListener =
                 new ApiComponentTargetListener(topologyService(), websocketConfig.websocketHandler());
-        historyClientConfig.historyComponent().addStatsListener(apiComponentTargetListener);
+        historyClientConfig.historyComponent().addListener(apiComponentTargetListener);
         repositoryClientConfig.repository().addListener(apiComponentTargetListener);
-        tpClientConfig.topologyProcessor(EnumSet.of(Subscription.Notifications))
-                .addTargetListener(apiComponentTargetListener);
+        topologyProcessor().addTargetListener(apiComponentTargetListener);
         return apiComponentTargetListener;
     }
 
@@ -436,7 +608,41 @@ public class CommunicationConfig {
     public ApiComponentNotificationListener apiComponentNotificationListener() {
         final ApiComponentNotificationListener listener =
                 new ApiComponentNotificationListener(notificationStore());
-        notificationClientConfig.systemNotificationListener().addNotificationListener(listener);
+        notificationClientConfig.systemNotificationListener().addListener(listener);
         return listener;
     }
+
+    @Bean
+    public ServiceEntityMapper serviceEntityMapper() {
+        // Normally this would be in MapperConfig, but RepositoryApi needs it and we don't want
+        // to introduce a circular dependency.
+        return new ServiceEntityMapper(thinTargetCache(), costServiceBlockingStub(), supplyChainRpcService());
+    }
+
+    /**
+     * Supplementary data factory.
+     *
+     * @return supplementary data factory
+     */
+    @Bean
+    public SupplementaryDataFactory supplementaryDataFactory() {
+        return new SupplementaryDataFactory(costServiceBlockingStub(), groupRpcService());
+    }
+
+    /**
+     * REST Api mapper for business accounts.
+     *
+     * @return business account mapper
+     */
+    @Bean
+    public BusinessAccountMapper businessAccountMapper() {
+        return new BusinessAccountMapper(thinTargetCache(), supplementaryDataFactory(),
+                userSessionConfig.userSessionContext());
+    }
+
+    @Bean
+    public ThinTargetCache thinTargetCache() {
+        return new ThinTargetCache(topologyProcessor());
+    }
+
 }

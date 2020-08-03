@@ -1,6 +1,10 @@
 package com.vmturbo.stitching.utilities;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -10,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.stitching.DTOFieldSpec;
 import com.vmturbo.stitching.StitchingEntity;
@@ -266,5 +271,46 @@ public class EntityFieldMergers {
         merge(EntityDTOOrBuilder::getDisplayName, EntityDTO.Builder::setDisplayName)
         .withMethod((fromDisplayName, ontoDisplayName) ->
             fromDisplayName.compareTo(ontoDisplayName) < 0 ? fromDisplayName : ontoDisplayName);
+
+    private static List<VirtualVolumeFileDescriptor> getFileList(EntityDTOOrBuilder entity) {
+        if (entity.hasVirtualVolumeData()) {
+            return entity.getVirtualVolumeData().getFileList();
+        }
+        return Collections.emptyList();
+    }
+
+    private static void setFileList(EntityDTO.Builder builder,
+                                    List<VirtualVolumeFileDescriptor> files) {
+        builder.getVirtualVolumeDataBuilder().clearFile().addAllFile(files);
+    }
+
+    /**
+     * Return the intersection of two lists of {@link VirtualVolumeFileDescriptor}.
+     * @param fromFiles list of file descriptors that come from the 'from' entity.
+     * @param ontoFiles list of file descriptors that come from the 'onto' entity.
+     * @return list representing the intersection of the two lists that are passed in.
+     */
+    private static List<VirtualVolumeFileDescriptor> fileListIntersection(
+        List<VirtualVolumeFileDescriptor> fromFiles,
+        List<VirtualVolumeFileDescriptor> ontoFiles) {
+        Set<String> fromPathsSet = fromFiles.stream()
+            .map(VirtualVolumeFileDescriptor::getPath)
+            .collect(Collectors.toSet());
+        return ontoFiles.stream()
+            .filter(fileDescriptor -> fromPathsSet.contains(fileDescriptor.getPath()))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Merge Files between two virtual volumes representing wasted files for the same shared storage.
+     * Because each volume comes from a different target, it is only aware of the file usage for VMs
+     * within that target.  So each virtual volume contains files that are not really wasted since
+     * they are referened by VMs in the other target.  Merge the two file lists by taking their
+     * intersection.
+     */
+    public static final EntityFieldMerger<List<VirtualVolumeFileDescriptor>>
+        VIRTUAL_VOLUME_FILELIST_INTERSECTION =
+        merge(EntityFieldMergers::getFileList, EntityFieldMergers::setFileList)
+        .withMethod(EntityFieldMergers::fileListIntersection);
 
 }

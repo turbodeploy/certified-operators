@@ -12,6 +12,7 @@
     },
     "oid": "72623594843359",
     "displayName": "TestVM1",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -25,7 +26,9 @@
         "isThin": true,
         "active": true,
         "capacityIncrement": 1048576.0,
-        "maxQuantity": 0.0
+        "historicalUsed": {
+          "maxQuantity": 0.0
+        }
       },
       {
         "commodityType": {
@@ -39,7 +42,9 @@
         "isThin": true,
         "active": true,
         "capacityIncrement": 1800.0,
-        "maxQuantity": 10.33388904322368
+        "historicalUsed": {
+          "maxQuantity": 10.33388904322368
+        }
       },
       {
         "commodityType": {
@@ -214,7 +219,233 @@
       {
         "connectedEntityId": "72556027335467",
         "connectedEntityType": 55,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
+      }
+    ],
+    "tags": {}
+  },
+  {
+    "entityType": 10,
+    "typeSpecificInfo": {
+      "virtualMachine": {
+        "guestOsInfo": {
+          "guestOsType" : "LINUX",
+          "guestOsName" : "LINUX"
+        },
+        "tenancy": "DEFAULT"
+      }
+    },
+    "oid": "72623594843371",
+    "displayName": "TestVM2",
+    "environmentType": "CLOUD",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 53
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 7864320.0,
+        "reservedCapacity": 0.0,
+        "isResizeable": true,
+        "isThin": true,
+        "active": true,
+        "capacityIncrement": 1048576.0,
+        "historicalUsed": {
+          "maxQuantity": 0.0
+        }
+      },
+      {
+        "commodityType": {
+          "type": 26
+        },
+        "used": 10.33388904322368,
+        "peak": 13.33333333362436,
+        "capacity": 4000.0,
+        "reservedCapacity": 0.0,
+        "isResizeable": true,
+        "isThin": true,
+        "active": true,
+        "capacityIncrement": 1800.0,
+        "historicalUsed": {
+          "maxQuantity": 10.33388904322368
+        }
+      },
+      {
+        "commodityType": {
+          "type": 56,
+          "key": "VirtualMachine::aws::us-east-1::VM::i-0fb66e9a23555c022"
+        },
+        "used": 0.0,
+        "peak": 0.0,
+        "capacity": 1.0E9,
+        "reservedCapacity": 0.0,
+        "isResizeable": false,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72593321343488",
+        "providerEntityType": 56,
+        "scalable": false,
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 36,
+              "key": "Storage::aws::us-east-1::ST::us-east-1a-hdd"
+            },
+            "used": 1.0,
+            "peak": 0.0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 40
+            },
+            "used": 100.33388904322368,
+            "peak": 133.33333333362436,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 28
+            },
+            "used": 4000.0,
+            "peak": 13.33333333362436,
+            "active": false
+          },
+          {
+            "commodityType": {
+              "type": 39
+            },
+            "used": 0.0,
+            "peak": 0.0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 47
+            },
+            "used": 0.041764322916666666,
+            "peak": 0.0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 45
+            },
+            "used": 7864320.0,
+            "peak": 0.0,
+            "active": false
+          },
+          {
+            "commodityType": {
+              "type": 21
+            },
+            "used": 0.0,
+            "peak": 0.0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 84,
+              "key": "RHEL"
+            },
+            "used": 0.0,
+            "peak": 0.0,
+            "active": true
+          }
+        ]
+      },
+      {
+        "providerId": "72618271320786",
+        "providerEntityType": 57,
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 64
+            },
+            "used": 19.741666666666667,
+            "peak": 0.0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 59,
+              "key": "Group::instanceHddStorageCluster"
+            },
+            "used": 1.0,
+            "peak": 0.0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 6
+            },
+            "used": 860160.0,
+            "peak": 0.0,
+            "active": false
+          },
+          {
+            "commodityType": {
+              "type": 51,
+              "key": "PhysicalMachine::aws::us-east-1::PM::us-east-1a"
+            },
+            "used": 1.0,
+            "peak": 0.0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 8
+            },
+            "used": 860160.0,
+            "peak": 0.0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "enhancedNetworkingType": "NONE",
+      "virtualizationType": "PVM",
+      "ebsOptimized": "false",
+      "virtualMachineId": "i-0fb66e9a23555c022",
+      "common_dto.EntityDTO.VirtualMachineData.vmState": "",
+      "NVMe": "false",
+      "numCpus": "2",
+      "tenancy": "default",
+      "isEbsOptimized": "false",
+      "common_dto.EntityDTO.VirtualMachineRelatedData.memory": "id: \"Memory/i-0fb66e9a23555c022\"\ndisplayName: \"Memory/InstanceStore_backed\"\ncapacity: 7864320.0\n",
+      "common_dto.EntityDTO.VirtualMachineData.guestName": "Linux",
+      "common_dto.EntityDTO.VirtualMachineRelatedData.processor": "[id: \"CPU-0/i-0fb66e9a23555c022\"\ndisplayName: \"CPU-0/i-0fb66e9a23555c022\"\ncapacity: 2000.0\n, id: \"CPU-1/i-0fb66e9a23555c022\"\ndisplayName: \"CPU-1/i-0fb66e9a23555c022\"\ncapacity: 2000.0\n]",
+      "common_dto.EntityDTO.VirtualMachineData.billingType": "ONDEMAND",
+      "common_dto.EntityDTO.VirtualMachineData.ipAddress": "[52.23.169.81, 172.31.18.73]",
+      "isEnaSupported": "false",
+      "common_dto.EntityDTO.VirtualMachineData.numElasticIps": "0",
+      "region": "us-east-1",
+      "architecture": "64-bit"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": true
+    },
+    "origin": {
+      "discoveryOrigin": {
+        "discoveringTargetIds": [
+          "72623594446896"
+        ],
+        "lastUpdatedTime": "1536948751735"
+      }
+    },
+    "connectedEntityList": [
+      {
+        "connectedEntityId": "72556027335467",
+        "connectedEntityType": 55,
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       }
     ],
     "tags": {}
@@ -224,6 +455,7 @@
     "typeSpecificInfo": {},
     "oid": "72556027335467",
     "displayName": "aws-us-east-1a",
+    "environmentType": "CLOUD",
     "commoditySoldList": [],
     "commoditiesBoughtFromProviders": [],
     "entityState": "POWERED_ON",
@@ -252,6 +484,7 @@
     "entityType": 57,
     "typeSpecificInfo": {},
     "oid": "72618271320786",
+    "environmentType": "CLOUD",
     "displayName": "HDD",
     "commoditySoldList": [
       {
@@ -337,7 +570,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       }
     ],
     "tags": {}
@@ -347,6 +580,7 @@
     "typeSpecificInfo": {},
     "oid": "72556027335398",
     "displayName": "aws-US East (N. Virginia)",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -391,6 +625,7 @@
     "typeSpecificInfo": {},
     "oid": "72593321343488",
     "displayName": "m1.large",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -602,7 +837,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       },
       {
         "connectedEntityId": "72618271320786",
@@ -617,6 +852,7 @@
     "typeSpecificInfo": {},
     "oid": "72593321343487",
     "displayName": "m1.medium",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -828,7 +1064,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       },
       {
         "connectedEntityId": "72618271320786",
@@ -843,6 +1079,7 @@
     "typeSpecificInfo": {},
     "oid": "72623594586160",
     "displayName": "TestBusinessAccount",
+    "environmentType": "CLOUD",
     "commoditySoldList": [],
     "commoditiesBoughtFromProviders": [],
     "entityState": "POWERED_ON",
@@ -880,6 +1117,7 @@
     "typeSpecificInfo": {},
     "oid": "72611718658577",
     "displayName": "GuestLoad [i-0ac619881a44290c0]",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -955,6 +1193,7 @@
     "typeSpecificInfo": {},
     "oid": "72593321343497",
     "displayName": "db.m3.large",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -1051,7 +1290,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       }
     ],
     "tags": {}
@@ -1061,6 +1300,7 @@
     "typeSpecificInfo": {},
     "oid": "72593321343498",
     "displayName": "db.m3.medium",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -1157,7 +1397,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       }
     ],
     "tags": {}
@@ -1166,11 +1406,12 @@
     "entityType": 46,
     "typeSpecificInfo": {
       "database": {
-        "edition": "SQL_SERVER_ENTERPRISE"
+        "edition": "ENTERPRISE"
       }
     },
     "oid": "72623594843399",
     "displayName": "TestAwsDb",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -1309,7 +1550,7 @@
       {
         "connectedEntityId": "72556027335467",
         "connectedEntityType": 55,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       }
     ],
     "tags": {}

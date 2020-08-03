@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 
@@ -37,8 +38,9 @@ public interface ActionStore {
      *
      * @param actionPlan The list of actions with which to populate the store.
      * @return If the store was successfully populated with actions from the plan.
+     * @throws InterruptedException if current thread interrupted
      */
-    boolean populateRecommendedActions(@Nonnull final ActionPlan actionPlan);
+    boolean populateRecommendedActions(@Nonnull ActionPlan actionPlan) throws InterruptedException;
 
     /**
      * Return the number of elements in the store.
@@ -78,6 +80,17 @@ public interface ActionStore {
     Optional<Action> getAction(long actionId);
 
     /**
+     * Similar to {@link ActionStore#getAction(long)} but we get action by recommendationId
+     * instead of actionId.
+     *
+     * @param recommendationId stable identifier for action
+     * @return the action or Optional.empty if no action with the given recommendationId can be
+     * found.
+     */
+    @Nonnull
+    Optional<Action> getActionByRecommendationId(long recommendationId);
+
+    /**
      * Get views of the actions in the store that provide accessors to the properties of the actions.
      * Clients who do not need to mutate the state of actions should prefer to access actions
      * via their {@link ActionView}s.
@@ -90,19 +103,7 @@ public interface ActionStore {
      *         the value is the associated {@link ActionView}.
      */
     @Nonnull
-    Map<Long, ActionView> getActionViews();
-
-    /**
-     * Get views of the actions, which its recommendation time is within {@param startDate} and
-     * {@param endDate}, in the store.
-     *
-     * No guarantee is made to the order of the {@link ActionView}s returned.
-     *
-     * @return A map descriptions for all actions in the store where the key is the actionId and
-     *         the value is the associated {@link ActionView}.
-     */
-    @Nonnull
-    Map<Long, ActionView> getActionViewsByDate(LocalDateTime startDate, LocalDateTime endDate);
+    QueryableActionViews getActionViews();
 
     /**
      * Get the actions in the store.
@@ -150,7 +151,7 @@ public interface ActionStore {
 
     /**
      * Retrieve the cache that maintains entity severities for entities associated with actions
-     * in this {@link ActionStore}. There is one severity cache per-store.
+     * in this {@link ActionStore}. There is at most one severity cache per-store.
      *
      * Note that the store does not manage refreshing and updating the severity cache. It is up to clients
      * to do so because State changes to actions that happen external to updates to the {@link ActionStore}
@@ -159,7 +160,7 @@ public interface ActionStore {
      * @return The {@link EntitySeverityCache} associated with this {@link ActionStore}.
      */
     @Nonnull
-    EntitySeverityCache getEntitySeverityCache();
+    Optional<EntitySeverityCache> getEntitySeverityCache();
 
     /**
      * Get the visibility predicate for use in testing the visibility of actions in this store.

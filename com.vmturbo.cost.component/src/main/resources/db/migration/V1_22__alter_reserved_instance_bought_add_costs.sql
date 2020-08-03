@@ -1,0 +1,5 @@
+ALTER TABLE reserved_instance_bought ADD COLUMN per_instance_fixed_cost DOUBLE;
+
+ALTER TABLE reserved_instance_bought ADD COLUMN per_instance_recurring_cost_hourly DOUBLE;
+
+ALTER TABLE reserved_instance_bought ADD COLUMN per_instance_amortized_cost_hourly DOUBLE;

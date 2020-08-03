@@ -3,6 +3,8 @@ package com.vmturbo.plan.orchestrator.plan;
 import static com.vmturbo.plan.orchestrator.db.tables.PlanInstance.PLAN_INSTANCE;
 import static com.vmturbo.plan.orchestrator.db.tables.Scenario.SCENARIO;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -11,71 +13,80 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
 
-import org.apache.commons.lang3.StringUtils;
-import org.jooq.DSLContext;
-import org.jooq.Record1;
-import org.jooq.exception.DataAccessException;
-import org.jooq.impl.DSL;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
 import io.grpc.Channel;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
+import org.jooq.DSLContext;
+import org.jooq.Record1;
+import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanInstanceRecord;
 import com.vmturbo.plan.orchestrator.plan.PlanStatusListener.PlanStatusListenerException;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioScopeAccessChecker;
-import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * DAO backed by RDBMS to hold plan instances.
  */
 public class PlanDaoImpl implements PlanDao {
 
+    /**
+     * If a plan is in these states we do not apply timeout logic to it. This is because these states
+     * indicate a plan that is not in-progress.
+     */
+    private static final Set<String> STATES_NOT_ELIGIBLE_FOR_TIMEOUT = ImmutableSet.of(
+        PlanStatus.READY.name(), PlanStatus.QUEUED.name(), PlanStatus.FAILED.name(),
+        PlanStatus.SUCCEEDED.name(), PlanStatus.STOPPED.name());
+
+
     @VisibleForTesting
     static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
-    private final Logger logger = LoggerFactory.getLogger(PlanDaoImpl.class);
+    private final Logger logger = LogManager.getLogger();
 
     /**
      * Database access context.
@@ -94,17 +105,13 @@ public class PlanDaoImpl implements PlanDao {
     @GuardedBy("setLock")
     private final Set<Long> planLocks = new HashSet<>();
 
-    private final RepositoryClient repositoryClient;
-
-    private final ActionsServiceBlockingStub actionOrchestratorClient;
-
-    private final StatsHistoryServiceBlockingStub statsClient;
-
     private final Object listenerLock = new Object();
 
     private final SettingServiceBlockingStub settingService;
 
-    private final int planTimeOutHours;
+    private final SettingPolicyServiceBlockingStub settingPolicyService;
+
+    private final Clock clock;
 
     private final UserSessionContext userSessionContext;
 
@@ -113,31 +120,32 @@ public class PlanDaoImpl implements PlanDao {
     @GuardedBy("listenerLock")
     private final List<PlanStatusListener> planStatusListeners = new LinkedList<>();
 
-    /**
-     * Constructs plan DAO.
-     *
-     * @param dsl database access context
-     * @param repositoryClient gRPC client for the repository component
-     * @param actionOrchestratorClient gRPC client for action orchestrator
-     * @param statsClient gRPC client for the stats/history component
-     * @param planTimeOutHours plan time out hours
-     */
-    public PlanDaoImpl(@Nonnull final DSLContext dsl,
-                       @Nonnull final RepositoryClient repositoryClient,
-                       @Nonnull final ActionsServiceBlockingStub actionOrchestratorClient,
-                       @Nonnull final StatsHistoryServiceBlockingStub statsClient,
-                       @Nonnull final Channel groupChannel,
-                       @Nonnull final UserSessionContext userSessionContext,
-                       final int planTimeOutHours) {
+    private final ScheduledExecutorService cleanupExecutor;
+
+    private final OldPlanCleanup oldPlanCleanup;
+
+    PlanDaoImpl(@Nonnull final DSLContext dsl,
+                @Nonnull final Channel groupChannel,
+                @Nonnull final UserSessionContext userSessionContext,
+                @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
+                @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceServiceBlockingStub,
+                @Nonnull final Clock clock,
+                @Nonnull final ScheduledExecutorService cleanupExecutor,
+                final long planTimeout,
+                @Nonnull final TimeUnit planTimeoutUnit,
+                final long cleanupInterval,
+                @Nonnull final TimeUnit cleanupIntervalUnit) {
         this.dsl = Objects.requireNonNull(dsl);
-        this.repositoryClient = Objects.requireNonNull(repositoryClient);
-        this.actionOrchestratorClient = Objects.requireNonNull(actionOrchestratorClient);
-        this.statsClient = Objects.requireNonNull(statsClient);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
+        this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
         this.userSessionContext = userSessionContext;
-        this.planTimeOutHours = planTimeOutHours;
-        scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
-                GroupServiceGrpc.newBlockingStub(groupChannel));
+        this.clock = clock;
+        this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
+                GroupServiceGrpc.newBlockingStub(groupChannel), searchServiceBlockingStub,
+                supplyChainServiceServiceBlockingStub);
+        this.cleanupExecutor = cleanupExecutor;
+        this.oldPlanCleanup = new OldPlanCleanup(clock, this, planTimeout, planTimeoutUnit);
+        this.cleanupExecutor.scheduleAtFixedRate(this.oldPlanCleanup, cleanupInterval, cleanupInterval, cleanupIntervalUnit);
     }
 
     @Override
@@ -166,10 +174,12 @@ public class PlanDaoImpl implements PlanDao {
         }
 
         if (planRequest.hasTopologyId()) {
-            builder.setTopologyId(planRequest.getTopologyId());
+            builder.setSourceTopologyId(planRequest.getTopologyId());
         }
         if (planRequest.hasScenarioId()) {
-            builder.setScenario(ensureScenarioExist(planRequest.getScenarioId()));
+            Scenario scenario = ensureScenarioExist(planRequest.getScenarioId());
+            builder.setScenario(scenario);
+            builder.setName(scenario.getScenarioInfo().getName());
         }
         builder.setPlanId(IdentityGenerator.next());
         builder.setStatus(PlanStatus.READY);
@@ -177,7 +187,7 @@ public class PlanDaoImpl implements PlanDao {
         final PlanDTO.PlanInstance plan = builder.build();
         checkPlanConsistency(plan);
 
-        final LocalDateTime curTime = LocalDateTime.now();
+        final LocalDateTime curTime = LocalDateTime.now(clock);
         final PlanInstance dbRecord = new PlanInstance(plan.getPlanId(), curTime, curTime, plan,
                 plan.getProjectType().name(), PlanStatus.READY.name());
         dsl.newRecord(PLAN_INSTANCE, dbRecord).store();
@@ -208,7 +218,7 @@ public class PlanDaoImpl implements PlanDao {
         final PlanDTO.PlanInstance planInstance = planInstanceBuilder.build();
         checkPlanConsistency(planInstance);
 
-        final LocalDateTime curTime = LocalDateTime.now();
+        final LocalDateTime curTime = LocalDateTime.now(clock);
         final PlanInstance dbRecord =
                 new PlanInstance(planInstance.getPlanId(), curTime, curTime, planInstance,
                         planProjectType.name(), PlanStatus.READY.name());
@@ -224,19 +234,15 @@ public class PlanDaoImpl implements PlanDao {
      */
     private void checkPlanConsistency(@Nonnull final PlanDTO.PlanInstance plan)
             throws IntegrityException {
-        if (plan.hasTopologyId()) {
-            ensureTopologyExist(plan.getTopologyId());
+        if (plan.hasSourceTopologyId()) {
+            ensureTopologyExist(plan.getSourceTopologyId());
         }
     }
 
     @Nonnull
     @Override
     public Set<PlanDTO.PlanInstance> getAllPlanInstances() {
-        final List<PlanInstance> records = dsl.transactionResult(configuration -> {
-            final DSLContext context = DSL.using(configuration);
-            return dsl.selectFrom(PLAN_INSTANCE).fetch().into(PlanInstance.class);
-        });
-        return records.stream()
+        return getPlans(dsl).stream()
             .map(PlanInstance::getPlanInstance)
             .collect(Collectors.toSet());
     }
@@ -247,42 +253,34 @@ public class PlanDaoImpl implements PlanDao {
         return getPlanInstance(dsl, id);
     }
 
-    private static Optional<PlanDTO.PlanInstance> getPlanInstance(@Nonnull final DSLContext dsl,
+    private Optional<PlanDTO.PlanInstance> getPlanInstance(@Nonnull final DSLContext dsl,
             final long id) {
-        final PlanInstanceRecord planInstance =
-                dsl.selectFrom(PLAN_INSTANCE).where(PLAN_INSTANCE.ID.eq(id)).fetchOne();
-        if (planInstance == null) {
-            return Optional.empty();
-        } else {
-            return Optional.of(planInstance.into(PlanInstance.class).getPlanInstance());
-        }
+        return getPlans(dsl, PLAN_INSTANCE.ID.eq(id)).stream().findFirst()
+            .map(PlanInstance::getPlanInstance);
     }
 
     @Override
     public PlanDTO.PlanInstance deletePlan(final long id) throws NoSuchObjectException {
-        // For now delete each piece of the plan independently.
-        // TODO: implement atomic deletion with rollback. If any piece deletion fails then rollback everything.
-        // Delete projected topology from PlanOrchestrator, ActionOrchestrator,
-        // Repository and History/Stats
         PlanDTO.PlanInstance plan = getPlanInstance(id).orElseThrow(() -> noSuchObjectException(id));
         if (!PlanUtils.canCurrentUserAccessPlan(plan)) {
             // throw an access error if the current user should not be able to delete the plan.
             throw new UserAccessException("User does not have access to plan.");
         }
-        // First delete all the plan related data in other components. Then
-        // delete the data in plan db. This ordering is to ensure that we don't leave
-        // orphan/dangling plan data in the other components. There can still be
-        // some dangling plan data as we haven't handled all the error cases.
-        // But this atleast minimizes the number of dangling objects.
-        // TODO - karthikt - The deleteRelatedObjects function should be moved
-        // outside this class where the deletePlan is called as DAO classes should
-        // concern itself only with access to the DB.
-        deleteRelatedObjects(plan);
+
         if (dsl.deleteFrom(PLAN_INSTANCE)
                 .where(PLAN_INSTANCE.ID.eq(id))
                 .execute() != 1) {
             throw noSuchObjectException(id);
         }
+
+        planStatusListeners.forEach(listener -> {
+            try {
+                listener.onPlanDeleted(plan);
+            } catch (PlanStatusListenerException e) {
+                logger.error("Failed to forward exception to listener: " + listener.getClass().getSimpleName(), e);
+            }
+        });
+
         return plan;
     }
 
@@ -294,92 +292,20 @@ public class PlanDaoImpl implements PlanDao {
                 oldPlanInstance.setScenario(newScenario));
     }
 
-    private void deleteRelatedObjects(@Nonnull PlanDTO.PlanInstance plan) {
-
-        // TODO - karthikt * Do deletes in parallel
-        // TODO - karthikt * Handle failure and retry
-        // TODO - karthikt * Delete plan immmediately and delete others in the background
-        // TODO - karthikt * For the background delete, we would have to add a delete job(in
-        // TODO - karthikt    a queue in a db/local file)
-        //
-        final List<String> errors = new ArrayList<>();
-        final long topologyContextId = plan.getPlanId();
-        if (plan.hasProjectedTopologyId()) {
-            final long projectedTopologyId = plan.getProjectedTopologyId();
-            logger.info("Deleting projected topology with id:{} and contextId:{} ",
-                    projectedTopologyId, topologyContextId);
-
-            // Delete topology from Repository
-            try {
-                final RepositoryOperationResponse repoResponse =
-                        repositoryClient.deleteTopology(projectedTopologyId, topologyContextId);
-                if (repoResponse.getResponseCode() == RepositoryOperationResponseCode.OK) {
-                    logger.info("Successfully deleted projected topology with id:{} and"
-                                    + " contextId:{} from repository",
-                            projectedTopologyId, topologyContextId);
-                } else {
-                    errors.add("Error trying to delete projected topology with id "
-                            + projectedTopologyId + " : "
-                            + repoResponse.getError());
-                }
-            } catch (StatusRuntimeException e) {
-                errors.add("Failed to delete projected topology " + projectedTopologyId +
-                        " due to error: " + e.getLocalizedMessage());
-            }
-        } else {
-            logger.info("Skipping projected topology deletion for plan {}... no topology to delete.",
-                    topologyContextId);
-        }
-
-        // Delete actions associated with the plan in the ActionsOrchestraor
-        if (!plan.getActionPlanIdList().isEmpty()) {
-            final DeleteActionsRequest actionRequest = DeleteActionsRequest.newBuilder()
-                    .setTopologyContextId(topologyContextId)
-                    .build();
-            try {
-                actionOrchestratorClient.deleteActions(actionRequest);
-            } catch (StatusRuntimeException e) {
-                if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
-                    // If object doesn't exist, just ignore
-                    logger.info("Actions for planId:{} not found", topologyContextId);
-                } else {
-                    errors.add("Failed to delete actions associated with plan " + topologyContextId +
-                            " due to error: " + e.getLocalizedMessage());
-                }
-            }
-        } else {
-            logger.info("Skipping action plan deletion for plan {}. No action plan to delete.",
-                    topologyContextId);
-        }
-
-        if (plan.hasStatsAvailable()) {
-            // Delete plan stats in history component
-            final DeletePlanStatsRequest statsRequest = DeletePlanStatsRequest.newBuilder()
-                    .setTopologyContextId(topologyContextId)
-                    .build();
-
-            try {
-                // If the plan doesn't exist, stats will not throw any exception.
-                statsClient.deletePlanStats(statsRequest);
-            } catch (StatusRuntimeException e) {
-                errors.add("Failed to delete stats associated with plan " + topologyContextId +
-                        " due to error: " + e.getLocalizedMessage());
-            }
-        } else {
-            logger.info("Skipping stats deletion for plan {}. No stats available to delete.",
-                    topologyContextId);
-        }
-
-        if (!errors.isEmpty()) {
-            logger.error("Encountered errors trying to delete plan {}. Errors:\n", plan.getPlanId(),
-                    StringUtils.join(errors, "\n"));
-        } else {
-            logger.info("Successfully deleted all known related objects for plan {}", topologyContextId);
-        }
-    }
-
     private static NoSuchObjectException noSuchObjectException(long id) {
         return new NoSuchObjectException("Plan with id " + id + " not found");
+    }
+
+    @Nonnull
+    private List<PlanInstance> getPlans(@Nullable DSLContext context,
+                                        @Nonnull Condition... condition) {
+        DSLContext targetCtxt = context;
+        if (context == null) {
+            targetCtxt = dsl;
+        }
+        return targetCtxt.selectFrom(PLAN_INSTANCE).where(condition)
+            .fetch()
+            .into(PlanInstance.class);
     }
 
     @Override
@@ -396,16 +322,18 @@ public class PlanDaoImpl implements PlanDao {
                         () -> new NoSuchObjectException(
                                 "Plan with id " + planId + " not found while trying to " +
                                         "update it"));
-                // do not update plan status if the plan has been stopped
-                if (src.getStatus() != PlanStatus.STOPPED) {
+                if (src.getStatus() != PlanStatus.STOPPED && src.getStatus() != PlanStatus.FAILED) {
                     final PlanDTO.PlanInstance.Builder newBuilder =
                             PlanDTO.PlanInstance.newBuilder(src);
                     updater.accept(newBuilder);
                     final PlanDTO.PlanInstance planInstance = newBuilder.build();
-                    logger.info("Updating planInstance : {} from {} to {}", planId, src.getStatus().name(), planInstance.getStatus().name());
+                    logger.info("Updating planInstance : {} from {} to {}. {}",
+                        planId, src.getStatus().name(), planInstance.getStatus().name(),
+                        src.getStatusMessage().equals(planInstance.getStatusMessage()) ? "" :
+                            "New status message: " + planInstance.getStatusMessage());
                     checkPlanConsistency(planInstance);
                     final int numRows = context.update(PLAN_INSTANCE)
-                            .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
+                            .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now(clock))
                             .set(PLAN_INSTANCE.PLAN_INSTANCE_, planInstance)
                             .set(PLAN_INSTANCE.STATUS, planInstance.getStatus().name())
                             .where(PLAN_INSTANCE.ID.eq(planId))
@@ -481,7 +409,6 @@ public class PlanDaoImpl implements PlanDao {
                         PlanStatus.FAILED.name()))
                 .and(PLAN_INSTANCE.STATUS.isNotNull())
                 .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.USER.name()))
-                .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.INITAL_PLACEMENT.name()))
                 .fetchOne()
                 .into(Integer.class);
     }
@@ -491,7 +418,7 @@ public class PlanDaoImpl implements PlanDao {
      *
      * @return true if max number of concurrent plan instances has not reached, false otherwise.
      */
-    private boolean isPlanExecutionCapacityAvailable(DSLContext dslContext, final int timeOutHours) {
+    private boolean isPlanExecutionCapacityAvailable() {
         // get maximum number of concurrent plan instance allowed
         GetGlobalSettingResponse response = settingService.getGlobalSetting(
             GetSingleGlobalSettingRequest.newBuilder()
@@ -508,8 +435,7 @@ public class PlanDaoImpl implements PlanDao {
                         .getNumericSettingValueType().getDefault();
         }
 
-        LocalDateTime expirationHour = LocalDateTime.now().minusHours(timeOutHours);
-        cleanUpFailedInstance(expirationHour);
+        oldPlanCleanup.run();
 
         // get number of running plan instances
         Integer numRunningInstances = getNumberOfRunningPlanInstances();
@@ -522,27 +448,6 @@ public class PlanDaoImpl implements PlanDao {
     }
 
     /**
-     * Clean up plan instances if instances are running for more than timeoutHours hours.
-     * Since plan instances status could be not be updated, if some components were down
-     * during their execution.
-     *
-     * @param timeOutHours plan time out hours
-     * @throws DataAccessException db access exception
-     */
-    private void cleanUpFailedInstance(final LocalDateTime timeOutHours) throws DataAccessException {
-        dsl.update(PLAN_INSTANCE)
-                .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
-                .set(PLAN_INSTANCE.STATUS, PlanStatus.FAILED.name())
-                .where(PLAN_INSTANCE.UPDATE_TIME.lt(timeOutHours),
-                        PLAN_INSTANCE.STATUS.notIn(
-                                PlanStatus.READY.name(),
-                                PlanStatus.SUCCEEDED.name(),
-                                PlanStatus.FAILED.name()))
-                .and(PLAN_INSTANCE.STATUS.isNotNull())
-                .execute();
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -552,7 +457,7 @@ public class PlanDaoImpl implements PlanDao {
             final DSLContext context = DSL.using(configuration);
 
             // Proceed only if the maximum number of concurrent plan instances have not been exceeded
-            if (isPlanExecutionCapacityAvailable(context, planTimeOutHours)) {
+            if (isPlanExecutionCapacityAvailable()) {
                 // Select the instance record that is in READY state and has the oldest creation time
                 // Call "forUpdate()" to lock the record for subsequent update.
                 final PlanInstanceRecord planInstanceRecord = context.selectFrom(PLAN_INSTANCE)
@@ -586,8 +491,8 @@ public class PlanDaoImpl implements PlanDao {
                 final DSLContext context = DSL.using(configuration);
 
                 // Proceed only if the maximum number of concurrent plan instances have not been exceeded
-                if (isUserOrInitialPlacementPlan(planInstance)
-                        || isPlanExecutionCapacityAvailable(context, planTimeOutHours)) {
+                if (isUserPlan(planInstance)
+                        || isPlanExecutionCapacityAvailable()) {
                     // Select the instance record that is in READY state and has the given ID.
                     // Call "forUpdate()" to lock the record for subsequent update.
                     final PlanInstanceRecord planInstanceRecord = context.selectFrom(PLAN_INSTANCE)
@@ -614,7 +519,7 @@ public class PlanDaoImpl implements PlanDao {
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof IntegrityException) {
-                throw (IntegrityException) e.getCause();
+                throw (IntegrityException)e.getCause();
             } else {
                 throw e;
             }
@@ -640,13 +545,13 @@ public class PlanDaoImpl implements PlanDao {
                 .getPlanInstance();
         PlanDTO.PlanInstance updatedInst = PlanDTO.PlanInstance.newBuilder(originalInst)
                 .setStatus(PlanStatus.QUEUED)
-                .setStartTime(System.currentTimeMillis())
+                .setStartTime(clock.millis())
                 .build();
         checkPlanConsistency(updatedInst);
         // do not update planStatus if the status is already STOPPED
         if (originalInst.getStatus() != PlanStatus.STOPPED) {
             context.update(PLAN_INSTANCE)
-                    .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
+                    .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now(clock))
                     .set(PLAN_INSTANCE.PLAN_INSTANCE_, updatedInst)
                     .set(PLAN_INSTANCE.STATUS, updatedInst.getStatus().name())
                     .where(PLAN_INSTANCE.ID.eq(planId))
@@ -743,35 +648,34 @@ public class PlanDaoImpl implements PlanDao {
      * @param planInstance {@link PlanInstance} needs to check.
      * @return return true if it is a user created plan or initial placement plan.
      */
-    private boolean isUserOrInitialPlacementPlan(@Nonnull final PlanDTO.PlanInstance planInstance) {
-        return planInstance.getProjectType().equals(PlanProjectType.USER) ||
-            planInstance.getProjectType().equals(PlanProjectType.INITAL_PLACEMENT);
+    private boolean isUserPlan(@Nonnull final PlanDTO.PlanInstance planInstance) {
+        return planInstance.getProjectType().equals(PlanProjectType.USER);
     }
 
     /**
      * {@inheritDoc}
      *
-     * This method retrieves all plan instances and serializes them as JSON strings.
+     * <p>This method retrieves all plan instances and serializes them as JSON strings.
      *
      * @return a list of serialized plan instances
-     * @throws DiagnosticsException
+     * @throws DiagnosticsException If there is an error collecting diagnostics.
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
 
         final Set<PlanDTO.PlanInstance> planInstances = getAllPlanInstances();
         logger.info("Collecting diags for {} plan instances", planInstances.size());
 
-        return planInstances.stream()
-            .map(planInstance -> GSON.toJson(planInstance, PlanDTO.PlanInstance.class))
-            .collect(Collectors.toList());
+        for (PlanDTO.PlanInstance planInstance: planInstances) {
+            appender.appendString(GSON.toJson(planInstance, PlanDTO.PlanInstance.class));
+        }
     }
 
     /**
      * {@inheritDoc}
      *
-     * This method clears all existing plan instances, then deserializes and adds a list of
+     * <p>This method clears all existing plan instances, then deserializes and adds a list of
      * serialized plan instances from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
@@ -828,17 +732,23 @@ public class PlanDaoImpl implements PlanDao {
         }
     }
 
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return "PlanInstances";
+    }
+
     /**
      * Convert a PlanDTO.PlanInstance to a jooq PlanInstance and add it to the database.
      *
-     * This is used when restoring serialized PlanDTO.PlanInstances from diagnostics and should
+     * <p>This is used when restoring serialized PlanDTO.PlanInstances from diagnostics and should
      * not be used for normal operations.
      *
      * @param planInstance the PlanDTO.PlanInstance to convert and add.
      * @return an optional of a string representing any error that may have occurred
      */
     private Optional<String> restorePlanInstance(@Nonnull final PlanDTO.PlanInstance planInstance) {
-        final LocalDateTime curTime = LocalDateTime.now();
+        final LocalDateTime curTime = LocalDateTime.now(clock);
         final PlanInstance record = new PlanInstance(planInstance.getPlanId(), curTime, curTime,
             planInstance, planInstance.getProjectType().name(), planInstance.getStatus().name());
         try {
@@ -846,7 +756,7 @@ public class PlanDaoImpl implements PlanDao {
             return r == 1 ? Optional.empty() : Optional.of("Failed to restore plan instance " + planInstance);
         } catch (DataAccessException e) {
             return Optional.of("Could not restore plan instance " + planInstance +
-                " because of DataAccessException "+ e.getMessage());
+                " because of DataAccessException " + e.getMessage());
         }
     }
 
@@ -861,6 +771,79 @@ public class PlanDaoImpl implements PlanDao {
             return dsl.deleteFrom(PLAN_INSTANCE).execute();
         } catch (DataAccessException e) {
             return 0;
+        }
+    }
+
+    /**
+     * Cleans up plan instances if instances are running for more than timeoutHours hours.
+     * Since plan instances status could be not be updated, if some components were down
+     * during their execution.
+     */
+    static class OldPlanCleanup implements Runnable {
+
+        private static final Logger logger = LogManager.getLogger();
+
+        private final Clock clock;
+
+        private final PlanDaoImpl planDao;
+
+        private final long planTimeoutSec;
+
+        OldPlanCleanup(@Nonnull final Clock clock,
+                       @Nonnull final PlanDaoImpl planDao,
+                       final long planTimeout,
+                       @Nonnull final TimeUnit planTimeoutUnit) {
+            this.clock = clock;
+            this.planTimeoutSec = planTimeoutUnit.toSeconds(planTimeout);
+            this.planDao = planDao;
+        }
+
+        @VisibleForTesting
+        long getPlanTimeoutSec() {
+            return planTimeoutSec;
+        }
+
+        @Override
+        public void run() {
+            try {
+                final LocalDateTime now = LocalDateTime.now(clock);
+                final LocalDateTime threshold = now.minusSeconds(planTimeoutSec);
+                final List<PlanInstance> expiredInstances = planDao.getPlans(null,
+                    PLAN_INSTANCE.STATUS.notIn(STATES_NOT_ELIGIBLE_FOR_TIMEOUT)
+                        .and(PLAN_INSTANCE.UPDATE_TIME.lt(threshold)));
+
+                for (PlanInstance expiredInstance : expiredInstances) {
+                    try {
+                        logger.info("Plan {} has no updates since {}," +
+                            " exceeding the timeout threshold of {}. Marking it as failed.",
+                            expiredInstance.getId(), expiredInstance.getUpdateTime(),
+                            Duration.ofSeconds(planTimeoutSec));
+                        planDao.updatePlanInstance(expiredInstance.getId(), (bldr) -> {
+                            // It's possible that another operation between the expired instance
+                            // query and this update already set the plan to FAILED.
+                            if (bldr.getStatus() != PlanStatus.FAILED) {
+                                bldr.setStatus(PlanStatus.FAILED);
+                                final Duration timeSinceUpdate = Duration.between(expiredInstance.getUpdateTime(), now);
+                                bldr.setStatusMessage("Failed due to timeout. No updates for " + timeSinceUpdate.toString());
+                            }
+                        });
+                    } catch (IntegrityException e) {
+                        // This shouldn't happen, because we're not changing anything that would violate
+                        // integrity. Is the plan already somehow corrupted?
+                        logger.warn("Failed to delete expired plan {} because it is no longer valid. Error: {}",
+                            expiredInstance.getId(), e.getMessage());
+                    } catch (NoSuchObjectException e) {
+                        // This may happen if the plan gets deleted on another thread while cleaning up.
+                        logger.warn("Failed to delete expired plan {} because it no longer exists.", expiredInstance.getId());
+                    }
+                }
+            } catch (DataAccessException e) {
+                logger.error("Failed to clean up expired instances due to SQL exception.", e);
+            } catch (RuntimeException e) {
+                // We catch runtime exceptions because we don't want a single failed expiration loop
+                // to stop subsequent executions of this method in the scheduled executor.
+                logger.error("Failed to clean up expired instances due to unexpected exception.", e);
+            }
         }
     }
 }

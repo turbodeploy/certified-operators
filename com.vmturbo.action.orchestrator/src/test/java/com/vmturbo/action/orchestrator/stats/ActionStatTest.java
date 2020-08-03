@@ -3,12 +3,9 @@ package com.vmturbo.action.orchestrator.stats;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
-import java.util.Arrays;
 import java.util.Collections;
 
 import org.junit.Test;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -22,7 +19,7 @@ public class ActionStatTest {
     private static final ActionDTO.Action SAVINGS_ACTION = ActionDTO.Action.newBuilder()
         .setId(1)
         .setInfo(ActionInfo.getDefaultInstance())
-        .setImportance(1)
+        .setDeprecatedImportance(1)
         .setExplanation(Explanation.getDefaultInstance())
         .setSavingsPerHour(CurrencyAmount.newBuilder()
             .setAmount(1.0))
@@ -31,7 +28,7 @@ public class ActionStatTest {
     private static final ActionDTO.Action INVESTMENT_ACTION = ActionDTO.Action.newBuilder()
         .setId(1)
         .setInfo(ActionInfo.getDefaultInstance())
-        .setImportance(1)
+        .setDeprecatedImportance(1)
         .setExplanation(Explanation.getDefaultInstance())
         .setSavingsPerHour(CurrencyAmount.newBuilder()
                 .setAmount(-3.0))
@@ -43,11 +40,13 @@ public class ActionStatTest {
         actionStat.recordAction(SAVINGS_ACTION, Collections.singleton(ActionEntity.newBuilder()
                 .setId(7)
                 .setType(10)
-                .build()));
+                .build()),
+            true);
         actionStat.recordAction(INVESTMENT_ACTION, Collections.singleton(ActionEntity.newBuilder()
                 .setId(8)
                 .setType(10)
-                .build()));
+                .build()),
+            false);
 
         final ActionStatsLatestRecord record = new ActionStatsLatestRecord();
         actionStat.addToRecord(record);
@@ -56,6 +55,7 @@ public class ActionStatTest {
         assertThat(record.getTotalInvestment().doubleValue(), is(3.0));
         assertThat(record.getTotalActionCount(), is(2));
         assertThat(record.getTotalEntityCount(), is(2));
+        assertThat(record.getNewActionCount(), is(1));
     }
 
     @Test
@@ -66,12 +66,14 @@ public class ActionStatTest {
         actionStat.recordAction(SAVINGS_ACTION, Collections.singleton(ActionEntity.newBuilder()
                 .setId(7)
                 .setType(10)
-                .build()));
+                .build()),
+            true);
         // Same ID, different action.
         actionStat.recordAction(SAVINGS_ACTION, Collections.singleton(ActionEntity.newBuilder()
                 .setId(7)
                 .setType(10)
-                .build()));
+                .build()),
+            false);
 
         final ActionStatsLatestRecord record = new ActionStatsLatestRecord();
         actionStat.addToRecord(record);
@@ -81,6 +83,8 @@ public class ActionStatTest {
 
         // Both actions reflected in action count.
         assertThat(record.getTotalActionCount(), is(2));
+        // Only one of the two actions are "new"
+        assertThat(record.getNewActionCount(), is(1));
         // Savings from both actions should be considered.
         assertThat(record.getTotalSavings().doubleValue(), is(2.0));
     }

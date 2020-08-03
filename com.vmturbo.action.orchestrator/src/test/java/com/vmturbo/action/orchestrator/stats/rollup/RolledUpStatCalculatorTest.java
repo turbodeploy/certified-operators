@@ -30,7 +30,10 @@ public class RolledUpStatCalculatorTest {
         final StatWithSnapshotCnt<ActionStatsLatestRecord> latestRecord1 =
             RollupTestUtils.statRecordWithActionCount(1, ActionStatsLatestRecord.class);
         latestRecord1.record().setTotalEntityCount(10);
-        latestRecord1.record().setTotalActionCount(5);
+        // The first of the "latest" snapshots has 10 total actions, but only 5 of them are
+        // new (e.g. 5 are inherited from the previous record, which is not in this hour).
+        latestRecord1.record().setTotalActionCount(10);
+        latestRecord1.record().setNewActionCount(5);
         latestRecord1.record().setTotalSavings(BigDecimal.valueOf(7));
         latestRecord1.record().setTotalInvestment(BigDecimal.valueOf(6));
         latestRecord1.record().setActionGroupId(ACTION_GROUP_ID);
@@ -41,6 +44,7 @@ public class RolledUpStatCalculatorTest {
             RollupTestUtils.statRecordWithActionCount(1, ActionStatsLatestRecord.class);
         latestRecord2.record().setTotalEntityCount(8);
         latestRecord2.record().setTotalActionCount(4);
+        latestRecord2.record().setNewActionCount(1);
         latestRecord2.record().setTotalSavings(BigDecimal.valueOf(8));
         latestRecord2.record().setTotalInvestment(BigDecimal.valueOf(6));
         latestRecord2.record().setActionGroupId(ACTION_GROUP_ID);
@@ -48,10 +52,13 @@ public class RolledUpStatCalculatorTest {
         latestRecord2.record().setActionSnapshotTime(LocalDateTime.MAX);
 
         // Suppose there is also an empty snapshot that doesn't apply to this action group.
-        final RolledUpActionGroupStat rolledUp =
-            calculator.rollupLatestRecords(3, Arrays.asList(latestRecord1, latestRecord2)).get();
+        final RolledUpActionGroupStat rolledUp = calculator.rollupLatestRecords(3,
+            Arrays.asList(latestRecord1, latestRecord2)).orElseThrow(RuntimeException::new);
         assertThat(rolledUp.avgEntityCount(), closeTo((10.0 + 8) / 3, 0.0001));
-        assertThat(rolledUp.avgActionCount(), closeTo((5.0 + 4) / 3, 0.0001));
+        assertThat(rolledUp.avgActionCount(), closeTo((10.0 + 1) / 3, 0.0001));
+        assertThat(rolledUp.priorActionCount(), is(5));
+        assertThat(rolledUp.newActionCount(), is(5 + 1));
+
         assertThat(rolledUp.avgSavings(), closeTo((7.0 + 8) / 3, 0.0001));
         assertThat(rolledUp.avgInvestment(), closeTo((6.0 + 6) / 3, 0.0001));
 
@@ -61,7 +68,8 @@ public class RolledUpStatCalculatorTest {
         assertThat(rolledUp.minInvestment(), closeTo(6.0, 0.0001));
 
         assertThat(rolledUp.maxEntityCount(), is(10));
-        assertThat(rolledUp.maxActionCount(), is(5));
+        // The first snapshot had 10 actions.
+        assertThat(rolledUp.maxActionCount(), is(10));
         assertThat(rolledUp.maxSavings(), closeTo(8.0, 0.0001));
         assertThat(rolledUp.maxInvestment(), closeTo(6.0, 0.0001));
     }
@@ -126,6 +134,8 @@ public class RolledUpStatCalculatorTest {
         hourRecord1.record().setMinInvestment(BigDecimal.valueOf(5));
         hourRecord1.record().setMinSavings(BigDecimal.valueOf(6));
 
+        hourRecord1.record().setPriorActionCount(12);
+        hourRecord1.record().setNewActionCount(5);
         hourRecord1.record().setMaxActionCount(7);
         hourRecord1.record().setMaxEntityCount(8);
         hourRecord1.record().setMaxInvestment(BigDecimal.valueOf(9));
@@ -147,6 +157,8 @@ public class RolledUpStatCalculatorTest {
         hourRecord2.record().setMinInvestment(BigDecimal.valueOf(10));
         hourRecord2.record().setMinSavings(BigDecimal.valueOf(12));
 
+        hourRecord2.record().setPriorActionCount(7);
+        hourRecord2.record().setNewActionCount(2);
         hourRecord2.record().setMaxActionCount(14);
         hourRecord2.record().setMaxEntityCount(16);
         hourRecord2.record().setMaxInvestment(BigDecimal.valueOf(18));
@@ -154,8 +166,8 @@ public class RolledUpStatCalculatorTest {
 
         // Suppose there is also an empty hour consisting of four snapshots,
         // so there are 8 rolled up action plans in total - 4 with stats, and 4 without.
-        final RolledUpActionGroupStat groupStat =
-            calculator.rollupHourRecords(2 + 2 + 4, Arrays.asList(hourRecord1, hourRecord2)).get();
+        final RolledUpActionGroupStat groupStat = calculator.rollupHourRecords(2 + 2 + 4,
+            Arrays.asList(hourRecord1, hourRecord2)).orElseThrow(RuntimeException::new);
 
         // Divisor is 4, because each record has 2 snapshots and there are 8 total snapshots in
         // range, so each record contributes "1/4" of the value to the total average.
@@ -169,6 +181,8 @@ public class RolledUpStatCalculatorTest {
         assertThat(groupStat.minInvestment(), closeTo(5, 0.00001));
         assertThat(groupStat.minSavings(), closeTo(6, 0.00001));
 
+        assertThat(groupStat.priorActionCount(), is(12));
+        assertThat(groupStat.newActionCount(), is(7));
         assertThat(groupStat.maxActionCount(), is(14));
         assertThat(groupStat.maxEntityCount(), is(16));
         assertThat(groupStat.maxInvestment(), closeTo(18, 0.00001));
@@ -217,6 +231,8 @@ public class RolledUpStatCalculatorTest {
         dayRecord1.record().setMgmtUnitSubgroupId(MGMT_SUBUNIT_ID);
         dayRecord1.record().setDayTime(LocalDateTime.MAX);
 
+        dayRecord1.record().setPriorActionCount(10);
+        dayRecord1.record().setNewActionCount(7);
         dayRecord1.record().setAvgActionCount(BigDecimal.valueOf(5));
         dayRecord1.record().setAvgEntityCount(BigDecimal.valueOf(6));
         dayRecord1.record().setAvgInvestment(BigDecimal.valueOf(7));
@@ -238,6 +254,8 @@ public class RolledUpStatCalculatorTest {
         dayRecord2.record().setMgmtUnitSubgroupId(MGMT_SUBUNIT_ID);
         dayRecord2.record().setDayTime(LocalDateTime.MAX);
 
+        dayRecord2.record().setPriorActionCount(10);
+        dayRecord2.record().setNewActionCount(5);
         dayRecord2.record().setAvgActionCount(BigDecimal.valueOf(10));
         dayRecord2.record().setAvgEntityCount(BigDecimal.valueOf(12));
         dayRecord2.record().setAvgInvestment(BigDecimal.valueOf(14));
@@ -255,8 +273,8 @@ public class RolledUpStatCalculatorTest {
 
         // Suppose there is also an empty day consisting of four snapshots,
         // so there are 8 rolled up action plans in total - 4 with stats, and 4 without.
-        final RolledUpActionGroupStat groupStat =
-            calculator.rollupDayRecords(2 + 2 + 4, Arrays.asList(dayRecord1, dayRecord2)).get();
+        final RolledUpActionGroupStat groupStat = calculator.rollupDayRecords(2 + 2 + 4,
+            Arrays.asList(dayRecord1, dayRecord2)).orElseThrow(RuntimeException::new);
 
         // Divisor is 4, because each record has 2 snapshots and there are 8 total snapshots in
         // range, so each record contributes "1/4" of the value to the total average.
@@ -265,6 +283,8 @@ public class RolledUpStatCalculatorTest {
         assertThat(groupStat.avgInvestment(), closeTo((7.0 + 14) / 4, 0.0001));
         assertThat(groupStat.avgSavings(), closeTo((8.0 + 16) / 4, 0.00001));
 
+        assertThat(groupStat.priorActionCount(), is(dayRecord1.record().getPriorActionCount()));
+        assertThat(groupStat.newActionCount(), is(dayRecord1.record().getNewActionCount() + dayRecord2.record().getNewActionCount()));
         assertThat(groupStat.minActionCount(), is(3));
         assertThat(groupStat.minEntityCount(), is(4));
         assertThat(groupStat.minInvestment(), closeTo(5, 0.00001));

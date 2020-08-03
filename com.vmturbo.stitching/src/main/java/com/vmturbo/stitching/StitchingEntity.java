@@ -1,5 +1,6 @@
 package com.vmturbo.stitching;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -8,6 +9,8 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -20,6 +23,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.journal.JournalableEntity;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
+import com.vmturbo.stitching.utilities.DTOFieldAndPropertyHandler;
 
 /**
  * An entity capable of being stitched.
@@ -74,10 +78,13 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * Get the connected {@link StitchingEntity} instances that this entity is "connected to"
      * grouped by connection type.
      *
-     * This relationship was added to support cloud entities that are connected to other entities
+     * <p>This relationship was added to support cloud entities that are connected to other entities
      * but do not buy or sell commodities. For example, a BusinessAccount may be connected to
      * other BusinessAccounts, a VM may be connected to an AvailabilityZone, and so on, and may
-     * own Workload entities such as VMs, Databases, etc.
+     * own Workload entities such as VMs, Databases, etc.</p>
+     *
+     * <p>This method returns all types of outwards connections: these include normal connections,
+     * owned, aggregated entities and controlled entities.</p>
      *
      * @return the map from {@link ConnectionType} to set of {@link StitchingEntity} instances that
      * this entity is connected to.
@@ -90,8 +97,11 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * Get the connected {@link StitchingEntity} instances that are "connectedTo" this entity
      * grouped by connection type.
      *
-     * This is the inverse of the connectedTo relationship and it used by cloud probes as well
-     * as Storage Browsing probes.
+     * <p>This is the inverse of the connectedTo relationship and it used by cloud probes as well
+     * as Storage Browsing probes.</p>
+     *
+     * <p>This method returns all types of inwards connections: these include normal connections,
+     * the owner, aggregating entities and controlling entities.</p>
      *
      * @return the map from {@link ConnectionType} to set of {@link StitchingEntity} instances that
      * are connectedTo this entity.
@@ -157,9 +167,6 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
 
     /**
      * Get the stitching errors encountered by this specific entity during stitching.
-     * <p>
-     * Note: if you want to get the total errors encountered by this entity and any merged entities,
-     * use {@link StitchingEntity#entityErrors()}.
      */
     @Nonnull
     StitchingErrors getStitchingErrors();
@@ -169,7 +176,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *
      * @param errorCode The code of the error.
      */
-    void recordError(@Nonnull final StitchingErrorCode errorCode);
+    void recordError(@Nonnull StitchingErrorCode errorCode);
 
     /**
      * Get the time that the data for this entity was last updated.
@@ -196,7 +203,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @return true if the input updateTime is newer than the current update time,
      *         false otherwise.
      */
-    boolean updateLastUpdatedTime(final long updateTime);
+    boolean updateLastUpdatedTime(long updateTime);
 
     /**
      * The commodities sold by this entity.
@@ -218,8 +225,8 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *                 Storage associated with the PhysicalMachine that sells this commodity.
      *                 Empty otherwise.
      */
-    void addCommoditySold(@Nonnull final CommodityDTO.Builder commoditySold,
-                          @Nonnull final Optional<StitchingEntity> accesses);
+    void addCommoditySold(@Nonnull CommodityDTO.Builder commoditySold,
+                          @Nonnull Optional<StitchingEntity> accesses);
 
     /**
      * Get the commodities bought list by this entity, indexed by the provider of those commodities.
@@ -249,7 +256,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * CommoditiesBought on this entity
      * @return matched CommoditiesBought wrapped by Optional, or empty if not existing.
      */
-    Optional<CommoditiesBought> getMatchingCommoditiesBought(@Nonnull final StitchingEntity provider,
+    Optional<CommoditiesBought> getMatchingCommoditiesBought(@Nonnull StitchingEntity provider,
             @Nonnull CommoditiesBought commoditiesBought);
 
     /**
@@ -263,7 +270,18 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *         the list of commodities no longer being bought from the provider. If
      *         the entity was not a provider, returns {@link Optional#empty()}.
      */
-    Optional<List<CommoditiesBought>> removeProvider(@Nonnull final StitchingEntity entity);
+    Optional<List<CommoditiesBought>> removeProvider(@Nonnull StitchingEntity entity);
+
+    /**
+     * Remove the connection from this entity to an entity this entity is connected to.
+     *
+     * @param connectedTo The entity this entity is connected to.
+     * @param type The type of connection to remove.
+     * @return True if the connection was successfully removed. False if there was no connection
+     *         of the right type to remove.
+     */
+    boolean removeConnection(@Nonnull StitchingEntity connectedTo,
+                             @Nonnull ConnectionType type);
 
     /**
      * Check if this entity is providing commodities to another {@link StitchingEntity}.
@@ -271,7 +289,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @param entity The entity to check if it is providing commodities to this entity.
      * @return True if the entity is providing commodities to this entity, false otherwise.
      */
-    boolean hasProvider(@Nonnull final StitchingEntity entity);
+    boolean hasProvider(@Nonnull StitchingEntity entity);
 
     /**
      * Check if this entity is consuming commodities from another {@link StitchingEntity}.
@@ -279,7 +297,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @param entity The entity to check if it is consuming commodities from this entity.
      * @return True if the entity is consuming commodities to this entity, false otherwise.
      */
-    boolean hasConsumer(@Nonnull final StitchingEntity entity);
+    boolean hasConsumer(@Nonnull StitchingEntity entity);
 
     /**
      * Get an unmodifiable view of information about the entities that were merged onto
@@ -302,7 +320,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @param mergeInformation the {@Link StitchingMergeInformation} to be added.
      * @return true if the information was successfully added, false otherwise.
      */
-    boolean addMergeInformation(@Nonnull final StitchingMergeInformation mergeInformation);
+    boolean addMergeInformation(@Nonnull StitchingMergeInformation mergeInformation);
 
     /**
      * Add a list of {@link StitchingMergeInformation} for entities that were merged onto this entity.
@@ -311,7 +329,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *
      * @param mergeInformation The list of {@link StitchingMergeInformation} to be added.
      */
-    void addAllMergeInformation(@Nonnull final List<StitchingMergeInformation> mergeInformation);
+    void addAllMergeInformation(@Nonnull List<StitchingMergeInformation> mergeInformation);
 
     /**
      * True if this {@link StitchingEntity}'s merge information contains at least one entry.
@@ -320,6 +338,26 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *         false otherwise.
      */
     boolean hasMergeInformation();
+
+    /**
+     * Returns property values for specified property name.
+     *
+     * @param name name of the property which values required to get.
+     * @return property values for specified property name.
+     */
+    @Nonnull
+    Collection<String> getPropertyValues(@Nonnull String name);
+
+    /**
+     * Indicates an entity that only exists to push data and/or relationships in stitching.  This
+     * entity should be removed in the event that it doesn't get stitched.
+     *
+     * @return Boolean value indicating whether or not to remove this entity in the event that it
+     * doesn't get stitched.
+     */
+    default boolean removeIfUnstitched() {
+        return false;
+    }
 
     @Nonnull
     @Override
@@ -335,9 +373,12 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @return {@link DiscoveryOrigin} for this entity.
      */
     default DiscoveryOrigin buildDiscoveryOrigin() {
-        return DiscoveryOriginBuilder.discoveredBy(getTargetId())
-            .withMergeFromTargetIds(getMergeInformation().stream()
-                .map(StitchingMergeInformation::getTargetId))
+        String localName = DTOFieldAndPropertyHandler.getVendorId(getEntityBuilder());
+        if (StringUtils.isBlank(localName)) {
+            localName = getEntityBuilder().getId();
+        }
+        return DiscoveryOriginBuilder.discoveredBy(getTargetId(), localName)
+            .withMerge(getMergeInformation().stream())
             .lastUpdatedAt(getLastUpdatedTime());
     }
 

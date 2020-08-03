@@ -11,16 +11,18 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionTypeMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -89,11 +91,23 @@ public class GroupByFilters {
 
     public void setState(@Nonnull final ActionState state) {
         setValue(StringConstants.ACTION_STATES,
-            actionSpecMapper.mapXlActionStateToApi(state).name());
+            ActionSpecMapper.mapXlActionStateToApi(state).name());
     }
 
     public void setType(@Nonnull final ActionType type) {
         setValue(StringConstants.ACTION_TYPES, ActionTypeMapper.toApiApproximate(type).name());
+    }
+
+    public void setActionCostType(@Nonnull final ActionDTO.ActionCostType costType) {
+        setValue(StringConstants.ACTION_COST_TYPE, costType.name());
+    }
+
+    /**
+     * Set filter by Action Severity value
+     * @param severity - the severity of the Action {@link Severity}
+     */
+    public void setActionRiskSeverity(@Nonnull final Severity severity) {
+        setValue(StringConstants.SEVERITY, severity.name());
     }
 
     public void setReasonCommodity(final int reasonCommodityBaseType) {
@@ -104,11 +118,42 @@ public class GroupByFilters {
 
     public void setTargetEntityType(final int entityType) {
         setValue(StringConstants.TARGET_TYPE,
-            ServiceEntityMapper.toUIEntityType(entityType));
+            ApiEntityType.fromType(entityType).apiStr());
+    }
+
+    /**
+     * Add a filter with a particular business account ID.
+     *
+     * @param businessAccountId The ID of the business account.
+     */
+    public void setBusinessAccountId(final long businessAccountId) {
+        setValue(StringConstants.BUSINESS_UNIT, String.valueOf(businessAccountId));
+    }
+
+    /**
+     * Add a filter with particular resource group ID.
+     *
+     * @param resourceGroupId The ID of the resource group.
+     */
+    public void setResourceGroupId(final long resourceGroupId) {
+        setValue(StringConstants.RESOURCE_GROUP, String.valueOf(resourceGroupId));
     }
 
     public void setTargetEntityId(final long entityId) {
         setValue(StringConstants.TARGET_UUID_CC, String.valueOf(entityId));
+    }
+
+    public void setTemplate(final String template) {
+        setValue(StringConstants.TEMPLATE, template);
+    }
+
+    /**
+     * Add a filter with particular csp type.
+     *
+     * @param cspType the type of cloud service provider
+     */
+    public void setCSP(final String cspType) {
+        setValue(StringConstants.CSP, cspType);
     }
 
     @Nonnull

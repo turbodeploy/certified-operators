@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>7.17.0-SNAPSHOT</version>
+        <version>7.22.6-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -48,6 +48,16 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>action-orchestrator-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.api</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.springfox</groupId>
+                    <artifactId>springfox-swagger2</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.eclipse.birt.runtime</groupId>
@@ -729,7 +739,7 @@
                     <!-- Generator parameters -->
                     <generator>
                         <database>
-                            <name>org.jooq.util.mysql.MySQLDatabase</name>
+                            <name>org.jooq.meta.mysql.MySQLDatabase</name>
                             <!-- Retrieve schema version from Flyway info table -->
                             <schemaVersionProvider>SELECT CONCAT_WS('_', '${db.outputSchema}', MAX(version)) from schema_version</schemaVersionProvider>
                             <includes>.*</includes>
@@ -864,6 +874,10 @@
                                     <resource>
                                         <targetPath>/swagger</targetPath>
                                         <directory>${project.build.directory}/generated-docs/swagger</directory>
+                                    </resource>
+                                    <resource>
+                                        <targetPath>/srv</targetPath>
+                                        <directory>${project.build.directory}/reports-resources/srv</directory>
                                     </resource>
                                 </resources>
                             </configuration>

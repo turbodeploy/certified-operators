@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.operation;
 
 import static com.vmturbo.topology.processor.db.Tables.ENTITY_ACTION;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -21,37 +22,44 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+import javax.annotation.Nonnull;
+
+import com.google.common.collect.Lists;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
 
 import org.hamcrest.CoreMatchers;
 import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.identity.store.IdentityStore;
-import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.matrix.component.TheMatrix;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO.Severity;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.NoChange;
@@ -64,52 +72,65 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.platform.sdk.common.util.NotificationCategoryDTO;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
+import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
+import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.topology.processor.db.enums.EntityActionActionType;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
+import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities.TrackingOperationListener;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
+import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.Validation;
+import com.vmturbo.topology.processor.operation.validation.ValidationMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.ValidationResult;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
+import com.vmturbo.topology.processor.targets.KvTargetDao;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.util.Probes;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
  * Testing the {@link OperationManager} functionality.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=topology_processor"})
+@RunWith(JUnitParamsRunner.class)
 public class OperationManagerTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(TopologyProcessor.TOPOLOGY_PROCESSOR);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private EntityActionDao entityActionDao;
 
@@ -120,13 +141,15 @@ public class OperationManagerTest {
     private final IdentityStore<TopologyProcessorDTO.TargetSpec> targetIdentityStore = new TestIdentityStore<>(
             new TargetSpecAttributeExtractor(probeStore));
 
-    private final KeyValueStore kvStore = new MapKeyValueStore();
+    private final TargetDao kvStore = new KvTargetDao(new MapKeyValueStore(), probeStore);
 
     private final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
 
     private final TargetDumpingSettings targetDumpingSettings = Mockito.mock(TargetDumpingSettings.class);
 
-    private final TargetStore targetStore = new KVBackedTargetStore(kvStore, probeStore,
+    private final SystemNotificationProducer systemNotificationProducer = Mockito.mock(SystemNotificationProducer.class);
+
+    private final TargetStore targetStore = new CachingTargetStore(kvStore, probeStore,
             targetIdentityStore);
 
     private final RemoteMediationServer mockRemoteMediationServer = Mockito.mock(RemoteMediationServer.class);
@@ -143,10 +166,14 @@ public class OperationManagerTest {
 
     private DerivedTargetParser derivedTargetParser = Mockito.mock(DerivedTargetParser.class);
 
+    private BinaryDiscoveryDumper binaryDiscoveryDumper =
+        Mockito.mock(BinaryDiscoveryDumper.class);
+
     private OperationManager operationManager;
 
     private long probeId;
     private long targetId;
+    private Target target;
 
     private static final long ACTIVATE_VM_ID = 100L;
     private static final long DEACTIVATE_VM_ID = 200L;
@@ -157,6 +184,9 @@ public class OperationManagerTest {
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
             Mockito.mock(ITransport.class);
 
+    /**
+     * Temporary folder rule.
+     */
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();
 
@@ -165,15 +195,20 @@ public class OperationManagerTest {
             .setId("vm-1")
             .build();
 
+    /**
+     * Initializes the tests.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Before
     public void setup() throws Exception {
-        dsl = dbConfig.prepareDatabase();
-        entityActionDao = new EntityActionDaoImp(dsl, 100, 300, 360);
+        entityActionDao = new EntityActionDaoImp(dsl, 100, 300,
+                360, 360, 360);
         operationManager = new OperationManager(identityProvider, targetStore, probeStore,
             mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
             discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
-            entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings, 10, 10, 10,
-            5, 1, 1, TheMatrix.instance());
+            entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings, systemNotificationProducer, 10, 10, 10,
+            5, 10, 1, 1, TheMatrix.instance(), binaryDiscoveryDumper, false);
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
 
@@ -183,8 +218,11 @@ public class OperationManagerTest {
         System.setProperty("com.vmturbo.keydir", testFolder.newFolder().getAbsolutePath());
         final ProbeInfo probeInfo = Probes.emptyProbe;
         probeStore.registerNewProbe(probeInfo, transport);
-        final TargetSpec target = new TargetSpec(probeId, Collections.emptyList());
-        targetId = targetStore.createTarget(target.toDto()).getId();
+        final TargetSpec targetSpec = new TargetSpec(probeId, Collections.singletonList(new InputField("targetId",
+            "123",
+            Optional.empty())));
+        target = targetStore.createTarget(targetSpec.toDto());
+        targetId = target.getId();
 
         when(mockRemoteMediationServer.getMessageHandlerExpirationClock())
                 .thenReturn(Clock.systemUTC());
@@ -227,12 +265,14 @@ public class OperationManagerTest {
     /**
      * Test starting a discovery operation.
      *
+     * @param discoveryType type of the discovery to test
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testDiscoverTarget() throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId);
-        Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(eq(probeId),
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testDiscoverTarget(DiscoveryType discoveryType) throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(eq(target),
                 any(DiscoveryRequest.class), any(OperationMessageHandler.class));
         Assert.assertEquals(discovery, operationManager.getInProgressDiscovery(discovery.getId()).get());
     }
@@ -240,38 +280,40 @@ public class OperationManagerTest {
     /**
      * Test getting ongoing discovery by target.
      *
+     * @param discoveryType type of the discovery to test
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testGetInProgressDiscoveryForTarget() throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId);
-        Assert.assertEquals(discovery, operationManager.getInProgressDiscoveryForTarget(targetId).get());
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testGetInProgressDiscoveryForTarget(DiscoveryType discoveryType) throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        Assert.assertEquals(discovery, operationManager.getInProgressDiscoveryForTarget(targetId, discoveryType).get());
 
         // Make sure that we can still get the discovery after the
         // operation is complete.
-        operationManager.notifyDiscoveryResult(discovery, DiscoveryResponse.getDefaultInstance());
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, DiscoveryResponse.getDefaultInstance());
 
-        Assert.assertFalse(operationManager.getInProgressDiscoveryForTarget(targetId).isPresent());
+        Assert.assertFalse(operationManager.getInProgressDiscoveryForTarget(targetId, discoveryType).isPresent());
     }
 
     /**
      * Test getting last discovery by target.
      *
+     * @param discoveryType type of the discovery to test
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testGetLastDiscoveryForTarget() throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId);
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testGetLastDiscoveryForTarget(DiscoveryType discoveryType) throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
         Assert.assertEquals(Optional.empty(),
-            operationManager.getLastDiscoveryForTarget(targetId));
+            operationManager.getLastDiscoveryForTarget(targetId, discoveryType));
 
         // Make sure that we can still get the discovery after the
         // operation is complete.
-        operationManager.notifyDiscoveryResult(discovery, DiscoveryResponse.getDefaultInstance());
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, DiscoveryResponse.getDefaultInstance());
 
-        final Discovery lastDiscovery = operationManager.getLastDiscoveryForTarget(targetId).get();
+        final Discovery lastDiscovery = operationManager.getLastDiscoveryForTarget(targetId, discoveryType).get();
         Assert.assertEquals(discovery, lastDiscovery);
         Assert.assertEquals(Status.SUCCESS, lastDiscovery.getStatus());
     }
@@ -279,30 +321,33 @@ public class OperationManagerTest {
     /**
      * Test that a completed discovery gets processed properly.
      *
+     * @param discoveryType type of the discovery to test
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testProcessDiscoverySuccess() throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId);
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testProcessDiscoverySuccess(DiscoveryType discoveryType) throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity)
                 .build();
 
-        operationManager.notifyDiscoveryResult(discovery, result);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, result);
 
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
-        verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId),
-                eq(Collections.singletonList(entity)));
+        verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId), eq(discovery.getMediationMessageId()),
+            eq(discoveryType), eq(Collections.singletonList(entity)));
     }
 
     /**
      * Test that a failed discovery gets processed properly.
      *
+     * @param discoveryType type of the discovery to test
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testProcessDiscoveryFailure() throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId);
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testProcessDiscoveryFailure(DiscoveryType discoveryType) throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
         // Critical errors applying to the target rather than a specific entity
         // should prevent any EntityDTOs in the discovery from being added to
         // the topology snapshot for the target.
@@ -313,51 +358,106 @@ public class OperationManagerTest {
                         .setDescription("error"))
                 .build();
 
-        operationManager.notifyDiscoveryResult(discovery, result);
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
-        Mockito.verify(entityStore, never()).entitiesDiscovered(anyLong(), anyLong(), any());
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, result);
+        Mockito.verify(entityStore, never()).entitiesDiscovered(anyLong(), anyLong(), anyInt(),
+            eq(discoveryType), any());
+    }
+
+    /**
+     * Test that failed and successful discovery notifications get processed properly.
+     *
+     * @param discoveryType type of the discovery to test
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testProcessDiscoveryNotification(DiscoveryType discoveryType) throws Exception {
+        // Failure
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        // Critical errors applying to the target rather than a specific entity
+        // should prevent any EntityDTOs in the discovery from being added to
+        // the topology snapshot for the target.
+        NotificationDTO.Builder notification = NotificationDTO.newBuilder()
+                        .setEvent("Target Discovery")
+                        .setCategory(NotificationCategoryDTO.DISCOVERY.toString())
+                        .setSeverity(Severity.CRITICAL).setDescription("Discovery Failed");
+        final DiscoveryResponse resultFailure = DiscoveryResponse.newBuilder()
+                .addEntityDTO(entity)
+                .addErrorDTO(ErrorDTO.newBuilder()
+                        .setSeverity(ErrorSeverity.CRITICAL)
+                        .setDescription("error"))
+                .addNotification(notification)
+                .build();
+
+        // Wait until we receive notification of the failure
+        operationManager.notifyDiscoveryResult(discovery, resultFailure).get(
+                OperationTestUtilities.DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+        // We should have received two notifications - once for start, once for complete
+        Assert.assertFalse(operationManager.getInProgressDiscovery(discovery.getId()).isPresent());
+
+
+
+        //Success
+        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
+        final DiscoveryResponse resultSuccess = DiscoveryResponse.newBuilder()
+                        .addEntityDTO(entity)
+                        .addNotification(notification)
+                        .build();
+
+        // Wait until we receive notification of the failure
+        operationManager.notifyDiscoveryResult(
+                discovery2, resultSuccess).get(OperationTestUtilities.DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+        // We should have received two notifications - once for start, once for complete
+        Assert.assertFalse(operationManager.getInProgressDiscovery(discovery2.getId()).isPresent());
+
     }
 
     /**
      * Test that a discovery with no chgange gets processed properly.
      *
+     * @param discoveryType type of the discovery to test
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testProcessDiscoveryNoChange() throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId);
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testProcessDiscoveryNoChange(DiscoveryType discoveryType) throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
         // When the probe responds that nothing has changed (the NoChange message)
         // the code that interacts with the entity store is skipped.
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
                 .setNoChange(NoChange.getDefaultInstance())
                 .build();
-        operationManager.notifyDiscoveryResult(discovery, result);
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
-        Mockito.verify(entityStore, never()).entitiesDiscovered(anyLong(), anyLong(), any());
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, result);
+        Mockito.verify(entityStore, never()).entitiesDiscovered(anyLong(), anyLong(), anyInt(),
+            eq(discoveryType), any());
     }
 
     /**
      * Test that a discovery context received in the last discovery response is
      * placed in the subsequent discovery request.
      *
+     * @param discoveryType type of the discovery to test
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testSendDiscoveryContext() throws Exception {
-        final Discovery discovery1 = operationManager.startDiscovery(targetId);
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testSendDiscoveryContext(DiscoveryType discoveryType) throws Exception {
+        final Discovery discovery1 = operationManager.startDiscovery(targetId, discoveryType);
         DiscoveryContextDTO contextResponse = DiscoveryContextDTO.newBuilder()
                 .putContextEntry("A", "B")
                 .build();
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
                 .setDiscoveryContext(contextResponse)
                 .build();
-        operationManager.notifyDiscoveryResult(discovery1, result);
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery1);
-        final Discovery discovery2 = operationManager.startDiscovery(targetId);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery1, result);
+        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
         ArgumentCaptor<DiscoveryRequest> requestCaptor
             = ArgumentCaptor.forClass(DiscoveryRequest.class);
-        Mockito.verify(mockRemoteMediationServer, times(2)).sendDiscoveryRequest(eq(probeId),
-            requestCaptor.capture(), any(OperationMessageHandler.class));
+        Mockito.verify(mockRemoteMediationServer, times(2))
+            .sendDiscoveryRequest(eq(target),
+                requestCaptor.capture(), any(OperationMessageHandler.class));
         List<DiscoveryRequest> requests = requestCaptor.getAllValues();
         // Verify that the first discovery request contained an empty discovery context
         Assert.assertEquals(DiscoveryContextDTO.getDefaultInstance(),
@@ -370,80 +470,87 @@ public class OperationManagerTest {
     /**
      * Test that discovery fails when entities fail to identify.
      *
+     * @param discoveryType type of the discovery to test
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testProcessDiscoveryFailureIdentification() throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId);
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testProcessDiscoveryFailureIdentification(DiscoveryType discoveryType) throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity)
                 .build();
 
         // Force an exception on the entitiesDiscovered call.
-        final IdentityUninitializedException exception = Mockito.mock(IdentityUninitializedException.class);
+        final IdentityServiceException exception = Mockito.mock(IdentityServiceException.class);
         Mockito.doThrow(exception)
-               .when(entityStore).entitiesDiscovered(anyLong(), anyLong(), any());
+               .when(entityStore).entitiesDiscovered(anyLong(), anyLong(), anyInt(), eq(discoveryType), any());
 
-        operationManager.notifyDiscoveryResult(discovery, result);
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, result);
     }
 
     /**
      * Test that a failed discovery does not overwrite the topology
      * from the previous successful discovery.
      *
+     * @param discoveryType type of the discovery to test
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testProcessDiscoveryFailureDoesNotClearPreviousResult() throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId);
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testProcessDiscoveryFailureDoesNotClearPreviousResult(DiscoveryType discoveryType) throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
         final DiscoveryResponse.Builder responseBuilder = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity);
 
-        operationManager.notifyDiscoveryResult(discovery, responseBuilder.build());
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
-        verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId),
-                eq(Collections.singletonList(entity)));
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, responseBuilder.build());
+        verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId), eq(discovery.getMediationMessageId()),
+            eq(discoveryType), eq(Collections.singletonList(entity)));
 
         final DiscoveryResponse errorResponse = responseBuilder
                 .addErrorDTO(ErrorDTO.newBuilder().setSeverity(ErrorSeverity.CRITICAL).setDescription("error"))
                 .build();
 
-        final Discovery discovery2 = operationManager.startDiscovery(targetId);
-        operationManager.notifyDiscoveryResult(discovery2, (errorResponse));
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery2, errorResponse);
 
         // The failed discovery shouldn't have triggered another call to the entity store.
-        verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId),
-                eq(Collections.singletonList(entity)));
+        verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId), anyInt(), eq(discoveryType),
+            eq(Collections.singletonList(entity)));
     }
 
     /**
      * Test that a timed out discovery does not overwrite the topology
      * from the previous successful discovery.
      *
+     * @param discoveryType type of the discovery to test
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testProcessDiscoveryTimeoutDoesNotClearPreviousResult() throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId);
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testProcessDiscoveryTimeoutDoesNotClearPreviousResult(DiscoveryType discoveryType) throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
         final DiscoveryResponse response = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity)
                 .build();
 
-        operationManager.notifyDiscoveryResult(discovery, response);
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, response);
 
         verify(entityStore, times(1)).entitiesDiscovered(eq(probeId),
-                eq(targetId), eq(Collections.singletonList(entity)));
+                eq(targetId), anyInt(), eq(discoveryType), eq(Collections.singletonList(entity)));
 
-        final Discovery discovery2 = operationManager.startDiscovery(targetId);
-        operationManager.notifyTimeout(discovery2, 1);
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery2);
+        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
+        final ArgumentCaptor<DiscoveryMessageHandler> captor = ArgumentCaptor.forClass(
+                DiscoveryMessageHandler.class);
+        Mockito.verify(mockRemoteMediationServer, Mockito.times(2)).sendDiscoveryRequest(
+                Mockito.eq(target), Mockito.any(), captor.capture());
+        captor.getAllValues().get(1).onExpiration();
+        operationListener.awaitOperation(
+                operation -> operation.equals(discovery2) && operation.getCompletionTime() != null);
 
         // The timeout shouldn't have resulted in another call to entitiesDiscovered.
         verify(entityStore, times(1)).entitiesDiscovered(eq(probeId),
-                eq(targetId), eq(Collections.singletonList(entity)));
+                eq(targetId), anyInt(), eq(discoveryType), eq(Collections.singletonList(entity)));
     }
 
     /**
@@ -456,14 +563,19 @@ public class OperationManagerTest {
     public void testProcessValidationTimeoutClearPreviousResult() throws Exception {
         final Validation validation = operationManager.startValidation(targetId);
         final ValidationResponse response = ValidationResponse.newBuilder().build();
-        operationManager.notifyValidationResult(validation, response);
-        OperationTestUtilities.waitForValidation(operationManager, validation);
+        OperationTestUtilities.notifyAndWaitForValidation(operationManager, validation, response);
         final ValidationResult result = operationManager.getValidationResult(targetId).get();
         Assert.assertEquals(0, result.getErrors().get(ErrorSeverity.CRITICAL).size());
 
         final Validation validation2 = operationManager.startValidation(targetId);
-        operationManager.notifyTimeout(validation2, 1);
-        OperationTestUtilities.waitForValidation(operationManager, validation2);
+        final ArgumentCaptor<ValidationMessageHandler> captor = ArgumentCaptor.forClass(
+                ValidationMessageHandler.class);
+        Mockito.verify(mockRemoteMediationServer, Mockito.times(2)).sendValidationRequest(Mockito.any(),
+                Mockito.any(), captor.capture());
+        captor.getAllValues().get(1).onExpiration();
+        operationListener.awaitOperation(operation -> operation.equals(validation2)
+                && operation.getCompletionTime() != null);
+
         final ValidationResult result2 = operationManager.getValidationResult(targetId).get();
         Assert.assertEquals(1, result2.getErrors().get(ErrorSeverity.CRITICAL).size());
     }
@@ -477,33 +589,41 @@ public class OperationManagerTest {
     public void testProcessValidationCancelOperation() throws Exception {
         final Validation validation = operationManager.startValidation(targetId);
         Assert.assertTrue(operationManager.getInProgressValidation(validation.getId()).isPresent());
-        operationManager.notifyOperationCancelled(validation, "transport closed");
-        OperationTestUtilities.waitForEvent(operationManager, operationManager -> operationManager
-                        .getValidationResult(targetId).isPresent());
+        final ArgumentCaptor<ValidationMessageHandler> captor = ArgumentCaptor.forClass(
+                ValidationMessageHandler.class);
+        Mockito.verify(mockRemoteMediationServer).sendValidationRequest(Mockito.eq(target),
+                Mockito.any(), captor.capture());
+        captor.getValue().onTransportClose();
+        operationListener.awaitOperation(
+                operation -> operation.equals(validation) && operation.getCompletionTime() != null);
         final Map<ErrorSeverity, List<ErrorDTO>> errors =
                         operationManager.getValidationResult(targetId).get().getErrors();
         Assert.assertEquals(1, errors.get(ErrorSeverity.CRITICAL).size());
         final String errorMessage =
                         errors.get(ErrorSeverity.CRITICAL).iterator().next().getDescription();
-        Assert.assertThat(errorMessage, CoreMatchers.containsString("transport closed"));
+        Assert.assertThat(errorMessage,
+                CoreMatchers.containsString("Communication transport to remote probe closed."));
     }
 
     /**
      * Transport closed when performin discovery. Critical error with the message is expected.
      *
+     * @param discoveryType type of the discovery to test
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testProcessDiscoveryCancelOperation() throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId);
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testProcessDiscoveryCancelOperation(DiscoveryType discoveryType) throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
         Assert.assertTrue(operationManager.getInProgressDiscovery(discovery.getId()).isPresent());
-        operationManager.notifyOperationCancelled(discovery, "Transport closed");
-        OperationTestUtilities.waitForEvent(operationListener,
-                        listener -> !listener.lastStatusMatches(Status.IN_PROGRESS));
+        operationManager.onTargetRemoved(target);
+        operationListener.awaitOperation(
+                operation -> operation.equals(discovery) && operation.getCompletionTime() != null);
         final List<String> errors = discovery.getErrors();
         Assert.assertEquals(1, errors.size());
         final String errorMessage = errors.iterator().next();
-        Assert.assertThat(errorMessage, CoreMatchers.containsString("Transport closed"));
+        Assert.assertThat(errorMessage,
+                CoreMatchers.containsString("Target " + targetId + " removed."));
     }
 
     /**
@@ -518,11 +638,13 @@ public class OperationManagerTest {
     /**
      * Test getting ongoing discoveries.
      *
+     * @param discoveryType type of the discovery to test
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testGetOngoingDiscoveries() throws Exception {
-        final long discoveryId = operationManager.startDiscovery(targetId).getId();
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testGetOngoingDiscoveries(DiscoveryType discoveryType) throws Exception {
+        final long discoveryId = operationManager.startDiscovery(targetId, discoveryType).getId();
         Assert.assertEquals(1, operationManager.getInProgressDiscoveries().size());
         final Discovery discovery = operationManager.getInProgressDiscoveries().get(0);
 
@@ -538,7 +660,7 @@ public class OperationManagerTest {
     @Test
     public void testValidateTarget() throws Exception {
         final Validation validation = operationManager.startValidation(targetId);
-        Mockito.verify(mockRemoteMediationServer).sendValidationRequest(eq(probeId),
+        Mockito.verify(mockRemoteMediationServer).sendValidationRequest(eq(target),
             any(ValidationRequest.class), any(OperationMessageHandler.class));
         Assert.assertEquals(validation, operationManager.getInProgressValidation(validation.getId()).get());
 
@@ -556,9 +678,8 @@ public class OperationManagerTest {
 
         // Make sure that we can still get the validation after the
         // operation is complete.
-        operationManager.notifyValidationResult(validation,
-                ValidationResponse.getDefaultInstance());
-        OperationTestUtilities.waitForValidation(operationManager, validation);
+        OperationTestUtilities.notifyAndWaitForValidation(operationManager, validation,
+            ValidationResponse.getDefaultInstance());
 
         Assert.assertFalse(operationManager.getInProgressValidationForTarget(targetId).isPresent());
     }
@@ -576,9 +697,8 @@ public class OperationManagerTest {
 
         // Make sure that we can still get the validation after the
         // operation is complete.
-        operationManager.notifyValidationResult(validation,
-                ValidationResponse.getDefaultInstance());
-        OperationTestUtilities.waitForValidation(operationManager, validation);
+        OperationTestUtilities.notifyAndWaitForValidation(operationManager, validation,
+            ValidationResponse.getDefaultInstance());
 
         final Validation lastValidation = operationManager.getLastValidationForTarget(targetId).get();
         Assert.assertEquals(validation, lastValidation);
@@ -598,8 +718,8 @@ public class OperationManagerTest {
                         .setDescription("test")
                         .setSeverity(ErrorSeverity.WARNING))
                 .build();
-        operationManager.notifyValidationResult(validation, result);
-        OperationTestUtilities.waitForValidation(operationManager, validation);
+        OperationTestUtilities.notifyAndWaitForValidation(operationManager, validation, result);
+
         final Optional<ValidationResult> validationResult = operationManager.getValidationResult(targetId);
         Assert.assertTrue(validationResult.isPresent());
 
@@ -625,8 +745,7 @@ public class OperationManagerTest {
                         .setSeverity(ErrorSeverity.CRITICAL)
                         .setDescription("error"))
                 .build();
-        operationManager.notifyValidationResult(validation, result);
-        OperationTestUtilities.waitForValidation(operationManager, validation);
+        OperationTestUtilities.notifyAndWaitForValidation(operationManager, validation, result);
         final ValidationResult validationResult = operationManager.getValidationResult(targetId).get();
         Assert.assertFalse(validationResult.isSuccess());
         Assert.assertTrue(validationResult.getErrors().get(ErrorSeverity.WARNING).isEmpty());
@@ -673,68 +792,96 @@ public class OperationManagerTest {
         Assert.assertEquals(validationId, doubleValidationId);
     }
 
+    /**
+     * Test addPendingDiscovery when no discovery is in progress.
+     *
+     * @param discoveryType type of the discovery to test
+     * @throws Exception If anything goes wrong.
+     */
     @Test
-    public void testPendingDiscoverNoOngoing() throws Exception {
-        long discoveryId = operationManager.addPendingDiscovery(targetId).get().getId();
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testPendingDiscoverNoOngoing(DiscoveryType discoveryType) throws Exception {
+        long discoveryId = operationManager.addPendingDiscovery(targetId, discoveryType).get().getId();
         Assert.assertEquals(1, operationManager.getInProgressDiscoveries().size());
         Discovery discovery = operationManager.getInProgressDiscoveries().get(0);
 
         Assert.assertEquals(discoveryId, discovery.getId());
         Assert.assertEquals(targetId, discovery.getTargetId());
-        Assert.assertFalse(operationManager.hasPendingDiscovery(targetId));
+        Assert.assertFalse(operationManager.hasPendingDiscovery(targetId, discoveryType));
     }
 
+    /**
+     * Test addPendingDiscovery when there is discovery is in progress.
+     *
+     * @param discoveryType type of the discovery to test
+     * @throws Exception If anything goes wrong.
+     */
     @Test
-    public void testPendingDiscoverWithOngoing() throws Exception {
-        final Discovery originalDiscovery = operationManager.startDiscovery(targetId);
-        final Optional<Discovery> pendingDiscovery = operationManager.addPendingDiscovery(targetId);
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testPendingDiscoverWithOngoing(DiscoveryType discoveryType) throws Exception {
+        final Discovery originalDiscovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Optional<Discovery> pendingDiscovery = operationManager.addPendingDiscovery(targetId, discoveryType);
 
         Assert.assertFalse(pendingDiscovery.isPresent());
-        Assert.assertTrue(operationManager.hasPendingDiscovery(targetId));
+        Assert.assertTrue(operationManager.hasPendingDiscovery(targetId, discoveryType));
         Assert.assertEquals(1, operationManager.getInProgressDiscoveries().size());
 
         DiscoveryResponse.Builder responseBuilder = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity);
 
-        operationManager.notifyDiscoveryResult(originalDiscovery, responseBuilder.build());
-        OperationTestUtilities.waitForDiscovery(operationManager, originalDiscovery);
-        verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId),
-                eq(Collections.singletonList(entity)));
-
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, originalDiscovery, responseBuilder.build());
+        verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId), anyInt(), eq(discoveryType),
+            eq(Collections.singletonList(entity)));
 
         // After the current discovery completes, the pending discovery should be removed
         // and an actual discovery should be kicked off.
-        Assert.assertFalse(operationManager.hasPendingDiscovery(targetId));
-        Assert.assertTrue(operationManager.getLastDiscoveryForTarget(targetId).isPresent());
+        Assert.assertFalse(operationManager.hasPendingDiscovery(targetId, discoveryType));
+        Assert.assertTrue(operationManager.getLastDiscoveryForTarget(targetId, discoveryType).isPresent());
     }
 
+    /**
+     * Test that discovery is marked as pending if probe is unregistered.
+     *
+     * @param discoveryType type of the discovery to test
+     * @throws Exception If anything goes wrong.
+     */
     @Test
-    public void testPendingDiscoverWithUnregisteredProbe() throws Exception {
+    @Parameters({"FULL"})
+    public void testPendingDiscoverWithUnregisteredProbe(DiscoveryType discoveryType) throws Exception {
         probeStore.removeProbe(probeStore.getProbe(probeId).get());
 
-        Optional<Discovery> discovery = operationManager.addPendingDiscovery(targetId);
+        Optional<Discovery> discovery = operationManager.addPendingDiscovery(targetId, discoveryType);
         Assert.assertFalse(discovery.isPresent());
-        Assert.assertTrue(operationManager.hasPendingDiscovery(targetId));
+        Assert.assertTrue(operationManager.hasPendingDiscovery(targetId, discoveryType));
     }
 
+    /**
+     * Test that pending discovery is activated once probe is registered.
+     *
+     * @param discoveryType type of the discovery to test
+     * @throws Exception If anything goes wrong.
+     */
     @Test
-    public void testOnProbeRegisteredActivatesPendingDiscoveries() throws Exception {
+    @Parameters({"FULL"})
+    public void testOnProbeRegisteredActivatesPendingDiscoveries(DiscoveryType discoveryType) throws Exception {
         ProbeInfo probeInfo = probeStore.getProbe(probeId).get();
         probeStore.removeProbe(probeInfo);
 
-        operationManager.addPendingDiscovery(targetId);
-        Assert.assertTrue(operationManager.hasPendingDiscovery(targetId));
-        Mockito.verify(mockRemoteMediationServer, never()).sendDiscoveryRequest(eq(probeId),
+        operationManager.addPendingDiscovery(targetId, discoveryType);
+        Assert.assertTrue(operationManager.hasPendingDiscovery(targetId, discoveryType));
+        Mockito.verify(mockRemoteMediationServer, never()).sendDiscoveryRequest(eq(target),
             any(DiscoveryRequest.class), any(OperationMessageHandler.class));
 
+        probeInfo = Probes.defaultProbe.toBuilder()
+            .setIncrementalRediscoveryIntervalSeconds(30)
+            .build();
         probeStore.registerNewProbe(probeInfo, transport);
         operationManager.onProbeRegistered(probeId, probeInfo);
 
         OperationTestUtilities.waitForEvent(
-            operationManager,
-            operationManager -> operationManager.getInProgressDiscoveryForTarget(targetId).isPresent()
+            () -> operationManager.getInProgressDiscoveryForTarget(targetId, discoveryType).isPresent()
         );
-        Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(eq(probeId),
+        Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(any(Target.class),
             any(DiscoveryRequest.class), any(OperationMessageHandler.class));
     }
 
@@ -747,14 +894,11 @@ public class OperationManagerTest {
     public void testStartAction() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action moveAction = operationManager.requestActions(0,
+        final Action moveAction = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
-                ActionType.MOVE,
-                actionItemDtos,
-                new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)),
-                Optional.empty());
-        Mockito.verify(mockRemoteMediationServer).sendActionRequest(eq(probeId),
+                new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)));
+        Mockito.verify(mockRemoteMediationServer).sendActionRequest(any(Target.class),
             any(ActionRequest.class), any(OperationMessageHandler.class));
         Assert.assertTrue(operationManager.getInProgressAction(moveAction.getId()).isPresent());
         Set<Long> moveEntityIds = dsl.selectFrom(ENTITY_ACTION)
@@ -763,13 +907,13 @@ public class OperationManagerTest {
         Assert.assertTrue(moveEntityIds.size() == 2);
         Assert.assertTrue(moveEntityIds.contains(MOVE_SOURCE_ID) && moveEntityIds.contains(MOVE_DESTINATION_ID));
 
-        final Action activateAction = operationManager.requestActions(0,
+        final Action activateAction = operationManager.requestActions(
+                ActionExecutionDTO.newBuilder(actionDto())
+                        .setActionType(ActionType.START)
+                        .build(),
                targetId,
                null,
-               ActionType.START,
-               actionItemDtos,
-               Collections.singleton(ACTIVATE_VM_ID),
-               Optional.empty());
+               Collections.singleton(ACTIVATE_VM_ID));
         Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
         Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
@@ -777,13 +921,13 @@ public class OperationManagerTest {
         Assert.assertTrue(activateEntityIds.size() == 1);
         Assert.assertTrue(activateEntityIds.contains(ACTIVATE_VM_ID));
 
-        final Action deactivateAction = operationManager.requestActions(0,
+        final Action deactivateAction = operationManager.requestActions(
+                ActionExecutionDTO.newBuilder(actionDto())
+                        .setActionType(ActionType.SUSPEND)
+                        .build(),
                targetId,
                null,
-               ActionType.SUSPEND,
-               actionItemDtos,
-               Collections.singleton(DEACTIVATE_VM_ID),
-               Optional.empty());
+               Collections.singleton(DEACTIVATE_VM_ID));
                Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
        List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                .where(ENTITY_ACTION.ENTITY_ID.eq(DEACTIVATE_VM_ID))
@@ -791,17 +935,19 @@ public class OperationManagerTest {
        Assert.assertTrue(deactivateEntityIds.isEmpty());
     }
 
+    /**
+     * Tests process action success.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testProcessActionSuccess() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.requestActions(0,
+        final Action action = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
-                ActionType.MOVE,
-                actionItemDtos,
-                new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)),
-                Optional.empty());
+                new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)));
 
         final ActionResult result = ActionResult.newBuilder()
                 .setResponse(ActionResponse.newBuilder()
@@ -819,13 +965,13 @@ public class OperationManagerTest {
         Assert.assertTrue(moveEntityIds.size() == 2);
         Assert.assertTrue(moveEntityIds.contains(MOVE_SOURCE_ID) && moveEntityIds.contains(MOVE_DESTINATION_ID));
 
-        final Action activateAction = operationManager.requestActions(0,
+        final Action activateAction = operationManager.requestActions(
+                ActionExecutionDTO.newBuilder(actionDto())
+                        .setActionType(ActionType.START)
+                        .build(),
                 targetId,
                 null,
-                ActionType.START,
-                actionItemDtos,
-                Collections.singleton(ACTIVATE_VM_ID),
-                Optional.empty());
+                Collections.singleton(ACTIVATE_VM_ID));
         Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
         Set<Long> activateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                 .where(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
@@ -833,13 +979,13 @@ public class OperationManagerTest {
         Assert.assertTrue(activateEntityIds.size() == 1);
         Assert.assertTrue(activateEntityIds.contains(ACTIVATE_VM_ID));
 
-        final Action deactivateAction = operationManager.requestActions(0,
+        final Action deactivateAction = operationManager.requestActions(
+                ActionExecutionDTO.newBuilder(actionDto())
+                        .setActionType(ActionType.SUSPEND)
+                        .build(),
                 targetId,
                 null,
-                ActionType.SUSPEND,
-                actionItemDtos,
-                Collections.singleton(DEACTIVATE_VM_ID),
-                Optional.empty());
+                Collections.singleton(DEACTIVATE_VM_ID));
        Assert.assertTrue(operationManager.getInProgressAction(activateAction.getId()).isPresent());
        List<EntityActionRecord> deactivateEntityIds = dsl.selectFrom(ENTITY_ACTION)
                        .where(ENTITY_ACTION.ENTITY_ID.eq(DEACTIVATE_VM_ID))
@@ -847,17 +993,19 @@ public class OperationManagerTest {
        Assert.assertTrue(deactivateEntityIds.isEmpty());
     }
 
+    /**
+     * Tests action discovery failure.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testActionDiscoveryFailure() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.requestActions(0,
+        final Action action = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
-                ActionType.MOVE,
-                actionItemDtos,
-                Collections.singleton(targetId),
-                Optional.empty());
+                Collections.singleton(targetId));
         // Critical errors applying to the target rather than a specific entity
         // should prevent any EntityDTOs in the discovery from being added to
         // the topology snapshot for the target.
@@ -870,49 +1018,57 @@ public class OperationManagerTest {
 
         operationManager.notifyActionResult(action, result);
         OperationTestUtilities.waitForAction(operationManager, action);
-        // Notified once for start, once for complete
+
+        // Wait until we receive notification of the failure
+        OperationTestUtilities.waitForEvent(() ->
+            operationListener.getLastNotifiedStatus()
+                .map(status -> status == Status.FAILED)
+                .orElse(false));
+
+        // We should have received two notifications - once for start, once for complete
         Mockito.verify(operationListener, times(2)).notifyOperationState(action);
     }
 
+    /**
+     * Tests process action cancel operation.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testProcessActionCancelOperation() throws Exception {
-        final List<ActionItemDTO> actionItemDtos = actionItemDtos();
-
-        final Action action = operationManager.requestActions(0,
+        final Action action = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
-                ActionType.MOVE,
-                actionItemDtos,
-                Collections.singleton(targetId),
-                Optional.empty());
+                Collections.singleton(targetId));
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
-        operationManager.notifyOperationCancelled(action, "Transport closed");
-        OperationTestUtilities.waitForEvent(operationListener, listener -> !listener.lastStatusMatches(Status.IN_PROGRESS));
+        operationManager.onTargetRemoved(target);
+        OperationTestUtilities.waitForEvent(
+                () -> !operationListener.lastStatusMatches(Status.IN_PROGRESS));
+        OperationTestUtilities.waitForEvent(
+                () -> !operationManager.getInProgressAction(action.getId()).isPresent());
 
         final List<String> errors = action.getErrors();
         Assert.assertEquals(1, errors.size());
         final String errorMessage = errors.iterator().next();
-        Assert.assertThat(errorMessage, CoreMatchers.containsString("Transport closed"));
-        Assert.assertFalse(operationManager.getInProgressAction(action.getId()).isPresent());
+        Assert.assertThat(errorMessage,
+                CoreMatchers.containsString("Target " + targetId + " removed"));
 
-        // Timing out the handler after cancelling the operation should not override the previously set error.
-        operationManager.notifyTimeout(action, 10);
-        Assert.assertThat(action.getErrors().iterator().next(),
-            CoreMatchers.containsString("Transport closed"));
     }
 
+    /**
+     * Tests processing action when target is removed.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testProcessActionTargetRemoval() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
         final Target target = targetStore.getTarget(targetId).get();
 
-        final Action action = operationManager.requestActions(0,
+        final Action action = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
-                ActionType.MOVE,
-                actionItemDtos,
-                Collections.singleton(targetId),
-                Optional.empty());
+                Collections.singleton(targetId));
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
         operationManager.onTargetRemoved(target);
         OperationTestUtilities.waitForAction(operationManager, action);
@@ -920,10 +1076,16 @@ public class OperationManagerTest {
         final List<String> errors = action.getErrors();
         Assert.assertEquals(1, errors.size());
         final String errorMessage = errors.iterator().next();
-        Assert.assertThat(errorMessage, CoreMatchers.containsString("Target removed."));
+        Assert.assertThat(errorMessage,
+                CoreMatchers.containsString("Target " + targetId + " removed"));
         Assert.assertFalse(operationManager.getInProgressAction(action.getId()).isPresent());
     }
 
+    /**
+     * Tests that expiration is checked.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void checkForExpiredOperations() throws Exception {
         operationManager.checkForExpiredOperations();
@@ -935,20 +1097,30 @@ public class OperationManagerTest {
      * Test that a runtime exception during discovery response processing does not cause
      * us to leave the operation in a state that continues to say it is in progress.
      *
+     * @param discoveryType discovery type to test
      * @throws Exception If something goes wrong.
      */
     @Test
-    public void testRuntimeExceptionDuringDiscoveryResponse() throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId);
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testRuntimeExceptionDuringDiscoveryResponse(DiscoveryType discoveryType) throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
             .addEntityDTO(entity)
             .build();
         doThrow(RuntimeException.class).when(entityStore)
-            .entitiesDiscovered(anyLong(), anyLong(), anyListOf(EntityDTO.class));
-        operationManager.notifyDiscoveryResult(discovery, result);
-
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+            .entitiesDiscovered(anyLong(), anyLong(), anyInt(), eq(discoveryType), anyListOf(EntityDTO.class));
+        operationManager.notifyDiscoveryResult(discovery, result).get(
+                OperationTestUtilities.DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         Assert.assertFalse(operationManager.getInProgressDiscovery(discovery.getId()).isPresent());
+    }
+
+    @Nonnull
+    private ActionExecutionDTO actionDto() {
+        return ActionExecutionDTO.newBuilder()
+                .setActionOid(111L)
+                .addAllActionItem(actionItemDtos())
+                .setActionType(ActionType.MOVE)
+                .build();
     }
 
     private List<ActionItemDTO> actionItemDtos() {

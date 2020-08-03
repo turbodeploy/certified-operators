@@ -5,17 +5,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -25,26 +27,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * and calculate average/max of commodity values across cluster's VMs records.
  */
 public class SystemLoadCalculatedProfile {
-
-    // compute fields which relate to template's "ResourceCategoryName.Compute".
-    public static final String CPU_CONSUMED_FACTOR = "cpuConsumedFactor";
-    public static final String CPU_SPEED = "cpuSpeed";
-    public static final String IO_THROUGHPUT = "ioThroughput";
-    public static final String IO_THROUGHPUT_SIZE = "ioThroughputSize";
-    public static final String MEMORY_CONSUMED_FACTOR = "memoryConsumedFactor";
-    public static final String MEMORY_SIZE = "memorySize";
-    public static final String NUM_OF_CPU = "numOfCpu";
-    public static final String NUM_OF_CORES = "numOfCores";
-    public static final String NETWORK_THROUGHPUT = "networkThroughput";
-    public static final String NETWORK_THROUGHPUT_SIZE = "networkThroughputSize";
-    // storage fields which relate to template's "ResourceCategoryName.Storage".
-    public static final String DISK_IOPS = "diskIops";
-    public static final String DISK_SIZE = "diskSize";
-    public static final String DISK_CONSUMED_FACTOR = "diskConsumedFactor";
-    // default consumption factor
-    public static final float MEM_CONSUMED_FACTOR_DEFAULT = 0.75F;
-    public static final float STORAGE_CONSUMED_FACTOR_DEFAULT = 1.0F;
-    public static final float CPU_CONSUMED_FACTOR_DEFAULT = 0.5F;
 
     // Compute stats have field name as key which relates to template's "ResourceCategoryName.Compute"
     // and value as read/calculated from system load.
@@ -58,10 +40,12 @@ public class SystemLoadCalculatedProfile {
     private Multimap<String, SystemLoadRecord> virtualMachinesMap = ArrayListMultimap.create();
 
     private Operation operation = null;
-    private Group cluster = null;
+    private Grouping cluster = null;
     private String profileNamePostfix = null;
     private String profileDisplayNamePostfix = null;
+    private String profileName = null;
     private Optional<TemplateInfo> headroomTemplateInfo = Optional.empty();
+    private final Map<Long, String> targetOidToTargetName;
 
     /**
      * Create a VM template with the average/max of the values for all VMs in the cluster.
@@ -76,32 +60,34 @@ public class SystemLoadCalculatedProfile {
      *
      * @param operation can be MAX or AVG.
      * @param cluster for which we want to calculate profile and create template info for.
-     * @param records to process for system load calculation.
+     * @param systemLoadRecordList to process for system load calculation.
      * @param profileNamePostfix used to generate profile name.
      * @param profileDisplayNamePostfix used to generate profile name.
+     * @param targetOidToTargetName targetOid to targetName map.
      */
-    public SystemLoadCalculatedProfile(final Operation operation, final Group cluster, final SystemLoadInfoResponse records,
-                    final String profileNamePostfix, final String profileDisplayNamePostfix) {
+    SystemLoadCalculatedProfile(
+            @Nonnull final Operation operation, @Nonnull final Grouping cluster,
+            @Nonnull final List<SystemLoadRecord> systemLoadRecordList,
+            final String profileNamePostfix, final String profileDisplayNamePostfix,
+            @Nonnull final Map<Long, String> targetOidToTargetName) {
         this.operation = operation;
         this.cluster = cluster;
         this.profileNamePostfix = profileNamePostfix;
         this.profileDisplayNamePostfix = profileDisplayNamePostfix;
-        createVirtualMachinesMap(records);
+        this.targetOidToTargetName = targetOidToTargetName;
+        createVirtualMachinesMap(systemLoadRecordList);
     }
 
     /**
      * A map with VM uuid as key and records that belong to this uuid as value.
      *
-     * @param records to process.
+     * @param systemLoadRecordList to process.
      */
-    private void createVirtualMachinesMap(final SystemLoadInfoResponse records) {
-        if (records != null) {
-            List<SystemLoadRecord> recList = records.getRecordList();
-            for (SystemLoadRecord rec : recList) {
-                if (rec.getClusterId() == cluster.getId()) {
-                    String vmId = Long.toString(rec.getUuid());
-                    virtualMachinesMap.put(vmId, rec);
-                }
+    private void createVirtualMachinesMap(@Nonnull final List<SystemLoadRecord> systemLoadRecordList) {
+        for (SystemLoadRecord record : systemLoadRecordList) {
+            if (record.getClusterId() == cluster.getId()) {
+                String vmId = Long.toString(record.getUuid());
+                virtualMachinesMap.put(vmId, record);
             }
         }
     }
@@ -110,7 +96,7 @@ public class SystemLoadCalculatedProfile {
      * Based on operation type (AVG or MAX), iterate for all records for VMs' commodities and set values.
      * Use these values to create template info.
      */
-    public void createVirtualMachineProfile() {
+    void createVirtualMachineProfile() {
         // Assigning initial values to all of the variables to be placed in vm profile
         float vMemSize = 0;
         float vCPUSpeed = 0;
@@ -122,6 +108,7 @@ public class SystemLoadCalculatedProfile {
         float memConsumedFactor = 0;
         float cpuConsumedFactor = 0;
         float storageConsumedFactor = 0;
+        float accessSpeedConsumed = 0;
         int numVMs = 0;
 
         // Iterate through VMs to find average or peak of commodities
@@ -135,6 +122,7 @@ public class SystemLoadCalculatedProfile {
             float currNetworkThroughputConsumed = 0;
             float currIoThroughputConsumed = 0;
             float currStorageConsumed = 0;
+            float currAccessSpeedConsumed = 0;
 
             for (SystemLoadRecord rec : virtualMachinesMap.get(vmId)) {
                 if (rec.getPropertySubtype().equals("used")) {
@@ -146,9 +134,6 @@ public class SystemLoadCalculatedProfile {
                                 break;
                             case "VCPU":
                                 currVCPUCapacity = (float)rec.getCapacity();
-                                break;
-                            case "VSTORAGE":
-                                currStorageConsumed = (float)rec.getCapacity();
                                 break;
                         }
 
@@ -167,6 +152,11 @@ public class SystemLoadCalculatedProfile {
                             case "IO_THROUGHPUT":
                                 currIoThroughputConsumed = (float)rec.getAvgValue();
                                 break;
+                            case "STORAGE_AMOUNT":
+                                currStorageConsumed = (float)rec.getAvgValue();
+                                break;
+                            case "STORAGE_ACCESS":
+                                currAccessSpeedConsumed = (float)rec.getAvgValue();
                         }
                     }
                 }
@@ -181,6 +171,7 @@ public class SystemLoadCalculatedProfile {
                     networkThroughputConsumed += currNetworkThroughputConsumed;
                     ioThroughputConsumed += currIoThroughputConsumed;
                     storageConsumed += currStorageConsumed;
+                    accessSpeedConsumed += currAccessSpeedConsumed;
                     break;
                 case MAX:
                     vMemSize = Math.max(vMemSize, currVMemCapacity);
@@ -190,11 +181,12 @@ public class SystemLoadCalculatedProfile {
                     networkThroughputConsumed = Math.max(networkThroughputConsumed, currNetworkThroughputConsumed);
                     ioThroughputConsumed = Math.max(ioThroughputConsumed, currIoThroughputConsumed);
                     storageConsumed = Math.max(storageConsumed, currStorageConsumed);
+                    accessSpeedConsumed = Math.max(accessSpeedConsumed, currAccessSpeedConsumed);
                     memConsumedFactor = Math.max(memConsumedFactor, Float.isFinite(currMemConsumed / currVMemCapacity) ?
-                                    currMemConsumed / currVMemCapacity : MEM_CONSUMED_FACTOR_DEFAULT);
+                        currMemConsumed / currVMemCapacity : TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR_DEFAULT_VALUE);
                     cpuConsumedFactor = Math.max(cpuConsumedFactor, Float.isFinite(currCPUConsumed / currVCPUCapacity) ?
-                                    currCPUConsumed / currVCPUCapacity : CPU_CONSUMED_FACTOR_DEFAULT);
-                    storageConsumedFactor = STORAGE_CONSUMED_FACTOR_DEFAULT;
+                        currCPUConsumed / currVCPUCapacity : TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR_DEFAULT_VALUE);
+                    storageConsumedFactor = TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR_DEFAULT_VALUE;
                     break;
             }
         }
@@ -202,10 +194,10 @@ public class SystemLoadCalculatedProfile {
         if (operation == Operation.AVG && numVMs > 0) {
             // find average instead of sum for variables for average profile
             memConsumedFactor = Float.isFinite(memConsumed / vMemSize) ?
-                                memConsumed / vMemSize : MEM_CONSUMED_FACTOR_DEFAULT;
+                memConsumed / vMemSize : TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR_DEFAULT_VALUE;
             cpuConsumedFactor = Float.isFinite(cpuConsumed / vCPUSpeed) ?
-                            cpuConsumed / vCPUSpeed : CPU_CONSUMED_FACTOR_DEFAULT;
-            storageConsumedFactor = STORAGE_CONSUMED_FACTOR_DEFAULT;
+                cpuConsumed / vCPUSpeed : TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR_DEFAULT_VALUE;
+            storageConsumedFactor = TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR_DEFAULT_VALUE;
             memConsumed = memConsumed / numVMs;
             vMemSize = vMemSize / numVMs;
             cpuConsumed = cpuConsumed / numVMs;
@@ -213,20 +205,22 @@ public class SystemLoadCalculatedProfile {
             networkThroughputConsumed = networkThroughputConsumed / numVMs;
             ioThroughputConsumed = ioThroughputConsumed / numVMs;
             storageConsumed = storageConsumed / numVMs;
+            accessSpeedConsumed = accessSpeedConsumed / numVMs;
         }
 
         // compute
-        templateComputeStats.put(CPU_CONSUMED_FACTOR, Math.min(1, cpuConsumedFactor));
-        templateComputeStats.put(CPU_SPEED, vCPUSpeed);
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR, Math.min(1, cpuConsumedFactor));
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED, vCPUSpeed);
         // TODO : Update NUM_OF_CPU once we are able to extract this information.
-        templateComputeStats.put(NUM_OF_CPU, 1F);
-        templateComputeStats.put(IO_THROUGHPUT, ioThroughputConsumed);
-        templateComputeStats.put(MEMORY_CONSUMED_FACTOR, Math.min(1, memConsumedFactor));
-        templateComputeStats.put(MEMORY_SIZE, vMemSize);
-        templateComputeStats.put(NETWORK_THROUGHPUT, networkThroughputConsumed);
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU, 1F);
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT, ioThroughputConsumed);
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR, Math.min(1, memConsumedFactor));
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE, vMemSize);
+        templateComputeStats.put(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT, networkThroughputConsumed);
         // storage
-        templateStorageStats.put(DISK_CONSUMED_FACTOR, Math.min(1, storageConsumedFactor));
-        templateStorageStats.put(DISK_SIZE, storageConsumed);
+        templateStorageStats.put(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR, Math.min(1, storageConsumedFactor));
+        templateStorageStats.put(TemplateProtoUtil.VM_STORAGE_DISK_SIZE, storageConsumed);
+        templateStorageStats.put(TemplateProtoUtil.VM_STORAGE_DISK_IOPS, accessSpeedConsumed);
         setHeadroomTemplateInfo(generateTemplateInfoFromProfile());
     }
 
@@ -235,9 +229,21 @@ public class SystemLoadCalculatedProfile {
      * @return template info based on calculated system load values.
      */
     private Optional<TemplateInfo> generateTemplateInfoFromProfile() {
+        final Optional<Long> targetId;
+        if (cluster.hasOrigin() && cluster.getOrigin().hasDiscovered() &&
+            cluster.getOrigin().getDiscovered().getDiscoveringTargetIdCount() != 0) {
+            targetId = Optional.of(cluster.getOrigin().getDiscovered().getDiscoveringTargetId(0));
+        } else {
+            targetId = Optional.empty();
+        }
+
         TemplateInfo.Builder templateInfo = TemplateInfo.newBuilder();
         //replace \ with _ in profile name, so it can be used in REST API as parameter
-        templateInfo.setName(operation.name() + ":" + profileDisplayNamePostfix.replaceAll("\\\\", "_"));
+        String name = targetId.map(targetOidToTargetName::get)
+            .orElse(targetId.map(String::valueOf).orElse("null")) + "::" + operation.name() +
+            ":" + profileDisplayNamePostfix.replaceAll("\\\\", "_");
+        this.profileName = name;
+        templateInfo.setName(name);
         templateInfo.setDescription(operation.name() + ":" + profileNamePostfix.replaceAll("\\\\", "_"));
         templateInfo.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
         templateInfo.setTemplateSpecId(1);
@@ -269,5 +275,9 @@ public class SystemLoadCalculatedProfile {
 
     public Optional<TemplateInfo> getHeadroomTemplateInfo() {
         return headroomTemplateInfo;
+    }
+
+    public String getProfileName() {
+        return profileName;
     }
 }

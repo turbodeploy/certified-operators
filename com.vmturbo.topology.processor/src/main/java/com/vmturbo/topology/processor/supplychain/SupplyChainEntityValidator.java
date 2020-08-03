@@ -144,8 +144,11 @@ public class SupplyChainEntityValidator {
 
         // get mandatory sold commodities from all the templates
         final List<TemplateCommodity> templateCommodityList =
-            templates.stream().map(TemplateDTO::getCommoditySoldList).flatMap(List::stream).
-            collect(Collectors.toList());
+            templates.stream()
+                    .map(TemplateDTO::getCommoditySoldList)
+                    .flatMap(List::stream)
+                    .filter(commodity -> !commodity.getOptional())
+                    .collect(Collectors.toList());
 
         for (final TemplateCommodity templateCommodity: templateCommodityList) {
             final int commodityTypeNumber = templateCommodity.getCommodityType().ordinal();

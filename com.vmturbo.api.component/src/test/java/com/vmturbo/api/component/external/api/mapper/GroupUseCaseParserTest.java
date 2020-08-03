@@ -5,6 +5,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -34,26 +35,26 @@ public class GroupUseCaseParserTest {
         Map<String, GroupUseCase> useCases = groupUseCaseParser.getUseCases();
         assertNotNull(useCases);
         Arrays.stream(new String[] {
-                "VirtualMachine", "PhysicalMachine", "VirtualDataCenter", "Storage", "Application",
-                "ApplicationServer", "Database", "VirtualApplication", "Cluster", "Group",
-                "StorageCluster", "DiskArray", "StorageController", "Switch"})
+                "VirtualMachine", "PhysicalMachine", "VirtualDataCenter", "Storage",
+                "Database", "Cluster", "Group",
+                "StorageCluster", "VirtualMachineCluster", "DiskArray", "StorageController", "Switch"})
                 .forEach(className -> assertTrue(useCases.containsKey(className)));
     }
 
     /**
      * Verify that the first usecase for each se type is the byName criterion.
      */
-    @SuppressWarnings("unchecked")
     @Test
     public void testFirstIsByName() {
-        Map<String, GroupUseCase> useCases = groupUseCaseParser.getUseCases();
-        final Set<String> groupTypes = ImmutableSet.of("Group", "Cluster", "StorageCluster");
+        final Map<String, GroupUseCase> useCases = new HashMap<>(groupUseCaseParser.getUseCases());
+        final Set<String> groupTypes = ImmutableSet.of("Group", "Cluster", "StorageCluster",
+                "VirtualMachineCluster");
         groupTypes.forEach(type -> {
-            Assert.assertEquals(type + GroupMapper.ELEMENTS_DELIMITER + "displayName",
+            Assert.assertEquals(type + EntityFilterMapper.ELEMENTS_DELIMITER + "displayName",
                             useCases.get(type).getCriteria().get(0).getElements());
             useCases.remove(type);
         });
-        useCases.forEach((key,useCase) -> {
+        useCases.forEach((key, useCase) -> {
                     assertEquals("displayName", useCase.getCriteria().get(0).getElements());
                 });
     }

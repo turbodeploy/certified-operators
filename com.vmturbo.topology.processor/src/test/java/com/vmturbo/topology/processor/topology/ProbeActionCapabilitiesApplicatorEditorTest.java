@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.topology;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -21,8 +20,11 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -37,661 +39,668 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
-import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor.EditorSummary;
 
 public class ProbeActionCapabilitiesApplicatorEditorTest {
 
-    public static final long DEFAULT_TARGET_ID = 1L;
+    private static final long DEFAULT_TARGET_ID = 1L;
+
+    /**
+     * Storage Commodity Type ID.
+     */
+    private static final int STORAGE_COMMODITY_TYPE_ID = 1234;
+
+    /**
+     * Storage Commodity Type.
+     */
+    private static final CommodityType STORAGE_COMMODITY_TYPE =
+        CommodityType.newBuilder().setType(STORAGE_COMMODITY_TYPE_ID).build();
+
     private ProbeActionCapabilitiesApplicatorEditor editor;
-
-    private ProbeStore probeStore = mock(ProbeStore.class);
-
     private TargetStore targetStore = mock(TargetStore.class);
+    private final Target target = mock(Target.class);
 
     @Before
     public void setup() {
-        editor = new ProbeActionCapabilitiesApplicatorEditor(probeStore, targetStore);
-        final Target target = mock(Target.class);
+        editor = new ProbeActionCapabilitiesApplicatorEditor(targetStore);
         when(target.getId()).thenReturn(DEFAULT_TARGET_ID);
         when(targetStore.getAll()).thenReturn(Collections.singletonList(target));
     }
 
     /**
-     * Verify editing movable to true for DATABASE with VDC as provider types.
-     * Action capabilities:
-     * VIRTUAL_MACHINE: MOVE -> NOT_SUPPORTED
-     * movable is set to true for Database.
+     * Verify movable is disabled for Container.
+     *
+     * <p>Scenario:
+     *   Target: Kubernetes
+     *     CONTAINER: MOVE -> NOT_SUPPORTED
+     *   Entity:
+     *     Container (id: 1)
+     *
+     * <p>Result: Movable is disabled for Container.
+     */
+    @Test
+    public void testEditOneCapability() {
+        when(target.getProbeInfo())
+                .thenReturn(getProbeInfo(EntityType.CONTAINER, ActionType.MOVE,
+                        ActionCapability.NOT_SUPPORTED, "Kubernetes"));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.VCPU.getNumber(),
+                EntityType.CONTAINER_VALUE, 2L));
+
+        final TopologyGraph<TopologyEntity> graph =
+                TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
+        validateCommodityMovable(graph,
+                getTopologyEntityPredicate(EntityType.CONTAINER_VALUE),
+                builder -> !builder.getMovable());
+        assertEquals(0, editorSummary.getMovableToTrueCounter());
+        assertEquals(1, editorSummary.getMovableToFalseCounter());
+    }
+
+    /**
+     * Verify cloneable and suspendable are set to true for ContainerPod.
+     *
+     * <p>Scenario:
+     *   Target: Kubernetes:
+     *     CONTAINER_POD: PROVISION -> SUPPORTED
+     *                    SUSPEND -> SUPPORTED
+     *   Entity:
+     *     ContainerPod (id: 1)
+     *
+     * <p>Result: Cloneable and suspendable are enabled for ContainerPod.
+     */
+    @Test
+    public void testEditMultipleCapabilities() {
+        when(target.getProbeInfo())
+                .thenReturn(getProbeInfo(EntityType.CONTAINER_POD, ActionType.PROVISION,
+                        ActionCapability.SUPPORTED, ActionType.SUSPEND,
+                        ActionCapability.SUPPORTED, "Kubernetes"));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.VCPU_REQUEST.getNumber(),
+                EntityType.CONTAINER_POD_VALUE, 2L));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
+        verifyAnalysisSettingProperty(graph, EntityType.CONTAINER_POD_VALUE,
+                AnalysisSettings::getCloneable, AnalysisSettings::getSuspendable);
+        assertEquals(1, editorSummary.getCloneableToTrueCounter());
+        assertEquals(1, editorSummary.getSuspendableToTrueCounter());
+    }
+
+    /**
+     * Verify movable is not set for Virtual Machine when no action capability for VM is provided
+     * by the probe.
+     *
+     * <p>Scenario:
+     *   Target: Kubernetes:
+     *     CONTAINER: MOVE -> NOT_SUPPORTED
+     *   Entity:
+     *     VirtualMachine (id: 2)
+     *
+     * <p>Result: Movable is enabled for Virtual Machine. (No action capabilities for Virtual
+     *   Machine are set by the probe, the editor treats VM Move action as NOT_EXECUTABLE, and
+     *   enables the action for market analysis)
      */
     @Test
     public void testEditMovableWithNoRelatedActionCapability() {
-        when(probeStore.getProbe(anyLong()))
-            .thenReturn(
-                Optional.of(getProbeInfo(EntityType.VIRTUAL_MACHINE, ActionType.MOVE, ActionCapability.NOT_SUPPORTED)));
+        when(target.getProbeInfo())
+                .thenReturn(getProbeInfo(EntityType.CONTAINER, ActionType.MOVE,
+                        ActionCapability.NOT_SUPPORTED, "Kubernetes"));
         final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_DATACENTER_VALUE, 1L));
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.DATABASE_VALUE, 1L));
+        topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.CLUSTER.getNumber(),
+                EntityType.VIRTUAL_MACHINE_VALUE, 4L));
+        topology.put(4L, buildTopologyEntity(4L, CommodityDTO.CommodityType.CLUSTER.getNumber(),
+            EntityType.VIRTUAL_VOLUME_VALUE, 3L));
 
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
 
         EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
-        // movable is set to true for Database.
+
         validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
-            builder -> builder.getMovable());
-        assertEquals(2, movableEditSummary.getMovableToTrueCounter());
+                    getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
+                    builder -> !builder.hasMovable());
+        validateCommodityMovable(graph,
+            getTopologyEntityPredicate(EntityType.VIRTUAL_VOLUME_VALUE),
+            builder -> !builder.hasMovable());
+                    //CommoditiesBoughtFromProvider::hasMovable);
+        assertEquals(0, movableEditSummary.getMovableToTrueCounter());
         assertEquals(0, movableEditSummary.getMovableToFalseCounter());
+
     }
 
     /**
-     * Verify editing movable to for DATABASE with VDC as provider with two targets
-     * Action capabilities:
-     * Target one:
-     * DATABASE: MOVE -> NOT_SUPPORTED
-     * Target two:
-     * DATABASE: MOVE -> SUPPORTED
-     * Movable is set to true.
-     * <p>
-     * Explanation: If both netapp and vc are discovering a storage. vc cannot move it,
-     * but netapp will, so we should mark it movable.
+     * Verify movable is disabled for VV's ST when movable action capability is unsupported for VV in probe.
+     *
+     * <p>Scenario:
+     *   Target: AWS:
+     *     VIRTUAL_VOLUME: MOVE -> NOT_SUPPORTED
+     *   Entities:
+     *     VIRTUAL_VOLUME (id: 4)
+     *     STORAGE_TIER (id: 3)
+     *     VIRTUAL_MACHINE (id: 2)
+     *
+     * <p>Result: Movable is disabled for storage tier under the VV.
      */
     @Test
-    public void testEditMovableWithTwoTargetsCase1() {
-        final long firstTargetId = 2L;
-        final long secondTargetId = 3L;
-        final long firstProbeId = 4L;
-        final long secondProbeId = 5L;
-        when(probeStore.getProbe(firstProbeId))
-            .thenReturn(
-                Optional.of(getProbeInfo(EntityType.DATABASE, ActionType.MOVE, ActionCapability.NOT_SUPPORTED)));
-        when(probeStore.getProbe(secondProbeId))
-            .thenReturn(
-                Optional.of(getProbeInfo(EntityType.DATABASE, ActionType.MOVE, ActionCapability.SUPPORTED)));
-
+    public void testEditMovableVolumeForAWSTarget() {
+        final long vvOid = 4L;
+        final long stOid = 3L;
+        final long vmOid = 2L;
+        when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.VIRTUAL_VOLUME, ActionType.MOVE, ActionCapability.NOT_SUPPORTED, SDKProbeType.AWS.getProbeType()));
         final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_MACHINE_VALUE, 1L));
-        final ImmutableSet<Long> targetIds = ImmutableSet.of(firstTargetId, secondTargetId);
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.DATABASE_VALUE, 1L, targetIds));
+        topology.put(vmOid, buildVMTopologyEntityWithVvProvider(vmOid, vvOid));
+        topology.put(vvOid, buildVVTopologyEntityWithStProvider(vvOid, stOid));
+        topology.put(stOid, buildStTopologyEntity(stOid));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
+
+        validateCommodityMovable(graph,
+            getTopologyEntityPredicate(EntityType.STORAGE_TIER_VALUE),
+            CommoditiesBoughtFromProvider::getMovable);
+        validateSpecificCommodityMovable(graph,
+            getTopologyEntityPredicate(EntityType.VIRTUAL_VOLUME_VALUE),
+            EntityType.STORAGE_TIER,
+            provider -> !provider.getMovable());
+
+        assertEquals(1, movableEditSummary.getMovableToFalseCounter());
+    }
+
+    /**
+     * Verify movable is disabled for VV's ST when movable action capability is supported for VV in probe
+     *
+     * <p>Scenario:
+     *   Target: AWS:
+     *     VIRTUAL_VOLUME: MOVE -> SUPPORTED
+     *   Entities:
+     *     VIRTUAL_VOLUME (id: 4)
+     *     VIRTUAL_MACHINE (id: 2)
+     *
+     * <p>Result: Movable is enabled for storage tier under the VM.
+     */
+    @Test
+    public void testEditMovableVolumeForAWSTargetWithSupport() {
+        final long vvOid = 4L;
+        final long stOid = 3L;
+        final long vmOid = 2L;
+        when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.VIRTUAL_VOLUME, ActionType.MOVE, ActionCapability.SUPPORTED, SDKProbeType.AWS.getProbeType()));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(vmOid, buildVMTopologyEntityWithVvProvider(vmOid, vvOid));
+        topology.put(vvOid, buildVVTopologyEntityWithStProvider(vvOid, stOid));
+        topology.put(stOid, buildStTopologyEntity(stOid));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        editor.applyPropertiesEdits(graph);
+
+        validateCommodityMovable(graph,
+            getTopologyEntityPredicate(EntityType.STORAGE_TIER_VALUE),
+            CommoditiesBoughtFromProvider::getMovable);
+        validateSpecificCommodityMovable(graph,
+            getTopologyEntityPredicate(EntityType.VIRTUAL_VOLUME_VALUE),
+            EntityType.STORAGE_TIER,
+            CommoditiesBoughtFromProvider::getMovable);
+    }
+
+    /**
+     * Verify movable is disabled for VV's ST when movable action capability is supported for VV in probe
+     *
+     * <p>Scenario:
+     *   Target: AWS:
+     *     STORAGE_TIER: MOVE -> NOT_SUPPORTED
+     *   Entities:
+     *     VIRTUAL_VOLUME (id: 4)
+     *     VIRTUAL_MACHINE (id: 2)
+     *     STORAGE_TIER (id: 3)
+     *
+     * <p>Result: Movable is enabled for storage tier under the VM.
+     */
+    @Test
+    public void testStForAWSTarget() {
+        final long vmOid = 2L;
+        final long vvOid = 4L;
+        final long stOid = 3L;
+
+        when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.STORAGE_TIER, ActionType.MOVE, ActionCapability.NOT_SUPPORTED, SDKProbeType.AWS.getProbeType()));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(vmOid, buildVMTopologyEntityWithVvProvider(vmOid, vvOid));
+        topology.put(vvOid, buildVVTopologyEntityWithStProvider(vvOid, stOid));
+        topology.put(stOid, buildStTopologyEntity(stOid));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        editor.applyPropertiesEdits(graph);
+
+        validateSpecificCommodityMovable(graph,
+            getTopologyEntityPredicate(EntityType.VIRTUAL_VOLUME_VALUE),
+            EntityType.STORAGE_TIER,
+            provider -> !provider.getMovable());
+    }
+
+    /**
+     * Verify movable is disabled for VV's ST when movable action capability is supported for VV in probe
+     *
+     * <p>Scenario:
+     *   Target: AWS:
+     *     STORAGE_TIER: MOVE -> SUPPORTED
+     *   Entities:
+     *     VIRTUAL_VOLUME (id: 4)
+     *     VIRTUAL_MACHINE (id: 2)
+     *     STORAGE_TIER (id: 3)
+     *
+     * <p>Result: Movable is enabled for storage tier under the VM.
+     */
+    @Test
+    public void testStForAWSTarget2() {
+        final long vmOid = 2L;
+        final long vvOid = 4L;
+        final long stOid = 3L;
+
+        when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.STORAGE_TIER, ActionType.MOVE, ActionCapability.SUPPORTED, SDKProbeType.AWS.getProbeType()));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(vmOid, buildVMTopologyEntityWithVvProvider(vmOid, vvOid));
+        topology.put(vvOid, buildVVTopologyEntityWithStProvider(vvOid, stOid));
+        topology.put(stOid, buildStTopologyEntity(stOid));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        editor.applyPropertiesEdits(graph);
+
+        validateSpecificCommodityMovable(graph,
+            getTopologyEntityPredicate(EntityType.VIRTUAL_VOLUME_VALUE),
+            EntityType.STORAGE_TIER,
+            provider -> !provider.getMovable());
+    }
+
+    @Test
+    public void testEditScalableDisabledForCloudVMs() {
+        when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.VIRTUAL_MACHINE,
+                    ActionType.SCALE, ActionCapability.NOT_SUPPORTED, "Kubernetes"));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(2L, buildTopologyEntityWithCommBought(2L,  EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.VCPU.getNumber(), true, true,
+                Collections.singleton(DEFAULT_TARGET_ID)));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary resizeableEditSummary = editor.applyPropertiesEdits(graph);
+
+        validateCommodityScalable(graph,
+                getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
+                provider -> !provider.getScalable());
+        validateSpecificCommodityScalable(graph,
+                getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
+                EntityType.PHYSICAL_MACHINE,
+                provider -> !provider.getScalable());
+
+        assertEquals(1, resizeableEditSummary.getScalableToFalseCounter());
+    }
+
+    @Test
+    public void testEditResizeableDisabledForCloudNativeVMs() {
+        when(target.getProbeInfo()).thenReturn(getProbeInfo(EntityType.VIRTUAL_MACHINE,
+                ActionType.RIGHT_SIZE, ActionCapability.NOT_SUPPORTED, "Kubernetes"));
+        boolean defaultEntityLevelResizeable = true;
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(2L, buildTopologyEntityWithCommSold(2L,  EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.VCPU.getNumber(), defaultEntityLevelResizeable,
+                Collections.singleton(DEFAULT_TARGET_ID)));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary resizeableEditSummary = editor.applyPropertiesEdits(graph);
+
+        validateCommodityResizeable(graph,
+                getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
+                builder -> builder.hasIsResizeable() && !builder.getIsResizeable());
+
+        assertEquals(1, resizeableEditSummary.getResizeableToFalseCounter());
+    }
+
+    /**
+     * Verify not executable action capabilities are treated as enabled for analysis.
+     *
+     * <p>Scenario:
+     *   Target: Kubernetes:
+     *     APPLICATION COMPONENT: PROVISION -> NOT_EXECUTABLE
+     *   Entities:
+     *     Application Component (id: 1)
+     *
+     * <p>Result: Cloneable and suspendable are enabled for Application and Container (When
+     *   action capabilities are either not set, or set to NOT_EXECUTABLE for an entity type by the
+     *   probe, the action will be enabled for market analysis)
+     */
+    @Test
+    public void testEditNotExecutableForApplicationsAreTreatedAsEnabledForAnalysis() {
+        when(target.getProbeInfo())
+                .thenReturn(getProbeInfo(EntityType.APPLICATION_COMPONENT,
+                        ActionType.PROVISION, ActionCapability.NOT_EXECUTABLE,
+                        ActionType.SUSPEND, ActionCapability.NOT_EXECUTABLE,
+                        "Kubernetes"));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.RESPONSE_TIME.getNumber(),
+                EntityType.APPLICATION_COMPONENT_VALUE, 2L));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
+        verifyAnalysisSettingProperty(graph, EntityType.APPLICATION_COMPONENT_VALUE,
+                AnalysisSettings::getCloneable, AnalysisSettings::getSuspendable);
+        assertEquals(1, editorSummary.getCloneableToTrueCounter());
+        assertEquals(1, editorSummary.getSuspendableToTrueCounter());
+    }
+
+    /**
+     * Verify not executable action capabilities are treated as enabled for analysis.
+     *
+     * <p>Scenario:
+     *   Target: Kubernetes:
+     *     CONTAINER: SUSPEND -> NOT_EXECUTABLE
+     *     CONTAINER: PROVISION -> NOT_EXECUTABLE
+     *   Entities:
+     *     Container (id: 2)
+     *
+     * <p>Result: Cloneable and suspendable are enabled for both Application and Container (When
+     *   action capabilities are either not set, or set to NOT_EXECUTABLE for an entity type by the
+     *   probe, the action will be enabled for market analysis)
+     */
+    @Test
+    public void testEditNotExecutableForContainersAreTreatedAsEnabledForAnalysis() {
+        when(target.getProbeInfo())
+                .thenReturn(getProbeInfo(EntityType.CONTAINER, ActionType.PROVISION,
+                        ActionCapability.NOT_EXECUTABLE, ActionType.SUSPEND,
+                        ActionCapability.NOT_EXECUTABLE, "Kubernetes"));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.VCPU.getNumber(),
+                EntityType.CONTAINER_VALUE, 3L));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
+        verifyAnalysisSettingProperty(graph, EntityType.CONTAINER_VALUE,
+                AnalysisSettings::getCloneable, AnalysisSettings::getSuspendable);
+        assertEquals(1, editorSummary.getCloneableToTrueCounter());
+        assertEquals(1, editorSummary.getSuspendableToTrueCounter());
+    }
+
+    /**
+     * Verify that the provision and suspend settings in a container pod
+     * are not impacted if the policy is not specified at the entity or at the probe level.
+     */
+    @Test
+    public void testUnsetActionsForContainerPodsAreUnsetForAnalysis() {
+        when(target.getProbeInfo())
+                .thenReturn(getProbeInfo(EntityType.CONTAINER_POD,
+                        ActionType.RESIZE, ActionCapability.NOT_EXECUTABLE,
+                        ActionType.MOVE, ActionCapability.NOT_EXECUTABLE,
+                        "Kubernetes"));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.VCPU.getNumber(),
+                EntityType.CONTAINER_POD_VALUE, 3L));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
+        verifyAnalysisSettingProperty(graph, EntityType.CONTAINER_POD_VALUE,
+                analysisSettingsBuilder -> !analysisSettingsBuilder.hasCloneable(),
+                analysisSettingsBuilder -> !analysisSettingsBuilder.hasSuspendable());
+        assertEquals(0, editorSummary.getCloneableToTrueCounter());
+        assertEquals(0, editorSummary.getSuspendableToTrueCounter());
+    }
+
+    /**
+     * Verify if an action capability is enabled by probe, but disabled by user policy setting,
+     * the user setting takes precedence.
+     *
+     * <p>Scenario:
+     *   Target: Kubernetes:
+     *     CONTAINER_POD: PROVISION -> SUPPORTED
+     *                    SUSPEND -> SUPPORTED
+     *   Entity:
+     *     ContainerPod (id: 1) with user policy settings:
+     *       Cloneable: Disabled
+     *       Suspendable: Disabled
+     *
+     * <p>Result: Cloneable and suspendable are disabled for ContainerPod.
+     */
+    @Test
+    public void testUserSettingDisabledOverwritesProbeSettingEnabled() {
+        when(target.getProbeInfo())
+                .thenReturn(getProbeInfo(EntityType.CONTAINER_POD, ActionType.PROVISION,
+                        ActionCapability.SUPPORTED, ActionType.SUSPEND,
+                        ActionCapability.SUPPORTED, "Kubernetes"));
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.VCPU_REQUEST.getNumber(),
+                EntityType.CONTAINER_POD_VALUE, false));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+
+        EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
+        verifyAnalysisSettingProperty(graph, EntityType.CONTAINER_POD_VALUE,
+                builder -> !builder.getCloneable(), builder -> !builder.getSuspendable());
+        assertEquals(0, editorSummary.getCloneableToTrueCounter());
+        assertEquals(0, editorSummary.getSuspendableToTrueCounter());
+        assertEquals(0, editorSummary.getCloneableToFalseCounter());
+        assertEquals(0, editorSummary.getSuspendableToFalseCounter());
+    }
+
+    /**
+     * Verify when an entity is discovered by two probes, where one probe has action capability set,
+     * the other does not have action capability set, the editor ignores the entities discovered by
+     * the probe that does not have action capability set.
+     *
+     * <p>Scenario:
+     *   Target 1: Kubernetes (has proper action capability set)
+     *     CONTAINER: MOVE -> NOT_SUPPORTED
+     *   Target 2: VCenter (does not have proper action capability set for VIRTAUL_MACHINE)
+     *     VIRTUAL_MACHINE: MOVE -> not specified
+     *   Entities:
+     *     Container (id: 1), discovered by Kubernetes target
+     *     VirtualMachine (id: 2), discovered by both Kubernetes and VCenter target
+     *     Database (id: 3), discovered by VCenter target
+     *
+     * <p>Result:
+     *   Container entity: Movable is disabled (Discovered by Kubernetes target only)
+     *   VirtualMachine entity: Movable is enabled (Discovered by both Kubernetes and VCenter
+     *     target, ignore action capabilities from VCenter target. Kubernetes target does not set
+     *     action capability for VM. Defaults to NOT_EXECUTABLE, thus enabled for analysis)
+     *   Database entity: Movable is not set (Discovered by VCenter target only, which does not
+     *     have proper action capability set, do not set Movable property)
+     *
+     */
+    @Test
+    public void testEditWithTwoProbes() {
         final Target target1 = mock(Target.class);
         final Target target2 = mock(Target.class);
-        when(target1.getProbeId()).thenReturn(firstProbeId);
-        when(target2.getProbeId()).thenReturn(secondProbeId);
-        when(target1.getId()).thenReturn(firstTargetId);
-        when(target2.getId()).thenReturn(secondTargetId);
+        when(target1.getProbeInfo())
+                .thenReturn(getProbeInfo(EntityType.CONTAINER, ActionType.MOVE,
+                        ActionCapability.NOT_SUPPORTED, "Kubernetes"));
+        when(target1.getId()).thenReturn(13L);
+        when(target2.getProbeInfo())
+                .thenReturn(getProbeInfo(EntityType.VIRTUAL_DATACENTER, ActionType.MOVE,
+                        ActionCapability.NOT_SUPPORTED, "VCenter"));
+        when(target2.getId()).thenReturn(14L);
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target1, target2));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
-            builder -> !builder.getMovable());
-
-        EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
-
-        // Movable is set to true.
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
-            builder -> builder.getMovable());
-        assertEquals(1, movableEditSummary.getMovableToTrueCounter());
-        assertEquals(1, movableEditSummary.getMovableToFalseCounter());
-    }
-
-    /**
-     * Verify editing movable for DATABASE with VDC as provider with two target, one has action capability
-     * and the other hasn't.
-     * <p>
-     * Action capabilities:
-     * Target one:
-     * DATABASE: MOVE -> NOT_SUPPORTED
-     * Target two:
-     * Empty
-     * <p>
-     * Movable is set to true.
-     */
-    @Test
-    public void testEditMovableWithTwoTargetsCase2() {
-        final long firstTargetId = 2L;
-        final long secondTargetId = 3L;
-        final long firstProbeId = 4L;
-        final long secondProbeId = 5L;
-        when(probeStore.getProbe(firstProbeId))
-            .thenReturn(
-                Optional.of(getProbeInfo(EntityType.DATABASE, ActionType.MOVE, ActionCapability.NOT_SUPPORTED)));
-        when(probeStore.getProbe(secondProbeId))
-            .thenReturn(Optional.empty());
-
         final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_MACHINE_VALUE, 1L));
-        final ImmutableSet<Long> targetIds = ImmutableSet.of(firstTargetId, secondTargetId);
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.DATABASE_VALUE, 1L, targetIds));
-        final Target target1 = mock(Target.class);
-        final Target target2 = mock(Target.class);
-        when(target1.getProbeId()).thenReturn(firstProbeId);
-        when(target2.getProbeId()).thenReturn(secondProbeId);
-        when(target1.getId()).thenReturn(firstTargetId);
-        when(target2.getId()).thenReturn(secondTargetId);
-        when(targetStore.getAll()).thenReturn(ImmutableList.of(target1, target2));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
+        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.VCPU.getNumber(),
+                EntityType.CONTAINER_VALUE, 2L, ImmutableSet.of(13L)));
+        topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.VCPU.getNumber(),
+                EntityType.VIRTUAL_MACHINE_VALUE, 3L, ImmutableSet.of(13L, 14L)));
+        topology.put(3L, buildTopologyEntity(3L, CommodityDTO.CommodityType.CLUSTER.getNumber(),
+                EntityType.DATABASE_VALUE, 4L, ImmutableSet.of(14L)));
+        final TopologyGraph<TopologyEntity> graph =
+                TopologyEntityTopologyGraphCreator.newGraph(topology);
+        final EditorSummary editorSummary = editor.applyPropertiesEdits(graph);
         validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
-            builder -> !builder.getMovable());
-
-        EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
-        // Movable is set to true.
+                getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
+                builder -> !builder.hasMovable());
         validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
-            builder -> builder.getMovable());
-        assertEquals(1, movableEditSummary.getMovableToTrueCounter());
-        assertEquals(1, movableEditSummary.getMovableToFalseCounter());
+                getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
+                builder -> !builder.hasMovable());
+        validateCommodityMovable(graph,
+                getTopologyEntityPredicate(EntityType.CONTAINER_VALUE),
+                builder -> builder.hasMovable() && !builder.getMovable());
+        assertEquals(0, editorSummary.getMovableToTrueCounter());
+        assertEquals(1, editorSummary.getMovableToFalseCounter());
     }
 
-
-    /**
-     * Verify editing movable for DATABASE with VDC as provider types.
-     * Action capabilities:
-     * DATABASE
-     * MOVE -> NOT_SUPPORTED
-     * <p>
-     * movable are set to false.
-     */
-    @Test
-    public void testEditMovableWithActionCapability() {
-        final ProbeInfo probeInfo = getProbeInfo(EntityType.DATABASE_SERVER,
-            ActionType.MOVE, EntityType.DATABASE, ActionType.MOVE, ActionCapability.NOT_SUPPORTED);
-        when(probeStore.getProbe(anyLong())).thenReturn(Optional.of(probeInfo));
-        final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_DATACENTER_VALUE, 1L));
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.DATABASE_VALUE, 1L));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
-        // validate the movable are false before this stage
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
-            builder -> !builder.getMovable());
-
-        EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
-
-        // movable are set to false to both
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
-            builder -> !builder.getMovable());
-        assertEquals(1, movableEditSummary.getMovableToTrueCounter());
-        assertEquals(1, movableEditSummary.getMovableToFalseCounter());
-    }
-
-    /**
-     * Verify if the entity type is general entity type (VDC in this case), movable will
-     * be set according to probe action capability.
-     * Action capabilities:
-     * VIRTUAL_MACHINE: MOVE -> NOT_SUPPORTED
-     * <p>
-     * movable is set true for entity with VIRTUAL_DATACENTER_VALUE type.
-     */
-    @Test
-    public void testEditMovableWithVDC() {
-        when(probeStore.getProbe(anyLong()))
-            .thenReturn(
-                Optional.of(getProbeInfo(EntityType.VIRTUAL_MACHINE, ActionType.MOVE, ActionCapability.NOT_SUPPORTED)));
-        final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_DATACENTER_VALUE, 1L));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
-        EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
-        // verify movable is true.
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.VIRTUAL_DATACENTER_VALUE),
-            builder -> builder.getMovable());
-        assertEquals(1, movableEditSummary.getMovableToTrueCounter());
-        assertEquals(0, movableEditSummary.getMovableToFalseCounter());
-    }
-
-    /**
-     * Verify editing movable when the entity type is VM and provider is PM.
-     * Action capabilities:
-     * VIRTUAL_MACHINE: MOVE -> NOT_SUPPORTED
-     * Movable is set to false.
-     */
-    @Test
-    public void testEditMovableWithVMAndProviderPMCase1() {
-        when(probeStore.getProbe(anyLong()))
-            .thenReturn(Optional.of(getProbeInfo(ActionType.MOVE, ActionCapability.NOT_SUPPORTED)));
-        final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.PHYSICAL_MACHINE_VALUE, 1L));
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_MACHINE_VALUE, 1L));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
-        // validate the movable are false before this stage
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
-            builder -> !builder.getMovable());
-
-        EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
-
-        // Movable is set to false.
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
-            builder -> !builder.getMovable());
-        assertEquals(1, movableEditSummary.getMovableToTrueCounter());
-        assertEquals(1, movableEditSummary.getMovableToFalseCounter());
-    }
-
-    /**
-     * Verify editing movable when the entity type is VM and provider is PM.
-     * Action capabilities:
-     * VIRTUAL_MACHINE: MOVE -> SUPPORTED
-     * Movable is set to true.
-     */
-    @Test
-    public void testEditMovableWithVMAndProviderPMCase2() {
-        when(probeStore.getProbe(anyLong()))
-            .thenReturn(Optional.of(getProbeInfo(ActionType.MOVE, ActionCapability.SUPPORTED)));
-        final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.PHYSICAL_MACHINE_VALUE, 1L));
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_MACHINE_VALUE, 1L));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
-        // validate the movable are false before this stage
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
-            builder -> !builder.getMovable());
-
-        EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
-        // Movable is set to true.
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
-            builder -> builder.getMovable());
-        assertEquals(2, movableEditSummary.getMovableToTrueCounter());
-        assertEquals(0, movableEditSummary.getMovableToFalseCounter());
-    }
-
-    /**
-     * Verify editing movable when the entity type is VM and provider is Storage.
-     * Action capabilities:
-     * VIRTUAL_MACHINE: CHANGE -> NOT_SUPPORTED
-     * Movable is set to false.
-     */
-    @Test
-    public void testEditMovableWithVMAndProviderStorageCase1() {
-        when(probeStore.getProbe(anyLong()))
-            .thenReturn(Optional.of(getProbeInfo(ActionType.CHANGE, ActionCapability.NOT_SUPPORTED)));
-
-        final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.STORAGE_VALUE, 1L));
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_MACHINE_VALUE, 1L));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
-        // validate the movable are false before this stage
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
-            builder -> !builder.getMovable());
-
-        EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
-
-        // Movable is set to false.
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
-            builder -> !builder.getMovable());
-        assertEquals(1, movableEditSummary.getMovableToTrueCounter());
-        assertEquals(1, movableEditSummary.getMovableToFalseCounter());
-    }
-
-    /**
-     * Verify editing movable when the entity type is VM and provider is Storage.
-     * Action capabilities:
-     * VIRTUAL_MACHINE: CHANGE -> SUPPORTED
-     * Movable is set to true.
-     */
-    @Test
-    public void testEditMovableWithVMAndProviderStorageCase2() {
-        when(probeStore.getProbe(anyLong()))
-            .thenReturn(Optional.of(getProbeInfo(ActionType.CHANGE, ActionCapability.SUPPORTED)));
-        final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.STORAGE_VALUE, 1L));
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_MACHINE_VALUE, 1L));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
-        // validate the movable are false before this stage
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
-            builder -> !builder.getMovable());
-
-        EditorSummary movableEditSummary = editor.applyPropertiesEdits(graph);
-        // Movable is set to true.
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
-            builder -> builder.getMovable());
-        assertEquals(2, movableEditSummary.getMovableToTrueCounter());
-        assertEquals(0, movableEditSummary.getMovableToFalseCounter());
-    }
-
-    /**
-     * Verify if properties values are set by user, the editor will:
-     * 1. if all probes don't allow the actions, set them to false.
-     * 2. if at least one probe allow the action, check if the property is set.
-     * If not set, set to true, and leave it otherwise.
-     * <p>
-     * Action capabilities:
-     * VIRTUAL_MACHINE: MOVE -> NOT_SUPPORTED
-     * <p>
-     * User set:
-     * movable -> false
-     * cloneable -> false
-     * suspendable -> true
-     * <p>
-     * For entity type DATABASE_VALUE:
-     * movable is set to false (since user want it disable it, although probe support it) .
-     * cloneable is set to false (since user wants it to be false, although probe support it).
-     * suspendable is set to true (since user wants it to be true and probe support it).
-     */
-    @Test
-    public void testEditMovableClonableAndSuspendableWithValuesPreSet() {
-        // probe only have policy for VM.
-        when(probeStore.getProbe(anyLong()))
-            .thenReturn(
-                Optional.of(getProbeInfo(EntityType.VIRTUAL_MACHINE, ActionType.MOVE, ActionCapability.NOT_SUPPORTED)));
-
-        final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_MACHINE_VALUE, false));
-        // user set 1. cloneable to false 2. suspendable to true
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.DATABASE_VALUE, false));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
-        EditorSummary summary = editor.applyPropertiesEdits(graph);
-
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
-            builder -> !builder.getMovable());
-
-
-        verifyAnalysisSettingProperty(graph, EntityType.DATABASE_VALUE, s -> !s.getCloneable(), s -> s.getSuspendable());
-
-        assertEquals(1, summary.getMovableToTrueCounter());
-        assertEquals(0, summary.getMovableToFalseCounter());
-        assertEquals(0, summary.getCloneableToTrueCounter());
-        assertEquals(0, summary.getCloneableToFalseCounter());
-        assertEquals(0, summary.getSuspendableToTrueCounter());
-        assertEquals(0, summary.getSuspendableToFalseCounter());
-    }
-
-
-    /**
-     * Verify editing movable, cloneable and suspendable to for DATABASE with VM as provider
-     * Action capabilities:
-     * VIRTUAL_DATACENTER: MOVE -> NOT_SUPPORTED
-     * <p>
-     * movable is set to false.
-     * cloneable is set to true.
-     * suspendable is set to true.
-     */
-    @Test
-    public void testEditMovableWithCapabilityCloneableAndSuspendableWithoutActionCapability() {
-        when(probeStore.getProbe(anyLong()))
-            .thenReturn(
-                Optional.of(getProbeInfo(EntityType.VIRTUAL_DATACENTER, ActionType.MOVE, ActionCapability.NOT_SUPPORTED)));
-        final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_DATACENTER_VALUE, 1L));
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.DATABASE_VALUE, 1L));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
-        EditorSummary summary = editor.applyPropertiesEdits(graph);
-
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.VIRTUAL_DATACENTER_VALUE),
-            builder -> !builder.getMovable());
-        verifyAnalysisSettingProperty(graph, EntityType.VIRTUAL_DATACENTER_VALUE, s -> s.getCloneable(), s -> s.getSuspendable());
-        verifyAnalysisSettingProperty(graph, EntityType.DATABASE_VALUE, s -> s.getCloneable(), s -> s.getSuspendable());
-
-        assertEquals(1, summary.getMovableToTrueCounter());
-        assertEquals(1, summary.getMovableToFalseCounter());
-        assertEquals(2, summary.getCloneableToTrueCounter());
-        assertEquals(0, summary.getCloneableToFalseCounter());
-        assertEquals(2, summary.getSuspendableToTrueCounter());
-        assertEquals(0, summary.getSuspendableToFalseCounter());
-    }
-
-    /**
-     * Verify editing cloneable and suspendable properties for DATABASE with VDC as provider types.
-     * Action capabilities:
-     * DATABASE:
-     * PROVISION -> NOT_SUPPORTED
-     * SUSPEND -> NOT_SUPPORTED
-     * Both cloneable and suspendable are set to false.
-     */
-    @Test
-    public void testEditCloneableAndSuspendableWithActionCapability() {
-        when(probeStore.getProbe(anyLong()))
-            .thenReturn(
-                Optional.of(getProbeInfo(EntityType.DATABASE, ActionType.PROVISION,
-                    ActionCapability.NOT_SUPPORTED, ActionType.SUSPEND, ActionCapability.NOT_SUPPORTED)));
-        final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_DATACENTER_VALUE, 1L));
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.DATABASE_VALUE, 1L));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
-        // validate the movable are false before this stage
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.VIRTUAL_DATACENTER_VALUE),
-            builder -> !builder.getMovable());
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
-            builder -> !builder.getMovable());
-        verifyAnalysisSettingProperty(graph, EntityType.VIRTUAL_DATACENTER_VALUE, s -> !s.getCloneable(), s -> s.getSuspendable());
-        verifyAnalysisSettingProperty(graph, EntityType.DATABASE_VALUE, s -> !s.getCloneable(), s -> s.getSuspendable());
-
-        EditorSummary summary = editor.applyPropertiesEdits(graph);
-        verifyAnalysisSettingProperty(graph, EntityType.VIRTUAL_DATACENTER_VALUE, s -> s.getCloneable(), s -> s.getSuspendable());
-        // Both cloneable and suspendable are set to false.
-        verifyAnalysisSettingProperty(graph, EntityType.DATABASE_VALUE, s -> !s.getCloneable(), s -> !s.getSuspendable());
-
-        assertEquals(2, summary.getMovableToTrueCounter());
-        assertEquals(0, summary.getMovableToFalseCounter());
-        assertEquals(1, summary.getCloneableToTrueCounter());
-        assertEquals(1, summary.getCloneableToFalseCounter());
-        assertEquals(1, summary.getSuspendableToTrueCounter());
-        assertEquals(1, summary.getSuspendableToFalseCounter());
-    }
-
-
-    /**
-     * Verify editing cloneable and suspendable for DATABASE with VDC as provider with two targets
-     * Action capabilities:
-     * Target one:
-     * STORAGE: PROVISION -> NOT_SUPPORTED, SUSPEND -> NOT_SUPPORTED
-     * Target two:
-     * STORAGE: PROVISION -> SUPPORTED, SUSPEND -> SUPPORTED
-     * <p>
-     * both are set to true.
-     * <p>
-     * Explanation: If both netapp and vc are discovering a storage. vc cannot move it,
-     * but netapp will, so we should mark it movable.
-     */
-    @Test
-    public void testEditCloneableAndSuspendableWithTwoTargetsCase1() {
-
-        final long firstTargetId = 2L;
-        final long secondTargetId = 3L;
-        final long firstProbeId = 4L;
-        final long secondProbeId = 5L;
-        when(probeStore.getProbe(firstProbeId))
-            .thenReturn(
-                Optional.of(getProbeInfo(EntityType.STORAGE, ActionType.PROVISION,
-                    ActionCapability.NOT_SUPPORTED, ActionType.SUSPEND, ActionCapability.NOT_SUPPORTED)));
-        when(probeStore.getProbe(secondProbeId))
-            .thenReturn(
-                Optional.of(getProbeInfo(EntityType.STORAGE, ActionType.PROVISION,
-                    ActionCapability.SUPPORTED, ActionType.SUSPEND, ActionCapability.SUPPORTED)));
-
-        final Map<Long, Builder> topology = new HashMap<>();
-        // Setting VM itself as provider. And since a special case say, if the provider is not PM or storage
-        // set the movable to false.
-        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.PHYSICAL_MACHINE_VALUE, 1L));
-        final ImmutableSet<Long> targetIds = ImmutableSet.of(firstTargetId, secondTargetId);
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.STORAGE_VALUE, 1L, targetIds));
-        final Target target1 = mock(Target.class);
-        final Target target2 = mock(Target.class);
-        when(target1.getProbeId()).thenReturn(firstProbeId);
-        when(target2.getProbeId()).thenReturn(secondProbeId);
-        when(target1.getId()).thenReturn(firstTargetId);
-        when(target2.getId()).thenReturn(secondTargetId);
-        when(targetStore.getAll()).thenReturn(ImmutableList.of(target1, target2));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
-        // validate the movable are false before this stage
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.PHYSICAL_MACHINE_VALUE),
-            builder -> !builder.getMovable());
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.STORAGE_VALUE),
-            builder -> !builder.getMovable());
-        verifyAnalysisSettingProperty(graph, EntityType.PHYSICAL_MACHINE_VALUE, s -> !s.getCloneable(), s -> s.getSuspendable());
-        verifyAnalysisSettingProperty(graph, EntityType.STORAGE_VALUE, s -> !s.getCloneable(), s -> s.getSuspendable());
-
-        EditorSummary summary = editor.applyPropertiesEdits(graph);
-        // both are set to true.
-        verifyAnalysisSettingProperty(graph, EntityType.PHYSICAL_MACHINE_VALUE, s -> s.getCloneable(), s -> s.getSuspendable());
-        verifyAnalysisSettingProperty(graph, EntityType.STORAGE_VALUE, s -> s.getCloneable(), s -> s.getSuspendable());
-
-        assertEquals(2, summary.getMovableToTrueCounter());
-        assertEquals(0, summary.getMovableToFalseCounter());
-        assertEquals(2, summary.getCloneableToTrueCounter());
-        assertEquals(0, summary.getCloneableToFalseCounter());
-        assertEquals(2, summary.getSuspendableToTrueCounter());
-        assertEquals(0, summary.getSuspendableToFalseCounter());
-    }
-
-    /**
-     * Verify editing cloneable and suspendable for DATABASE with VDC as provider with two targets
-     * Action capabilities:
-     * Target one:
-     * DATABASE: PROVISION -> NOT_SUPPORTED, SUSPEND -> NOT_SUPPORTED
-     * Target two:
-     * empty
-     * <p>
-     * Both are set to true.
-     */
-    @Test
-    public void testEditCloneableAndSuspendableWithTwoTargetsCase2() {
-        final long firstTargetId = 2L;
-        final long secondTargetId = 3L;
-        final long firstProbeId = 4L;
-        final long secondProbeId = 5L;
-        when(probeStore.getProbe(firstProbeId))
-            .thenReturn(
-                Optional.of(getProbeInfo(EntityType.DATABASE, ActionType.PROVISION,
-                    ActionCapability.NOT_SUPPORTED, ActionType.SUSPEND, ActionCapability.NOT_SUPPORTED)));
-        when(probeStore.getProbe(secondProbeId))
-            .thenReturn(Optional.empty());
-
-        final Map<Long, Builder> topology = new HashMap<>();
-        // Setting VM itself as provider. And since a special case say, if the provider is not PM or storage
-        // set the movable to false.
-        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.VIRTUAL_MACHINE_VALUE, 1L));
-        final ImmutableSet<Long> targetIds = ImmutableSet.of(firstTargetId, secondTargetId);
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()
-            , EntityType.DATABASE_VALUE, 1L, targetIds));
-        final Target target1 = mock(Target.class);
-        final Target target2 = mock(Target.class);
-        when(target1.getProbeId()).thenReturn(firstProbeId);
-        when(target2.getProbeId()).thenReturn(secondProbeId);
-        when(target1.getId()).thenReturn(firstTargetId);
-        when(target2.getId()).thenReturn(secondTargetId);
-        when(targetStore.getAll()).thenReturn(ImmutableList.of(target1, target2));
-
-        final TopologyGraph graph = TopologyGraph.newGraph(topology);
-
-        // validate the movable are false before this stage
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.VIRTUAL_MACHINE_VALUE),
-            builder -> !builder.getMovable());
-        validateCommodityMovable(graph,
-            getTopologyEntityPredicate(EntityType.DATABASE_VALUE),
-            builder -> !builder.getMovable());
-        verifyAnalysisSettingProperty(graph, EntityType.VIRTUAL_MACHINE_VALUE, s -> !s.getCloneable(), s -> s.getSuspendable());
-        verifyAnalysisSettingProperty(graph, EntityType.DATABASE_VALUE, s -> !s.getCloneable(), s -> s.getSuspendable());
-
-        EditorSummary summary = editor.applyPropertiesEdits(graph);
-        // both are set to true
-        verifyAnalysisSettingProperty(graph, EntityType.VIRTUAL_MACHINE_VALUE, s -> s.getCloneable(), s -> s.getSuspendable());
-        verifyAnalysisSettingProperty(graph, EntityType.DATABASE_VALUE, s -> s.getCloneable(), s -> s.getSuspendable());
-
-        assertEquals(1, summary.getMovableToTrueCounter());
-        assertEquals(1, summary.getMovableToFalseCounter());
-        assertEquals(2, summary.getCloneableToTrueCounter());
-        assertEquals(0, summary.getCloneableToFalseCounter());
-        assertEquals(2, summary.getSuspendableToTrueCounter());
-        assertEquals(0, summary.getSuspendableToFalseCounter());
-    }
-
-    public void verifyAnalysisSettingProperty(final TopologyGraph graph, final int entityTypeValue,
-                                              final Predicate<AnalysisSettings> cloneablePredicate,
-                                              final Predicate<AnalysisSettings> suspendablePredicate) {
+    private void verifyAnalysisSettingProperty(final TopologyGraph<TopologyEntity> graph, final int entityTypeValue,
+                                               final Predicate<AnalysisSettings> cloneablePredicate,
+                                               final Predicate<AnalysisSettings> suspendablePredicate) {
         graph.entities().filter(getTopologyEntityPredicate(entityTypeValue)).forEach(entity -> {
             final AnalysisSettings settings = entity
-                .getTopologyEntityDtoBuilder()
-                .getAnalysisSettings();
+                    .getTopologyEntityDtoBuilder()
+                    .getAnalysisSettings();
             assertTrue(cloneablePredicate.test(settings));
             assertTrue(suspendablePredicate.test(settings));
         });
     }
 
-    @Nonnull
-    private void validateCommodityMovable(final TopologyGraph graph,
+    private void validateCommodityMovable(final TopologyGraph<TopologyEntity> graph,
+                                            final Predicate<TopologyEntity> predicate,
+                                            final Predicate<CommoditiesBoughtFromProvider> movable) {
+        assertTrue(graph.entities().anyMatch(predicate));
+        graph.entities().filter(predicate).forEach(entity ->
+                assertTrue(entity
+                        .getTopologyEntityDtoBuilder()
+                        .getCommoditiesBoughtFromProvidersList()
+                        .stream()
+                        .allMatch(movable)));
+    }
+
+    private void validateCommodityScalable(final TopologyGraph<TopologyEntity> graph,
                                           final Predicate<TopologyEntity> predicate,
-                                          final Predicate<CommoditiesBoughtFromProvider> movable) {
-        assertTrue(graph.entities().filter(predicate).count() > 0);
+                                          final Predicate<CommoditiesBoughtFromProvider> scalable) {
+        assertTrue(graph.entities().anyMatch(predicate));
+        graph.entities().filter(predicate).forEach(entity ->
+                assertTrue(entity
+                        .getTopologyEntityDtoBuilder()
+                        .getCommoditiesBoughtFromProvidersList()
+                        .stream()
+                        .allMatch(scalable)));
+    }
+
+    private void validateCommodityResizeable(final TopologyGraph<TopologyEntity> graph,
+                                           final Predicate<TopologyEntity> predicate,
+                                           final Predicate<TopologyDTO.CommoditySoldDTO> resizeable) {
+        assertTrue(graph.entities().anyMatch(predicate));
+        graph.entities().filter(predicate).forEach(entity ->
+                assertTrue(entity
+                        .getTopologyEntityDtoBuilder()
+                        .getCommoditySoldListList()
+                        .stream()
+                        .allMatch(resizeable)));
+    }
+
+    private void validateSpecificCommodityScalable(final TopologyGraph<TopologyEntity> graph,
+                                                  final Predicate<TopologyEntity> predicate,
+                                                  final EntityType providerEntityType,
+                                                  final Predicate<CommoditiesBoughtFromProvider> commoditiesScalable) {
+        assertTrue(graph.entities().anyMatch(predicate));
+        graph.entities().filter(predicate).forEach(entity ->
+                assertTrue(entity
+                        .getTopologyEntityDtoBuilder()
+                        .getCommoditiesBoughtFromProvidersList()
+                        .stream()
+                        .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                        .filter(provider -> provider.getProviderEntityType() == providerEntityType.getNumber())
+                        .allMatch(commoditiesScalable)
+                )
+        );
+    }
+
+    private void validateSpecificCommodityMovable(final TopologyGraph<TopologyEntity> graph,
+                                                  final Predicate<TopologyEntity> predicate,
+                                                  final EntityType providerEntityType,
+                                                  final Predicate<CommoditiesBoughtFromProvider> commoditiesMovable) {
+        assertTrue(graph.entities().anyMatch(predicate));
         graph.entities().filter(predicate).forEach(entity ->
             assertTrue(entity
                 .getTopologyEntityDtoBuilder()
                 .getCommoditiesBoughtFromProvidersList()
                 .stream()
-                .allMatch(movable)));
+                .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                .filter(provider -> provider.getProviderEntityType() == providerEntityType.getNumber())
+                .allMatch(commoditiesMovable)
+            )
+        );
     }
 
     @Nonnull
     private Predicate<TopologyEntity> getTopologyEntityPredicate(int entityTypeValue) {
         return topologyEntity -> topologyEntity.getEntityType() == entityTypeValue;
+    }
+
+    @Nonnull
+    private TopologyEntity.Builder buildVVTopologyEntityWithStProvider(long vvOid, long stOid) {
+        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        Collections.singleton(DEFAULT_TARGET_ID).forEach(id -> origin.putDiscoveredTargetData(id,
+            PerTargetEntityInformation.getDefaultInstance()));
+        return buildTopologyEntity(vvOid, EntityType.VIRTUAL_VOLUME_VALUE,
+            Optional.of(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(stOid)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(STORAGE_COMMODITY_TYPE).build())
+                .build()),
+            Optional.of(CommoditySoldDTO.newBuilder().setCommodityType(STORAGE_COMMODITY_TYPE).build()));
+    }
+
+    @Nonnull
+    private TopologyEntity.Builder buildVMTopologyEntityWithVvProvider(long vmOid, long vvOid) {
+        return buildTopologyEntity(vmOid, EntityType.VIRTUAL_MACHINE_VALUE,
+            Optional.of(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(vvOid)
+                .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(STORAGE_COMMODITY_TYPE).build())
+                .build()),
+            Optional.empty());
+    }
+
+    @Nonnull
+    private TopologyEntity.Builder buildStTopologyEntity(long stOid) {
+        final CommoditySoldDTO commoditySoldDTO = CommoditySoldDTO.newBuilder()
+            .setCommodityType(STORAGE_COMMODITY_TYPE)
+            .build();
+        return buildTopologyEntity(stOid, EntityType.STORAGE_TIER_VALUE,
+            Optional.empty(), Optional.of(commoditySoldDTO));
+    }
+
+    /**
+     * Build {@link TopologyEntity} with the provided type and oid and create commodities.
+     *
+     * @param oid oid of the entity
+     * @param entityTypeValue entity type oid
+     * @param commoditiesBoughtFromProviderOpt optional, {@link CommoditiesBoughtFromProvider}
+     * @param commoditySoldOpt optional, {@link CommoditySoldDTO}
+     * @return {@link TopologyEntity} created
+     */
+    @Nonnull
+    private TopologyEntity.Builder buildTopologyEntity(long oid, int entityTypeValue,
+                                                       Optional<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviderOpt,
+                                                       Optional<CommoditySoldDTO> commoditySoldOpt) {
+        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        Collections.singleton(DEFAULT_TARGET_ID).forEach(id -> origin.putDiscoveredTargetData(id, PerTargetEntityInformation.getDefaultInstance()));
+        TopologyEntityDTO.Builder topologyEntityDTOBuilder = TopologyEntityDTO.newBuilder()
+            .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+            .setEntityType(entityTypeValue)
+            .setOrigin(Origin.newBuilder()
+                .setDiscoveryOrigin(origin)
+                .build())
+            .setOid(oid);
+
+        commoditiesBoughtFromProviderOpt.ifPresent(commoditiesBoughtFromProvider -> topologyEntityDTOBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtFromProvider));
+        commoditySoldOpt.ifPresent(commoditySold -> topologyEntityDTOBuilder.addCommoditySoldList(commoditySold));
+
+        return TopologyEntityUtils.topologyEntityBuilder(topologyEntityDTOBuilder);
     }
 
     @Nonnull
@@ -702,148 +711,181 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     @Nonnull
     private TopologyEntity.Builder buildTopologyEntity(long oid, int type, int entityType,
                                                        long providerId, final Collection<Long> targetIds) {
+        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        targetIds.forEach(id -> origin.putDiscoveredTargetData(id,
+                          PerTargetEntityInformation.getDefaultInstance()));
         return TopologyEntityUtils.topologyEntityBuilder(
-            TopologyEntityDTO.newBuilder()
-                .setAnalysisSettings(AnalysisSettings.newBuilder().build())
-                .setEntityType(entityType)
-                .setOrigin(Origin.newBuilder()
-                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                        .addAllDiscoveringTargetIds(targetIds)
-                        .build())
-                    .build())
-                .setOid(oid).addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(providerId)
-                    .addCommodityBought(
-                        CommodityBoughtDTO.newBuilder()
-                            .setCommodityType(
-                                CommodityType.newBuilder().setType(type).setKey("").build()
-                            ).setActive(true)
-                    )
-            ));
+                TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                        .setEntityType(entityType)
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(origin)
+                                .build())
+                        .setOid(oid).addCommoditiesBoughtFromProviders(
+                        CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(providerId)
+                                .addCommodityBought(
+                                        CommodityBoughtDTO.newBuilder()
+                                                .setCommodityType(
+                                                        CommodityType.newBuilder().setType(type).setKey("").build()
+                                                ).setActive(true)
+                                )
+                ));
     }
 
     @Nonnull
-    private TopologyEntity.Builder buildTopologyEntity(long oid, int type, int entityType, boolean movable) {
+    private TopologyEntity.Builder buildTopologyEntity(long oid, int type, int entityType, boolean isEnabled) {
         return TopologyEntityUtils.topologyEntityBuilder(
-            TopologyEntityDTO.newBuilder()
-                .setEntityType(entityType)
-                .setOrigin(Origin.newBuilder()
-                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                        .addAllDiscoveringTargetIds(Collections.singleton(DEFAULT_TARGET_ID))
-                        .build())
-                    .build())
-                .setAnalysisSettings(AnalysisSettings.newBuilder()
-                    .setSuspendable(true)
-                    .setCloneable(false)
-                    .build())
-                .setOid(oid).addCommoditiesBoughtFromProviders(
-                CommoditiesBoughtFromProvider.newBuilder()
-                    .setMovable(movable)
-                    .addCommodityBought(
-                        CommodityBoughtDTO.newBuilder()
-                            .setCommodityType(CommodityType.newBuilder().setType(type).setKey("").build()
-                            ).setActive(true)
-                    )
-            ));
+                TopologyEntityDTO.newBuilder()
+                        .setEntityType(entityType)
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                        .putDiscoveredTargetData(DEFAULT_TARGET_ID,
+                                            PerTargetEntityInformation.getDefaultInstance())
+                                        .build())
+                                .build())
+                        .setAnalysisSettings(AnalysisSettings.newBuilder()
+                                .setSuspendable(isEnabled)
+                                .setCloneable(isEnabled)
+                                .build())
+                        .setOid(oid).addCommoditiesBoughtFromProviders(
+                        CommoditiesBoughtFromProvider.newBuilder()
+                                .addCommodityBought(
+                                        CommodityBoughtDTO.newBuilder()
+                                                .setCommodityType(CommodityType.newBuilder().setType(type).setKey("").build()
+                                                ).setActive(true)
+                                )
+                ));
     }
 
-    private ProbeInfo getProbeInfo(final ActionType change, final ActionCapability capability) {
-        return ProbeInfo.newBuilder()
-            .setProbeCategory("cat")
-            .setProbeType("type")
-            .addTargetIdentifierField("field")
-            .addActionPolicy(ActionPolicyDTO.newBuilder()
-                .addPolicyElement(ActionPolicyElement.newBuilder()
-                    .setActionType(change)
-                    .setActionCapability(capability).build())
-                .setEntityType(EntityType.VIRTUAL_MACHINE).build())
-            .addAccountDefinition(AccountDefEntry.newBuilder()
-                .setMandatory(true)
-                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                    .setName("name")
-                    .setDisplayName("displayName")
-                    .setDescription("description")
-                    .setIsSecret(true)))
-            .build();
+    @Nonnull
+    private TopologyEntity.Builder buildTopologyEntityWithCommSold(long oid, int entityType, int commType,
+                                                                   boolean isResizeable,
+                                                        final Collection<Long> targetIds) {
+        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        targetIds.forEach(id -> origin.putDiscoveredTargetData(id,
+                PerTargetEntityInformation.getDefaultInstance()));
+        return TopologyEntityUtils.topologyEntityBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                        .setEntityType(entityType)
+                        .setOid(oid)
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(origin)
+                                .build())
+                        .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(
+                                CommodityType.newBuilder().setType(commType).setKey("").build()
+                        ).setIsResizeable(isResizeable))
+                );
+    }
+
+    @Nonnull
+    private TopologyEntity.Builder buildTopologyEntityWithCommBought(long oid, int entityType, int commType,
+                                                                   boolean isMovable, boolean isScalable,
+                                                                   final Collection<Long> targetIds) {
+        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        targetIds.forEach(id -> origin.putDiscoveredTargetData(id,
+                PerTargetEntityInformation.getDefaultInstance()));
+        return TopologyEntityUtils.topologyEntityBuilder(
+                    TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().build())
+                        .setEntityType(entityType)
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(origin)
+                                .build())
+                        .setOid(oid)
+                        .addCommoditiesBoughtFromProviders(
+                            CommoditiesBoughtFromProvider.newBuilder()
+                                .addCommodityBought(
+                                        CommodityBoughtDTO.newBuilder()
+                                                .setCommodityType(CommodityType.newBuilder().setType(commType).setKey("").build())
+                                ).setMovable(isMovable).setScalable(isScalable)
+                        )
+            );
     }
 
     private ProbeInfo getProbeInfo(final EntityType entityType,
                                    final ActionType change,
-                                   final ActionCapability capability) {
+                                   final ActionCapability capability,
+                                   final String probeType
+    ) {
         return ProbeInfo.newBuilder()
-            .setProbeCategory("cat")
-            .setProbeType("type")
-            .addTargetIdentifierField("field")
-            .addActionPolicy(ActionPolicyDTO.newBuilder()
-                .addPolicyElement(ActionPolicyElement.newBuilder()
-                    .setActionType(change)
-                    .setActionCapability(capability).build())
-                .setEntityType(entityType).build())
-            .addAccountDefinition(AccountDefEntry.newBuilder()
-                .setMandatory(true)
-                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                    .setName("name")
-                    .setDisplayName("displayName")
-                    .setDescription("description")
-                    .setIsSecret(true)))
-            .build();
+                .setProbeCategory("cat")
+                .setUiProbeCategory("cat")
+                .setProbeType(probeType)
+                .addTargetIdentifierField("field")
+                .addActionPolicy(ActionPolicyDTO.newBuilder()
+                        .addPolicyElement(ActionPolicyElement.newBuilder()
+                                .setActionType(change)
+                                .setActionCapability(capability).build())
+                        .setEntityType(entityType).build())
+                .addAccountDefinition(AccountDefEntry.newBuilder()
+                        .setMandatory(true)
+                        .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                                .setName("name")
+                                .setDisplayName("displayName")
+                                .setDescription("description")
+                                .setIsSecret(true)))
+                .build();
     }
 
     private ProbeInfo getProbeInfo(final EntityType firstEntityType,
                                    final ActionType firstActionType,
                                    final EntityType secondEntityType,
                                    final ActionType sendActionType,
-                                   final ActionCapability capability) {
+                                   final ActionCapability capability,
+                                   final String probeType) {
         return ProbeInfo.newBuilder()
-            .setProbeCategory("cat")
-            .setProbeType("type")
-            .addTargetIdentifierField("field")
-            .addActionPolicy(ActionPolicyDTO.newBuilder()
-                .addPolicyElement(ActionPolicyElement.newBuilder()
-                    .setActionType(firstActionType)
-                    .setActionCapability(capability).build())
-                .setEntityType(firstEntityType).build())
-            .addActionPolicy(ActionPolicyDTO.newBuilder()
-                .addPolicyElement(ActionPolicyElement.newBuilder()
-                    .setActionType(sendActionType)
-                    .setActionCapability(capability).build())
-                .setEntityType(secondEntityType).build())
-            .addAccountDefinition(AccountDefEntry.newBuilder()
-                .setMandatory(true)
-                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                    .setName("name")
-                    .setDisplayName("displayName")
-                    .setDescription("description")
-                    .setIsSecret(true)))
-            .build();
+                .setProbeCategory("cat")
+                .setProbeType(probeType)
+                .addTargetIdentifierField("field")
+                .addActionPolicy(ActionPolicyDTO.newBuilder()
+                        .addPolicyElement(ActionPolicyElement.newBuilder()
+                                .setActionType(firstActionType)
+                                .setActionCapability(capability).build())
+                        .setEntityType(firstEntityType).build())
+                .addActionPolicy(ActionPolicyDTO.newBuilder()
+                        .addPolicyElement(ActionPolicyElement.newBuilder()
+                                .setActionType(sendActionType)
+                                .setActionCapability(capability).build())
+                        .setEntityType(secondEntityType).build())
+                .addAccountDefinition(AccountDefEntry.newBuilder()
+                        .setMandatory(true)
+                        .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                                .setName("name")
+                                .setDisplayName("displayName")
+                                .setDescription("description")
+                                .setIsSecret(true)))
+                .build();
     }
 
     private ProbeInfo getProbeInfo(final EntityType firstEntityType,
                                    final ActionType firstActionType,
                                    final ActionCapability firstCapability,
                                    final ActionType sendActionType,
-                                   final ActionCapability secondCapability
+                                   final ActionCapability secondCapability,
+                                   final String probeType
     ) {
         return ProbeInfo.newBuilder()
-            .setProbeCategory("cat")
-            .setProbeType("type")
-            .addTargetIdentifierField("field")
-            .addActionPolicy(ActionPolicyDTO.newBuilder()
-                .addPolicyElement(ActionPolicyElement.newBuilder()
-                    .setActionType(firstActionType)
-                    .setActionCapability(firstCapability).build())
-                .addPolicyElement(ActionPolicyElement.newBuilder()
-                    .setActionType(sendActionType)
-                    .setActionCapability(secondCapability).build())
-                .setEntityType(firstEntityType).build())
-            .addAccountDefinition(AccountDefEntry.newBuilder()
-                .setMandatory(true)
-                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                    .setName("name")
-                    .setDisplayName("displayName")
-                    .setDescription("description")
-                    .setIsSecret(true)))
-            .build();
+                .setProbeCategory("cat")
+                .setProbeType(probeType)
+                .setUiProbeCategory(probeType)
+                .addTargetIdentifierField("field")
+                .addActionPolicy(ActionPolicyDTO.newBuilder()
+                        .addPolicyElement(ActionPolicyElement.newBuilder()
+                                .setActionType(firstActionType)
+                                .setActionCapability(firstCapability).build())
+                        .addPolicyElement(ActionPolicyElement.newBuilder()
+                                .setActionType(sendActionType)
+                                .setActionCapability(secondCapability).build())
+                        .setEntityType(firstEntityType).build())
+                .addAccountDefinition(AccountDefEntry.newBuilder()
+                        .setMandatory(true)
+                        .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                                .setName("name")
+                                .setDisplayName("displayName")
+                                .setDescription("description")
+                                .setIsSecret(true)))
+                .build();
     }
 }

@@ -3,7 +3,12 @@ package com.vmturbo.auth.api.authorization.jwt;
 import static io.grpc.Metadata.ASCII_STRING_MARSHALLER;
 
 import java.util.List;
+import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
+import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import io.grpc.Context;
 import io.grpc.Metadata;
 
@@ -52,6 +57,91 @@ public class SecurityConstant {
      */
     public static final String COMPONENT_ATTRIBUTE = "x-turbo-component";
 
+    /**
+     * All roles in the JWT begin with this prefix.
+     */
     public static final String ROLE_STRING = "ROLE_";
-    public static final String ADMINISTRATOR = "administrator";
+
+    /**
+     * The role for the ADMINISTRATOR.
+     */
+    public static final String ADMINISTRATOR = "ADMINISTRATOR";
+
+    /**
+     * The role for observer.
+     */
+    public static final String OBSERVER = "OBSERVER";
+
+    /**
+     * The role for automator user.
+     */
+    public static final String AUTOMATOR = "AUTOMATOR";
+
+    /**
+     * The role for deployer.
+     */
+    public static final String DEPLOYER = "DEPLOYER";
+
+    /**
+     * The role for advisor.
+     */
+    public static final String ADVISOR = "ADVISOR";
+
+    /**
+     * The role for shared_observer.
+     */
+    public static final String SHARED_OBSERVER = "SHARED_OBSERVER";
+
+    /**
+     * The role for shared_advisor.
+     */
+    public static final String SHARED_ADVISOR = "SHARED_ADVISOR";
+
+    /**
+     * The role for site_admin.
+     */
+    public static final String SITE_ADMIN = "SITE_ADMIN";
+
+    /**
+     * The legacy customer type.
+     */
+    public static final String DEDICATED_CUSTOMER = "DedicatedCustomer";
+
+    /**
+     * The HTTP turbo JWT token header.
+     */
+    public static final String X_TURBO_TOKEN = "x-turbo-token";
+
+    /**
+     * The HTTP turbo user name header.
+     */
+    public static final String X_TURBO_USER = "x-turbo-user";
+
+    /**
+     * The HTTP turbo role header.
+     */
+    public static final String X_TURBO_ROLE = "x-turbo-roles";
+
+    /**
+     * Default credential.
+     */
+    public static final String CREDENTIALS = "***";
+
+    /**
+     * These are predefined external groups for all the roles in XL.
+     */
+    public static final Set<SecurityGroupDTO> PREDEFINED_SECURITY_GROUPS_SET =
+            Sets.newHashSet(new SecurityGroupDTO(ADMINISTRATOR.toLowerCase(), DEDICATED_CUSTOMER, ADMINISTRATOR),
+                    new SecurityGroupDTO(AUTOMATOR.toLowerCase(), DEDICATED_CUSTOMER, AUTOMATOR),
+                    new SecurityGroupDTO(DEPLOYER.toLowerCase(), DEDICATED_CUSTOMER, DEPLOYER),
+                    new SecurityGroupDTO(ADVISOR.toLowerCase(), DEDICATED_CUSTOMER, ADVISOR),
+                    new SecurityGroupDTO(OBSERVER.toLowerCase(), DEDICATED_CUSTOMER, OBSERVER),
+                    new SecurityGroupDTO(SITE_ADMIN.toLowerCase(), DEDICATED_CUSTOMER, SITE_ADMIN));
+
+    /**
+     * These are predefined roles in XL.
+     */
+    public static final Set<String> PREDEFINED_ROLE_SET =
+            ImmutableSet.of(ADMINISTRATOR, SITE_ADMIN, AUTOMATOR, DEPLOYER, ADVISOR, OBSERVER,
+                    SHARED_ADVISOR, SHARED_OBSERVER);
 }

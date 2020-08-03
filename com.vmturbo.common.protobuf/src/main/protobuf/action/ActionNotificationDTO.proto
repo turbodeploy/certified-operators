@@ -49,4 +49,10 @@ message ActionsUpdated {
     // If not set, it is an error.
     optional int64 __deprecated__topology_context_id = 3 [deprecated = true];
 
+    optional UpdateFailure updateFailure = 4;
+
+    message UpdateFailure {
+        optional string error_message = 1;
+    }
+
 }

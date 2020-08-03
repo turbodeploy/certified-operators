@@ -1,9 +1,21 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static org.junit.Assert.assertEquals;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -11,29 +23,23 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Lists;
-
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.TemplateMapper;
+import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiInputDTO;
 import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.CreateTemplateRequest;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.DeleteTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.EditTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateSpecByEntityTypeRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateSpecRequest;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateSpecsRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
@@ -41,16 +47,21 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecResource;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
+import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
+import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateSpecServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
-import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceImplBase;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc;
-import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc.TemplateSpecServiceImplBase;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
+/**
+ * Unit tests for {@link TemplatesService}.
+ */
 public class TemplatesServiceTest {
 
-    private final static TemplateInfo TEMPLATE_INFO = TemplateInfo.newBuilder()
+    private static final TemplateInfo TEMPLATE_INFO = TemplateInfo.newBuilder()
         .setName("test-template")
         .setTemplateSpecId(456)
         .setEntityType(EntityType.VIRTUAL_MACHINE.getValue())
@@ -62,12 +73,12 @@ public class TemplatesServiceTest {
                 .setValue("1")))
         .build();
 
-    private final static Template TEMPLATE = Template.newBuilder()
+    private static final Template TEMPLATE = Template.newBuilder()
         .setId(123)
         .setTemplateInfo(TEMPLATE_INFO)
         .build();
 
-    private final static TemplateSpec TEMPLATE_SPEC = TemplateSpec.newBuilder()
+    private static final TemplateSpec TEMPLATE_SPEC = TemplateSpec.newBuilder()
         .setId(456)
         .setName("VM-template-spec")
         .setEntityType(EntityType.VIRTUAL_MACHINE.getValue())
@@ -78,54 +89,120 @@ public class TemplatesServiceTest {
                 .setName("numOfCpu")))
         .build();
 
-    public static final int CPU_CATALOG_LIFE_HOURS = 1;
+    private static final int CPU_CATALOG_LIFE_HOURS = 1;
 
-    private final TestTemplateService templateService = Mockito.spy(new TestTemplateService());
+    private final TemplateServiceMole templateService = Mockito.spy(TemplateServiceMole.class);
 
-    private final TestTemplateSpecService templateSpecService = Mockito.spy(new TestTemplateSpecService());
+    private final TemplateSpecServiceMole templateSpecService = Mockito.spy(TemplateSpecServiceMole.class);
 
     private TemplatesService templatesService;
 
-    private TemplateMapper templateMapper;
+    private TemplateMapper templateMapper = mock(TemplateMapper.class);
+
+    private TemplatesUtils templatesUtils = mock(TemplatesUtils.class);
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * The expected exception in the current test.
+     */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    /**
+     * gRPC server to help mock out gRPC dependencies.
+     */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateService, templateSpecService);
 
+    /**
+     * Common setup code for all tests.
+     */
     @Before
     public void setup() {
-        templateMapper = new TemplateMapper();
         final CpuInfoMapper cpuInfoMapper = new CpuInfoMapper();
         templatesService = new TemplatesService(
             TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             templateMapper, TemplateSpecServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             CpuCapacityServiceGrpc.newBlockingStub(grpcServer.getChannel()), cpuInfoMapper,
+            templatesUtils,
             CPU_CATALOG_LIFE_HOURS);
 
     }
 
+    /**
+     * Test that getting the templates forwards to the helper class.
+     */
     @Test
-    public void testGetTemplates() throws Exception {
-        List<TemplateApiDTO> result = templatesService.getTemplates();
-        assertEquals(1, result.size());
-        String expectedResult = objectMapper.writeValueAsString(templateMapper.mapToTemplateApiDTO(TEMPLATE, TEMPLATE_SPEC));
-        String resultStr = objectMapper.writeValueAsString(result.get(0));
-        assertEquals(expectedResult, resultStr);
+    public void testGetTemplates() {
+        TemplateApiDTO templateApiDTO = new TemplateApiDTO();
+        when(templatesUtils.getTemplates(any()))
+            .thenReturn(Stream.of(templateApiDTO));
+        final List<TemplateApiDTO> result = templatesService.getTemplates();
+        assertThat(result, containsInAnyOrder(templateApiDTO));
+        verify(templatesUtils).getTemplates(GetTemplatesRequest.getDefaultInstance());
     }
 
+    /**
+     * Test that getting templates by entity type forwards to the helper class.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Test
-    public void testGetTemplate() throws Exception {
-        List<TemplateApiDTO> result = templatesService.getTemplate("123");
-        assertEquals(1, result.size());
-        String expectedResult = objectMapper.writeValueAsString(templateMapper.mapToTemplateApiDTO(TEMPLATE, TEMPLATE_SPEC));
-        String resultStr = objectMapper.writeValueAsString(result.get(0));
-        assertEquals(expectedResult, resultStr);
+    public void testGetTemplateByType() throws Exception {
+        TemplateApiDTO templateApiDTO = new TemplateApiDTO();
+        when(templatesUtils.getTemplates(any()))
+            .thenReturn(Stream.of(templateApiDTO));
+        final List<TemplateApiDTO> result = templatesService.getTemplate(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        assertThat(result, containsInAnyOrder(templateApiDTO));
+        verify(templatesUtils).getTemplates(GetTemplatesRequest.newBuilder()
+            .setFilter(TemplatesFilter.newBuilder()
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+            .build());
     }
 
+    /**
+     * Test that getting templates by name forwards to the helper class.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testGetTemplateByName() throws Exception {
+        TemplateApiDTO templateApiDTO = new TemplateApiDTO();
+        when(templatesUtils.getTemplates(any()))
+            .thenReturn(Stream.of(templateApiDTO));
+        final List<TemplateApiDTO> result = templatesService.getTemplate("my name");
+        assertThat(result, containsInAnyOrder(templateApiDTO));
+        verify(templatesUtils).getTemplates(GetTemplatesRequest.newBuilder()
+            .setFilter(TemplatesFilter.newBuilder()
+                .addTemplateName("my name"))
+            .build());
+    }
+
+    /**
+     * Test that getting templates by id forwards to the helper class.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testGetTemplateById() throws Exception {
+        TemplateApiDTO templateApiDTO = new TemplateApiDTO();
+        when(templatesUtils.getTemplates(any()))
+            .thenReturn(Stream.of(templateApiDTO));
+        final List<TemplateApiDTO> result = templatesService.getTemplate("7");
+        assertThat(result, containsInAnyOrder(templateApiDTO));
+        verify(templatesUtils).getTemplates(GetTemplatesRequest.newBuilder()
+            .setFilter(TemplatesFilter.newBuilder()
+                .addTemplateIds(7L))
+            .build());
+    }
+
+    /**
+     * Test that adding a template correctly converts and forwards the request to the relevant gRPC
+     * endpoint and returns + converts the result.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Test
     public void testAddTemplate() throws Exception {
         final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
@@ -138,13 +215,33 @@ public class TemplatesServiceTest {
         resourceApiDTO.setStats(Lists.newArrayList(statApiDTO));
         templateApiInputDTO.setComputeResources(Lists.newArrayList(resourceApiDTO));
 
+        doReturn(TEMPLATE_SPEC).when(templateSpecService)
+            .getTemplateSpecByEntityType(GetTemplateSpecByEntityTypeRequest.newBuilder()
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .build());
+
+        doReturn(TEMPLATE_INFO).when(templateMapper)
+            .mapToTemplateInfo(templateApiInputDTO, TEMPLATE_SPEC, ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+
+        doReturn(TEMPLATE).when(templateService).createTemplate(CreateTemplateRequest.newBuilder()
+            .setTemplateInfo(TEMPLATE_INFO)
+            .build());
+
+        TemplateApiDTO retTemplate = new TemplateApiDTO();
+        when(templateMapper.mapToTemplateApiDTO(TEMPLATE, TEMPLATE_SPEC, Collections.emptyList()))
+            .thenReturn(retTemplate);
+
         TemplateApiDTO result = templatesService.addTemplate(templateApiInputDTO);
 
-        assertEquals("777", result.getUuid());
-        assertEquals("test-template", result.getDisplayName());
-        assertEquals(1, result.getComputeResources().size());
+        assertThat(result, is(retTemplate));
     }
 
+    /**
+     * Test that editing a template correctly converts and forwards the request to the relevant gRPC
+     * endpoint and returns + converts the result.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Test
     public void testEditTemplate() throws Exception {
         final String uuid = String.valueOf(TEMPLATE.getId());
@@ -158,92 +255,42 @@ public class TemplatesServiceTest {
         resourceApiDTO.setStats(Lists.newArrayList(statApiDTO));
         templateApiInputDTO.setComputeResources(Lists.newArrayList(resourceApiDTO));
 
-        TemplateApiDTO result = templatesService.editTemplate(uuid, templateApiInputDTO);
+        doReturn(TEMPLATE_SPEC).when(templateSpecService)
+            .getTemplateSpec(GetTemplateSpecRequest.newBuilder()
+                .setId(TEMPLATE_INFO.getTemplateSpecId())
+                .build());
 
-        assertEquals(uuid, result.getUuid());
-        assertEquals("new-template", result.getDisplayName());
-        assertEquals(1, result.getComputeResources().size());
+        doReturn(SingleTemplateResponse.newBuilder()
+            .setTemplate(TEMPLATE)
+            .build()).when(templateService).getTemplate(GetTemplateRequest.newBuilder()
+                .setTemplateId(TEMPLATE.getId())
+                .build());
+
+        doReturn(TEMPLATE_INFO).when(templateMapper)
+            .mapToTemplateInfo(templateApiInputDTO, TEMPLATE_SPEC, ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+
+        doReturn(TEMPLATE).when(templateService).editTemplate(EditTemplateRequest.newBuilder()
+            .setTemplateId(TEMPLATE.getId())
+            .setTemplateInfo(TEMPLATE_INFO)
+            .build());
+
+        TemplateApiDTO retTemplate = new TemplateApiDTO();
+        when(templateMapper.mapToTemplateApiDTO(TEMPLATE, TEMPLATE_SPEC, Collections.emptyList()))
+            .thenReturn(retTemplate);
+
+        TemplateApiDTO result = templatesService.editTemplate(uuid, templateApiInputDTO);
+        assertThat(result, is(retTemplate));
     }
 
+    /**
+     * Test that deleting a template forwards the call to the utility method.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Test
     public void testDeleteTemplate() throws Exception {
         final String uuid = String.valueOf(TEMPLATE.getId());
         Boolean result = templatesService.deleteTemplate(uuid);
         assertTrue(result);
-    }
-
-    private class TestTemplateService extends TemplateServiceImplBase {
-
-        public void getTemplates(GetTemplatesRequest request,
-                                 StreamObserver<Template> responseObserver) {
-            responseObserver.onNext(TEMPLATE);
-            responseObserver.onCompleted();
-        }
-
-        public void getTemplate(GetTemplateRequest request,
-                                 StreamObserver<Template> responseObserver) {
-            if (request.getTemplateId() == TEMPLATE.getId()) {
-                responseObserver.onNext(TEMPLATE);
-                responseObserver.onCompleted();
-            } else {
-                responseObserver.onError(Status.NOT_FOUND.asException());
-            }
-        }
-
-        public void createTemplate(CreateTemplateRequest request,
-                                   StreamObserver<Template> responseObserver) {
-            final Template template = Template.newBuilder()
-                .setId(777)
-                .setTemplateInfo(request.getTemplateInfo())
-                .build();
-            responseObserver.onNext(template);
-            responseObserver.onCompleted();
-        }
-
-        public void editTemplate(EditTemplateRequest request,
-                                 StreamObserver<Template> responseObserver) {
-            if (request.getTemplateId() == TEMPLATE.getId()) {
-                final Template template = Template.newBuilder()
-                    .setId(request.getTemplateId())
-                    .setTemplateInfo(request.getTemplateInfo())
-                    .build();
-                responseObserver.onNext(template);
-                responseObserver.onCompleted();
-            }
-            else {
-                responseObserver.onError(Status.NOT_FOUND.asException());
-            }
-        }
-
-        public void deleteTemplate(DeleteTemplateRequest request,
-                                   StreamObserver<Template> responseObserver) {
-            responseObserver.onNext(TEMPLATE);
-            responseObserver.onCompleted();
-        }
-
-    }
-
-    private class TestTemplateSpecService extends TemplateSpecServiceImplBase {
-        public void getTemplateSpecs(GetTemplateSpecsRequest request,
-                                     StreamObserver<TemplateSpec> responseObserver) {
-            responseObserver.onNext(TEMPLATE_SPEC);
-            responseObserver.onCompleted();
-        }
-
-        public void getTemplateSpec(GetTemplateSpecRequest request,
-                                    StreamObserver<TemplateSpec> responseObserver) {
-            if (request.getId() == TEMPLATE_SPEC.getId()) {
-                responseObserver.onNext(TEMPLATE_SPEC);
-                responseObserver.onCompleted();
-            } else {
-                responseObserver.onError(Status.NOT_FOUND.asException());
-            }
-        }
-
-        public void getTemplateSpecByEntityType(GetTemplateSpecByEntityTypeRequest request,
-                                                StreamObserver<TemplateSpec> responseObserver) {
-            responseObserver.onNext(TEMPLATE_SPEC);
-            responseObserver.onCompleted();
-        }
     }
 }

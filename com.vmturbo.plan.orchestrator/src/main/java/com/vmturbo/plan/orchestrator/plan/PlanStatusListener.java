@@ -22,7 +22,15 @@ public interface PlanStatusListener {
      * @param plan The modified {@link PlanDTO.PlanInstance}.
      * @throws PlanStatusListenerException If there is an error processing the plan.
      */
-    void onPlanStatusChanged(@Nonnull final PlanDTO.PlanInstance plan) throws PlanStatusListenerException;
+    void onPlanStatusChanged(@Nonnull PlanDTO.PlanInstance plan) throws PlanStatusListenerException;
+
+    /**
+     * Called to indicate that a particular plan got deleted.
+     *
+     * @param plan The {@link PlanDTO.PlanInstance} that got deleted.
+     * @throws PlanStatusListenerException If there is an error processing the notification.
+     */
+    void onPlanDeleted(@Nonnull PlanDTO.PlanInstance plan) throws PlanStatusListenerException;
 
     /**
      * An exception that indicates an error processing a status update to a

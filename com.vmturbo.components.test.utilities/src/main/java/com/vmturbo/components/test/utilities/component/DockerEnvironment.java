@@ -5,7 +5,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,13 +15,16 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang.StringUtils;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.docker.compose.connection.DockerMachine;
 import com.palantir.docker.compose.connection.DockerMachine.LocalBuilder;
 import com.palantir.docker.compose.connection.DockerMachine.RemoteBuilder;
+
+import org.apache.commons.lang3.StringUtils;
+
+import com.vmturbo.components.api.test.ResourcePath;
+import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.components.test.utilities.component.ComponentCluster.Component;
 
 /**
@@ -60,6 +62,7 @@ public class DockerEnvironment {
     static final ImmutableMap<String, String> ENVIRONMENT_VARIABLES =
         new ImmutableMap.Builder<String, String>()
             .put("DEV_JAVA_OPTS", "-agentlib:jdwp=transport=dt_socket,address=8000,server=y,suspend=n")
+            .put("XL_VERSION", BuildProperties.get().getVersion())
             .put("METRON_ENABLED", "false")
             .put("CONSUL_PORT", "8500")
             .put("DB_PORT", "3306")
@@ -92,6 +95,14 @@ public class DockerEnvironment {
             .put("GROUP_DEBUG_PORT", "8000")
             .put("HISTORY_PORT", "8080")
             .put("HISTORY_DEBUG_PORT", "8000")
+            .put("EXTRACTOR_PORT", "8080")
+            .put("EXTRACTOR_DEBUG_PORT", "8000")
+            .put("INTEGRATION_INTERSIGHT_PORT", "8080")
+            .put("INTEGRATION_INTERSIGHT_DEBUG_PORT", "8000")
+            .put("RSYSLOG_PORT", "2514")
+
+
+
             .put("PLAN_ORCHESTRATOR_PORT", "8080")
             .put("PLAN_ORCHESTRATOR_DEBUG_PORT", "8000")
             .put("REPORTING_PORT", "8080")
@@ -147,7 +158,9 @@ public class DockerEnvironment {
             .put("MEDIATION_AWSBILLING_PORT", "8080")
             .put("MEDIATION_AWSBILLING_DEBUG_PORT", "8000")
             .put("MEDIATION_AWSCOST_PORT", "8080")
+            .put("MEDIATION_DATADOG_PORT", "8080")
             .put("MEDIATION_AWSCOST_DEBUG_PORT", "8000")
+            .put("MEDIATION_DATADOG_DEBUG_PORT", "8000")
             .put("MEDIATION_AZURE_PORT", "8080")
             .put("MEDIATION_AZURE_DEBUG_PORT", "8000")
             .put("MEDIATION_AZURECOST_PORT", "8080")
@@ -160,6 +173,10 @@ public class DockerEnvironment {
             .put("MEDIATION_VCD_DEBUG_PORT", "8000")
             .put("MEDIATION_MSSQL_PORT", "8080")
             .put("MEDIATION_MSSQL_DEBUG_PORT", "8000")
+            .put("MEDIATION_MYSQL_PORT", "8080")
+            .put("MEDIATION_MYSQL_DEBUG_PORT", "8000")
+            .put("MEDIATION_UDT_PORT", "8080")
+            .put("MEDIATION_UDT_DEBUG_PORT", "8000")
             .put("MEDIATION_ACTIONSCRIPT_PORT", "8080")
             .put("MEDIATION_ACTIONSCRIPT_DEBUG_PORT", "8000")
             .put("MEDIATION_WMI_PORT", "8080")
@@ -170,6 +187,10 @@ public class DockerEnvironment {
             .put("MEDIATION_PIVOTAL_DEBUG_PORT", "8000")
             .put("MEDIATION_APPDYNAMICS_PORT", "8080")
             .put("MEDIATION_APPDYNAMICS_DEBUG_PORT", "8000")
+            .put("MEDIATION_NEWRELIC_PORT", "8080")
+            .put("MEDIATION_NEWRELIC_DEBUG_PORT", "8000")
+            .put("MEDIATION_APPINSIGHTS_PORT", "8080")
+            .put("MEDIATION_APPINSIGHTS_DEBUG_PORT", "8000")
             .put("MEDIATION_DYNATRACE_PORT", "8080")
             .put("MEDIATION_DYNATRACE_DEBUG_PORT", "8000")
             .put("MEDIATION_CLOUDFOUNDRY_PORT", "8080")
@@ -184,6 +205,23 @@ public class DockerEnvironment {
             .put("MEDIATION_HYPERFLEX_DEBUG_PORT", "8000")
             .put("MEDIATION_HORIZON_PORT", "8080")
             .put("MEDIATION_HORIZON_DEBUG_PORT", "8000")
+            .put("MEDIATION_INTERSIGHT_HYPERFLEX_PORT", "8080")
+            .put("MEDIATION_INTERSIGHT_HYPERFLEX_DEBUG_PORT", "8000")
+            .put("MEDIATION_INTERSIGHT_UCS_PORT", "8080")
+            .put("MEDIATION_INTERSIGHT_UCS_DEBUG_PORT", "8000")
+            .put("MEDIATION_INTERSIGHT_SERVER_PORT", "8080")
+            .put("MEDIATION_INTERSIGHT_SERVER_DEBUG_PORT", "8000")
+            .put("MEDIATION_SERVICENOW_PORT", "8080")
+            .put("MEDIATION_SERVICENOW_DEBUG_PORT", "8000")
+            .put("MEDIATION_AZUREEA_PORT", "8080")
+            .put("MEDIATION_AZUREEA_DEBUG_PORT", "8000")
+            .put("MEDIATION_AZURESP_PORT", "8080")
+            .put("MEDIATION_AZURESP_DEBUG_PORT", "8000")
+            .put("MEDIATION_CUSTOMDATA_PORT", "8080")
+            .put("MEDIATION_CUSTOMDATA_DEBUG_PORT", "8000")
+            .put("MEDIATION_NUTANIX_PORT", "8080")
+            .put("MEDIATION_NUTANIX_DEBUG_PORT", "8000")
+
             // MEMORY LIMITS and XMX Settings
             .put("DB_MEM_LIMIT_MB", "2048")
             .put("DB_MEM_PCT_FOR_BUFFER_POOL", "80")
@@ -259,6 +297,8 @@ public class DockerEnvironment {
             .put("MEDIATION_AWSBILLING_MEM_LIMIT_MB", "512")
             .put("MEDIATION_AWSCOST_XMX_MB", "384")
             .put("MEDIATION_AWSCOST_MEM_LIMIT_MB", "512")
+            .put("MEDIATION_DATADOG_XMX_MB", "384")
+            .put("MEDIATION_DATADOG_MEM_LIMIT_MB", "512")
             .put("MEDIATION_AZURE_XMX_MB", "384")
             .put("MEDIATION_AZURE_MEM_LIMIT_MB", "512")
             .put("MEDIATION_AZURE_VOLUMES_XMX_MB", "384")
@@ -270,12 +310,18 @@ public class DockerEnvironment {
             .put("MEDIATION_VCD_MEM_LIMIT_MB", "512")
             .put("MEDIATION_MSSQL_XMX_MB", "384")
             .put("MEDIATION_MSSQL_MEM_LIMIT_MB", "512")
+            .put("MEDIATION_MYSQL_XMX_MB", "384")
+            .put("MEDIATION_MYSQL_MEM_LIMIT_MB", "512")
             .put("MEDIATION_WMI_XMX_MB", "384")
             .put("MEDIATION_WMI_MEM_LIMIT_MB", "512")
             .put("MEDIATION_SNMP_XMX_MB", "384")
             .put("MEDIATION_SNMP_MEM_LIMIT_MB", "512")
             .put("MEDIATION_APPDYNAMICS_XMX_MB", "384")
             .put("MEDIATION_APPDYNAMICS_MEM_LIMIT_MB", "512")
+            .put("MEDIATION_NEWRELIC_XMX_MB", "384")
+            .put("MEDIATION_NEWRELIC_MEM_LIMIT_MB", "512")
+            .put("MEDIATION_APPINSIGHTS_XMX_MB", "384")
+            .put("MEDIATION_APPINSIGHTS_MEM_LIMIT_MB", "512")
             .put("MEDIATION_DYNATRACE_XMX_MB", "384")
             .put("MEDIATION_DYNATRACE_MEM_LIMIT_MB", "512")
             .put("MEDIATION_PIVOTAL_XMX_MB", "384")
@@ -353,15 +399,19 @@ public class DockerEnvironment {
             .put("MEDIATION_AWS_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_AWSBILLING_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_AWSCOST_SYSTEM_PROPERTIES", "")
+            .put("MEDIATION_DATADOG_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_AZURE_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_AZURECOST_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_AZURE_VOLUMES_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_ONEVIEW_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_VCD_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_MSSQL_SYSTEM_PROPERTIES", "")
+            .put("MEDIATION_MYSQL_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_WMI_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_SNMP_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_APPDYNAMICS_SYSTEM_PROPERTIES", "")
+            .put("MEDIATION_NEWRELIC_SYSTEM_PROPERTIES", "")
+            .put("MEDIATION_APPINSIGHTS_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_DYNATRACE_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_PIVOTAL_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_CLOUDFOUNDRY_SYSTEM_PROPERTIES", "")
@@ -412,35 +462,31 @@ public class DockerEnvironment {
         // of why we use it.
         final URL resource = ComponentUtils.class.getClassLoader().getResource("pathAnchor");
         Objects.requireNonNull(resource, "Unable to load pathAnchor." +
-            "You must have a file called \"pathAnchor\" at ${project}/src/test/resources/");
-        try {
-            Path path = Paths.get(resource.toURI()).toAbsolutePath();
-            // Go up to top-level XL directory.
-            // This won't work if the layout of the modules changes!
-            Path rootDir = path.getParent().getParent().getParent().getParent();
+        "You must have a file called \"pathAnchor\" at ${project}/src/test/resources/");
+        Path path = ResourcePath.getTestResource(ComponentUtils.class, "pathAnchor");
+        // Go up to top-level XL directory.
+        // This won't work if the layout of the modules changes!
+        Path rootDir = path.getParent().getParent().getParent().getParent();
 
-            // create the list of docker-compose files we want to load
-            final String pathStr = rootDir.toString() + File.separator + "build" + File.separator;
+        // create the list of docker-compose files we want to load
+        final String pathStr = rootDir.toString() + File.separator + "build" + File.separator;
 
-            // separate the files into list of those that exist and those that don't
-            Map<Boolean, List<String>> foundAndNotFoundFiles =
-                Stream.of("docker-compose.yml","docker-compose.test.yml")
-                    .map(filename -> pathStr + filename)
-                    .map(File::new)
-                    .collect(Collectors.partitioningBy(File::exists,
-                        Collectors.mapping(File::toString, Collectors.toList())));
+        // separate the files into list of those that exist and those that don't
+        Map<Boolean, List<String>> foundAndNotFoundFiles =
+            Stream.of("docker-compose.yml","docker-compose.test.yml")
+                .map(filename -> pathStr + filename)
+                .map(File::new)
+                .collect(Collectors.partitioningBy(File::exists,
+                    Collectors.mapping(File::toString, Collectors.toList())));
 
-            // if any of the files don't exist, throw an error
-            if (foundAndNotFoundFiles.get(false).size() > 0) {
-                throw new IllegalStateException("File(s) not found: " + String.join(",", foundAndNotFoundFiles.get(false)));
-            }
-
-            // otherwise, all of the files exist -- return the paths to the files
-            List<String> files = foundAndNotFoundFiles.get(true);
-            return files.toArray(new String[files.size()]);
-        } catch (URISyntaxException e) {
-            throw new IllegalStateException("Resource from classloader has invalid URL.", e);
+        // if any of the files don't exist, throw an error
+        if (foundAndNotFoundFiles.get(false).size() > 0) {
+            throw new IllegalStateException("File(s) not found: " + String.join(",", foundAndNotFoundFiles.get(false)));
         }
+
+        // otherwise, all of the files exist -- return the paths to the files
+        List<String> files = foundAndNotFoundFiles.get(true);
+        return files.toArray(new String[files.size()]);
     }
 
     @VisibleForTesting

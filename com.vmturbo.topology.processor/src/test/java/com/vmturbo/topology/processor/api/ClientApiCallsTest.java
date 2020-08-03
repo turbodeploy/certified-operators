@@ -17,6 +17,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.junit.Assert;
@@ -30,9 +33,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
-
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -51,25 +52,24 @@ import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
-import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
 import com.vmturbo.topology.processor.probes.AccountValueAdaptor;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.Probes;
 
@@ -87,13 +87,22 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     private FakeRepositoryClient repositoryClientFake;
 
     private static final String FIELD_NAME = FakeRemoteMediation.TGT_ID;
-
+    /**
+     * Expected exception rule.
+     */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-
+    /**
+     * Temporary folder rule.
+     */
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();
 
+    /**
+     * Initializes the tests.
+     *
+     * @throws Exception on exceptinos occurred
+     */
     @Before
     public void initClient() throws Exception {
         System.setProperty("com.vmturbo.keydir", testFolder.newFolder().getAbsolutePath());
@@ -103,8 +112,8 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         identityProviderSpy = integrationTestServer.getBean(IdentityProvider.class);
         repositoryClientFake = integrationTestServer.getBean(FakeRepositoryClient.class);
         groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-        Mockito.when(groupScopeResolver.processGroupScope(Matchers.any(), Matchers.any()))
-                .then(AdditionalAnswers.returnsFirstArg());
+        Mockito.when(groupScopeResolver.processGroupScope(Matchers.any(), Matchers.any(), Matchers.any()))
+                .then(AdditionalAnswers.returnsSecondArg());
     }
 
     /**
@@ -162,7 +171,10 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         Assert.assertEquals(Collections.emptySet(), getTopologyProcessor().getAllTargets());
 
         final long probeId = createProbe();
-        final TargetSpec targetSpec = TargetSpec.newBuilder().setProbeId(probeId).build();
+        final TargetSpec targetSpec =
+            TargetSpec.newBuilder().setProbeId(probeId)
+                .addAccountValue(TopologyProcessorDTO.AccountValue.newBuilder()
+                    .setStringValue("targetId").setKey("targetId").build()).build();
         final Target target = targetStore.createTarget(targetSpec);
 
         final Set<TargetInfo> targetInfos = getTopologyProcessor().getAllTargets();
@@ -179,7 +191,9 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     public void testGetTarget() throws Exception {
         Assert.assertEquals(Collections.emptySet(), getTopologyProcessor().getAllTargets());
         final long probeId = createProbe();
-        final TargetSpec targetSpec = TargetSpec.newBuilder().setProbeId(probeId).build();
+        final TargetSpec targetSpec = TargetSpec.newBuilder().setProbeId(probeId)
+            .addAccountValue(TopologyProcessorDTO.AccountValue.newBuilder()
+            .setStringValue("targetId").setKey("targetId").build()).build();
         final Target target = targetStore.createTarget(targetSpec);
 
         final TargetInfo targetInfo = getTopologyProcessor().getTarget(target.getId());
@@ -526,6 +540,11 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         return request.getActionId();
     }
 
+    /**
+     * Test move action failure.
+     *
+     * @throws Exception on exception occurred
+     */
     @Test
     public void testFailMove() throws Exception {
         final long actionId = startMove();
@@ -552,6 +571,11 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         Assert.assertEquals(actionId, failure.getActionId());
     }
 
+    /**
+     * Tests succeeded move action.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testSuccessMove() throws Exception {
         final long actionId = startMove();
@@ -594,19 +618,58 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         Assert.assertEquals(actionId, success.getActionId());
     }
 
+    /**
+     * Tests how account fields dependencies are reported by API.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testProbeWithDependency() throws Exception {
+        final AccountDefEntry idField = AccountDefEntry.newBuilder()
+                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                        .setName(FIELD_NAME)
+                        .setDescription(FIELD_NAME)
+                        .setDisplayName(FIELD_NAME)
+                        .setPrimitiveValue(PrimitiveValue.STRING)
+                        .build())
+                .build();
+        final String dependencyKey = "dependencyKey";
+        final AccountDefEntry dependentField = AccountDefEntry.newBuilder()
+                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                        .setName(dependencyKey)
+                        .setDescription(dependencyKey)
+                        .setDisplayName(dependencyKey)
+                        .setPrimitiveValue(PrimitiveValue.STRING)
+                        .build())
+                .setDependencyKey(FIELD_NAME)
+                .setDependencyValue(FIELD_NAME + "-regexp")
+                .build();
+
+        Assert.assertEquals(Collections.emptySet(), getTopologyProcessor().getAllProbes());
+        assertEquals(Collections.emptyMap(), getTopologyProcessor().getAllProbes());
+        final long probe = createProbe(Arrays.asList(idField, dependentField));
+        Assert.assertEquals(Collections.singleton(probe), getTopologyProcessor().getAllProbes()
+                .stream().map(ProbeInfo::getId).collect(Collectors.toSet()));
+        assertEquals(probeStore.getProbes(), getTopologyProcessor().getAllProbes());
+        final ProbeInfo probeInfo = getTopologyProcessor().getAllProbes().iterator().next();
+        Assert.assertEquals(Optional.empty(),
+                probeInfo.getAccountDefinitions().get(0).getDependencyField());
+        Assert.assertEquals(Optional.of(Pair.create(FIELD_NAME, FIELD_NAME + "-regexp")),
+                probeInfo.getAccountDefinitions().get(1).getDependencyField());
+    }
+
     // Add entities to the appropriate data stores so that they will be found when tests access them.
     private void addEntities(final long probeId,
                              final long targetId,
                              Map<Long, EntityDTO> entities)
-            throws EntitiesValidationException, IdentityUninitializedException,
-                    IdentityMetadataMissingException, IdentityProviderException {
+            throws IdentityServiceException, TargetNotFoundException {
         Mockito.doReturn(entities)
                 .when(identityProviderSpy)
                 .getIdsForEntities(Mockito.eq(probeId),
                         Mockito.eq(new ArrayList<>(entities.values())));
         // Add the entities to the entity store, which houses the raw discovered entity data
-        entityStore.entitiesDiscovered(probeId, targetId,
-                new ArrayList<>(entities.values()));
+        entityStore.entitiesDiscovered(probeId, targetId, 0, DiscoveryType.FULL,
+            new ArrayList<>(entities.values()));
         // Also update the repository client mock to respond appropriately when queried about these
         // entities. This simulates these entities also being found in the repository (where
         // stitched data is found).
@@ -663,13 +726,20 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
                                                         .setDescription("BLAH")
                                                         .setPrimitiveValue(PrimitiveValue.STRING))
                                         .setMandatory(false).build();
-        final MediationMessage.ProbeInfo oneMandatory =
-                        Probes.createEmptyProbe().addAccountDefinition(accountDefEntry).build();
+        return createProbe(Collections.singletonList(accountDefEntry));
+    }
+
+    private long createProbe(@Nonnull List<AccountDefEntry> accountDefEntries)
+            throws ProbeException {
+        final MediationMessage.ProbeInfo oneMandatory = Probes.createEmptyProbe()
+                .clearAccountDefinition()
+                .addAllAccountDefinition(accountDefEntries)
+                .build();
         probeStore.registerNewProbe(oneMandatory, null);
         return probeStore.getProbes().entrySet().stream()
-                        .filter(e -> e.getValue().getProbeType()
-                                        .equals(oneMandatory.getProbeType()))
-                        .map(e -> e.getKey()).collect(Collectors.toSet()).iterator().next();
+                .filter(e -> e.getValue().getProbeType()
+                        .equals(oneMandatory.getProbeType()))
+                .map(e -> e.getKey()).collect(Collectors.toSet()).iterator().next();
     }
 
     private void assertEquals(Map<Long, MediationMessage.ProbeInfo> expected,

@@ -23,6 +23,7 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
@@ -66,8 +67,11 @@ public class ActionsDebugRpcTest {
     @Test
     public void testOverwriteActions() throws Exception {
         when(actionStorehouse.storeActions(eq(actionPlan))).thenReturn(actionStore);
-        final ActionView actionView = new Action(actionPlan.getActionList().get(0), actionPlan.getId(), actionModeCalculator);
-        when(actionStore.getActionViews()).thenReturn(ImmutableMap.of(actionView.getId(), actionView));
+        final ActionView actionView =
+                new Action(actionPlan.getActionList().get(0), actionPlan.getId(),
+                        actionModeCalculator, 1L);
+        when(actionStore.getActionViews()).thenReturn(
+            new MapBackedActionViews(ImmutableMap.of(actionView.getId(), actionView)));
 
         final GetActionCountsResponse response = actionOrchestratorServiceClient.overrideActionPlan(actionPlan);
         assertEquals(1, response.getCountsByTypeCount());

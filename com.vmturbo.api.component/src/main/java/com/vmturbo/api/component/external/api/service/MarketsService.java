@@ -1,31 +1,29 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
+
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -35,126 +33,129 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
 
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
-
+import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
+import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
+import com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status;
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.StatsMapper;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedPlanInfo;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
+import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
-import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
-import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
+import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
-import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
-import com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
+import com.vmturbo.api.pagination.EntityOrderBy;
+import com.vmturbo.api.pagination.EntityPaginationRequest;
+import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IMarketsService;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.ParamStrings.MarketOperations;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
-import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
-import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyDeleteResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyEditResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreEntityTypes;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioId;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioRequest;
-import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioResponse;
+import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioId;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioRequest;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioResponse;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.topology.processor.api.ProbeInfo;
-import com.vmturbo.topology.processor.api.TargetInfo;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Service implementation of Markets.
@@ -187,30 +188,40 @@ public class MarketsService implements IMarketsService {
 
     private final StatsService statsService;
 
-    private final StatsMapper statsMapper;
-
     private final PaginationMapper paginationMapper;
 
     private final UINotificationChannel uiNotificationChannel;
 
     private final long realtimeTopologyContextId;
 
-    private final MergeDataCenterPolicyHandler mergeDataCenterPolicyHandler;
-
-    private final UserSessionContext userSessionContext;
+    private final MergePolicyHandler mergePolicyHandler;
 
     private final ActionStatsQueryExecutor actionStatsQueryExecutor;
 
-    private final TopologyProcessor topologyProcessor;
+    private final RepositoryApi repositoryApi;
 
-    private final EntitySeverityServiceBlockingStub entitySeverity;
+    private final ServiceEntityMapper serviceEntityMapper;
 
-    private final StatsHistoryServiceBlockingStub statsHistory;
+    private final ThinTargetCache thinTargetCache;
 
-    // Exclude request for price index for commodities of real market not saved in DB
-    private final Set<Integer> notSavedEntityTypes = ImmutableSet.of(EntityDTO.EntityType.NETWORK.getValue(),
-            EntityDTO.EntityType.INTERNET.getValue(),
-            EntityDTO.EntityType.VIRTUAL_VOLUME.getValue());
+    private final PriceIndexPopulator priceIndexPopulator;
+
+    private final SeverityPopulator severityPopulator;
+
+    private final SearchServiceBlockingStub searchServiceBlockingStub;
+
+    private final ActionsServiceBlockingStub actionOrchestratorRpcService;
+
+    private final ActionSearchUtil actionSearchUtil;
+
+    /**
+     * For fetching plan entities and their related stats.
+     */
+    private final PlanEntityStatsFetcher planEntityStatsFetcher;
+
+    private final EntitySettingQueryExecutor entitySettingQueryExecutor;
+
+    private final LicenseCheckClient licenseCheckClient;
 
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
@@ -221,17 +232,23 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final ScenarioServiceBlockingStub scenariosService,
                           @Nonnull final PolicyMapper policyMapper,
                           @Nonnull final MarketMapper marketMapper,
-                          @Nonnull final StatsMapper statsMapper,
                           @Nonnull final PaginationMapper paginationMapper,
                           @Nonnull final GroupServiceBlockingStub groupRpcService,
                           @Nonnull final RepositoryServiceBlockingStub repositoryRpcService,
-                          @Nonnull final UserSessionContext userSessionContext,
                           @Nonnull final UINotificationChannel uiNotificationChannel,
                           @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
-                          @Nonnull final TopologyProcessor topologyProcessor,
-                          @Nonnull final EntitySeverityServiceBlockingStub entitySeverity,
-                          @Nonnull final StatsHistoryServiceBlockingStub statsHistory,
+                          @Nonnull final ThinTargetCache thinTargetCache,
                           @Nonnull final StatsService statsService,
+                          @Nonnull final RepositoryApi repositoryApi,
+                          @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                          @Nonnull final SeverityPopulator severityPopulator,
+                          @Nonnull final PriceIndexPopulator priceIndexPopulator,
+                          @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
+                          @Nonnull final PlanEntityStatsFetcher planEntityStatsFetcher,
+                          @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
+                          @Nonnull final ActionSearchUtil actionSearchUtil,
+                          @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor,
+                          @Nonnull final LicenseCheckClient licenseCheckClient,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -245,16 +262,23 @@ public class MarketsService implements IMarketsService {
         this.uiNotificationChannel = Objects.requireNonNull(uiNotificationChannel);
         this.groupRpcService = Objects.requireNonNull(groupRpcService);
         this.repositoryRpcService = Objects.requireNonNull(repositoryRpcService);
-        this.statsMapper = Objects.requireNonNull(statsMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
-        this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
-        this.entitySeverity = Objects.requireNonNull(entitySeverity);
-        this.mergeDataCenterPolicyHandler = new MergeDataCenterPolicyHandler();
-        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
-        this.statsHistory = Objects.requireNonNull(statsHistory);
+        this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
         this.statsService = Objects.requireNonNull(statsService);
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
+        this.severityPopulator = Objects.requireNonNull(severityPopulator);
+        this.priceIndexPopulator = Objects.requireNonNull(priceIndexPopulator);
+        this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
+        this.planEntityStatsFetcher = Objects.requireNonNull(planEntityStatsFetcher);
+        this.searchServiceBlockingStub = Objects.requireNonNull(searchServiceBlockingStub);
+        this.mergePolicyHandler =
+                new MergePolicyHandler(groupRpcService, policyRpcService, repositoryApi);
+        this.actionSearchUtil = actionSearchUtil;
+        this.entitySettingQueryExecutor = Objects.requireNonNull(entitySettingQueryExecutor);
+        this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
     }
 
     /**
@@ -262,14 +286,21 @@ public class MarketsService implements IMarketsService {
      *
      * @param scopeUuids this argument is currently ignored.
      * @return list of all markets
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
      */
     @Override
     @Nonnull
-    public List<MarketApiDTO> getMarkets(@Nullable List<String> scopeUuids) {
+    public List<MarketApiDTO> getMarkets(@Nullable List<String> scopeUuids)
+            throws ConversionException, InterruptedException {
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         logger.debug("Get all markets in scopes: {}", scopeUuids);
         final Iterator<PlanInstance> plans =
                 planRpcService.getAllPlans(GetPlansOptions.getDefaultInstance());
         final List<MarketApiDTO> result = new ArrayList<>();
+        // Add the realtime market api dto to the list of markets
+        result.add(createRealtimeMarketApiDTO());
+        // Get the plan markets and create api dtos for these
         while (plans.hasNext()) {
             final PlanInstance plan = plans.next();
             final MarketApiDTO dto = marketMapper.dtoFromPlanInstance(plan);
@@ -279,67 +310,43 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
-    public MarketApiDTO getMarketByUuid(String uuid) throws UnknownObjectException {
+    public MarketApiDTO getMarketByUuid(String uuid) throws Exception {
         // TODO: The implementation for the environment type might be possibly altered for the case
         // of a scoped plan (should we consoder only the scoped tergets?)
         EnvironmentType envType = null;
-        try {
-            Set<Long> probeIds = new HashSet<Long>();
-            Set<TargetInfo> targetInfos = topologyProcessor.getAllTargets();
-            for (TargetInfo targetInfo : targetInfos) {
-                probeIds.add(targetInfo.getProbeId());
+        boolean isOnPrem = false;
+        boolean isCloud = false;
+        boolean isHybrid = false;
+        for (ThinTargetInfo thinTargetInfo : thinTargetCache.getAllTargets()) {
+            switch (ProbeCategory.create(thinTargetInfo.probeInfo().category())) {
+                case CLOUD_MANAGEMENT:
+                case CLOUD_NATIVE:
+                case PAAS:
+                case FAAS:
+                    isCloud = true;
+                    break;
+                default:
+                    isOnPrem = true;
+                    break;
             }
-
-            Set<ProbeInfo> probeInfos = topologyProcessor.getAllProbes();
-            boolean isOnPrem = false;
-            boolean isCloud = false;
-            boolean isHybrid = false;
-            for (ProbeInfo probeInfo : probeInfos) {
-                if (probeIds.contains(probeInfo.getId())) {
-                    switch (ProbeCategory.create(probeInfo.getCategory())) {
-                        case CLOUD_MANAGEMENT:
-                        case CLOUD_NATIVE:
-                        case PAAS:
-                        case FAAS:
-                            isCloud = true;
-                            break;
-                        default:
-                            isOnPrem = true;
-                            break;
-                    }
-                    if (isOnPrem && isCloud) {
-                        isHybrid = true;
-                        break;
-                    }
-                }
+            if (isOnPrem && isCloud) {
+                isHybrid = true;
+                break;
             }
-            if (isHybrid) {
-                envType = EnvironmentType.HYBRID;
-            } else if (isOnPrem) {
-                envType = EnvironmentType.ONPREM;
-            } else {
-                envType = EnvironmentType.CLOUD;
-            }
-
-        } catch (CommunicationException e) {
-            logger.debug("getMarketByUuid(): Error while trying to calculate the environment type: {}",
-                    e.getMessage());
         }
+        if (isHybrid) {
+            envType = EnvironmentType.HYBRID;
+        } else if (isCloud) {
+            envType = EnvironmentType.CLOUD;
+        } else {
+            envType = EnvironmentType.ONPREM;
+        }
+
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         if (apiId.isRealtimeMarket()) {
-            // TODO (roman, Dec 21 2016): Not sure what the API
-            // expects from the real-time market as far as state,
-            // unplaced entities, state progress, and all that jazz.
-            MarketApiDTO realtimeDto = new MarketApiDTO();
-            realtimeDto.setUuid(apiId.uuid());
-            realtimeDto.setDisplayName("Market");
-            realtimeDto.setClassName(apiId.uuid());
-            realtimeDto.setState("RUNNING");
-            realtimeDto.setUnplacedEntities(false);
-            realtimeDto.setStateProgress(100);
-            realtimeDto.setEnvironmentType(envType);
-            return realtimeDto;
-        } else {
+           return createRealtimeMarketApiDTO();
+        } else if (apiId.isPlan()) {
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
             OptionalPlanInstance response = planRpcService.getPlan(PlanId.newBuilder()
                     .setPlanId(Long.valueOf(uuid))
                     .build());
@@ -359,6 +366,10 @@ public class MarketsService implements IMarketsService {
 
             return planDto;
         }
+
+        // The UUID doesn't belong to a plan or real-time market.
+        throw new UnknownObjectException("The ID " + uuid
+                + " doesn't belong to a plan or a real-time market.");
     }
 
     @Override
@@ -398,11 +409,14 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
-    public ActionPaginationResponse getCurrentActionsByMarketUuid(String uuid,
+    public ActionPaginationResponse getCurrentActionsByMarketUuid(@Nonnull final String uuid,
                                                                   EnvironmentType environmentType,
-                                                                  ActionPaginationRequest paginationRequest) throws Exception {
+                                                                  @Nullable final ActionDetailLevel detailLevel,
+                                                                  ActionPaginationRequest paginationRequest)
+            throws Exception {
         ActionApiInputDTO inputDto = new ActionApiInputDTO();
         inputDto.setEnvironmentType(environmentType);
+        inputDto.setDetailLevel(detailLevel);
         return getActionsByMarketUuid(uuid, inputDto, paginationRequest);
     }
 
@@ -410,186 +424,150 @@ public class MarketsService implements IMarketsService {
     public ActionPaginationResponse getActionsByMarketUuid(String uuid,
                                                            ActionApiInputDTO inputDto,
                                                            ActionPaginationRequest paginationRequest) throws Exception {
-        handleInvalidCases(inputDto.getStartTime(), inputDto.getEndTime());
-        adjustEndTime(inputDto);
         final ApiId apiId = uuidMapper.fromUuid(uuid);
-        // for realtime markets, if the user is restricted by a scope, then add an oid filter to the
-        // request. For plans, there is no filtering.
-        EntityAccessScope userScope = userSessionContext.getUserAccessScope();
-        Optional<Set<Long>> includedOids = (!apiId.isRealtimeMarket() || userScope.containsAll())
-                ? Optional.empty()
-                : Optional.of(userScope.getScopeGroupMembers().toSet());
-
-        final ActionQueryFilter filter =
-                actionSpecMapper.createActionFilter(inputDto, includedOids);
-        final FilteredActionResponse response = actionRpcService.getAllActions(
-                FilteredActionRequest.newBuilder()
-                        .setTopologyContextId(apiId.oid())
-                        .setFilter(filter)
-                        .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
-                        .build());
-        final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
-                response.getActionsList().stream()
-                        .filter(ActionOrchestratorAction::hasActionSpec)
-                        .map(ActionOrchestratorAction::getActionSpec)
-                        .collect(Collectors.toList()), apiId.oid());
-        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
-                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor))
-                .orElseGet(() -> paginationRequest.finalPageResponse(results));
-    }
-
-    @Override
-    public ActionApiDTO getActionByMarketUuid(String uuid, String aUuid) throws Exception {
-        logger.debug("Request to get action by market UUID: {}, action ID: {}", uuid, aUuid);
-        throw ApiUtils.notImplementedInXL();
-    }
-
-    @Override
-    public List<ServiceEntityApiDTO> getEntitiesByMarketUuid(String uuid) throws Exception {
-        List<ServiceEntityApiDTO> serviceEntityApiDTOs = null;
-        HashMap<Long, Float> idsToPriceIndices = new HashMap<>();
-        final ApiId apiId = uuidMapper.fromUuid(uuid);
-        if (apiId.isRealtimeMarket()) {
-            Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
-                    repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                            .setTopologyContextId(realtimeTopologyContextId)
-                            .setTopologyType(TopologyType.SOURCE)
-                            .build()));
-
-            List<TopologyEntityDTO> entitiesList = entities.collect(Collectors.toList());
-            serviceEntityApiDTOs = marketMapper.seDtosFromTopoResponse(entitiesList);
-
-            // Reading the price indices for the entities of real market
-            final Multimap<Integer, Long> entityTypesToOids = ArrayListMultimap.create();
-            for (TopologyEntityDTO entityDTO : entitiesList) {
-                entityTypesToOids.put(entityDTO.getEntityType(), entityDTO.getOid());
-            }
-
-            final List<EntityStats> entityStats = new ArrayList<>();
-            for (Entry<Integer, Long> entry : entityTypesToOids.entries()) {
-                if (notSavedEntityTypes.contains(entry.getKey())) {
-                    continue;
-                }
-                String cursor = "0";
-                do {
-                    final GetEntityStatsResponse entityStatsResponse =
-                        statsHistory.getEntityStats(
-                            GetEntityStatsRequest.newBuilder()
-                                .setScope(
-                                    EntityStatsScope.newBuilder()
-                                        .setEntityList(EntityList.newBuilder().addAllEntities(entityTypesToOids.get(entry.getKey()))).build())
-                                .setFilter(
-                                    StatsFilter.newBuilder()
-                                        .addCommodityRequests(
-                                            CommodityRequest.newBuilder()
-                                                .setCommodityName(EntitiesService.PRICE_INDEX_COMMODITY).build())
-                                        .build())
-                                .setPaginationParams(PaginationParameters.newBuilder()
-                                    .setCursor(cursor))
-                                .build());
-                    cursor = entityStatsResponse.getPaginationResponse().getNextCursor();
-                    entityStats.addAll(entityStatsResponse.getEntityStatsList());
-                } while (!StringUtils.isEmpty(cursor));
-
-            }
-
-            for (EntityStats stat : entityStats) {
-                if (stat.getStatSnapshotsCount() > 0) {
-                    long oid = stat.getOid();
-                    float priceIndex = stat.getStatSnapshots(0).getStatRecords(0).getUsed().getMax();
-                    idsToPriceIndices.put(oid, priceIndex);
-                }
-            }
-
-        } else {
-            OptionalPlanInstance planResponse = planRpcService.getPlan(PlanId.newBuilder()
-                    .setPlanId(Long.valueOf(uuid))
-                    .build());
-
-            if (!planResponse.hasPlanInstance()) {
-                throw new UnknownObjectException(uuid);
-            }
-
-            // Get the list of unplaced entities from the repository for this plan
-            PlanInstance plan = planResponse.getPlanInstance();
-            final long topologyId = plan.getProjectedTopologyId();
-
-            Iterable<RetrieveTopologyResponse> response = () ->
-                    repositoryRpcService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
-                            .setTopologyId(topologyId)
-                            .build());
-
-            List<TopologyEntityDTO> entities = new ArrayList<>();
-            for (RetrieveTopologyResponse entitiesResponse : response) {
-                entities.addAll(entitiesResponse.getEntitiesList());
-            }
-            serviceEntityApiDTOs = populatePlacedOnUnplacedOnForEntitiesForPlan(plan, entities);
-
-            // Reading the price index for the entities of plans
-            List<PlanEntityStats> entityStats = new ArrayList<>();
-            String cursor = "0";
-            do {
-                PlanTopologyStatsResponse resp =
-                        repositoryRpcService.getPlanTopologyStats(PlanTopologyStatsRequest.newBuilder()
-                                .setTopologyId(topologyId)
-                                .setFilter(StatsFilter.newBuilder()
-                                        .setStartDate(System.currentTimeMillis() + 10000)
-                                        .addCommodityRequests(CommodityRequest.newBuilder()
-                                                .setCommodityName(StringConstants.PRICE_INDEX)))
-                                .setPaginationParams(PaginationParameters.newBuilder()
-                                        .setCursor(cursor))
-                                .build());
-                cursor = resp.getPaginationResponse().getNextCursor();
-                entityStats.addAll(resp.getEntityStatsList());
-            } while (!StringUtils.isEmpty(cursor));
-
-            for (PlanEntityStats stat : entityStats) {
-                if (stat.getPlanEntityStats().getStatSnapshotsCount() > 0) {
-                    long oid = stat.getPlanEntity().getOid();
-                    float priceIndex = stat.getPlanEntityStats().getStatSnapshots(0).getStatRecords(0).getUsed().getMax();
-                    idsToPriceIndices.put(oid, priceIndex);
-                }
-            }
-       }
-
-        List<Long> entities = new ArrayList<>();
-        for (ServiceEntityApiDTO serviceEntityApiDTO : serviceEntityApiDTOs) {
-            entities.add(Long.valueOf(serviceEntityApiDTO.getUuid()));
+        final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
+                                                inputDto, Optional.empty(), apiId);
+        if (apiId.isPlan()) {
+            // require the "planner" license feature to get plan actions
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         }
-
-        EntitySeveritiesResponse entitySeveritiesResponse = entitySeverity.getEntitySeverities(MultiEntityRequest
-                .newBuilder()
-                .setTopologyContextId(apiId.isRealtimeMarket() ? realtimeTopologyContextId : Long.valueOf(uuid))
-                .addAllEntityIds(entities)
-                .build());
-
-        HashMap<Long, String> idsToSeverities = new HashMap<>();
-        List<EntitySeverity> entitySeverityList = entitySeveritiesResponse.getEntitySeverityList();
-        for (EntitySeverity entitySeverity : entitySeverityList) {
-            idsToSeverities.put(entitySeverity.getEntityId(), entitySeverity.getSeverity().toString());
-        }
-
-        return setPriceIndexAndSeverity(serviceEntityApiDTOs, idsToPriceIndices, idsToSeverities);
+        return actionSearchUtil.callActionService(filter, paginationRequest, inputDto.getDetailLevel(),
+                apiId.getTopologyContextId());
     }
 
     /**
-     * Set the price index and severity for all the entities for which they exist.
+     * Get an action by the market.
      *
-     * @param serviceEntityApiDTOs list of info for service entities
-     * @param idsToPriceIndices map from service entity id to price index
-     * @param idsToSeverities map from service entity id to severity
-     * @return list of info for service entities
+     * @param marketUuid    the market uuid.
+     * @param actionUuid    the action uuid.
+     * @param detailLevel   the level of Action details to be returned
+     *
+     * @return an action.
+     * @throws Exception exception.
      */
-    private List<ServiceEntityApiDTO> setPriceIndexAndSeverity(List<ServiceEntityApiDTO> serviceEntityApiDTOs,
-                                                               HashMap<Long, Float> idsToPriceIndices,
-                                                               HashMap<Long, String> idsToSeverities) {
-        for (int i = 0; i < serviceEntityApiDTOs.size(); i++) {
-            serviceEntityApiDTOs.get(i).setPriceIndex(idsToPriceIndices.get(Long.valueOf(serviceEntityApiDTOs.get(i).getUuid())));
-            serviceEntityApiDTOs.get(i).setSeverity(idsToSeverities.get(Long.valueOf(serviceEntityApiDTOs.get(i).getUuid())));
+    @Override
+    public ActionApiDTO getActionByMarketUuid(@Nonnull final String marketUuid,
+                                              @Nonnull final String actionUuid,
+                                              @Nullable final ActionDetailLevel detailLevel) throws Exception {
+        logger.debug("Request to get action by market UUID: {}, action ID: {}", marketUuid, actionUuid);
+        // require "planner" feature access to request plan market actions
+        if (Long.valueOf(marketUuid) != realtimeTopologyContextId) {
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         }
 
-        return serviceEntityApiDTOs;
+        ActionOrchestratorAction action = actionOrchestratorRpcService
+                .getAction(actionRequest(marketUuid, actionUuid));
+        if (!action.hasActionSpec()) {
+            throw new UnknownObjectException("Action with given action uuid: " + actionUuid + " not found");
+        }
+        logger.debug("Mapping actions for: {}", marketUuid);
+        final ActionApiDTO answer = actionSpecMapper.mapActionSpecToActionApiDTO(action.getActionSpec(),
+                realtimeTopologyContextId, detailLevel);
+        logger.trace("Result: {}", () -> answer.toString());
+        return answer;
+    }
 
+
+    @Override
+    public EntityPaginationResponse getEntitiesByMarketUuid(String uuid, EntityPaginationRequest paginationRequest) throws Exception {
+        final ApiId apiId = uuidMapper.fromUuid(uuid);
+
+        // We don't currently support any sort order other than "name".
+        if (paginationRequest.getOrderBy() != EntityOrderBy.NAME) {
+            logger.warn("Unimplemented sort order {} for market entities. Defaulting to NAME",
+                paginationRequest.getOrderBy());
+        }
+
+        if (apiId.isRealtimeMarket()) {
+            // In the realtime case we let the repository handle the pagination parameters.
+            final SearchEntitiesResponse response =
+                searchServiceBlockingStub.searchEntities(SearchEntitiesRequest.newBuilder()
+                    .setReturnType(Type.API)
+                    .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
+                    .build());
+            final List<ServiceEntityApiDTO> nextPage = serviceEntityMapper.toServiceEntityApiDTO(
+                response.getEntitiesList().stream()
+                    .map(PartialEntity::getApi)
+                    .collect(Collectors.toList()));
+            priceIndexPopulator.populateRealTimeEntities(nextPage);
+            severityPopulator.populate(realtimeTopologyContextId, nextPage);
+            return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
+                .map(nextCursor -> paginationRequest.nextPageResponse(nextPage, nextCursor, response.getPaginationResponse().getTotalRecordCount()))
+                .orElseGet(() -> paginationRequest.finalPageResponse(nextPage, response.getPaginationResponse().getTotalRecordCount()));
+        } else if (apiId.isPlan()) {
+            // require the "planner" license feature to get plan actions
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+
+            // In the plan case we do the pagination in the API component. The main reason is
+            // that we need to use the repository service (instead of the search service), and that
+            // service doesn't currently support pagination parameters.
+            //
+            // TODO (roman, Jan 22 2019) OM-54686: Add pagination parameters to the
+            // retrieveTopologyEntities method, and convert this logic to use the repository's pagination.
+            final OptionalPlanInstance optInstance = planRpcService.getPlan(PlanId.newBuilder()
+                .setPlanId(apiId.oid())
+                .build());
+            final Optional<Long> projectedTopologyId =
+                optInstance.getPlanInstance().hasProjectedTopologyId() ?
+                    Optional.of(optInstance.getPlanInstance().getProjectedTopologyId()) :
+                    Optional.empty();
+
+            final List<TopologyEntityDTO> allResults = RepositoryDTOUtil.topologyEntityStream(
+                repositoryRpcService.retrieveTopologyEntities(
+                    RetrieveTopologyEntitiesRequest.newBuilder()
+                        .setTopologyContextId(apiId.oid())
+                        .setReturnType(Type.FULL)
+                        .setTopologyType(TopologyType.PROJECTED)
+                        .build()))
+                .map(PartialEntity::getFullEntity)
+                .collect(Collectors.toList());
+
+            final List<ServiceEntityApiDTO> allConvertedResults = populatePlacedOnUnplacedOnForEntitiesForPlan(
+                optInstance.getPlanInstance(), allResults);
+
+            // We do pagination before fetching price index and severity.
+            final int skipCount;
+            if (paginationRequest.getCursor().isPresent()) {
+                try {
+                    // Avoid negative skips.
+                    skipCount = Math.max(0, Integer.parseInt(paginationRequest.getCursor().get()));
+                } catch (NumberFormatException e) {
+                    throw new InvalidOperationException("Cursor " +
+                        paginationRequest.getCursor().get() + " is invalid. Must be positive integer.");
+                }
+            } else {
+                skipCount = 0;
+            }
+
+            // Avoid non-positive limits.
+            final int limit = Math.max(paginationRequest.getLimit(), 1);
+
+            final List<ServiceEntityApiDTO> nextPage = allConvertedResults.stream()
+                // assumes that ServiceEntityApiDTO::getDisplayName will never return null
+                .sorted(Comparator.comparing(ServiceEntityApiDTO::getDisplayName)
+                        .thenComparing(ServiceEntityApiDTO::getUuid))
+                .skip(skipCount)
+                .limit(limit + 1)
+                .collect(Collectors.toList());
+
+            final Optional<String> nextCursor;
+            if (nextPage.size() > limit) {
+                nextCursor = Optional.of(Integer.toString(skipCount + limit));
+                // Remove the last element from the results. It was only there to check if there
+                // are more results.
+                nextPage.remove(limit);
+            } else {
+                nextCursor = Optional.empty();
+            }
+
+            // populate priceIndex, which is always based on the projected topology
+            projectedTopologyId.ifPresent(id -> priceIndexPopulator.populatePlanEntities(id, nextPage));
+            severityPopulator.populate(apiId.oid(), nextPage);
+            return nextCursor.map(cursor -> paginationRequest.nextPageResponse(nextPage, cursor, allResults.size()))
+                .orElseGet(() -> paginationRequest.finalPageResponse(nextPage, allResults.size()));
+        } else {
+            throw new UnknownObjectException(uuid + " is not the realtime market or a plan.");
+        }
     }
 
     // Market UUID is ignored for now, since there is only one Market in XL.
@@ -597,24 +575,30 @@ public class MarketsService implements IMarketsService {
     public List<PolicyApiDTO> getPoliciesByMarketUuid(String uuid) throws Exception {
         try {
             final Iterator<PolicyDTO.PolicyResponse> allPolicyResps = policyRpcService
-                    .getAllPolicies(PolicyDTO.PolicyRequest.getDefaultInstance());
-            ImmutableList<PolicyResponse> policyRespList = ImmutableList.copyOf(allPolicyResps);
-
-            Set<Long> groupingIDS = policyRespList.stream()
-                    .filter(PolicyDTO.PolicyResponse::hasPolicy)
-                    .flatMap(resp -> GroupProtoUtil.getPolicyGroupIds(resp.getPolicy()).stream())
-                    .collect(Collectors.toSet());
-            final Map<Long, Group> groupings = new HashMap<>();
-            if (!groupingIDS.isEmpty()) {
-                groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                        .addAllId(groupingIDS)
-                        .build())
-                        .forEachRemaining(group -> groupings.put(group.getId(), group));
-            }
-            return policyRespList.stream()
-                    .filter(PolicyDTO.PolicyResponse::hasPolicy)
-                    .map(resp -> policyMapper.policyToApiDto(resp.getPolicy(), groupings))
+                    .getPolicies(PolicyDTO.PolicyRequest.getDefaultInstance());
+            final List<Policy> policies = Streams.stream(allPolicyResps)
+                    .filter(PolicyResponse::hasPolicy)
+                    .map(PolicyResponse::getPolicy)
                     .collect(Collectors.toList());
+
+            final Set<Long> groupingIDS = policies.stream()
+                    .map(GroupProtoUtil::getPolicyGroupIds)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
+            final Collection<Grouping> groupings;
+            if (groupingIDS.isEmpty()) {
+                groupings = Collections.emptySet();
+            } else {
+                final Iterator<Grouping> iterator = groupRpcService.getGroups(
+                        GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter.newBuilder()
+                                        .addAllId(groupingIDS)
+                                        .setIncludeHidden(true))
+                                .build());
+                groupings = Sets.newHashSet(iterator);
+            }
+            final List<PolicyApiDTO> result = policyMapper.policyToApiDto(policies, groupings);
+            return result;
         } catch (RuntimeException e) {
             logger.error("Problem getting policies", e);
             throw e;
@@ -628,17 +612,13 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public ResponseEntity<PolicyApiDTO> addPolicy(final String uuid,
-                                                  PolicyApiInputDTO policyApiInputDTO)
-            throws Exception {
+            PolicyApiInputDTO policyApiInputDTO) throws UnknownObjectException, ConversionException, InterruptedException {
         try {
-            // Create hidden group and update policyApiInputDTO for data centers if the policy is
-            // merge data center policy.
-            if (isMergeDataCenterPolicy(policyApiInputDTO)) {
-                mergeDataCenterPolicyHandler.createDataCenterHiddenGroup(policyApiInputDTO);
+            if (mergePolicyHandler.isPolicyNeedsHiddenGroup(policyApiInputDTO)) {
+                // Create a hidden group to support the merge policy for entities that are not groups.
+                mergePolicyHandler.createHiddenGroup(policyApiInputDTO);
             }
-
             final PolicyDTO.PolicyInfo policyInfo = policyMapper.policyApiInputDtoToProto(policyApiInputDTO);
-
             final PolicyDTO.PolicyCreateRequest createRequest = PolicyDTO.PolicyCreateRequest.newBuilder()
                     .setPolicyInfo(policyInfo)
                     .build();
@@ -648,34 +628,57 @@ public class MarketsService implements IMarketsService {
             String createdPolicyUuid = Long.toString(createdPolicyID);
             final PolicyApiDTO response = policiesService.getPolicyByUuid(createdPolicyUuid);
 
+            final String details = String.format("Created policy %s", policyApiInputDTO.getPolicyName());
+            AuditLog.newEntry(AuditAction.CREATE_POLICY,
+                details, true)
+                .targetName(policyApiInputDTO.getPolicyName())
+                .audit();
+
             return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (RuntimeException e) {
+            final String details = String.format("Failed to create policy %s",
+                policyApiInputDTO.getPolicyName());
+            AuditLog.newEntry(AuditAction.CREATE_POLICY,
+                details, false)
+                .targetName(policyApiInputDTO.getPolicyName())
+                .audit();
             logger.error("Error while adding a policy with name "
-                    + policyApiInputDTO.getPolicyName(), e);
+                    + policyApiInputDTO.getPolicyName(), e.getMessage());
             throw e;
         }
     }
 
     @Override
-    public PolicyApiDTO editPolicy(final String uuid,
-                                   final String policyUuid,
-                                   PolicyApiInputDTO policyApiInputDTO) throws Exception {
+    public PolicyApiDTO editPolicy(final String uuid, final String policyUuid,
+            PolicyApiInputDTO policyApiInputDTO) throws ConversionException, InterruptedException,
+            OperationFailedException {
         try {
-            // Update hidden group and update policyApiInputDTO for data centers if the policy is
-            // merge data center policy.
-            if (isMergeDataCenterPolicy(policyApiInputDTO)) {
-                mergeDataCenterPolicyHandler.updateDataCenterHiddenGroup(policyUuid, policyApiInputDTO);
+            if (mergePolicyHandler.isPolicyNeedsHiddenGroup(policyApiInputDTO)) {
+                // Update a hidden group to support the merge policy for entities that are not groups.
+                mergePolicyHandler.updateHiddenGroup(policyUuid, policyApiInputDTO);
             }
-
             final PolicyDTO.PolicyInfo policyInfo = policyMapper.policyApiInputDtoToProto(policyApiInputDTO);
             final PolicyDTO.PolicyEditRequest policyEditRequest = PolicyDTO.PolicyEditRequest.newBuilder()
-                    .setPolicyId(Long.valueOf(policyUuid))
+                    .setPolicyId(Long.parseLong(policyUuid))
                     .setNewPolicyInfo(policyInfo)
                     .build();
-            policyRpcService.editPolicy(policyEditRequest);
+            PolicyEditResponse response = policyRpcService.editPolicy(policyEditRequest);
 
-            return new PolicyApiDTO();
+            final String details = String.format("Changed policy %s", policyInfo.getName());
+            AuditLog.newEntry(AuditAction.CHANGE_POLICY,
+                details, true)
+                .targetName(policyInfo.getName())
+                .audit();
+            if (!response.hasPolicy()) {
+                throw new OperationFailedException("Failed to fetch updated policy");
+            }
+            return policiesService.toPolicyApiDTO(response.getPolicy());
         } catch (RuntimeException e) {
+            final String details = String.format("Changed policy with uuid: %s", policyUuid);
+            AuditLog.newEntry(AuditAction.CHANGE_POLICY,
+                details, false)
+                .targetName(policyApiInputDTO.getPolicyName())
+                .audit();
             logger.error("Fail to edit policy " + policyUuid + " with name "
                     + policyApiInputDTO.getPolicyName(), e);
             throw e;
@@ -684,22 +687,31 @@ public class MarketsService implements IMarketsService {
 
     @Override
     // uuid is not used because there is only one Market in XL.
-    public Boolean deletePolicy(String uuid, String policyUuid) throws Exception {
+    public Boolean deletePolicy(String uuid, String policyUuid) {
         final PolicyDTO.PolicyDeleteRequest policyDeleteRequest = PolicyDTO.PolicyDeleteRequest.newBuilder()
-                .setPolicyId(Long.valueOf(policyUuid))
+                .setPolicyId(Long.parseLong(policyUuid))
                 .build();
 
         try {
             final PolicyDeleteResponse response = policyRpcService.deletePolicy(policyDeleteRequest);
             final PolicyInfo policy = response.getPolicy().getPolicyInfo();
-
-            // we need to remove the hidden group as well if the policy is merge data center policy.
-            if (isMergeDataCenterPolicy(policy)) {
-                mergeDataCenterPolicyHandler.deleteDataCenterHiddenGroup(policyUuid, policy);
+            if (mergePolicyHandler.isPolicyNeedsHiddenGroup(policy)) {
+                // Remove a hidden group to support the merge policy for entities that are not groups.
+                mergePolicyHandler.deleteHiddenGroup(policyUuid, policy);
             }
 
+            final String details = String.format("Deleted policy %s", policy.getName());
+            AuditLog.newEntry(AuditAction.DELETE_POLICY,
+                details, true)
+                .targetName(policy.getName())
+                .audit();
             return true;
         } catch (RuntimeException e) {
+            final String details = String.format("Failed to deleted policy with uuid: %s", policyUuid);
+            AuditLog.newEntry(AuditAction.DELETE_POLICY,
+                details, false)
+                .targetName(policyUuid)
+                .audit();
             logger.error("Failed to delete policy " + policyUuid, e);
             return false;
         }
@@ -710,6 +722,13 @@ public class MarketsService implements IMarketsService {
         throw ApiUtils.notImplementedInXL();
     }
 
+    /**
+     * Get real-time Actions by Market.
+     *
+     * @param uuid              uuid of the Market
+     * @return {@link ActionPaginationResponse}
+     * @throws Exception
+     */
     @Override
     public MarketApiDTO deleteMarketByUuid(String uuid) throws Exception {
         logger.debug("Deleting market with UUID: {}", uuid);
@@ -747,6 +766,18 @@ public class MarketsService implements IMarketsService {
     public MarketApiDTO applyAndRunScenario(@Nonnull String marketUuid,
                                             @Nonnull Long scenarioId,
                                             @Nullable Boolean ignoreConstraints,
+                                            @Nullable final String planMarketName,
+                                            final boolean savePlan) throws Exception {
+        // TODO (roman, May 8 2019): Right now we ignore "savePlan" because in XL we always save
+        // plan results. Consider whether or not we want to make saving plans optional in the
+        // future.
+        return applyAndRunScenario(marketUuid, scenarioId, ignoreConstraints, planMarketName);
+    }
+
+    @Override
+    public MarketApiDTO applyAndRunScenario(@Nonnull String marketUuid,
+                                            @Nonnull Long scenarioId,
+                                            @Nullable Boolean ignoreConstraints,
                                             // TODO (roman, June 6 2017): The plan market name
                                             // should be the display name of the plan. However,
                                             // the UI doesn't currently use it, so postponing
@@ -755,6 +786,8 @@ public class MarketsService implements IMarketsService {
         logger.info("Running scenario. Market UUID: {}, Scenario ID: {}, " +
                         "Ignore Constraints: {}, Plan Market Name: {}",
                 marketUuid, scenarioId, ignoreConstraints, planMarketName);
+        // this feature requires access to the "planner" feature in the license.
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
         // todo: The 'ignoreConstraints' parameter will move into the Scenario in OM-18012
         // Until OM-18012 is fixed, we will have to do a get and set of scenario to add the
@@ -774,9 +807,9 @@ public class MarketsService implements IMarketsService {
                 updatedScenarioInfo.addChanges(ScenarioChange.newBuilder()
                         .setPlanChanges(PlanChanges.newBuilder()
                                 .addIgnoreConstraints(IgnoreConstraint.newBuilder()
-                                        .setIgnoreEntityTypes(IgnoreEntityTypes.newBuilder()
-                                                .addEntityTypes(EntityType.VIRTUAL_MACHINE)
-                                                .build())
+                                        .setGlobalIgnoreEntityType(
+                                                GlobalIgnoreEntityType.newBuilder()
+                                                .setEntityType(EntityType.VIRTUAL_MACHINE))
                                         .build())));
             } else {
                 logger.warn("Ignoring \"ignore constraints\" option because the scenario already has ignored "
@@ -818,9 +851,40 @@ public class MarketsService implements IMarketsService {
         return marketMapper.dtoFromPlanInstance(updatedInstance);
     }
 
+    /**
+     * Renames a plan.
+     *
+     * @param marketUuid    interpreted as planUuid
+     * @param displayName   new name for plan
+     * @return
+     * @throws Exception    if no plan matches marketUuid or user does not have plan access
+     */
     @Override
     public MarketApiDTO renameMarket(String marketUuid, String displayName) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+
+        //marketUuid is interpreted as planUuid
+        final ApiId planInstanceId = uuidMapper.fromUuid(marketUuid);
+        final Optional<CachedPlanInfo> planInfoOptional = planInstanceId.getCachedPlanInfo();
+
+        if (!planInfoOptional.isPresent()) {
+            throw new InvalidOperationException("Invalid market id: " + marketUuid);
+        }
+
+        final PlanInstance planInstance = planInfoOptional.get().getPlanInstance();
+
+        // verify the user can access the plan
+        if (!PlanUtils.canCurrentUserAccessPlan(planInstance)) {
+            throw new UserAccessException("User does not have access to modify this plan.");
+        }
+
+        final UpdatePlanRequest updatePlanRequest = UpdatePlanRequest.newBuilder()
+                .setPlanId(planInstance.getPlanId())
+                .setName(displayName)
+                .build();
+
+        final PlanInstance updatePlanInstance = planRpcService.updatePlan(updatePlanRequest);
+
+        return marketMapper.dtoFromPlanInstance(updatePlanInstance);
     }
 
     @Override
@@ -838,6 +902,9 @@ public class MarketsService implements IMarketsService {
     @Override
     public List<StatSnapshotApiDTO> getActionCountStatsByUuid(String uuid, ActionApiInputDTO actionApiInputDTO) throws Exception {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
+        if (apiId.isPlan()) {
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+        }
         try {
             final Map<ApiId, List<StatSnapshotApiDTO>> retStats =
                     actionStatsQueryExecutor.retrieveActionStats(
@@ -874,11 +941,8 @@ public class MarketsService implements IMarketsService {
             return statsService.getStatsByUuidsQuery(statScopesApiInputDTO, paginationRequest);
         }
 
-        // Short-circuit if there are no input scopes.
-        // At the time of this writing we always expect SOME kind of restriction on the entities.
-        if (CollectionUtils.isEmpty(statScopesApiInputDTO.getScopes())) {
-            return paginationRequest.allResultsResponse(Collections.emptyList());
-        }
+        // make sure the planner feature is available
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
         final long planId = Long.parseLong(marketUuid);
 
@@ -897,39 +961,8 @@ public class MarketsService implements IMarketsService {
             throw new UserAccessException("User does not have access to plan.");
         }
 
-        final PlanTopologyStatsRequest planStatsRequest = statsMapper.toPlanTopologyStatsRequest(
-                planInstance, statScopesApiInputDTO, paginationRequest);
-
-        final PlanTopologyStatsResponse response = repositoryRpcService.getPlanTopologyStats(planStatsRequest);
-
-        final List<EntityStatsApiDTO> entityStatsList = response.getEntityStatsList().stream()
-                .map(entityStats -> {
-                    final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-                    final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
-                    final ServiceEntityApiDTO serviceEntityApiDTO =
-                            ServiceEntityMapper.toServiceEntityApiDTO(planEntity, null);
-                    entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
-                    entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
-                    entityStatsApiDTO.setClassName(ServiceEntityMapper.toUIEntityType(
-                            planEntity.getEntityType()));
-                    entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
-                    final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
-                            .getStatSnapshotsList()
-                            .stream()
-                            .map(statsMapper::toStatSnapshotApiDTO)
-                            .collect(Collectors.toList());
-                    entityStatsApiDTO.setStats(statSnapshotsList);
-                    return entityStatsApiDTO;
-                })
-                .collect(Collectors.toList());
-
-        if (response.hasPaginationResponse()) {
-            return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
-                    .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor))
-                    .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList));
-        } else {
-            return paginationRequest.allResultsResponse(entityStatsList);
-        }
+        return planEntityStatsFetcher
+            .getPlanEntityStats(planInstance, statScopesApiInputDTO, paginationRequest);
     }
 
     @Override
@@ -947,21 +980,31 @@ public class MarketsService implements IMarketsService {
         // Look up the group members and then check how the members overlap with an input scope, if specified
         // If the plan was scoped to a different group
         // we won't return anything (since the requested entities won't be found in the repository).
-            ApiId apiId = uuidMapper.fromUuid(marketUuid);
-            // if this is for a plan market, we will not check user scope.
-            boolean enforceUserScope = !apiId.isPlan();
+        ApiId apiId = uuidMapper.fromUuid(marketUuid);
 
-            final GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
-                    .setId(Long.parseLong(groupUuid))
-                    .setEnforceUserScope(enforceUserScope)
-                    .setExpectPresent(false)
-                    .build();
+        // if this is a plan, make sure the planner feature is available
+        if (apiId.isPlan()) {
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+        }
+        // if this is for a plan market, we will not check user scope.
+        boolean enforceUserScope = !apiId.isPlan();
 
-            final GetMembersResponse groupMembersResp =
-                    groupRpcService.getMembers(getGroupMembersReq);
-            List<String> membersUuids = groupMembersResp.getMembers().getIdsList().stream()
+        final GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
+                .addId(Long.parseLong(groupUuid))
+                .setEnforceUserScope(enforceUserScope)
+                .setExpectPresent(false)
+                .build();
+
+        final Iterator<GetMembersResponse> groupMembersResp =
+                groupRpcService.getMembers(getGroupMembersReq);
+        final List<String> membersUuids;
+        if (groupMembersResp.hasNext()) {
+            membersUuids = groupMembersResp.next().getMemberIdList().stream()
                     .map(id -> Long.toString(id))
                     .collect(Collectors.toList());
+        } else {
+            membersUuids = Collections.emptyList();
+        }
         // If an input scope was also specified, use the intersection.
         if (!CollectionUtils.isEmpty(statScopesApiInputDTO.getScopes())) {
             membersUuids.retainAll(statScopesApiInputDTO.getScopes());
@@ -975,6 +1018,9 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public List<ServiceEntityApiDTO> getUnplacedEntitiesByMarketUuid(String uuid) throws Exception {
+        // requires "planner" feature to access
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+
         // get the topology id for the plan
         OptionalPlanInstance planResponse = planRpcService.getPlan(PlanId.newBuilder()
                 .setPlanId(Long.valueOf(uuid))
@@ -994,6 +1040,7 @@ public class MarketsService implements IMarketsService {
                         .build());
         List<TopologyEntityDTO> unplacedDTOs = StreamSupport.stream(response.spliterator(), false)
                 .flatMap(rtResponse -> rtResponse.getEntitiesList().stream())
+                .map(PartialEntity::getFullEntity)
                 // right now, legacy and UI only expect unplaced virtual machine.
                 .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                 .collect(Collectors.toList());
@@ -1008,6 +1055,36 @@ public class MarketsService implements IMarketsService {
 
         logger.debug("Found {} unplaced entities in plan {} results.", unplacedApiDTOs.size(), uuid);
         return unplacedApiDTOs;
+    }
+
+    /**
+     * Get details for an action by the market.
+     *
+     * @param marketUuid uuid of the market.
+     * @param actionuuid uuid of the action.
+     * @return details about the action in a market.
+     * @throws Exception exception.
+     */
+    @Override
+    public ActionDetailsApiDTO getActionsDetailsByUuid(String marketUuid, String actionuuid) throws Exception {
+        // if the request is for a plan-related action, make sure the feature is available.
+        ApiId apiId = uuidMapper.fromUuid(marketUuid);
+        if (apiId.isPlan()) {
+            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
+        }
+        ActionOrchestratorAction action = actionOrchestratorRpcService
+                .getAction(actionRequest(marketUuid, actionuuid));
+        if (action.hasActionSpec()) {
+            // create action details dto based on action api dto which contains "explanation" with coverage information.
+            ActionDetailsApiDTO actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(
+                    action,
+                    Strings.isBlank(marketUuid) ? null : Long.valueOf(marketUuid));
+            if (actionDetailsApiDTO == null) {
+                return new NoDetailsApiDTO();
+            }
+            return actionDetailsApiDTO;
+        }
+        return new NoDetailsApiDTO();
     }
 
     /**
@@ -1043,13 +1120,11 @@ public class MarketsService implements IMarketsService {
         if (providers.size() < providerOids.size()) {
             final Set<Long> missingProviders = Sets.difference(providerOids, providers.keySet());
             // Retrieve missing providers and put them in the providers map
-            RepositoryDTOUtil.topologyEntityStream(repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                    .addAllEntityOids(missingProviders)
-                    .setTopologyContextId(plan.getPlanId())
-                    .setTopologyId(plan.getProjectedTopologyId())
-                    .setTopologyType(TopologyType.PROJECTED)
-                    .build()))
-                    .forEach(dto -> providers.put(dto.getOid(), dto));
+            repositoryApi.entitiesRequest(missingProviders)
+                .contextId(plan.getPlanId())
+                .projectedTopology()
+                .getFullEntities()
+                .forEach(dto -> providers.put(dto.getOid(), dto));
         }
 
         // convert to ServiceEntityApiDTOs, filling in the blanks of the placed on / not placed on fields
@@ -1085,7 +1160,7 @@ public class MarketsService implements IMarketsService {
      */
     private ServiceEntityApiDTO createServiceEntityApiDTO(TopologyEntityDTO entity,
                                                           Map<Long, TopologyEntityDTO> providers) {
-        ServiceEntityApiDTO seEntity = ServiceEntityMapper.toServiceEntityApiDTO(entity, null);
+        ServiceEntityApiDTO seEntity = serviceEntityMapper.toServiceEntityApiDTO(entity);
         StringJoiner placedOnJoiner = new StringJoiner(",");
         StringJoiner notPlacedOnJoiner = new StringJoiner(",");
         // for all of the commodities bought, build a string description of which are placed
@@ -1112,224 +1187,222 @@ public class MarketsService implements IMarketsService {
     }
 
     /**
-     * Check if the policy type is merge data center from user input policy DTO.
+     * Creates an action request using a market uuid and an action uuid.
      *
-     * @param policyApiInputDTO
-     * @return true if merge type is data center
+     * @param marketUuid uuid of the market.
+     * @param actionUuid uuid of the action.
+     * @return the action request.
      */
-    private boolean isMergeDataCenterPolicy(final PolicyApiInputDTO policyApiInputDTO) {
-        return policyApiInputDTO.getType() == PolicyType.MERGE
-                && policyApiInputDTO.getMergeType() == MergePolicyType.DataCenter;
+    private static SingleActionRequest actionRequest(String marketUuid, String actionUuid) {
+        return SingleActionRequest.newBuilder()
+                .setTopologyContextId(Long.valueOf(marketUuid))
+                .setActionId(Long.valueOf(actionUuid))
+                .build();
     }
 
     /**
-     * Check if the policy type is merge data center from policy info DTO.
-     *
-     * @param policyInfo
-     * @return true if merge type is data center
+     * Create a dto for the realtime market
+     * @return a dto with data including the oid and name of the realtime market
      */
-    private boolean isMergeDataCenterPolicy(final PolicyInfo policyInfo) {
-        return policyInfo.hasMerge()
-                && policyInfo.getMerge().getMergeType() == MergeType.DATACENTER;
+    private MarketApiDTO createRealtimeMarketApiDTO() {
+        // TODO (roman, Dec 21 2016): Not sure what the API
+        // expects from the real-time market as far as state,
+        // unplaced entities, state progress, and all that jazz.
+        MarketApiDTO realtimeDto = new MarketApiDTO();
+        realtimeDto.setUuid(new Long(realtimeTopologyContextId).toString());
+        realtimeDto.setDisplayName("Market");
+        realtimeDto.setClassName("Market");
+        realtimeDto.setState("RUNNING");
+        realtimeDto.setUnplacedEntities(false);
+        realtimeDto.setStateProgress(100);
+        realtimeDto.setEnvironmentType(EnvironmentType.HYBRID);
+        return realtimeDto;
     }
 
     /**
-     * Connect to the stats service.  We use a setter to avoid circular dependencies
-     * in the Spring configuration in the API component.
-     *
-     * @param statsService the stats service.
+     * Class to handle all the operation related to merge policy.
      */
-//    public void setStatsService(@Nonnull StatsService statsService) {
-//        this.statsService = Objects.requireNonNull(statsService);
-//    }
+    private static class MergePolicyHandler {
 
-    /**
-     * Handles invalid cases for the given startTime and endTime period and throws
-     * IllegalArgumentException when those cases happen. The cases are:
-     * <ul>
-     * <li>If startTime is in the future.</li>
-     * <li>If endTime precedes startTime.</li>
-     * <li>If endTime only was passed.</li>
-     * <ul/>
-     *
-     * @param startTime A DateTime string representing actions start Time query in the format
-     *                  defined in {@link DateTimeUtil}
-     * @param endTime   A DateTime string representing actions end Time query in the format
-     *                  defined in {@link DateTimeUtil}
-     */
-    private void handleInvalidCases(@Nullable final String startTime,
-                                    @Nullable final String endTime) {
-        if (startTime != null && !startTime.isEmpty()) {
-            Long startTimeLong = DateTimeUtil.parseTime(startTime);
-            if (startTimeLong > DateTimeUtil.parseTime(DateTimeUtil.getNow())) {
-                // startTime is in the future.
-                throw new IllegalArgumentException("startTime " + startTime +
-                        " can't be in the future");
-            }
-            if (endTime != null && !endTime.isEmpty()) {
-                Long endTimeLong = DateTimeUtil.parseTime(endTime);
-                if (endTimeLong < startTimeLong) {
-                    // endTime is before startTime
-                    throw new IllegalArgumentException("startTime " + startTime +
-                            " must precede endTime " + endTime);
-                }
-            }
-        } else if (endTime != null && !endTime.isEmpty()) {
-            // endTime only was passed.
-            throw new IllegalArgumentException("startTime is required along with endTime");
-        }
-    }
-
-    /**
-     * Adjusts endTime as part of the given {@link ActionApiInputDTO} if startTime was empty.
-     *
-     * @param inputDto The given {@link ActionApiInputDTO} that contains endTime to be adjusted
-     */
-    private static void adjustEndTime(ActionApiInputDTO inputDto) {
-        if (inputDto.getStartTime() != null && !inputDto.getStartTime().isEmpty()) {
-            if (inputDto.getEndTime() == null || inputDto.getEndTime().isEmpty()) {
-                // Set endTime to now if it was null/empty and startTime was passed.
-                inputDto.setEndTime(DateTimeUtil.getNow());
-            }
-        }
-    }
-
-    /**
-     * Class to handle all the operation related to merge data center policy.
-     */
-    private class MergeDataCenterPolicyHandler {
+        private static final Logger logger = LogManager.getLogger();
 
         /**
          * Max char length of group name.
          */
-        private final int MAX_GROUP_NAME_LENGTH = 255;
+        private static final int MAX_GROUP_NAME_LENGTH = 255;
+
+        private static final Set<MergeType> MERGE_TYPE_NEEDS_HIDDEN_GROUP =
+                ImmutableSet.of(MergeType.DATACENTER, MergeType.DESKTOP_POOL);
+
+        private final GroupServiceBlockingStub groupService;
+        private final PolicyServiceBlockingStub policyService;
+        private final RepositoryApi repositoryApi;
 
         /**
-         * Create hidden group for data center list when user select merge data center policy. Since
-         * data center is not kind of group, we need to create a hidden group to apply the policy, and
-         * set the merge group members to the hidden group id.
+         * Constructor.
          *
-         * @param policyApiInputDTO policy data from user input, we need to change the merge group member
-         *                          uuids to the hidden group uuid.
+         * @param groupService the {@link GroupServiceBlockingStub}
+         * @param policyService the {@link PolicyServiceBlockingStub}
+         * @param repositoryApi the {@link RepositoryApi}
          */
-        public void createDataCenterHiddenGroup(final PolicyApiInputDTO policyApiInputDTO) {
-            final String groupName = StringUtils.abbreviate(String.format("Merge: %s",
-                    Strings.join(fetchDataCenterNamesByOids(policyApiInputDTO.getMergeUuids()),
-                            ',')), MAX_GROUP_NAME_LENGTH);
-            // New hidden group creation request
-            final GroupDTO.GroupInfo.Builder requestBuilder = GroupDTO.GroupInfo.newBuilder()
-                    .setName(groupName)
-                    .setEntityType(EntityType.DATACENTER.getNumber())
-                    .setIsHidden(true);
+        MergePolicyHandler(@Nonnull GroupServiceBlockingStub groupService,
+                @Nonnull PolicyServiceBlockingStub policyService,
+                @Nonnull RepositoryApi repositoryApi) {
+            this.groupService = groupService;
+            this.policyService = policyService;
+            this.repositoryApi = repositoryApi;
+        }
 
-            requestBuilder.setStaticGroupMembers(
-                    GroupDTO.StaticGroupMembers.newBuilder().addAllStaticMemberOids(
-                            policyApiInputDTO.getMergeUuids().stream()
-                                    .map(Long::parseLong).collect(Collectors.toList())));
+        /**
+         * Returns {@code true} if the policy needs a hidden group to support merge. Since some
+         * entity types are not a group, we need a hidden group to apply the policy, and set the
+         * merge group members to the hidden group id.
+         *
+         * @param policyApiInputDTO the {@link PolicyApiInputDTO}
+         * @return {@code true} if the policy needs a hidden group
+         */
+        public boolean isPolicyNeedsHiddenGroup(final PolicyApiInputDTO policyApiInputDTO) {
+            return policyApiInputDTO.getType() == PolicyType.MERGE &&
+                    MERGE_TYPE_NEEDS_HIDDEN_GROUP.contains(PolicyMapper.MERGE_TYPE_API_TO_PROTO.get(
+                            policyApiInputDTO.getMergeType()));
+        }
 
-            final GroupDTO.CreateGroupResponse response = groupRpcService.createGroup(requestBuilder.build());
+        /**
+         * Returns {@code true} if the policy needs a hidden group to support merge. Since some
+         * entity types are not a group, we need a hidden group to apply the policy, and set the
+         * merge group members to the hidden group id.
+         *
+         * @param policyInfo the {@link PolicyInfo}
+         * @return {@code true} if the policy needs a hidden group
+         */
+        public boolean isPolicyNeedsHiddenGroup(final PolicyInfo policyInfo) {
+            return policyInfo.hasMerge() && policyInfo.getMerge().hasMergeType() &&
+                    MERGE_TYPE_NEEDS_HIDDEN_GROUP.contains(policyInfo.getMerge().getMergeType());
+        }
 
-            logger.debug("Created new hidden group {} for data centers {}.",
-                    response.getGroup().getId(),
-                    policyApiInputDTO.getMergeUuids());
+        /**
+         * Create hidden group to support merge policy. Since some entity types are not a group, we
+         * need to create a hidden group to apply the policy, and set the merge group members to the
+         * hidden group id.
+         *
+         * @param policyApiInputDTO policy data from user input, we need to change the merge group
+         * member uuids to the hidden group uuid
+         */
+        public void createHiddenGroup(final PolicyApiInputDTO policyApiInputDTO) {
+            final CreateGroupResponse createGroupResponse = groupService.createGroup(
+                    CreateGroupRequest.newBuilder()
+                            .setGroupDefinition(
+                                    createGroupDefinition(policyApiInputDTO.getMergeUuids()))
+                            .setOrigin(Origin.newBuilder()
+                                    .setSystem(Origin.System.newBuilder()
+                                            .setDescription(String.format(
+                                                    "Hidden group to support merge with type %s.",
+                                                    policyApiInputDTO.getMergeType()))))
+                            .build());
+
+            logger.debug(
+                    "Created new hidden group {} to support merge with type {} with members {}",
+                    () -> createGroupResponse.getGroup().getId(), policyApiInputDTO::getMergeType,
+                    policyApiInputDTO::getMergeUuids);
             // Set the hidden group uuid to the group member list
-            policyApiInputDTO.setMergeUuids(Stream.of(response.getGroup().getId()).map(String::valueOf)
-                    .collect(Collectors.toList()));
-
+            policyApiInputDTO.setMergeUuids(Collections.singletonList(
+                    Long.toString(createGroupResponse.getGroup().getId())));
         }
 
         /**
-         * Update hidden group for data center list when user select new merge data center policy. The
-         * merge group member will still the hidden group.
+         * Update hidden group when user select new merge policy. The merge group member will still
+         * the hidden group.
          *
-         * @param policyUuid        the policy uuid to fetch the current contained group.
-         * @param policyApiInputDTO policy data from user input, we need to change the merge group member
-         *                          uuids to the hidden group uuid.
+         * @param policyUuid the policy uuid to fetch the current contained group.
+         * @param policyApiInputDTO policy data from user input, we need to change the merge group
+         * member uuids to the hidden group uuid.
          */
-        public void updateDataCenterHiddenGroup(final String policyUuid,
-                                                final PolicyApiInputDTO policyApiInputDTO) {
-            final String groupName = StringUtils.abbreviate(String.format("Merge: %s",
-                    Strings.join(fetchDataCenterNamesByOids(policyApiInputDTO.getMergeUuids()),
-                            ',')), MAX_GROUP_NAME_LENGTH);
-            try {
-                // Fetch the current group members in the merge data center policy. It should only has
-                // 1 hidden group that contains all the selected data centers.
-                final PolicyApiDTO policyApiDTO = policiesService.getPolicyByUuid(policyUuid);
-                final List<Long> oldPolicyGroupsList = policyApiDTO.getMergeGroups().stream()
-                        .map(BaseApiDTO::getUuid)
-                        .map(Long::parseLong)
-                        .collect(Collectors.toList());
-
-                // There should be only 1 hidden group in the policy member list, so this shouldn't happen.
-                if (oldPolicyGroupsList.size() != 1) {
-                    logger.error("More than 1 group member in merge data center policy {}, update" +
-                                    " will be skipped.",
-                            policyApiInputDTO.getPolicyName());
-                    return;
-                }
-                final List<Long> currPolicyMemberList = policyApiInputDTO.getMergeUuids().stream()
-                        .map(Long::parseLong)
-                        .collect(Collectors.toList());
-
-                final long groupId = oldPolicyGroupsList.get(0);
-                // If group members don't change in the policy, then we skip the update.
-                if (oldPolicyGroupsList.equals(currPolicyMemberList)) {
-                    return;
-                }
-
-                // Update the hidden group if data centers in the policy have changed.
-                final GroupDTO.GroupInfo.Builder newInfo = GroupDTO.GroupInfo.newBuilder()
-                        .setName(groupName)
-                        .setEntityType(EntityType.DATACENTER.getNumber())
-                        .setIsHidden(true)
-                        .setStaticGroupMembers(GroupDTO.StaticGroupMembers.newBuilder()
-                                .addAllStaticMemberOids(currPolicyMemberList));
-
-                final UpdateGroupResponse response = groupRpcService.updateGroup(UpdateGroupRequest.newBuilder()
-                        .setId(groupId)
-                        .setNewInfo(newInfo)
-                        .build());
-
-                logger.debug("Updated hidden group {} for data centers {}.",
-                        response.getUpdatedGroup().getId(),
-                        policyApiInputDTO.getMergeUuids());
-                // Replace the data centers OIDs to the hidden group OID.
-                policyApiInputDTO.setMergeUuids(Stream.of(String.valueOf(groupId))
-                        .collect(Collectors.toList()));
-
-            } catch (Exception e) {
-                logger.error("Error when updating hidden group, {}", e);
+        public void updateHiddenGroup(final String policyUuid,
+                final PolicyApiInputDTO policyApiInputDTO) {
+            // Fetch the current group members in the merge policy.
+            // It should only has 1 hidden group that contains all the selected entities.
+            final PolicyDTO.Policy policy = policyService.getPolicy(
+                    PolicyDTO.SinglePolicyRequest.newBuilder()
+                            .setPolicyId(Long.parseLong(policyUuid))
+                            .build()).getPolicy();
+            final Set<Long> oldPolicyGroupIds = GroupProtoUtil.getPolicyGroupIds(policy);
+            // There should be only 1 hidden group in the policy member list, so this shouldn't happen.
+            if (oldPolicyGroupIds.size() != 1) {
+                logger.error(
+                        "More than 1 group member in merge {} policy {}, update will be skipped.",
+                        policyApiInputDTO.getMergeType(), policyUuid);
+                return;
             }
+
+            // If group members don't change in the policy, then we skip the update.
+            final long groupId = oldPolicyGroupIds.iterator().next();
+            final List<String> mergeUuids = Collections.singletonList(String.valueOf(groupId));
+            if (mergeUuids.equals(policyApiInputDTO.getMergeUuids())) {
+                return;
+            }
+
+            groupService.updateGroup(UpdateGroupRequest.newBuilder()
+                    .setId(groupId)
+                    .setNewDefinition(createGroupDefinition(policyApiInputDTO.getMergeUuids()))
+                    .build());
+
+            logger.debug("Updated hidden group {} to support merge with type {} with members {}",
+                    () -> groupId, policyApiInputDTO::getMergeType,
+                    policyApiInputDTO::getMergeUuids);
+            // Replace the hidden group uuid to the group member list
+            policyApiInputDTO.setMergeUuids(mergeUuids);
         }
 
         /**
-         * Delete the hidden group when user deletes the merge data center policy.
+         * Delete the hidden group when user deletes the merge policy.
          *
          * @param policyUuid the deleted policy uuid.
          * @param policyInfo the info of the removed policy.
          */
-        public void deleteDataCenterHiddenGroup(final String policyUuid, final PolicyInfo policyInfo) {
-            policyInfo.getMerge().getMergeGroupIdsList().stream()
-                    .map(groupId -> GroupID.newBuilder().setId(groupId).build())
-                    .forEach(groupRpcService::deleteGroup);
-            logger.debug("Deleted hidden group for policy {}.", policyUuid);
+        public void deleteHiddenGroup(final String policyUuid, final PolicyInfo policyInfo) {
+            policyInfo.getMerge().getMergeGroupIdsList().forEach(groupId -> {
+                groupService.deleteGroup(GroupID.newBuilder().setId(groupId).build());
+                logger.debug("Deleted hidden group {} for policy {}.", groupId, policyUuid);
+            });
         }
 
-        /**
-         * Fetch data center names according to their OIDs.
-         *
-         * @param dataCenterIds
-         * @return list of data center names.
-         */
-        private List<String> fetchDataCenterNamesByOids(final List<String> dataCenterIds) {
-            return RepositoryDTOUtil.topologyEntityStream(repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                    .addAllEntityOids(dataCenterIds.stream()
-                            .map(Long::parseLong).collect(Collectors.toList()))
-                    .setTopologyContextId(realtimeTopologyContextId)
-                    .setTopologyType(TopologyType.SOURCE)
-                    .build()))
-                    .map(TopologyEntityDTO::getDisplayName)
-                    .collect(Collectors.toList());
+        private GroupDefinition.Builder createGroupDefinition(final List<String> mergeUuids) {
+            final Map<Integer, List<MinimalEntity>> entitiesByType = repositoryApi.entitiesRequest(
+                    mergeUuids.stream().map(Long::parseLong).collect(Collectors.toSet()))
+                    .getMinimalEntities()
+                    .collect(Collectors.groupingBy(MinimalEntity::getEntityType));
+            final String displayName = StringUtils.abbreviate(entitiesByType.values()
+                    .stream()
+                    .flatMap(Collection::stream)
+                    .map(MinimalEntity::getDisplayName)
+                    .collect(Collectors.joining(",", "Merge: ", "")), MAX_GROUP_NAME_LENGTH);
+            final StaticMembers.Builder staticGroupMembers = StaticMembers.newBuilder();
+            entitiesByType.entrySet()
+                    .stream()
+                    .map(e -> StaticMembersByType.newBuilder()
+                            .setType(MemberType.newBuilder().setEntity(e.getKey()))
+                            .addAllMembers(e.getValue()
+                                    .stream()
+                                    .map(MinimalEntity::getOid)
+                                    .collect(Collectors.toSet())))
+                    .forEach(staticGroupMembers::addMembersByType);
+            return GroupDefinition.newBuilder()
+                    .setDisplayName(displayName)
+                    .setIsHidden(true)
+                    .setStaticGroupMembers(staticGroupMembers);
         }
+    }
+
+    @Override
+    public List<SettingsManagerApiDTO> getSettingsByEntityAndMarketId(String marketUuid, String entityUuid) throws Exception {
+        final ApiId id = uuidMapper.fromUuid(entityUuid);
+        final ApiId marketId = uuidMapper.fromUuid(marketUuid);
+        if (!marketId.isRealtimeMarket() && !marketId.isPlan()) {
+            throw new UnknownObjectException("The ID " + marketUuid
+                    + " doesn't belong to a plan or a real-time market.");
+        }
+        final List<SettingsManagerApiDTO> retMgrs =
+                entitySettingQueryExecutor.getEntitySettings(id, false, null, marketId.getTopologyContextId());
+        return retMgrs;
     }
 }

@@ -8,8 +8,9 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 
 import com.vmturbo.action.orchestrator.stats.ActionStat;
+import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician.PreviousBroadcastActions;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
-import com.vmturbo.action.orchestrator.stats.SingleActionSnapshotFactory.SingleActionSnapshot;
+import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
 import com.vmturbo.action.orchestrator.stats.aggregator.ActionAggregatorFactory.ActionAggregator;
 import com.vmturbo.action.orchestrator.stats.groups.ImmutableMgmtUnitSubgroupKey;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
@@ -29,7 +30,7 @@ public class GlobalActionAggregator extends ActionAggregator {
      */
     public static final long GLOBAL_MGMT_UNIT_ID = 0;
 
-    GlobalActionAggregator(@Nonnull final LocalDateTime snapshotTime) {
+    private GlobalActionAggregator(@Nonnull final LocalDateTime snapshotTime) {
         super(snapshotTime);
     }
 
@@ -37,7 +38,8 @@ public class GlobalActionAggregator extends ActionAggregator {
      * {@inheritDoc}
      */
     @Override
-    public void processAction(@Nonnull final SingleActionSnapshot action) {
+    public void processAction(@Nonnull final StatsActionView action,
+                              @Nonnull final PreviousBroadcastActions previousBroadcastActions) {
         final ActionEnvironmentType actionEnvType;
         try {
             actionEnvType = ActionEnvironmentType.forAction(action.recommendation());
@@ -77,7 +79,8 @@ public class GlobalActionAggregator extends ActionAggregator {
                 .entityType(entityType)
                 .build();
             final ActionStat stat = getStat(unitKey, action.actionGroupKey());
-            stat.recordAction(action.recommendation(), entities);
+            stat.recordAction(action.recommendation(), entities,
+                actionIsNew(action, previousBroadcastActions));
         });
 
         // Update the global records.
@@ -89,7 +92,8 @@ public class GlobalActionAggregator extends ActionAggregator {
                 .mgmtUnitType(getManagementUnitType())
                 .build();
         final ActionStat stat = getStat(unitKey, action.actionGroupKey());
-        stat.recordAction(action.recommendation(), involvedEntitiesByType.values());
+        stat.recordAction(action.recommendation(), involvedEntitiesByType.values(),
+            actionIsNew(action, previousBroadcastActions));
     }
 
     /**

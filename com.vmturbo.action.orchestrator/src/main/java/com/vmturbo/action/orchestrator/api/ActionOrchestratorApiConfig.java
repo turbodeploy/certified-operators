@@ -9,7 +9,7 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorNotificationRe
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
+import com.vmturbo.components.common.health.MessageProducerHealthMonitor;
 
 /**
  * Spring configuration to provide the {@link ActionOrchestratorNotificationSender} integration.
@@ -33,7 +33,7 @@ public class ActionOrchestratorApiConfig {
     }
 
     @Bean
-    public KafkaProducerHealthMonitor kafkaProducerHealthMonitor() {
-        return new KafkaProducerHealthMonitor(baseKafkaProducerConfig.kafkaMessageSender());
+    public MessageProducerHealthMonitor messageProducerHealthMonitor() {
+        return new MessageProducerHealthMonitor(baseKafkaProducerConfig.kafkaMessageSender());
     }
 }

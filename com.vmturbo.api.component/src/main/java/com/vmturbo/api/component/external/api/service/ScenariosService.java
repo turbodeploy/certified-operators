@@ -1,18 +1,16 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.validation.Errors;
-
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
@@ -22,18 +20,17 @@ import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IScenariosService;
-import com.vmturbo.common.protobuf.plan.PlanDTO.GetScenariosOptions;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioId;
-import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioRequest;
-import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioResponse;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.GetScenariosOptions;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioId;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioRequest;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioResponse;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
 
 /**
  * Service implementation of Scenarios
  **/
 public class ScenariosService implements IScenariosService {
-    private static final Logger logger = LogManager.getLogger();
 
     private final ScenarioServiceBlockingStub scenarioService;
 
@@ -53,12 +50,13 @@ public class ScenariosService implements IScenariosService {
      */
     @Override
     public List<ScenarioApiDTO> getScenarios(Boolean showForAllUsers) throws Exception {
-        final Iterable<Scenario> iterable =
-            () -> scenarioService.getScenarios(GetScenariosOptions.getDefaultInstance());
-
-        return StreamSupport.stream(iterable.spliterator(), false)
-            .map(scenarioMapper::toScenarioApiDTO)
-            .collect(Collectors.toList());
+        final Iterator<Scenario> iterator =
+                scenarioService.getScenarios(GetScenariosOptions.getDefaultInstance());
+        final List<ScenarioApiDTO> result = new ArrayList<>();
+        while (iterator.hasNext()) {
+            result.add(scenarioMapper.toScenarioApiDTO(iterator.next()));
+        }
+        return result;
     }
 
     /**

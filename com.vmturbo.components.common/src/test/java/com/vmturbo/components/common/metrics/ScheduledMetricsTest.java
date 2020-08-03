@@ -2,7 +2,6 @@ package com.vmturbo.components.common.metrics;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
-import java.time.Instant;
 
 import org.junit.Test;
 

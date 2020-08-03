@@ -1,38 +1,61 @@
 package com.vmturbo.action.orchestrator.action;
 
-import static com.vmturbo.components.common.ClassicEnumMapper.COMMODITY_TYPE_MAPPINGS;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityType;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.buildEntityNameOrType;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.buildEntityTypeAndName;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.getCommodityDisplayName;
 
 import java.text.MessageFormat;
+import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.StringJoiner;
+import java.util.Set;
+import java.util.TimeZone;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableBiMap;
-
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Evacuation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A utility with static methods that assist in composing explanations for actions.
@@ -40,422 +63,915 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class ExplanationComposer {
     private static final Logger logger = LogManager.getLogger();
 
-    private static final ImmutableBiMap<CommodityDTO.CommodityType, String> COMMODITY_TYPE_TO_STRING_MAPPER =
-            ImmutableBiMap.copyOf(COMMODITY_TYPE_MAPPINGS).inverse();
-
-    public static final String MOVE_COMPLIANCE_EXPLANATION_FORMAT =
-            "{0} can not satisfy the request for resource(s) ";
-    public static final String MOVE_EVACUATION_EXPLANATION_FORMAT =
-            "{0} can be suspended to improve efficiency";
-    public static final String MOVE_INITIAL_PLACEMENT_EXPLANATION =
-        "Place an unplaced entity on a supplier";
-    public static final String MOVE_PERFORMANCE_EXPLANATION =
+    private static final String MOVE_COMPLIANCE_EXPLANATION_FORMAT =
+        "{0} can not satisfy the request for resource(s) ";
+    private static final String MOVE_EVACUATION_SUSPENSION_EXPLANATION_FORMAT =
+        "{0} can be suspended to improve efficiency";
+    private static final String MOVE_EVACUATION_AVAILABILITY_EXPLANATION_FORMAT =
+        "{0} is not available";
+    private static final String MOVE_PERFORMANCE_EXPLANATION =
         "Improve overall performance";
-    public static final String ACTIVATE_EXPLANATION_WITH_REASON_COMM = "Address high utilization of ";
-    public static final String ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM = "Add more resource to satisfy the increased demand";
-    public static final String DEACTIVATE_EXPLANATION = "Improve infrastructure efficiency";
-    public static final String RECONFIGURE_EXPLANATION =
+    private static final String IMPROVE_OVERALL_EFFICIENCY =
+        "Improve overall efficiency";
+    private static final String ACTIVATE_EXPLANATION_WITH_REASON_COMM =
+        "Address high utilization of ";
+    private static final String ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM =
+        "Add more resource to satisfy the increased demand";
+    private static final String DEACTIVATE_EXPLANATION = "Improve infrastructure efficiency";
+    private static final String RECONFIGURE_REASON_COMMODITY_EXPLANATION =
         "Enable supplier to offer requested resource(s) ";
-    public static final String PROVISION_BY_DEMAND_EXPLANATION =
-        "No current supplier has enough capacity to satisfy demand for ";
-    public static final String ACTION_TYPE_ERROR =
-        "Can not give a proper explanation as action type is not defiend";
-    public static final String INCREASE_RI_UTILIZATION =
-            "Increase RI Utilization.";
-    public static final String WASTED_COST = "Wasted Cost";
+    private static final String REASON_SETTINGS_EXPLANATION =
+        "{0} doesn''t comply with {1}";
+    private static final String ACTION_TYPE_ERROR =
+        "Can not give a proper explanation as action type is not defined";
+    private static final String INCREASE_RI_UTILIZATION =
+        "Increase RI Utilization";
+    private static final String WASTED_COST = "Wasted Cost";
     private static final String DELETE_WASTED_FILES_EXPLANATION = "Idle or non-productive";
+    private static final String DELETE_WASTED_VOLUMES_EXPLANATION = "Increase savings";
+    private static final String ALLOCATE_EXPLANATION = "Virtual Machine can be covered by {0} RI";
+    private static final String UNDERUTILIZED_EXPLANATION = "Underutilized ";
+    private static final String CONGESTION_EXPLANATION = " Congestion";
+    private static final String BUY_RI_EXPLANATION = "Increase RI Coverage";
+    private static final String INVALID_BUY_RI_EXPLANATION = "Invalid total demand";
+
+    // Short explanations
+    private static final String OVERUTILIZED_RESOURCES_CATEGORY = "Overutilized resources";
+    private static final String UNDERUTILIZED_RESOURCES_CATEGORY = "Underutilized resources";
+    private static final String RECONFIGURE_EXPLANATION_CATEGORY = "Misconfiguration";
+    private static final String REASON_SETTING_EXPLANATION_CATEGORY = "Setting policy compliance";
+    private static final String REASON_COMMODITY_EXPLANATION_CATEGORY =  " compliance";
+    private static final String SEGMENTATION_COMMODITY_EXPLANATION_CATEGORY =  "Placement policy compliance";
+    private static final String ALLOCATE_CATEGORY = "Virtual Machine RI Coverage";
+    private static final String ACTION_ERROR_CATEGORY = "";
+
     /**
      * Private to prevent instantiation.
      */
-    private ExplanationComposer() {
+    private ExplanationComposer() {}
+
+    /**
+     * Compose short explanations for an action. The short explanation does not contain commodity
+     * keys or entity names/ids, and does not require translation. The short explanation can be
+     * used where we don't want entity-specific information in the explanation (e.g. as a group
+     * criteria for action stats), or in other places where full details are not necessary.
+     *
+     * @param action the action to explain
+     * @return a set of short explanation sentences
+     */
+    @Nonnull
+    @VisibleForTesting
+    public static Set<String> composeShortExplanation(@Nonnull ActionDTO.Action action) {
+        return internalComposeExplanation(action, true, Collections.emptyMap());
     }
 
     /**
-     * Compose explanation for various types of actions. Explanation appears below the action
-     * details. In Classic, this is called as risk.
+     * This method should be used only for tests.
      *
-     * @param action the action to mansplain
+     * @param action the action to explain
      * @return the explanation sentence
      */
-    public static String composeExplanation(ActionDTO.Action action) {
-        Explanation explanation = action.getExplanation();
-        switch (explanation.getActionExplanationTypeCase()) {
-            case MOVE:
-                // if we only have one source entity, we'll use it in the explanation builder. if
-                // multiple, we won't bother because we don't have enough info to attribute
-                // commodities to specific sources
-                List<ActionEntity> source_entities = action.getInfo().getMove().getChangesList().stream()
-                        .map(ChangeProvider::getSource)
-                        .collect(Collectors.toList());
-                Optional<ActionEntity> optionalSourceEntity = source_entities.size() == 1
-                        ? Optional.of(source_entities.get(0))
-                        : Optional.empty();
-
-                MoveExplanation moveExp = explanation.getMove();
-                List<ChangeProviderExplanation> changeExplanations =
-                                moveExp.getChangeProviderExplanationList();
-                ChangeProviderExplanation firstChangeProviderExplanation =
-                                changeExplanations.get(0);
-                if (firstChangeProviderExplanation.hasInitialPlacement()) {
-                    return buildPerformanceExplanation();
-                }
-                StringJoiner sj = new StringJoiner(", ", ActionDTOUtil.TRANSLATION_PREFIX, "");
-                // Use primary change explanations if available
-                List<ChangeProviderExplanation> primaryChangeExplanation = changeExplanations.stream()
-                    .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
-                    .collect(Collectors.toList());
-                if (!primaryChangeExplanation.isEmpty()) {
-                    changeExplanations = primaryChangeExplanation;
-                }
-                changeExplanations.stream()
-                    .map(provider -> changeExplanationBuilder(optionalSourceEntity, provider))
-                    .forEach(sj::add);
-                return sj.toString();
-            case RESIZE:
-                return buildResizeExplanation(action);
-            case ACTIVATE:
-                if (!explanation.getActivate().hasMostExpensiveCommodity()) {
-                    return ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM;
-                } else {
-                    return buildActivateExplanation(explanation.getActivate()
-                                                    .getMostExpensiveCommodity());
-                }
-            case DEACTIVATE:
-                return buildDeactivateExplanation();
-            case RECONFIGURE:
-                return buildReconfigureExplanation(explanation
-                    .getReconfigure().getReconfigureCommodityList());
-            case PROVISION:
-                ProvisionExplanation provExp = explanation.getProvision();
-                switch (provExp.getProvisionExplanationTypeCase()) {
-                    case PROVISION_BY_DEMAND_EXPLANATION:
-                        return buildProvisionByDemandExplanation(
-                            provExp.getProvisionByDemandExplanation()
-                                .getCommodityMaxAmountAvailableList());
-                    case PROVISION_BY_SUPPLY_EXPLANATION:
-                        return buildProvisionBySupplyExplanation(provExp
-                            .getProvisionBySupplyExplanation()
-                            .getMostExpensiveCommodity());
-                    default:
-                        return ACTION_TYPE_ERROR;
-                }
-            case DELETE:
-                return buildDeleteExplanation(action);
-            default:
-                return ACTION_TYPE_ERROR;
-        }
+    @Nonnull
+    @VisibleForTesting
+    static String composeExplanation(@Nonnull final ActionDTO.Action action) {
+        return internalComposeExplanation(action, false, Collections.emptyMap())
+            .iterator().next();
     }
 
-    private static String changeExplanationBuilder(Optional<ActionEntity> sourceEntity,
-                                                   ChangeProviderExplanation changeExp) {
-        switch (changeExp.getChangeProviderExplanationTypeCase()) {
-            case COMPLIANCE:
-                return buildComplianceExplanation(sourceEntity,
-                    changeExp.getCompliance().getMissingCommoditiesList());
-            case CONGESTION:
-                return buildCongestionExplanation(changeExp.getCongestion());
-            case EVACUATION:
-                return buildEvacuationExplanation(
-                    changeExp.getEvacuation().getSuspendedEntity());
-            case PERFORMANCE:
-                return buildPerformanceExplanation();
-            case EFFICIENCY:
-                return buildEfficiencyExplanation(changeExp.getEfficiency());
+    /**
+     * Compose a full explanation for an action.
+     *
+     * @param action the action to explain
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @return the explanation sentence
+     */
+    @Nonnull
+    public static String composeExplanation(
+            @Nonnull final ActionDTO.Action action,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName) {
+        return internalComposeExplanation(action, false, settingPolicyIdToSettingPolicyName)
+            .iterator().next();
+    }
+
+    /**
+     * Compose explanations for various types of actions. Explanation appears below the action
+     * description. In Classic, this is called risk.
+     * When keepItShort is true, it may return multiple sentences.
+     * When keepItShort is false, it only returns one sentence.
+     *
+     * @param action the action to explain
+     * @param keepItShort generate short explanation or not
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @return a set of explanation sentences
+     */
+    @Nonnull
+    private static Set<String> internalComposeExplanation(
+            @Nonnull final ActionDTO.Action action, final boolean keepItShort,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName) {
+        final Explanation explanation = action.getExplanation();
+        switch (explanation.getActionExplanationTypeCase()) {
+            case MOVE:
+            case SCALE:
+                return buildMoveExplanation(action, settingPolicyIdToSettingPolicyName, keepItShort);
+            case ALLOCATE:
+                return Collections.singleton(buildAllocateExplanation(action, keepItShort));
+            case ATOMICRESIZE:
+                //invoked when the action spec is created from the action view
+                return buildAtomicResizeExplanation(action, keepItShort);
+            case RESIZE:
+                return Collections.singleton(buildResizeExplanation(action, keepItShort));
+            case ACTIVATE:
+                return Collections.singleton(buildActivateExplanation(action, keepItShort));
+            case DEACTIVATE:
+                return Collections.singleton(buildDeactivateExplanation());
+            case RECONFIGURE:
+                return Collections.singleton(buildReconfigureExplanation(
+                    action, settingPolicyIdToSettingPolicyName, keepItShort));
+            case PROVISION:
+                return buildProvisionExplanation(action, keepItShort);
+            case DELETE:
+                return Collections.singleton(buildDeleteExplanation(action));
+            case BUYRI:
+                return Collections.singleton(buildBuyRIExplanation(action, keepItShort));
             default:
-                return ACTION_TYPE_ERROR;
+                return Collections.singleton(keepItShort ? ACTION_ERROR_CATEGORY : ACTION_TYPE_ERROR);
         }
     }
 
     /**
-     * Build move explanation for compliance. This should look something like:
+     * Build move explanation.
      *
-     *   "{entity name} can not satisfy the request for resource(s) {comma-separated commodities list}"
-     *
-     * @param commodityTypes a list of missing commodity types
-     * @return explanation
+     * @param action the action to explain
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @param keepItShort compose a short explanation if true
+     * @return a set of explanation sentences
      */
-    public static String buildComplianceExplanation(Optional<ActionEntity> optionalSourceEntity,
-                                                    List<TopologyDTO.CommodityType> commodityTypes) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(MessageFormat.format(MOVE_COMPLIANCE_EXPLANATION_FORMAT,
-                optionalSourceEntity.isPresent()
-                        ? buildEntityNameOrType(optionalSourceEntity.get())
-                        : "Current supplier"));
-        sb.append(commodityTypes.stream()
-            .map(ActionDTOUtil::getCommodityDisplayName)
-            .collect(Collectors.joining(" ")));
+    private static Set<String> buildMoveExplanation(
+            @Nonnull final ActionDTO.Action action,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
+            final boolean keepItShort) {
+        final Set<String> moveExplanations = buildMoveCoreExplanation(
+            action, settingPolicyIdToSettingPolicyName, keepItShort);
+        if (keepItShort) {
+            return moveExplanations;
+        }
+        return Collections.singleton(ActionDTOUtil.TRANSLATION_PREFIX +
+            String.join(", ", moveExplanations) +
+            getScalingGroupExplanation(action.getExplanation()).orElse(""));
+    }
 
-        return sb.toString();
+    /**
+     * Build move core explanation.
+     *
+     * @param action the action to explain
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @param keepItShort generate short explanation or not
+     * @return a set of explanation sentences
+     */
+    private static Set<String> buildMoveCoreExplanation(
+            @Nonnull final ActionDTO.Action action,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
+            final boolean keepItShort) {
+        final Explanation explanation = action.getExplanation();
+        // if we only have one source entity, we'll use it in the explanation builder. if
+        // multiple, we won't bother because we don't have enough info to attribute
+        // commodities to specific sources
+        List<ActionEntity> source_entities = ActionDTOUtil.getChangeProviderList(action)
+            .stream()
+            .map(ChangeProvider::getSource)
+            .collect(Collectors.toList());
+        Optional<ActionEntity> optionalSourceEntity = source_entities.size() == 1
+            ? Optional.of(source_entities.get(0))
+            : Optional.empty();
+
+        List<ChangeProviderExplanation> changeExplanations = ActionDTOUtil
+            .getChangeProviderExplanationList(explanation);
+        ChangeProviderExplanation firstChangeProviderExplanation =
+            changeExplanations.get(0);
+        if (firstChangeProviderExplanation.hasInitialPlacement()) {
+            return Collections.singleton(buildPerformanceExplanation());
+        }
+
+        // Use primary change explanations if available
+        List<ChangeProviderExplanation> primaryChangeExplanation = changeExplanations.stream()
+            .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
+            .collect(Collectors.toList());
+        if (!primaryChangeExplanation.isEmpty()) {
+            changeExplanations = primaryChangeExplanation;
+        }
+
+        return changeExplanations.stream().flatMap(changeExplanation -> {
+            try {
+                return buildMoveChangeExplanation(optionalSourceEntity,
+                    ActionDTOUtil.getPrimaryEntity(action, false), changeExplanation,
+                    settingPolicyIdToSettingPolicyName, keepItShort).stream();
+            } catch (UnsupportedActionException e) {
+                logger.error("Cannot build action explanation", e);
+                return Stream.of(keepItShort ? ACTION_ERROR_CATEGORY : ACTION_TYPE_ERROR);
+            }
+        }).collect(Collectors.toSet());
+    }
+
+    /**
+     * If the explanation contains a scaling group ID, append scaling group information to the
+     * action explanation.
+     * @param explanation action explanation
+     * @return Optional containing the scaling group explanation if the explanation contains
+     * scaling group information, else Optional.empty.  If scaling group information is present
+     * but there is no mapping available, the scaling group ID itself is returned.
+     */
+    private static Optional<String> getScalingGroupExplanation(final Explanation explanation) {
+        String scalingGroupName = null;
+        if (explanation.hasMove()) {
+            MoveExplanation moveExplanation = explanation.getMove();
+            if (moveExplanation.hasScalingGroupId()) {
+                scalingGroupName = moveExplanation.getScalingGroupId();
+            }
+        } else if (explanation.hasScale()) {
+            ScaleExplanation scaleExplanation = explanation.getScale();
+            if (scaleExplanation.hasScalingGroupId()) {
+                scalingGroupName = scaleExplanation.getScalingGroupId();
+            }
+        } else if (explanation.hasResize()) {
+            ResizeExplanation resizeExplanation = explanation.getResize();
+            if (resizeExplanation.hasScalingGroupId()) {
+                scalingGroupName = resizeExplanation.getScalingGroupId();
+            }
+        } else if (explanation.hasReconfigure()) {
+            ReconfigureExplanation reconfigureExplanation = explanation.getReconfigure();
+            if (reconfigureExplanation.hasScalingGroupId()) {
+                scalingGroupName = reconfigureExplanation.getScalingGroupId();
+            }
+        }
+        if (scalingGroupName != null) {
+            return Optional.of(" (Scaling Groups: " + scalingGroupName + ")");
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Build move change provider explanation.
+     *
+     * @param optionalSourceEntity the source entity
+     * @param target the target entity
+     * @param changeProviderExplanation the reason that we change provider
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @param keepItShort generate short explanation or not
+     * @return a set of explanation sentences
+     */
+    private static Set<String> buildMoveChangeExplanation(
+            @Nonnull final Optional<ActionEntity> optionalSourceEntity, @Nonnull final ActionEntity target,
+            @Nonnull final ChangeProviderExplanation changeProviderExplanation,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName, final boolean keepItShort) {
+        switch (changeProviderExplanation.getChangeProviderExplanationTypeCase()) {
+            case COMPLIANCE:
+                if (!changeProviderExplanation.getCompliance().getReasonSettingsList().isEmpty()) {
+                    return Collections.singleton(buildReasonSettingsExplanation(target,
+                        changeProviderExplanation.getCompliance().getReasonSettingsList(),
+                        settingPolicyIdToSettingPolicyName, keepItShort));
+                } else {
+                    return buildComplianceReasonCommodityExplanation(optionalSourceEntity,
+                        changeProviderExplanation.getCompliance().getMissingCommoditiesList(), keepItShort);
+                }
+            case CONGESTION:
+                return buildCongestionExplanation(changeProviderExplanation.getCongestion(), keepItShort);
+            case EVACUATION:
+                return Collections.singleton(buildEvacuationExplanation(
+                    changeProviderExplanation.getEvacuation(), keepItShort));
+            case PERFORMANCE:
+                return Collections.singleton(buildPerformanceExplanation());
+            case EFFICIENCY:
+                return buildEfficiencyExplanation(changeProviderExplanation.getEfficiency(), keepItShort);
+            default:
+                return Collections.singleton(keepItShort ? ACTION_ERROR_CATEGORY : ACTION_TYPE_ERROR);
+        }
+    }
+
+    /**
+     * Build reason commodity explanation.
+     * e.g. full explanation:
+     *      "{entity:1:displayName:Physical Machine} can not satisfy the request for resource(s) Mem, CPU"
+     * e.g. short explanation:
+     *      Set("Cluster compliance", "Network compliance", "Placement policy compliance")
+     *
+     * @param optionalSourceEntity the source entity
+     * @param reasonCommodities a list of commodities that causes this action
+     * @param keepItShort generate short explanation or not
+     * @return the explanation sentence
+     */
+    private static Set<String> buildComplianceReasonCommodityExplanation(
+            @Nonnull final Optional<ActionEntity> optionalSourceEntity,
+            @Nonnull final List<ReasonCommodity> reasonCommodities, final boolean keepItShort) {
+        if (keepItShort) {
+            return reasonCommodities.stream().map(reasonCommodity -> {
+                if (reasonCommodity.getCommodityType().getType() ==
+                        CommodityDTO.CommodityType.SEGMENTATION_VALUE) {
+                    return SEGMENTATION_COMMODITY_EXPLANATION_CATEGORY;
+                } else {
+                    return commodityDisplayName(reasonCommodity.getCommodityType(), true) +
+                        REASON_COMMODITY_EXPLANATION_CATEGORY;
+                }
+            }).collect(Collectors.toSet());
+        }
+
+        return Collections.singleton(MessageFormat.format(MOVE_COMPLIANCE_EXPLANATION_FORMAT,
+            optionalSourceEntity.map(ActionDTOUtil::buildEntityNameOrType).orElse("Current supplier")) +
+            reasonCommodities.stream().map(ReasonCommodity::getCommodityType)
+                .map(commType -> commodityDisplayName(commType, false))
+                .collect(Collectors.joining(", ")));
+    }
+
+    @Nonnull
+    private static String commodityDisplayName(@Nonnull final CommodityType commType, final boolean keepItShort) {
+        if (keepItShort) {
+            return UICommodityType.fromType(commType).displayName();
+        } else {
+            return getCommodityDisplayName(commType);
+        }
     }
 
     /**
      * Build a explanation for congestion. This should end up looking like:
-     * For on-prem entities:
-     * "{comma-delimited congested commodities list} congestion"
-     * For cloud entities, if some commodities resized, then the below explanation will appear:
-     * "{comma-delimited congested commodities list} congestion. Underutilized {comma-delimited underutilized commodities list}"
-     * For cloud entities, if no commodities resized and if the destination is an RI, then:
-     * "Increase RI Utilization"
+     * e.g. full explanation:
+     *      "Underutilized CPU, Mem" or "CPU, Mem Congestion"
+     * e.g. short explanation:
+     *      Set("CPU Congestion", "Mem Congestion")
      *
      * @param congestion The congestion change provider explanation
+     * @param keepItShort Defines whether to generate short explanation or not.
      * @return explanation
      */
-    public static String buildCongestionExplanation(Congestion congestion) {
-        List<TopologyDTO.CommodityType> congestedComms =  congestion.getCongestedCommoditiesList();
-        List<TopologyDTO.CommodityType> underUtilizedComms =  congestion.getUnderUtilizedCommoditiesList();
-        // For the cloud, we should have either congested commodities or increase RI utilization
-        // A blank explanation should not occur.
-        String congestionExplanation = "";
-        if (!congestedComms.isEmpty() || !underUtilizedComms.isEmpty()) {
-            congestionExplanation += buildCommodityUtilizationExplanation(congestedComms, underUtilizedComms);
-        } else if (congestion.getIsRiCoverageIncreased()) {
-            congestionExplanation += INCREASE_RI_UTILIZATION;
+    private static Set<String> buildCongestionExplanation(
+            @Nonnull final Congestion congestion, final boolean keepItShort) {
+        final List<ReasonCommodity> congestedCommodities = congestion.getCongestedCommoditiesList();
+        if (!congestedCommodities.isEmpty()) {
+            return buildCommodityUtilizationExplanation(congestedCommodities,
+                ChangeProviderExplanationTypeCase.CONGESTION, keepItShort);
         }
-        return congestionExplanation;
+        return Collections.emptySet();
     }
 
     /**
      * Build move explanation for evacuation, which should be along the lines of:
+     * e.g. full explanation:
+     *      "{entity name} can be suspended to improve efficiency" or
+     *      "{entity name} is not available"
+     * e.g. short explanation:
+     *      "Underutilized resources"
      *
-     *     "{entity name} can be suspended to improve efficiency"
-     *
-     * @param entityOID the suspended entity oid
+     * @param evacuation The evacuation change provider explanation
+     * @param keepItShort Defines whether to generate short explanation or not.
      * @return explanation
      */
-    public static String buildEvacuationExplanation(long entityOID) {
-        return MessageFormat.format(MOVE_EVACUATION_EXPLANATION_FORMAT,
-                ActionDTOUtil.createTranslationBlock(entityOID, "displayName", "Current supplier"));
+    private static String buildEvacuationExplanation(Evacuation evacuation, boolean keepItShort) {
+        if (keepItShort) {
+            return UNDERUTILIZED_RESOURCES_CATEGORY;
+        }
+        return MessageFormat.format(
+            evacuation.getIsAvailable() ? MOVE_EVACUATION_SUSPENSION_EXPLANATION_FORMAT :
+                MOVE_EVACUATION_AVAILABILITY_EXPLANATION_FORMAT,
+            ActionDTOUtil.createTranslationBlock(evacuation.getSuspendedEntity(), "displayName", "Current supplier"));
     }
 
     /**
-     * Build move explanation for initial placement: "Place an unplaced entity on a supplier"
+     * Build move explanation for performance.
+     * e.g. "Improve overall performance"
      *
      * @return explanation
      */
-    public static String buildInitialPlacementExplanation() {
-        return new StringBuilder().append(MOVE_INITIAL_PLACEMENT_EXPLANATION).toString();
-    }
-
-    /**
-     * Build move explanation for performance, i.e. "Improve overall performance"
-     *
-     * @return explanation
-     */
-    public static String buildPerformanceExplanation() {
+    private static String buildPerformanceExplanation() {
         return MOVE_PERFORMANCE_EXPLANATION;
     }
 
     /**
-     * Build resize explanation. This has a few forms.
+     * Build move explanation for efficiency.
+     * As of now [1/27/2019], the efficiency message is only used for cloud entities.
      *
-     * For a resize down: "Underutilized {commodity name} in {entity name}"
+     * e.g. full explanation:
+     *      "Underutilized CPU, Mem" or
+     *      "Increase RI Utilization" or
+     *      "Wasted Cost" or
+     *      "Improve overall efficiency"
+     * e.g. short explanation:
+     *      Set("Underutilized CPU", "Underutilized Mem") or
+     *      Set("Increase RI Utilization") or
+     *      Set("Wasted Cost") or
+     *      Set("Improve overall efficiency")
      *
-     * For a resize up: "{commodity name} congestion in {entity name}"
-     *
-     * @param action the resize action
-     * @return explanation
+     * @param efficiency the efficiency change provider explanation
+     * @param keepItShort compose a short explanation if true
+     * @return a set of explanation sentences
      */
-    public static String buildResizeExplanation(ActionDTO.Action action) {
-        // verify it's a resize.
-        if (! action.getInfo().hasResize()) {
-            logger.warn("Can't build resize explanation for non-resize action {}", action.getId());
-            return "";
+    private static Set<String> buildEfficiencyExplanation(
+            @Nonnull final Efficiency efficiency, final boolean keepItShort) {
+        if (efficiency.getIsRiCoverageIncreased()) {
+            return Collections.singleton(INCREASE_RI_UTILIZATION);
+        } else if (!efficiency.getUnderUtilizedCommoditiesList().isEmpty()) {
+            return buildCommodityUtilizationExplanation(efficiency.getUnderUtilizedCommoditiesList(),
+                ChangeProviderExplanationTypeCase.EFFICIENCY, keepItShort);
+        } else if (efficiency.getIsWastedCost()) {
+            return Collections.singleton(WASTED_COST);
+        } else {
+            return Collections.singleton(IMPROVE_OVERALL_EFFICIENCY);
         }
-        // now modeling this behavior after ActionGeneratorImpl.notifyRightSize() in classic.
-        // NOT addressing special cases for: Ready Queue, Reserved Instance, Cloud Template, Fabric
-        // Interconnect, VStorage, VCPU. If we really need those, we can add them in as necessary.
-        ResizeExplanation resizeExplanation = action.getExplanation().getResize();
-        boolean isResizeDown = resizeExplanation.getStartUtilization() < resizeExplanation.getEndUtilization();
+    }
 
-        // since we may show entity name, we are going to build a translatable explanation
+    /**
+     * Build commodity utilization explanation.
+     * e.g. full explanation:
+     *      "Underutilized CPU, Mem" or "CPU, Mem Congestion"
+     * e.g. short explanation:
+     *      Set("Underutilized CPU", "Underutilized Mem") or
+     *      Set("CPU Congestion", "Mem Congestion")
+     *
+     * @param reasonCommodities the reason commodities list
+     * @param explanationType the explanation type - congestion / efficiency
+     * @param keepItShort compose a short explanation if true
+     * @return the explanation
+     */
+    private static Set<String> buildCommodityUtilizationExplanation(
+            @Nonnull final List<ReasonCommodity> reasonCommodities,
+            @Nonnull final ChangeProviderExplanationTypeCase explanationType,
+            final boolean keepItShort) {
+        final Stream<String> reasonCommodityStream = reasonCommodities.stream()
+            .map(commodityType -> buildExplanationWithTimeSlots(commodityType, keepItShort));
+        final Set<String> commodities;
+        if (keepItShort) {
+            commodities = reasonCommodityStream.collect(Collectors.toSet());
+        } else {
+            commodities = Collections.singleton(
+                reasonCommodityStream.collect(Collectors.joining(", ")));
+        }
+
+        if (explanationType == ChangeProviderExplanationTypeCase.EFFICIENCY) {
+            return commodities.stream().map(commodity -> UNDERUTILIZED_EXPLANATION + commodity)
+                .collect(Collectors.toSet());
+        } else if (explanationType == ChangeProviderExplanationTypeCase.CONGESTION) {
+            return commodities.stream().map(commodity -> commodity + CONGESTION_EXPLANATION)
+                .collect(Collectors.toSet());
+        } else {
+            return Collections.singleton(keepItShort ? ACTION_ERROR_CATEGORY : ACTION_TYPE_ERROR);
+        }
+    }
+
+    /**
+     * Build allocate action explanation.
+     * e.g. full explanation:
+     *      "Virtual Machine can be covered by m4 RI"
+     * e.g. short explanation:
+     *      "Virtual Machine RI Coverage"
+     *
+     * @param action the action to explain
+     * @param keepItShort compose a short explanation if true
+     * @return the explanation sentence
+     */
+    private static String buildAllocateExplanation(@Nonnull final ActionDTO.Action action,
+                                                   final boolean keepItShort) {
+        if (keepItShort) {
+            return ALLOCATE_CATEGORY;
+        }
+        final String instanceSizeFamily = action.getExplanation().getAllocate()
+                .getInstanceSizeFamily();
+        return MessageFormat.format(ALLOCATE_EXPLANATION, instanceSizeFamily);
+    }
+
+    /**
+     * Build atomic resize action explanation.
+     * e.g. full explanation:
+     *   "Merged on Workload Controller twitter-cass-tweet -
+     *     VCPU Congestion in Container Spec istio-proxy
+     *     [Resize DOWN VCPU from 5,328 to 328],
+     *     VMem Congestion in Container Spec twitter-cass-tweet
+     *     [Resize DOWN VMem from 512.0 MB to 128.0 MB],
+     *     VCPU Congestion in Container Spec twitter-cass-tweet
+     *     [Resize UP VCPU from 666 to 966],
+     *     VMem Congestion in Container Spec istio-proxy
+     *     [Resize DOWN VMem from 1.0 GB to 128.0 MB]"
+     *
+
+     * e.g. short explanation:
+     *      "Merged on Workload Controller twitter-cass-tweet"
+     *
+     * @param action the action to explain
+     * @param keepItShort compose a short explanation if true
+     * @return the explanation sentence
+     */
+    private static Set<String> buildAtomicResizeExplanation(
+            @Nonnull final ActionDTO.Action action,
+            final boolean keepItShort) {
+
+        if (!action.getInfo().hasAtomicResize()) {
+            logger.warn("Cannot build atomic resize explanation for non-resize action {}", action.getId());
+            return Collections.emptySet();
+        }
+
+        AtomicResize atomicResize = action.getInfo().getAtomicResize();
+
+        final String coreExplanation = buildAtomicResizeCoreExplanation(action);
+        if (keepItShort) {
+            return Collections.singleton(coreExplanation);
+        }
+
+        final Set<String> resizeInfoExplanations = new HashSet<>();
+        for (ResizeInfo resize : atomicResize.getResizesList()) {
+
+            String resizeExplanation;
+
+            final String commodityType = commodityDisplayName(resize.getCommodityType(), keepItShort)
+                    + (resize.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
+
+            final boolean isResizeDown = action.getInfo().getResize().getOldCapacity()
+                                            > action.getInfo().getResize().getNewCapacity();
+            if (isResizeDown) {
+                resizeExplanation = UNDERUTILIZED_EXPLANATION + commodityType;
+            } else {
+                resizeExplanation = commodityType + CONGESTION_EXPLANATION;
+            }
+
+            StringBuilder sb = new StringBuilder();
+            String targetClause = resize.hasTarget()
+                    ? " in " + buildEntityTypeAndName(resize.getTarget())
+                    : "";
+            sb.append(resizeExplanation).append(targetClause);
+
+            CommodityDTO.CommodityType commodity = CommodityDTO.CommodityType
+                    .forNumber(resize.getCommodityType().getType());
+
+            String format_capacity =  "{0} [Resize {1} {2} from {3} to {4}]";
+            String format_reservation = "{0} [Resize {1} {2} reservation from {3} to {4}]";
+
+            String explanation = MessageFormat.format(
+                    resize.getCommodityAttribute() == CommodityAttribute.CAPACITY ? format_capacity : format_reservation,
+                    sb.toString(),
+                    resize.getNewCapacity() > resize.getOldCapacity() ? "UP" : "DOWN",
+                    beautifyCommodityType(resize.getCommodityType()),
+                    ActionDescriptionBuilder.formatResizeActionCommodityValue(
+                            commodity, resize.getTarget().getType(), resize.getOldCapacity()),
+                    ActionDescriptionBuilder.formatResizeActionCommodityValue(
+                            commodity, resize.getTarget().getType(), resize.getNewCapacity())
+            );
+
+            resizeInfoExplanations.add(explanation);
+        }
+
+        StringBuilder allExplanations = new StringBuilder();
+        allExplanations.append(coreExplanation).append(" - ");
+        allExplanations.append(String.join(", ", resizeInfoExplanations));
+
+        return Collections.singleton(allExplanations.toString());
+    }
+
+    private static String buildAtomicResizeCoreExplanation(ActionDTO.Action action) {
         StringBuilder sb = new StringBuilder(ActionDTOUtil.TRANSLATION_PREFIX);
-        Resize resize = action.getInfo().getResize();
-        String commodityType = ActionDTOUtil.getCommodityDisplayName(resize.getCommodityType());
-        // if we have a target, we will try to show it's name in the explanation
-        String targetClause = resize.hasTarget()
-                ? " in "+ buildEntityTypeAndName(resize.getTarget())
+        AtomicResize atomicResize = action.getInfo().getAtomicResize();
+        String targetClause = atomicResize.hasExecutionTarget()
+                ? " Merged on " + buildEntityTypeAndName(atomicResize.getExecutionTarget())
                 : "";
 
-        if (isResizeDown) {
-            sb.append("Underutilized ").append(commodityType).append(targetClause);
-        }
-        else {
-            sb.append(commodityType).append(" congestion").append(targetClause);
-        }
+        sb.append(targetClause);
         return sb.toString();
     }
 
     /**
-     * Build a delete explanation.  For now, this only handles wasted files all of which have the
-     * same static explanation.
+     * Build resize explanation.
+     * e.g. full explanation:
+     *      resize down: "Underutilized Mem in {entity name}"
+     *      resize up: "Mem Congestion in {entity name}"
+     * e.g. short explanation:
+     *      resize down: "Underutilized Mem"
+     *      resize up: "Mem Congestion"
+     *
+     * @param action the resize action
+     * @param keepItShort compose a short explanation if true
+     * @return the explanation sentence
+     */
+    private static String buildResizeExplanation(@Nonnull final ActionDTO.Action action,
+                                                 final boolean keepItShort) {
+        // verify it's a resize.
+        if (!action.getInfo().hasResize()) {
+            logger.warn("Can't build resize explanation for non-resize action {}", action.getId());
+            return "";
+        }
+
+        final String resizeExplanation = buildResizeCoreExplanation(action, keepItShort);
+        if (keepItShort) {
+            return resizeExplanation;
+        }
+
+        // since we may show entity name, we are going to build a translatable explanation
+        StringBuilder sb = new StringBuilder(ActionDTOUtil.TRANSLATION_PREFIX);
+        Resize resize = action.getInfo().getResize();
+        // if we have a target, we will try to show it's name in the explanation
+        String targetClause = resize.hasTarget()
+                ? " in "+ buildEntityTypeAndName(resize.getTarget())
+                : "";
+        sb.append(resizeExplanation).append(targetClause);
+        getScalingGroupExplanation(action.getExplanation()).ifPresent(sb::append);
+        return sb.toString();
+    }
+
+    /**
+     * Build resize core explanation.
+     * e.g. full explanation:
+     *      resize down: "Underutilized {commodity name} in {entity name}"
+     *      resize up: "{commodity name} Congestion in {entity name}"
+     * e.g. short explanation:
+     *      resize down: "Underutilized {commodity name}"
+     *      resize up: "{commodity name} Congestion"
+     *
+     * @param action the resize action
+     * @param keepItShort compose a short explanation if true
+     * @return the explanation sentence
+     */
+    private static String buildResizeCoreExplanation(ActionDTO.Action action, final boolean keepItShort) {
+        final Resize resize = action.getInfo().getResize();
+        final String commodityType = commodityDisplayName(resize.getCommodityType(), keepItShort) +
+            (resize.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
+
+        // now modeling this behavior after ActionGeneratorImpl.notifyRightSize() in classic.
+        // NOT addressing special cases for: Ready Queue, Reserved Instance, Cloud Template, Fabric
+        // Interconnect, VStorage, VCPU. If we really need those, we can add them in as necessary.
+        final boolean isResizeDown = action.getInfo().getResize().getOldCapacity() >
+            action.getInfo().getResize().getNewCapacity();
+        if (isResizeDown) {
+            return UNDERUTILIZED_EXPLANATION + commodityType;
+        } else {
+            return commodityType + CONGESTION_EXPLANATION;
+        }
+    }
+
+    /**
+     * Build a delete explanation.
      *
      * @param action the delete action
      * @return String giving the explanation for the action
      */
     private static String buildDeleteExplanation(ActionDTO.Action action) {
-        return DELETE_WASTED_FILES_EXPLANATION;
-    }
-
-    /**
-     * As of now [1/27/2019], the efficiency message is only used for cloud entities.
-     *
-     * If some commodities resized, then the below explanation will appear:
-     * "{comma-delimited congested commodities list} congestion. Underutilized {comma-delimited underutilized commodities list}"
-     * If no commodities resized and if the destination is an RI, then:
-     * "Increase RI Utilization"
-     * If none of the above conditions are true, then:
-     * "Wasted Cost"
-     *
-     * @param efficiency The efficiency change provider explanation
-     * @return
-     */
-    public static String buildEfficiencyExplanation(Efficiency efficiency) {
-        List<TopologyDTO.CommodityType> overUtilizedComms =  efficiency.getCongestedCommoditiesList();
-        List<TopologyDTO.CommodityType> underUtilizedComms =  efficiency.getUnderUtilizedCommoditiesList();
-        boolean isUtilizationDrivenAction = !overUtilizedComms.isEmpty() || !underUtilizedComms.isEmpty();
-        String efficiencyExplanation = "";
-        if (isUtilizationDrivenAction || efficiency.hasIsRiCoverageIncreased()) {
-            if (isUtilizationDrivenAction) {
-                efficiencyExplanation += buildCommodityUtilizationExplanation(
-                        overUtilizedComms, underUtilizedComms);
-            } else if (efficiency.getIsRiCoverageIncreased()) {
-                efficiencyExplanation += INCREASE_RI_UTILIZATION;
-            }
+        if (action.getInfo().getDelete().getTarget().getEnvironmentType() == EnvironmentType.CLOUD) {
+            return DELETE_WASTED_VOLUMES_EXPLANATION;
         } else {
-            efficiencyExplanation = WASTED_COST;
+            return DELETE_WASTED_FILES_EXPLANATION;
         }
-        return efficiencyExplanation;
     }
 
     /**
-     * Returnd a string of the form:
-     * "{comma-delimited congested commodities list} congestion. Underutilized {comma-delimited underutilized commodities list}"
+     * Build Buy RI explanation.
+     * e.g. full explanation:
+     *      "Increase RI Coverage by 50%"
+     * e.g. short explanation:
+     *      "Increase RI Coverage"
      *
-     * @param congestedComms the congested commodities list
-     * @param underUtilizedComms the under-utilized commodities list
-     * @return
+     * @param action the action to explain
+     * @param keepItShort compose a short explanation if true
+     * @return the explanation sentence
      */
-    public static String buildCommodityUtilizationExplanation(
-            @Nonnull List<TopologyDTO.CommodityType> congestedComms,
-            @Nonnull List<TopologyDTO.CommodityType> underUtilizedComms) {
-        boolean areCongestedCommoditiesPresent = !congestedComms.isEmpty();
-        boolean areUnderUtilizedCommoditiesPresent = !underUtilizedComms.isEmpty();
-        String commUtilizationExplanation = "";
-        if (areCongestedCommoditiesPresent) {
-            commUtilizationExplanation = congestedComms.stream().map(
-                    c -> ActionDTOUtil.getCommodityDisplayName(c))
-                    .collect(Collectors.joining(", ")) + " congestion";
-            if (areUnderUtilizedCommoditiesPresent) {
-                commUtilizationExplanation += ". ";
-            }
+    private static String buildBuyRIExplanation(
+            @Nonnull final ActionDTO.Action action, final boolean keepItShort) {
+        final BuyRIExplanation buyRI = action.getExplanation().getBuyRI();
+        if (buyRI.getTotalAverageDemand() <= 0) {
+            return INVALID_BUY_RI_EXPLANATION;
         }
-        if (areUnderUtilizedCommoditiesPresent) {
-            commUtilizationExplanation += "Underutilized " + underUtilizedComms.stream().map(
-                    c -> ActionDTOUtil.getCommodityDisplayName(c)).collect(Collectors.joining(", "));
+        if (keepItShort) {
+            return BUY_RI_EXPLANATION;
         }
-        return commUtilizationExplanation;
+        float coverageIncrease = (buyRI.getCoveredAverageDemand() / buyRI.getTotalAverageDemand()) * 100;
+        return BUY_RI_EXPLANATION + " by " + Math.round(coverageIncrease) + "%";
     }
 
     /**
-     * Given an {@link ActionEntity}, create a translation fragment that shows the entity type and name.
+     * Build activate explanation.
+     * e.g. full explanation:
+     *      "Address high utilization of Mem" or "Add more resource to satisfy the increased demand"
+     * e.g. short explanation:
+     *      "CPU congestion" or "Overutilized resources"
      *
-     * e.g. For a VM named "Bill", create a fragment that would translate to "Virtual Machine Bill".
-     *
-     * @param entity
-     * @return
+     * @param action the action to explain
+     * @param keepItShort compose a short explanation if true
+     * @return the explanation sentence
      */
-    private static String buildEntityTypeAndName(ActionEntity entity) {
-        return ActionDTOUtil.upperUnderScoreToMixedSpaces(EntityType.forNumber(entity.getType()).name())
-                +" "+ ActionDTOUtil.createTranslationBlock(entity.getId(), "displayName", "");
+    private static String buildActivateExplanation(
+            @Nonnull final ActionDTO.Action action, final boolean keepItShort) {
+        final Explanation explanation = action.getExplanation();
+        if (!explanation.getActivate().hasMostExpensiveCommodity()) {
+            return keepItShort ? OVERUTILIZED_RESOURCES_CATEGORY : ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM;
+        } else {
+            final String commodityName =
+                UICommodityType.fromType(explanation.getActivate().getMostExpensiveCommodity()).apiStr();
+            return keepItShort ? commodityName + CONGESTION_EXPLANATION :
+                ACTIVATE_EXPLANATION_WITH_REASON_COMM + commodityName;
+        }
     }
 
     /**
-     * Given an {@link ActionEntity}, create a translation fragment that shows the entity name, if
-     * available, otherwise will show the entity type if for some reason the entity cannot be found
-     * when the text is translated.
+     * Build deactivate explanation.
+     * e.g. Improve infrastructure efficiency
      *
-     * For example, for a VM named "Bill", the fragment will render "Bill" if the entity name field
-     * is available, otherwise it will render "Virtual Machine".
-     *
-     * @param entity
-     * @return
+     * @return the explanation sentence
      */
-    private static String buildEntityNameOrType(ActionEntity entity) {
-        return ActionDTOUtil.createTranslationBlock(entity.getId(), "displayName",
-                ActionDTOUtil.upperUnderScoreToMixedSpaces(EntityType.forNumber(entity.getType()).name()));
-    }
-
-    /**
-     * Build activate explanation. e.g. "Address high utilization of {commodity type}"
-     *
-     * @param commodityType the most expensive commodity type
-     * @return explanation
-     */
-    public static String buildActivateExplanation(final int commodityType) {
-        return new StringBuilder().append(ACTIVATE_EXPLANATION_WITH_REASON_COMM)
-            .append(COMMODITY_TYPE_TO_STRING_MAPPER.get(CommodityType.forNumber(commodityType))).toString();
-    }
-
-    /**
-     * Build deactivate explanation, e.g. "Improve infrastructure efficiency."
-     *
-     * @return explanation
-     */
-    public static String buildDeactivateExplanation() {
+    private static String buildDeactivateExplanation() {
         return DEACTIVATE_EXPLANATION;
     }
 
     /**
-     * Build reconfigure explanation, i.e.
+     * Build reconfigure explanation.
+     * e.g. full explanation:
+     *      "Enable supplier to offer requested resource(s) Ballooning, Network Commodity test_network"
+     *   or "{entity:1:displayName:Virtual Machine} doesn't comply to settingName"
+     * e.g. short explanation:
+     *      "Misconfiguration"
      *
-     *     "Enable supplier to offer requested resource(s) {comma-delimited commodity names}"
-     *
-     * @param commodityTypes a list of missing commodity types
-     * @return explanation
+     * @param action the action to explain
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @param keepItShort compose a short explanation if true
+     * @return the explanation sentence
      */
-    public static String buildReconfigureExplanation(
-        @Nonnull final Collection<TopologyDTO.CommodityType> commodityTypes) {
-        StringBuilder sb = new StringBuilder().append(RECONFIGURE_EXPLANATION);
-        sb.append(commodityTypes.stream().map(commodityType ->
-                ActionDTOUtil.getCommodityDisplayName(commodityType))
-                .collect(Collectors.joining(", ")));
+    private static String buildReconfigureExplanation(
+            @Nonnull final ActionDTO.Action action,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
+            final boolean keepItShort) {
+        if (keepItShort) {
+            return RECONFIGURE_EXPLANATION_CATEGORY;
+        }
+
+        final Explanation explanation = action.getExplanation();
+        final ReconfigureExplanation reconfigExplanation = explanation.getReconfigure();
+        final StringBuilder sb = new StringBuilder();
+        if (!reconfigExplanation.getReasonSettingsList().isEmpty()) {
+            sb.append(ActionDTOUtil.TRANSLATION_PREFIX)
+                .append(buildReasonSettingsExplanation(action.getInfo().getReconfigure().getTarget(),
+                    reconfigExplanation.getReasonSettingsList(),
+                    settingPolicyIdToSettingPolicyName, false));
+        } else {
+            sb.append(buildReconfigureReasonCommodityExplanation(
+                reconfigExplanation.getReconfigureCommodityList()));
+        }
+        getScalingGroupExplanation(action.getExplanation()).ifPresent(sb::append);
         return sb.toString();
     }
 
     /**
-     * Build provision explanation for addressing high demand. This looks like:
+     * Build reconfigure explanation due to reason commodities.
      *
-     * "No current supplier has enough capacity to satisfy demand for [{commodity name} whose requested
-     * amount is {request amount} but max available is {max available}]" (where the bracketed
-     * section is repeated once per commodity in demand)
+     * e.g. full explanation:
+     *      "Enable supplier to offer requested resource(s) Ballooning, Network Commodity test_network"
      *
-     * @param entries a list of entries containing commodity base type, the requested amount of
-     * it and the max available amount of it.
-     * @return explanation
+     * @param commodityTypes a list of missing reason commodities
+     * @return the explanation sentence
      */
-    public static String buildProvisionByDemandExplanation(List<CommodityMaxAmountAvailableEntry> entries) {
-        StringBuilder sb = new StringBuilder().append(PROVISION_BY_DEMAND_EXPLANATION);
-        entries.forEach(entry -> sb
-            .append(COMMODITY_TYPE_TO_STRING_MAPPER.get(CommodityType.forNumber(entry.getCommodityBaseType())))
-            .append(" ")
-            .append(" whose requested amount is ")
-            .append(entry.getRequestedAmount())
-            .append(" but max available is ")
-            .append(entry.getMaxAmountAvailable()).append(" "));
-        return sb.toString();
+    private static String buildReconfigureReasonCommodityExplanation(
+            @Nonnull final Collection<ReasonCommodity> commodityTypes) {
+        return RECONFIGURE_REASON_COMMODITY_EXPLANATION +
+            commodityTypes.stream().map(reason ->
+                getCommodityDisplayName(reason.getCommodityType()))
+                .collect(Collectors.joining(", "));
     }
 
     /**
-     * Build provision explanation for addressing high utilization, e.g. "{commodity type} congestion"
+     * Build reason setting explanation.
+     * e.g. full explanation:
+     *      "{entity:1:displayName:Virtual Machine} doesn't comply to settingName"
+     * e.g. short explanation:
+     *      "Setting policy compliance"
      *
-     * @param commodity the most expensive commodity base type
-     * @return explanation
+     * @param target the target entity
+     * @param reasonSettings a list of settingPolicyIds that causes this action
+     * @param keepItShort generate short explanation or not
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @return the explanation sentence
      */
-    public static String buildProvisionBySupplyExplanation(int commodity) {
-        return new StringBuilder()
-                .append(COMMODITY_TYPE_TO_STRING_MAPPER.get(CommodityType.forNumber(commodity)))
-                .append(" congestion")
-                .toString();
+    private static String buildReasonSettingsExplanation(
+            @Nonnull final ActionEntity target, @Nonnull final List<Long> reasonSettings,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName, final boolean keepItShort) {
+        if (keepItShort) {
+            return REASON_SETTING_EXPLANATION_CATEGORY;
+        }
+        return MessageFormat.format(REASON_SETTINGS_EXPLANATION, buildEntityNameOrType(target),
+            reasonSettings.stream().map(settingPolicyIdToSettingPolicyName::get).collect(Collectors.joining(", ")));
     }
 
+    /**
+     * Build provision explanation.
+     * e.g. full explanation:
+     *      "CPU, Mem Congestion in '{entity:1:displayName:Physical Machine}'"
+     * e.g. short explanation:
+     *      Set("CPU Congestion", "Mem Congestion")
+     *
+     *
+     * @param action the action to explain
+     * @param keepItShort compose a short explanation if true
+     * @return the explanation sentence
+     */
+    private static Set<String> buildProvisionExplanation(
+            @Nonnull final ActionDTO.Action action, final boolean keepItShort) {
+        final Explanation explanation = action.getExplanation();
+        final ProvisionExplanation provisionExplanation = explanation.getProvision();
+        switch (provisionExplanation.getProvisionExplanationTypeCase()) {
+            case PROVISION_BY_DEMAND_EXPLANATION:
+                final Set<String> commodityNames =
+                    getProvisionByDemandCommodityNames(provisionExplanation, keepItShort);
+                if (keepItShort) {
+                    return commodityNames.stream()
+                        .map(commodityName -> commodityName + CONGESTION_EXPLANATION)
+                        .collect(Collectors.toSet());
+                } else {
+                    return Collections.singleton(ActionDTOUtil.TRANSLATION_PREFIX +
+                        String.join(", ", commodityNames) + CONGESTION_EXPLANATION + " in '" +
+                        buildEntityNameOrType(action.getInfo().getProvision().getEntityToClone()) + "'");
+                }
+            case PROVISION_BY_SUPPLY_EXPLANATION:
+                return Collections.singleton(buildProvisionBySupplyExplanation(provisionExplanation, keepItShort));
+            default:
+                return Collections.singleton(keepItShort ? ACTION_ERROR_CATEGORY : ACTION_TYPE_ERROR);
+        }
+    }
+
+    /**
+     * Return a set of commodity names of a provision by demand explanation.
+     *
+     * @param provisionExplanation provision explanation
+     * @param keepItShort compose a short explanation if true
+     * @return a set of commodity names
+     */
+    private static Set<String> getProvisionByDemandCommodityNames(
+            @Nonnull final ProvisionExplanation provisionExplanation, final boolean keepItShort) {
+        return provisionExplanation.getProvisionByDemandExplanation()
+            .getCommodityMaxAmountAvailableList().stream()
+            .map(CommodityMaxAmountAvailableEntry::getCommodityBaseType)
+            .map(baseType -> CommodityType.newBuilder().setType(baseType).build())
+            .map(commodityType -> commodityDisplayName(commodityType, keepItShort))
+            .collect(Collectors.toSet());
+    }
+
+    /**
+     * Build provision by supply explanation.
+     * e.g. "Storage Latency Congestion"
+     *
+     * @param provisionExplanation provision explanation
+     * @param keepItShort compose a short explanation if true
+     * @return the explanation sentence
+     */
+    private static String buildProvisionBySupplyExplanation(
+            @Nonnull final ProvisionExplanation provisionExplanation, final boolean keepItShort) {
+        return commodityDisplayName(provisionExplanation.getProvisionBySupplyExplanation()
+            .getMostExpensiveCommodityInfo().getCommodityType(), keepItShort) + CONGESTION_EXPLANATION;
+    }
+
+    /**
+     * Build congestion explanation with time slots, if needed.
+     *
+     * @param reasonCommodity Commodity causing the move
+     * @param keepItShort Short of long explanation
+     * @return Explanation string
+     */
+    @Nonnull
+    private static String buildExplanationWithTimeSlots(@Nonnull final ReasonCommodity reasonCommodity,
+                                                        final boolean keepItShort) {
+        String commodityDisplayName = commodityDisplayName(reasonCommodity.getCommodityType(),
+            keepItShort);
+        if (keepItShort || !reasonCommodity.hasTimeSlot()) {
+            return commodityDisplayName;
+        }
+        final Pair<Long, Long> timeSlotEndPoints = getTimeSlotEndPoints(reasonCommodity);
+        if (timeSlotEndPoints == null) {
+            return commodityDisplayName;
+        }
+        final SimpleDateFormat formatter = new SimpleDateFormat("hh:mm a");
+        formatter.setTimeZone(TimeZone.getTimeZone("UTC"));
+        final Date today = new Date();
+        today.setTime(timeSlotEndPoints.first);
+        final String startStr = formatter.format(today);
+        today.setTime(timeSlotEndPoints.second);
+        final String endStr = formatter.format(today);
+        commodityDisplayName += " at " + startStr + " - " + endStr;
+        return commodityDisplayName;
+    }
+
+    /**
+     * Convert slot number to times within the day.
+     *
+     * @param reasonCommodity Commodity with time slot
+     * @return Array with start/end time corresponding to the slot number, or null if we failed
+     * to convert it.
+     */
+    @Nullable
+    private static Pair<Long, Long> getTimeSlotEndPoints(@Nonnull final ReasonCommodity reasonCommodity) {
+        final int totalSlotNumber = reasonCommodity.getTimeSlot().getTotalSlotNumber();
+        if (totalSlotNumber == 0) {
+            logger.error("Total number of time slots is 0 in ReasonCommodity {}",
+                () -> reasonCommodity);
+            return null;
+        }
+        final int slot = reasonCommodity.getTimeSlot().getSlot();
+        if (slot < 0 || slot >= totalSlotNumber) {
+            logger.error("Time slot {} is not a positive number less than configured number of " +
+                    "time slots {} in ReasonCommodity {}", () -> slot, () -> totalSlotNumber,
+                () -> reasonCommodity);
+            return null;
+        }
+        final Duration eachSlotDuration = Duration.ofHours(24 / totalSlotNumber);
+        final long start = (slot * eachSlotDuration.toMillis());
+        final long end = start + eachSlotDuration.toMillis();
+        return new Pair<>(start, end);
+    }
 }

@@ -4,10 +4,11 @@ import java.util.Collections;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
-
-import jdk.nashorn.internal.ir.annotations.Immutable;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -71,5 +72,13 @@ public class NumericSettingDataType extends AbstractSettingDataType<Float> {
                 .setDefault(getDefault())
                 .putAllEntityDefaults(getEntityDefaults())
                 .build());
+    }
+
+    @Override
+    @Nullable
+    public Float getValue(@Nullable Setting setting) {
+        return setting == null || !setting.hasNumericSettingValue()
+                        || !setting.getNumericSettingValue().hasValue() ? null
+                                        : setting.getNumericSettingValue().getValue();
     }
 }

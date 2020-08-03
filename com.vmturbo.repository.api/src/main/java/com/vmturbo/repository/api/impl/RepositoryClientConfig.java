@@ -7,6 +7,10 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -14,18 +18,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
-
 import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.repository.api.Repository;
+import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
+import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.repository.api.TopologyAvailabilityTracker;
 
 /**
  * Configuration for the Repository gRPC API Client.
@@ -47,6 +49,12 @@ public class RepositoryClientConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
+
+    @Value("${kafkaReceiverTimeoutSeconds:3600}")
+    private int kafkaReceiverTimeoutSeconds;
+
     @Autowired
     private BaseKafkaConsumerConfig kafkaConsumerConfig;
 
@@ -59,27 +67,45 @@ public class RepositoryClientConfig {
 
     @Bean
     protected IMessageReceiver<RepositoryNotification> repositoryClientMessageReceiver() {
-        return kafkaConsumerConfig.kafkaConsumer()
-                .messageReceiver(RepositoryNotificationReceiver.TOPOLOGY_TOPIC,
-                        RepositoryNotification::parseFrom);
+        return kafkaConsumerConfig.kafkaConsumer().messageReceiverWithSettings(
+            new TopicSettings(RepositoryNotificationReceiver.TOPOLOGY_TOPIC, StartFrom.BEGINNING),
+            RepositoryNotification::parseFrom);
     }
 
     @Bean
-    public Repository repository() {
+    public RepositoryNotificationReceiver repository() {
         return new RepositoryNotificationReceiver(repositoryClientMessageReceiver(),
-                repositoryClientThreadPool());
+                repositoryClientThreadPool(), kafkaReceiverTimeoutSeconds);
     }
 
     @Bean
     public Channel repositoryChannel() {
-        return GrpcChannelFactory.newChannelBuilder(repositoryHost, grpcPort)
+        return ComponentGrpcServer.newChannelBuilder(repositoryHost, grpcPort)
                 .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
     }
 
+    /**
+     * Utility class to help wait for topologies to become available.
+     *
+     * @return The {@link TopologyAvailabilityTracker}.
+     */
+    @Bean
+    public TopologyAvailabilityTracker topologyAvailabilityTracker() {
+        final TopologyAvailabilityTracker topologyAvailabilityTracker =
+            new TopologyAvailabilityTracker(realtimeTopologyContextId);
+        repository().addListener(topologyAvailabilityTracker);
+        return topologyAvailabilityTracker;
+    }
+
+    /**
+     * Bean for Repository Client.
+     *
+     * @return RepositoryClient.
+     */
     @Bean
     public RepositoryClient repositoryClient() {
-        return new RepositoryClient(repositoryChannel());
+        return new RepositoryClient(repositoryChannel(), realtimeTopologyContextId);
     }
 
     @Bean

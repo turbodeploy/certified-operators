@@ -2,7 +2,7 @@ package com.vmturbo.topology.processor.api;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 
@@ -25,19 +25,24 @@ public interface EntitiesListener {
      * is not yet processed and may cause inter-component blocks.
      *
      * @param topologyInfo contains basic fields of topology message:
-     *        topologyContextId: An ID used by the market runner to identify plans for the
-     *        purpose of accepting/rejecting/preempting market run requests. The market runner
-     *        will only execute one plan with a given topologyContextId at a time.
-     *        topologyId: The ID of the topology that the set of entities represents.
-     *        As consumers of the topology operate upon it, they should include this ID
-     *        in their log messages so that transactions can be audited in the logs across
-     *        different components in the system. The topology processor will generate a new
-     *        ID each time it broadcasts the topology.
-     *        creationTime: The time of topology message created.
+     *                     topologyContextId: An ID used by the market runner to identify plans
+     *                     for the purpose of accepting/rejecting/preempting market run requests. The
+     *                     market runner
+     *                     will only execute one plan with a given topologyContextId at a time.
+     *                     topologyId: The ID of the topology that the set of entities represents.
+     *                     As consumers of the topology operate upon it, they should include this ID
+     *                     in their log messages so that transactions can be audited in the logs
+     *                     across
+     *                     different components in the system. The topology processor will
+     *                     generate a new
+     *                     ID each time it broadcasts the topology.
+     *                     creationTime: The time of topology message created.
      * @param topologyDTOs Remote iterator to retrieve the complete set of stitched entities that
-     *      compose the the full topology snapshot. This object is valid only during the method
-     *      call. it will throw {@link IllegalStateException} if called after the method exists.
+     *                     compose the the full topology snapshot. This object is valid only
+     *                     during the method
+     *                     call. it will throw {@link IllegalStateException} if called after the
+     *                     method exists.
      */
     void onTopologyNotification(@Nonnull TopologyInfo topologyInfo,
-            @Nonnull RemoteIterator<TopologyEntityDTO> topologyDTOs);
+                                @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs);
 }

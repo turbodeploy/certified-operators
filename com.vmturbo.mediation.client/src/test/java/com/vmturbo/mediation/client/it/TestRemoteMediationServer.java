@@ -3,12 +3,17 @@ package com.vmturbo.mediation.client.it;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nonnull;
+
 import org.junit.Assert;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.InitializationContent;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
+import com.vmturbo.topology.processor.communication.ProbeContainerChooserImpl;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 
@@ -20,8 +25,12 @@ public class TestRemoteMediationServer extends RemoteMediationServer {
     private final Semaphore closeSemaphore = new Semaphore(1);
     private final Semaphore transportSemaphore = new Semaphore(0);
 
+     /**
+     * Creates a new TestRemoteMediationServer.
+     * @param  probeStore contains the probes
+     */
     public TestRemoteMediationServer(ProbeStore probeStore) {
-        super(probeStore);
+        super(probeStore, null, new ProbeContainerChooserImpl(probeStore));
     }
 
     @Override
@@ -47,8 +56,18 @@ public class TestRemoteMediationServer extends RemoteMediationServer {
     @Override
     public void registerTransport(ContainerInfo containerInfo,
                     ITransport<MediationServerMessage, MediationClientMessage> serverEndpoint) {
-        super.registerTransport(containerInfo, serverEndpoint);
-        transportSemaphore.release();
+        try {
+            super.registerTransport(containerInfo, serverEndpoint);
+        } finally {
+            transportSemaphore.release();
+        }
+    }
+
+    @Override
+    public InitializationContent getInitializationContent(@Nonnull ContainerInfo containerInfo) {
+        return InitializationContent.newBuilder()
+                .setProbeProperties(SetProperties.newBuilder().build())
+                .build();
     }
 
     public void awaitTransportRegistered() throws InterruptedException {

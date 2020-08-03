@@ -232,7 +232,8 @@ public class ActionPlanGenerator {
             EntityType.BUSINESS_APPLICATION,
             EntityType.APPLICATION_SERVER,
             EntityType.APPLICATION,
-            EntityType.VIRTUAL_APPLICATION,
+            EntityType.APPLICATION_COMPONENT,
+            EntityType.SERVICE,
             EntityType.CHASSIS,
             EntityType.CONTAINER,
             EntityType.CONTAINER_POD
@@ -389,7 +390,7 @@ public class ActionPlanGenerator {
                                     @Nonnull final Chooser chooser) {
             return Action.newBuilder()
                 .setId(IdentityGenerator.next())
-                .setImportance(chooser.nextDouble())
+                .setDeprecatedImportance(chooser.nextDouble())
                 .setExplanation(explanationBuilder)
                 .setInfo(actionBuilder)
                 .setExecutable(true)
@@ -491,8 +492,8 @@ public class ActionPlanGenerator {
             return makeAction(
                 Explanation.newBuilder()
                     .setResize(ResizeExplanation.newBuilder()
-                        .setStartUtilization(chooser.nextFloat())
-                        .setEndUtilization(chooser.nextFloat())),
+                        .setDeprecatedStartUtilization(chooser.nextFloat())
+                        .setDeprecatedEndUtilization(chooser.nextFloat())),
                 ActionInfo.newBuilder()
                     .setResize(Resize.newBuilder()
                         .setTarget(chooser.actionEntity())

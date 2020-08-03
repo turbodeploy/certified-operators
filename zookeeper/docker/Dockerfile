@@ -1,8 +1,19 @@
-FROM registry.access.redhat.com/rhel7
+FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
+# Required OpenShift Labels
+LABEL name="zookeeper" \
+      vendor="Turbonomic" \
+      version="7" \
+      release="1" \
+      summary="zookeeper" \
+      description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
+
+# Required Licenses
+COPY licenses /licenses
+
 # This is the release of Zookeeper to pull in.
-ENV ZOOKEEPER_VERSION=3.4.10
+ENV ZOOKEEPER_VERSION=3.5.8
 
 # Create a zookeeper user and group first so the IDs get set the same way, even as
 # the rest of this may change over time.
@@ -13,15 +24,18 @@ passwd -l root
 COPY start_zookeeper /
 COPY zookeeper-ready /
 
-RUN yum install -y rsyslog java-11-openjdk-headless && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+# Install rsyslog and java-11 packages
+RUN dnf install -y rsyslog procps-ng python2 java-11-openjdk-headless gnutls && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+ARG ZOOKEEPER_TAR=apache-zookeeper-${ZOOKEEPER_VERSION}-bin.tar.gz
 
 RUN cd /tmp && \
-    curl -k -s -O https://10.10.150.66/repository/xl/zookeeper-${ZOOKEEPER_VERSION}.tar.gz && \
-    tar -C /opt -xvf zookeeper-${ZOOKEEPER_VERSION}.tar.gz && \
-    ln -s zookeeper-${ZOOKEEPER_VERSION} /opt/zookeeper && \
-    rm zookeeper-${ZOOKEEPER_VERSION}.tar.gz && \
+    curl -k -s -O http://apache.mirrors.pair.com/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/${ZOOKEEPER_TAR} && \
+    tar -C /opt -xvf ${ZOOKEEPER_TAR} && \
+    ln -s apache-zookeeper-${ZOOKEEPER_VERSION}-bin /opt/zookeeper && \
+    rm ${ZOOKEEPER_TAR} && \
     mkdir /tmp/zookeeper && \
     chown -R zookeeper /tmp/zookeeper && \
     mkdir /var/lib/zoo && \

@@ -3,37 +3,44 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-import org.apache.commons.lang3.StringUtils;
+import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
 
+import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.GsonPostProcessable;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
  * Responsible for loading the {@link SettingsManagerMapping}s from a file at system startup.
@@ -49,6 +56,16 @@ public class SettingsManagerMappingLoader {
     private static final Logger logger = LogManager.getLogger();
 
     private final SettingsManagerMapping mapping;
+
+    private static final Set<EntitySettingSpecs> virtualMachineResizeSettings =
+        new HashSet<>(Arrays.asList(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold,
+            EntitySettingSpecs.ResizeVcpuBelowMinThreshold,
+            EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds,
+            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
+            EntitySettingSpecs.ResizeVmemAboveMaxThreshold,
+            EntitySettingSpecs.ResizeVmemBelowMinThreshold,
+            EntitySettingSpecs.ResizeVmemDownInBetweenThresholds,
+            EntitySettingSpecs.ResizeVmemUpInBetweenThresholds));
 
     public SettingsManagerMappingLoader(@Nonnull final String settingsMgrJsonFileName) throws IOException {
         this.mapping = loadManagerMappings(settingsMgrJsonFileName);
@@ -96,7 +113,8 @@ public class SettingsManagerMappingLoader {
         /**
          * (manager uuid) -> Information about that manager.
          */
-        private final Map<String, SettingsManagerInfo> managersByUuid;
+        @Nonnull
+        private Map<String, SettingsManagerInfo> managersByUuid;
 
         /**
          * A map to quickly look up the manager for a particular setting name.
@@ -104,6 +122,7 @@ public class SettingsManagerMappingLoader {
          * serialization, and is initialized as part
          * of {@link SettingsManagerMapping#postDeserialize()}.
          */
+        @Nonnull
         private transient Map<String, String> settingToManager;
 
         /**
@@ -162,11 +181,74 @@ public class SettingsManagerMappingLoader {
         }
 
         /**
+         * Given a collection of manager names, get the set of setting names controlled by the managers. If
+         * the collection of names is empty, then the return set will be empty too.
+         *
+         * <p>This will generate an {@link IllegalArgumentException} if an unrecognized manager id is requested.
+         *
+         * @param managerUuids the collection of manager uuids to find settings for.
+         * @return the set of setting names owned by the input managers, or an empty set if no managers
+         * were specified.
+         */
+        public Set<String> getSettingNamesForManagers(@Nullable Collection<String> managerUuids) {
+            // get the list of setting names owned by te specified set of managers. If the manager uuid
+            // collection is empty, then the return value will be empty too.
+            return managerUuids == null
+                    ? Collections.emptySet()
+                    : managerUuids.stream()
+                    .map(managerUuid -> {
+                        Optional<SettingsManagerInfo> settingsManagerInfo = getManagerInfo(managerUuid);
+                        if (!settingsManagerInfo.isPresent()) {
+                            throw new IllegalArgumentException("Unsupported manager: " + managerUuid);
+                        }
+                        return settingsManagerInfo.get();
+                    })
+                    .map(SettingsManagerInfo::getSettings)
+                    .flatMap(Set::stream)
+                    .collect(Collectors.toSet());
+        }
+
+        /**
          * Initialize the index of (setting name) -> (mgr uuid) after GSON deserialization
          * of the {@link SettingsManagerMapping#managersByUuid} map.
          */
         @Override
         public void postDeserialize() {
+            // add generated sub settings for action mode
+            final ImmutableMap.Builder<String, SettingsManagerInfo> managersByUuidBuilder =
+                ImmutableMap.<String, SettingsManagerInfo>builder();
+            managersByUuid.forEach((key, value) -> {
+                // We do not add AUTOMATION_MANAGER nor CONTROL_MANAGER here because
+                // we will add them later with the settings from settingManagers.json
+                // and the generated settings from ActionSettingSpecs.
+                // If we added them here, the immutable map builder would complain about
+                // duplicate keys.
+                if (!SettingsService.AUTOMATION_MANAGER.equals(key)
+                        && !SettingsService.CONTROL_MANAGER.equals(key)) {
+                    managersByUuidBuilder.put(key, value);
+                }
+            });
+
+            final Set<String> executionModeSettings =
+                ActionSettingSpecs.getSettingSpecs().stream()
+                    .map(SettingSpec::getName)
+                    .filter(ActionSettingSpecs::isExecutionScheduleSetting)
+                    .collect(Collectors.toSet());
+            replaceManagerSettings(SettingsService.AUTOMATION_MANAGER,
+                executionModeSettings,
+                managersByUuidBuilder);
+            final Set<String> actionWorkflowSettings =
+                ActionSettingSpecs.getSettingSpecs().stream()
+                    .map(SettingSpec::getName)
+                    .filter(
+                        settingName -> !ActionSettingSpecs.isExecutionScheduleSetting(settingName))
+                    .collect(Collectors.toSet());
+            replaceManagerSettings(SettingsService.CONTROL_MANAGER,
+                actionWorkflowSettings,
+                managersByUuidBuilder);
+
+            managersByUuid = managersByUuidBuilder.build();
+
             ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
             managersByUuid.forEach((mgrName, mgrInfo) -> {
                 mgrInfo.getSettings().forEach((settingName) -> {
@@ -178,8 +260,34 @@ public class SettingsManagerMappingLoader {
             settingToManager = builder.build();
         }
 
+        private void replaceManagerSettings(
+                final String managerUuid,
+                final Set<String> newSettings,
+                ImmutableMap.Builder<String, SettingsManagerInfo> managersByUuidBuilder) {
+            SettingsManagerInfo originalManagerInfo = managersByUuid.get(managerUuid);
+            if (originalManagerInfo == null) {
+                // This manager doesn't exist so we don't need to replace it. Some unit tests
+                // don't provide a control manager even though the real file will always have a
+                // control manager.
+                return;
+            }
+            final Set<String> executionSettingIds = ImmutableSet.<String>builder()
+                .addAll(originalManagerInfo.getSettings())
+                .addAll(newSettings)
+                .build();
+            managersByUuidBuilder.put(managerUuid,
+                new SettingsManagerInfo(
+                    originalManagerInfo.getDisplayName(),
+                    originalManagerInfo.getDefaultCategory(),
+                    executionSettingIds,
+                    originalManagerInfo.getPlanSettingInfo().orElseThrow(() ->
+                        new IllegalArgumentException(
+                            "settingManagers.json did not have a planSettingInfo"
+                                + " for " + managerUuid))));
+        }
+
         /**
-         * Convert "regular" setting specs into settings applicable in the plan UI.
+         * Returns settings specs applicable in the plan UI.
          * See {@link PlanSettingInfo}.
          *
          * @param settingMgrs A collection of setting specs for realtime.
@@ -187,23 +295,22 @@ public class SettingsManagerMappingLoader {
          */
         @Nonnull
         public List<SettingsManagerApiDTO> convertToPlanSettingSpecs(
-                @Nonnull final List<SettingsManagerApiDTO> settingMgrs) {
+            @Nonnull final List<SettingsManagerApiDTO> settingMgrs) {
             final ImmutableList.Builder<SettingsManagerApiDTO> retBuilder = ImmutableList.builder();
             settingMgrs.forEach(settingMgr ->
                 getManagerInfo(settingMgr.getUuid()).ifPresent(mgrInfo -> {
                     final SettingsManagerApiDTO newMgr = mgrInfo.newApiDTO(settingMgr.getUuid());
-                    newMgr.setSettings(mgrInfo.getPlanSettingInfo()
-                        .map(planSettingInfo -> settingMgr.getSettings().stream()
-                            // When converting setting specs, we only want to display
-                            // settings that have plan-specific conversions.
-                            .map(planSettingInfo::toPlanSetting)
-                            .filter(Optional::isPresent).map(Optional::get)
-                            .collect(Collectors.toList()))
-                        .orElse(Collections.emptyList()));
-                    retBuilder.add(newMgr);
-            }));
+                    mgrInfo.getPlanSettingInfo().ifPresent(planSettingInfo -> {
+                        newMgr.setSettings(settingMgr.getSettings().stream()
+                            .filter(planSettingInfo::isPlanRelevant)
+                            .collect(Collectors.toList()));
+                        retBuilder.add(newMgr);
+                    });
+                })
+            );
             return retBuilder.build();
         }
+
 
         /**
          * Convert "regular" setting values into settings applicable in the plan UI.
@@ -214,37 +321,69 @@ public class SettingsManagerMappingLoader {
          *         with the plan-specific values.
          */
         @Nonnull
-        public List<SettingApiDTO> convertToPlanSetting(
-                @Nonnull final List<SettingApiDTO> realtimeSettings) {
-            final ImmutableList.Builder<SettingApiDTO> retBuilder = ImmutableList.builder();
-            realtimeSettings.forEach(realtimeSetting ->
-                getManagerForSetting(realtimeSetting.getUuid()).ifPresent(mgrInfo ->
-                    retBuilder.add(mgrInfo.getPlanSettingInfo()
-                        .flatMap(planSettingInfo -> planSettingInfo.toPlanSetting(realtimeSetting))
-                        .orElse(realtimeSetting))));
-            return retBuilder.build();
+        public List<SettingApiDTO<String>> convertToPlanSetting(
+            @Nonnull final List<SettingApiDTO<String>> realtimeSettings) {
+            final List<SettingApiDTO<String>> convertedSettings = new ArrayList<>();
+            String resizeConvertedValue = null;
+            Set<String> virtualMachineResizeSettingNames = virtualMachineResizeSettings
+                .stream().map(EntitySettingSpecs::getSettingName).collect(Collectors.toSet());
+            for (SettingApiDTO realtimeSetting : realtimeSettings) {
+                if (virtualMachineResizeSettingNames.contains(realtimeSetting.getUuid())
+                    && realtimeSetting.getEntityType().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr())) {
+                    resizeConvertedValue = realtimeSetting.getValue().toString();
+                } else {
+                    convertedSettings.add(realtimeSetting);
+                }
+            }
+            addPlanResizeSetting(convertedSettings, resizeConvertedValue);
+            return convertedSettings;
         }
+
 
         /**
          * Convert settings values set in the plan UI, generated from the specs returned by
          * {@link SettingsManagerMapping#convertToPlanSettingSpecs(List)}, into settings parseable
          * in the rest of the system.
          *
-         * See {@link PlanSettingInfo}.
+         *<p>See {@link PlanSettingInfo}.
          *
          * @param planSettings A collection of setting values from the plan UI.
          * @return The settings from planSettings that can be used in the rest of the system.
          */
         @Nonnull
         public List<SettingApiDTO> convertFromPlanSetting(
-                @Nonnull final List<SettingApiDTO> planSettings) {
+                @Nonnull final List<SettingApiDTO<String>> planSettings) {
             final ImmutableList.Builder<SettingApiDTO> retBuilder = ImmutableList.builder();
             planSettings.forEach(planSetting ->
                 getManagerForSetting(planSetting.getUuid()).ifPresent(mgrInfo ->
-                    retBuilder.add(mgrInfo.getPlanSettingInfo()
+                    retBuilder.addAll(mgrInfo.getPlanSettingInfo()
                         .flatMap(planSettingInfo -> planSettingInfo.fromPlanSetting(planSetting))
-                        .orElse(planSetting))));
+                        .orElse(Arrays.asList(planSetting)))));
             return retBuilder.build();
+        }
+
+        /**
+         * Add a Resize setting for the UI. This is needed since resize for vms doesn't exist as
+         * an internal settings, but it maps to the settings defined in virtualMachineResizeSettings
+         *
+         * @param retBuilder Builder for a collection of setting.
+         * @param resizeConvertedValue The converted value for the plan ui for the resize setting.
+         */
+        @VisibleForTesting
+        void addPlanResizeSetting(List<SettingApiDTO<String>> retBuilder,
+                                  String resizeConvertedValue) {
+            if (resizeConvertedValue != null && getManagerForSetting(EntitySettingSpecs.Resize.getSettingName()).isPresent()) {
+                SettingsManagerInfo mgr =
+                    getManagerForSetting(EntitySettingSpecs.Resize.getSettingName()).get();
+                if (mgr.getPlanSettingInfo().isPresent()) {
+                    final SettingApiDTO resizeDto = new SettingApiDTO();
+                    resizeDto.setUuid(EntitySettingSpecs.Resize.getSettingName());
+                    resizeDto.setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+                    resizeDto.setDisplayName(EntitySettingSpecs.Resize.getDisplayName());
+                    resizeDto.setValue(resizeConvertedValue);
+                    retBuilder.add(resizeDto);
+                }
+            }
         }
     }
 
@@ -262,10 +401,6 @@ public class SettingsManagerMappingLoader {
      * and "plan" {@link SettingApiDTO}s.
      */
     public static class PlanSettingInfo {
-        /**
-         * UI-specific value <-> real setting value
-         */
-        private final BiMap<String, String> uiToXlValueConversion;
 
         /**
          * Entity type (num) -> setting name -> default value
@@ -276,57 +411,14 @@ public class SettingsManagerMappingLoader {
          * Default constructor intentionally private. GSON constructs via reflection.
          */
         private PlanSettingInfo() {
-            this.uiToXlValueConversion = HashBiMap.create();
             this.supportedSettingDefaults = HashBasedTable.create();
         }
 
         /**
-         * Convert a {@link SettingApiDTO} representing a "real" setting in the system
-         * to the {@link SettingApiDTO} representing the system for plans.
+         * Convert a {@link SettingApiDTO} representing a value set in a plan setting to a "real"
+         * plan setting that is consistent with the backend values.
          *
-         * @param realSetting The real setting, converted from a {@link SettingSpec}.
-         * @return The {@link SettingApiDTO} to use for the plan UI. An empty optional if this
-         *         setting has no mapping.
-         */
-        @Nonnull
-        public Optional<SettingApiDTO> toPlanSetting(@Nonnull final SettingApiDTO realSetting) {
-            final String defaultValue = supportedSettingDefaults.get(realSetting.getEntityType(),
-                    realSetting.getUuid());
-            if (defaultValue == null) {
-                return Optional.empty();
-            }
-
-            final SettingApiDTO newDto = copySettingInfo(realSetting);
-            newDto.setDefaultValue(defaultValue);
-
-            // Fill in the value if it's present.
-            if (realSetting.getValue() != null) {
-                // ui passes fully-uppercased setting to plan api, such as "AUTOMATIC", it was
-                // converted to camel case (Automatic) in SettingsMapper (due to the conversion
-                // upperUnderScoreToMixedSpaces which is needed to show camel case in UI), however
-                // uiToXlValueConversion is still using "AUTOMATIC", so we need to do a reverse
-                // conversion "mixedSpacesToUpperUnderScore" here to get correct value
-                final String convertedValue = uiToXlValueConversion.inverse().get(
-                    ActionDTOUtil.mixedSpacesToUpperUnderScore(realSetting.getValue()));
-                if (convertedValue == null) {
-                    throw new IllegalArgumentException("Illegal value " + realSetting.getValue() +
-                            " for setting " + realSetting.getUuid() + "meant to be converted to a" +
-                            "plan setting! Legal values are: " +
-                            StringUtils.join(uiToXlValueConversion.values(), ","));
-                }
-                newDto.setValue(convertedValue);
-            }
-
-            return Optional.of(newDto);
-        }
-
-        /**
-         * Convert a {@link SettingApiDTO} representing a value set in a plan setting (generated via
-         * {@link PlanSettingInfo#toPlanSetting(SettingApiDTO)}) to a "real" {@link SettingApiDTO}
-         * that can be converted to a {@link Setting}.
-         *
-         * @param planSetting The plan setting, according to the model generated via
-         *                    {@link PlanSettingInfo#toPlanSetting(SettingApiDTO)}.
+         * @param planSetting The plan setting
          * @return A {@link SettingApiDTO} to use to convert to a {@link Setting}.
          *         This may be the input planSetting if the input was not created from a model
          *         generated by {@link PlanSettingInfo}.
@@ -334,39 +426,44 @@ public class SettingsManagerMappingLoader {
          *         if has a value that's not convertible.
          */
         @Nonnull
-        public Optional<SettingApiDTO> fromPlanSetting(@Nonnull final SettingApiDTO planSetting)
-                throws IllegalArgumentException {
+        public Optional<List<SettingApiDTO>> fromPlanSetting(@Nonnull final SettingApiDTO planSetting)
+            throws IllegalArgumentException {
             if (!supportedSettingDefaults.contains(planSetting.getEntityType(),
-                    planSetting.getUuid())) {
+                planSetting.getUuid())) {
                 return Optional.empty();
             }
 
-            final String convertedValue = uiToXlValueConversion.get(planSetting.getValue());
-            if (convertedValue == null) {
-                throw new IllegalArgumentException("Illegal value " + planSetting.getValue() +
-                        " for plan setting " + planSetting.getUuid() + "! Legal values are: " +
-                        StringUtils.join(uiToXlValueConversion.keySet(), ","));
-            }
+            final String convertedValue = planSetting.getValue().toString();
+            List<SettingApiDTO> newDtos = new ArrayList<>();
+            if (ApiEntityType.fromString(planSetting.getEntityType()).equals(ApiEntityType.VIRTUAL_MACHINE)
+                && planSetting.getUuid().equals(EntitySettingSpecs.Resize.getSettingName())) {
+                virtualMachineResizeSettings.forEach(resizeSetting -> {
+                    final SettingApiDTO newResizeDto = new SettingApiDTO();
+                    newResizeDto.setUuid(resizeSetting.getSettingName());
+                    newResizeDto.setEntityType(planSetting.getEntityType());
+                    newResizeDto.setDisplayName(resizeSetting.getDisplayName());
+                    newResizeDto.setValue(convertedValue);
+                    newDtos.add(newResizeDto);
+                });
+            } else {
+                newDtos.add(planSetting);
 
-            final SettingApiDTO newDto = copySettingInfo(planSetting);
-            newDto.setValue(convertedValue);
-            return Optional.of(newDto);
+            }
+            return Optional.of(newDtos);
         }
 
-        /**
-         * Creates a new {@link SettingApiDTO} that has the same information as an input
-         * {@link SettingApiDTO} for all fields not affected by plan setting conversion.
+         /**
+         * Checks if setting is allowed in Plan UI.
+         * Not all settings are supported and allowed to be configurable in Plans
+         * and we filter out all not supported
          *
-         * @param input The {@link SettingApiDTO} to copy.
-         * @return A new {@link SettingApiDTO}.
+         * @param setting settingApiDto which is checked against those allowed in plan
+         * @param <T> Value of realSetting
+         * @return true if realSetting part of allow plan actions
          */
-        @Nonnull
-        private SettingApiDTO copySettingInfo(@Nonnull final SettingApiDTO input) {
-            final SettingApiDTO newDto = new SettingApiDTO();
-            newDto.setUuid(input.getUuid());
-            newDto.setEntityType(input.getEntityType());
-            newDto.setDisplayName(input.getDisplayName());
-            return newDto;
+        public <T extends Serializable> boolean isPlanRelevant(@Nonnull final SettingApiDTO<T> setting) {
+            return supportedSettingDefaults.get(setting.getEntityType(),
+                    setting.getUuid()) != null;
         }
     }
 
@@ -457,6 +554,34 @@ public class SettingsManagerMappingLoader {
         @Nonnull
         public Optional<PlanSettingInfo> getPlanSettingInfo() {
             return Optional.ofNullable(planSettingInfo);
+        }
+
+        /**
+         * Sort the input setting specs (or other objects that are associated with setting names)
+         * according to the order in which the names appear in the settingManagers.json file.
+         *
+         * @param unordered The unordered objects (e.g. setting specs).
+         * @param nameExtractor Function to extract the name from the object type.
+         * @return An ordered list of the input objects according to the order specified in
+         *         this manager's entry in settingManagers.json.
+         */
+        @Nonnull
+        public <T> List<T> sortSettingSpecs(@Nonnull final Collection<T> unordered,
+                                            @Nonnull final Function<T, String> nameExtractor) {
+            Map<String, Integer> nameIndices = new HashMap<>();
+            int i = 0;
+            // The "settings" set is deserialized by GSON into a linked hash set, which preserves
+            // the order from the settingManagers.json file.
+            for (String name : settings) {
+                nameIndices.put(name, i++);
+            }
+
+            // Sort according to setting names, because the method is called with the argument
+            // SettingSpec::getName corresponding to the nameExtractor parameter
+            final List<T> sortedSpecs = unordered.stream()
+                .sorted(Comparator.comparingInt(spec -> nameIndices.getOrDefault(nameExtractor.apply(spec), -1)))
+                .collect(Collectors.toList());
+            return sortedSpecs;
         }
 
         /**

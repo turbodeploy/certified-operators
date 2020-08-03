@@ -42,6 +42,7 @@ message SettingSpec {
         NumericSettingValueType numeric_setting_value_type = 6;
         StringSettingValueType string_setting_value_type = 7;
         EnumSettingValueType enum_setting_value_type = 8;
+        SortedSetOfOidSettingValueType sorted_set_of_oid_setting_value_type = 10;
     }
 }
 
@@ -99,15 +100,18 @@ message EntitySettingSpec {
 // 2 value for setting about the number of polling cycle to wait, before removing objects: 2 and 5.
 // in this other case, 5 is the more conservative (bigger of the 2).
 //
-// Bigger and smaller are used for any type of setting spec. They refers to the compareTo
-// method for the related java object. Example:
-// For boolean, TRUE is bigger than FALSE.
+// BIGGER and SMALLER are used for any type of setting spec with single value.
+// They refers to the compareTo method for the related java object. Example:
+// For boolean, true is bigger than false.
 // For Enum, the natural order implemented by compareTo is the order in which the constants are
-// declared
+// declared.
 // For String, the lexicographic ordering is used.
+//
+// UNION only applies to lists.
 enum SettingTiebreaker {
     BIGGER = 1;
     SMALLER = 2;
+    UNION = 3;
 }
 
 // EntitySettingScope is associated with an EntitySettingSpec, in order to indicate which
@@ -191,6 +195,29 @@ message EnumSettingValueType {
     map<int32, string> entityDefaults = 4;
 }
 
+// This is used to indicate that a setting is carrying a list type of oids which are strictly ordered.
+// Since protobuf doesn't support set data structure, we can compare values across settings easily
+// in this way, especially for template exclusion setting, which contains a list of excluded tiers.
+// We'll sort strictly the list of oids provided by UI/API inside SettingsMapper.
+// We'll sort strictly the list of oids provided by probe inside DiscoveredSettingPolicyScanner.
+// We'll also check if the list is strictly ordered inside DefaultSettingPolicyValidator
+// before saving the setting into the database.
+message SortedSetOfOidSettingValueType {
+    // This specify the type of the oids.
+    optional Type type = 1 [default = ENTITY];
+
+    enum Type {
+        // This represents a set of entity oids, such as tier oids.
+        ENTITY = 1;
+
+        // This represents a set of group oids.
+        GROUP = 2;
+    }
+
+    // The default set of oids for this setting.
+    repeated int64 default = 2;
+}
+
 // Used to deserialize a collection of Specs from a single JSON file
 message SettingSpecCollection {
     repeated SettingSpec setting_specs = 1;
@@ -203,10 +230,11 @@ message Setting {
     optional string setting_spec_name = 1;
 
     // The value of the setting. May be one of a number of options.
-    // BooleanSettingValue must be paired with a SettingSpec that has a BooleanSettingValueType,
-    // NumericSettingValue must be paired with a SettingSpec that has a NumericSettingValueType,
-    // StringSettingValue must be paired with a SettingSpec that has a StringSettingValueType,
-    // and EnumSettingValue must be paired with a SettingSpec that has a EnumSettingValueType.
+    // BooleanSettingValue must be paired with a SettingSpec that has a BooleanSettingValueType.
+    // NumericSettingValue must be paired with a SettingSpec that has a NumericSettingValueType.
+    // StringSettingValue must be paired with a SettingSpec that has a StringSettingValueType.
+    // EnumSettingValue must be paired with a SettingSpec that has a EnumSettingValueType.
+    // SortedSetOfOidSettingValue must be paired with a SettingSpec that has a SortedSetOfOidSettingValueType.
     //
     // Not complying with the above restrictions results in a Setting that is considered malformed
     // and may produce errors.
@@ -215,6 +243,7 @@ message Setting {
         NumericSettingValue numeric_setting_value = 8;
         StringSettingValue string_setting_value = 9;
         EnumSettingValue enum_setting_value = 10;
+        SortedSetOfOidSettingValue sorted_set_of_oid_setting_value = 11;
     }
 }
 
@@ -236,6 +265,11 @@ message StringSettingValue {
 // Contains the value of a setting that must be one of the options in an enumeration.
 message EnumSettingValue {
     optional string value = 1;
+}
+
+// Contains a strictly ordered list of oids.
+message SortedSetOfOidSettingValue {
+    repeated int64 oids = 1;
 }
 
 // A SettingPolicy binds a group of settings to one or more groups of entities that those settings
@@ -275,7 +309,7 @@ message SettingPolicy {
 // Describes the properties of a SettingPolicy object. For additional information about
 // SettingPolicies, see the comments for the SettingPolicy message.
 message SettingPolicyInfo {
-    // The name of the SettingPolicy, used to name it in the UI.
+    // The name of the SettingPolicy, used as a unique identifier.
     //
     // The name should be unique.
     //
@@ -283,6 +317,9 @@ message SettingPolicyInfo {
     // is not meant to be user-visible. The API component (and UI) should generate the "right"
     // name to use.
     optional string name = 1;
+
+    // The display name of the SettingPolicy, used to name it in the UI.
+    optional string display_name = 9;
 
     // The settings that should be applied to the entities in the scope.
     //
@@ -318,9 +355,14 @@ message SettingPolicyInfo {
     // Default setting policies are always enabled.
     optional bool enabled = 4 [default = true];
 
-    // The period for which the setting policy may apply.
+    // OBSOLETE: use Schedule.proto and set schedule_id here instead.
+    // Keeping the field so that migration code can build
+    optional Schedule __deprecated__schedule = 5 [deprecated = true];
+
+    // The id of the assigned schedule, which specifies the period for which the setting policy may
+    // apply.
     // If not specified, the setting policy may apply all the time.
-    optional Schedule schedule = 5;
+    optional int64 schedule_id = 6;
 
     // The scope of a setting policy is the groups of entities the policy applies to.
     // Default setting policies do not have a scope (see detailed comments above).
@@ -440,23 +482,18 @@ message GetMultipleGlobalSettingsRequest {
 }
 
 message UpdateGlobalSettingRequest {
-    // Name of the Setting which needs to be updated.
-    optional string setting_spec_name = 1;
-
-    // The new value for the setting.
-    // There is a gap in the proto tag numbers because
-    // when new fields are added, new value types can be
-    // assigned contigious numbers
-    oneof value {
-        BooleanSettingValue boolean_setting_value = 6;
-        NumericSettingValue numeric_setting_value = 7;
-        StringSettingValue string_setting_value = 8;
-        EnumSettingValue enum_setting_value = 9;
-    }
+    // A list of settings to update.
+    repeated Setting setting = 1;
 }
 
-message UpdateGlobalSettingResponse {
+message UpdateGlobalSettingResponse {}
+
+message ResetGlobalSettingRequest {
+    // The names of the settings to reset.
+    repeated string setting_spec_name = 1;
 }
+
+message ResetGlobalSettingResponse {}
 
 message GetSettingPolicyRequest {
     // Whether to include the SettingSpecs associated with the Setting objects
@@ -517,6 +554,18 @@ message ListSettingPoliciesRequest {
     optional SettingPolicy.Type type_filter = 1;
     // The type of the topology. is plan or not.
     optional int64 context_Id = 2;
+    // The ids of the setting policies to fetch. If not set, all setting policies are fetched.
+    // It is used in conjunction with other filters here like the type filter.
+    repeated int64 id_filter = 3;
+    // The ids of the workflows. If set than fetch setting policies which have settings with
+    // value equal these workflow ids, otherwise all policies will be returned.
+    repeated int64 workflow_id = 4;
+}
+
+message GetSettingPoliciesUsingScheduleRequest {
+    // The ID of the schedule setting policies are using.
+    // This should be set.
+    optional int64 schedule_id = 1;
 }
 
 // Settings associated with an entity
@@ -540,25 +589,58 @@ message EntitySettings {
     // policy definitions.
     optional int64 default_setting_policy_id = 3;
 
+    // The policy settings associated to entity. One may say this can be derived from the
+    // user_settings but that is not the case as there are two cases that is not happening. One
+    // is that when we have scheduled policy that is not currently active. The other is a policy
+    // that none of its settings wins as an9 entity setting.
+    repeated EntitySettingsPolicy entity_policies = 4;
+
+    // Keeps an policy id and if it is active or not.
+    message EntitySettingsPolicy {
+        // The id for the policy setting
+        optional int64 policy_id = 1;
+        // Indicates if the policy is active or not
+        optional bool active = 2;
+    }
+
     message SettingToPolicyId {
 
         // The setting applied to the entity after conflict resolution.
         optional Setting setting = 1;
 
-        // The ID of the non-default setting policy the setting is associated with.
-        optional int64 setting_policy_id = 2;
+        // The IDs of the non-default setting policies the setting is associated with.
+        repeated int64 setting_policy_id = 2;
 
     }
 }
 
 message UploadEntitySettingsRequest {
-    // required field
-    optional int64 topology_id = 1;
 
-    // required field
-    optional int64 topology_context_id = 2;
+    // A single entity settings upload will contain exactly one context message,
+    // followed by zero or more settings chunks.
+    oneof type {
+        // The context of the request. There will always be a context for each upload.
+        Context context = 1;
 
-    repeated EntitySettings entity_settings = 3;
+        // A chunk of entity settings.
+        SettingsChunk settings_chunk = 2;
+    }
+
+    // The context describes the topology and topology context for the settings upload.
+    message Context {
+        // required field
+        optional int64 topology_id = 1;
+
+        // required field
+        optional int64 topology_context_id = 2;
+    }
+
+    message SettingsChunk {
+        // Each chunk will contain some number of settings. At the time of this writing this
+        // is only called from the Topology Processor, and is controlled by the
+        // entitySettingsChunksSize property.
+        repeated EntitySettings entity_settings = 1;
+    }
 }
 
 message UploadEntitySettingsResponse {
@@ -578,13 +660,20 @@ message TopologySelection {
 }
 
 // This filter restricts the entity settings returned by the service.
+//
+// The conditions in this filter are AND-ed together, and only entity settings that
+// match all the conditions match the filter.
 message EntitySettingFilter {
     // List of entity OIDs to return settings for.
     // If the OID list is absent or empty, return the settings for all entities.
     repeated int64 entities = 1;
 
-    // include the Setting Policies the settings belong to
-    optional bool includeSettingPolicies = 2;
+    // The list of settings to return.
+    // If empty, return all settings.
+    repeated string setting_name = 2;
+
+    // If present, return only entity settings that come from this policy.
+    optional int64 policy_id = 3;
 }
 
 message GetEntitySettingsRequest {
@@ -598,43 +687,54 @@ message GetEntitySettingsRequest {
     // may not care about Topology settings).
     optional EntitySettingFilter setting_filter = 2;
 
+    // include the Setting Policies the settings belong to
+    optional bool includeSettingPolicies = 3;
+}
+
+// Describes the entities affected by a particular setting (i.e. specific setting name and a
+// specific value).
+message EntitySettingGroup {
+
+    message SettingPolicyId {
+        // The id of the setting policy.
+        optional int64 policy_id = 1;
+
+        // The name of the setting policy, for display purposes.
+        optional string display_name = 2;
+
+        // The type of the setting policy.
+        optional SettingPolicy.Type type = 3;
+    }
+
+    // The setting (name + value) shared by all entities in the group.
+    //
+    // For example, if there are two entities, one with "suspend = Manual" and one with
+    // "suspend = Automatic", there would be two setting groups with one entity each.
+    optional Setting setting = 1;
+
+    // If the entity setting request requested the setting policies,
+    // this is set to the setting policy that all entities in the group
+    // get the setting from. This acts as an additional grouping criteria (on top of the setting).
+    // For example, if there are two entities with "suspend = Manual", but one gets the value
+    // from setting policy 1, and one from setting policy 2, there would be two setting groups.
+    // The two setting groups would have the same "setting" field, but a different "policy_id".
+    //
+    // Not set if the entity setting request did NOT request the setting policies.
+    repeated SettingPolicyId policy_id = 2;
+
+    // The entities in the setting group.
+    repeated int64 entity_oids = 10;
 }
 
 // Contains some number of entity settings.
 message GetEntitySettingsResponse {
 
-    message SettingsForEntity {
-        // The ID of the entity
-        // This will always be set.
-        optional int64 entity_id = 1;
-
-        // The settings on the entity that match the filter in the request.
-        // This list may be empty if no matching settings exist.
-        repeated SettingToPolicyName settings = 2;
-
-        // The setting policy this setting is associated with.
-        optional SettingPolicy settingPolicy = 3;
-    }
-
-    // The settings that match the filters in the request.
-    //
-    // If the request contains an explicit set of entities to get settings for, the
-    // response will contain an entry for every specified entity. If the request is
-    // for all entities, the response will only return entries for entities that have settings
-    // matching the parameters in the request.
+    // The entity settings that match the filters in the request, collected into groups.
+    // See the EntitySettingGroup documentation.
     //
     // A property (tentatively entitySettingsResponseChunkSize) will control the amount of entity
-    // settings in each chunk.
-    repeated SettingsForEntity settings = 1;
-
-    message SettingToPolicyName {
-
-        // The setting applied to the entity after conflict resolution.
-        optional Setting setting = 1;
-
-        // The name of the non-default setting policy the setting is associated with.
-        optional string setting_policy_name = 2;
-    }
+    // setting groups in each chunk.
+    repeated EntitySettingGroup setting_group = 1;
 }
 
 message GetGlobalSettingResponse {
@@ -659,6 +759,9 @@ service SettingService {
 
     // Update global setting
     rpc UpdateGlobalSetting(UpdateGlobalSettingRequest) returns (UpdateGlobalSettingResponse);
+
+    // Reset global setting
+    rpc ResetGlobalSetting(ResetGlobalSettingRequest) returns (ResetGlobalSettingResponse);
 }
 
 // A request to create a SettingPolicy.
@@ -687,7 +790,9 @@ message ResetSettingPolicyResponse {
 // Return the setting policies associated with an entity.
 message GetEntitySettingPoliciesRequest{
 
-    optional int64 entity_oid = 1;
+    repeated int64 entity_oid_list = 1;
+
+    optional bool includeInactive = 2 [default = false];
 }
 
 message GetEntitySettingPoliciesResponse {
@@ -748,16 +853,22 @@ service SettingPolicyService {
     // List setting policies.
     rpc ListSettingPolicies (ListSettingPoliciesRequest) returns (stream SettingPolicy);
 
+    // Get setting policies using the schedule.
+    // Currently used by schedules API.
+    rpc GetSettingPoliciesUsingSchedule (GetSettingPoliciesUsingScheduleRequest)
+    returns (stream SettingPolicy);
+
     // Store the Entities and their associated Settings
     // karthikt : Should we stream this from the client instead of sending in
     // one request as the number of entites could be huge?
-    rpc UploadEntitySettings(UploadEntitySettingsRequest) returns (UploadEntitySettingsResponse);
+    rpc UploadEntitySettings(stream UploadEntitySettingsRequest) returns
+    (UploadEntitySettingsResponse);
 
     // Retrieve settings associated with a selection of entities.
     // Returns a NOT_FOUND status if there is no setting information for the selected topology.
     rpc GetEntitySettings(GetEntitySettingsRequest) returns (stream GetEntitySettingsResponse);
 
-    // Get setting policies associated with an entity
+    // Get setting policies associated with entities
     rpc GetEntitySettingPolicies(GetEntitySettingPoliciesRequest) returns (GetEntitySettingPoliciesResponse);
 
     // Return the setting policies associated with a group.

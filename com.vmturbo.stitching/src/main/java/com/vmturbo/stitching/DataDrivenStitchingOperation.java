@@ -6,21 +6,24 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Stopwatch;
+import com.google.common.collect.Maps;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
@@ -37,19 +40,22 @@ import com.vmturbo.stitching.utilities.MergeEntities.MergeCommoditySoldStrategy;
  * {@link StitchingMatchingMetaData} is the interface that encapsulates the meta data needed to
  * drive the stitching.
  *
- * @param <INTERNAL_SIGNATURE_TYPE> The type of the signature used for matching with the internal
+ * @param <InternalSignatureT> The type of the signature used for matching with the internal
  *                                 (probe) side.
- * @param <EXTERNAL_SIGNATURE_TYPE> The type of the signature used for matching with the external
+ * @param <ExternalSignatureT> The type of the signature used for matching with the external
  *                                 (server) side.
  */
-public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> implements
-        StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> {
+public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT>
+                implements
+                StitchingOperation<InternalSignatureT, ExternalSignatureT> {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final String INTERNAL = "internal";
+    private static final String EXTERNAL = "external";
 
     // The data structure encapsulating the stitching behavior passed in from the supply chain of
     // the probe.
-    private final StitchingMatchingMetaData<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE>
+    private final StitchingMatchingMetaData<InternalSignatureT, ExternalSignatureT>
             matchingInformation;
 
     // Set of ProbeCategory identifying the categories of probe who we want to stitch with
@@ -61,16 +67,17 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
     private Map<EntityType, EntityType> replacementEntityMap;
 
     /**
-     * Constructor taking {@link StitchingMatchingMetaData} of the appropriate type to define the stitching
-     * behavior.
+     * Constructor taking {@link StitchingMatchingMetaData} of the appropriate type to define the
+     * stitching behavior.
      *
-     * @param matchingInfo {@link StitchingMatchingMetaData} defining the storage behavior.
-     * @param categoriesToStitchWith {@link Set} of {@link ProbeCategory} giving the probe categories that
-     *                                  this stitching operation can stitch with.
+     * @param matchingInfo {@link StitchingMatchingMetaData} defining the stitching
+     *                 behavior.
+     * @param categoriesToStitchWith {@link Set} of {@link ProbeCategory} giving the
+     *                 probe categories that
      */
-    public DataDrivenStitchingOperation(@Nonnull StitchingMatchingMetaData<INTERNAL_SIGNATURE_TYPE,
-            EXTERNAL_SIGNATURE_TYPE> matchingInfo,
-                                        @Nonnull final Set<ProbeCategory> categoriesToStitchWith) {
+    public DataDrivenStitchingOperation(
+                    @Nonnull StitchingMatchingMetaData<InternalSignatureT, ExternalSignatureT> matchingInfo,
+                    @Nonnull final Set<ProbeCategory> categoriesToStitchWith) {
         this.matchingInformation = Objects.requireNonNull(matchingInfo);
         this.categoriesToStitchWith = Objects.requireNonNull(categoriesToStitchWith);
         initReplacementEntityMap();
@@ -135,91 +142,70 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
         return Optional.of(matchingInformation.getExternalEntityType());
     }
 
-    /**
-     * Return a concatenated list of the String values passed in.  This is here as a convenience
-     * method to be called from combineSignatures by subclasses that are matching on String.
-     *
-     * @param matchingValues List of single matching values returned by a matching field or property.
-     * @return Optional string of concatenated values or Optional.empty.
-     */
-    protected static Optional<String> combineStringSignatures(List<String> matchingValues) {
-        if (matchingValues.isEmpty()) {
-            return Optional.empty();
-        }
-        String concatenatedValues = matchingValues.stream()
-                .collect(Collectors.joining(""));
-
-        return Optional.of(concatenatedValues);
-    }
-
-    /**
-     * Method to combine multiple internal signature values into a single value.  Default behavior
-     * is to return first element of list.  Subclasses should override with useful
-     * behavior if they support combining multiple values.
-     *
-     * @param matchingValues List of single matching values returned by a matching field or property.
-     * @return Optional of combined values.
-     */
-    protected Optional<INTERNAL_SIGNATURE_TYPE> combineInternalSignatures(
-            List<INTERNAL_SIGNATURE_TYPE> matchingValues) {
-        if (matchingValues.isEmpty()) {
-            return Optional.empty();
-        }
-        if (matchingValues.size() > 1) {
-            logger.error("Multiple internal signatures returned for a stitching operation without "
-                    + "a defined method to combine values.  No stitching can be done on this entity.");
-            return Optional.empty();
-        }
-        return Optional.of(matchingValues.get(0));
-    }
-
-    /**
-     * Method to combine multiple external signature values into a single value.  Default behavior
-     * is to return first element of list.  Subclasses should override with useful
-     * behavior if they support combining multiple values.
-     *
-     * @param matchingValues List of single matching values returned by a matching field or property.
-     * @return Optional of combined values.
-     */
-    protected Optional<EXTERNAL_SIGNATURE_TYPE> combineExternalSignatures(
-            List<EXTERNAL_SIGNATURE_TYPE> matchingValues) {
-        if (matchingValues.isEmpty()) {
-            return Optional.empty();
-        }
-        if (matchingValues.size() > 1) {
-            logger.error("Multiple external signatures returned for a stitching operation without "
-            + "a defined method to combine values.  No stitching can be done on this entity.");
-            return Optional.empty();
-        }
-        return Optional.of(matchingValues.get(0));
+    @Override
+    public Collection<InternalSignatureT> getInternalSignature(@Nonnull StitchingEntity entity) {
+        return getSignatures(entity, matchingInformation::getInternalMatchingData, INTERNAL);
     }
 
     @Override
-    public Optional<INTERNAL_SIGNATURE_TYPE> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
-        return combineInternalSignatures(matchingInformation.getInternalMatchingData()
-                .stream()
-                .map(matchingFieldOrProp -> matchingFieldOrProp.getMatchingValue(internalEntity))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList()));
+    public Collection<ExternalSignatureT> getExternalSignature(@Nonnull StitchingEntity entity) {
+        return getSignatures(entity, matchingInformation::getExternalMatchingData, EXTERNAL);
     }
 
-    @Override
-    public Optional<EXTERNAL_SIGNATURE_TYPE> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
-        return combineExternalSignatures(matchingInformation.getExternalMatchingData()
-                .stream()
-                .map(matchingFieldOrProp -> matchingFieldOrProp.getMatchingValue(externalEntity))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList()));
+    private static <S> Collection<S> getSignatures(@Nonnull StitchingEntity internalEntity,
+                    @Nonnull Supplier<Collection<MatchingPropertyOrField<S>>> matchingMetadataProvider,
+                    @Nonnull String signatureType) {
+        final Stopwatch sw = Stopwatch.createStarted();
+        final Collection<MatchingPropertyOrField<S>> matchingPropertyOrFields =
+                        matchingMetadataProvider.get();
+        final Collection<S> result = matchingPropertyOrFields.stream()
+                        .map(matchingFieldOrProp -> matchingFieldOrProp
+                                        .getMatchingValue(internalEntity))
+                        .filter(values -> !values.isEmpty())
+                        .flatMap(Collection::stream)
+                        .collect(Collectors.toSet());
+        if (logger.isTraceEnabled()) {
+            logger.trace("Extracted '{}' '{}' signatures for '{}' entity using '{}' in '{}' ms",
+                            result, signatureType, internalEntity.getOid(),
+                            matchingPropertyOrFields, sw.stop().elapsed(TimeUnit.MILLISECONDS));
+        } else if (logger.isDebugEnabled()) {
+            if (result.size() > 1) {
+                logger.debug("'{}|{}' entity has '{}' '{}' signatures: '{}'",
+                                internalEntity.getOid(),
+                                internalEntity.getDisplayName(), result.size(),
+                                signatureType, result);
+            }
+        }
+        return result;
     }
 
     @Nonnull
     @Override
     public TopologicalChangelog stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
                                        @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
-        stitchingPoints.forEach(stitchingPoint -> stitch(stitchingPoint, resultBuilder));
+        final StringBuilder errorMessageBuilder = new StringBuilder();
+        stitchingPoints.forEach(stitchingPoint -> {
+            // TODO confirm that this logic works in case where multiple proxy entities are discovered
+            // by a probe and they are in a consumer/provider relationship with each other.
+            // The proxy entity (internalEntity) and real entity (externalEntity) to merge
+            final StitchingEntity internalEntity = stitchingPoint.getInternalEntity();
+            final StitchingEntity externalEntity =
+                    stitchingPoint.getExternalMatches().iterator().next();
 
+            // log an error if more than one external entity matched a single internal entity
+            if (stitchingPoint.getExternalMatches().size() > 1) {
+                errorMessageBuilder.append(String.format(
+                                "Internal Entity %s matched multiple External Entities: %s%n",
+                                internalEntity.getDisplayName(),
+                                stitchingPoint.getExternalMatches().stream()
+                                                .map(StitchingEntity::getDisplayName)
+                                                .collect(Collectors.joining(", "))));
+            }
+            stitch(internalEntity, externalEntity, resultBuilder);
+        });
+        if (errorMessageBuilder.length() > 0) {
+            logger.error(errorMessageBuilder.toString());
+        }
         return resultBuilder.build();
     }
 
@@ -230,28 +216,15 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
      * according to the list of commodities to push in the metadata and push fields and properties
      * as well according to the metadata.
      *
-     * @param stitchingPoint The point at which the storage graph should be stitched with
-     *                       the graphs discovered by external probes.
+     * @param internalEntity The proxy entity
+     * @param externalEntity The real entity
      * @param resultBuilder  The builder of the results of the stitching operation. Changes to
      *                       relationships made by the stitching operation should be noted
      *                       in these results.
      */
-    private void stitch(@Nonnull final StitchingPoint stitchingPoint,
-                        @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
-        // TODO confirm that this logic works in case where multiple proxy entities are discovered
-        // by a probe and they are in a consumer/provider relationship with each other.
-        // The proxy entity (internalEntity) and real entity (externalEntity) to merge
-        final StitchingEntity internalEntity = stitchingPoint.getInternalEntity();
-        final StitchingEntity externalEntity = stitchingPoint.getExternalMatches().iterator().next();
-
-        // log an error if more than one external entity matched a single internal entity
-        if (stitchingPoint.getExternalMatches().size() > 1) {
-            logger.error("Internal Entity {} matched multiple External Entities: {}",
-                    internalEntity.getDisplayName(),
-                    stitchingPoint.getExternalMatches().stream().map(StitchingEntity::getDisplayName)
-                            .collect(Collectors.joining(", ")));
-        }
-
+    protected void stitch(@Nonnull final StitchingEntity internalEntity,
+            @Nonnull final StitchingEntity externalEntity,
+            @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         // iterate over bought meta data finding providers that need to be replaced
         for (CommodityBoughtMetadata boughtData : matchingInformation.getCommoditiesBoughtToPatch()) {
             // see if there is a provider related to the internalEntity for this set of
@@ -277,7 +250,7 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
                     // provider and then delete it.  Merging adds the oid and target of the replaced
                     // entity to the entity we are keeping.
                     if (externalProvider.getEntityBuilder().getOrigin()
-                            .equals(EntityOrigin.REPLACEABLE)) {
+                                    == EntityOrigin.REPLACEABLE) {
                         resultBuilder.queueEntityMerger(MergeEntities
                                 .mergeEntity(externalProvider).onto(provider));
                     }
@@ -313,6 +286,14 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
         resultBuilder.queueEntityMerger(mergeEntitiesDetails);
     }
 
+    @Override
+    public String toString() {
+        return String.format(
+                        "%s [matchingInformation=%s, categoriesToStitchWith=%s, replacementEntityMap=%s]",
+                        getClass().getSimpleName(), this.matchingInformation,
+                        this.categoriesToStitchWith, this.replacementEntityMap);
+    }
+
     /**
      * A {@link MergeCommoditySoldStrategy} that only merges commodities sold that are listed in the
      * meta data.  This allows us to have extra sold commodities in the DTO returned from the probe
@@ -320,22 +301,24 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
      * we need to include certain commodities so that we can create an entity in the case that no
      * match is found for the proxy entity.
      */
-    private static class MetaDataAwareMergeCommoditySoldStrategy implements MergeCommoditySoldStrategy {
-        private final Set<CommodityType> soldCommodityTypesToPush;
+    public static class MetaDataAwareMergeCommoditySoldStrategy implements MergeCommoditySoldStrategy {
 
-        MetaDataAwareMergeCommoditySoldStrategy(@Nonnull final Collection<CommodityType> soldMetaData)
-        {
-            soldCommodityTypesToPush = Sets.newHashSet(soldMetaData);
+        private final Map<CommodityType, CommoditySoldMergeSpec> commoditySoldMergeSpecByType;
+
+        public MetaDataAwareMergeCommoditySoldStrategy(@Nonnull final Collection<CommoditySoldMetadata> soldMetaData) {
+            commoditySoldMergeSpecByType = soldMetaData.stream()
+                .collect(Collectors.toMap(CommoditySoldMetadata::getCommodityType,
+                    CommoditySoldMergeSpec::new));
         }
 
         @Nonnull
         @Override
         public Optional<Builder> onDistinctCommodity(@Nonnull final Builder commodity,
-                                                     final Origin origin) {
+                                                     @Nonnull final Origin origin) {
             // don't keep the from commodity if it is not in the list of sold commodities we are
             // configured to keep
             if (origin == Origin.FROM_ENTITY &&
-                    !soldCommodityTypesToPush.contains(commodity.getCommodityType())) {
+                    !commoditySoldMergeSpecByType.containsKey(commodity.getCommodityType())) {
                 return Optional.empty();
             }
             return Optional.of(commodity);
@@ -347,14 +330,48 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
                                                         @Nonnull final Builder ontoCommodity) {
             // if the soldMetaData says to preserve this commodity type merge the fromCommodity
             // with the ontoCommodity
-            if (soldCommodityTypesToPush.contains(fromCommodity.getCommodityType())) {
+            final CommoditySoldMergeSpec commoditySoldMergeSpec =
+                this.commoditySoldMergeSpecByType.get(fromCommodity.getCommodityType());
+            // if the fromCommodity is a type which should be ignored when ontoEntity already
+            // has this commodity, then we can just use the ontoCommodity, no need to merge
+            if (commoditySoldMergeSpec != null && !commoditySoldMergeSpec.isIgnoreIfPresent()) {
                 return Optional.of(DTOFieldAndPropertyHandler.mergeBuilders(fromCommodity,
-                        ontoCommodity));
+                        ontoCommodity, commoditySoldMergeSpec.getPatchedFields()));
             }
             return Optional.of(ontoCommodity);
         }
+
+        @Override
+        public boolean ignoreIfPresent(@Nonnull final CommodityType fromCommodityType) {
+            return Optional.ofNullable(commoditySoldMergeSpecByType.get(fromCommodityType))
+                .map(CommoditySoldMergeSpec::isIgnoreIfPresent).orElse(false);
+        }
     }
 
+    /**
+     * A wrapper class around {@link CommoditySoldMetadata} which contains information about how to
+     * merge the sold commodity during stitching.
+     */
+    private static class CommoditySoldMergeSpec {
+
+        private boolean ignoreIfPresent;
+
+        private List<DTOFieldSpec> patchedFields;
+
+        CommoditySoldMergeSpec(@Nonnull CommoditySoldMetadata commoditySoldMetadata) {
+            this.ignoreIfPresent = commoditySoldMetadata.getIgnoreIfPresent();
+            this.patchedFields = commoditySoldMetadata.getPatchedFieldsList().stream()
+                .map(DTOFieldSpecImpl::new).collect(Collectors.toList());
+        }
+
+        boolean isIgnoreIfPresent() {
+            return ignoreIfPresent;
+        }
+
+        List<DTOFieldSpec> getPatchedFields() {
+            return patchedFields;
+        }
+    }
 }
 
 

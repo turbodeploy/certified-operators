@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -26,7 +27,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
  * The IdentityService implements the identity service.
  */
 @NotThreadSafe
-public class IdentityService {
+public class IdentityService implements com.vmturbo.identity.IdentityService<EntryData> {
 
     /**
      * The invalid OID. Only used internally. The code outside should always see a valid number.
@@ -70,32 +71,35 @@ public class IdentityService {
 
     /**
      * Uses the same algorithm as
-     * {@link IdentityService#getEntityOID(EntityDescriptor, EntityMetadataDescriptor, long)}, but
+     * {@link IdentityService#getEntityOID(EntityDescriptor, EntityMetadataDescriptor, EntityDTO, long)}, but
      * gets multiple OIDs atomically.
      *
      * @param entries A list of the entries to get OIDs for.
      * @return A list of OIDs assigned to the entries. The ID at index i in this list should be
      *         associated with the entry at index i in the input list.
-     * @throws IdentityWrongSetException         In case the properties don't constitute the
-     *                                              Identity property set.
-     * @throws IdentityServiceOperationException In the case of an error interacting with the
-     *                                              underlying store.
-     * @throws IdentityUninitializedException If the identity service initialization is incomplete.
+     * @throws IdentityServiceException if error occurred while fetching existing or
+     *         assigning a new OIDs to entities.
      */
-    public List<Long> getEntityOIDs(@Nonnull final List<EntryData> entries)
-            throws IdentityWrongSetException, IdentityServiceOperationException, IdentityUninitializedException {
+    @Override
+    public List<Long> getOidsForObjects(@Nonnull final List<EntryData> entries)
+            throws IdentityServiceException {
         final Map<Long, EntryData> entriesToUpdate = new HashMap<>();
 
         final List<Long> retList = new ArrayList<>(entries.size());
 
-        try (DataMetricTimer timer = OID_ASSIGNMENT_TIME.labels("assign").startTimer()) {
-            for (EntryData data : entries) {
-                retList.add(getOidToUse(data, entriesToUpdate));
+        try {
+            try (DataMetricTimer timer = OID_ASSIGNMENT_TIME.labels("assign").startTimer()) {
+                for (EntryData data : entries) {
+                    retList.add(getOidToUse(data, entriesToUpdate));
+                }
             }
+            try (DataMetricTimer storeTimer = OID_ASSIGNMENT_TIME.labels("store").startTimer()) {
+                store_.upsertEntries(entriesToUpdate);
+            }
+        } catch (IdentityServiceStoreOperationException | IdentityUninitializedException e) {
+            throw new IdentityServiceException("Failed upserting entries " + entriesToUpdate, e);
         }
-        try (DataMetricTimer storeTimer = OID_ASSIGNMENT_TIME.labels("store").startTimer()) {
-            store_.upsertEntries(entriesToUpdate);
-        }
+
 
         return Collections.unmodifiableList(retList);
     }
@@ -110,16 +114,13 @@ public class IdentityService {
      *            (e.g. if it's a newly assigned OID, or if volatile properties changed), this
      *            method will add the entryData and the associated ID to this map.
      * @return The OID to use for the input entryData.
-     * @throws IdentityWrongSetException         In case the properties don't constitute the
-     *                                              Identity property set.
-     * @throws IdentityServiceOperationException In the case of an error interacting with the
+     * @throws IdentityServiceStoreOperationException In the case of an error interacting with the
      *                                              underlying store.
      * @throws IdentityUninitializedException If the identity service initialization is incomplete.
      */
     private long getOidToUse(@Nonnull final EntryData entryData,
                              @Nonnull final Map<Long, EntryData> entriesToUpsert)
-            throws IdentityWrongSetException, IdentityServiceOperationException,
-                IdentityUninitializedException {
+            throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         final EntityDescriptor descriptor = entryData.getDescriptor();
         final EntityMetadataDescriptor metadataDescriptor = entryData.getMetadata();
         final List<PropertyDescriptor> identifyingProperties =
@@ -127,12 +128,13 @@ public class IdentityService {
         final List<PropertyDescriptor> volatileProperties =
                 descriptor.getVolatileProperties(metadataDescriptor);
         // First, see if we have the match by the identifying properties
-        long oid = store_.lookupByIdentifyingSet(metadataDescriptor, identifyingProperties);
-        if (oid != INVALID_OID) {
+        final long existingOid;
+            existingOid = store_.lookupByIdentifyingSet(metadataDescriptor, identifyingProperties);
+        if (existingOid != INVALID_OID) {
             if (!volatileProperties.isEmpty()) {
-                entriesToUpsert.put(oid, entryData);
+                entriesToUpsert.put(existingOid, entryData);
             }
-            return oid;
+            return existingOid;
         }
         // We do not have the match. We might have to perform the search based on non-volatile
         // properties.
@@ -170,7 +172,7 @@ public class IdentityService {
             }
         }
         // Exhausted all possibilities. No match. Generate a new one.
-        oid = IdentityGenerator.next();
+        final long oid = IdentityGenerator.next();
         entriesToUpsert.put(oid, entryData);
         return oid;
     }
@@ -191,19 +193,16 @@ public class IdentityService {
      * @param descriptor         The entity descriptor
      * @param metadataDescriptor The entity metadata descriptor.
      * @param probeId            The Id of the probe of the target which discovered the entity.
+     * @param entityDTO          The entity to get oid for
      * @return The OID.
-     * @throws IdentityWrongSetException         In case the properties don't constitute the
-     *                                              Identity property set.
-     * @throws IdentityServiceOperationException In the case of an error interacting with the
-     *                                              underlying store.
-     * @throws IdentityUninitializedException If the identity service initialization is incomplete.
+     * @throws IdentityServiceException In case therw was error fetching of persisting OID
      */
     public long getEntityOID(@Nonnull EntityDescriptor descriptor,
                              @Nonnull EntityMetadataDescriptor metadataDescriptor,
                              @Nonnull EntityDTO entityDTO,
                              final long probeId)
-            throws IdentityWrongSetException, IdentityServiceOperationException, IdentityUninitializedException {
-        return getEntityOIDs(Collections.singletonList(
+            throws IdentityServiceException {
+        return getOidsForObjects(Collections.singletonList(
             new EntryData(descriptor, metadataDescriptor, probeId, entityDTO))).get(0);
     }
 

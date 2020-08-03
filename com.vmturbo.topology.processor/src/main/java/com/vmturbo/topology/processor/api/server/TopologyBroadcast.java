@@ -2,9 +2,11 @@ package com.vmturbo.topology.processor.api.server;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.chunking.OversizedElementException;
 
 /**
  * Interface for sending topology broadcasts. It's up to implementation to pack separate entities
@@ -23,9 +25,24 @@ public interface TopologyBroadcast {
      * @throws NullPointerException if {@code entity} is {@code null}
      * @throws IllegalStateException if {@link #finish()} has been already called
      * @throws CommunicationException persistent communication exception
+     * @throws OversizedElementException If the entity is too large to be sent.
      */
     void append(@Nonnull TopologyEntityDTO entity)
-            throws CommunicationException, InterruptedException;
+        throws CommunicationException, InterruptedException, OversizedElementException;
+
+    /**
+     * Appends the next topology extension entity to the notification.
+     * This call may block until the next chunk is sent.
+     *
+     * @param extension to add to broadcast.
+     * @throws InterruptedException   if thread has been interrupted
+     * @throws NullPointerException   if {@code entity} is {@code null}
+     * @throws IllegalStateException  if {@link #finish()} has been already called
+     * @throws CommunicationException persistent communication exception
+     * @throws OversizedElementException If the extension is too large to be sent.
+     */
+    void appendExtension(@Nonnull TopologyDTO.TopologyExtension extension)
+        throws CommunicationException, InterruptedException, OversizedElementException;
 
     /**
      * Marks the topology broadcast as complete and sends the last data (if required). This call

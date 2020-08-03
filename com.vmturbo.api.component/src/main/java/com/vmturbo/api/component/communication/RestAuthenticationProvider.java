@@ -11,11 +11,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -33,14 +35,17 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.api.dto.user.UserApiDTO;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
-import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
+import com.vmturbo.auth.api.usermgmt.AuthorizeUserInGroupsInputDTO;
+import com.vmturbo.auth.api.usermgmt.AuthorizeUserInputDTO;
 
 public class RestAuthenticationProvider implements AuthenticationProvider {
     /**
@@ -48,7 +53,9 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
      */
     public static final String AUTH_HEADER_NAME = "x-auth-token";
     public static final String USERS_AUTHORIZE = "/users/authorize/";
-    public static final String SAML_DUMMY_PASS = "SAML_DUMMY_PASS";
+    private static final String USERS_AUTHORIZE_GROUPS = "/users/authorize/groups";
+
+    private static final String DUMMY_PASS = "DUMMY_PASS";
 
     /**
      * The logger.
@@ -70,6 +77,8 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
      */
     private final int authPort_;
 
+    private final String authRoute;
+
     /**
      * The REST template.
      */
@@ -78,22 +87,25 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
     /**
      * The verifier.
      */
-    private final JWTAuthorizationVerifier verifier_;
+    protected final JWTAuthorizationVerifier verifier_;
 
     /**
      * Construct the authentication provider.
      *
      * @param authHost     The authentication host.
      * @param authPort     The authentication port.
+     * @param authRoute    The route prefix to use for all auth URIs.
      * @param verifier     The verifier.
      * @param restTemplate The REST endpoint.
      */
     public RestAuthenticationProvider(final @Nonnull String authHost,
                                       final int authPort,
+                                      final @Nonnull String authRoute,
                                       final @Nonnull RestTemplate restTemplate,
                                       final @Nonnull JWTAuthorizationVerifier verifier) {
         authHost_ = authHost;
         authPort_ = authPort;
+        this.authRoute = authRoute;
         restTemplate_ = restTemplate;
         verifier_ = verifier;
     }
@@ -109,7 +121,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
                                    .scheme("http")
                                    .host(authHost_)
                                    .port(authPort_)
-                                   .path(AUTH_PATH_PREFIX);
+                                   .path(authRoute + AUTH_PATH_PREFIX);
     }
 
     /**
@@ -179,30 +191,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
 
         //First try to authenticate AD users using Spring
         JWTAuthorizationToken token = getAuthData(username, password, remoteIpAddress);
-        return getAuthentication(password, username, token);
-    }
-
-    @Nonnull
-    private Authentication getAuthentication(final String password,
-                                             final String username,
-                                             final JWTAuthorizationToken token) {
-        AuthUserDTO dto;
-        try {
-            dto = verifier_.verify(token, Collections.emptyList());
-        } catch (AuthorizationException e) {
-            throw new BadCredentialsException(e.getMessage(), e);
-        }
-        // Initialize authorities
-        final Set<GrantedAuthority> grantedAuths = new HashSet<>();
-        // Process the data.
-        List<String> roles = new ArrayList<String>();
-        for (String role : dto.getRoles()) {
-            roles.add(role);
-            grantedAuths.add(new SimpleGrantedAuthority("ROLE" + "_" + role.toUpperCase()));
-        }
-        AuthUserDTO user = new AuthUserDTO(PROVIDER.LOCAL, username, null, null, dto.getUuid(),
-                                           token.getCompactRepresentation(), roles, dto.getScopeGroups());
-        return new UsernamePasswordAuthenticationToken(user, password, grantedAuths);
+        return getAuthentication(password, username, token, remoteIpAddress);
     }
 
     /**
@@ -217,46 +206,93 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
      */
     @Nonnull
     public Authentication authorize(@Nonnull final String username,
-                                    @Nonnull final Optional<String> groupName,
-                                    @Nonnull final String remoteIpAddress,
-                                    @Nonnull final IComponentJwtStore componentJwtStore)
-            throws AuthenticationException {
-        UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
+            @Nonnull final Optional<String> groupName, @Nonnull final String remoteIpAddress,
+            @Nonnull final IComponentJwtStore componentJwtStore) throws AuthenticationException {
+        return assignPermission(username, remoteIpAddress, componentJwtStore,
+                httpHeaders -> new HttpEntity<>(
+                        new AuthorizeUserInputDTO(username, groupName.orElse(null),
+                                remoteIpAddress), httpHeaders), USERS_AUTHORIZE);
+    }
+
+    /**
+     * Retrieve SAML user role from AUTH component by matches least privilege groups.
+     * @param username  SAML user name
+     * @param groupNames SAML user groups
+     * @param remoteIpAddress SAML user requested IP address
+     * @param componentJwtStore API component JWT store
+     * @return authentication if valid
+     * @throws AuthenticationException when the roles are not found for the user
+     */
+    @Nonnull
+    public Authentication authorize(@Nonnull final String username,
+            @Nonnull final String[] groupNames, @Nonnull final String remoteIpAddress,
+            @Nonnull final IComponentJwtStore componentJwtStore) throws AuthenticationException {
+        return assignPermission(username, remoteIpAddress, componentJwtStore,
+                httpHeaders -> new HttpEntity<>(
+                        new AuthorizeUserInGroupsInputDTO(username, groupNames, remoteIpAddress),
+                        httpHeaders), USERS_AUTHORIZE_GROUPS);
+    }
+
+    @NotNull
+    private Authentication assignPermission(@Nonnull String username, @Nonnull String remoteIpAddress,
+            @Nonnull IComponentJwtStore componentJwtStore,
+            Function<HttpHeaders, HttpEntity<?>> function, String path) {
+        final UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
                 .scheme("http")
                 .host(authHost_)
                 .port(authPort_)
-                .path(USERS_AUTHORIZE);
+                .path(path);
 
-        final String authRequest = groupName.map(
-                group ->
-                        builder
-                                .pathSegment(
-                                        encodeValue(username),
-                                        encodeValue(group),
-                                        remoteIpAddress)
-                                .build()
-                                .toUriString())
-                .orElse(
-                        builder
-                                .pathSegment(
-                                        encodeValue(username),
-                                        remoteIpAddress)
-                                .build()
-                                .toUriString()
-                );
-
-        ResponseEntity<String> result;
-        HttpHeaders headers = new HttpHeaders();
+        final HttpHeaders headers = new HttpHeaders();
         headers.setAccept(HTTP_ACCEPT);
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME,
                 componentJwtStore.generateToken().getCompactRepresentation());
         headers.set(SecurityConstant.COMPONENT_ATTRIBUTE, componentJwtStore.getNamespace());
-        HttpEntity<List> entity = new HttpEntity<>(headers);
-        result = restTemplate_.exchange(authRequest, HttpMethod.GET, entity, String.class);
-        JWTAuthorizationToken token = new JWTAuthorizationToken(result.getBody());
+
+        final HttpEntity<?> entity = function.apply(headers);
+
+        final ResponseEntity<String> result =
+                restTemplate_.exchange(builder.toUriString(), HttpMethod.POST, entity,
+                        String.class);
+        final JWTAuthorizationToken token = new JWTAuthorizationToken(result.getBody());
         // add a dummy password.
-        return getAuthentication(SAML_DUMMY_PASS, username, token);
+        return getAuthentication(DUMMY_PASS, username, token, remoteIpAddress);
+    }
+
+    @Nonnull
+    protected Authentication getAuthentication(final String password,
+            final String username,
+            final JWTAuthorizationToken token,
+            final String remoteIpAddress) {
+        AuthUserDTO dto;
+        try {
+            dto = verifier_.verify(token, Collections.emptyList());
+        } catch (AuthorizationException e) {
+            throw new BadCredentialsException(e.getMessage(), e);
+        }
+        // Initialize authorities
+        final Set<GrantedAuthority> grantedAuths = new HashSet<>();
+        // Process the data.
+        List<String> roles = new ArrayList<String>();
+        for (String role : dto.getRoles()) {
+            roles.add(role);
+            grantedAuths.add(new SimpleGrantedAuthority("ROLE" + "_" + role.toUpperCase()));
+        }
+        // also set the correct provider, use LOCAL if it's not initialized
+        final PROVIDER provider = dto.getProvider() != null ? dto.getProvider() : PROVIDER.LOCAL;
+        AuthUserDTO user = new AuthUserDTO(provider, username, null, remoteIpAddress, dto.getUuid(),
+                token.getCompactRepresentation(), roles, dto.getScopeGroups());
+        final String detailMsg = dto.getScopeGroups().isEmpty()
+                ? String.format("User logged in successfully with role %s", dto.getRoles())
+                : String.format("User logged in successfully with role %s, scopes %s", dto.getRoles(), dto.getScopeGroups());
+        AuditLog.newEntry(AuditAction.LOGIN,
+                detailMsg, true)
+                .remoteClientIP(remoteIpAddress)
+                .targetName("AUTHORIZATION_SERVICE")
+                .actionInitiator(username)
+                .audit();
+        return new UsernamePasswordAuthenticationToken(user, password, grantedAuths);
     }
 
     @Override

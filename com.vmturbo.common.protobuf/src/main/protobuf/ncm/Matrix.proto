@@ -1,0 +1,67 @@
+syntax = "proto2";
+
+option java_package = "com.vmturbo.common.protobuf.topology.ncm";
+option java_outer_classname = "MatrixDTO";
+
+// The vertex in the overlay graph.
+message OverlayVertex {
+    // The IP address.
+    required string ip = 1;
+
+    // The listening port.
+    optional int32 port = 2;
+
+    // The list of neighbours
+    map<int64, double> neighbors = 3;
+
+    // The OID.
+    required int64 oid = 4;
+
+    // The underlay OID. The OID of the node in the underlay graph.
+    required int64 underlayOid = 5;
+}
+
+// The edge in the overlay graph.
+message OverlayEdge {
+    // The latency.
+    required int64 latency = 1;
+
+    // The flow.
+    required double flow = 2;
+
+    // The number of transmitted bytes.
+    required int64 tx = 3;
+
+    // The number of received bytes.
+    required int64 rx = 4;
+
+    // The source.
+    required OverlayVertex source = 5;
+
+    // The sink.
+    required OverlayVertex sink = 6;
+}
+
+// The underlay graph structure representing a node there.
+message UnderlayStruct {
+    // The OID.
+    required int64 oid = 1;
+
+    // The DC.
+    required int64 dc = 2;
+
+    // The DPoD. Could be empty.
+    // The DPoD is a Dynamic Pod. 
+    repeated int64 dpod = 3;
+
+    // The list of capacities.
+    repeated double capacities = 4;
+}
+
+// Consumer to provider map.
+message ConsumerToProvider {
+    // Consumer
+    required int64 consumer = 1;
+    // Provider
+    required int64 provider = 2;
+}

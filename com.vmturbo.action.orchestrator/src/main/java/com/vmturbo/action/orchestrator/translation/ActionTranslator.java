@@ -1,42 +1,54 @@
 package com.vmturbo.action.orchestrator.translation;
 
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Channel;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.ExplanationComposer;
+import com.vmturbo.action.orchestrator.action.PrerequisiteDescriptionComposer;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
+import com.vmturbo.action.orchestrator.translation.batch.translator.BatchTranslator;
+import com.vmturbo.action.orchestrator.translation.batch.translator.CloudMoveBatchTranslator;
+import com.vmturbo.action.orchestrator.translation.batch.translator.PassThroughBatchTranslator;
+import com.vmturbo.action.orchestrator.translation.batch.translator.SkipBatchTranslator;
+import com.vmturbo.action.orchestrator.translation.batch.translator.VCpuResizeBatchTranslator;
+import com.vmturbo.auth.api.authorization.UserContextUtils;
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
-import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoRequest;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoResponse;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.HostInfo;
-import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
-import com.vmturbo.common.protobuf.topology.EntityServiceGrpc.EntityServiceImplBase;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.proactivesupport.DataMetricCounter;
-
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 
 /**
  * Translates actions from the market's domain-agnostic actions into real-world domain-specific actions.
@@ -68,6 +80,10 @@ public class ActionTranslator {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private static final Set<String> ROLES_WITH_ABILITY_TO_APPLY_ACTIONS =
+            ImmutableSet.of(SecurityConstant.ADMINISTRATOR.toUpperCase(),
+                    SecurityConstant.SITE_ADMIN, SecurityConstant.AUTOMATOR);
+
     /**
      * An interface for actually executing action translation. Usually it is unnecessary to specify
      * the specific {@link TranslationExecutor} to use except when mocking for testing.
@@ -79,26 +95,33 @@ public class ActionTranslator {
          *
          * @param actionStream A stream of actions whose info should be translated from the market's
          *                     domain-agnostic variant.
+         * @param snapshot A snapshot of all the entities and settings involved in the actions
          * @return A stream of the translated actions.
          *         Note, like all Java streams, a terminal operation must be applied on it to force evaluation.
          *         Note that the order of the actions in the output stream is not guaranteed to be the same as they were
          *         on the input. If this is important, consider applying an {@link Stream#sorted(Comparator)} operation.
          */
-        <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream);
+        <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream,
+                                                   @Nonnull final EntitiesAndSettingsSnapshot snapshot);
     }
 
     private final TranslationExecutor translationExecutor;
+
+    private final SettingPolicyServiceBlockingStub settingPolicyService;
 
     /**
      * Create a new {@link ActionTranslator} for translating actions from the market's domain-agnostic
      * action recommendations into actions that can be executed and understood in real-world domain-specific
      * terms.
      *
-     * @param topologyProcessorChannel The channel on which to fetch entity information in order to perform
-     *                                 action translation.
+     * @param repoChannel The searchServiceRpc to the repository component.
+     * @param groupChannel Channel to use for creating a blocking stub to query the Group Service.
      */
-    public ActionTranslator(@Nonnull final Channel topologyProcessorChannel) {
-        translationExecutor = new ActionTranslationExecutor(topologyProcessorChannel);
+    @VisibleForTesting
+    public ActionTranslator(@Nonnull final Channel repoChannel, @Nonnull final Channel groupChannel) {
+        translationExecutor = new ActionTranslationExecutor(RepositoryServiceGrpc.newBlockingStub(repoChannel));
+        this.settingPolicyService =
+            SettingPolicyServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
     }
 
     /**
@@ -112,40 +135,88 @@ public class ActionTranslator {
      * This method should NOT be used in production code.
      *
      * @param translationExecutor The object that will perform translation of actions.
+     * @param groupChannel Channel to use for creating a blocking stub to query the Group Service.
      */
     @VisibleForTesting
-    public ActionTranslator(@Nonnull final TranslationExecutor translationExecutor) {
+    public ActionTranslator(@Nonnull final TranslationExecutor translationExecutor,
+                            @Nonnull final Channel groupChannel) {
         this.translationExecutor = Objects.requireNonNull(translationExecutor);
+        this.settingPolicyService =
+            SettingPolicyServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
     }
 
     /**
-     * Translate the source action (see {@link #translate(ActionView)}) and get an {@link ActionSpec}
-     * describing the action.
-     *
-     * See {@link #translate(ActionView)} for further details.
+     * Get an {@link ActionSpec} describing the action.
      *
      * @param sourceAction The action to be translated and whose spec should be generated.
      * @return The {@link ActionSpec} description of the input action.
      */
     @Nonnull
     public ActionSpec translateToSpec(@Nonnull final ActionView sourceAction) {
-        translate(sourceAction);
-        return toSpec(sourceAction);
+        return translateToSpecs(Collections.singletonList(sourceAction)).findFirst().get();
     }
 
     /**
-     * Translate the source actions (see {@link #translate(Stream)}) and generate an {@link ActionSpec}
-     * describing each of those actions.
+     * Generate an {@link ActionSpec} describing each of the actions.
      *
-     * See {@link #translateToSpecs(Stream)} for further details.
-     *
-     * @param actionStream The actions to be translated and whose specs should be generated.
+     * @param actionViews the actions to be translated and whose specs should be generated
      * @return The {@link ActionSpec} descriptions of the input actions.
      */
     @Nonnull
-    public Stream<ActionSpec> translateToSpecs(@Nonnull final Stream<ActionView> actionStream) {
-        return translate(actionStream)
-            .map(this::toSpec);
+    public Stream<ActionSpec> translateToSpecs(
+            @Nonnull final List<? extends ActionView> actionViews) {
+        final boolean isUserAbleToApplyActions = isUserAbleToApplyActions();
+        final Map<Long, String> settingPolicyIdToSettingPolicyName =
+                getReasonSettingPolicyIdToSettingPolicyNameMap(actionViews);
+        return actionViews.stream()
+                .map(actionView -> toSpec(actionView, settingPolicyIdToSettingPolicyName,
+                        isUserAbleToApplyActions));
+    }
+
+    /**
+     * Get all reason settings from all actionViews and
+     * construct a map from settingPolicyId to settingPolicyName.
+     *
+     * @param actionViews the actions from where we extract reason settings
+     * @return a map from settingPolicyId to settingPolicyName
+     */
+    @Nonnull
+    @VisibleForTesting
+    Map<Long, String> getReasonSettingPolicyIdToSettingPolicyNameMap(
+            @Nonnull final List<? extends ActionView> actionViews) {
+        final Set<Long> reasonSettings = new HashSet<>();
+        for (ActionView actionView : actionViews) {
+            final Explanation explanation = actionView.getTranslationResultOrOriginal()
+                    .getExplanation();
+            switch (explanation.getActionExplanationTypeCase()) {
+                case MOVE:
+                case SCALE:
+                    ActionDTOUtil.getChangeProviderExplanationList(explanation).stream()
+                        .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
+                        .filter(ChangeProviderExplanation::hasCompliance)
+                        .map(ChangeProviderExplanation::getCompliance)
+                        .map(Compliance::getReasonSettingsList)
+                        .forEach(reasonSettings::addAll);
+                    break;
+                case RECONFIGURE:
+                    reasonSettings.addAll(explanation.getReconfigure().getReasonSettingsList());
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        // Make a RPC to get raw settingPolicies for all reason setting ids.
+        // We only need the displayName of the settingPolicy.
+        final Map<Long, String> settingPolicyIdToSettingPolicyName = new HashMap<>();
+        if (!reasonSettings.isEmpty()) {
+            settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
+                .addAllIdFilter(reasonSettings).build())
+                .forEachRemaining(settingPolicy -> settingPolicyIdToSettingPolicyName.put(
+                    settingPolicy.getId(), settingPolicy.getInfo().getDisplayName()));
+        }
+
+        return settingPolicyIdToSettingPolicyName;
     }
 
     /**
@@ -167,35 +238,15 @@ public class ActionTranslator {
      *
      * @param actionStream A stream of actions whose info should be translated from the market's
      *                     domain-agnostic variant.
+     * @param snapshot A snapshot of all the entities and settings involved in the actions
      * @return A stream of the translated actions.
      *         Note, like all Java streams, a terminal operation must be applied on it to force evaluation.
      *         Note that the order of the actions in the output stream is not guaranteed to be the same as they were
      *         on the input. If this is important, consider applying an {@link Stream#sorted(Comparator)} operation.
      */
-    public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream) {
-        return translationExecutor.translate(actionStream);
-    }
-
-    /**
-     * Translate an action from the market's domain-agnostic form to the domain-specific form
-     * relevant for execution and display in the real world.
-     *
-     * If the action has already been translated, no attempt will be made to re-translate it.
-     *
-     * Note that this API is blocking and does not return until the action has been, if necessary,
-     * translated or the translation attempt fails.
-     *
-     * This method is blocking until translation completes.
-     *
-     * @param sourceAction The action whose info should be translated from the market's domain-agnostic variant.
-     * @return True if the action was successfully translated (or if the action was already translated and did
-     *         not need to be re-translated). False if translation was attempted and failed.
-     */
-    @Nonnull
-    public boolean translate(@Nonnull final ActionView sourceAction) {
-        return translate(Stream.of(sourceAction)).findFirst()
-            .map(translatedAction -> translatedAction.getTranslationStatus() == TranslationStatus.TRANSLATION_SUCCEEDED)
-            .orElse(false);
+    public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream,
+                                                      @Nonnull EntitiesAndSettingsSnapshot snapshot) {
+        return translationExecutor.translate(actionStream, snapshot);
     }
 
     /**
@@ -206,96 +257,132 @@ public class ActionTranslator {
      * In the event that an action cannot be translated, the included recommendation is the one originally provided
      * by the market which may not make sense for the user.
      *
-     * @return The {@link ActionSpec} representation of this action.
+     * @param actionView the actions to be translated and whose specs should be generated
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @param isUserAbleToApplyActions the current user is able to apply actions
+     * @return the {@link ActionSpec} representation of this action
      */
     @Nonnull
-    @VisibleForTesting
-    ActionSpec toSpec(@Nonnull final ActionView actionView) {
+    private ActionSpec toSpec(@Nonnull final ActionView actionView,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
+            boolean isUserAbleToApplyActions) {
         final ActionDTO.Action recommendationForDisplay = actionView
-            .getActionTranslation()
-            .getTranslationResultOrOriginal();
+                .getTranslationResultOrOriginal();
 
         ActionSpec.Builder specBuilder = ActionSpec.newBuilder()
             .setRecommendation(recommendationForDisplay)
+            .setRecommendationId(actionView.getRecommendationOid())
             .setActionPlanId(actionView.getActionPlanId())
             .setRecommendationTime(actionView.getRecommendationTime()
                 .toInstant(ZoneOffset.ofTotalSeconds(0)).toEpochMilli())
-            .setActionMode(actionView.getMode())
             .setActionState(actionView.getState())
             .setIsExecutable(actionView.determineExecutability())
-            .setExplanation(ExplanationComposer.composeExplanation(recommendationForDisplay))
-            .setCategory(actionView.getActionCategory());
+            .setExplanation(ExplanationComposer.composeExplanation(
+                recommendationForDisplay, settingPolicyIdToSettingPolicyName))
+            .setCategory(actionView.getActionCategory())
+            .setSeverity(actionView.getActionSeverity())
+            .setDescription(actionView.getDescription());
+
+        // If the user has an observer role, all actions should be dropped to RECOMMEND
+        // as the highest mode (DISABLED are generally filtered out,
+        // but if they are returned from AO, their mode can stay DISABLED).
+        if (!isUserAbleToApplyActions && actionView.getMode() != ActionMode.DISABLED) {
+            specBuilder.setActionMode(ActionMode.RECOMMEND);
+        } else {
+            specBuilder.setActionMode(actionView.getMode());
+        }
+
+        if (actionView.getSchedule().isPresent()) {
+            specBuilder.setActionSchedule(actionView.getSchedule().get().getTranslation());
+        }
+
+        // Compose pre-requisite description if action has any pre-requisite.
+        if (!recommendationForDisplay.getPrerequisiteList().isEmpty()) {
+            specBuilder.addAllPrerequisiteDescription(
+                PrerequisiteDescriptionComposer.composePrerequisiteDescription(recommendationForDisplay));
+        }
 
         actionView.getDecision()
             .ifPresent(specBuilder::setDecision);
         actionView.getCurrentExecutableStep()
-            .ifPresent(step -> specBuilder.setExecutionStep(step.getExecutionStep()));
+            .map(ExecutableStep::getExecutionStep)
+            .ifPresent(specBuilder::setExecutionStep);
 
         return specBuilder.build();
+    }
+
+    /**
+     * Returns {@code true} if the current user is able to apply actions.
+     *
+     * @return {@code true} if the current user is able to apply actions
+     */
+    private static boolean isUserAbleToApplyActions() {
+        return UserContextUtils.getCurrentUserRoles()
+                .map(roles -> roles.stream()
+                        .map(String::toUpperCase)
+                        .anyMatch(ROLES_WITH_ABILITY_TO_APPLY_ACTIONS::contains))
+                .orElse(false);
     }
 
     /**
      * Basic translation implementation.
      */
     private static class ActionTranslationExecutor implements TranslationExecutor {
-        /**
-         * A connection to the {@link EntityServiceImplBase} that can be used to fetch information necessary for
-         * translation.
-         */
-        private final EntityServiceGrpc.EntityServiceBlockingStub entityServiceBlockingStub;
-
-        /**
-         * An interface for translating a batch of actions at a time.
-         *
-         * Although a {@link BatchTranslator} returns a stream, currently it must finish translation
-         * of all actions in the stream and not allow the laziness of the stream to defer translation
-         * past the execution of the {@link BatchTranslator#translate(ActionView)} method.
-         */
-        @FunctionalInterface
-        public interface BatchTranslator {
-            <T extends ActionView> Stream<T> translate(@Nonnull final List<T> actionsToTranslate);
-        }
-
-        /**
-         * Note that we take a single reference to each of our translation methods.
-         * Capturing a reference results in the generation of a lambda object, with a distinct object
-         * generated each time a method reference is taken. It is important that we have a single
-         * lambda for each method, so store the lambda for later use so that methods can be
-         * meaningfully compared with themselves.
-         */
-        private final BatchTranslator skipTranslationMethod = this::skipTranslation;
-        private final BatchTranslator passthroughTranslationMethod = this::passthroughTranslation;
-        private final BatchTranslator vcpuResizeTranslationMethod = this::translateVcpuResizes;
+        private final List<BatchTranslator> batchTranslatorList;
 
         /**
          * Create a new {@link ActionTranslationExecutor} for translating actions from the market's domain-agnostic
          * action recommendations into actions that can be executed and understood in real-world domain-specific
          * terms.
          *
-         * @param topologyProcessorChannel The channel on which to fetch entity information in order to perform
-         *                                 action translation.
+         * @param repoService The repService which can be used to fetch entity information useful
+         *                    for action translation.
          */
-        public ActionTranslationExecutor(@Nonnull final Channel topologyProcessorChannel) {
-            this.entityServiceBlockingStub = EntityServiceGrpc.newBlockingStub(topologyProcessorChannel);
+        ActionTranslationExecutor(
+                @Nonnull final RepositoryServiceBlockingStub repoService) {
+            // The order is important. Matching BatchTranslator is searched for from the beginning
+            // to the end of the list.
+            batchTranslatorList = ImmutableList.of(
+                new SkipBatchTranslator(),
+                new CloudMoveBatchTranslator(),
+                new VCpuResizeBatchTranslator(Objects.requireNonNull(repoService)),
+                new PassThroughBatchTranslator());
         }
 
         /**
-         * See comments for {@link ActionTranslator#translate(Stream)}
+         * See comments for {@link ActionTranslator#translate(Stream, EntitiesAndSettingsSnapshot)}
          *
          * @param actionStream A stream of actions whose info should be translated from the market's
          *                     domain-agnostic variant.
+         * @param snapshot A snapshot of all the entities and settings involved in the actions.
+         *
          * @return A stream of the translated actions.
          *         Note, like all Java streams, a terminal operation must be applied on it to force evaluation.
          *         Note that the order of the actions in the output stream is not guaranteed to be the same as they were
          *         on the input. If this is important, consider applying an {@link Stream#sorted(Comparator)} operation.
          */
-        public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream) {
+        public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream,
+                                                          @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
             final Map<BatchTranslator, List<T>> actionsByTranslationMethod = actionStream
-                .collect(Collectors.groupingBy(this::getTranslationMethod));
+                .collect(Collectors.groupingBy(this::getBatchTranslator));
 
             return actionsByTranslationMethod.entrySet().stream()
-                .map(entry -> entry.getKey().translate(entry.getValue()))
+                .map(entry -> translate(entry.getKey(), entry.getValue(), snapshot))
                 .reduce(Stream.empty(), Stream::concat);
+        }
+
+        private <T extends ActionView> Stream<T> translate(@Nonnull final BatchTranslator batchTranslator,
+                                                           @Nonnull final List<T> actionsToTranslate,
+                                                           @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
+            try {
+                return batchTranslator.translate(actionsToTranslate, snapshot);
+            } catch (RuntimeException e) {
+                logger.error("Error applying " + batchTranslator.getClass().getSimpleName(), e);
+                // Fail the translations for all actions that we were attempting to translate.
+                actionsToTranslate.forEach(
+                    action -> action.getActionTranslation().setTranslationFailure());
+                return Stream.empty();
+            }
         }
 
         /**
@@ -308,167 +395,15 @@ public class ActionTranslator {
          * @return A method appropriate for use in translating a batch of actions of the sort
          *         passed in.
          */
-        private BatchTranslator getTranslationMethod(@Nonnull final ActionView actionView) {
-            if (actionView.getTranslationStatus() == TranslationStatus.TRANSLATION_SUCCEEDED) {
-                return this.skipTranslationMethod; // No translation necessary.
+        private BatchTranslator getBatchTranslator(@Nonnull final ActionView actionView) {
+            for (BatchTranslator batchTranslator : batchTranslatorList) {
+                if (batchTranslator.appliesTo(actionView)) {
+                    return batchTranslator;
+                }
             }
-
-            final ActionInfo actionInfo = actionView.getRecommendation().getInfo();
-            switch (actionInfo.getActionTypeCase()) {
-                case RESIZE:
-                    return (actionInfo.getResize().getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE &&
-                            actionInfo.getResize().getCommodityType().getType() == CommodityType.VCPU_VALUE) ?
-                        this.vcpuResizeTranslationMethod :
-                        this.passthroughTranslationMethod;
-                default:
-                    return this.passthroughTranslationMethod;
-            }
+            // This should never happen. The last BatchTranslator in batchTranslatorList is
+            // always applied.
+            throw new IllegalStateException("Cannot find BatchTranslator for " + actionView);
         }
-
-        /**
-         * Do not translate the action because, for example, it has already been translated.
-         *
-         * @param actionsToTranslate The action to translate.
-         * @return A stream containing the input actions.
-         */
-        private <T extends ActionView> Stream<T> skipTranslation(@Nonnull final List<T> actionsToTranslate) {
-            return actionsToTranslate.stream();
-        }
-
-        /**
-         * Pass through the input of the translation as its output.
-         * Marks all input actions as having been translated successfully.
-         *
-         * @param actionsToTranslate The actions to be translated.
-         * @return A stream of the translated actions.
-         */
-        private <T extends ActionView> Stream<T> passthroughTranslation(@Nonnull final List<T> actionsToTranslate) {
-            return actionsToTranslate.stream()
-                .map(action -> {
-                    action.getActionTranslation().setPassthroughTranslationSuccess();
-                    return action;
-                });
-        }
-
-        /**
-         * Trnaslate vCPU resize actions.
-         * vCPU resizes are translated from MHz to number of vCPUs.
-         *
-         * @param resizeActions The actions to be translated.
-         * @return A stream of translated vCPU actions.
-         */
-        private <T extends ActionView> Stream<T> translateVcpuResizes(@Nonnull final List<T> resizeActions) {
-            final Map<Long, List<T>> resizeActionsByVmTargetId = resizeActions.stream()
-                .collect(Collectors.groupingBy(action ->
-                    action.getRecommendation().getInfo().getResize().getTarget().getId()));
-
-            try {
-                // Note: It is important to force evaluation of the gRPC stream here in order
-                // to trigger any potential exceptions in this method where they can be handled
-                // properly. Generating a lazy stream of gRPC results that is not evaluated until
-                // after the method return causes any potential gRPC exception not to be thrown
-                // until it is too late to be handled.
-                final List<GetHostInfoResponse> hostInfoResponses = Lists.newArrayList(entityServiceBlockingStub
-                    .getHostsInfo(GetHostInfoRequest.newBuilder()
-                        .addAllVirtualMachineIds(resizeActionsByVmTargetId.keySet())
-                        .build()));
-
-                return hostInfoResponses.stream()
-                    .flatMap(hostInfo -> translateVcpuResizes(hostInfo,
-                        resizeActionsByVmTargetId.get(hostInfo.getVirtualMachineId())));
-            } catch (RuntimeException e) {
-                logger.error("Error attempting to translate VCPU resize actions: ", e);
-                // Fail the translations for all actions that we were attempting to translate.
-                resizeActions
-                    .forEach(action -> action.getActionTranslation().setTranslationFailure());
-                return Stream.empty();
-            }
-        }
-
-        /**
-         * Apply HostInfo about hosts of VMs hosting the VMs being resized in the actions in order
-         * to translate the vCPU actions from MHz to number of vCPUs.
-         *
-         * @param hostInfoResponse The host info for the various resize actions.
-         * @param resizeActions The resize actions to be translated.
-         * @return A stream of the translated resize actions.
-         */
-        private <T extends ActionView> Stream<T> translateVcpuResizes(@Nonnull final GetHostInfoResponse hostInfoResponse,
-                                                        @Nonnull final List<T> resizeActions) {
-            if (!hostInfoResponse.hasHostInfo()) {
-                logger.warn("Host info not found for VCPU resize on entity {}. Skipping translation",
-                    hostInfoResponse.getVirtualMachineId());
-
-                // No host info found, fail the translation and return the originals.
-                return resizeActions.stream()
-                    .map(action -> {
-                        action.getActionTranslation().setTranslationFailure();
-                        return action;
-                    });
-            }
-
-            // Translate the resize actions.
-            final HostInfo hostInfo = hostInfoResponse.getHostInfo();
-            return resizeActions.stream()
-                .map(action -> {
-                    final Resize newResize =
-                        translateVcpuResizeInfo(action.getRecommendation().getInfo().getResize(), hostInfo);
-
-                    // Float comparision should apply epsilon. But in this case both capacities are
-                    // result of Math.round and Math.ceil (see translateVcpuResizeInfo method),
-                    // so the values are actually integers.
-                    if (Float.compare(newResize.getOldCapacity(), newResize.getNewCapacity()) == 0) {
-                        action.getActionTranslation().setTranslationFailure();
-                        logger.debug("VCPU resize (action: {}, entity: {}) has same from and to value ({}).",
-                            action.getId(), newResize.getTarget().getId(), newResize.getOldCapacity());
-                        Metrics.VCPU_SAME_TO_FROM.increment();
-                        return action;
-                    }
-                    // Resize explanation does not need to be translated because the explanation is in terms
-                    // of utilization which is normalized so translating units will not affect the values.
-
-                    action.getActionTranslation().setTranslationSuccess(
-                        action.getRecommendation().toBuilder().setInfo(
-                            ActionInfo.newBuilder(action.getRecommendation().getInfo())
-                                .setResize(newResize).build())
-                            .build());
-                    return action;
-                });
-        }
-
-        /**
-         * Apply a translation for an individual vCPU resize action given its corresponding host info.
-         *
-         * @param originalResize The info for the original resize action (in MHz).
-         * @param hostInfo The host info for the host of the VM being resized.
-         * @return The translated resize information (in # of vCPU).
-         */
-        private Resize translateVcpuResizeInfo(@Nonnull final Resize originalResize,
-                                               @Nonnull final HostInfo hostInfo) {
-            // don't apply the mhz translation for limit and reserved commodity attributes
-            if (originalResize.getCommodityAttribute() == CommodityAttribute.LIMIT
-                || originalResize.getCommodityAttribute() == CommodityAttribute.RESERVED) {
-                return originalResize;
-            }
-            final Resize newResize = originalResize.toBuilder()
-                .setOldCapacity(Math.round(originalResize.getOldCapacity() / hostInfo.getCpuCoreMhz()))
-                .setNewCapacity((float)Math.ceil(originalResize.getNewCapacity() / hostInfo.getCpuCoreMhz()))
-                .build();
-
-            logger.debug("Translated VCPU resize from {} to {} for host with info {}",
-                originalResize, newResize, hostInfo);
-
-            return newResize;
-        }
-    }
-
-    private static class Metrics {
-
-        private static final DataMetricCounter VCPU_SAME_TO_FROM = DataMetricCounter.builder()
-            .withName("ao_vcpu_translate_same_to_from_count")
-            .withHelp("The number of VCPU translates where the to and from VCPU counts were the same.")
-            .build()
-            .register();
-
     }
 }

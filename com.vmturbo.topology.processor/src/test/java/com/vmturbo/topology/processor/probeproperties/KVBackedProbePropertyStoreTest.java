@@ -17,10 +17,6 @@ import com.vmturbo.topology.processor.targets.TargetStoreException;
  * Tests for the functionality of {@link KVBackedProbePropertyStore}.
  */
 public class KVBackedProbePropertyStoreTest extends ProbePropertiesTestBase {
-    // construct probe property store
-    private final KVBackedProbePropertyStore
-        probePropertyStore = new KVBackedProbePropertyStore(probeStore, targetStore, keyValueStore);
-
     /**
      * Set up mock probes and targets.
      */

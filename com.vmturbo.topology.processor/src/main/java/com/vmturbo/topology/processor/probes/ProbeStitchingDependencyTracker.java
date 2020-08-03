@@ -124,6 +124,20 @@ public class ProbeStitchingDependencyTracker {
     }
 
     /**
+     * Create a new comparator for sorting {@code StitchingOperation}s. Sort order is determined
+     * by the dependency maps tracked by this class.
+     *
+     * @param probeStore Store for probes to look up probe information.
+     * @return a new comparator for sorting {@code StitchingOperation}s.
+     * @throws ProbeException If the DFS detects a cycle in stitching dependencies.
+     */
+    public ProbeStitchingOperationComparator createOperationComparator(
+        @Nonnull final ProbeStore probeStore) throws ProbeException {
+        return new ProbeStitchingOperationComparator(probeStore,
+            probeCategoriesStitchBeforeMap, probeTypesStitchBeforeMap);
+    }
+
+    /**
      * Get a Builder for building a {@link ProbeStitchingDependencyTracker}.
      * @return Builder
      */
@@ -154,9 +168,14 @@ public class ProbeStitchingDependencyTracker {
                 .requireThatProbeCategory(ProbeCategory.CLOUD_NATIVE).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
                 .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.HYPERVISOR)
                 .requireThatProbeCategory(ProbeCategory.PAAS).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.CUSTOM).stitchAfter(ProbeCategory.GUEST_OS_PROCESSES)
                 .requireThatProbeCategory(ProbeCategory.GUEST_OS_PROCESSES).stitchAfter(ProbeCategory.HYPERVISOR)
                 .requireThatProbeCategory(ProbeCategory.GUEST_OS_PROCESSES).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.GUEST_OS_PROCESSES).stitchAfter(ProbeCategory.CLOUD_NATIVE)
+                .requireThatProbeCategory(ProbeCategory.GUEST_OS_PROCESSES).stitchAfter(ProbeCategory.DATABASE_SERVER)
                 .requireThatProbeCategory(ProbeCategory.VIRTUAL_DESKTOP_INFRASTRUCTURE).stitchAfter(ProbeCategory.HYPERVISOR)
+                .requireThatProbeCategory(ProbeCategory.BILLING).stitchAfter(ProbeCategory.CLOUD_MANAGEMENT)
+                .requireThatProbeCategory(ProbeCategory.HYPERCONVERGED).stitchAfter(ProbeCategory.HYPERVISOR)
                 // probe type ordering, we only support the probe types comparison if they are
                 // belonged to same category.
                 .requireThatProbeType(SDKProbeType.CLOUD_FOUNDRY).stitchAfter(SDKProbeType.PIVOTAL_OPSMAN)

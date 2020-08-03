@@ -33,6 +33,7 @@ volumes:
 #  mediation-aws: *localdriver
 #  mediation-awsbilling: *localdriver
 #  mediation-awscost: *localdriver
+#  mediation-datadog: *localdriver
 #  mediation-azure: *localdriver
 #  mediation-azurecost: *localdriver
   kafka1-log: *localdriver
@@ -267,6 +268,13 @@ services:
     mem_limit: 4096M
     depends_on: *clustermgrdep
 
+  mediation-udt:
+      extends:
+        file: prod-services.yml
+        service: mediation-udt-prod
+      mem_limit: 4096M
+      depends_on: *clustermgrdep
+
   mediation-vmax:
     extends:
       file: prod-services.yml
@@ -372,6 +380,15 @@ services:
 #    mem_limit: 2500M
 #    depends_on: *clustermgrdep
 #
+#  mediation-datadog:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-datadog-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx2000M"
+#    mem_limit: 2500M
+#    depends_on: *clustermgrdep
+#
 #  mediation-azure:
 #    extends:
 #      file: prod-services.yml
@@ -428,11 +445,39 @@ services:
 #    mem_limit: 1024M
 #    depends_on: *clustermgrdep
 #
+#  mediation-mysql:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-mysql-prod
+#    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
 #  mediation-appdynamics:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-appdynamics-prod
 #    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
+#  mediation-newrelic:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-newrelic-prod
+#    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
+#  mediation-appinsights:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-appinsights-prod
+#    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
+#  mediation-customdata:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-customdata-prod
+#    mem_limit: 512M
 #    depends_on: *clustermgrdep
 #
 #  mediation-dynatrace:

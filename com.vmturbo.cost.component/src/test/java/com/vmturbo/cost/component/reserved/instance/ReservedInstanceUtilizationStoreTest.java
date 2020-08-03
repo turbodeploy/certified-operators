@@ -3,54 +3,67 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.Period;
+import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
+import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceUtilizationLatestRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.platform.sdk.common.PricingDTO;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class ReservedInstanceUtilizationStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
 
-    private final static double DELTA = 0.000001;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    private static final double DELTA = 0.000001;
 
-    private Flyway flyway;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
@@ -60,7 +73,9 @@ public class ReservedInstanceUtilizationStoreTest {
 
     private ReservedInstanceUtilizationStore reservedInstanceUtilizationStore;
 
-    private DSLContext dsl;
+    private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
+
+    private PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
 
     final EntityRICoverageUpload coverageOne = EntityRICoverageUpload.newBuilder()
             .setEntityId(123L)
@@ -87,8 +102,16 @@ public class ReservedInstanceUtilizationStoreTest {
             .setProbeReservedInstanceId("testOne")
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(100L)
+            .setStartTime(System.currentTimeMillis())
+            .setEndTime(LocalDateTime.now().plus(Period.ofYears(1))
+                    .toInstant(ZoneOffset.UTC)
+                    .toEpochMilli())
             .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                     .setNumberOfCoupons(100))
+            .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                            .newBuilder()
+                            .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
+                            .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
             .setNumBought(10)
             .build();
 
@@ -97,8 +120,16 @@ public class ReservedInstanceUtilizationStoreTest {
             .setProbeReservedInstanceId("testTwo")
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(100L)
+            .setStartTime(System.currentTimeMillis())
+            .setEndTime(LocalDateTime.now().plus(Period.ofYears(1))
+                    .toInstant(ZoneOffset.UTC)
+                    .toEpochMilli())
             .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                     .setNumberOfCoupons(100))
+            .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                            .newBuilder()
+                            .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
+                            .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
             .setNumBought(20)
             .build();
 
@@ -107,31 +138,33 @@ public class ReservedInstanceUtilizationStoreTest {
             .setProbeReservedInstanceId("testThree")
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(50L)
+            .setStartTime(System.currentTimeMillis())
+            .setEndTime(LocalDateTime.now().plus(Period.ofYears(1))
+                    .toInstant(ZoneOffset.UTC)
+                    .toEpochMilli())
             .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                     .setNumberOfCoupons(100))
+                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                                    .newBuilder()
+                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
+                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
             .setNumBought(30)
             .build();
 
     @Before
     public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
+        Map<Long, PricingDTO.ReservedInstancePrice> map = new HashMap<>();
+        ReservedInstancePriceTable riPriceTable = ReservedInstancePriceTable.newBuilder()
+                .putAllRiPricesBySpecId(map).build();
+        Mockito.when(priceTableStore.getMergedRiPriceTable()).thenReturn(riPriceTable);
+        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
+        reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
         reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0));
-        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl,
-                new IdentityProvider(0));
-        entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl,
-                reservedInstanceBoughtStore);
+                        new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore);
+        entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
         reservedInstanceUtilizationStore = new ReservedInstanceUtilizationStore(dsl, reservedInstanceBoughtStore,
                 reservedInstanceSpecStore, entityReservedInstanceMappingStore);
         insertDefaultReservedInstanceSpec();
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     @Test
@@ -141,7 +174,8 @@ public class ReservedInstanceUtilizationStoreTest {
         final List<EntityRICoverageUpload> entityCoverageLists =
                 Arrays.asList(coverageOne, coverageTwo);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
-        entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);
+        entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl,
+                stichRIOidToCoverageUploads(entityCoverageLists));
         reservedInstanceUtilizationStore.updateReservedInstanceUtilization(dsl);
         List<ReservedInstanceUtilizationLatestRecord> records =
                 dsl.selectFrom(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST).fetch();
@@ -174,13 +208,14 @@ public class ReservedInstanceUtilizationStoreTest {
     }
 
     @Test
-    public void testGetRIUtilizationStatsRecords() throws Exception {
+    public void testGetRIUtilizationStatsRecords() {
         final List<ReservedInstanceBoughtInfo> reservedInstancesBoughtInfo =
                 Arrays.asList(riInfoOne, riInfoTwo, riInfoThree);
         final List<EntityRICoverageUpload> entityCoverageLists =
                 Arrays.asList(coverageOne, coverageTwo);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
-        entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);
+        entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl,
+                stichRIOidToCoverageUploads(entityCoverageLists));
         reservedInstanceUtilizationStore.updateReservedInstanceUtilization(dsl);
         // get all ri utilization records
         final ReservedInstanceUtilizationFilter filter = ReservedInstanceUtilizationFilter.newBuilder()
@@ -196,9 +231,20 @@ public class ReservedInstanceUtilizationStoreTest {
         assertEquals(110L, riStatRecord.getValues().getTotal(), DELTA);
         assertEquals(20L, riStatRecord.getValues().getMin(), DELTA);
         assertEquals(50L, riStatRecord.getValues().getMax(), DELTA);
+
+        final Collection<ReservedInstanceStatsRecord> riLatestStatsRecords =
+                reservedInstanceUtilizationStore.getReservedInstanceUtilizationStatsRecords(filter);
+        assertEquals(1, riLatestStatsRecords.size());
     }
 
     private void insertDefaultReservedInstanceSpec() {
+        final CloudCostDTO.ReservedInstanceType riType1 = CloudCostDTO.ReservedInstanceType.newBuilder().setTermYears(1).setOfferingClass(
+                        CloudCostDTO.ReservedInstanceType.OfferingClass.STANDARD).setPaymentOption(
+                        CloudCostDTO.ReservedInstanceType.PaymentOption.ALL_UPFRONT).build();
+
+        final CloudCostDTO.ReservedInstanceType riType2 = CloudCostDTO.ReservedInstanceType.newBuilder().setTermYears(2).setOfferingClass(
+                        CloudCostDTO.ReservedInstanceType.OfferingClass.STANDARD).setPaymentOption(
+                        CloudCostDTO.ReservedInstanceType.PaymentOption.ALL_UPFRONT).build();
         final ReservedInstanceSpecRecord specRecordOne = dsl.newRecord(Tables.RESERVED_INSTANCE_SPEC,
                 new ReservedInstanceSpecRecord(99L,
                         OfferingClass.STANDARD.getValue(),
@@ -208,7 +254,7 @@ public class ReservedInstanceUtilizationStoreTest {
                         OSType.LINUX.getValue(),
                         88L,
                         77L,
-                        ReservedInstanceSpecInfo.newBuilder().setRegionId(77L).build()));
+                        ReservedInstanceSpecInfo.newBuilder().setRegionId(77L).setType(riType1).build()));
         final ReservedInstanceSpecRecord specRecordTwo = dsl.newRecord(Tables.RESERVED_INSTANCE_SPEC,
                 new ReservedInstanceSpecRecord(100L,
                         OfferingClass.STANDARD.getValue(),
@@ -218,7 +264,40 @@ public class ReservedInstanceUtilizationStoreTest {
                         OSType.LINUX.getValue(),
                         90L,
                         78L,
-                        ReservedInstanceSpecInfo.getDefaultInstance()));
+                        ReservedInstanceSpecInfo.newBuilder().setRegionId(78L).setType(riType2).build()));
         dsl.batchInsert(Arrays.asList(specRecordOne, specRecordTwo)).execute();
+    }
+
+    /**
+     * This mirrors the behavior in RIAndExpenseUploadRpcService::updateCoverageWithLocalRIBoughtIds
+     * @param entityRICoverageUploads
+     * @return
+     */
+    private List<EntityRICoverageUpload> stichRIOidToCoverageUploads(
+            List<EntityRICoverageUpload> entityRICoverageUploads) {
+
+        final Map<String, Long> riProbeIdToOid = reservedInstanceBoughtStore
+                .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER)
+                .stream()
+                .filter(ReservedInstanceBought::hasReservedInstanceBoughtInfo)
+                .collect(
+                        Collectors.toMap(
+                                ri -> ri.getReservedInstanceBoughtInfo()
+                                        .getProbeReservedInstanceId(),
+                                ReservedInstanceBought::getId
+                        ));
+
+        return entityRICoverageUploads.stream()
+                .map(entityRICoverage -> EntityRICoverageUpload.newBuilder(entityRICoverage))
+                // update the ReservedInstanceId for each Coverage record, mapping through
+                // the ProbeReservedInstanceId
+                .peek(entityRiCoverageBuilder -> entityRiCoverageBuilder
+                        .getCoverageBuilderList().stream()
+                        .forEach(coverageBuilder -> coverageBuilder
+                                .setReservedInstanceId(riProbeIdToOid.getOrDefault(
+                                        coverageBuilder.getProbeReservedInstanceId(), 0L))))
+                .map(EntityRICoverageUpload.Builder::build)
+                .collect(Collectors.toList());
+
     }
 }

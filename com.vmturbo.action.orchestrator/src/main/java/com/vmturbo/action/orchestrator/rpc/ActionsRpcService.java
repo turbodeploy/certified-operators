@@ -15,46 +15,41 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import com.google.protobuf.util.JsonFormat;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
+
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
-import com.vmturbo.action.orchestrator.action.QueryFilter;
-import com.vmturbo.action.orchestrator.execution.ActionExecutor;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
-import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
+import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
+import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.FailedActionQueryException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
+import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
-import com.vmturbo.auth.api.auditing.AuditAction;
-import com.vmturbo.auth.api.auditing.AuditLogEntry;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
+import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -70,6 +65,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.ActionChunk;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
@@ -85,6 +81,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRespons
 import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesAndRejectionsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesAndRejectionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
@@ -94,8 +92,8 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.components.api.TimeUtil;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -110,15 +108,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      */
     private final ActionStorehouse actionStorehouse;
 
-    /**
-     * To execute actions (by sending them to Topology Processor)
-     */
-    private final ActionExecutor actionExecutor;
-
-    /**
-     * For selecting which target/probe to execute each action against
-     */
-    private final ActionTargetSelector actionTargetSelector;
+    private final ActionApprovalManager actionApprovalManager;
 
     /**
      * To translate an action from the market's domain-agnostic form to the domain-specific form
@@ -127,14 +117,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     private final ActionTranslator actionTranslator;
 
     /**
-     * For paginating views of actions
+     * For paginating views of actions.
      */
     private final ActionPaginatorFactory paginatorFactory;
 
-    /**
-     * the store for all the known {@link WorkflowDTO.Workflow} items
-     */
-    private final WorkflowStore workflowStore;
 
     private final HistoricalActionStatReader historicalActionStatReader;
 
@@ -142,34 +128,51 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private final Clock clock;
 
+    private final UserSessionContext userSessionContext;
+
+    private final AcceptedActionsDAO acceptedActionsStore;
+
+    private final RejectedActionsDAO rejectedActionsStore;
+
+    private final int actionPaginationMaxLimit;
+
     /**
      * Create a new ActionsRpcService.
      *
-     * @param actionStorehouse     The storehouse containing action stores.
-     * @param actionExecutor       The executor for executing actions.
-     * @param actionTargetSelector For selecting which target/probe to execute each action against
-     * @param actionTranslator     The translator for translating actions (from market to real-world).
-     * @param paginatorFactory     For paginating views of actions
-     * @param workflowStore        the store for all the known {@link WorkflowDTO.Workflow} items
+     * @param clock the {@link Clock}
+     * @param actionStorehouse the storehouse containing action stores.
+     * @param actionApprovalManager action approval manager
+     * @param actionTranslator the translator for translating actions (from market to real-world).
+     * @param paginatorFactory for paginating views of actions
+     * @param historicalActionStatReader reads stats of historical actions
+     * @param currentActionStatReader reads stats of current actions
+     * @param userSessionContext the user session context
+     * @param acceptedActionsStore dao layer working with accepted actions
+     * @param rejectedActionsStore dao layer working with rejected actions
+     * @param actionPaginationMaxLimit max number of actions to return in a single pagination page
      */
     public ActionsRpcService(@Nonnull final Clock clock,
-                             @Nonnull final ActionStorehouse actionStorehouse,
-                             @Nonnull final ActionExecutor actionExecutor,
-                             @Nonnull final ActionTargetSelector actionTargetSelector,
-                             @Nonnull final ActionTranslator actionTranslator,
-                             @Nonnull final ActionPaginatorFactory paginatorFactory,
-                             @Nonnull final WorkflowStore workflowStore,
-                             @Nonnull final HistoricalActionStatReader historicalActionStatReader,
-                             @Nonnull final CurrentActionStatReader currentActionStatReader) {
+            @Nonnull final ActionStorehouse actionStorehouse,
+            @Nonnull final ActionApprovalManager actionApprovalManager,
+            @Nonnull final ActionTranslator actionTranslator,
+            @Nonnull final ActionPaginatorFactory paginatorFactory,
+            @Nonnull final HistoricalActionStatReader historicalActionStatReader,
+            @Nonnull final CurrentActionStatReader currentActionStatReader,
+            @Nonnull final UserSessionContext userSessionContext,
+            @Nonnull final AcceptedActionsDAO acceptedActionsStore,
+            @Nonnull final RejectedActionsDAO rejectedActionsStore,
+            final int actionPaginationMaxLimit) {
         this.clock = clock;
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
-        this.actionExecutor = Objects.requireNonNull(actionExecutor);
-        this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
+        this.actionApprovalManager = Objects.requireNonNull(actionApprovalManager);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.paginatorFactory = Objects.requireNonNull(paginatorFactory);
-        this.workflowStore = Objects.requireNonNull(workflowStore);
         this.historicalActionStatReader = Objects.requireNonNull(historicalActionStatReader);
         this.currentActionStatReader = Objects.requireNonNull(currentActionStatReader);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
+        this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsStore);
+        this.rejectedActionsStore = Objects.requireNonNull(rejectedActionsStore);
+        this.actionPaginationMaxLimit = actionPaginationMaxLimit;
     }
 
     /**
@@ -199,23 +202,15 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
 
         final ActionStore store = optionalStore.get();
+        final Optional<Action> actionOpt = store.getAction(request.getActionId());
+        if (!actionOpt.isPresent()) {
+            responseObserver.onNext(acceptanceError("Action " + request.getActionId() + " doesn't exist."));
+            responseObserver.onCompleted();
+            return;
+        }
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
-        AcceptActionResponse response = store.getAction(request.getActionId())
-                .map(action -> {
-                    AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
-                            userNameAndUuid);
-                    if (!action.isReady()) {
-                        store.getEntitySeverityCache()
-                                .refresh(action.getRecommendation(), store);
-                    }
-                    AuditLogEntry entry = new AuditLogEntry.Builder(AuditAction.EXECUTE_ACTION, action.toString(), true)
-                            .targetName(String.valueOf(action.getId()))
-                            .build();
-                    AuditLogUtils.audit(entry);
-                    return attemptResponse;
-                }).orElse(acceptanceError("Action " + request.getActionId() + " doesn't exist."));
-
-
+        final AcceptActionResponse response = actionApprovalManager.attemptAndExecute(store,
+                userNameAndUuid, actionOpt.get());
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
@@ -256,30 +251,43 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             if (request.hasTopologyContextId()) {
                 final Optional<ActionStore> store = actionStorehouse.getStore(request.getTopologyContextId());
                 if (store.isPresent()) {
-                    Optional<ActionQueryFilter> filter = request.hasFilter() ?
-                            Optional.of(request.getFilter()) :
-                            Optional.empty();
+                    Tracing.log(() -> "Getting filtered actions. Request: " + JsonFormat.printer().print(request));
+
+                    ActionStore actionStore = store.get();
+
                     // We do translation after pagination because translation failures may
                     // succeed on retry. If we do translation before pagination, success after
                     // failure will mix up the pagination limit.
-                    final Stream<ActionView> resultViews = new QueryFilter(filter)
-                            .filteredActionViews(store.get());
+                    final Stream<ActionView> resultViews = request.hasFilter() ?
+                        actionStore.getActionViews().get(request.getFilter()) :
+                        actionStore.getActionViews().getAll();
 
-                    final FilteredActionResponse.Builder responseBuilder =
-                            FilteredActionResponse.newBuilder()
-                                    .setPaginationResponse(PaginationResponse.newBuilder());
+                    Tracing.log("Got result views.");
 
                     final PaginatedActionViews paginatedViews = paginatorFactory.newPaginator()
                             .applyPagination(resultViews, request.getPaginationParams());
 
-                    paginatedViews.getNextCursor().ifPresent(nextCursor ->
-                            responseBuilder.getPaginationResponseBuilder().setNextCursor(nextCursor));
+                    Tracing.log("Finished pagination.");
 
-                    actionTranslator.translateToSpecs(paginatedViews.getResults().stream())
-                            .map(ActionsRpcService::aoAction)
-                            .forEach(responseBuilder::addActions);
+                    final PaginationResponse.Builder paginationResponseBuilder =
+                            PaginationResponse.newBuilder();
+                    paginationResponseBuilder.setTotalRecordCount(paginatedViews.getTotalRecordCount());
+                    paginatedViews.getNextCursor().ifPresent(paginationResponseBuilder::setNextCursor);
+                    // send pagination response as first in response
+                    responseObserver.onNext(FilteredActionResponse.newBuilder()
+                            .setPaginationResponse(paginationResponseBuilder).build());
+                    // stream results in current page in chunks
+                    Lists.partition(paginatedViews.getResults(), actionPaginationMaxLimit)
+                            .forEach(batch -> {
+                                ActionChunk.Builder actionChunk = ActionChunk.newBuilder();
+                                actionTranslator.translateToSpecs(batch)
+                                        .map(ActionsRpcService::aoAction)
+                                        .forEach(actionChunk::addActions);
+                                responseObserver.onNext(FilteredActionResponse.newBuilder()
+                                        .setActionChunk(actionChunk)
+                                        .build());
+                            });
 
-                    responseObserver.onNext(responseBuilder.build());
                     responseObserver.onCompleted();
                 } else {
                     contextNotFoundError(responseObserver, request.getTopologyContextId());
@@ -319,13 +327,14 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             return;
         }
 
-        final Map<Long, ActionView> actionViews = optionalStore.get().getActionViews();
+        Map<Long, ActionView> actionViews = optionalStore.get().getActionViews().get(actionIds)
+            .collect(Collectors.toMap(ActionView::getId, Function.identity()));
         final Set<Long> contained = new HashSet<>(actionIds);
         contained.retainAll(actionViews.keySet()); // Contained (Intersection)
         actionIds.removeAll(actionViews.keySet()); // Missing (Difference)
 
         final Map<Long, ActionSpec> translatedActions = actionTranslator.translateToSpecs(contained.stream()
-                .map(actionViews::get))
+                .map(actionViews::get).collect(Collectors.toList()))
                 .collect(Collectors.toMap(actionSpec -> actionSpec.getRecommendation().getId(), Function.identity()));
 
         // Get actionIds
@@ -403,6 +412,13 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     .withDescription("Get action counts by entity need provide a action filter and entities.")
                     .asException());
         }
+
+        // verify access to the requested entities
+        if (userSessionContext.isUserScoped()) {
+            UserScopeUtils.checkAccess(userSessionContext,
+                    request.getFilter().getInvolvedEntities().getOidsList());
+        }
+
         final Optional<ActionStore> contextStore =
                 actionStorehouse.getStore(request.getTopologyContextId());
         if (contextStore.isPresent()) {
@@ -420,7 +436,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 // In the final Map, there will be one entry: key Host2 and Value is Action 1.
                 translatedActionViews.forEach(actionView -> {
                     try {
-                        ActionDTOUtil.getInvolvedEntityIds(actionView.getRecommendation()).stream()
+                        ActionDTOUtil.getInvolvedEntityIds(actionView.getTranslationResultOrOriginal())
+                                .stream()
                                 // We only care about actions that involve the target entities.
                                 .filter(targetEntities::contains)
                                 .forEach(entityId -> actionsByEntity.put(entityId, actionView));
@@ -525,24 +542,15 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
 
         // group by {ActionCategory, numAction|numEntities, costPrice(savings|investment)}
-        actionTranslator.translateToSpecs(actionStore.get().getActionViews().values().stream())
-                .forEach(actionSpec -> {
-                    ActionCategory category = actionSpec.getCategory();
-                    switch (category) {
-                        case PERFORMANCE_ASSURANCE:
-                            actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
-                            break;
-                        case PREVENTION:
-                            actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
-                            break;
-                        case COMPLIANCE:
-                            actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
-                            break;
-                        case UNKNOWN:
-                            logger.error("Unknown action category for {}", actionSpec);
-                            break;
-                    }
-                });
+        actionTranslator.translateToSpecs(actionStore.get().getActionViews().getAll().collect(Collectors.toList()))
+            .forEach(actionSpec -> {
+                final ActionCategory category = actionSpec.getCategory();
+                if (category == ActionCategory.UNKNOWN) {
+                    logger.error("Unknown action category for {}", actionSpec);
+                } else {
+                    actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
+                }
+            });
 
         GetActionCategoryStatsResponse.Builder actionCategoryStatsResponse =
                 GetActionCategoryStatsResponse.newBuilder();
@@ -566,6 +574,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                                          StreamObserver<GetHistoricalActionStatsResponse> responseObserver) {
         final GetHistoricalActionStatsResponse.Builder respBuilder =
             GetHistoricalActionStatsResponse.newBuilder();
+        // TODO: user scoping is not being applied here since the API is currently handling it. We
+        // should probably move it here in the future though, since we are now doing other scope
+        // checks in the Action Orchestrator
         for (GetHistoricalActionStatsRequest.SingleQuery query : request.getQueriesList()) {
             try {
                 final ActionStats actionStats = historicalActionStatReader.readActionStats(query.getQuery());
@@ -588,6 +599,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     @Override
     public void getCurrentActionStats(GetCurrentActionStatsRequest request,
                                    StreamObserver<GetCurrentActionStatsResponse> responseObserver) {
+        // NOTE: user scoping for action stats is handled in the API component.
         final GetCurrentActionStatsResponse.Builder respBuilder =
             GetCurrentActionStatsResponse.newBuilder();
         try {
@@ -605,76 +617,22 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
     }
 
-    /**
-     * Attempt to accept and execute the action.
-     *
-     * @return The result of attempting to accept and execute the action.
-     */
-    private AcceptActionResponse attemptAcceptAndExecute(@Nonnull final Action action,
-                                                         final String userUUid) {
-        long actionTargetId = -1;
-        Optional<FailureEvent> failure = Optional.empty();
-
-        ActionTargetInfo actionTargetInfo =
-            actionTargetSelector.getTargetForAction(action.getRecommendation());
-        if (actionTargetInfo.supportingLevel() == SupportLevel.SUPPORTED) {
-            // Target should be set if support level is "supported".
-            actionTargetId = actionTargetInfo.targetId().get();
-        } else {
-            failure = Optional.of(new FailureEvent(
-                "Action cannot be executed by any target. Support level: " +
-                    actionTargetInfo.supportingLevel()));
-        }
-
-        failure.ifPresent(failureEvent ->
-            logger.error("Failed to accept action: {}", failureEvent.getErrorDescription()));
-
-        if (action.receive(new ActionEvent.ManualAcceptanceEvent(userUUid, actionTargetId)).transitionNotTaken()) {
-            return acceptanceError("Unauthorized to accept action in mode " + action.getMode());
-        }
-
-        return handleTargetResolution(action, actionTargetId, failure);
-    }
-
-    private AcceptActionResponse handleTargetResolution(@Nonnull final Action action,
-                                                        final long targetId,
-                                                        @Nonnull final Optional<FailureEvent> failure) {
-        return failure
-                .map(failureEvent -> {
-                    action.receive(failureEvent);
-                    return acceptanceError(failureEvent.getErrorDescription());
-                    // TODO (roman, Sep 1, 2016): Figure out criteria for when to begin execution
-                }).orElseGet(() -> attemptActionExecution(action, targetId));
-    }
-
-    private AcceptActionResponse attemptActionExecution(@Nonnull final Action action,
-                                                        final long targetId) {
+    @Override
+    public void removeActionsAcceptancesAndRejections(
+            RemoveActionsAcceptancesAndRejectionsRequest request,
+            StreamObserver<RemoveActionsAcceptancesAndRejectionsResponse> responseObserver) {
         try {
-            // A prepare event prepares the action for execution, and initiates a PRE
-            // workflow if one is associated with this action.
-            action.receive(new PrepareExecutionEvent());
-            // Allows the action to begin execution, if a PRE workflow is not running
-            action.receive(new BeginExecutionEvent());
-            actionTranslator.translate(action);
-            final Optional<ActionDTO.Action> translatedRecommendation =
-                    action.getActionTranslation().getTranslatedRecommendation();
-            if (translatedRecommendation.isPresent()) {
-                // execute the action, passing the workflow override (if any)
-                actionExecutor.execute(targetId, translatedRecommendation.get(),
-                        action.getWorkflow(workflowStore));
-                return AcceptActionResponse.newBuilder()
-                        .setActionSpec(actionTranslator.translateToSpec(action))
-                        .build();
-            } else {
-                final String errorMsg = String.format("Failed to translate action %d for execution.", action.getId());
-                logger.error(errorMsg);
-                action.receive(new FailureEvent(errorMsg));
-                return acceptanceError(errorMsg);
-            }
-        } catch (ExecutionStartException e) {
-            logger.error("Failed to start action {} due to error {}.", action.getId(), e);
-            action.receive(new FailureEvent(e.getMessage()));
-            return acceptanceError(e.getMessage());
+            acceptedActionsStore.removeAcceptanceForActionsAssociatedWithPolicy(
+                    request.getPolicyId());
+            rejectedActionsStore.removeRejectionsForActionsAssociatedWithPolicy(
+                    request.getPolicyId());
+            responseObserver.onNext(
+                    RemoveActionsAcceptancesAndRejectionsResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            logger.error("Failed to remove acceptances and rejections for actions associated with "
+                    + "policy {}", request.getPolicyId(), e);
+            responseObserver.onError(e);
         }
     }
 
@@ -775,8 +733,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     }
 
     /**
-     * Utility method to query actions from an action store and apply translation. We need to
-     * do this for all actions that go out to the user.
+     * Utility method to query actions from an action store. We need to do this for all actions
+     * that go out to the user.
      *
      * @param requestFilter An {@link Optional} containing the filter for actions.
      * @param actionStore   The action store to query.
@@ -786,23 +744,18 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     @Nonnull
     private Stream<ActionView> filteredTranslatedActionViews(Optional<ActionQueryFilter> requestFilter,
                                                              ActionStore actionStore) {
-        return actionTranslator.translate(new QueryFilter(requestFilter)
-                .filteredActionViews(actionStore));
+        QueryableActionViews actionViews = actionStore.getActionViews();
+        return requestFilter.map(actionViews::get).orElseGet(actionViews::getAll);
     }
 
     private static Map<ActionType, Long> getActionsByType(@Nonnull final Stream<ActionView> actionViewStream) {
         return actionViewStream
-                .map(ActionView::getRecommendation)
+                .map(ActionView::getTranslationResultOrOriginal)
                 .collect(Collectors.groupingBy(
                         ActionDTOUtil::getActionInfoActionType,
                         Collectors.counting()));
     }
 
-    private static AcceptActionResponse acceptanceError(@Nonnull final String error) {
-        return AcceptActionResponse.newBuilder()
-                .setError(error)
-                .build();
-    }
 
     private static void contextNotFoundError(@Nonnull final StreamObserver<?> responseObserver,
                                              final long topologyContextId) {
@@ -825,6 +778,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 .setActionId(spec.getRecommendation().getId())
                 .setActionSpec(spec)
                 .build();
+    }
+
+    private static AcceptActionResponse acceptanceError(@Nonnull final String error) {
+        return AcceptActionResponse.newBuilder().setError(error).build();
     }
 
     /**

@@ -1,0 +1,52 @@
+syntax = "proto2";
+package cost;
+
+option java_package = "com.vmturbo.common.protobuf.cost";
+
+import "plan/PlanProgressStatusEnum.proto";
+
+// This is the notification message from cost component to plan orchestrator at the end of an
+// optimize cloud plan.
+message CostNotification {
+
+    oneof Type {
+        // Currently, status notifications are the only type sent as a cost notification
+        StatusUpdate status_update = 1;
+    }
+
+    // A message about a cost operation stats
+    message StatusUpdate {
+
+        optional StatusUpdateType type = 1;
+
+        // the topology context id that the operation relates to
+        optional int64 topology_context_id = 2;
+
+        // the topology id that the operation relates to
+        optional int64 topology_id = 3;
+
+        // status of the operation
+        optional .plan.Status status = 4 [default = UNKNOWN];
+
+        // TODO: the error description should be set if any error happens while running the plan.
+        // This description is useful when status is fail.
+        optional string status_description = 5;
+
+        // the time that the operation reached the status indicated
+        optional int64 timestamp = 6;
+
+    }
+
+    enum StatusUpdateType {
+        // This notification will be sent after ReservedInstanceCoverageUpdate has finished processing
+        // RI coverage for a topology. This processing will include supplemental RI coverage
+        // allocation. "Source" refers to a live/realtime topology and is meant to be the origin
+        // of a projected topology.
+        SOURCE_RI_COVERAGE_UPDATE = 1;
+        // It will be sent from cost to plan orchestrator after receiving the cost signal.
+        PROJECTED_COST_UPDATE = 2;
+        // It will be sent from cost to plan orchestrator after receiving the RI coverage signal.
+        PROJECTED_RI_COVERAGE_UPDATE = 3;
+    }
+
+}

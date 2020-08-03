@@ -13,68 +13,58 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import org.flywaydb.core.Flyway;
+import com.google.common.collect.ImmutableSet;
+
 import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
-import com.google.common.collect.ImmutableSet;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.commons.idgen.IdentityInitializer;
-import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.plan.orchestrator.db.Plan;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=plan"})
+/**
+ * Unit tests for {@link TemplatesDao}.
+ */
 public class TemplatesDaoImplTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private TemplatesDaoImpl templatesDao;
+    private TemplatesDaoImpl templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
+        new IdentityInitializer(0));
 
+    /**
+     * Captures expected exceptions in a test.
+     */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-
-    @Before
-    public void setup() throws Exception {
-        prepareDatabase();
-    }
-
-    private void prepareDatabase() throws Exception {
-        flyway = dbConfig.flyway();
-        final DSLContext dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
-                new IdentityInitializer(0));
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
 
     @Test
     public void testCreateTemplate() throws DuplicateTemplateException {
@@ -106,7 +96,7 @@ public class TemplatesDaoImplTest {
             .build();
         Template createdFirstTemplate = templatesDao.createTemplate(firstTemplateInstance);
         Template createdSecondTemplate = templatesDao.createTemplate(secondTemplateInstance);
-        Set<Template> retrievedTemplates = templatesDao.getAllTemplates();
+        Set<Template> retrievedTemplates = templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         assertTrue(retrievedTemplates.size() == 2);
         assertTrue(retrievedTemplates.stream()
             .anyMatch(template -> template.getId() == createdFirstTemplate.getId()));
@@ -163,7 +153,9 @@ public class TemplatesDaoImplTest {
                 .setName("bar")
                 .build();
         final Template createdTemplate = templatesDao.createTemplate(templateInstance);
-        final List<Template> byName = templatesDao.getTemplatesByName("bar");
+        final Set<Template> byName = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
+            .addTemplateName("bar")
+            .build());
         assertThat(byName, containsInAnyOrder(createdTemplate));
     }
 
@@ -188,41 +180,47 @@ public class TemplatesDaoImplTest {
 
     @Test
     public void testGetTemplatesByNameEmpty() {
-        assertTrue(templatesDao.getTemplatesByName("foo").isEmpty());
+        assertTrue(templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
+            .addTemplateName("foo")
+            .build()).isEmpty());
     }
 
     @Test
     public void testLoadDefaultTemplates() {
         final TemplatesDao templatesDao =
-                new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
+                new TemplatesDaoImpl(dsl, "testDefaultTemplates.json",
                         new IdentityInitializer(0));
-        final List<Template> templates = templatesDao.getTemplatesByName("testVM");
+        final Set<Template> templates = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
+            .addTemplateName("testVM")
+            .build());
         assertThat(templates.size(), is(1));
-        Template defaultTemplate = templates.get(0);
+        Template defaultTemplate = templates.iterator().next();
         assertThat(defaultTemplate.getType(), is(Type.SYSTEM));
         assertThat(defaultTemplate.getTemplateInfo().getName(), is("testVM"));
     }
 
     @Test
     public void testDeleteDefaultTemplates() {
-        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
+        new TemplatesDaoImpl(dsl, "testDefaultTemplates.json",
                 new IdentityInitializer(0));
         final TemplatesDao templatesDao =
-                new TemplatesDaoImpl(dbConfig.dsl(), "emptyDefaultTemplates.json",
+                new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
                         new IdentityInitializer(0));
-        assertTrue(templatesDao.getAllTemplates().isEmpty());
+        assertTrue(templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance()).isEmpty());
     }
 
     @Test
     public void testEditDefaultTemplates() {
-        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
+        new TemplatesDaoImpl(dsl, "testDefaultTemplates.json",
                 new IdentityInitializer(0));
         final TemplatesDao templatesDao =
-                new TemplatesDaoImpl(dbConfig.dsl(), "testModifiedDefaultTemplates.json",
+                new TemplatesDaoImpl(dsl, "testModifiedDefaultTemplates.json",
                         new IdentityInitializer(0));
-        final List<Template> templates = templatesDao.getTemplatesByName("testVM");
+        final Set<Template> templates = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
+            .addTemplateName("testVM")
+            .build());
         assertThat(templates.size(), is(1));
-        Template defaultTemplate = templates.get(0);
+        Template defaultTemplate = templates.iterator().next();
         final String memSizeValue = defaultTemplate.getTemplateInfo().getResourcesList().stream()
                 .filter(resource -> resource.getCategory().getName().equals(ResourcesCategoryName.Compute))
                 .map(resource -> resource.getFieldsList().stream()
@@ -236,11 +234,13 @@ public class TemplatesDaoImplTest {
 
     @Test
     public void testGetTemplateByName() throws Exception {
-        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
+        new TemplatesDaoImpl(dsl, "testDefaultTemplates.json",
                 new IdentityInitializer(0));
-        List<Template> result = templatesDao.getTemplatesByName("testVM");
+        Set<Template> result = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
+            .addTemplateName("testVM")
+            .build());
         assertEquals(1, result.size());
-        assertEquals("testVM", result.get(0).getTemplateInfo().getName());
+        assertEquals("testVM", result.iterator().next().getTemplateInfo().getName());
     }
 
     @Test
@@ -252,11 +252,15 @@ public class TemplatesDaoImplTest {
         final List<Template> expected = Arrays.asList(foo, bar);
 
 
-        final List<String> diags = templatesDao.collectDiags();
-        System.out.println(diags);
-        assertEquals(2, diags.size());
+        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
+        templatesDao.collectDiags(appender);
+        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
 
-        assertTrue(diags.stream()
+        System.out.println(diags.getAllValues());
+        assertEquals(2, diags.getAllValues().size());
+
+        assertTrue(diags.getAllValues().stream()
             .map(string -> TemplatesDaoImpl.GSON.fromJson(string, Template.class))
             .allMatch(expected::contains));
 
@@ -283,19 +287,66 @@ public class TemplatesDaoImplTest {
         }
 
         assertFalse(templatesDao.getTemplate(preexisting.getId()).isPresent());
-        assertTrue(templatesDao.getAllTemplates().stream()
+        assertTrue(templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance()).stream()
             .map(template -> TemplatesDaoImpl.GSON.toJson(template, Template.class))
             .allMatch(serialized::contains));
     }
 
+    /**
+     * Test {@link TemplatesDaoImpl#createTemplate(TemplateInfo)}.
+     *
+     * @throws DuplicateTemplateException if template name already exist
+     */
     @Test
-    public void testDuplicateTemplateNames() throws Exception {
-        TemplateInfo templateInfo = TemplateInfo.newBuilder()
+    public void testDuplicateTemplateNames() throws DuplicateTemplateException {
+        // Create a new template.
+        TemplateInfo newTemplateInfo = TemplateInfo.newBuilder()
                 .setName("template-instance")
+                .setDescription("a new template")
                 .build();
-        Template result = templatesDao.createTemplate(templateInfo);
-        assertEquals(result.getTemplateInfo(), templateInfo);
+        assertEquals(templatesDao.createTemplate(newTemplateInfo).getTemplateInfo(), newTemplateInfo);
+
+        // Creating a template with the same name should replace the existing one.
+        TemplateInfo templateInfo = TemplateInfo.newBuilder()
+            .setName("template-instance")
+            .setDescription("a template with the same name")
+            .build();
         expectedException.expect(DuplicateTemplateException.class);
         templatesDao.createTemplate(templateInfo);
+    }
+
+    /**
+     * Tests saving and retrieving of a headroom template.
+     * @throws Exception when something goes wrong.
+     */
+    @Test
+    public void setAndGetHeadroomTemplateForAGroup() throws Exception {
+        TemplateInfo templateInfo1 = TemplateInfo.newBuilder()
+            .setName("template-instance1")
+            .build();
+        Template template1 = templatesDao.createTemplate(templateInfo1);
+
+        final long groupId = 5L;
+
+        templatesDao.setOrUpdateHeadroomTemplateForCluster(groupId, template1.getId());
+
+        Optional<Template> retrievedTemplate =
+            templatesDao.getClusterHeadroomTemplateForGroup(groupId);
+
+        assertTrue(retrievedTemplate.isPresent());
+        assertEquals(template1, retrievedTemplate.get());
+
+        TemplateInfo templateInfo2 = TemplateInfo.newBuilder()
+            .setName("template-instance2")
+            .build();
+        Template template2 = templatesDao.createTemplate(templateInfo2);
+
+        templatesDao.setOrUpdateHeadroomTemplateForCluster(groupId, template2.getId());
+
+        retrievedTemplate =
+            templatesDao.getClusterHeadroomTemplateForGroup(groupId);
+
+        assertTrue(retrievedTemplate.isPresent());
+        assertEquals(template2, retrievedTemplate.get());
     }
 }

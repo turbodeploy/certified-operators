@@ -2,24 +2,21 @@ package com.vmturbo.topology.processor.actions;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
+
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionResponse;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceImplBase;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContext;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
 import com.vmturbo.topology.processor.actions.data.context.ContextCreationException;
@@ -58,35 +55,30 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
     @Override
     public void executeAction(ExecuteActionRequest request,
                     StreamObserver<ExecuteActionResponse> responseObserver) {
+        final long actionId = request.getActionId();
+        logger.info("ExecuteActionRequest received. ActionId: {}", actionId);
         try {
             // Construct a context to pull in additional data for action execution
             ActionExecutionContext actionExecutionContext =
                     actionExecutionContextFactory.getActionExecutionContext(request);
 
             // Get the list of action items to execute
+            logger.info("Convert actionId: {} to SDK actions", actionId);
             final List<ActionItemDTO> sdkActions = actionExecutionContext.getActionItems();
 
             // Ensure we have a sensible sdkActions result
             if (CollectionUtils.isEmpty(sdkActions)) {
-                throw new ActionExecutionException("Cannot execute an action with no action items!");
+                throw new ActionExecutionException(
+                                "Cannot execute actionId: " + actionId + " with no action items!");
             }
 
-            // Get the type of action being executed
-            ActionType actionType = actionExecutionContext.getSDKActionType();
-
-            // Check for workflows associated with this action
-            Optional<WorkflowDTO.WorkflowInfo> workflowOptional = request.hasWorkflowInfo() ?
-                    Optional.of(request.getWorkflowInfo()) : Optional.empty();
-
-            logger.debug("Start action {}", sdkActions);
-            operationManager.requestActions(request.getActionId(),
+            logger.info("Start execution of action {} after conversion to SDK actions ", actionId);
+            operationManager.requestActions(actionExecutionContext.buildActionExecutionDto(),
                     request.getTargetId(),
                     actionExecutionContext.getSecondaryTargetId(),
-                    actionType,
-                    sdkActions,
-                    actionExecutionContext.getAffectedEntities(),
-                    workflowOptional);
+                    actionExecutionContext.getControlAffectedEntities());
 
+            logger.info("ExecuteActionRequest completed for action: {}", actionId);
             responseObserver.onNext(ExecuteActionResponse.getDefaultInstance());
             responseObserver.onCompleted();
         } catch (ProbeException e) {

@@ -1,13 +1,10 @@
 package com.vmturbo.cost.component.reserved.instance.filter;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import javax.annotation.Nonnull;
 
 import org.jooq.Table;
 
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 
 /**
@@ -18,16 +15,13 @@ import com.vmturbo.cost.component.db.Tables;
  */
 public class ReservedInstanceUtilizationFilter extends ReservedInstanceStatsFilter {
 
-    private ReservedInstanceUtilizationFilter(@Nonnull final Set<Long> regionIds,
-                                              @Nonnull final Set<Long> availabilityZoneIds,
-                                              @Nonnull final Set<Long> businessAccountIds,
-                                              final long startDateMillis,
-                                              final long endDateMillis,
-                                              final TimeFrame timeFrame) {
-        super(regionIds, availabilityZoneIds, businessAccountIds, startDateMillis, endDateMillis,
-                timeFrame);
+    private ReservedInstanceUtilizationFilter(@Nonnull Builder builder) {
+        super(builder);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Table<?> getTableName() {
         if (this.timeFrame == null || this.timeFrame.equals(TimeFrame.LATEST)) {
@@ -42,6 +36,30 @@ public class ReservedInstanceUtilizationFilter extends ReservedInstanceStatsFilt
     }
 
     /**
+     * Converts this filter to an {@link ReservedInstanceBoughtFilter} for querying of the
+     * {@link com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore}. Note: the
+     * configured start/end dates and timeframe are not converted to the RI bought filter.
+     * @return The newly created {@link ReservedInstanceBoughtFilter}.
+     */
+    @Nonnull
+    public ReservedInstanceBoughtFilter toReservedInstanceBoughtFilter() {
+        return ReservedInstanceBoughtFilter.newBuilder()
+                .regionFilter(regionFilter)
+                .accountFilter(accountFilter)
+                .availabilityZoneFilter(availabilityZoneFilter)
+                .build();
+    }
+
+    @Nonnull
+    public ReservedInstanceUtilizationFilter toLatestFilter() {
+        return ReservedInstanceUtilizationFilter.newBuilder()
+                .regionFilter(regionFilter)
+                .accountFilter(accountFilter)
+                .availabilityZoneFilter(availabilityZoneFilter)
+                .build();
+    }
+
+    /**
      * Create a builder used to construct a filter.
      *
      * @return The builder object.
@@ -50,55 +68,18 @@ public class ReservedInstanceUtilizationFilter extends ReservedInstanceStatsFilt
         return new ReservedInstanceUtilizationFilter.Builder();
     }
 
-    public static class Builder {
-        private Set<Long> regionIds = new HashSet<>();
-        private Set<Long> availabilityZoneIds = new HashSet<>();
-        private Set<Long> businessAccountIds = new HashSet<>();
-        private long startDateMillis = 0;
-        private long endDateMillis = 0;
-        private TimeFrame timeFrame = null;
+    /**
+     * A builder class for {@link ReservedInstanceUtilizationFilter}.
+     */
+    public static class Builder extends
+            ReservedInstanceStatsFilter.Builder<ReservedInstanceUtilizationFilter, Builder> {
 
-        private Builder() {}
-
+        /**
+         * {@inheritDoc}
+         */
+        @Override
         public ReservedInstanceUtilizationFilter build() {
-            return new ReservedInstanceUtilizationFilter(regionIds, availabilityZoneIds, businessAccountIds,
-                    startDateMillis, endDateMillis, timeFrame);
-        }
-
-        @Nonnull
-        public ReservedInstanceUtilizationFilter.Builder addRegionId(final long id) {
-            this.regionIds.add(id);
-            return this;
-        }
-
-        @Nonnull
-        public ReservedInstanceUtilizationFilter.Builder addAvailabilityZoneId(final long id) {
-            this.availabilityZoneIds.add(id);
-            return this;
-        }
-
-        @Nonnull
-        public ReservedInstanceUtilizationFilter.Builder addBusinessAccountId(final long id) {
-            this.businessAccountIds.add(id);
-            return this;
-        }
-
-        @Nonnull
-        public ReservedInstanceUtilizationFilter.Builder setStartDateMillis(final long millis) {
-            this.startDateMillis = millis;
-            return this;
-        }
-
-        @Nonnull
-        public ReservedInstanceUtilizationFilter.Builder setEndDateMillis(final long millis) {
-            this.endDateMillis = millis;
-            return this;
-        }
-
-        @Nonnull
-        public ReservedInstanceUtilizationFilter.Builder setTimeFrame(final TimeFrame timeFrame) {
-            this.timeFrame = timeFrame;
-            return this;
+            return new ReservedInstanceUtilizationFilter(this);
         }
     }
 }

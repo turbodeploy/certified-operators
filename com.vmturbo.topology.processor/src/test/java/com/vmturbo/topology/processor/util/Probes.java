@@ -2,12 +2,13 @@ package com.vmturbo.topology.processor.util;
 
 import java.util.concurrent.atomic.AtomicLong;
 
+import javax.annotation.Nonnull;
+
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.FakeRemoteMediation;
-import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 
 /**
  * Utility class to create some objects, suitable for tests.
@@ -15,12 +16,17 @@ import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 public class Probes {
 
     public static final ProbeInfo defaultProbe;
+
+    /**
+     * Probe that supports incremental discovery.
+     */
+    public static final ProbeInfo incrementalProbe;
+
     /**
      * Probe without any fields.
      */
     public static final ProbeInfo emptyProbe;
     public static final AccountDefEntry mandatoryField;
-    public static final String TARGET_ID = "targetId";
     public static final AtomicLong counter = new AtomicLong();
 
     private Probes() {}
@@ -28,20 +34,22 @@ public class Probes {
     static {
         mandatoryField = AccountDefEntry.newBuilder()
                         .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                                        .setName("name-" + counter.getAndIncrement())
-                                        .setDescription("description-" + counter.getAndIncrement())
-                                        .setDisplayName("display-name")
+                                        .setName(FakeRemoteMediation.TGT_ID)
+                                        .setDescription("This is the ID of the target")
+                                        .setDisplayName("Target ID")
                                         .setPrimitiveValue(PrimitiveValue.STRING))
                         .build();
         emptyProbe = ProbeInfo.newBuilder().setProbeType("probe-type-" + counter.getAndIncrement())
                         .setProbeCategory("category")
-                        .addTargetIdentifierField(TargetSpecAttributeExtractor.PROBE_ID)
-                        .addTargetIdentifierField(TARGET_ID)
+                        .setUiProbeCategory("ui-category")
                         .addTargetIdentifierField(FakeRemoteMediation.TGT_ID)
-                        .build();
+                        .addAccountDefinition(mandatoryField).build();
         defaultProbe = ProbeInfo.newBuilder(emptyProbe)
                         .setProbeType("probe-type-" + counter.getAndIncrement())
-                        .addAccountDefinition(mandatoryField).build();
+                        .setUiProbeCategory("ui-probe-type-" + counter.getAndIncrement())
+                        .build();
+        incrementalProbe =
+            ProbeInfo.newBuilder(defaultProbe).setIncrementalRediscoveryIntervalSeconds(10).build();
     }
 
     /**
@@ -53,6 +61,22 @@ public class Probes {
     public static ProbeInfo.Builder createEmptyProbe() {
         final long index = counter.getAndIncrement();
         return ProbeInfo.newBuilder(emptyProbe).setProbeType("probe-type-" + index)
-                        .setProbeCategory("probe-category-" + index);
+                .setUiProbeCategory("probe-ui-category-" + index)
+                .setProbeCategory("probe-category-" + index);
+    }
+
+    /**
+     * Create an AccountDefEntry.Builder for a string AccountDef with the given name.
+     *
+     * @param name the name of the CustomAccountDefEntry
+     * @return Builder for the CustomerAccountDefEntry specified
+     */
+    public static AccountDefEntry.Builder createStringAccountDefinition(@Nonnull String name) {
+        return AccountDefEntry.newBuilder()
+                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                        .setName(name)
+                        .setDescription(name + " description")
+                        .setDisplayName(name + " display name")
+                        .setPrimitiveValue(PrimitiveValue.STRING));
     }
 }

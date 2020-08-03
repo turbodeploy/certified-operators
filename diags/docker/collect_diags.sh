@@ -3,7 +3,7 @@
 # Populate a temporary directory with diagnostic text files.
 # The directory to use is passed as the first argument.
 #
-diag_directory="/tmp/diags"
+diag_directory="/tmp/diags/system-data"
 rm -rf "${diag_directory}" >/dev/null 2>&1
 mkdir -p "${diag_directory}"
 
@@ -123,8 +123,8 @@ if [ ${DUMP_REQUEST_TIME} -ne 0 ]; then
 fi
 
 # Check server configured Memory and CPU
-echo "XL Instance VMem Capacity: $(free -m | grep Mem | awk '{print $2 " MB"}')" > /tmp/diags/server_mem_cpu_capacity.txt
-echo "XL Instance Number VCPUs: $(nproc)" >> /tmp/diags/server_mem_cpu_capacity.txt
+echo "XL Instance VMem Capacity: $(free -m | grep Mem | awk '{print $2 " MB"}')" > ${diag_directory}/server_mem_cpu_capacity.txt
+echo "XL Instance Number VCPUs: $(nproc)" >> ${diag_directory}/server_mem_cpu_capacity.txt
 
 # Done
 echo "1" > /tmp/diags_done

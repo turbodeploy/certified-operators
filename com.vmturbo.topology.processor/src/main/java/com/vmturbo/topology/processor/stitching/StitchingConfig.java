@@ -1,26 +1,23 @@
 package com.vmturbo.topology.processor.stitching;
 
+import io.grpc.Channel;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import io.grpc.Channel;
-
-import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc;
-import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc.CpuCapacityServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.components.api.GrpcChannelFactory;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary;
+import com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
-import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.cpucapacity.CpuCapacityConfig;
-import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory.RandomEntityStitchingJournalFactory;
@@ -72,7 +69,7 @@ public class StitchingConfig {
     @Value("${resizeDownWarmUpIntervalHours}")
     private double resizeDownWarmUpIntervalHours;
 
-    @Value("${stitchingJournalEnabled}")
+    @Value("${stitchingJournalEnabled:false}")
     private boolean stitchingJournalEnabled;
 
     @Value("${journalMaxChangesetsPerOperation}")
@@ -118,7 +115,7 @@ public class StitchingConfig {
 
     @Bean
     public Channel historyChannel() {
-        return GrpcChannelFactory.newChannelBuilder(historyHost, grpcPort).build();
+        return ComponentGrpcServer.newChannelBuilder(historyHost, grpcPort).build();
     }
 
     @Bean
@@ -136,7 +133,7 @@ public class StitchingConfig {
     @Bean
     public PostStitchingOperationLibrary postStitchingOperationStore() {
         return new PostStitchingOperationLibrary(
-            new SetCommodityMaxQuantityPostStitchingOperationConfig(
+            new CommodityPostStitchingOperationConfig(
                 historyClient(),
                 maxValuesBackgroundLoadFrequencyMinutes,
                 maxValuesBackgroundLoadDelayOnInitFailureMinutes),

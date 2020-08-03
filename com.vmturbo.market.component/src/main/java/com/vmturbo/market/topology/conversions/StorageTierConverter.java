@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -50,41 +51,40 @@ public class StorageTierConverter implements TierConverter {
     public Map<TraderTO.Builder, MarketTier> createMarketTierTraderTOs(
             @Nonnull TopologyEntityDTO storageTier,
             @Nonnull Map<Long, TopologyEntityDTO> topology,
-            @Nonnull Set<TopologyEntityDTO> businessAccounts) {
+            @Nonnull Set<TopologyEntityDTO> businessAccounts,
+            @Nonnull Set<AccountPricingData> uniqueAccountPricingData) {
         Map<TraderTO.Builder, MarketTier> traderTOs = new HashMap<>();
         List<TopologyEntityDTO> connectedRegions = TopologyDTOUtil.getConnectedEntitiesOfType(
                 storageTier, EntityType.REGION_VALUE, topology);
-        for(TopologyEntityDTO region : connectedRegions) {
-            MarketTier marketTier = new OnDemandMarketTier(storageTier, region);
-            String debugInfo = marketTier.getDisplayName();
-            logger.debug("Creating trader for {}", debugInfo);
-            TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
-                    createCommonTraderSettingsTOBuilder(storageTier, topology);
-            final EconomyDTOs.TraderSettingsTO settings = settingsBuilder
-                    .setClonable(false)
-                    .setSuspendable(false)
-                    // TODO: For canAcceptNewCustomers - Need to check if price is available.
-                    .setCanAcceptNewCustomers(true)
-                    // TODO: Check why isEligibleForResizeDown is true for computeTier?
-                    .setIsEligibleForResizeDown(false)
-                    .setQuoteFunction(QuoteFunctionDTO.newBuilder()
-                            .setRiskBased(RiskBased.newBuilder()
-                                    .setCloudCost(costDTOCreator.createStorageTierCostDTO(
-                                            storageTier, region, businessAccounts)).build()))
-                    .setQuoteFactor(1)
-                    .build();
+        MarketTier marketTier = new OnDemandMarketTier(storageTier);
+        String debugInfo = marketTier.getDisplayName();
+        logger.debug("Creating trader for {}", debugInfo);
+        TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
+                createCommonTraderSettingsTOBuilder(storageTier, topology);
+        final EconomyDTOs.TraderSettingsTO settings = settingsBuilder
+                .setClonable(false)
+                .setSuspendable(false)
+                // TODO: For canAcceptNewCustomers - Need to check if price is available.
+                .setCanAcceptNewCustomers(true)
+                // TODO: Check why isEligibleForResizeDown is true for computeTier?
+                .setIsEligibleForResizeDown(false)
+                .setQuoteFunction(QuoteFunctionDTO.newBuilder()
+                        .setRiskBased(RiskBased.newBuilder()
+                                .setCloudCost(costDTOCreator.createStorageTierCostDTO(
+                                        storageTier, connectedRegions, uniqueAccountPricingData)).build()))
+                .setQuoteFactor(1)
+                .build();
 
-            TraderTO.Builder traderTOBuilder = EconomyDTOs.TraderTO.newBuilder()
-                    // Type and Oid are the same in the topology DTOs and economy DTOs
-                    .setOid(IdentityGenerator.next())
-                    .setType(EntityType.STORAGE_TIER_VALUE)
-                    .setState(TopologyConversionUtils.traderState(storageTier))
-                    .setSettings(settings)
-                    .setTemplateForHeadroom(false)
-                    .setDebugInfoNeverUseInCode(marketTier.getDisplayName())
-                    .addAllCommoditiesSold(commoditiesSoldList(storageTier));
-            traderTOs.put(traderTOBuilder, marketTier);
-        }
+        TraderTO.Builder traderTOBuilder = EconomyDTOs.TraderTO.newBuilder()
+                // Type and Oid are the same in the topology DTOs and economy DTOs
+                .setOid(IdentityGenerator.next())
+                .setType(EntityType.STORAGE_TIER_VALUE)
+                .setState(TopologyConversionUtils.traderState(storageTier))
+                .setSettings(settings)
+                .setTemplateForHeadroom(false)
+                .setDebugInfoNeverUseInCode(marketTier.getDisplayName())
+                .addAllCommoditiesSold(commoditiesSoldList(storageTier));
+        traderTOs.put(traderTOBuilder, marketTier);
         return traderTOs;
     }
 

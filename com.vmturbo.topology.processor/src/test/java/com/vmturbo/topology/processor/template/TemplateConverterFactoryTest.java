@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.template;
 
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -9,12 +10,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -22,10 +17,22 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByIdsRequest;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.mockito.Mockito;
+
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesResponse;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -40,6 +47,8 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 public class TemplateConverterFactoryTest {
 
     private final TemplateServiceMole templateServiceMole = Mockito.spy(new TemplateServiceMole());
+    private final SettingPolicyServiceMole testSettingPolicyService = spy(
+            new SettingPolicyServiceMole());
 
     private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
 
@@ -54,24 +63,32 @@ public class TemplateConverterFactoryTest {
     private Map<Long, TopologyEntity.Builder> topology = Maps.newHashMap();
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateServiceMole);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateServiceMole,
+            testSettingPolicyService);
 
     @Before
     public void setup() {
+        SettingPolicyServiceBlockingStub settingPolicyServiceClient = SettingPolicyServiceGrpc
+                .newBlockingStub(grpcServer.getChannel());
         this.templateConverterFactory = new TemplateConverterFactory(
-                TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()), identityProvider);
+                TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()), identityProvider,
+                settingPolicyServiceClient);
     }
 
     @Test
     public void testTemplateAddition() {
         final Map<Long, Long> templateAdditions = ImmutableMap.of(TEMPLATE_ID, 2L);
         when(templateServiceMole
-               .getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
-                        .addTemplateIds(TEMPLATE_ID).build()))
-                .thenReturn(Lists.newArrayList(Template.newBuilder()
-                        .setId(TEMPLATE_ID)
-                        .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
-                        .build()));
+               .getTemplates(GetTemplatesRequest.newBuilder()
+                   .setFilter(TemplatesFilter.newBuilder()
+                        .addTemplateIds(TEMPLATE_ID))
+                   .build()))
+                .thenReturn(Lists.newArrayList(GetTemplatesResponse.newBuilder()
+                    .addTemplates(SingleTemplateResponse.newBuilder()
+                        .setTemplate(Template.newBuilder()
+                            .setId(TEMPLATE_ID)
+                            .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)))
+                    .build()));
         final Stream<TopologyEntityDTO.Builder> topologyEntityForTemplates =
                 templateConverterFactory.generateTopologyEntityFromTemplates(templateAdditions,
                         ArrayListMultimap.create(), topology);
@@ -92,7 +109,7 @@ public class TemplateConverterFactoryTest {
                                         EntityType.STORAGE_VALUE)
                         .count());
         Assert.assertTrue(topologyEntityDTOList.stream()
-                .anyMatch(entity -> entity.getDisplayName().contains("Clone")));
+                .anyMatch(entity -> entity.getDisplayName().contains("Cloning")));
         Assert.assertTrue(topologyEntityDTOList.stream()
                 .allMatch(entity -> entity.getAnalysisSettings().getShopTogether()));
     }
@@ -117,13 +134,16 @@ public class TemplateConverterFactoryTest {
             TopologyEntity.newBuilder(originalTopologyEntityOne.toBuilder()));
         topology.put(originalTopologyEntityTwo.getOid(),
             TopologyEntity.newBuilder(originalTopologyEntityTwo.toBuilder()));
-        when(templateServiceMole
-                .getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
-                        .addTemplateIds(TEMPLATE_ID).build()))
-                .thenReturn(Lists.newArrayList(Template.newBuilder()
+        when(templateServiceMole.getTemplates(GetTemplatesRequest.newBuilder()
+                .setFilter(TemplatesFilter.newBuilder()
+                    .addTemplateIds(TEMPLATE_ID))
+                .build()))
+            .thenReturn(Lists.newArrayList(GetTemplatesResponse.newBuilder()
+                .addTemplates(SingleTemplateResponse.newBuilder()
+                    .setTemplate(Template.newBuilder()
                         .setId(TEMPLATE_ID)
-                        .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
-                        .build()));
+                        .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)))
+                .build()));
         final Multimap<Long, Long> templateToReplacedEntity = ArrayListMultimap.create();
         templateToReplacedEntity.put(TEMPLATE_ID, originalTopologyEntityOne.getOid());
         templateToReplacedEntity.put(TEMPLATE_ID, originalTopologyEntityTwo.getOid());
@@ -140,30 +160,4 @@ public class TemplateConverterFactoryTest {
                 .allMatch(entity -> entity.getAnalysisSettings().getShopTogether()));
     }
 
-    @Test
-    public void testTemplateAdditionForReservation() {
-        final Map<Long, Long> templateAdditions = ImmutableMap.of(TEMPLATE_ID, 3L);
-        when(templateServiceMole
-                .getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
-                        .addTemplateIds(TEMPLATE_ID).build()))
-                .thenReturn(Lists.newArrayList(Template.newBuilder()
-                        .setId(TEMPLATE_ID)
-                        .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
-                        .build()));
-        final Stream<TopologyEntityDTO.Builder> topologyEntityForTemplates =
-                templateConverterFactory.generateReservationEntityFromTemplates(templateAdditions, topology);
-        final List<TopologyEntityDTO> topologyEntityDTOList = topologyEntityForTemplates
-                .map(Builder::build)
-                .collect(Collectors.toList());
-        Assert.assertEquals(3, topologyEntityDTOList.size());
-        Assert.assertTrue(topologyEntityDTOList.get(0).getCommoditiesBoughtFromProvidersList().stream()
-                .allMatch(commoditiesBoughtFromProvider ->
-                        commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
-                                .filter(commodityBoughtDTO -> commodityBoughtDTO.getUsed() > 0)
-                                .allMatch(commodityBoughtDTO ->
-                                        provisionCommodityType.contains(commodityBoughtDTO
-                                                .getCommodityType().getType()))));
-        Assert.assertTrue(topologyEntityDTOList.stream()
-                .allMatch(entity -> entity.getAnalysisSettings().getShopTogether()));
-    }
 }

@@ -4,11 +4,10 @@ import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.CO
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE_WITH_KEY;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_UNITS;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
-
-import static org.hamcrest.Matchers.is;
 
 import java.util.Collections;
 
@@ -21,8 +20,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.history.schema.RelationType;
-import com.vmturbo.history.stats.StatsAccumulator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -90,9 +89,9 @@ public class SoldCommoditiesInfoTest {
                 // Current value is the avg of used.
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
-                .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
-                .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
                 .build();
 
         assertEquals(expectedStatRecord, record);
@@ -120,9 +119,9 @@ public class SoldCommoditiesInfoTest {
                 // Current value is the avg of used.
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
-                .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
-                .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
+                .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(4).setTotalMax(6).setTotalMin(4).build())
                 .build();
         assertEquals(expectedStatRecord, record);
     }
@@ -140,9 +139,9 @@ public class SoldCommoditiesInfoTest {
                 // the average
                 .setCurrentValue(3.5F)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(3.5F).setMax(5).setMin(2).setTotal(7).build())
-                .setValues(StatValue.newBuilder().setAvg(3.5F).setMax(5).setMin(2).setTotal(7).build())
-                .setPeak(StatValue.newBuilder().setAvg(4.5F).setMax(6).setMin(3).setTotal(9).build())
+                .setUsed(StatValue.newBuilder().setAvg(3.5F).setMax(6).setMin(2).setTotal(7).setTotalMax(9).setTotalMin(7).build())
+                .setValues(StatValue.newBuilder().setAvg(3.5F).setMax(6).setMin(2).setTotal(7).setTotalMax(9).setTotalMin(7).build())
+                .setPeak(StatValue.newBuilder().setAvg(3.5F).setMax(6).setMin(2).setTotal(7).setTotalMax(9).setTotalMin(7).build())
                 .build();
         testAddTwoCommodities(expectedStatRecord, COMMODITY_TYPE, COMMODITY_TYPE_WITH_KEY);
     }
@@ -162,9 +161,9 @@ public class SoldCommoditiesInfoTest {
                 .setRelation(RelationType.COMMODITIES.getLiteral())
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
-                .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
-                .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
                 .build();
         testAddTwoCommodities(expectedStatRecord, COMMODITY_TYPE, COMMODITY_TYPE);
     }
@@ -184,9 +183,9 @@ public class SoldCommoditiesInfoTest {
                 .setRelation(RelationType.COMMODITIES.getLiteral())
                 .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
-                .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
-                .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
+                .setPeak(StatValue.newBuilder().setAvg(2).setMax(3).setMin(2).setTotal(2).setTotalMax(3).setTotalMin(2).build())
                 .build();
         testAddTwoCommodities(expectedStatRecord, COMMODITY_TYPE_WITH_KEY, COMMODITY_TYPE_WITH_KEY);
     }

@@ -15,6 +15,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import io.grpc.Channel;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.workflow.DiscoveredWorkflowServiceGrpc;
 import com.vmturbo.common.protobuf.workflow.DiscoveredWorkflowServiceGrpc.DiscoveredWorkflowServiceBlockingStub;
@@ -85,15 +87,25 @@ public class DiscoveredWorkflowUploader {
      * @param targetId the OID of the target that was deleted
      */
     public void targetRemoved(long targetId) {
-        log.debug("target removed: {}", targetId);
-        // Notify the Action Orchestrator that all workflows related to this target should be deleted
-        final StoreDiscoveredWorkflowsRequest emptyWorkflowRequest =
-            createWorkflowRequest(targetId, Collections.emptyList());
-        uploadWorkflowsStub.storeDiscoveredWorkflows(emptyWorkflowRequest);
+        try {
+            // Notify the Action Orchestrator that all workflows related to this target should be deleted
+            final StoreDiscoveredWorkflowsRequest emptyWorkflowRequest =
+                    createWorkflowRequest(targetId, Collections.emptyList());
+            uploadWorkflowsStub.storeDiscoveredWorkflows(emptyWorkflowRequest);
+        } catch (RuntimeException e) {
+            if (e instanceof StatusRuntimeException) {
+                Status status = ((StatusRuntimeException)e).getStatus();
+                log.warn("Unable to delete workflow: {} caused by {}.",
+                        status.getDescription(), status.getCause());
+            } else {
+                log.error("Error deleting workflow.", e);
+            }
+        }
         // clear the local cache of workflows discovered from the target, if any.
         synchronized (workflowByTarget) {
             workflowByTarget.remove(targetId);
         }
+        log.debug("target removed: {}", targetId);
     }
 
     /**
@@ -109,7 +121,6 @@ public class DiscoveredWorkflowUploader {
      *
      */
     public void uploadDiscoveredWorkflows() {
-
         List<StoreDiscoveredWorkflowsRequest> requests = Lists.newArrayList();
         synchronized (workflowByTarget) {
             workflowByTarget.forEach((targetId, workflows) -> {

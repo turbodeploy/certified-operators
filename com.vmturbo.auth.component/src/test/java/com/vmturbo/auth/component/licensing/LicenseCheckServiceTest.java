@@ -11,7 +11,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -40,22 +39,19 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServi
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.mail.MailConfigException;
-import com.vmturbo.components.common.mail.MailException;
 import com.vmturbo.components.common.mail.MailManager;
 import com.vmturbo.licensing.License;
+import com.vmturbo.notification.api.NotificationSender;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.State;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
-import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Builder;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Category;
-import com.vmturbo.repository.api.Repository;
+import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 
 /**
- * Test cases for {@link LicenseCheckService}
+ * Test cases for {@link LicenseCheckService}.
  */
 @RunWith(MockitoJUnitRunner.class)
 public class LicenseCheckServiceTest {
@@ -101,7 +97,7 @@ public class LicenseCheckServiceTest {
         licenseManagerService = mock(LicenseManagerService.class);
         final SearchServiceBlockingStub searchServiceClient =
                 SearchServiceGrpc.newBlockingStub(testServer.getChannel());
-        final Repository repository = mock(Repository.class);
+        final RepositoryNotificationReceiver repository = mock(RepositoryNotificationReceiver.class);
         final IMessageSender<LicenseSummary> licenseSummaryIMessageSender = mock(IMessageSender.class);
         systemNotificationIMessageSender = mock(IMessageSender.class);
         mailManager = mock(MailManager.class);
@@ -112,18 +108,19 @@ public class LicenseCheckServiceTest {
                 searchServiceClient,
                 repository,
                 licenseSummaryIMessageSender,
-                systemNotificationIMessageSender,
+                new NotificationSender(systemNotificationIMessageSender, clock),
                 mailManager,
                 clock,
-                NUM_BEFORE_LICENSE_EXPIRATION_DAYS);
+                NUM_BEFORE_LICENSE_EXPIRATION_DAYS,
+                false); // no scheduled license checks
     }
 
     /**
-     * Permanent license should never expire
+     * Permanent license should never expire.
      */
     @Test
-    public void testIsGoingToExpiredPermanentLicense() {
-        assertFalse(licenseCheckService.isGoingToExpired(ILicense.PERM_LIC, NUM_BEFORE_LICENSE_EXPIRATION_DAYS));
+    public void testIsGoingToExpirePermanentLicense() {
+        assertFalse(licenseCheckService.isGoingToExpire(ILicense.PERM_LIC, NUM_BEFORE_LICENSE_EXPIRATION_DAYS));
     }
 
     /**
@@ -135,60 +132,61 @@ public class LicenseCheckServiceTest {
      * 5. when the license expired yesterday, return false (it's already expired)
      */
     @Test
-    public void testIsGoingToExpired() {
+    public void testIsGoingToExpire() {
         // if the license will expire tomorrow, return true
         LocalDate localDate = LocalDate.now().plusDays(NUM_BEFORE_LICENSE_EXPIRATION_DAYS - 1);
-        assertTrue(licenseCheckService.isGoingToExpired(localDate.toString(), NUM_BEFORE_LICENSE_EXPIRATION_DAYS));
+        assertTrue(licenseCheckService.isGoingToExpire(localDate.toString(),
+            NUM_BEFORE_LICENSE_EXPIRATION_DAYS));
 
         // if the license will expire the day after tomorrow, return true
         localDate = LocalDate.now().plusDays(NUM_BEFORE_LICENSE_EXPIRATION_DAYS);
-        assertTrue(licenseCheckService.isGoingToExpired(localDate.toString(), NUM_BEFORE_LICENSE_EXPIRATION_DAYS));
+        assertTrue(licenseCheckService.isGoingToExpire(localDate.toString(),
+            NUM_BEFORE_LICENSE_EXPIRATION_DAYS));
 
-        // if the license will expire three days, return false
-        localDate = LocalDate.now().plusDays((NUM_BEFORE_LICENSE_EXPIRATION_DAYS) + 1);
-        assertFalse(licenseCheckService.isGoingToExpired(localDate.toString(), NUM_BEFORE_LICENSE_EXPIRATION_DAYS));
+        // if the license will expire in three days, return false
+        localDate = LocalDate.now().plusDays(NUM_BEFORE_LICENSE_EXPIRATION_DAYS + 1);
+        assertFalse(licenseCheckService.isGoingToExpire(localDate.toString(),
+            NUM_BEFORE_LICENSE_EXPIRATION_DAYS));
 
         // if the license expires today, return false (it's already expired)
         localDate = LocalDate.now();
-        assertFalse(licenseCheckService.isGoingToExpired(localDate.toString(), NUM_BEFORE_LICENSE_EXPIRATION_DAYS));
+        assertFalse(licenseCheckService.isGoingToExpire(localDate.toString(),
+            NUM_BEFORE_LICENSE_EXPIRATION_DAYS));
 
         // if the license expired yesterday, return false (it's already expired)
         localDate = LocalDate.now().minusDays(1L);
-        assertFalse(licenseCheckService.isGoingToExpired(localDate.toString(), NUM_BEFORE_LICENSE_EXPIRATION_DAYS));
+        assertFalse(licenseCheckService.isGoingToExpire(localDate.toString(),
+            NUM_BEFORE_LICENSE_EXPIRATION_DAYS));
     }
 
     /**
-     * Test when license expired, both system notification and email will be sent
+     * Test when license expired, both system notification and email will be sent.
+     *
+     * @throws Exception not supposed to happen
      */
     @Test
-    public void testPublishNotificationLicenseExpired() throws CommunicationException, InterruptedException, MailException, MailConfigException {
+    public void testPublishNotificationLicenseExpired() throws Exception {
         final LicenseDTO license = LicenseDTO.newBuilder()
                 .setExpirationDate(LocalDate.now().toString())
                 .setEmail(EMAIL)
                 .build();
         licenseCheckService.publishNotification(false, Collections.singleton(license), aggregateLicense);
-        final long notificationTime = clock.millis();
-        final Builder builder = SystemNotification.newBuilder();
-        builder.setBroadcastId(1L)
-                .setCategory(Category.newBuilder().setLicense(SystemNotification.License.newBuilder().build()).build())
-                .setDescription(LicenseCheckService.TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT)
-                .setShortDescription(LicenseCheckService.LICENSE_HAS_EXPIRED)
-                .setSeverity(Severity.CRITICAL)
-                .setState(State.NOTIFY)
-                .setGenerationTime(notificationTime);
-        verify(systemNotificationIMessageSender).sendMessage(builder.build());
+        final SystemNotification notification =
+                notification(LicenseCheckService.TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT,
+                    LicenseCheckService.LICENSE_HAS_EXPIRED);
+        verify(systemNotificationIMessageSender).sendMessage(notification);
         verify(mailManager).sendMail(Collections.singletonList(EMAIL),
                 LicenseCheckService.LICENSE_HAS_EXPIRED,
                 LicenseCheckService.TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT);
-
     }
 
     /**
-     * Test when license was over limit, both system notification and email will be sent
+     * Test when license was over limit, both system notification and email will be sent.
+     *
+     * @throws Exception not supposed to happen
      */
     @Test
-    public void testPublishNotificationLicenseOverLimit() throws CommunicationException,
-        InterruptedException, MailException, MailConfigException {
+    public void testPublishNotificationLicenseOverLimit() throws Exception {
         final String description = String.format(LicenseCheckService.LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT,
             AuditLogUtils.getLocalIpAddress(), 70, 1000);
         final LicenseDTO license = LicenseDTO.newBuilder()
@@ -196,164 +194,111 @@ public class LicenseCheckServiceTest {
                 .setEmail(EMAIL)
                 .build();
         licenseCheckService.publishNotification(true, Collections.singleton(license), aggregateLicense);
-
-        final long notificationTime = clock.millis();
-        final Builder builder = SystemNotification.newBuilder();
-        builder.setBroadcastId(1L)
-                .setCategory(Category.newBuilder().setLicense(SystemNotification.License.newBuilder().build()).build())
-                .setDescription(description)
-                .setShortDescription(LicenseCheckService.WORKLOAD_COUNT_IS_OVER_LIMIT)
-                .setSeverity(Severity.CRITICAL)
-                .setState(State.NOTIFY)
-                .setGenerationTime(notificationTime);
-        verify(systemNotificationIMessageSender).sendMessage(builder.build());
+        SystemNotification notification =
+                    notification(description, LicenseCheckService.WORKLOAD_COUNT_IS_OVER_LIMIT);
+        verify(systemNotificationIMessageSender).sendMessage(notification);
         verify(mailManager).sendMail(Collections.singletonList(EMAIL),
                 LicenseCheckService.WORKLOAD_COUNT_IS_OVER_LIMIT, description);
     }
 
     /**
-     * Test when license expired and was over limit, license will expired warning (only) will be send out.
-     * Since expired license overrides over limit.
+     * Test when license expired and was over limit, only license expired notification will be sent
+     * out, since expired license overrides over limit.
+     *
+     * @throws Exception not supposed to happen
      */
     @Test
-    public void testPublishNotificationLicenseExpiredAndOverLimit() throws CommunicationException,
-        InterruptedException, MailException, MailConfigException {
+    public void testPublishNotificationLicenseExpiredAndOverLimit() throws Exception {
         final LicenseDTO license = LicenseDTO.newBuilder()
                 .setExpirationDate(LocalDate.now().toString())
                 .setEmail(EMAIL)
                 .build();
         licenseCheckService.publishNotification(true, Collections.singleton(license), aggregateLicense);
-
-        final long notificationTime = clock.millis();
-        final Builder builder = SystemNotification.newBuilder();
-        builder.setBroadcastId(1L)
-                .setCategory(Category.newBuilder().setLicense(SystemNotification.License.newBuilder().build()).build())
-                .setDescription(LicenseCheckService.TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT)
-                .setShortDescription(LicenseCheckService.LICENSE_HAS_EXPIRED)
-                .setSeverity(Severity.CRITICAL)
-                .setState(State.NOTIFY)
-                .setGenerationTime(notificationTime);
-        verify(systemNotificationIMessageSender).sendMessage(builder.build());
+        final SystemNotification notification =
+                notification(LicenseCheckService.TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT,
+                    LicenseCheckService.LICENSE_HAS_EXPIRED);
+        verify(systemNotificationIMessageSender).sendMessage(notification);
         verify(mailManager).sendMail(Collections.singletonList(EMAIL),
                 LicenseCheckService.LICENSE_HAS_EXPIRED,
                 LicenseCheckService.TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT);
     }
 
-
     /**
      * Test when license is going to expire and was over limit.
-     * Both license will be expire and overlimit warning will be send
+     * Both license will be expire and over limit warning will be send
+     *
+     * @throws Exception not supposed to happen
      */
     @Test
-    public void testPublishNotificationLicenseGoingToExpirAndOverLimit() throws CommunicationException,
-            InterruptedException, MailException, MailConfigException {
+    public void testPublishNotificationLicenseGoingToExpirAndOverLimit() throws Exception {
         final LicenseDTO license = LicenseDTO.newBuilder()
                 .setExpirationDate(LocalDate.now().plusDays(NUM_BEFORE_LICENSE_EXPIRATION_DAYS - 1).toString())
                 .setEmail(EMAIL)
                 .build();
         licenseCheckService.publishNotification(true, Collections.singleton(license), aggregateLicense);
-
-        final long notificationTime = clock.millis();
-        final Builder builder = SystemNotification.newBuilder();
-        builder.setBroadcastId(1L)
-                .setCategory(Category.newBuilder().setLicense(SystemNotification.License.newBuilder().build()).build())
-                .setDescription(LicenseCheckService.TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT)
-                .setShortDescription(LicenseCheckService.LICENSE_HAS_EXPIRED)
-                .setSeverity(Severity.CRITICAL)
-                .setState(State.NOTIFY)
-                .setGenerationTime(notificationTime);
         verify(systemNotificationIMessageSender, times(2)).sendMessage(any());
         verify(mailManager, times(2)).sendMail(anyList(), any(), any());
     }
 
     /**
-     * Test if license is going to expire, both system notification and email will be sent
+     * Test if license is going to expire, both system notification and email will be sent.
+     *
+     * @throws Exception not supposed to happen
      */
     @Test
-    public void testPublishNotificationLicenseGoingToExpire() throws MailException, MailConfigException {
-
+    public void testPublishNotificationLicenseGoingToExpire() throws Exception {
         final String expirationDate = LocalDate.now().plusDays(1L).toString();
         final LicenseDTO license = LicenseDTO.newBuilder()
                 .setExpirationDate(expirationDate)
                 .setEmail(EMAIL)
                 .build();
         licenseCheckService.publishNotification(false, Collections.singleton(license), aggregateLicense);
-
-        final long notificationTime = clock.millis();
-        final Builder builder = SystemNotification.newBuilder();
         final String description = String.format(LicenseCheckService.TURBONOMIC_LICENSE_WILL_EXPIRE,
-                AuditLogUtils.getLocalIpAddress(), expirationDate);
-
-        builder.setBroadcastId(1L)
-                .setCategory(Category.newBuilder().setLicense(SystemNotification.License.newBuilder()
-                        .build())
-                        .build())
-                .setDescription(description)
-                .setShortDescription(description)
-                .setSeverity(Severity.CRITICAL)
-                .setState(State.NOTIFY)
-                .setGenerationTime(notificationTime);
-
+            AuditLogUtils.getLocalIpAddress(), expirationDate);
+        final SystemNotification notification = notification(description, LicenseCheckService.LICENSE_IS_ABOUT_TO_EXPIRE);
+        verify(systemNotificationIMessageSender).sendMessage(notification);
         verify(mailManager).sendMail(Collections.singletonList(EMAIL),
-                description, description);
+            LicenseCheckService.LICENSE_IS_ABOUT_TO_EXPIRE, description);
     }
 
     /**
-     * Test when license is empty, will send notification to UI
+     * Test when license is empty, will send notification to UI.
+     *
+     * @throws Exception not supposed to happen
      */
     @Test
-    public void testEmptyLicense() throws IOException,
-            CommunicationException, InterruptedException, MailException, MailConfigException {
+    public void testEmptyLicense() throws Exception {
         when(licenseManagerService.getLicenses()).thenReturn(Collections.emptyList());
         licenseCheckService.checkLicensesForNotification();
-        final long notificationTime = clock.millis();
-        final Builder builder = SystemNotification.newBuilder();
-        builder.setBroadcastId(1L)
-                .setCategory(Category.newBuilder().setLicense(SystemNotification.License.newBuilder()
-                        .build())
-                        .build())
-                .setDescription(String.format(LicenseCheckService.TURBONOMIC_LICENSE_IS_MISSING,
-                    AuditLogUtils.getLocalIpAddress()))
-                .setShortDescription(LicenseCheckService.LICENSE_IS_MISSING)
-                .setSeverity(Severity.CRITICAL)
-                .setState(State.NOTIFY)
-                .setGenerationTime(notificationTime);
-
-        verify(systemNotificationIMessageSender).sendMessage(builder.build());
+        SystemNotification notification =
+                    notification(String.format(LicenseCheckService.TURBONOMIC_LICENSE_IS_MISSING,
+                            AuditLogUtils.getLocalIpAddress()),
+                        LicenseCheckService.LICENSE_IS_MISSING);
+        verify(systemNotificationIMessageSender).sendMessage(notification);
         verify(mailManager, never()).sendMail(anyList(), any(), any());
     }
 
     /**
      * Test after source topology is available, system doesn't send out notification.
      * Note: system will still send out notification for daily check.
+     *
+     * @throws Exception not supposed to happen
      */
     @Test
-    public void testStopSendingNotificationAfterTopologyBroadcast() throws IOException,
-        CommunicationException, InterruptedException, MailException, MailConfigException {
+    public void testStopSendingNotificationAfterTopologyBroadcast() throws Exception {
         when(licenseManagerService.getLicenses()).thenReturn(Collections.emptyList());
         licenseCheckService.onSourceTopologyAvailable(1L, 777777L);
-        final long notificationTime = clock.millis();
-        final Builder builder = SystemNotification.newBuilder();
-        builder.setBroadcastId(1L)
-            .setCategory(Category.newBuilder().setLicense(SystemNotification.License.newBuilder()
-                .build())
-                .build())
-            .setDescription(LicenseCheckService.TURBONOMIC_LICENSE_IS_MISSING)
-            .setShortDescription(LicenseCheckService.LICENSE_IS_MISSING)
-            .setSeverity(Severity.CRITICAL)
-            .setState(State.NOTIFY)
-            .setGenerationTime(notificationTime);
-
-        verify(systemNotificationIMessageSender, never()).sendMessage(builder.build());
+        verify(systemNotificationIMessageSender, never()).sendMessage(any());
         verify(mailManager, never()).sendMail(anyList(), any(), any());
     }
 
     /**
      * Test when license is valid, no notification or email is sent.
+     *
+     * @throws Exception not supposed to happen
      */
     @Test
-    public void testValidLicense() throws IOException,
-            CommunicationException, InterruptedException, MailException, MailConfigException {
+    public void testValidLicense() throws Exception {
         final LicenseDTO licenseDTO = LicenseDTO.newBuilder()
                 .setExpirationDate(LocalDate.now().plusYears(1L).toString())
                 .setCountedEntity(CountedEntity.SOCKET.name())
@@ -362,5 +307,18 @@ public class LicenseCheckServiceTest {
         licenseCheckService.onSourceTopologyAvailable(1L, 777777L);
         verify(systemNotificationIMessageSender, never()).sendMessage(any());
         verify(mailManager, never()).sendMail(anyList(), any(), any());
+    }
+
+    SystemNotification notification(String description, String shortDescription) {
+        return SystemNotification.newBuilder()
+                        .setBroadcastId(1L)
+                        .setCategory(Category.newBuilder()
+                            .setLicense(SystemNotification.License.getDefaultInstance()))
+                        .setDescription(description)
+                        .setShortDescription(shortDescription)
+                        .setSeverity(Severity.CRITICAL)
+                        .setState(State.NOTIFY)
+                        .setGenerationTime(clock.millis())
+                        .build();
     }
 }

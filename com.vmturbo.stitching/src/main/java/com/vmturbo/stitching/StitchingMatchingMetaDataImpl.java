@@ -1,7 +1,7 @@
 package com.vmturbo.stitching;
 
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -10,12 +10,11 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.Lists;
-
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityPropertyName;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 
@@ -30,11 +29,10 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.Matching
  */
 public abstract class StitchingMatchingMetaDataImpl<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE>
         implements StitchingMatchingMetaData<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> {
-
     private static final Logger logger = LogManager.getLogger();
 
-    private final EntityType entityType;
     protected final MergedEntityMetadata mergedEntityMetadata;
+    private final EntityType entityType;
     private final Collection<String> patchedPropertiesList;
     private final Collection<DTOFieldSpec> patchedAttributesList;
 
@@ -46,19 +44,7 @@ public abstract class StitchingMatchingMetaDataImpl<INTERNAL_SIGNATURE_TYPE, EXT
                 .map(EntityPropertyName::getPropertyName)
                 .collect(Collectors.toList());
         patchedAttributesList = mergedEntityMetadata.getPatchedFieldsList().stream()
-                .map(entityField -> new DTOFieldSpec() {
-                    @Override
-                    public String getFieldName() {
-                        return entityField.getFieldName();
-                    }
-
-                    @Override
-                    public List<String> getMessagePath() {
-                        // path may be empty since the field may be in EntityDTO directly, no nested layers
-                        return entityField.getMessagePathList().isEmpty() ? Collections.emptyList()
-                                : entityField.getMessagePathList().subList(0, entityField.getMessagePathCount());
-                    }
-                })
+                .map(DTOFieldSpecImpl::new)
                 .collect(Collectors.toList());
     }
 
@@ -83,8 +69,19 @@ public abstract class StitchingMatchingMetaDataImpl<INTERNAL_SIGNATURE_TYPE, EXT
     }
 
     @Override
-    public Collection<CommodityType> getCommoditiesSoldToPatch() {
-        return mergedEntityMetadata.getCommoditiesSoldList();
+    public Collection<CommoditySoldMetadata> getCommoditiesSoldToPatch() {
+        final List<CommodityType> soldList = mergedEntityMetadata.getCommoditiesSoldList();
+        if (!soldList.isEmpty()) {
+            // if probe is still using the deprecated field, we should convert it to new field
+            // note: this is currently only used for loading old diags, it's not needed for
+            // PT or customer, since new probes will register new ProbeInfo with new metadata
+            return soldList.stream()
+                .map(commodityType -> CommoditySoldMetadata.newBuilder()
+                    .setCommodityType(commodityType)
+                    .build())
+                .collect(Collectors.toList());
+        }
+        return mergedEntityMetadata.getCommoditiesSoldMetadataList();
     }
 
     @Override
@@ -97,68 +94,43 @@ public abstract class StitchingMatchingMetaDataImpl<INTERNAL_SIGNATURE_TYPE, EXT
         return mergedEntityMetadata.getKeepStandalone();
     }
 
-
     /**
      * Convenience method for subclasses to call to parse matching fields or properties that return
-     * type String.
+     * type collection of {@link String}s.
      *
-     * @param matchingDataList {@link List} of {@link MatchingData} defining fields or properties
-     *                                     that are {@link String} values to use for matching.
-     * @return {@link MatchingPropertyOrField} of type {@link String} representing the
-     * matchingDataList.
+     * @param matchingData collection of {@link MatchingData} defining fields or
+     *                 properties that are {@link String} values to use for matching.
+     * @return collection of {@link MatchingPropertyOrField} of type that are providing
+     *                 values used to find appropriate entity for stitching process.
      */
-    protected static List<MatchingPropertyOrField<String>> handleStringMatchingData(
-            List<MatchingData> matchingDataList) {
-        List<MatchingPropertyOrField<String>> retVal = Lists.newArrayList();
-        for (MatchingData matchingData : matchingDataList) {
-            if (matchingData.hasMatchingProperty()) {
-                retVal.add(new StringMatchingProperty(
-                        matchingData.getMatchingProperty().getPropertyName()));
-            }
-            else if (matchingData.hasMatchingField()){
-                retVal.add(new MatchingField<>(
-                        matchingData.getMatchingField().getMessagePathList(),
-                        matchingData.getMatchingField().getFieldName()));
-            }
-            else if (matchingData.hasMatchingEntityOid()){
-                retVal.add(new MatchingEntityOid(){});
-            }
-        }
-        return retVal;
-    }
-
-
-    /**
-     * Convenience method for subclasses to call to parse matching fields or properties that return
-     * type {@link List} of {@link String}.
-     *
-     * @param matchingDataList {@link List} of {@link MatchingData} defining fields or properties
-     *                                     that are {@link String} values to use for matching.
-     * @return {@link MatchingPropertyOrField} of type type {@link List} of {@link String}
-     * representing the matchingDataList.
-     */
-    protected static List<MatchingPropertyOrField<List<String>>> handleListStringMatchingData(
-            List<MatchingData> matchingDataList) {
-        List<MatchingPropertyOrField<List<String>>> retVal = Lists.newArrayList();
-        for (MatchingData matchingData : matchingDataList) {
-            if (matchingData.hasMatchingProperty()) {
-                if (!matchingData.hasDelimiter()) {
-                    logger.error("List<String> matching property must specify delimiter."
-                    + " No delimiter specified for matching property {}",
-                            matchingData.getMatchingProperty().getPropertyName());
-                    continue;
-                }
-                retVal.add(new ListStringMatchingProperty(
-                        matchingData.getMatchingProperty().getPropertyName(),
-                        matchingData.getDelimiter()));
+    @Nonnull
+    protected static Collection<MatchingPropertyOrField<String>> handleStringsMatchingData(
+                    @Nonnull Collection<MatchingData> matchingData) {
+        final Collection<MatchingPropertyOrField<String>> result =
+                        new ArrayList<>(matchingData.size());
+        for (MatchingData matching : matchingData) {
+            if (matching.hasMatchingProperty()) {
+                final boolean hasDelimiter = matching.hasDelimiter();
+                final String delimiter = hasDelimiter ? matching.getDelimiter() : null;
+                result.add(new MatchingProperty(matching.getMatchingProperty().getPropertyName(),
+                                delimiter));
+            } else if (matching.hasMatchingEntityOid()) {
+                result.add(new MatchingEntityOid());
             } else {
                 // TODO We don't handle delimiter separated Strings in MatchingField here.  It's not
                 // clear if such fields exist.
-                retVal.add(new MatchingField<>(
-                        matchingData.getMatchingField().getMessagePathList(),
-                        matchingData.getMatchingField().getFieldName()));
+                result.add(new MatchingField<>(matching.getMatchingField().getMessagePathList(),
+                                matching.getMatchingField().getFieldName()));
             }
         }
-        return retVal;
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return String.format(
+                        "%s [mergedEntityMetadata=%s, entityType=%s, patchedPropertiesList=%s, patchedAttributesList=%s]",
+                        getClass().getSimpleName(), this.mergedEntityMetadata, this.entityType,
+                        this.patchedPropertiesList, this.patchedAttributesList);
     }
 }

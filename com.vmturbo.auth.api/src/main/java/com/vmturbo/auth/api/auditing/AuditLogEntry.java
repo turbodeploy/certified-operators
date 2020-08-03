@@ -142,6 +142,13 @@ public class AuditLogEntry {
         public AuditLogEntry build() {
             return new AuditLogEntry(this);
         }
+
+        /**
+         * Write to audit log
+         */
+        public void audit() {
+            AuditLogUtils.audit(this.build());
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.diagnostics;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -16,42 +17,44 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.gson.Gson;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
-import com.google.gson.Gson;
-
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo.DeploymentProfileContextData;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo.Scope;
@@ -68,9 +71,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.api.test.ResourcePath;
+import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -97,6 +102,7 @@ import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.GroupScopeProperty;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.GroupScopePropertySet;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.ProfileDTO.CommodityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.DBProfileDTO;
@@ -121,22 +127,33 @@ import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
+import com.vmturbo.topology.processor.cost.PriceTableUploader;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsHandler.DeploymentProfileWithTemplate;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsHandler.ProbeInfoWithId;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.entity.EntityStore.TargetIncrementalEntities;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
+import com.vmturbo.topology.processor.entity.IncrementalEntityByMessageDTO;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader.TargetDiscoveredData;
+import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
+import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
+import com.vmturbo.topology.processor.scheduling.UnsupportedDiscoveryTypeException;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
+import com.vmturbo.topology.processor.targets.KvTargetDao;
+import com.vmturbo.topology.processor.targets.PersistentTargetSpecIdentityStore;
 import com.vmturbo.topology.processor.targets.Target;
-import com.vmturbo.topology.processor.targets.TargetDeserializationException;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
 import com.vmturbo.topology.processor.util.Probes;
 
 /**
@@ -152,12 +169,16 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     private final Scheduler scheduler = mock(Scheduler.class);
     private final EntityStore entityStore = mock(EntityStore.class);
     private final ProbeStore probeStore = mock(ProbeStore.class);
-    private final PersistentIdentityStore targetPersistentIdentityStore =
-            mock(PersistentIdentityStore.class);
+    private PersistentIdentityStore targetPersistentIdentityStore;
     private final DiscoveredGroupUploader groupUploader = mock(DiscoveredGroupUploader.class);
     private final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader =
         mock(DiscoveredTemplateDeploymentProfileUploader.class);
-    private final IdentityProvider identityProvider = mock(IdentityProvider.class);
+    private final DiscoveredCloudCostUploader discoveredCloudCostUploader = mock(DiscoveredCloudCostUploader.class);
+    private final PriceTableUploader priceTableUploader = mock(PriceTableUploader.class);
+    private final TopologyPipelineExecutorService pipelineExecutorService = mock(TopologyPipelineExecutorService.class);
+    private IdentityProvider identityProvider;
+    private final TargetIncrementalEntities targetIncrementalEntities =
+        mock(TargetIncrementalEntities.class);
     private final EntityDTO nwDto =
             EntityDTO.newBuilder().setId("NW-1").setEntityType(EntityType.NETWORK).build();
 
@@ -168,34 +189,72 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     // With a mock schedule, the Gson response will always be with zero fields
     private static final String SCHEDULE_JSON =
-            GSON.toJson(mock(TargetDiscoverySchedule.class), TargetDiscoverySchedule.class);
+        "{\"targetId\":\"0\",\"scheduleIntervalMillis\":\"0\",\"incrementalIntervalMillis\":\"0\"}\n" +
+        "{\"targetId\":\"0\",\"scheduleIntervalMillis\":\"0\",\"incrementalIntervalMillis\":\"0\"}";
 
     private static final String IDENTIFIED_ENTITY =
             "{\"oid\":\"199\",\"entity\":"
             + "{\"entityType\":\"NETWORK\",\"id\":\"NW-1\"}}";
 
-    private final Map<Long, List<DiscoveredGroupInfo>> discoveredGroupMap = new HashMap<>();
-    private final Multimap<Long, DiscoveredSettingPolicyInfo> discoveredSettingPolicyMap =
-        ArrayListMultimap.create();
     private final Map<Long, Map<DeploymentProfileInfo, Set<EntityProfileDTO>>> discoveredProfileMap
         = new HashMap<>();
+    private final Map<Long, TargetDiscoveredData> discoveredGroupMap = new HashMap<>();
     private final Map<Long, ProbeInfo> probeMap = new HashMap<>();
-    private final List<String> identifierDiags = new ArrayList<>();
+    private final LinkedHashMap<Integer, Collection<EntityDTO>>  messageIdToEntityDTO =
+        new LinkedHashMap<>();
+    private final int messageId = 1;
+    private final EntityDTO entityDTO =
+        EntityDTO.newBuilder().setId("1").setDisplayName("2").setEntityType(EntityType.PHYSICAL_MACHINE).build();
+    private final IncrementalEntityByMessageDTO incrementalEntityByMessageDTO =
+        new IncrementalEntityByMessageDTO(messageId, entityDTO);
+    private static final String DISCOVERED_CLOUD_COST = "foo";
+    private static final String DISCOVERED_PRICE_TABLE = "bar";
+
+    private static final String TARGET_DISPLAY_NAME = "target name";
+    private Map<String, BinaryDiagsRestorable> statefulEditors = Collections.emptyMap();
 
     @Before
     public void setup() throws Exception {
+        identityProvider = Mockito.mock(IdentityProvider.class);
+        Mockito.when(identityProvider.getFileName())
+                .thenReturn(IdentityProviderImpl.ID_DIAGS_FILE_NAME);
+        targetPersistentIdentityStore = mock(PersistentIdentityStore.class);
+        Mockito.when(targetPersistentIdentityStore.getFileName())
+                .thenReturn(PersistentTargetSpecIdentityStore.TARGET_IDENTIFIERS_DIAGS_FILE_NAME);
         Map<Long, EntityDTO> map = ImmutableMap.of(199L, nwDto);
         when(entityStore.discoveredByTarget(100001)).thenReturn(map);
         when(entityStore.getTargetLastUpdatedTime(100001)).thenReturn(Optional.of(12345L));
-
+        messageIdToEntityDTO.put(messageId, Collections.singletonList(entityDTO));
+        when(targetIncrementalEntities.getEntitiesByMessageId()).thenReturn(messageIdToEntityDTO);
+        when(entityStore.getIncrementalEntities(1)).thenReturn(Optional.of(targetIncrementalEntities));
         when(targetStore.getAll()).thenReturn(targets);
-        doReturn(discoveredGroupMap).when(groupUploader).getDiscoveredGroupInfoByTarget();
-        doReturn(discoveredSettingPolicyMap).when(groupUploader)
-            .getDiscoveredSettingPolicyInfoByTarget();
+        doReturn(discoveredGroupMap).when(groupUploader).getDataByTarget();
         doReturn(discoveredProfileMap).when(templateDeploymentProfileUploader)
             .getDiscoveredDeploymentProfilesByTarget();
         when(probeStore.getProbes()).thenReturn(probeMap);
-        when(targetPersistentIdentityStore.collectDiags()).thenReturn(identifierDiags);
+        Mockito.doAnswer(new Answer() {
+            @Override
+            public Object answer(InvocationOnMock invocation) throws Throwable {
+                final DiagnosticsAppender appender =
+                        invocation.getArgumentAt(0, DiagnosticsAppender.class);
+                appender.appendString(DISCOVERED_CLOUD_COST);
+                return null;
+            }
+        }).when(discoveredCloudCostUploader).collectDiags(Mockito.any());
+        Mockito.when(discoveredCloudCostUploader.getFileName())
+                .thenReturn(DiscoveredCloudCostUploader.DISCOVERED_CLOUD_COST_NAME);
+        Mockito.doAnswer(new Answer() {
+            @Override
+            public Object answer(InvocationOnMock invocation) throws Throwable {
+                final DiagnosticsAppender appender =
+                        invocation.getArgumentAt(0, DiagnosticsAppender.class);
+                appender.appendString(DISCOVERED_PRICE_TABLE);
+                return null;
+            }
+        }).when(priceTableUploader).collectDiags(Mockito.any());
+        Mockito.when(priceTableUploader.getFileName())
+                .thenReturn(PriceTableUploader.PRICE_TABLE_NAME);
+        statefulEditors = Collections.emptyMap();
     }
 
     private ZipInputStream dumpDiags() throws IOException {
@@ -204,8 +263,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         TopologyProcessorDiagnosticsHandler handler =
                 new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
                         entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
-                        identityProvider, new DiagnosticsWriter());
-        handler.dumpDiags(zos);
+                        identityProvider, discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
+                                statefulEditors);
+        handler.dump(zos);
         zos.close();
         return new ZipInputStream(new ByteArrayInputStream(zipBytes.toByteArray()));
     }
@@ -220,7 +280,12 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     public void testNoTargets() throws IOException {
         ZipInputStream zis = dumpDiags();
 
+
+
         ZipEntry ze = zis.getNextEntry();
+        assertEquals("Identity.diags", ze.getName());
+
+        ze = zis.getNextEntry();
         assertEquals("Probes.diags", ze.getName());
         byte[] bytes = new byte[20];
         assertEquals(-1, zis.read(bytes));
@@ -245,10 +310,13 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         assertEquals(0, bytes[0]); // the entry is empty
 
         ze = zis.getNextEntry();
-        assertEquals("Identity.diags", ze.getName());
+        assertEquals("DiscoveredCloudCost.diags", ze.getName());
 
         ze = zis.getNextEntry();
-        assertEquals("PrometheusMetrics.diags", ze.getName());
+        assertEquals("PriceTables.diags", ze.getName());
+
+        ze = zis.getNextEntry();
+        assertEquals("PrometheusMetrics", ze.getName());
 
         ze = zis.getNextEntry();
         assertNull(ze);
@@ -257,17 +325,19 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     @Test
     public void testTargetSecretFields()
-            throws InvalidTargetException, IOException {
+        throws InvalidTargetException, IOException, DiagnosticsException {
         final long targetId = 1;
         final long probeId = 2;
 
         // A probe with a secret field.
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
             .setProbeCategory("cat")
+            .setUiProbeCategory("uiCat")
             .setProbeType("type")
-            .addTargetIdentifierField("field")
+            .addTargetIdentifierField("name")
             .addAccountDefinition(AccountDefEntry.newBuilder()
                 .setMandatory(true)
+                .setIsTargetDisplayName(true)
                 .setCustomDefinition(CustomAccountDefEntry.newBuilder()
                     .setName("name")
                     .setDisplayName("displayName")
@@ -290,11 +360,13 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             .withTarget(new Target(targetId, probeStore, targetSpec, true));
 
         targets.add(withSecretFields.target);
-        identifierDiags.add("test diags");
 
         final ZipInputStream zis = dumpDiags();
 
         ZipEntry ze = zis.getNextEntry();
+        assertEquals("Identity.diags", ze.getName());
+
+        ze = zis.getNextEntry();
         assertEquals("Probes.diags", ze.getName());
         byte[] bytes = new byte[1024];
         assertNotEquals(-1, zis.read(bytes));
@@ -305,7 +377,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
         ze = zis.getNextEntry();
         assertEquals("Target.identifiers.diags", ze.getName());
-        assertNotEquals(-1, zis.read(bytes));
+        bytes = new byte[1024];
+        assertEquals(-1, zis.read(bytes));
 
         ze = zis.getNextEntry();
         assertEquals("Targets.diags", ze.getName());
@@ -317,22 +390,29 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     }
 
     @Test
-    public void testRestoreTargetsInvalidJson()
-            throws IOException, TargetDeserializationException, InvalidTargetException, IdentityStoreException {
+    public void testRestoreTargetsInvalidJson() throws InvalidTargetException,
+            TargetNotFoundException, UnsupportedDiscoveryTypeException {
         final long targetId = 1;
         final TargetInfo validTarget = TargetInfo.newBuilder()
                 .setId(targetId)
                 .setSpec(targetSpecBuilder.setProbeId(2))
+                .setDisplayName(TARGET_DISPLAY_NAME)
                 .build();
         final TopologyProcessorDiagnosticsHandler handler =
-                new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
-                        entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
-                        identityProvider, new DiagnosticsWriter());
+            new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
+                entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
+                identityProvider, discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
+                            statefulEditors);
         // Valid json, but not a target info
         final String invalidJsonTarget = GSON.toJson(targetSpecBuilder.setProbeId(3));
         // Invalid json
         final String invalidJson = "{osaeintr";
         final String validJsonTarget = GSON.toJson(validTarget);
+
+        final Target target = mock(Target.class);
+        when(target.getId()).thenReturn(targetId);
+        when(targetStore.restoreTarget(validTarget.getId(), validTarget.getSpec()))
+            .thenReturn(target);
         // Put the valid JSON target at the end of the target list, to assure
         // that preceding invalid targets don't halt processing.
         handler.restoreTargets(ImmutableList.of(invalidJsonTarget, invalidJson, validJsonTarget));
@@ -345,6 +425,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         verify(targetStore).restoreTarget(
                 eq(targetId),
                 eq(validTarget.getSpec()));
+        // Verify that we set the broadcast interval.
+        verify(scheduler).setDiscoverySchedule(targetId, DiscoveryType.FULL, 365, TimeUnit.DAYS,
+            false);
     }
 
     /**
@@ -360,18 +443,26 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             new TestTopology("123456789").withTargetId(100001).withProbeId(101).withProbeInfo()
                 .withTime(12345).withEntity(IDENTIFIED_ENTITY).withDiscoveredClusterGroup()
                 .withSettingPolicy().withTemplate().withProfile().withTarget(mock(Target.class))
-                .withTargetInfo().setUpMocks(),
+                .withTargetInfo().withFullSchedule(mock(TargetDiscoverySchedule.class))
+                .withIncrementalSchedule(mock(TargetDiscoverySchedule.class))
+                .setUpMocks(),
 
             new TestTopology("abcdefghij").withTargetId(200001).withProbeId(201).withProbeInfo()
                 .withTargetInfo().withTime(23456).withDiscoveredGroupGroup().withSettingPolicy()
                 .withTemplate().withTarget(mock(Target.class)).withProfile()
-                .withSchedule(mock(TargetDiscoverySchedule.class))
+                .withFullSchedule(mock(TargetDiscoverySchedule.class))
+                .withIncrementalSchedule(mock(TargetDiscoverySchedule.class))
                 .setUpMocks()
         };
+        when(entityStore.getIncrementalEntities(100001)).thenReturn(Optional.of(targetIncrementalEntities));
+        when(entityStore.getIncrementalEntities(200001)).thenReturn(Optional.of(targetIncrementalEntities));
 
         final ZipInputStream zis = dumpDiags();
 
         ZipEntry ze = zis.getNextEntry();
+        assertEquals("Identity.diags", ze.getName());
+
+        ze = zis.getNextEntry();
         assertEquals("Probes.diags", ze.getName());
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -409,6 +500,18 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         assertNotEquals(-1, zis.read(bytes));
         assertEquals(SCHEDULE_JSON, new String(bytes, 0, SCHEDULE_JSON.length()));
 
+        ze = zis.getNextEntry();
+        assertEquals("DiscoveredCloudCost.diags", ze.getName());
+        bytes = new byte[1024];
+        assertNotEquals(-1, zis.read(bytes));
+        assertEquals(DISCOVERED_CLOUD_COST, new String(bytes, 0, DISCOVERED_CLOUD_COST.length()));
+
+        ze = zis.getNextEntry();
+        assertEquals("PriceTables.diags", ze.getName());
+        bytes = new byte[1024];
+        assertNotEquals(-1, zis.read(bytes));
+        assertEquals(DISCOVERED_PRICE_TABLE, new String(bytes, 0, DISCOVERED_PRICE_TABLE.length()));
+
         for (TestTopology testTopology: testTopologies) {
             final String suffix = "." + testTopology.targetId + "-" + testTopology.time + ".diags";
 
@@ -429,6 +532,14 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 assertEquals(-1, bytesRead);
                 assertEquals(0, bytes[0]);
             }
+
+            ze = zis.getNextEntry();
+            assertEquals("IncrementalEntities" + suffix, ze.getName());
+            bytes = new byte[100];
+            bytesRead = zis.read(bytes);
+            assertNotEquals(-1, bytesRead);
+            String json = new String(bytes, 0, 100).trim();
+            assertEquals(IncrementalEntityByMessageDTO.toJson(incrementalEntityByMessageDTO), json);
 
             ze = zis.getNextEntry();
             assertEquals("DiscoveredGroupsAndPolicies" + suffix, ze.getName());
@@ -458,57 +569,71 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         }
 
         ze = zis.getNextEntry();
-        assertEquals("Identity.diags", ze.getName());
-
-        ze = zis.getNextEntry();
-        assertEquals("PrometheusMetrics.diags", ze.getName());
+        assertEquals("PrometheusMetrics", ze.getName());
 
         ze = zis.getNextEntry();
         assertNull(ze);
         zis.close();
     }
 
+    /**
+     * Test the dump diags for a target that has NO discovered groups, policies, settings, templates.
+     * If this test is throwing Exception, then there is an issue in how we deal with the fact that those
+     * objects are not present.
+     *
+     * @throws IOException in case of IO error reading/writing
+     */
+    @Test
+    public void testTargetWithNoExtraDataDiscovered() throws IOException {
+        final int targetId = 100001;
+        TestTopology[] testTopologies = new TestTopology[]{
+            new TestTopology("123456789").withTargetId(targetId).withProbeId(101).withProbeInfo()
+                .withTime(12345).withEntity(IDENTIFIED_ENTITY).withDiscoveredClusterGroup()
+                .withSettingPolicy().withTemplate().withProfile().withTarget(mock(Target.class))
+                .withTargetInfo().setUpMocksWithNoExtraDiscoveredData(),
+        };
+        when(entityStore.getIncrementalEntities(targetId)).thenReturn(Optional.of(targetIncrementalEntities));
+        // this method should not throw exception, otherwise we are not dealing correctly with targets
+        // missing those extra data
+        final ZipInputStream zis = dumpDiags();
+    }
+
     @Test
     public void testRestore() throws Exception {
-        TargetStore simpleTargetStore =
-                new KVBackedTargetStore(
-                        new MapKeyValueStore(),
-                        probeStore,
-                        new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)));
-        TopologyProcessorDiagnosticsHandler handler =
-                new TopologyProcessorDiagnosticsHandler(simpleTargetStore, targetPersistentIdentityStore, scheduler,
-                        entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
-                        identityProvider, new DiagnosticsWriter());
+        TargetStore simpleTargetStore = new CachingTargetStore(new KvTargetDao(new MapKeyValueStore(), probeStore), probeStore,
+                new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)));
+        TopologyProcessorDiagnosticsHandler handler = new TopologyProcessorDiagnosticsHandler(
+            simpleTargetStore, targetPersistentIdentityStore, scheduler, entityStore, probeStore,
+            groupUploader, templateDeploymentProfileUploader, identityProvider,
+            discoveredCloudCostUploader, priceTableUploader, pipelineExecutorService,
+                        statefulEditors);
         when(probeStore.getProbe(71664194068896L)).thenReturn(Optional.of(Probes.defaultProbe));
         when(probeStore.getProbe(71564745273056L)).thenReturn(Optional.of(Probes.defaultProbe));
-        handler.restore(new FileInputStream(new File(fullPath("diags/compressed/diags0.zip"))));
+        handler.restore(new FileInputStream(ResourcePath.getTestResource(getClass(), "diags/compressed/diags0.zip").toFile()));
         List<Target> targets = simpleTargetStore.getAll();
-        assertTrue(!targets.isEmpty());
+        assertFalse(targets.isEmpty());
         for (Target target : simpleTargetStore.getAll()) {
-            verify(scheduler, times(1))
-                .setDiscoverySchedule(target.getId(), 600000, TimeUnit.MILLISECONDS);
-            verify(entityStore).entitiesRestored(
-                eq(target.getId()), anyLong(), anyMapOf(Long.class, EntityDTO.class));
+            // one from restoring targets, one from restoring schedules
+            verify(scheduler, times(2)).setDiscoverySchedule(target.getId(), DiscoveryType.FULL,
+                365, TimeUnit.DAYS, false);
+            verify(entityStore).entitiesRestored(eq(target.getId()), anyLong(), anyMapOf(Long.class, EntityDTO.class));
 
             ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
 
             verify(groupUploader).setTargetDiscoveredGroups(eq(target.getId()), captor.capture());
-            List<GroupDTO> groupResult = captor.<List<GroupDTO>>getValue();
+            List<GroupDTO> groupResult = captor.getValue();
             assertEquals(3, groupResult.size());
             assertTrue(groupResult.stream().allMatch(GroupDTO::hasMemberList));
 
-            verify(groupUploader)
-                .setTargetDiscoveredSettingPolicies(eq(target.getId()), captor.capture());
-            List<DiscoveredSettingPolicyInfo> settingResult =
-                captor.<List<DiscoveredSettingPolicyInfo>>getValue();
+            verify(groupUploader).restoreDiscoveredSettingPolicies(eq(target.getId()), captor.capture());
+            List<DiscoveredSettingPolicyInfo> settingResult = captor.getValue();
             assertEquals(2, settingResult.size());
             assertTrue(settingResult.stream().allMatch(setting -> setting.getEntityType() == 14));
 
             ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
-            verify(templateDeploymentProfileUploader)
-                .setTargetsTemplateDeploymentProfileInfos(eq(target.getId()), mapCaptor.capture());
-            Map<DeploymentProfileInfo, Set<EntityProfileDTO>> profileResult =
-                mapCaptor.<Map<DeploymentProfileInfo, Set<EntityProfileDTO>>>getValue();
+            verify(templateDeploymentProfileUploader).setTargetsTemplateDeploymentProfileInfos(eq(target.getId()),
+                    mapCaptor.capture());
+            Map<DeploymentProfileInfo, Set<EntityProfileDTO>> profileResult = mapCaptor.getValue();
             assertEquals(2, profileResult.size());
             assertTrue(profileResult.values().stream().allMatch(set -> set.size() == 1));
 
@@ -517,11 +642,10 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
         ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
         verify(probeStore).overwriteProbeInfo(mapCaptor.capture());
-        Map<Long, ProbeInfo> probeResult = mapCaptor.<Map<Long, ProbeInfo>>getValue();
+        Map<Long, ProbeInfo> probeResult = mapCaptor.getValue();
         assertEquals(2, probeResult.size());
-        assertTrue(probeResult.values().stream().allMatch(probeInfo ->
-            probeInfo.getSupplyChainDefinitionSet(0).getTemplateClass() == EntityType.APPLICATION));
-
+        assertTrue(probeResult.values().stream().allMatch(
+                probeInfo -> probeInfo.getSupplyChainDefinitionSet(0).getTemplateClass() == EntityType.APPLICATION));
     }
 
     /**
@@ -539,7 +663,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         private TargetInfo targetInfo;
         private long probeId;
         private ProbeInfo probeInfo;
-        private TargetDiscoverySchedule schedule;
+        private TargetDiscoverySchedule fullSchedule;
+        private TargetDiscoverySchedule incrementalSchedule;
         private DiscoveredGroupInfo discoveredGroupInfo;
         private DiscoveredSettingPolicyInfo settingPolicyInfo;
         private DeploymentProfileInfo profile;
@@ -559,11 +684,49 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
             when(entityStore.getTargetLastUpdatedTime(targetId)).thenReturn(Optional.of(time));
             doReturn(Optional.ofNullable(probeInfo)).when(probeStore).getProbe(eq(probeId));
-            when(scheduler.getDiscoverySchedule(targetId)).thenReturn(Optional.ofNullable(schedule));
+            final Map<DiscoveryType, TargetDiscoverySchedule> scheduleMap = new HashMap<>();
+            if (fullSchedule != null) {
+                scheduleMap.put(DiscoveryType.FULL, fullSchedule);
+            }
+            if (incrementalSchedule != null) {
+                scheduleMap.put(DiscoveryType.INCREMENTAL, incrementalSchedule);
+            }
+            when(scheduler.getDiscoverySchedule(targetId)).thenReturn(scheduleMap);
 
-            discoveredGroupMap.put(targetId, Collections.singletonList(discoveredGroupInfo));
-            discoveredSettingPolicyMap.put(targetId, settingPolicyInfo);
+            final TargetDiscoveredData targetDiscoveredData = mock(TargetDiscoveredData.class);
+            when(targetDiscoveredData.getDiscoveredSettingPolicies()).thenReturn(Stream.of(settingPolicyInfo));
+            final InterpretedGroup group = mock(InterpretedGroup.class);
+            when(group.createDiscoveredGroupInfo()).thenReturn(discoveredGroupInfo);
+            when(targetDiscoveredData.getDiscoveredGroups()).thenReturn(Stream.of(group));
+            discoveredGroupMap.put(targetId, targetDiscoveredData);
             discoveredProfileMap.put(targetId, ImmutableMap.of(profile, Collections.singleton(template)));
+
+            return this;
+        }
+
+        /**
+         * Set up a mocked topology with all the needed fields and relationship between them.
+         * This mock is creating a topology with NO discovered groups, settings, policies and templates.
+         *
+         * @return mocked topology with NO discovered groups, settings, policies and templates.
+         */
+        TestTopology setUpMocksWithNoExtraDiscoveredData() {
+            probeMap.put(probeId, probeInfo);
+            targets.add(target);
+            when(target.getId()).thenReturn(targetId);
+            when(target.getNoSecretDto()).thenReturn(targetInfo);
+
+            when(entityStore.getTargetLastUpdatedTime(targetId)).thenReturn(Optional.of(time));
+            doReturn(Optional.ofNullable(probeInfo)).when(probeStore).getProbe(eq(probeId));
+
+            final Map<DiscoveryType, TargetDiscoverySchedule> scheduleMap = new HashMap<>();
+            if (fullSchedule != null) {
+                scheduleMap.put(DiscoveryType.FULL, fullSchedule);
+            }
+            if (incrementalSchedule != null) {
+                scheduleMap.put(DiscoveryType.INCREMENTAL, incrementalSchedule);
+            }
+            when(scheduler.getDiscoverySchedule(targetId)).thenReturn(scheduleMap);
 
             return this;
         }
@@ -577,7 +740,15 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             probeMap.put(probeId, probeInfo);
             when(entityStore.getTargetLastUpdatedTime(targetId)).thenReturn(Optional.of(time));
             doReturn(Optional.ofNullable(probeInfo)).when(probeStore).getProbe(eq(probeId));
-            when(scheduler.getDiscoverySchedule(targetId)).thenReturn(Optional.ofNullable(schedule));
+            final Map<DiscoveryType, TargetDiscoverySchedule> scheduleMap = new HashMap<>();
+            if (fullSchedule != null) {
+                scheduleMap.put(DiscoveryType.FULL, fullSchedule);
+            }
+            if (incrementalSchedule != null) {
+                scheduleMap.put(DiscoveryType.INCREMENTAL, incrementalSchedule);
+            }
+            when(scheduler.getDiscoverySchedule(targetId)).thenReturn(scheduleMap);
+            discoveredGroupMap.put(targetId, TargetDiscoveredData.empty());
             return this;
         }
 
@@ -599,6 +770,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             this.targetInfo = TargetInfo.newBuilder()
                 .setId(targetId)
                 .setSpec(targetSpecBuilder.setProbeId(probeId))
+                .setDisplayName(TARGET_DISPLAY_NAME)
                 .build();
             return this;
         }
@@ -616,9 +788,10 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         TestTopology withProbeInfo() {
             this.probeInfo = ProbeInfo.newBuilder()
                 .setProbeCategory("cat")
+                .setUiProbeCategory("uiCat")
                 .setProbeType(testTopologyName)
                 .addSupplyChainDefinitionSet(TemplateDTO.newBuilder()
-                    .setTemplateClass(EntityType.APPLICATION)
+                    .setTemplateClass(EntityType.APPLICATION_COMPONENT)
                     .setTemplateType(TemplateType.BASE)
                     .setTemplatePriority(3)
                     .addCommoditySold(TemplateCommodity.newBuilder()
@@ -628,7 +801,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                     )
                     .addCommodityBought(CommBoughtProviderProp.newBuilder()
                         .setKey(Provider.newBuilder()
-                            .setTemplateClass(EntityType.APPLICATION)
+                            .setTemplateClass(EntityType.APPLICATION_COMPONENT)
                             .setProviderType(ProviderType.HOSTING)
                             .setCardinalityMax(123)
                             .setCardinalityMin(101)
@@ -640,10 +813,10 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                         )
                     )
                     .addExternalLink(ExternalEntityLinkProp.newBuilder()
-                        .setKey(EntityType.APPLICATION)
+                        .setKey(EntityType.APPLICATION_COMPONENT)
                         .setValue(ExternalEntityLink.newBuilder()
-                            .setBuyerRef(EntityType.APPLICATION)
-                            .setSellerRef(EntityType.APPLICATION)
+                            .setBuyerRef(EntityType.APPLICATION_COMPONENT)
+                            .setSellerRef(EntityType.APPLICATION_COMPONENT)
                             .setRelationship(ProviderType.HOSTING)
                             .addCommodityDefs(CommodityDef.newBuilder()
                                 .setType(CommodityType.BALLOONING)
@@ -655,27 +828,27 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                                 .setDescription("def")
                             )
                             .addExternalEntityPropertyDefs(ServerEntityPropDef.newBuilder()
-                                .setEntity(EntityType.APPLICATION)
+                                .setEntity(EntityType.APPLICATION_COMPONENT)
                                 .setAttribute("abcdef")
                                 .setUseTopoExt(true)
                                 .setPropertyHandler(PropertyHandler.newBuilder()
                                     .setMethodName("qwerty")
-                                    .setEntityType(EntityType.APPLICATION)
+                                    .setEntityType(EntityType.APPLICATION_COMPONENT)
                                     .setDirectlyApply(true)
                                     .setNextHandler(PropertyHandler.newBuilder()
                                         .setMethodName("zxcvbn")
-                                        .setEntityType(EntityType.APPLICATION)
+                                        .setEntityType(EntityType.APPLICATION_COMPONENT)
                                         .setDirectlyApply(false)
                                     )
                                 )
                             )
-                            .addReplacesEntity(EntityType.APPLICATION)
+                            .addReplacesEntity(EntityType.APPLICATION_COMPONENT)
                         )
                     )
                     .addCommBoughtOrSet(CommBoughtProviderOrSet.newBuilder()
                         .addCommBought(CommBoughtProviderProp.newBuilder()
                             .setKey(Provider.newBuilder()
-                                .setTemplateClass(EntityType.APPLICATION)
+                                .setTemplateClass(EntityType.APPLICATION_COMPONENT)
                                 .setProviderType(ProviderType.HOSTING)
                                 .setCardinalityMax(123)
                                 .setCardinalityMin(101)
@@ -690,11 +863,12 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 )
                 .addAccountDefinition(AccountDefEntry.newBuilder()
                     .setMandatory(true)
+                    .setIsTargetDisplayName(true)
                     .setCustomDefinition((testTopologyName.startsWith("123") ?
                             CustomAccountDefEntry.newBuilder().setPrimitiveValue(PrimitiveValue.BOOLEAN) :
                             CustomAccountDefEntry.newBuilder().setGroupScope(
                                 GroupScopePropertySet.newBuilder()
-                                    .setEntityType(EntityType.APPLICATION)
+                                    .setEntityType(EntityType.APPLICATION_COMPONENT)
                                     .addProperty(GroupScopeProperty.newBuilder().setPropertyName("abc"))
                             )
                         ).setName("name")
@@ -707,7 +881,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 .addTargetIdentifierField("field")
                 .setFullRediscoveryIntervalSeconds(123)
                 .addEntityMetadata(EntityIdentityMetadata.newBuilder()
-                    .setEntityType(EntityType.APPLICATION)
+                    .setEntityType(EntityType.APPLICATION_COMPONENT)
                     .addNonVolatileProperties(PropertyMetadata.newBuilder()
                         .setName("12345")
                     )
@@ -719,7 +893,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                     )
                 )
                 .addActionPolicy(ActionPolicyDTO.newBuilder()
-                    .setEntityType(EntityType.APPLICATION)
+                    .setEntityType(EntityType.APPLICATION_COMPONENT)
                     .addPolicyElement(ActionPolicyElement.newBuilder()
                         .setActionType(ActionType.CHANGE)
                         .setActionCapability(ActionCapability.NOT_EXECUTABLE)
@@ -736,30 +910,37 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             return this;
         }
 
-        TestTopology withSchedule(TargetDiscoverySchedule schedule) {
-            this.schedule = schedule;
+        TestTopology withFullSchedule(TargetDiscoverySchedule schedule) {
+            this.fullSchedule = schedule;
+            return this;
+        }
+
+        TestTopology withIncrementalSchedule(TargetDiscoverySchedule incrementalSchedule) {
+            this.incrementalSchedule = incrementalSchedule;
             return this;
         }
 
         TestTopology withDiscoveredGroupGroup() {
             this.discoveredGroupInfo = DiscoveredGroupInfo.newBuilder()
                 .setDiscoveredGroup(makeGroupDTO())
-                .setInterpretedGroup(GroupInfo.newBuilder()
-                    .setName("name")
-                    .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                        .addSearchParameters(SearchParameters.newBuilder()
-                            .setStartingFilter(PropertyFilter.newBuilder()
-                                .setPropertyName("propertyName")
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                    .setComparisonOperator(ComparisonOperator.GT)
-                                    .setValue(123)))
-                            .addSearchFilter(SearchFilter.newBuilder()
-                                .setTraversalFilter(TraversalFilter.newBuilder()
-                                    .setTraversalDirection(TraversalDirection.CONSUMES)
-                                    .setStoppingCondition(StoppingCondition.newBuilder()
-                                        .setNumberHops(3))))))
-                    .build())
+                .setUploadedGroup(UploadedGroup.newBuilder()
+                        .setSourceIdentifier("name")
+                .setDefinition(GroupDefinition.newBuilder()
+                    .setEntityFilters(EntityFilters.newBuilder()
+                        .addEntityFilter(EntityFilter.newBuilder()
+                            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                            .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                .addSearchParameters(SearchParameters.newBuilder()
+                                    .setStartingFilter(PropertyFilter.newBuilder()
+                                        .setPropertyName("propertyName")
+                                        .setNumericFilter(NumericFilter.newBuilder()
+                                            .setComparisonOperator(ComparisonOperator.GT)
+                                            .setValue(123)))
+                                    .addSearchFilter(SearchFilter.newBuilder()
+                                        .setTraversalFilter(TraversalFilter.newBuilder()
+                                            .setTraversalDirection(TraversalDirection.CONSUMES)
+                                            .setStoppingCondition(StoppingCondition.newBuilder()
+                                            .setNumberHops(3))))))))))
                 .build();
             return this;
         }
@@ -767,12 +948,14 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         TestTopology withDiscoveredClusterGroup() {
             this.discoveredGroupInfo = DiscoveredGroupInfo.newBuilder()
                 .setDiscoveredGroup(makeGroupDTO())
-                .setInterpretedCluster(ClusterInfo.newBuilder()
-                    .setName("name")
-                    .setClusterType(Type.COMPUTE)
-                    .setMembers(StaticGroupMembers.newBuilder()
-                        .addStaticMemberOids(4815162342108L))
-                    .build())
+                .setUploadedGroup(UploadedGroup.newBuilder()
+                        .setSourceIdentifier("name")
+                    .setDefinition(GroupDefinition.newBuilder()
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                            .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder()
+                                    .setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
+                                    .addMembers(4815162342108L)))))
                 .build();
             return this;
         }
@@ -845,11 +1028,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 );
             } else {
                 result.setDbProfileDTO(DBProfileDTO.newBuilder()
-                    .addRegion("region")
-                    .setDbCode(3)
                     .addDbEdition("edition")
                     .addDbEngine("thomas the tank engine")
-                    .addDeploymentOption("option")
                     .setNumVCPUs(3)
                     .addLicense(LicenseMapEntry.newBuilder()
                         .setRegion("region")
@@ -892,15 +1072,4 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     }
 
-    /**
-     * Converts a relative (to src/test/resources) path to absolute path.
-     * @param fileName file name as relative path
-     * @return file name with absolute path
-     * @throws URISyntaxException if the path name cannot be parsed properly
-     * @throws IOException is I/O error occurs
-     */
-    private String fullPath(String fileName) throws URISyntaxException, IOException {
-        URL fileUrl = this.getClass().getClassLoader().getResources(fileName).nextElement();
-        return Paths.get(fileUrl.toURI()).toString();
-    }
 }

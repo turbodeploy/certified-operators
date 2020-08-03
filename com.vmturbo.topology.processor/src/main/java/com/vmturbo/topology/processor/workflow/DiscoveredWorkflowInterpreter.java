@@ -26,7 +26,8 @@ import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Property;
  **/
 public class DiscoveredWorkflowInterpreter {
 
-    public static Logger logger = LoggerFactory.getLogger(DiscoveredWorkflowInterpreter.class);
+    private static final Logger logger = LoggerFactory.getLogger(DiscoveredWorkflowInterpreter.class);
+
     /**
      * Scan the given list of Workflow DTOs, and create a WorkflowInfo object from each
      *
@@ -62,7 +63,7 @@ public class DiscoveredWorkflowInterpreter {
                     ActionType converted = convertActionType(workflow.getActionType());
                     if (converted != null) {
                         wfBuilder.setActionType(converted);
-                    } ;
+                    }
                 }
                 if (workflow.hasPhase()) {
                     final ActionPhase converted = convertActionPhase(workflow.getPhase());
@@ -81,6 +82,8 @@ public class DiscoveredWorkflowInterpreter {
         switch (type) {
             case MOVE:
                 return ActionType.MOVE;
+            case SCALE:
+                return ActionType.SCALE;
             case NONE:
                 return ActionType.NONE;
             case PROVISION:
@@ -107,6 +110,12 @@ public class DiscoveredWorkflowInterpreter {
                 return ActionPhase.REPLACE;
             case POST:
                 return ActionPhase.POST;
+            case ON_GENERATION:
+                return ActionPhase.ON_GENERATION;
+            case APPROVAL:
+                return ActionPhase.APPROVAL;
+            case AFTER_EXECUTION:
+                return ActionPhase.AFTER_EXECUTION;
             default:
                 logger.warn("Unrecognized action phase: {}", phase);
                 return null;

@@ -11,12 +11,14 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestAttributes;
@@ -24,6 +26,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
@@ -35,6 +38,9 @@ import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.InvalidCredentialsException;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.api.serviceinterfaces.IAuthenticationService;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
+import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -59,6 +65,8 @@ public class AuthenticationService implements IAuthenticationService {
      */
     private static final String AUTH_SERVICE_NOT_AVAILABLE_MSG =
             "The Authorization Service is not responding";
+    @VisibleForTesting
+    public static final String LOGIN_MANAGER = "LoginManager";
     /**
      * The auth service host.
      */
@@ -68,6 +76,8 @@ public class AuthenticationService implements IAuthenticationService {
      * The auth service port.
      */
     private final int authPort_;
+
+    private final String authRoute;
 
     /**
      * The REST template.
@@ -95,12 +105,14 @@ public class AuthenticationService implements IAuthenticationService {
 
     public AuthenticationService(final @Nonnull String authHost,
                                  final int authPort,
+                                 final @Nonnull String authRoute,
                                  final @Nonnull JWTAuthorizationVerifier verifier,
                                  final @Nonnull RestTemplate restTemplate,
                                  final @Nonnull IComponentJwtStore componentJwtStore,
                                  final int sessionTimeoutSeconds) {
         authHost_ = authHost;
         authPort_ = authPort;
+        this.authRoute = authRoute;
         verifier_ = verifier;
         restTemplate_ = restTemplate;
         componentJwtStore_ = componentJwtStore;
@@ -118,7 +130,7 @@ public class AuthenticationService implements IAuthenticationService {
                 .scheme("http")
                 .host(authHost_)
                 .port(authPort_)
-                .path("/users/checkAdminInit");
+                .path(authRoute + "/users/checkAdminInit");
         final String request = builder.build().toUriString();
         ResponseEntity<Boolean> result;
         try {
@@ -141,7 +153,7 @@ public class AuthenticationService implements IAuthenticationService {
                 .scheme("http")
                 .host(authHost_)
                 .port(authPort_)
-                .path("/users/initAdmin");
+                .path(authRoute + "/users/initAdmin");
         final AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, username, password, null,
                 null, null, ImmutableList.of(ADMINISTRATOR), null);
         try {
@@ -150,8 +162,16 @@ public class AuthenticationService implements IAuthenticationService {
             user.setUsername(username);
             // administrator user will always have "administrator" role.
             user.setRoleName(ADMINISTRATOR);
+            AuditLog.newEntry(AuditAction.SYSTEM_INIT,
+                "Turbonomic instance initialization succeeded", true)
+                .targetName(username)
+                .audit();
             return user;
         } catch (RestClientException e) {
+            AuditLog.newEntry(AuditAction.SYSTEM_INIT,
+                "Turbonomic instance initialization failed", false)
+                .targetName(username)
+                .audit();
             throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);
         }
     }
@@ -165,6 +185,7 @@ public class AuthenticationService implements IAuthenticationService {
         RestAuthenticationProvider authProvider = new RestAuthenticationProvider(
                 authHost_,
                 authPort_,
+                authRoute,
                 restTemplate_,
                 verifier_);
         UserApiDTO user = new UserApiDTO();
@@ -181,6 +202,13 @@ public class AuthenticationService implements IAuthenticationService {
         // authenticate
         try {
             final Authentication result = authProvider.authenticate(auth);
+            // Auth component authenticated the login.
+            AuditLog.newEntry(AuditAction.LOGIN,
+                "User logged in successfully", true)
+                .remoteClientIP(remoteIpAddress)
+                .targetName(LOGIN_MANAGER)
+                .actionInitiator(username)
+                .audit();
             // prevent session fixation attack, it should be put before setting security context.
             changeSessionId();
             SecurityContextHolder.getContext().setAuthentication(result);
@@ -203,11 +231,24 @@ public class AuthenticationService implements IAuthenticationService {
                     logger.debug("Added user: " + username + "'s session to SessionRegistry");
                 }
             }
+
             return user;
         } catch (AuthenticationException e) {
             logger.warn("Authentication for user " + username + " failed");
+            AuditLog.newEntry(AuditAction.LOGIN,
+                "User login failed", false)
+                .remoteClientIP(remoteIpAddress)
+                .targetName(LOGIN_MANAGER)
+                .actionInitiator(username)
+                .audit();
             throw new InvalidCredentialsException("Authentication failed");
         } catch (RestClientException e) {
+            AuditLog.newEntry(AuditAction.LOGIN,
+                "User login failed", false)
+                .remoteClientIP(remoteIpAddress)
+                .targetName(LOGIN_MANAGER)
+                .actionInitiator(username)
+                .audit();
             throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);
         }
     }
@@ -215,21 +256,31 @@ public class AuthenticationService implements IAuthenticationService {
     /**
      * Authorize SAML user.
      *
-     * @param username  user name
-     * @param groupName group name
-     * @param ipAddress user IP address
+     * @param username  SAML user name to authorize.
+     * @param groupName Optional SAML group name to authorize.
+     * @param ipAddress SAML user remote IP address.
+     * @throws BadCredentialsException if user is not in external group or match external user.
      * @return {@link AuthUserDTO}
      */
-    public Optional<AuthUserDTO> authorize(String username, Optional<String> groupName, String ipAddress) {
-        RestAuthenticationProvider authProvider = new RestAuthenticationProvider(
+    public Optional<AuthUserDTO> authorize(@Nonnull final String username,
+                                           @Nonnull final Optional<String> groupName,
+                                           @Nonnull final String ipAddress) {
+        final RestAuthenticationProvider authProvider = new RestAuthenticationProvider(
                 authHost_,
                 authPort_,
+                authRoute,
                 restTemplate_,
                 verifier_);
-        Authentication result = authProvider.authorize(username, groupName, ipAddress, componentJwtStore_);
-        return Optional.ofNullable((AuthUserDTO) result.getPrincipal());
+        try {
+            final Authentication result = authProvider
+                .authorize(username, groupName, ipAddress, componentJwtStore_);
+            return Optional.ofNullable((AuthUserDTO) result.getPrincipal());
+        } catch (HttpServerErrorException e) {
+            logger.error("Failed to authorize SAML user: {} with group: {}", username, groupName.orElse("") );
+            throw new BadCredentialsException("Error authorizing SML user: " + username
+                + " ,group: " + groupName);
+        }
     }
-
 
     @Override
     public BaseApiDTO logout() {
@@ -238,13 +289,23 @@ public class AuthenticationService implements IAuthenticationService {
         final HttpServletRequest request = ((ServletRequestAttributes) attrs).getRequest();
         final HttpServletResponse response = ((ServletRequestAttributes) attrs).getResponse();
         if (auth != null) {
+            final AuthUserDTO authUserDTO = SAMLUserUtils.getAuthUserDTO(auth);
             new SecurityContextLogoutHandler().logout(request, response, auth);
             BaseApiDTO success = new BaseApiDTO();
             success.setDisplayName("SUCCESS");
+            AuditLog.newEntry(AuditAction.LOGOUT,
+                "User logout", true)
+                .remoteClientIP(authUserDTO.getIpAddress())
+                .targetName(LOGIN_MANAGER)
+                .actionInitiator(authUserDTO.getUser())
+                .audit();
             return success;
         }
 
         ErrorApiDTO error = new ErrorApiDTO();
+        AuditLog.newEntry(AuditAction.LOGOUT ,
+            "User logout failed", false)
+            .targetName("Anonymous user").audit();
         error.setMessage("FAIL");
         return error;
     }

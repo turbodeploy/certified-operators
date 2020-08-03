@@ -7,29 +7,34 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
-import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanProjectServiceController;
+import com.vmturbo.common.protobuf.plan.PlanProjectREST.PlanProjectServiceController;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
+import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
+import com.vmturbo.plan.orchestrator.market.PlanOrchestratorMarketConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
+/**
+ * Spring configuration related to plans.
+ */
 @Configuration
-@Import({SQLDatabaseConfig.class,
+@Import({PlanOrchestratorDBConfig.class,
         GlobalConfig.class,
         RepositoryClientConfig.class,
         HistoryClientConfig.class,
         GroupClientConfig.class,
         PlanConfig.class,
         TemplatesConfig.class,
-        ActionOrchestratorClientConfig.class})
+        ActionOrchestratorClientConfig.class,
+        PlanOrchestratorMarketConfig.class})
 public class PlanProjectConfig {
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private PlanOrchestratorDBConfig databaseConfig;
 
     @Autowired
     private GlobalConfig globalConfig;
@@ -52,47 +57,83 @@ public class PlanProjectConfig {
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
 
+    @Autowired
+    private PlanOrchestratorMarketConfig planOrchestratorMarketConfig;
+
     @Value("${defaultHeadroomPlanProjectJsonFile:systemPlanProjects.json}")
     private String defaultHeadroomPlanProjectJsonFile;
 
+    @Value("${headroomCalculationForAllClusters}")
+    private boolean headroomCalculationForAllClusters;
+
+    /**
+     * Returns the external service for creating, updating, and running plans.
+     *
+     * @return the external service for creating, updating, and running plans.
+     */
     @Bean
     public PlanProjectRpcService planProjectService() {
         return new PlanProjectRpcService(planProjectDao(), planProjectExecutor());
     }
 
+    /**
+     * Returns the instance implementing how plans are persisted and retrieved from storage.
+     *
+     * @return the instance implementing how plans are persisted and retrieved from storage.
+     */
     @Bean
     public PlanProjectDao planProjectDao() {
-        return new PlanProjectDaoImpl(databaseConfig.dsl(), globalConfig.identityInitializer(), historyRpcService());
+        return new PlanProjectDaoImpl(databaseConfig.dsl(), globalConfig.identityInitializer());
     }
 
+    /**
+     * Returns the external service for creating, updating, and running plans.
+     *
+     * @return the external service for creating, updating, and running plans.
+     */
     @Bean
     public PlanProjectServiceController planProjectServiceController() {
         return new PlanProjectServiceController(planProjectService());
     }
 
+    /**
+     * Returns the bean that tracks running plans.
+     *
+     * @return the bean that tracks running plans.
+     */
     @Bean
     public ProjectPlanPostProcessorRegistry planProjectRuntime() {
         final ProjectPlanPostProcessorRegistry runtime = new ProjectPlanPostProcessorRegistry();
         planConfig.planDao().addStatusListener(runtime);
+        planOrchestratorMarketConfig.planProjectedTopologyListener().addProjectedTopologyProcessor(runtime);
         return runtime;
     }
 
+    /**
+     * Returns the bean for executing plans.
+     *
+     * @return the bean for executing plans.
+     */
     @Bean
     public PlanProjectExecutor planProjectExecutor() {
         return new PlanProjectExecutor(planConfig.planDao(),
-                planProjectDao(),
                 groupClientConfig.groupChannel(),
                 planConfig.planService(),
                 planProjectRuntime(),
                 repositoryClientConfig.repositoryChannel(),
                 templatesConfig.templatesDao(),
                 historyClientConfig.historyChannel(),
-                planConfig.planInstanceQueue());
+                headroomCalculationForAllClusters,
+                globalConfig.tpNotificationClient());
     }
 
+    /**
+     * Returns the bean for accessing the history service.
+     *
+     * @return the bean for accessing the history service.
+     */
     @Bean
     public StatsHistoryServiceBlockingStub historyRpcService() {
         return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel());
     }
-
 }

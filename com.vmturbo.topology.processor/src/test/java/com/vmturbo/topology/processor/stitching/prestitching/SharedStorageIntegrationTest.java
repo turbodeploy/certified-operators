@@ -7,6 +7,7 @@ import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -34,8 +35,10 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
@@ -43,13 +46,11 @@ import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
+import com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
-import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.StandardProbeOrdering;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -59,12 +60,13 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Integration test for shared storage.
  *
- * Loads a minified topology containing overlapping storages and runs preStitching on them to verify that
+ * <p>Loads a minified topology containing overlapping storages and runs preStitching on them to verify that
  * storages are merged as desired.
  */
 public class SharedStorageIntegrationTest {
@@ -86,8 +88,10 @@ public class SharedStorageIntegrationTest {
     private IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
     private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
+    private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
     private final Clock entityClock = Mockito.mock(Clock.class);
-    private EntityStore entityStore = new EntityStore(targetStore, identityProvider, entityClock);
+    private EntityStore entityStore = new EntityStore(targetStore, identityProvider, sender,
+        entityClock);
     private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
 
     private final DiskCapacityCalculator diskCapacityCalculator =
@@ -100,15 +104,21 @@ public class SharedStorageIntegrationTest {
     private final String sharedStorageId = "9bd4ee88-99c64661";
     private final String sharedDiskArrayId = "DiskArray-9bd4ee88-99c64661";
 
+    /**
+     * gRPC service rule.
+     */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(statsRpcSpy);
 
+    /**
+     * Initializes the tests.
+     */
     @Before
     public void setup() {
         statsServiceClient = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
         postStitchingOperationLibrary =
             new PostStitchingOperationLibrary(
-                new SetCommodityMaxQuantityPostStitchingOperationConfig(
+                new CommodityPostStitchingOperationConfig(
                     statsServiceClient, 30, 10), //meaningless values
                 diskCapacityCalculator, cpuCapacityStore, clock, 0);
         when(targetA.getId()).thenReturn(targetAId);
@@ -119,7 +129,9 @@ public class SharedStorageIntegrationTest {
     /**
      * Merging shared storages: [
      * STORAGE 9bd4ee88-99c64661 QS1:NFSShare oid-72192369194440 tgt-72203478139616 cnsms-3 prvds-1,
-     * STORAGE 9bd4ee88-99c64661 QS1:NFSShare oid-72192369194440 tgt-72226908063456 cnsms-5 prvds-1
+     * STORAGE 9bd4ee88-99c64661 QS1:NFSShare oid-72192369194440 tgt-72226908063456 cnsms-5 prvds-1].
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
     public void testSharedStorageCalculation() throws Exception {
@@ -144,6 +156,10 @@ public class SharedStorageIntegrationTest {
             .thenReturn(Collections.singletonList(5678L));
         when(probeStore.getProbeIdForType(SDKProbeType.HYPERV.getProbeType())).thenReturn(Optional.of(5678L));
         when(probeStore.getProbeIdForType(SDKProbeType.VMM.getProbeType())).thenReturn(Optional.of(5679L));
+        when(probeStore.getProbeIdForType(SDKProbeType.AWS.getProbeType())).thenReturn(Optional.empty());
+        when(probeStore.getProbeIdForType(SDKProbeType.AZURE.getProbeType())).thenReturn(Optional.empty());
+        when(probeStore.getProbeIdForType(SDKProbeType.GCP.getProbeType())).thenReturn(Optional.empty());
+        when(probeStore.getProbeIdForType(SDKProbeType.VMWARE_HORIZON_VIEW.getProbeType())).thenReturn(Optional.empty());
         when(targetStore.getProbeTargets(eq(5678L))).thenReturn(Arrays.asList(targetA, targetB));
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets
         // treated as normal probe
@@ -203,15 +219,18 @@ public class SharedStorageIntegrationTest {
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId,
                              final long discoveryTime)
-        throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException {
+            throws IdentityServiceException, TargetNotFoundException {
         final long probeId = 0;
         when(identityProvider.getIdsForEntities(
             eq(probeId), eq(new ArrayList<>(entities.values()))))
             .thenReturn(entities);
         when(entityClock.millis()).thenReturn(discoveryTime);
 
-        entityStore.entitiesDiscovered(probeId, targetId,
-                new ArrayList<>(entities.values()));
+        // Pretend that any target exists
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
+
+        entityStore.entitiesDiscovered(probeId, targetId, 0,
+            DiscoveryType.FULL, new ArrayList<>(entities.values()));
     }
 
     /**

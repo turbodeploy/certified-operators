@@ -1,8 +1,11 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -19,58 +22,61 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.joda.time.DateTime;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value;
+
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingOptionApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
-import com.vmturbo.api.dto.settingspolicy.RecurrenceApiDTO;
 import com.vmturbo.api.dto.settingspolicy.ScheduleApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.enums.DayOfWeek;
 import com.vmturbo.api.enums.InputValueType;
-import com.vmturbo.api.enums.RecurrenceType;
 import com.vmturbo.api.enums.SettingScope;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.GetSchedulesRequest;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingToPolicyName;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
+import com.vmturbo.common.protobuf.setting.SettingProto.ResetGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -81,13 +87,18 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.DailyObservationWindowsCount;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -98,6 +109,10 @@ public class SettingsMapper {
 
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * This is used to inject the value of the {@link SettingApiDTO} into the corresponding
+     * {@link Setting} according to the value type of the {@link SettingSpec}.
+     */
     private static final Map<SettingValueTypeCase, ProtoSettingValueInjector> PROTO_SETTING_VALUE_INJECTORS =
         ImmutableMap.<SettingValueTypeCase, ProtoSettingValueInjector>builder()
             .put(SettingValueTypeCase.BOOLEAN_SETTING_VALUE_TYPE,
@@ -112,8 +127,18 @@ public class SettingsMapper {
             .put(SettingValueTypeCase.ENUM_SETTING_VALUE_TYPE,
                 (val, builder) -> builder.setEnumSettingValue(EnumSettingValue.newBuilder()
                 .setValue(ActionDTOUtil.mixedSpacesToUpperUnderScore(val))))
+            .put(SettingValueTypeCase.SORTED_SET_OF_OID_SETTING_VALUE_TYPE,
+                // Here we sort strictly the list of oids provided by UI/API.
+                (val, builder) -> builder.setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue
+                    .newBuilder().addAllOids(() -> Arrays.stream(StringUtils.split(val, ","))
+                        .mapToLong(Long::valueOf).sorted().distinct().iterator())))
             .build();
 
+    /**
+     * This is used to inject the value of the {@link Setting} into the corresponding
+     * {@link SettingApiDTO} according to the value type of the {@link Setting}.
+     * This can be used to create default settings, such as Virtual Machine Defaults.
+     */
     private static final Map<ValueCase, ApiSettingValueInjector> API_SETTING_VALUE_INJECTORS =
         ImmutableMap.<ValueCase, ApiSettingValueInjector>builder()
             .put(ValueCase.BOOLEAN_SETTING_VALUE, (setting, apiDTO) -> {
@@ -129,14 +154,30 @@ public class SettingsMapper {
                 apiDTO.setValueType(InputValueType.STRING);
             })
             .put(ValueCase.ENUM_SETTING_VALUE, (setting, apiDTO) -> {
-                apiDTO.setValue(ActionDTOUtil.upperUnderScoreToMixedSpaces(setting.getEnumSettingValue().getValue()));
+                apiDTO.setValue(setting.getEnumSettingValue().getValue());
                 apiDTO.setValueType(InputValueType.STRING);
+            })
+            .put(ValueCase.SORTED_SET_OF_OID_SETTING_VALUE, (setting, apiDTO) -> {
+                apiDTO.setValue(setting.getSortedSetOfOidSettingValue().getOidsList().stream()
+                    .map(String::valueOf).collect(Collectors.joining(",")));
+                apiDTO.setValueType(InputValueType.LIST);
             })
             .build();
 
-    public static final String GLOBAL_ACTION_SETTING_NAME = "Global Action Mode Defaults";
+    // The name of the global setting policy.
+    public static final String GLOBAL_SETTING_POLICY_NAME = "Global Defaults";
 
-    public static final int GLOBAL_ACTION_SETTING_NAME_ID = 55555;
+    // The id of the global setting policy.
+    public static final int GLOBAL_SETTING_POLICY_ID = 55555;
+
+    /**
+     * The special setting manager name for the nightly plan cluster headroom settings.
+     */
+    public static final String CLUSTER_HEADROOM_SETTINGS_MANAGER = "capacityplandatamanager";
+    /**
+     * The special setting name for the headroom template used for calculating cluster headroom.
+     */
+    public static final String CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID = "templateName";
 
     /**
      * A constant indicating that a {@link SettingSpec} has no associated setting manager.
@@ -159,6 +200,10 @@ public class SettingsMapper {
 
     private final SettingPolicyServiceBlockingStub settingPolicyService;
 
+    private final ScheduleServiceBlockingStub schedulesService;
+
+    private final ScheduleMapper scheduleMapper;
+
     /**
      * (April 10 2017) In the UI, all settings - including global settings - are organized by
      * entity type. This map contains the "global setting name" -> "entity type" mappings to use
@@ -166,19 +211,43 @@ public class SettingsMapper {
      */
     public static final Map<String, String> GLOBAL_SETTING_ENTITY_TYPES =
         ImmutableMap.<String, String>builder()
-            .put(GlobalSettingSpecs.RateOfResize.getSettingName(), UIEntityType.VIRTUAL_MACHINE.getValue())
+            .put(GlobalSettingSpecs.DefaultRateOfResize.getSettingName(), ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .put(GlobalSettingSpecs.ContainerRateOfResize.getSettingName(), ApiEntityType.CONTAINER.apiStr())
             .put(GlobalSettingSpecs.DisableAllActions.getSettingName(), SERVICE_ENTITY)
+            .put(GlobalSettingSpecs.MaxVMGrowthObservationPeriod.getSettingName(), SERVICE_ENTITY)
             .build();
 
-    public SettingsMapper(@Nonnull final Channel groupComponentChannel,
+    /**
+     * Some global settings appear specifically on the default setting policy for a specific entity type.
+     * This is a map of the entity type to the corresponding global settings.
+     */
+    public static final Map<Integer, GlobalSettingSpecs> ENTITY_TYPE_GLOBAL_SETTINGS = ImmutableMap.of(
+            EntityType.VIRTUAL_MACHINE_VALUE, GlobalSettingSpecs.DefaultRateOfResize,
+            EntityType.CONTAINER_VALUE, GlobalSettingSpecs.ContainerRateOfResize
+        );
+
+    /**
+     * map to get the predefined label for a given setting enum. if not found, we will use
+     * {@link com.vmturbo.common.protobuf.action.ActionDTOUtil#upperUnderScoreToMixedSpaces} to
+     * convert the enum to a beautiful string. we want to show "RHEL" rather than "Rhel" in UI.
+     */
+    private static final Map<String, String> SETTING_ENUM_NAME_TO_LABEL = getSettingEnumNameToLabel();
+
+    public SettingsMapper(@Nonnull final SettingServiceBlockingStub settingService,
+                          @Nonnull final GroupServiceBlockingStub groupService,
+                          @Nonnull final SettingPolicyServiceBlockingStub settingPolicyService,
                           @Nonnull final SettingsManagerMapping settingsManagerMapping,
-                          @Nonnull final SettingSpecStyleMapping settingSpecStyleMapping) {
+                          @Nonnull final SettingSpecStyleMapping settingSpecStyleMapping,
+                          @Nonnull final ScheduleServiceBlockingStub schedulesService,
+                          @Nonnull final ScheduleMapper scheduleMapper) {
         this.managerMapping = settingsManagerMapping;
         this.settingSpecStyleMapping = settingSpecStyleMapping;
+        this.schedulesService = schedulesService;
+        this.scheduleMapper = scheduleMapper;
         this.settingSpecMapper = new DefaultSettingSpecMapper();
-        this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
-        this.settingService = SettingServiceGrpc.newBlockingStub(groupComponentChannel);
-        this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupComponentChannel);
+        this.groupService = groupService;
+        this.settingService = settingService;
+        this.settingPolicyService = settingPolicyService;
         this.settingPolicyMapper = new DefaultSettingPolicyMapper(this, settingService);
     }
 
@@ -195,6 +264,8 @@ public class SettingsMapper {
         this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupComponentChannel);
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupComponentChannel);
+        this.schedulesService = ScheduleServiceGrpc.newBlockingStub(groupComponentChannel);
+        this.scheduleMapper = new ScheduleMapper();
     }
 
     /**
@@ -211,6 +282,13 @@ public class SettingsMapper {
     @VisibleForTesting
     int resolveEntityType(@Nonnull final SettingsPolicyApiDTO settingPolicy)
             throws InvalidOperationException, UnknownObjectException {
+        // If the policy explicitly specifies an entity type, we will use that entity type.
+        if (settingPolicy.getEntityType() != null) {
+            return ApiEntityType.fromStringToSdkType(settingPolicy.getEntityType());
+        }
+
+        // If the policy DOES NOT explicitly specify an entity type we will infer the entity
+        // type from the scopes.
         if (settingPolicy.getScopes() == null || settingPolicy.getScopes().isEmpty()) {
             throw new InvalidOperationException("Unscoped setting policy: " +
                     settingPolicy.getDisplayName());
@@ -228,21 +306,32 @@ public class SettingsMapper {
         }
 
         // Get all groups referred to by the scopes of the input policy.
-        final Iterable<Group> groups = () -> groupService.getGroups(GetGroupsRequest.newBuilder()
-                .addAllId(groupIds)
-                .build());
-        final Map<Integer, List<Group>> groupsByEntityType =
-            StreamSupport.stream(groups.spliterator(), false)
-                .collect(Collectors.groupingBy(GroupProtoUtil::getEntityType));
+        final Iterable<Grouping> groups = () -> groupService.getGroups(
+                        GetGroupsRequest.newBuilder()
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                            .addAllId(groupIds))
+                            .build());
+
+        final Map<Integer, List<Grouping>> groupsByEntityType = new HashMap<>();
+
+        StreamSupport.stream(groups.spliterator(), false)
+            .forEach(group -> {
+                GroupProtoUtil.getEntityTypes(group)
+                    .forEach(type -> groupsByEntityType.computeIfAbsent(type.typeNumber(),
+                            ArrayList::new).add(group));
+            });
+
         if (groupsByEntityType.isEmpty()) {
             // This can only happen if the groups are not found.
             throw new UnknownObjectException("Group IDs " + groupIds + " not found.");
         } else if (groupsByEntityType.size() > 1) {
             // All the groups should share the same entity type.
-            throw new InvalidOperationException("Setting policy scopes have " +
+            // If the user wants to scope to a group that has more than one entity type they
+            // need to explicitly specify the entity type to apply the policy to.
+            throw new InvalidOperationException("Cannot infer entity type." +
+                " Please specify entity type directly in the request. Setting policy scopes have " +
                 "different entity types: " + groupsByEntityType.keySet().stream()
-                    .map(EntityType::forNumber)
-                    .map(EntityType::name)
+                    .map(ApiEntityType::fromSdkTypeToEntityTypeString)
                     .collect(Collectors.joining(",")));
         } else {
             return groupsByEntityType.keySet().iterator().next();
@@ -257,10 +346,12 @@ public class SettingsMapper {
      * @param entityType An {@link Optional} containing the entity type to limit returned
      *                   {@link SettingApiDTO}s to. This is necessary because a {@link SettingSpec}
      *                   may be associated with multiple entity types.
+     * @param isPlan boolean representing if it's a plan.
      * @return The {@link SettingsManagerApiDTO}s.
      */
     public List<SettingsManagerApiDTO> toManagerDtos(@Nonnull final Collection<SettingSpec> specs,
-                                                     @Nonnull final Optional<String> entityType) {
+                                                     @Nonnull final Optional<String> entityType,
+                                                     Boolean isPlan) {
         final Map<String, List<SettingSpec>> specsByMgr = specs.stream()
                 .collect(Collectors.groupingBy(spec -> managerMapping.getManagerUuid(spec.getName())
                         .orElse(NO_MANAGER)));
@@ -281,55 +372,21 @@ public class SettingsMapper {
                     final SettingsManagerInfo info = managerMapping.getManagerInfo(entry.getKey())
                             .orElseThrow(() -> new IllegalStateException("Manager ID " +
                                     entry.getKey() + " not found despite being in the mappings earlier."));
-                    return createMgrDto(entry.getKey(), entityType, info, entry.getValue());
-                })
-                .collect(Collectors.toList());
-    }
-    /**
-     * Convert a collection of {@link SettingSpec} objects into the {@link SettingsManagerApiDTO}
-     * that will represent these settings to the UI.
-     *
-     * @param settingSpecNameToSettingsMap
-     * @param settingSpecNameToSettingSpecMap
-     * @return The {@link SettingsManagerApiDTO}s.
-     */
-    public List<SettingsManagerApiDTO> toManagerDtos(
-            @Nonnull final Map<String, List<SettingToPolicyName>> settingSpecNameToSettingsMap,
-            @Nonnull final Map<String, SettingSpec> settingSpecNameToSettingSpecMap) {
-
-        final Map<String, List<SettingToPolicyName>> settingMgrToSettingsMap = new HashMap<>();
-        settingSpecNameToSettingsMap.entrySet().forEach(entry -> {
-            Optional<String> managerUuid = managerMapping.getManagerUuid(entry.getKey());
-            if (!managerUuid.isPresent()) {
-               logger.warn("No setting manager id found for spec:{}, setting: {}." +
-                               "Filtering out from result.",
-                       entry.getKey(), entry.getValue());
-               return;
-            }
-            settingMgrToSettingsMap.computeIfAbsent(managerUuid.get(),
-                    k -> new ArrayList<>()).addAll(entry.getValue());
-        });
-
-
-        return settingMgrToSettingsMap.entrySet().stream()
-                // Don't return the specs that don't have a Manager mapping
-                .map(entry -> {
-                    final SettingsManagerInfo info = managerMapping.getManagerInfo(entry.getKey())
-                            .orElseThrow(() -> new IllegalStateException("Manager ID " +
-                                    entry.getKey() + " not found despite being in the mappings earlier."));
-                    return createMgrDto(entry.getKey(), info, entry.getValue(),
-                            settingSpecNameToSettingSpecMap);
+                    return createMgrDto(entry.getKey(), entityType, info,
+                        info.sortSettingSpecs(entry.getValue(), SettingSpec::getName), isPlan);
                 })
                 .collect(Collectors.toList());
     }
 
     /**
      * Convert a collection of {@link SettingSpec} objects into a specific
-     * {@link SettingsManagerApiDTO}. This is like {@link SettingsMapper#toManagerDtos(Collection, Optional)},
+     * {@link SettingsManagerApiDTO}. This is like
+     * {@link SettingsMapper#toManagerDtos(Collection, Optional, Boolean)},
      * just for one specific manager.
      *
      * @param specs The {@link SettingSpec}s. These don't have to all be managed by the desired
      *              manager - the method will exclude the ones that are not.
+     * @param isPlan boolean representing if it's a plan.
      * @param desiredMgrId The ID of the desired manager ID.
      * @return An optional containing the {@link SettingsManagerApiDTO}, or an empty optional if
      *         the manager does not exist in the mappings.
@@ -337,13 +394,14 @@ public class SettingsMapper {
     public Optional<SettingsManagerApiDTO> toManagerDto(
             @Nonnull final Collection<SettingSpec> specs,
             @Nonnull final Optional<String> entityType,
-            @Nonnull final String desiredMgrId) {
+            @Nonnull final String desiredMgrId,
+            Boolean isPlan) {
         final Optional<SettingsManagerInfo> infoOpt = managerMapping.getManagerInfo(desiredMgrId);
         return infoOpt.map(info -> createMgrDto(desiredMgrId, entityType, info, specs.stream()
                 .filter(spec -> managerMapping.getManagerUuid(spec.getName())
                     .map(name -> name.equals(desiredMgrId))
                     .orElse(false))
-                .collect(Collectors.toList())));
+                .collect(Collectors.toList()), isPlan));
 
     }
 
@@ -412,23 +470,20 @@ public class SettingsMapper {
                     .flatMap(settingMgr -> settingMgr.getSettings().stream())
                     .collect(Collectors.toMap(SettingApiDTO::getUuid, Function.identity()));
 
-            // **HAAACK** for RATE_OF_RESIZE
-            // If the RATE_OF_RESIZE setting has been updated as part of the Default
-            // VM Setting, remove it from the SettingPolicy and update the
-            // setting.
-            String rateOfResizeSettingName = GlobalSettingSpecs.RateOfResize.getSettingName();
-            // Api is not setting the default flag. So we can only check if it is a VM
-            // type.
-            if (isVmEntityType(entityType) &&
-                    involvedSettings.containsKey(rateOfResizeSettingName)) {
-                SettingApiDTO settingApiDto = involvedSettings.remove(rateOfResizeSettingName);
-                settingService.updateGlobalSetting(
-                    UpdateGlobalSettingRequest.newBuilder()
-                        .setSettingSpecName(rateOfResizeSettingName)
-                        .setNumericSettingValue(
-                            SettingDTOUtil.createNumericSettingValue(
-                                Float.valueOf(settingApiDto.getValue())))
+            // Some global settings in the UI, are displayed along with the default policy
+            // for a specific entity type. Remove it from the involvedSettings and update the
+            // associated global setting. Api is not setting the default flag. So we can only
+            // check its type.
+            if (ENTITY_TYPE_GLOBAL_SETTINGS.containsKey(entityType)) {
+                final String globalSettingName = ENTITY_TYPE_GLOBAL_SETTINGS.get(entityType).getSettingName();
+                if (involvedSettings.containsKey(globalSettingName)) {
+                    final SettingApiDTO<?> settingApiDto = involvedSettings.remove(globalSettingName);
+                    settingService.updateGlobalSetting(UpdateGlobalSettingRequest.newBuilder()
+                        .addSetting(Setting.newBuilder().setSettingSpecName(globalSettingName)
+                            .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(
+                                Float.valueOf(SettingsMapper.inputValueToString(settingApiDto).orElse("0")))))
                         .build());
+                }
             }
 
             if (!involvedSettings.isEmpty()) {
@@ -447,8 +502,10 @@ public class SettingsMapper {
             }
         }
 
+        String inputPolicyDisplayName = apiInputPolicy.getDisplayName();
         final SettingPolicyInfo.Builder infoBuilder = SettingPolicyInfo.newBuilder()
-            .setName(apiInputPolicy.getDisplayName());
+            .setName(inputPolicyDisplayName)
+            .setDisplayName(inputPolicyDisplayName);
 
         if (!apiInputPolicy.isDefault() && apiInputPolicy.getScopes() != null) {
             final Scope.Builder scopeBuilder = Scope.newBuilder();
@@ -464,7 +521,7 @@ public class SettingsMapper {
         infoBuilder.setEnabled(apiInputPolicy.getDisabled() == null || !apiInputPolicy.getDisabled());
 
         if (apiInputPolicy.getSchedule() != null) {
-            infoBuilder.setSchedule(convertScheduleApiDTO(apiInputPolicy.getSchedule()));
+            infoBuilder.setScheduleId(Long.valueOf(apiInputPolicy.getSchedule().getUuid()));
         }
         involvedSettings.values()
             .stream()
@@ -482,76 +539,6 @@ public class SettingsMapper {
     }
 
     /**
-     * Convert a Schedule DTO from the classic API to one that can be used by an XL SettingPolicyInfo.
-     * A schedule may contain a recurrence DTO that in XL may indicate a one-time, daily, weekly, or
-     * monthly policy. However in classic the recurrence DTO can only be of type daily, weekly, or
-     * monthly, with its complete absence denoting a one-time policy.
-     *
-     * @param apiSchedule The classic API schedule to convert
-     * @return the equivalent XL Schedule object
-     */
-    private Schedule convertScheduleApiDTO(ScheduleApiDTO apiSchedule) {
-        final Schedule.Builder scheduleBuilder = Schedule.newBuilder();
-        final long startTimestamp = DateTimeUtil.parseTime(apiSchedule.getStartTime());
-        final DateTime startDateTime = new DateTime(startTimestamp);
-        scheduleBuilder.setStartTime(startTimestamp)
-                .setEndTime(DateTimeUtil.parseTime(apiSchedule.getEndTime()));
-
-        if (apiSchedule.getRecurrence() == null || apiSchedule.getRecurrence().getType() == null) {
-            scheduleBuilder.setOneTime(Schedule.OneTime.newBuilder().build());
-        } else {
-            if (apiSchedule.getEndDate() != null) {
-                scheduleBuilder.setLastDate(DateTimeUtil.parseTime(apiSchedule.getEndDate()));
-            } else {
-                scheduleBuilder.setPerpetual(Schedule.Perpetual.newBuilder().build());
-            }
-            switch (apiSchedule.getRecurrence().getType()) {
-                case DAILY:
-                    scheduleBuilder.setDaily(Schedule.Daily.newBuilder().build());
-                    break;
-                case WEEKLY:
-                    final Schedule.Weekly.Builder weeklyBuilder = Schedule.Weekly.newBuilder();
-                    final List<DayOfWeek> apiDays = apiSchedule.getRecurrence().getDaysOfWeek();
-                    if (apiDays == null || apiDays.isEmpty()) {
-                        final int weekdayNumber = startDateTime.dayOfWeek().get();
-                        weeklyBuilder.addDaysOfWeek(Schedule.DayOfWeek.forNumber(weekdayNumber));
-                    } else {
-                        weeklyBuilder.addAllDaysOfWeek(apiDays.stream()
-                                .map(this::translateDayOfWeekFromDTO)
-                                .collect(Collectors.toList()));
-                    }
-                    scheduleBuilder.setWeekly(weeklyBuilder.build());
-                    break;
-                case MONTHLY:
-                    final Schedule.Monthly.Builder monthlyBuilder = Schedule.Monthly.newBuilder();
-                    final List<Integer> daysMonth = apiSchedule.getRecurrence().getDaysOfMonth();
-                    if (daysMonth == null || daysMonth.isEmpty()) {
-                        monthlyBuilder.addDaysOfMonth(startDateTime.dayOfMonth().get());
-                    } else {
-                        monthlyBuilder.addAllDaysOfMonth(daysMonth);
-                    }
-                    scheduleBuilder.setMonthly(monthlyBuilder.build());
-                    break;
-            }
-        }
-        return scheduleBuilder.build();
-    }
-
-    /**
-     * Translate the day of the week from the classic API enum to the XL recurrence enum
-     *
-     * @param day the classic API day of the week
-     * @return the equivalent XL day of the week
-     */
-    @VisibleForTesting
-    Schedule.DayOfWeek translateDayOfWeekFromDTO(DayOfWeek day) {
-        //legacy week starts with Sunday but international/XL week starts with Monday
-        final int internationalDayNumber = (day == DayOfWeek.Sun) ? Schedule.DayOfWeek.SUNDAY_VALUE
-                : day.getValue() - 1;
-        return Schedule.DayOfWeek.forNumber(internationalDayNumber);
-    }
-
-    /**
      * Convert a list of {@link SettingPolicy} objects to {@link SettingsPolicyApiDTO}s that
      * can be returned to API clients.
      *
@@ -560,22 +547,41 @@ public class SettingsMapper {
      */
     public List<SettingsPolicyApiDTO> convertSettingPolicies(
             @Nonnull final List<SettingPolicy> settingPolicies) {
+        return convertSettingPolicies(settingPolicies, Collections.emptySet());
+    }
+
+    /**
+     * Convert a list of {@link SettingPolicy} objects to {@link SettingsPolicyApiDTO}s that
+     * can be returned to API clients.
+     *
+     * @param settingPolicies The setting policies retrieved from the group components.
+     * @param managersToInclude the set of managers to include in the response, if
+     *                          managersToInclude is empty, return all managers
+     * @return A list of {@link SettingsPolicyApiDTO} objects in the same order as the input list.
+     */
+    public List<SettingsPolicyApiDTO> convertSettingPolicies(
+            @Nonnull final List<SettingPolicy> settingPolicies,
+            @Nonnull final Set<String> managersToInclude) {
         final Set<Long> involvedGroups = SettingDTOUtil.getInvolvedGroups(settingPolicies);
         final Map<Long, String> groupNames = new HashMap<>();
         if (!involvedGroups.isEmpty()) {
             groupService.getGroups(GetGroupsRequest.newBuilder()
-                    .addAllId(involvedGroups)
+                    .setGroupFilter(GroupFilter.newBuilder()
+                            .addAllId(involvedGroups))
                     .build())
                     .forEachRemaining(group -> groupNames.put(group.getId(),
-                            GroupProtoUtil.getGroupDisplayName(group)));
+                            group.getDefinition().getDisplayName()));
         }
 
         Map<String, Setting> globalSettingNameToSettingMap = getRelevantGlobalSettings(settingPolicies);
 
+        // Get upfront all schedules used by the settings policies
+        final Map<Long, ScheduleApiDTO> scheduleMap = getSchedules(settingPolicies);
+
         return settingPolicies.stream()
-            .map(policy -> settingPolicyMapper.convertSettingPolicy(policy, groupNames,
-                    globalSettingNameToSettingMap))
-            .collect(Collectors.toList());
+                .map(policy -> settingPolicyMapper.convertSettingPolicy(policy, groupNames,
+                        globalSettingNameToSettingMap, managersToInclude, scheduleMap))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -595,7 +601,6 @@ public class SettingsMapper {
         return managerMapping;
     }
 
-
     /**
      * Create a {@link SettingsManagerApiDTO} containing information about settings, but not their
      * values. This will be a "thicker" manager than the one created by
@@ -610,17 +615,22 @@ public class SettingsMapper {
      * @param info  The information about the manager.
      * @param specs The {@link SettingSpec}s managed by this manager. This function assumes all
      *              the settings belong to the manager.
+     * @param isPlan boolean representing if it's a plan.
      * @return The {@link SettingsManagerApiDTO}.
      */
     @Nonnull
     private SettingsManagerApiDTO createMgrDto(@Nonnull final String mgrId,
                                                @Nonnull final Optional<String> entityType,
                                                @Nonnull final SettingsManagerInfo info,
-                                               @Nonnull final Collection<SettingSpec> specs) {
+                                               @Nonnull final Collection<SettingSpec> specs,
+                                               boolean isPlan) {
         final SettingsManagerApiDTO mgrApiDto = info.newApiDTO(mgrId);
+        List<SettingSpec> sortedSpecs = info.sortSettingSpecs(specs, SettingSpec::getName);
 
-        mgrApiDto.setSettings(specs.stream()
-                .map(settingSpec -> settingSpecMapper.settingSpecToApi(Optional.of(settingSpec), Optional.empty()))
+        List<SettingApiDTO<String>> settings = new ArrayList<>();
+        sortedSpecs.stream()
+            .map(settingSpec -> settingSpecMapper.settingSpecToApi(Optional.of(settingSpec),
+                Optional.empty()))
                 .flatMap(settingPossibilities -> {
                     if (entityType.isPresent()) {
                         return settingPossibilities.getSettingForEntityType(entityType.get())
@@ -629,8 +639,17 @@ public class SettingsMapper {
                     } else {
                         return settingPossibilities.getAll().stream();
                     }
-                })
-                .collect(Collectors.toList()));
+                }).forEach( settingApiDTO -> {
+            settings.add(settingApiDTO);
+        });
+
+        // If it's a plan we also need to return a UI setting for resize. This setting internally
+        // corresponds to the resizes for vcpu and vmem.
+        if (isPlan && entityType.isPresent() && entityType.get().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr())) {
+            SettingApiDTO resizeSetting = createResizeSetting();
+            settings.add(resizeSetting);
+        }
+        mgrApiDto.setSettings(settings);
 
         // configure UI presentation information
         for (SettingApiDTO apiDto : mgrApiDto.getSettings()) {
@@ -643,68 +662,51 @@ public class SettingsMapper {
         return mgrApiDto;
     }
 
-
-    /**
-     * Create a {@link SettingsManagerApiDTO} containing information about settings, but not their
-     * values. This will be a "thicker" manager than the one created by
-     * {@link DefaultSettingPolicyMapper#createValMgrDto(String, SettingsManagerInfo, String, Collection)},
-     * but none of the settings will have values (since this is only a description of what the
-     * settings are).
+    /** Get all schedules used by the settings policies.
      *
-     * @param mgrId The ID of the manager.
-     * @param info  The information about the manager.
-     * @param settings The {@link Setting}s managed by this manager. This function assumes all
-     *              the settings belong to the manager.
-     * @param settingSpecNameToSettingSpecMap Mapping from SettingSpecName to SettingSpec.
-     * @return The {@link SettingsManagerApiDTO}.
+     * @param settingPolicies The setting policies retrieved from the group component
+     * @return Map of {@link Schedule}
      */
     @Nonnull
-    private SettingsManagerApiDTO createMgrDto(@Nonnull final String mgrId,
-                                               @Nonnull final SettingsManagerInfo info,
-                                               @Nonnull final Collection<SettingToPolicyName> settings,
-                                               @Nonnull final Map<String, SettingSpec> settingSpecNameToSettingSpecMap) {
-
-        final SettingsManagerApiDTO mgrApiDto = info.newApiDTO(mgrId);
-
-        mgrApiDto.setSettings(settings.stream()
-                .map(setting ->
-                        settingSpecMapper.settingSpecToApi(
-                                Optional.of(settingSpecNameToSettingSpecMap.get(
-                                        setting.getSetting().getSettingSpecName())),
-                                Optional.of(setting.getSetting())))
-                .flatMap(settingPossibilities -> settingPossibilities.getAll().stream())
-                .collect(Collectors.toList()));
-
-        Map<String, String> settingNameToSettingPolicyName =
-                settings.stream()
-                        .collect(Collectors.toMap(settingPolicyName ->
-                                        settingPolicyName.getSetting().getSettingSpecName(),
-                                SettingToPolicyName::getSettingPolicyName));
-
-        // We don't want to query the repository to just get the entityType. And it's not used
-        // in the UI anyway. There can be many entities with the same spec. So we keep only one
-        // spec type.
-        Set<String> haveSeenSpec = new HashSet<>();
-        // configure UI presentation information
-        List<SettingApiDTO> apiDtos = new ArrayList<>();
-        for (SettingApiDTO apiDto : mgrApiDto.getSettings()) {
-            String specName = apiDto.getUuid();
-            if (haveSeenSpec.contains(specName)) {
-               continue;
-            }
-            haveSeenSpec.add(specName);
-            apiDto.setSourceGroupName(settingNameToSettingPolicyName.get(specName));
-             // uncomment out the entityType as we don't need it and we don't want to
-            // set the wrong one as we pick any one of the setting value.
-            apiDto.setEntityType("");
-            settingSpecStyleMapping.getStyleInfo(specName)
-                    .ifPresent(styleInfo ->
-                            apiDto.setRange(styleInfo.getRange().getRangeApiDTO()));
-            apiDtos.add(apiDto);
+    private Map<Long, ScheduleApiDTO> getSchedules(@Nonnull final List<SettingPolicy> settingPolicies) {
+        List<Long> scheduleIds = settingPolicies.stream().filter(settingPolicy -> settingPolicy
+            .getInfo().hasScheduleId()).map(settingPolicy -> settingPolicy.getInfo().getScheduleId())
+            .collect(Collectors.toList());
+        final Map<Long, ScheduleApiDTO> scheduleMap = Maps.newHashMap();
+        if (!scheduleIds.isEmpty()) {
+            schedulesService.getSchedules(GetSchedulesRequest.newBuilder()
+                .addAllOid(scheduleIds).build())
+                .forEachRemaining(schedule -> {
+                    final ScheduleApiDTO scheduleApiDTO = convertSchedule(schedule);
+                    if (scheduleApiDTO != null) {
+                        scheduleMap.put(schedule.getId(), scheduleApiDTO);
+                    }
+                });
         }
+        return scheduleMap;
+    }
 
-        mgrApiDto.setSettings(apiDtos);
-        return mgrApiDto;
+    @Nullable
+    private ScheduleApiDTO convertSchedule(@Nonnull final Schedule schedule) {
+        ScheduleApiDTO scheduleApiDTO = null;
+        try {
+            scheduleApiDTO = scheduleMapper.convertSchedule(schedule);
+        } catch (OperationFailedException e) {
+            logger.error("Failed to convert schedule with id: {}, name: {}",
+                schedule.getId(), schedule.getDisplayName(), e);
+        }
+        return scheduleApiDTO;
+    }
+
+    private static Map<String, String> getSettingEnumNameToLabel() {
+        final ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+        builder.put(OperatingSystem.RHEL.name(), "RHEL");
+        builder.put(OperatingSystem.SLES.name(), "SLES");
+        // In VDI, we want to show all this values as "{DIGIT} windows per day" in UI
+        for (DailyObservationWindowsCount value : DailyObservationWindowsCount.values()) {
+            builder.put(value.name(), value.toString());
+        }
+        return builder.build();
     }
 
     /**
@@ -725,11 +727,16 @@ public class SettingsMapper {
          *                   resulting {@link SettingsPolicyApiDTO}.
          * @param globalSettingNameToSettingMap required global settings (like disableAllActions) that need to be
          *                                      injected to shown in UI with entity settings.
+         * @param managersToInclude the set of managers to include in the response, if
+         *                          managersToInclude is empty, return all managers
+         * @param schedules Schedules used by settings policies
          * @return The resulting {@link SettingsPolicyApiDTO}.
          */
         SettingsPolicyApiDTO convertSettingPolicy(@Nonnull final SettingPolicy settingPolicy,
                                                   @Nonnull final Map<Long, String> groupNames,
-                                                  @Nonnull final Map<String, Setting> globalSettingNameToSettingMap);
+                                                  @Nonnull final Map<String, Setting> globalSettingNameToSettingMap,
+                                                  @Nonnull final Set<String> managersToInclude,
+                                                  @Nonnull final Map<Long, ScheduleApiDTO> schedules);
     }
 
     /**
@@ -750,15 +757,17 @@ public class SettingsMapper {
         @Override
         public SettingsPolicyApiDTO convertSettingPolicy(@Nonnull final SettingPolicy settingPolicy,
                                                          @Nonnull final Map<Long, String> groupNames,
-                                                         @Nonnull final Map<String, Setting> globalSettingNameToSettingMap) {
+                                                         @Nonnull final Map<String, Setting> globalSettingNameToSettingMap,
+                                                         @Nonnull final Set<String> managersToInclude,
+                                                         @Nonnull final Map<Long, ScheduleApiDTO> schedules) {
             final SettingsPolicyApiDTO apiDto = new SettingsPolicyApiDTO();
             apiDto.setUuid(Long.toString(settingPolicy.getId()));
             final SettingPolicyInfo info = settingPolicy.getInfo();
-            apiDto.setDisplayName(info.getName());
+            apiDto.setDisplayName(info.hasDisplayName() ? info.getDisplayName() : info.getName());
             // We need this check because some inject some fake setting policies without any entity
             // type to show in UI (like Global Action Mode Defaults.)
             if (info.hasEntityType()) {
-                apiDto.setEntityType(ServiceEntityMapper.toUIEntityType(info.getEntityType()));
+                apiDto.setEntityType(ApiEntityType.fromType(info.getEntityType()).apiStr());
             }
             apiDto.setDisabled(!info.getEnabled());
             apiDto.setDefault(settingPolicy.getSettingPolicyType().equals(Type.DEFAULT));
@@ -783,9 +792,8 @@ public class SettingsMapper {
                         .map(Optional::get)
                         .collect(Collectors.toList()));
             }
-
-            if (info.hasSchedule()) {
-                apiDto.setSchedule(convertScheduleToApiDTO(info.getSchedule()));
+            if (info.hasScheduleId() && schedules.containsKey(info.getScheduleId())) {
+                apiDto.setSchedule(schedules.get(info.getScheduleId()));
             }
 
             final SettingsManagerMapping managerMapping = mapper.getManagerMapping();
@@ -797,16 +805,15 @@ public class SettingsMapper {
                             managerMapping.getManagerUuid(setting.getSettingSpecName())
                                     .orElse(NO_MANAGER)));
 
-            // *HAAACK*. Add RATE_OF_RESIZE hack here. Even thought it is a global setting
-            // in the UI, it is displayed along with VM default policy. So fetch the global
-            // setting and inject it here.
-            if (isVmDefaultPolicy(settingPolicy)) {
-                injectGlobalSetting(GlobalSettingSpecs.RateOfResize, settingsByMgr,
-                                globalSettingNameToSettingMap);
-            } else if (isGlobalActionModePolicy(settingPolicy)) {
+            // Some global settings in the UI, are displayed along with the default policy
+            // for a specific entity type. So fetch the global setting and inject it here.
+            if (isEntityDefaultPolicyWithGlobalSetting(settingPolicy)) {
+                injectGlobalSetting(ENTITY_TYPE_GLOBAL_SETTINGS.get(
+                        settingPolicy.getInfo().getEntityType()), settingsByMgr, globalSettingNameToSettingMap);
+            } else if (isGlobalSettingPolicy(settingPolicy)) {
                 apiDto.setEntityType(SERVICE_ENTITY);
-                injectGlobalSetting(GlobalSettingSpecs.DisableAllActions, settingsByMgr,
-                                globalSettingNameToSettingMap);
+                GlobalSettingSpecs.VISIBLE_TO_UI.forEach(globalSettingSpecs ->
+                    injectGlobalSetting(globalSettingSpecs, settingsByMgr, globalSettingNameToSettingMap));
             }
 
             final List<Setting> unhandledSettings = settingsByMgr.get(NO_MANAGER);
@@ -820,6 +827,8 @@ public class SettingsMapper {
             apiDto.setSettingsManagers(settingsByMgr.entrySet().stream()
                     // Don't return the specs that don't have a Manager mapping
                     .filter(entry -> !entry.getKey().equals(NO_MANAGER))
+                    // only return settings for requested managers, if managers is empty, return all
+                    .filter(entry -> managersToInclude.isEmpty() || managersToInclude.contains(entry.getKey()))
                     .map(entry -> {
                         final SettingsManagerInfo mgrInfo = managerMapping.getManagerInfo(entry.getKey())
                                 .orElseThrow(() -> new IllegalStateException("Manager ID " +
@@ -853,87 +862,19 @@ public class SettingsMapper {
         }
 
         /**
-         * Convert an XL Schedule object to the Schedule DTO used by the classic API.
-         *
-         * @param schedule the XL Schedule object
-         * @return an equivalent ScheduleApiDTO
-         */
-        private ScheduleApiDTO convertScheduleToApiDTO(Schedule schedule) {
-            final ScheduleApiDTO scheduleApiDTO = new ScheduleApiDTO();
-
-            final long startTimestamp = schedule.getStartTime();
-            final DateTime startDateTime = new DateTime(startTimestamp);
-            final String startTimeString = DateTimeUtil.toString(startTimestamp);
-
-            scheduleApiDTO.setStartDate(startTimeString);
-            scheduleApiDTO.setStartTime(startTimeString);
-
-            switch (schedule.getDurationCase()) {
-                case MINUTES:
-                    final DateTime endDateTime = startDateTime.plusMinutes(schedule.getMinutes());
-                    scheduleApiDTO.setEndTime(DateTimeUtil.toString(endDateTime));
-                    break;
-                case END_TIME:
-                    scheduleApiDTO.setEndTime(DateTimeUtil.toString(schedule.getEndTime()));
-                    break;
-            }
-
-            if (schedule.hasLastDate()) {
-                scheduleApiDTO.setEndDate(DateTimeUtil.toString(schedule.getLastDate()));
-            }
-
-            final RecurrenceApiDTO recurrenceApiDTO = new RecurrenceApiDTO();
-            switch (schedule.getRecurrenceCase()) {
-                case DAILY:
-                    recurrenceApiDTO.setType(RecurrenceType.DAILY);
-                    scheduleApiDTO.setRecurrence(recurrenceApiDTO);
-                    break;
-                case WEEKLY:
-                    recurrenceApiDTO.setType(RecurrenceType.WEEKLY);
-                    if (schedule.getWeekly().getDaysOfWeekList().isEmpty()) {
-                        recurrenceApiDTO.setDaysOfWeek(Collections.singletonList(
-                                getLegacyDayOfWeekForDatestamp(startDateTime)));
-                    } else {
-                        recurrenceApiDTO.setDaysOfWeek(schedule.getWeekly().getDaysOfWeekList()
-                                .stream().map(this::translateDayOfWeekToDTO)
-                                .collect(Collectors.toList()));
-                    }
-                    scheduleApiDTO.setRecurrence(recurrenceApiDTO);
-                    break;
-                case MONTHLY:
-                    recurrenceApiDTO.setType(RecurrenceType.MONTHLY);
-                    if (schedule.getMonthly().getDaysOfMonthList().isEmpty()) {
-                        recurrenceApiDTO.setDaysOfMonth(Collections.singletonList(
-                            startDateTime.getDayOfMonth()));
-                    } else {
-                        recurrenceApiDTO.setDaysOfMonth(schedule.getMonthly().getDaysOfMonthList());
-                    }
-                    scheduleApiDTO.setRecurrence(recurrenceApiDTO);
-                    break;
-            }
-            return scheduleApiDTO;
-        }
-
-        /**
-         * Translate an XL DayOfWeek enum to the DayOfWeek enum used by the classic API
-         * @param day the XL DayOfWeek
-         * @return the corresponding classic DayOfWeek
-         */
-        private DayOfWeek translateDayOfWeekToDTO(Schedule.DayOfWeek day) {
-            return DayOfWeek.get(day.name().substring(0,3));
-        }
-
-        /**
-         * Get the api.enums.DayOfWeek associated with a date represented by a Joda DateTime
+         * Get the api.enums.DayOfWeek associated with a date represented by a Joda DateTime.
          *
          * @param dateTime the datetime to convert
          * @return the legacy DayOfWeek associated
          */
         @VisibleForTesting
-        DayOfWeek getLegacyDayOfWeekForDatestamp(@Nonnull final DateTime dateTime) {
-            final int dayOfWeekInternational = dateTime.dayOfWeek().get();
+        DayOfWeek getLegacyDayOfWeekForDatestamp(@Nonnull final Date dateTime) {
+            final int dayOfWeekInternational = dateTime.toInstant()
+                        .atOffset(ZoneOffset.UTC)
+                        .toLocalDate().getDayOfWeek().getValue();
             //legacy enum week starts with sunday but DateTime week starts with monday
-            final int dayOfWeekLegacy = dayOfWeekInternational == Schedule.DayOfWeek.SUNDAY_VALUE ? 1
+            final int dayOfWeekLegacy =
+                    dayOfWeekInternational == java.time.DayOfWeek.SUNDAY.getValue() ? 1
                     : dayOfWeekInternational + 1;
             return DayOfWeek.get(dayOfWeekLegacy);
         }
@@ -980,6 +921,12 @@ public class SettingsMapper {
         return settingSpecMapper.settingSpecToApi(settingSpec, Optional.of(setting));
     }
 
+    @Nonnull
+    public SettingApiDTOPossibilities toSettingApiDto(@Nonnull final Setting setting,
+                                                      @Nonnull final SettingSpec settingSpec) {
+        return settingSpecMapper.settingSpecToApi(Optional.of(settingSpec), Optional.of(setting));
+    }
+
     /**
      * Create a {@link Setting} object from a {@link SettingApiDTO}.
      *
@@ -989,29 +936,30 @@ public class SettingsMapper {
      * @return The {@link Setting}.
      */
     @Nonnull
-    private static Setting toProtoSetting(@Nonnull final SettingApiDTO apiDto,
+    private static Setting toProtoSetting(@Nonnull final SettingApiDTO<?> apiDto,
                                           @Nonnull final SettingSpec settingSpec) {
         final Setting.Builder settingBuilder = Setting.newBuilder()
                 .setSettingSpecName(apiDto.getUuid());
         PROTO_SETTING_VALUE_INJECTORS.get(settingSpec.getSettingValueTypeCase())
-                .setBuilderValue(apiDto.getValue(), settingBuilder);
+                .setBuilderValue(StringUtils.trimToEmpty(SettingsMapper.inputValueToString(apiDto).orElse("")), settingBuilder);
         return settingBuilder.build();
     }
 
     /**
-     * Map a set of {@link SettingApiDTO}s to their associated {@link Setting} objects.
-     * The input DTO's should have values.
+     * Bulk converts list of {@link SettingApiDTO} to {@link Setting}s.
+     * <p> Maps {@link SettingApiDTO}s to all required {@link Setting} objects that
+     * will be required to create setting overrides</p>
      *
      * @param apiDtos The collection of {@link SettingApiDTO}s to map.
      * @return The {@link Setting} objects, arranged by setting name (UUID in API terms). Any
      *         settings that could not be mapped will not be present.
      */
     @Nonnull
-    public Map<String, Setting> toProtoSettings(@Nonnull final List<SettingApiDTO> apiDtos) {
-        final Map<String, SettingApiDTO> settingOverrides = apiDtos.stream()
-                .collect(Collectors.toMap(SettingApiDTO::getUuid, Function.identity()));
+    public Map<SettingValueEntityTypeKey, Setting> toProtoSettings(@Nonnull final List<SettingApiDTO> apiDtos) {
+        final Map<String, List<SettingApiDTO>> settingOverrides = apiDtos.stream()
+                .collect(Collectors.groupingBy(SettingApiDTO::getUuid));
 
-        final ImmutableMap.Builder<String, Setting> retChanges = ImmutableMap.builder();
+        final Map<SettingValueEntityTypeKey, Setting> retChanges = new HashMap<>();
         // We need to look up the setting specs to know how to apply setting overrides.
         settingService.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
                 .addAllSettingSpecName(settingOverrides.keySet())
@@ -1019,17 +967,52 @@ public class SettingsMapper {
                 .forEachRemaining(settingSpec -> {
                     // Since settings in XL are uniquely identified by name, the name of XL's "Setting"
                     // object is the same as the UUID of the API's "SettingApiDTO" object.
-                    final SettingApiDTO dto = settingOverrides.get(settingSpec.getName());
-                    try {
-                        retChanges.put(settingSpec.getName(), toProtoSetting(dto, settingSpec));
-                    } catch (RuntimeException e) {
-                        // Catch and log any runtime exceptions to isolate the failure to that
-                        // particular misbehaving setting.
-                        logger.error("Unable to map setting " + settingSpec.getName() +
-                                " because of error.", e);
-                    }
+                    final List<SettingApiDTO> dtos = settingOverrides.get(settingSpec.getName());
+                    dtos.stream().forEach(dto -> {
+                        try {
+                            retChanges.putIfAbsent(getSettingValueEntityTypeKey(dto),
+                                        toProtoSetting(dto, settingSpec));
+                        } catch (RuntimeException e) {
+                            // Catch and log any runtime exceptions to isolate the failure to that
+                            // particular misbehaving setting.
+                            logger.error("Unable to map setting " + settingSpec.getName() +
+                                    " because of error.", e);
+                        }
+                    });
+
                 });
-        return retChanges.build();
+        return retChanges;
+    }
+
+    /**
+     * Used to generate immutable key for {@link SettingApiDTO}.
+     */
+    @Value.Immutable
+    public interface SettingValueEntityTypeKey {
+        //SettingApiDtoUuid
+        String settingUUID();
+
+        //SettingApiDto entityType mapped to UIEntityType
+        ApiEntityType entityType();
+
+        /**
+         * {@link SettingApiDTO} value as string.
+         */
+        String settingValue();
+    }
+
+    /**
+     * Gets {@link SettingValueEntityTypeKey} from {@link SettingApiDTO}.
+     *
+     * @param dto to used to build SettingValueEntityTypeKey
+     * @return key created from settingApiDto
+     */
+    public static SettingValueEntityTypeKey getSettingValueEntityTypeKey(SettingApiDTO dto) {
+        return ImmutableSettingValueEntityTypeKey.builder()
+                .entityType(ApiEntityType.fromString(dto.getEntityType()))
+                .settingUUID(dto.getUuid())
+                .settingValue(SettingsMapper.inputValueToString(dto).orElse(""))
+                .build();
     }
 
     /**
@@ -1048,7 +1031,7 @@ public class SettingsMapper {
      */
     @FunctionalInterface
     private interface ApiSettingValueInjector {
-        void setSettingValue(@Nonnull final Setting setting, @Nonnull final SettingApiDTO apiDTO);
+        void setSettingValue(@Nonnull final Setting setting, @Nonnull final SettingApiDTO<String> apiDTO);
     }
 
     /**
@@ -1090,20 +1073,34 @@ public class SettingsMapper {
         }
     }
 
-    private static boolean isVmDefaultPolicy(@Nonnull SettingPolicy policy) {
+    public static Optional<String> inputValueToString(@Nullable SettingApiDTO<?> dto) {
+        if (dto == null) {
+            return Optional.empty();
+        }
+        Object value = dto.getValue();
+        if (value == null) {
+            return Optional.empty();
+        }
+        if (value instanceof String) {
+            return Optional.of((String)value);
+        }
+        return Optional.of(value.toString());
+    }
 
-        return (policy.getSettingPolicyType().equals(Type.DEFAULT) &&
-                    isVmEntityType(policy.getInfo().getEntityType()));
+    private static boolean isEntityDefaultPolicyWithGlobalSetting(@Nonnull SettingPolicy policy) {
+        return policy.getSettingPolicyType().equals(Type.DEFAULT)
+            && ENTITY_TYPE_GLOBAL_SETTINGS.containsKey(policy.getInfo().getEntityType());
     }
 
     public static boolean isVmEntityType(int entityType) {
         return (EntityType.VIRTUAL_MACHINE.getNumber() == entityType);
     }
 
-    private static boolean isGlobalActionModePolicy(SettingPolicy settingPolicy) {
-        return settingPolicy.getInfo().getName().equals(GLOBAL_ACTION_SETTING_NAME);
+    private static boolean isGlobalSettingPolicy(SettingPolicy settingPolicy) {
+        return settingPolicy.getInfo().getName().equals(GLOBAL_SETTING_POLICY_NAME);
     }
 
+    @Nonnull
     private static Optional<SettingSpec> getSettingSpec(@Nonnull final String settingSpecName) {
         Optional<EntitySettingSpecs> entitySpec =
             EntitySettingSpecs.getSettingByName(settingSpecName);
@@ -1113,20 +1110,18 @@ public class SettingsMapper {
 
         Optional<GlobalSettingSpecs> globalSpec =
             GlobalSettingSpecs.getSettingByName(settingSpecName);
-
         if (globalSpec.isPresent()) {
             return Optional.of(globalSpec.get().createSettingSpec());
         }
 
-        return Optional.empty();
+        return Optional.ofNullable(ActionSettingSpecs.getSettingSpec(settingSpecName));
     }
 
     /**
      * An object to represent the possible {@link SettingApiDTO}s associated with a single
      * {@link SettingSpec}. The {@link SettingApiDTO}s may or may not have values, depending
      * on whether a {@link Setting} is provided.
-     * <p>
-     * In XL, a single {@link SettingSpec} may apply to multiple entity types. However, a
+     * <p>In XL, a single {@link SettingSpec} may apply to multiple entity types. However, a
      * {@link SettingApiDTO} applies to just one entity type. There are circumstances where we need
      * all the {@link SettingApiDTO}s that can be derived from a {@link SettingSpec}, and other
      * circumstances where we only need the {@link SettingApiDTO} for a specific entity type.
@@ -1140,14 +1135,14 @@ public class SettingsMapper {
          * {@link SettingSpec} was a global setting.
          */
         @Nullable
-        private final Map<String, SettingApiDTO> settingsByEntityType;
+        private final Map<String, SettingApiDTO<String>> settingsByEntityType;
 
         /**
          * The {@link SettingApiDTO} associated with the global {@link SettingSpec}. This should
          * be null if the provided {@link SettingSpec} was an entity setting.
          */
         @Nullable
-        private final SettingApiDTO globalSetting;
+        private final SettingApiDTO<String> globalSetting;
 
         private SettingApiDTOPossibilities(@Nonnull final Optional<SettingSpec> settingSpec,
                                    @Nonnull final Optional<Setting> settingValue) {
@@ -1167,7 +1162,7 @@ public class SettingsMapper {
          * @return A collection of {@link SettingApiDTO}s. May be empty.
          */
         @Nonnull
-        public Collection<SettingApiDTO> getAll() {
+        public Collection<SettingApiDTO<String>> getAll() {
             if (globalSetting != null) {
                 return Collections.singletonList(globalSetting);
             } else if (settingsByEntityType != null) {
@@ -1185,7 +1180,7 @@ public class SettingsMapper {
          *         the input {@link SettingSpec} did not represent a global setting.
          */
         @Nonnull
-        public Optional<SettingApiDTO> getGlobalSetting() {
+        public Optional<SettingApiDTO<String>> getGlobalSetting() {
             return Optional.ofNullable(globalSetting);
         }
 
@@ -1193,13 +1188,13 @@ public class SettingsMapper {
          * Get the {@link SettingApiDTO} associated with the entity setting for a particular entity
          * type represented by the input {@link SettingSpec}.
          *
-         * @param entityType The UI entity type (i.e. one of {@link UIEntityType}) to search for.
+         * @param entityType The UI entity type (i.e. one of {@link ApiEntityType}) to search for.
          * @return An {@link Optional} containing the {@link SettingApiDTO}. An empty optional if
          *         the input {@link SettingSpec} did not represent an entity setting, or if the
          *         input {@link SettingSpec} does not apply to the specified entity type.
          */
         @Nonnull
-        public Optional<SettingApiDTO> getSettingForEntityType(@Nonnull final String entityType) {
+        public Optional<SettingApiDTO<String>> getSettingForEntityType(@Nonnull final String entityType) {
             if (settingsByEntityType != null) {
                 return Optional.ofNullable(settingsByEntityType.get(entityType));
             } else if (globalSetting != null) {
@@ -1211,14 +1206,14 @@ public class SettingsMapper {
         }
 
         @Nullable
-        private static SettingApiDTO makeGlobalSetting(
+        private static SettingApiDTO<String> makeGlobalSetting(
                 @Nonnull final SettingSpec settingSpec,
                 @Nonnull final Optional<Setting> settingValue) {
             if (!settingSpec.hasGlobalSettingSpec()) {
                 return null;
             }
 
-            final SettingApiDTO apiDto = new SettingApiDTO();
+            final SettingApiDTO<String> apiDto = new SettingApiDTO<>();
             apiDto.setScope(SettingScope.GLOBAL);
             apiDto.setEntityType(GLOBAL_SETTING_ENTITY_TYPES.get(settingSpec.getName()));
             fillSkeleton(settingSpec, settingValue, apiDto);
@@ -1226,7 +1221,7 @@ public class SettingsMapper {
         }
 
         @Nullable
-        private static Map<String, SettingApiDTO> makeEntitySettings(
+        private static Map<String, SettingApiDTO<String>> makeEntitySettings(
                 @Nonnull final SettingSpec settingSpec,
                 @Nonnull final Optional<Setting> settingValue) {
             if (!settingSpec.hasEntitySettingSpec()) {
@@ -1239,11 +1234,11 @@ public class SettingsMapper {
             switch (scope.getScopeCase()) {
                 case ENTITY_TYPE_SET:
                     scope.getEntityTypeSet().getEntityTypeList().forEach(entityType ->
-                            applicableTypes.add(ServiceEntityMapper.toUIEntityType(entityType)));
+                            applicableTypes.add(ApiEntityType.fromType(entityType).apiStr()));
                     break;
                 case ALL_ENTITY_TYPE:
-                    for (UIEntityType validType : UIEntityType.values()) {
-                        applicableTypes.add(validType.getValue());
+                    for (ApiEntityType validType : ApiEntityType.values()) {
+                        applicableTypes.add(validType.apiStr());
                     }
                     break;
                 default:
@@ -1254,7 +1249,7 @@ public class SettingsMapper {
 
             return applicableTypes.stream()
                     .map(entityType -> {
-                        final SettingApiDTO apiDto = new SettingApiDTO();
+                        final SettingApiDTO<String> apiDto = new SettingApiDTO<>();
                         if (settingSpec.getEntitySettingSpec().getAllowGlobalDefault()) {
                             // We explicitly want the scope unset, because for API purposes LOCAL scope
                             // settings are those that are ONLY applicable to groups. However, entity
@@ -1287,7 +1282,7 @@ public class SettingsMapper {
          */
         private static void fillSkeleton(@Nonnull final SettingSpec settingSpec,
                                          @Nonnull final Optional<Setting> settingVal,
-                                         @Nonnull final SettingApiDTO dtoSkeleton) {
+                                         @Nonnull final SettingApiDTO<String> dtoSkeleton) {
             dtoSkeleton.setUuid(settingSpec.getName());
             dtoSkeleton.setDisplayName(settingSpec.getDisplayName());
 
@@ -1313,10 +1308,10 @@ public class SettingsMapper {
                     final NumericSettingValueType numericType = settingSpec.getNumericSettingValueType();
                     dtoSkeleton.setDefaultValue(Float.toString(numericType.getDefault()));
                     if (numericType.hasMin()) {
-                        dtoSkeleton.setMin((double) numericType.getMin());
+                        dtoSkeleton.setMin((double)numericType.getMin());
                     }
                     if (numericType.hasMax()) {
-                        dtoSkeleton.setMax((double) numericType.getMax());
+                        dtoSkeleton.setMax((double)numericType.getMax());
                     }
                     break;
                 case STRING_SETTING_VALUE_TYPE:
@@ -1328,76 +1323,80 @@ public class SettingsMapper {
                     // Enum is basically a string with predefined allowable values.
                     dtoSkeleton.setValueType(InputValueType.STRING);
                     final EnumSettingValueType enumType = settingSpec.getEnumSettingValueType();
-                    final String displayDefault =
-                        ActionDTOUtil.upperUnderScoreToMixedSpaces(enumType.getDefault());
-                    dtoSkeleton.setDefaultValue(displayDefault);
+                    dtoSkeleton.setDefaultValue(enumType.getDefault());
                     dtoSkeleton.setOptions(enumType.getEnumValuesList().stream()
                             .map(enumValue -> {
                                 final SettingOptionApiDTO enumOption = new SettingOptionApiDTO();
-                                final String displayEnum =
-                                    ActionDTOUtil.upperUnderScoreToMixedSpaces(enumValue);
-                                enumOption.setLabel(displayEnum);
-                                enumOption.setValue(displayEnum);
+                                enumOption.setLabel(SETTING_ENUM_NAME_TO_LABEL.getOrDefault(enumValue,
+                                        ActionDTOUtil.upperUnderScoreToMixedSpaces(enumValue)));
+                                enumOption.setValue(enumValue);
                                 return enumOption;
                             })
                             .collect(Collectors.toList()));
                     break;
+                case SORTED_SET_OF_OID_SETTING_VALUE_TYPE:
+                    dtoSkeleton.setValueType(InputValueType.LIST);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Illegal settingValueType " +
+                        settingSpec.getSettingValueTypeCase());
             }
 
             settingVal.ifPresent(setting -> API_SETTING_VALUE_INJECTORS.get(setting.getValueCase())
                     .setSettingValue(setting, dtoSkeleton));
         }
-
     }
 
     /**
-     * Update global action mode settings based on input setting policy received from UI.
-     * Sets to default value if setDefault is true. Currently only relevant for one global action
-     * mode setting GlobalSettingSpecs.DisableAllActions.
+     * Update global settings based on input setting policy received from UI.
+     * Sets to default value if setDefault is true.
+     *
      * @param setDefault if true then set default value.
      * @param settingPolicy read value for setting and set this value.
-     * @throws OperationFailedException if we are not able to set value for the setting.
      */
-    public void updateGlobalActionModeSetting(boolean setDefault, SettingsPolicyApiDTO settingPolicy)
-                    throws OperationFailedException {
-        SettingSpec disableAllActionsSetting = GlobalSettingSpecs.DisableAllActions.createSettingSpec();
-        final boolean valueToSet;
+    public void updateGlobalSettingPolicy(boolean setDefault, SettingsPolicyApiDTO settingPolicy) {
         if (setDefault) {
-            valueToSet = disableAllActionsSetting.getBooleanSettingValueType().getDefault();
-        } else {
-            Optional<SettingApiDTO> disableAllActionsApiDTO =  settingPolicy.getSettingsManagers().stream()
-                .flatMap(manager -> manager.getSettings().stream())
-                .filter(setting -> setting.getUuid().equals(disableAllActionsSetting.getName()))
-                .findFirst();
-            if (disableAllActionsApiDTO.isPresent()) {
-                valueToSet = Boolean.valueOf(disableAllActionsApiDTO.get().getValue());
+            if (settingPolicy.getSettingsManagers() == null) {
+                settingService.resetGlobalSetting(ResetGlobalSettingRequest.newBuilder()
+                    .addAllSettingSpecName(GlobalSettingSpecs.VISIBLE_TO_UI.stream()
+                        .map(GlobalSettingSpecs::getSettingName)
+                        .collect(Collectors.toSet())).build());
             } else {
-                String errorMsg = disableAllActionsSetting.getName() +
-                    " : not found in Global Settings.";
-                throw new OperationFailedException(errorMsg);
-             }
-        }
+                settingService.resetGlobalSetting(ResetGlobalSettingRequest.newBuilder()
+                    .addAllSettingSpecName(settingPolicy.getSettingsManagers().stream()
+                        .flatMap(manager -> manager.getSettings().stream()).map(BaseApiDTO::getUuid)
+                        .collect(Collectors.toSet())).build());
+            }
+        } else {
+            final List<SettingApiDTO> involvedSettings = settingPolicy.getSettingsManagers().stream()
+                .flatMap(manager -> manager.getSettings().stream()).collect(Collectors.toList());
 
-        settingService.updateGlobalSetting(
-            UpdateGlobalSettingRequest.newBuilder()
-                .setSettingSpecName(disableAllActionsSetting.getName())
-                .setBooleanSettingValue(SettingDTOUtil.createBooleanSettingValue(valueToSet))
-                .build());
+            final Map<String, SettingSpec> specsByName = new HashMap<>();
+            settingService.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
+                .addAllSettingSpecName(involvedSettings.stream().map(BaseApiDTO::getUuid)
+                    .collect(Collectors.toSet())).build())
+                .forEachRemaining(spec -> specsByName.put(spec.getName(), spec));
+
+            settingService.updateGlobalSetting(UpdateGlobalSettingRequest.newBuilder().addAllSetting(
+                involvedSettings.stream().map(setting -> toProtoSetting(setting, specsByName.get(setting.getUuid())))
+                    .collect(Collectors.toList())).build());
+        }
     }
 
     private Map<String, Setting> getRelevantGlobalSettings(List<SettingPolicy> settingPolicies) {
         Set<String> globalSettingNames = settingPolicies.stream()
-                        .map(policy -> {
-                            if (isVmDefaultPolicy(policy)) {
-                                return GlobalSettingSpecs.RateOfResize.getSettingName();
-                            } else if (isGlobalActionModePolicy(policy)) {
-                                return GlobalSettingSpecs.DisableAllActions.getSettingName();
-                            } else {
-                                return null;
-                            }
-                        })
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toSet());
+            .flatMap(policy -> {
+                if (isEntityDefaultPolicyWithGlobalSetting(policy)) {
+                    return Stream.of(ENTITY_TYPE_GLOBAL_SETTINGS.get(
+                        policy.getInfo().getEntityType()).getSettingName());
+                } else if (isGlobalSettingPolicy(policy)) {
+                    return GlobalSettingSpecs.VISIBLE_TO_UI.stream().map(GlobalSettingSpecs::getSettingName);
+                } else {
+                    return Stream.empty();
+                }
+            }
+            ).filter(Objects::nonNull)
+            .collect(Collectors.toSet());
 
         Map<String, Setting> globalSettings = new HashMap<String, Setting>();
 
@@ -1424,6 +1423,71 @@ public class SettingsMapper {
             logger.error("Failed to get global settings from group component.");
         }
         return globalSettings;
+    }
+
+    /**
+     * Converts a template to a SettingsManagerApiDTO. In the SettingsManagerApiDTO we save
+     * the name of the template.
+     *
+     * @param template the template to be converted
+     * @return the SettingsManagerApiDTO with the name of the template
+     */
+    @Nonnull
+    public static SettingsManagerApiDTO toSettingsManagerApiDTO(Template template) {
+        String templateName = template.getTemplateInfo().getName();
+
+        SettingsManagerApiDTO settingsManagerApiDto = new SettingsManagerApiDTO();
+        settingsManagerApiDto.setUuid(CLUSTER_HEADROOM_SETTINGS_MANAGER);
+        settingsManagerApiDto.setDisplayName(templateName);
+
+        settingsManagerApiDto.setSettings(Collections.singletonList(toHeadroomTemplateSetting(template)));
+
+        return settingsManagerApiDto;
+    }
+
+    /**
+     * Given a "headroom" {@link Template} object, create a corresponding {@link SettingApiDTO} that represents
+     * a headroom template setting based on that template.
+     *
+     * @param template the template to be converted
+     * @return the SettingApiDTO for that template
+     */
+    @Nonnull
+    public static SettingApiDTO<String> toHeadroomTemplateSetting(Template template) {
+        String templateName = template.getTemplateInfo().getName();
+        SettingApiDTO settingApiDTO = new SettingApiDTO();
+        settingApiDTO.setUuid(SettingsMapper.CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID);
+        settingApiDTO.setDisplayName("Template Name");
+        settingApiDTO.setValue(Long.toString(template.getId()));
+        settingApiDTO.setValueType(InputValueType.STRING);
+        settingApiDTO.setValueDisplayName(templateName);
+        settingApiDTO.setEntityType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
+        return settingApiDTO;
+    }
+
+    /**
+     * Create a resize setting for the UI.
+     *
+     * @return SettingApiDTO the resize setting
+     */
+    private SettingApiDTO createResizeSetting() {
+        List<String> labelList = Arrays.asList("Disabled", "Recommend", "Manual", "Automatic");
+        List<SettingOptionApiDTO> optionList = new ArrayList<>();
+        // Create the options with labels and values
+        labelList.stream().forEach(label -> {
+            SettingOptionApiDTO option = new SettingOptionApiDTO();
+            option.setLabel(label);
+            option.setValue(label.toUpperCase());
+            optionList.add(option);
+        });
+        SettingApiDTO resizeSetting = new SettingApiDTO();
+        resizeSetting.setOptions(labelList);
+        resizeSetting.setDefaultValue("MANUAL");
+        resizeSetting.setDisplayName("Resize");
+        resizeSetting.setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        resizeSetting.setUuid(EntitySettingSpecs.Resize.getSettingName());
+        resizeSetting.setValueType(InputValueType.STRING);
+        return resizeSetting;
     }
 }
 

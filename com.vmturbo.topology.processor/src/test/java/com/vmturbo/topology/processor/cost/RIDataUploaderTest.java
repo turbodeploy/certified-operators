@@ -2,13 +2,17 @@ package com.vmturbo.topology.processor.cost;
 
 import static org.mockito.Mockito.spy;
 
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.time.Clock;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.time.Duration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+
+import com.google.protobuf.TextFormat;
+
+import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,12 +22,16 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
@@ -31,20 +39,18 @@ import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpen
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.BusinessAccountData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.InstanceTenancy;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.OfferingClass;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.OfferingType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.Platform;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.CloudServiceData;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.CloudServiceData.BillingData;
-import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.NonMarketEntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.ReservedInstanceAppliedScope;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ReservedInstanceData.ReservedInstanceAppliedScope.MultipleAccountsReservedInstanceScope;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -64,7 +70,7 @@ import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
- *
+ * Unit tests for {@link RICostDataUploader}.
  */
 public class RIDataUploaderTest {
     private static final Logger logger = LogManager.getLogger();
@@ -72,9 +78,12 @@ public class RIDataUploaderTest {
     private static final long PROBE_ID_AWS_DISCOVERY_1 = 1;
     private static final long TARGET_ID_AWS_DISCOVERY_1 = 1;
     private static final long TARGET_ID_AWS_BILLING_1 = 2;
+    private static final long TARGET_ID_AZURE_DISCOVERY_1 = 3;
+    private static final long USAGE_TIMESTAMP = 1591574400000L;
 
     // simple KV store for the test identity provider
     private KeyValueStore keyValueStore = new MapKeyValueStore();
+
     {
         keyValueStore.put("id/probes/AWS", "11");
         keyValueStore.put("id/probes/Azure", "21");
@@ -83,101 +92,61 @@ public class RIDataUploaderTest {
     private IdentityProvider identityProvider = new IdentityProviderImpl(
             new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
                     Mockito.mock(IdentityDatabaseStore.class)),
-                new HeuristicsMatcher()),
-                keyValueStore,
-                new ProbeInfoCompatibilityChecker(), 0L);
+                    new HeuristicsMatcher()),
+            keyValueStore,
+            new ProbeInfoCompatibilityChecker(), 0L);
 
     private StitchingContext mockStitchingContext = Mockito.mock(StitchingContext.class);
 
     // test GRPC server
     private final TestCostService costServiceSpy = spy(new TestCostService());
 
+    /**
+     * The {@link GrpcTestServer}.
+     */
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(costServiceSpy);
 
-    // test cost component client
-    private RIAndExpenseUploadServiceBlockingStub costServiceClient;
-
-    //private TargetStore targetStore = Mockito.mock(TargetStore.class);
     private Map<Long, SDKProbeType> probeTypeMap;
 
     // test data
     private Map<Long, TargetCostData> costDataByTargetId;
 
     // object to be tested
-    RICostDataUploader riCostDataUploader;
+    private RICostDataUploader riCostDataUploader;
 
+    /**
+     * Setup.
+     *
+     * @throws IOException not expected.
+     */
     @Before
-    public void setup() {
+    public void setup() throws IOException {
 
         probeTypeMap = new HashMap<>();
         probeTypeMap.put(TARGET_ID_AWS_DISCOVERY_1, SDKProbeType.AWS);
         probeTypeMap.put(TARGET_ID_AWS_BILLING_1, SDKProbeType.AWS_BILLING);
+        probeTypeMap.put(TARGET_ID_AZURE_DISCOVERY_1, SDKProbeType.AZURE_EA);
 
-        costServiceClient = RIAndExpenseUploadServiceGrpc.newBlockingStub(server.getChannel());
+        // test cost component client
+        final RIAndExpenseUploadServiceBlockingStub costServiceClient = RIAndExpenseUploadServiceGrpc.newBlockingStub(server.getChannel());
 
-        riCostDataUploader = new RICostDataUploader(costServiceClient, 0, Clock.systemUTC());
+        riCostDataUploader = new RICostDataUploader(costServiceClient, 0, Clock.systemUTC(), true,
+                true);
 
         // create some discovery cost data for the uploader to cache
         Discovery discovery = new Discovery(PROBE_ID_AWS_DISCOVERY_1, TARGET_ID_AWS_DISCOVERY_1, identityProvider);
         discovery.success();
 
-        // create some NME's
-        List<NonMarketEntityDTO> nmes = new ArrayList<>();
-        nmes.add(NonMarketEntityDTO.newBuilder()
-                .setEntityType(NonMarketEntityType.CLOUD_SERVICE)
-                .setId("aws::account-1::CS::AmazonEC2").setDisplayName("AWS EC2")
-                .setCloudServiceData(CloudServiceData.newBuilder()
-                        .setAccountId("account-1")
-                        .setCloudProvider("AWS")
-                        .setBillingData(BillingData.newBuilder()
-                                .addReservedInstances(0, EntityDTO.newBuilder()
-                                        .setEntityType(EntityType.RESERVED_INSTANCE)
-                                        .setId("aws::ap-south-1::RI::1ac0b0f5-ff53-4d64-aac5-c5cf674cce77")
-                                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
-                                                .setReservedInstanceId("1ac0b0f5-ff53-4d64-aac5-c5cf674cce77")
-                                                .setStartTime(-1) // these properties should be ignored
-                                                .setDuration(-1)
-                                                .setInstanceTenancy(InstanceTenancy.DEDICATED)
-                                                .setOfferingClass(OfferingClass.CONVERTIBLE)
-                                                .setOfferingType(OfferingType.ALL_UPFRONT)
-                                                .setPlatform(Platform.RHEL)
-                                                .setNumberOfCoupons(-1)
-                                                .setNumberOfCouponsUsed(-1)
-                                                .setFixedCost(-1)
-                                                .setRecurringCost(-1)
-                                                .setUsageCost(-1)
-                                                .setRegion("ap-south-1")
-                                                .setInstanceCount(-1)
-                                                .setRelatedProfileId("VPM-1")))
-                                .addVirtualMachines(0, EntityDTO.newBuilder()
-                                        .setEntityType(EntityType.VIRTUAL_MACHINE)
-                                        .setId("aws::ap-south-1::VM::i-0d4769e1080b462fa")
-                                        .addCommoditiesSold(CommodityDTO.newBuilder()
-                                                .setCommodityType(CommodityType.COUPON)
-                                                .setCapacity(2))
-                                        .addCommoditiesBought(CommodityBought.newBuilder()
-                                                .setProviderId("aws::ap-south-1::RI::1ac0b0f5-ff53-4d64-aac5-c5cf674cce77")
-                                                .setProviderType(EntityType.RESERVED_INSTANCE)
-                                                .addBought(CommodityDTO.newBuilder()
-                                                        .setCommodityType(CommodityType.COUPON)
-                                                        .setUsed(2))))))
-                .build());
-        nmes.add(NonMarketEntityDTO.newBuilder()
-                .setEntityType(NonMarketEntityType.CLOUD_SERVICE)
-                .setId("aws::account-2::CS::AmazonEC2").setDisplayName("AWS EC2")
-                .build());
-        nmes.add(NonMarketEntityDTO.newBuilder()
-                .setEntityType(NonMarketEntityType.ACCOUNT)
-                .setId("nme-account-1").setDisplayName("Non-Market-Entity Account 1")
-                .build());
-
         costDataByTargetId = new HashMap<>();
-        TargetCostData costData = new TargetCostData();
+        final TargetCostData costData = new TargetCostData();
         costData.targetId = TARGET_ID_AWS_BILLING_1;
         costData.discovery = discovery;
-        costData.cloudServiceEntities = nmes;
-        costData.costDataDTOS = Collections.emptyList();
+        final DiscoveryResponse.Builder awsBillingDiscoveryResponse = loadDiscoveryResponseFromTextFormatFile(
+                "protobuf/messages/ri_cost_data_uploader/AWS_Billing_EngDevBilling-2020.06.09.16.40.35.688-FULL.txt");
+        costData.cloudServiceEntities = awsBillingDiscoveryResponse
+                .getNonMarketEntityDTOList();
+        costData.costDataDTOS = awsBillingDiscoveryResponse.getCostDTOList();
         costDataByTargetId.put(TARGET_ID_AWS_BILLING_1, costData);
 
         // set up the mock stitching context
@@ -198,8 +167,9 @@ public class RIDataUploaderTest {
                         new TopologyStitchingEntity(StitchingEntityData.newBuilder(
                                 EntityDTO.newBuilder()
                                         .setEntityType(EntityType.BUSINESS_ACCOUNT)
-                                        .setId("account-2"))
-                                .oid(12)
+                                        .setId("192821421245").setBusinessAccountData(
+                                        BusinessAccountData.newBuilder().setDataDiscovered(true)))
+                                .oid(192821421245L)
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
                                 .build())
@@ -287,7 +257,8 @@ public class RIDataUploaderTest {
                 invocationOnMock -> Stream.of(new TopologyStitchingEntity(StitchingEntityData.newBuilder(
                         EntityDTO.newBuilder()
                                 .setEntityType(EntityType.RESERVED_INSTANCE)
-                                .setId("aws::ap-south-1::RI::1ac0b0f5-ff53-4d64-aac5-c5cf674cce77")
+                                .setId("aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa")
+                                .setDisplayName("RI display name")
                                 .setReservedInstanceData(ReservedInstanceData.newBuilder()
                                         .setReservedInstanceId("1ac0b0f5-ff53-4d64-aac5-c5cf674cce77")
                                         .setStartTime(0)
@@ -304,7 +275,16 @@ public class RIDataUploaderTest {
                                         .setInstanceTenancy(InstanceTenancy.DEFAULT)
                                         .setAvailabilityZone("aws::ap-south-1::PM::ap-south-1b")
                                         .setPlatform(Platform.LINUX)
-                                        .setRelatedProfileId("aws::VMPROFILE::t2.nano")))
+                                        .setPlatformFlexible(true)
+                                        .setRelatedProfileId("aws::VMPROFILE::t2.nano")
+                                        .setPurchasingAccountId("account-1")
+                                        .setAppliedScope(ReservedInstanceAppliedScope.newBuilder()
+                                                .setMultipleAccountsReservedInstanceScope(
+                                                        MultipleAccountsReservedInstanceScope.newBuilder()
+                                                                .addAccountId("account-1")
+                                                                .addAccountId("192821421245")))
+                                        .setReservationOrderId("orderID-1")
+                                        .setInstanceSizeFlexible(true)))
                                 .oid(101)
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
@@ -316,6 +296,7 @@ public class RIDataUploaderTest {
                                         .setReservedInstanceData(ReservedInstanceData.newBuilder()
                                                 .setReservedInstanceId("921378bc-5142-44c5-84d6-d4569ea26b00")
                                                 .setStartTime(0)
+                                                .setPurchasingAccountId("192821421245")
                                                 .setNumberOfCoupons(16)
                                                 .setNumberOfCouponsUsed(4)
                                                 .setFixedCost(10)
@@ -325,11 +306,12 @@ public class RIDataUploaderTest {
                                                 .setInstanceCount(2)
                                                 .setOfferingClass(OfferingClass.CONVERTIBLE)
                                                 .setOfferingType(OfferingType.ALL_UPFRONT)
-                                                .setDuration(2 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                .setDuration(3 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
                                                 .setInstanceTenancy(InstanceTenancy.DEDICATED)
                                                 //.setAvailabilityZone("aws::ap-south-1::PM::ap-south-1b")
                                                 .setPlatform(Platform.WINDOWS)
-                                                .setRelatedProfileId("aws::VMPROFILE::m4.large")))
+                                                .setRelatedProfileId("aws::VMPROFILE::m4.large")
+                                                .setInstanceSizeFlexible(true)))
                                 .oid(102)
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
@@ -350,23 +332,132 @@ public class RIDataUploaderTest {
                                                 .setInstanceCount(1)
                                                 .setOfferingClass(OfferingClass.CONVERTIBLE)
                                                 .setOfferingType(OfferingType.ALL_UPFRONT)
-                                                .setDuration(2 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                .setDuration(3 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
                                                 .setInstanceTenancy(InstanceTenancy.DEDICATED)
                                                 .setAvailabilityZone("aws::ap-south-1::PM::ap-south-1b")
                                                 .setPlatform(Platform.WINDOWS)
-                                                .setRelatedProfileId("aws::VMPROFILE::m4.large")))
+                                                .setRelatedProfileId("aws::VMPROFILE::m4.large")
+                                                .setInstanceSizeFlexible(true)))
                                 .oid(103)
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
+                                .build()),
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.RESERVED_INSTANCE)
+                                        .setId("azure::96c54bd2-e4a2-4105-9a4b-c3ab28bdef1a::RESERVED_INSTAN5B351A")
+                                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
+                                                .setReservedInstanceId("c991a277-c5ec-48e6-9a70-c36a910ccd5d")
+                                                .setStartTime(0)
+                                                .setNumberOfCoupons(16)
+                                                .setNumberOfCouponsUsed(4)
+                                                .setFixedCost(10)
+                                                .setUsageCost(12)
+                                                .setRecurringCost(13)
+                                                .setRegion("azure::australiaeast::DC::australiaeast")
+                                                .setInstanceCount(1)
+                                                .setOfferingClass(OfferingClass.CONVERTIBLE)
+                                                .setOfferingType(OfferingType.ALL_UPFRONT)
+                                                .setDuration(3 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
+                                                .setPlatform(Platform.UNKNOWN)
+                                                .setRelatedProfileId("azure::VMPROFILE::Standard_B2ms")
+                                                .setPlatformFlexible(false)
+                                                .setInstanceSizeFlexible(true)))
+                                .oid(104)
+                                .targetId(TARGET_ID_AZURE_DISCOVERY_1)
+                                .lastUpdatedTime(now)
+                                .build()),
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.RESERVED_INSTANCE)
+                                        .setId("azure::96c54bd2-e4a2-4105-9a4b-c3ab28bdef1a::RESERVED_INSTAN5B351A")
+                                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
+                                                .setReservedInstanceId("c991a277-c5ec-48e6-9a70-c36a910ccd5d")
+                                                .setStartTime(0)
+                                                .setNumberOfCoupons(16)
+                                                .setNumberOfCouponsUsed(4)
+                                                .setFixedCost(10)
+                                                .setUsageCost(12)
+                                                .setRecurringCost(13)
+                                                .setRegion("azure::australiaeast::DC::australiaeast")
+                                                .setInstanceCount(1)
+                                                .setOfferingClass(OfferingClass.CONVERTIBLE)
+                                                .setOfferingType(OfferingType.ALL_UPFRONT)
+                                                .setDuration(2 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
+                                                .setPlatform(Platform.UNKNOWN)
+                                                .setRelatedProfileId("azure::VMPROFILE::Standard_B2ms")
+                                                .setPlatformFlexible(true)
+                                                .setInstanceSizeFlexible(true)))
+                                .oid(105)
+                                .targetId(TARGET_ID_AZURE_DISCOVERY_1)
+                                .lastUpdatedTime(now)
+                                .build()),
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.RESERVED_INSTANCE)
+                                        .setId("azure::96c54bd2-e4a2-4105-9a4b-c3ab28bdef1a::RESERVED_INSTAN5B351D")
+                                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
+                                                .setReservedInstanceId("c991a277-c5ec-48e6-9a70-c36a910ccd5d")
+                                                .setStartTime(0)
+                                                .setNumberOfCoupons(16)
+                                                .setNumberOfCouponsUsed(4)
+                                                .setFixedCost(10)
+                                                .setUsageCost(12)
+                                                .setRecurringCost(13)
+                                                .setRegion("azure::australiaeast::DC::australiaeast")
+                                                .setInstanceCount(1)
+                                                .setOfferingClass(OfferingClass.CONVERTIBLE)
+                                                .setOfferingType(OfferingType.ALL_UPFRONT)
+                                                //this shud be a valid Duration
+                                                .setDuration(Duration.ofMillis(DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                        .plusHours(23).toMillis())
+                                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
+                                                .setPlatform(Platform.UNKNOWN)
+                                                .setRelatedProfileId("azure::VMPROFILE::Standard_B2ms")
+                                                .setPlatformFlexible(true)
+                                                .setInstanceSizeFlexible(true)))
+                                .oid(108)
+                                .targetId(TARGET_ID_AZURE_DISCOVERY_1)
+                                .lastUpdatedTime(now)
+                                .build()),
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.RESERVED_INSTANCE)
+                                        .setId("azure::96c54bd2-e4a2-4105-9a4b-c3ab28bdef1a::RESERVED_INSTAN5B351E")
+                                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
+                                                .setReservedInstanceId("c991a277-c5ec-48e6-9a70-c36a910ccd5d")
+                                                .setStartTime(0)
+                                                .setNumberOfCoupons(16)
+                                                .setNumberOfCouponsUsed(4)
+                                                .setFixedCost(10)
+                                                .setUsageCost(12)
+                                                .setRecurringCost(13)
+                                                .setRegion("azure::australiaeast::DC::australiaeast")
+                                                .setInstanceCount(1)
+                                                .setOfferingClass(OfferingClass.CONVERTIBLE)
+                                                .setOfferingType(OfferingType.ALL_UPFRONT)
+                                                .setDuration(
+                                                        Duration.ofMillis(DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                                .plusDays(12).toMillis())
+                                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
+                                                .setPlatform(Platform.UNKNOWN)
+                                                .setRelatedProfileId("azure::VMPROFILE::Standard_B2ms")
+                                                .setPlatformFlexible(true)
+                                                .setInstanceSizeFlexible(true)))
+                                .oid(109)
+                                .targetId(TARGET_ID_AZURE_DISCOVERY_1)
+                                .lastUpdatedTime(now)
                                 .build())
+
                 )
         );
         Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.VIRTUAL_MACHINE)).thenAnswer(
                 invocationOnMock -> Stream.of(new TopologyStitchingEntity(StitchingEntityData.newBuilder(
                         EntityDTO.newBuilder()
                                 .setEntityType(EntityType.VIRTUAL_MACHINE)
-                                .setId("aws::ap-south-1::VM::i-0d4769e1080b462fa")
-                                .setProfileId("aws::VMPROFILE::t2.nano"))
+                                .setId("aws::us-east-1::VM::i-0b85cb6231b4fa0a2"))
                         .oid(201)
                         .targetId(TARGET_ID_AWS_DISCOVERY_1)
                         .lastUpdatedTime(now)
@@ -378,27 +469,28 @@ public class RIDataUploaderTest {
                 invocationOnMock -> Stream.empty());
         Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.DATABASE_SERVER_TIER)).thenAnswer(
                 invocationOnMock -> Stream.empty());
+        Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.SERVICE_PROVIDER)).thenAnswer(
+                invocationOnMock -> Stream.empty());
 
     }
 
+    /**
+     * Test for {@link RICostDataUploader#createRICostComponentData}.
+     */
     @Test
     public void testRIData() {
-        CloudEntitiesMap cloudEntitiesMap = new CloudEntitiesMap(mockStitchingContext, probeTypeMap);
-
-        RICostComponentData riData = riCostDataUploader.createRICostComponentData(
+        final CloudEntitiesMap cloudEntitiesMap = new CloudEntitiesMap(mockStitchingContext,
+                probeTypeMap);
+        final RICostComponentData riData = riCostDataUploader.createRICostComponentData(
                 mockStitchingContext, cloudEntitiesMap, costDataByTargetId);
 
-        // there should be 3 RI bought but only 2 specs -- two of the RI should have mapped to the
-        // same spec instance
-        Assert.assertEquals(2, riData.riSpecs.size());
-        Assert.assertEquals(3, riData.riBoughtByLocalId.size());
+        Assert.assertEquals(4, riData.riSpecs.size());
+        Assert.assertEquals(5, riData.riBoughtByLocalId.size());
         // Verify an RI Spec -- the data should have come from the stitching entities rather than
         // the nme's.
 
-        ReservedInstanceSpecInfo riSpecInfo = riData.riSpecs.stream()
-                .filter(spec -> spec.getId() == 0)
-                .findFirst()
-                .get().getReservedInstanceSpecInfo();
+        final ReservedInstanceSpecInfo riSpecInfo = riData.riSpecs.stream().filter(
+                spec -> spec.getId() == 0).findFirst().get().getReservedInstanceSpecInfo();
         Assert.assertEquals(PaymentOption.NO_UPFRONT, riSpecInfo.getType().getPaymentOption());
         Assert.assertEquals(Tenancy.DEFAULT, riSpecInfo.getTenancy());
         Assert.assertEquals(OSType.LINUX, riSpecInfo.getOs());
@@ -406,45 +498,109 @@ public class RIDataUploaderTest {
         Assert.assertEquals(21, riSpecInfo.getTierId());
         // region should be ap-south-1
         Assert.assertEquals(42, riSpecInfo.getRegionId());
+        // verify size flexibility
+        Assert.assertTrue(riSpecInfo.getSizeFlexible());
 
-        // Verify some RI Bought
-        // we'll verify a few fields
-        ReservedInstanceBoughtInfo boughtInfo = riData.riBoughtByLocalId
-                .get("aws::ap-south-1::RI::1ac0b0f5-ff53-4d64-aac5-c5cf674cce77").getReservedInstanceBoughtInfo();
-        // these fields should come from the discovery entities, and not the billing NME's
-        Assert.assertEquals(51, boughtInfo.getAvailabilityZoneId());
-        Assert.assertEquals(1, boughtInfo.getNumBought());
-        // we expect this RI to have mapped to spec 0
-        Assert.assertEquals(0, boughtInfo.getReservedInstanceSpec());
-
-        Assert.assertEquals(1.0, boughtInfo.getReservedInstanceBoughtCost().getFixedCost().getAmount(), 0);
-        Assert.assertEquals(2.0, boughtInfo.getReservedInstanceBoughtCost().getUsageCostPerHour().getAmount(), 0);
-        Assert.assertEquals(3.0, boughtInfo.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount(), 0);
-
-        Assert.assertEquals(10, boughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons());
+        final ReservedInstanceBoughtInfo reservedInstanceBoughtInfo = riData.riBoughtByLocalId.get(
+                "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa")
+                .getReservedInstanceBoughtInfo();
+        Assert.assertEquals(ReservedInstanceBoughtInfo.newBuilder()
+                .setBusinessAccountId(11)
+                .setProbeReservedInstanceId(
+                        "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa")
+                .setStartTime(0)
+                .setNumBought(1)
+                .setAvailabilityZoneId(51)
+                .setReservedInstanceSpec(0)
+                .setReservedInstanceBoughtCost(ReservedInstanceBoughtCost.newBuilder()
+                        .setFixedCost(CurrencyAmount.newBuilder().setAmount(1.0))
+                        .setUsageCostPerHour(CurrencyAmount.newBuilder().setAmount(2.0))
+                        .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(3.0)))
+                .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
+                        .setNumberOfCoupons(10)
+                        .setNumberOfCouponsUsed(516.3844453333334))
+                .setDisplayName("RI display name")
+                .setReservationOrderId("orderID-1")
+                .setReservedInstanceScopeInfo(ReservedInstanceScopeInfo.newBuilder()
+                        .setShared(false)
+                        .addApplicableBusinessAccountId(11L)
+                        .addApplicableBusinessAccountId(192821421245L))
+                .build(), reservedInstanceBoughtInfo);
 
         // verify that RI coverage info was consumed correctly.
-        Assert.assertEquals(1, riData.riCoverages.size());
-        EntityRICoverageUpload.Builder riCoverage = riData.riCoverages.get(0);
-        // VM 201 should be covered by 2 coupons
-        Assert.assertEquals(201, riCoverage.getEntityId());
-        Assert.assertEquals(2, riCoverage.getTotalCouponsRequired(), 0);
-        // should be consuming 2 coupons from RI 101
-        Assert.assertEquals("aws::ap-south-1::RI::1ac0b0f5-ff53-4d64-aac5-c5cf674cce77", riCoverage.getCoverage(0).getProbeReservedInstanceId());
-        Assert.assertEquals(2, riCoverage.getCoverage(0).getCoveredCoupons(), 0);
+        Assert.assertEquals(1, riData.entityLevelReservedInstanceCoverages.size());
+        final EntityRICoverageUpload.Builder entityRICoverageUpload =
+                riData.entityLevelReservedInstanceCoverages.get(0);
+        Assert.assertEquals(EntityRICoverageUpload.newBuilder()
+                .setEntityId(201)
+                .setTotalCouponsRequired(16.0)
+                .addCoverage(Coverage.newBuilder()
+                        .setReservedInstanceId(101)
+                        .setProbeReservedInstanceId(
+                                "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa")
+                        .setCoveredCoupons(15.333333333333334)
+                        .setRiCoverageSource(RICoverageSource.BILLING)
+                        .setUsageStartTimestamp(USAGE_TIMESTAMP)
+                        .setUsageEndTimestamp(USAGE_TIMESTAMP))
+                .build(), entityRICoverageUpload.build());
 
-        // also verify that the account id and coupons used were backfilled into the RI Bought info
-        // based on some data from coverage
+        Assert.assertTrue(riData.riSpecs.stream()
+                .anyMatch(spec -> spec.getReservedInstanceSpecInfo().getPlatformFlexible()));
 
-        // verify that num used was calculated and should be = num bought. This requires the RI
-        // coverage data to be mined properly.
-        Assert.assertEquals(2, boughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCouponsUsed(), 0);
-
-        // assignment of business account id verifies that the coverage mapping is working
-        Assert.assertEquals(11, boughtInfo.getBusinessAccountId());
+        // verify that account ID for the second spec is assigned based on target default account
+        final long accountId2 = riData.riBoughtByLocalId.get(
+                "aws::ca-central-1::RI::921378bc-5142-44c5-84d6-d4569ea26b00")
+                .getReservedInstanceBoughtInfo()
+                .getBusinessAccountId();
+        Assert.assertEquals(192821421245L, accountId2);
+        Assert.assertEquals(1, riData.accountLevelReservedInstanceCoverages.size());
+        final AccountRICoverageUpload.Builder accountRICoverageUpload =
+                riData.accountLevelReservedInstanceCoverages.get(0);
+        Assert.assertEquals(AccountRICoverageUpload.newBuilder()
+                .setAccountId(192821421245L)
+                .addCoverage(Coverage.newBuilder()
+                        .setProbeReservedInstanceId(
+                                "aws::ca-central-1::RI::846667fa-4e04-46c0-a032-9f720a1d48c9")
+                        .setCoveredCoupons(64.0)
+                        .setRiCoverageSource(RICoverageSource.BILLING)
+                        .setUsageStartTimestamp(USAGE_TIMESTAMP)
+                        .setUsageEndTimestamp(USAGE_TIMESTAMP))
+                .addCoverage(Coverage.newBuilder()
+                        .setProbeReservedInstanceId(
+                                "aws::us-west-2::RI::200d8957-4ff4-423a-a9f3-9af578e7c4cb")
+                        .setCoveredCoupons(8.0)
+                        .setRiCoverageSource(RICoverageSource.BILLING)
+                        .setUsageStartTimestamp(USAGE_TIMESTAMP)
+                        .setUsageEndTimestamp(USAGE_TIMESTAMP))
+                .addCoverage(Coverage.newBuilder()
+                        .setProbeReservedInstanceId(
+                                "aws::eu-west-3::RI::2462e73d-1aba-4bd5-8abc-60ec2ac033cf")
+                        .setCoveredCoupons(3.0)
+                        .setRiCoverageSource(RICoverageSource.BILLING)
+                        .setUsageStartTimestamp(USAGE_TIMESTAMP)
+                        .setUsageEndTimestamp(USAGE_TIMESTAMP))
+                .addCoverage(Coverage.newBuilder()
+                        .setProbeReservedInstanceId(
+                                "aws::ca-central-1::RI::cfb751ed-c4e3-4420-80ef-493188b40c07")
+                        .setCoveredCoupons(16.0)
+                        .setRiCoverageSource(RICoverageSource.BILLING)
+                        .setUsageStartTimestamp(USAGE_TIMESTAMP)
+                        .setUsageEndTimestamp(USAGE_TIMESTAMP))
+                .addCoverage(Coverage.newBuilder()
+                        .setReservedInstanceId(101)
+                        .setProbeReservedInstanceId(
+                                "aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766aa")
+                        .setCoveredCoupons(516.3844453333334)
+                        .setRiCoverageSource(RICoverageSource.BILLING)
+                        .setUsageStartTimestamp(USAGE_TIMESTAMP)
+                        .setUsageEndTimestamp(USAGE_TIMESTAMP))
+                .build(), accountRICoverageUpload.build());
     }
 
-    public static class TestCostService extends RIAndExpenseUploadServiceImplBase {
+    /**
+     * Test implementation of {@link RIAndExpenseUploadServiceImplBase}.
+     */
+    private static class TestCostService extends RIAndExpenseUploadServiceImplBase {
         @Override
         public void uploadRIData(final UploadRIDataRequest request,
                                            final StreamObserver<UploadRIDataResponse> responseObserver) {
@@ -452,5 +608,14 @@ public class RIDataUploaderTest {
             responseObserver.onNext(UploadRIDataResponse.getDefaultInstance());
             responseObserver.onCompleted();
         }
+    }
+
+    private static DiscoveryResponse.Builder loadDiscoveryResponseFromTextFormatFile(
+            final String fileName) throws IOException {
+        final DiscoveryResponse.Builder discoveryResponseBuilder = DiscoveryResponse.newBuilder();
+        TextFormat.getParser().merge(
+                new InputStreamReader(RIDataUploaderTest.class.getClassLoader().getResources(
+                        fileName).nextElement().openStream()), discoveryResponseBuilder);
+        return discoveryResponseBuilder;
     }
 }

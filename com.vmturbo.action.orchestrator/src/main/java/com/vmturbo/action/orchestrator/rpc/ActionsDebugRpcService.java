@@ -44,13 +44,17 @@ public class ActionsDebugRpcService extends ActionsDebugServiceImplBase {
     public void overrideActionPlan(ActionPlan request, StreamObserver<GetActionCountsResponse> responseObserver) {
         try {
             ActionStore actionStore = actionStorehouse.storeActions(request);
-            final Stream<ActionView> actionViewStream = actionStore.getActionViews().values().stream();
+            final Stream<ActionView> actionViewStream = actionStore.getActionViews().getAll();
 
             ActionsRpcService.observeActionCounts(actionViewStream, responseObserver);
         } catch (RuntimeException e) {
             responseObserver.onError(Status.INTERNAL
                 .withDescription("Failed to receive action plan. " + e.getMessage())
                 .asException());
+        } catch (InterruptedException e) {
+            responseObserver.onError(
+                    Status.CANCELLED.withDescription("Thread interrupted executing the request")
+                            .asException());
         }
     }
 }

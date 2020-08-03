@@ -1,0 +1,67 @@
+{
+  "settingGroup": [{
+    "setting": {
+      "settingSpecName": "provisionExecutionSchedule",
+      "sortedSetOfOidSettingValue": {
+      }
+    },
+    "policyId": [{
+      "policyId": "284594576102770",
+      "displayName": "Storage Defaults",
+      "type": "DEFAULT"
+    }],
+    "entityOids": ["73488350794443"]
+  }, {
+    "setting": {
+      "settingSpecName": "preResizeActionWorkflow",
+      "stringSettingValue": {
+        "value": ""
+      }
+    },
+    "policyId": [{
+      "policyId": "284594576102770",
+      "displayName": "Storage Defaults",
+      "type": "DEFAULT"
+    }],
+    "entityOids": ["73488350794443"]
+  }, {
+    "setting": {
+      "settingSpecName": "suspendActionWorkflow",
+      "stringSettingValue": {
+        "value": ""
+      }
+    },
+    "policyId": [{
+      "policyId": "284594576102770",
+      "displayName": "Storage Defaults",
+      "type": "DEFAULT"
+    }],
+    "entityOids": ["73488350794443"]
+  }, {
+    "setting": {
+      "settingSpecName": "latencyUtilization",
+      "numericSettingValue": {
+        "value": 100.0
+      }
+    },
+    "policyId": [{
+      "policyId": "284594576102770",
+      "displayName": "Storage Defaults",
+      "type": "DEFAULT"
+    }],
+    "entityOids": ["73488350794443"]
+  }, {
+    "setting": {
+      "settingSpecName": "hciHostCapacityReservation",
+      "numericSettingValue": {
+        "value": 1.0
+      }
+    },
+    "policyId": [{
+      "policyId": "284594576102770",
+      "displayName": "Storage Defaults",
+      "type": "DEFAULT"
+    }],
+    "entityOids": ["73488350794443"]
+  }]
+}

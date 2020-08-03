@@ -26,6 +26,8 @@ public class ActionTypeToActionTypeCaseConverter {
                     .put(ActionType.ACTIVATE, ActionTypeCase.ACTIVATE)
                     .put(ActionType.DEACTIVATE, ActionTypeCase.DEACTIVATE)
                     .put(ActionType.MOVE, ActionTypeCase.MOVE)
+                    .put(ActionType.SCALE, ActionTypeCase.SCALE)
+                    .put(ActionType.ALLOCATE, ActionTypeCase.ALLOCATE)
                     .put(ActionType.PROVISION, ActionTypeCase.PROVISION)
                     .put(ActionType.RECONFIGURE, ActionTypeCase.RECONFIGURE)
                     .put(ActionType.RESIZE, ActionTypeCase.RESIZE)
@@ -35,6 +37,7 @@ public class ActionTypeToActionTypeCaseConverter {
                     .put(ActionType.SUSPEND, ActionTypeCase.DEACTIVATE)
                     .put(ActionType.START, ActionTypeCase.ACTIVATE)
                     .put(ActionType.DELETE, ActionTypeCase.DELETE)
+                    .put(ActionType.BUY_RI, ActionTypeCase.BUYRI)
                     .build();
 
     /**

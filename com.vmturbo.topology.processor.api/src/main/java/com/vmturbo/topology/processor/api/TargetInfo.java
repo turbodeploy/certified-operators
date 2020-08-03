@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.api;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
@@ -17,6 +19,15 @@ public interface TargetInfo extends TargetData {
      * @return id of the target
      */
     long getId();
+
+
+    /**
+     * Return the target display name.
+     *
+     * @return the display name, if one exists.
+     */
+    @Nonnull
+    String getDisplayName();
 
     /**
      * Returns id of the probe this target is associated with.
@@ -42,18 +53,24 @@ public interface TargetInfo extends TargetData {
     String getStatus();
 
     /**
-     * Returns optional parent id of this target. E.g. if the target is belonged to storage browsing or
-     * billing categories, it should has a parent target like VC or Azure target. The id will point to the
-     * instance of target. If there is no parent target, the field will be empty.
-     *
-     * @return optional of parent id of the target
-     */
-    Optional<Long> getParentId();
-
-    /**
      * Returns the boolean value to know if the target is hidden
      *
      * @return boolean that whether we hide the target
      */
     boolean isHidden();
+
+    /**
+     * Returns the boolean value to know if the target is read-only:
+     * determines whether the target cannot be changed through public APIs.
+     *
+     * @return true if a target is read-only, otherwise false.
+     */
+    boolean isReadOnly();
+
+    /**
+     * Returns a List of the derived target IDs associated with this target.
+     *
+     * @return List of the derived target IDs associated with this target.
+     */
+    List<Long> getDerivedTargetIds();
 }

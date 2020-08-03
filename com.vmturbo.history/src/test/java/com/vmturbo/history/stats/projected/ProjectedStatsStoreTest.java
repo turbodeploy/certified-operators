@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -14,6 +15,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
@@ -38,7 +40,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.history.stats.StatsTestUtils;
 import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore.EntityStatsCalculator;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore.StatSnapshotCalculator;
@@ -113,7 +116,7 @@ public class ProjectedStatsStoreTest {
         final Set<String> commodities = Sets.newHashSet(COMMODITY);
 
         final StatSnapshot snapshot = StatSnapshot.newBuilder()
-                .setSnapshotDate("foo")
+                .setSnapshotDate(1L)
                 .build();
         when(statSnapshotCalculator.buildSnapshot(topoSnapshot, entities, commodities))
             .thenReturn(snapshot);
@@ -164,7 +167,8 @@ public class ProjectedStatsStoreTest {
 
         final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
         when(paginationParams.getSortCommodity()).thenReturn(COMMODITY);
-        final Set<Long> targetEntities = Collections.singleton(1L);
+        final Map<Long, Set<Long>> targetEntities = StatsTestUtils.createEntityGroupsMap(
+            Collections.singleton(1L));
         final Set<String> targetCommodities = Collections.singleton("foo");
 
         final ProjectedEntityStatsResponse responseProto = ProjectedEntityStatsResponse.newBuilder()
@@ -187,7 +191,8 @@ public class ProjectedStatsStoreTest {
     public void testGetEntityStatsNoTopology() throws Exception {
         final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
         when(paginationParams.getSortCommodity()).thenReturn(COMMODITY);
-        final Set<Long> targetEntities = Collections.singleton(1L);
+        final Map<Long, Set<Long>> targetEntities = StatsTestUtils.createEntityGroupsMap(
+            Collections.singleton(1L));
         final Set<String> targetCommodities = Collections.singleton("foo");
 
         store.getEntityStats(targetEntities, targetCommodities, paginationParams);
@@ -197,7 +202,7 @@ public class ProjectedStatsStoreTest {
 
     @Test
     public void testGetEntityStatsEmpty() {
-        final ProjectedEntityStatsResponse response = store.getEntityStats(Collections.emptySet(),
+        final ProjectedEntityStatsResponse response = store.getEntityStats(Collections.emptyMap(),
                 Collections.emptySet(), mock(EntityStatsPaginationParams.class));
         assertThat(response, is(ProjectedEntityStatsResponse.newBuilder()
                 .setPaginationResponse(PaginationResponse.getDefaultInstance())
@@ -207,7 +212,6 @@ public class ProjectedStatsStoreTest {
     @Test
     public void testCalculateNextPageSortByCommodity() {
         final TopologyCommoditiesSnapshot snapshot = mock(TopologyCommoditiesSnapshot.class);
-        final ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot = mock(ProjectedPriceIndexSnapshot.class);
         final StatSnapshotCalculator snapshotCalculator = mock(StatSnapshotCalculator.class);
 
         final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
@@ -219,25 +223,28 @@ public class ProjectedStatsStoreTest {
         final Set<String> commodities = Sets.newHashSet(COMMODITY);
 
         final StatSnapshot snapshot1 = StatSnapshot.newBuilder()
-                .setSnapshotDate("foo")
+                .setSnapshotDate(1L)
                 .build();
         final StatSnapshot snapshot2 = StatSnapshot.newBuilder()
-                .setSnapshotDate("bar")
+                .setSnapshotDate(1L)
                 .build();
-        when(snapshot.getEntityComparator(paginationParams)).thenReturn(Long::compare);
+        when(snapshot.getEntityComparator(paginationParams,
+            StatsTestUtils.createEntityGroupsMap(entities))).thenReturn(Long::compare);
         when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(1L), commodities))
                 .thenReturn(snapshot1);
         when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(2L), commodities))
                 .thenReturn(snapshot2);
 
         final EntityStatsCalculator entityStatsCalculator = new EntityStatsCalculator() {};
-        final ProjectedEntityStatsResponse response = entityStatsCalculator.calculateNextPage(snapshot,
-                snapshotCalculator, entities, commodities, paginationParams);
+        final ProjectedEntityStatsResponse response = entityStatsCalculator.calculateNextPage(
+            snapshot, snapshotCalculator, StatsTestUtils.createEntityGroupsMap(entities),
+            commodities, paginationParams);
         assertThat(response.getEntityStatsList(), contains(
                 EntityStats.newBuilder().setOid(1L).addStatSnapshots(snapshot1).build(),
                 EntityStats.newBuilder().setOid(2L).addStatSnapshots(snapshot2).build()));
         assertThat(response.getPaginationResponse(), is(PaginationResponse.newBuilder()
                 .setNextCursor("2")
+                .setTotalRecordCount(3)
                 .build()));
     }
 
@@ -255,18 +262,20 @@ public class ProjectedStatsStoreTest {
         final Set<String> commodities = Sets.newHashSet(COMMODITY);
 
         final StatSnapshot snapshot1 = StatSnapshot.newBuilder()
-                .setSnapshotDate("foo")
+                .setSnapshotDate(1L)
                 .build();
-        when(snapshot.getEntityComparator(paginationParams)).thenReturn(Long::compare);
+        when(snapshot.getEntityComparator(paginationParams,
+            StatsTestUtils.createEntityGroupsMap(entities))).thenReturn(Long::compare);
         when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(1L), commodities))
                 .thenReturn(snapshot1);
 
         final EntityStatsCalculator entityStatsCalculator = new EntityStatsCalculator() {};
-        final ProjectedEntityStatsResponse response = entityStatsCalculator.calculateNextPage(snapshot,
-                snapshotCalculator, entities, commodities, paginationParams);
+        final ProjectedEntityStatsResponse response = entityStatsCalculator.calculateNextPage(
+            snapshot, snapshotCalculator, StatsTestUtils.createEntityGroupsMap(entities),
+            commodities, paginationParams);
         assertThat(response.getEntityStatsList(), contains(
                 EntityStats.newBuilder().setOid(1L).addStatSnapshots(snapshot1).build()));
-        assertThat(response.getPaginationResponse(), is(PaginationResponse.newBuilder()
-                .build()));
+        assertTrue(response.getPaginationResponse().hasTotalRecordCount());
+        assertFalse(response.getPaginationResponse().hasNextCursor());
     }
 }

@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.api.impl;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -12,6 +13,8 @@ import com.google.common.collect.ImmutableList;
 import io.swagger.annotations.ApiModelProperty;
 
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.ProbeInfo;
@@ -53,6 +56,21 @@ public class ProbeRESTApi {
                 required = false)
         private final String defaultValue;
 
+        @ApiModelProperty(
+                value = "Determines potential values for this field. if nonempty, field must be one"
+                        + " of the included values. If empty, any value can be used.",
+                required = false)
+        private final List<String> allowedValues;
+
+        @ApiModelProperty(
+            value = "Verification regex to validate a field",
+            required = false)
+        private final String verificationRegexp;
+
+
+        @ApiModelProperty(value = "Dependency field configuration")
+        private final Pair<String, String> dependencyField;
+
         /**
          * Protected constructor, suitable only for deserialization purposes.
          */
@@ -64,12 +82,17 @@ public class ProbeRESTApi {
             this.secret = null;
             this.valueType = null;
             this.defaultValue = null;
+            this.allowedValues = Collections.emptyList();
+            this.verificationRegexp = null;
+            this.dependencyField = null;
         }
 
         public AccountField(@Nonnull final String name, @Nonnull final String displayName,
                             @Nonnull final String description, final boolean required,
                             final boolean secret, AccountFieldValueType valueType,
-                            @Nullable String defaultValue) {
+                            @Nullable String defaultValue, @Nullable List<String> allowedValues,
+                            final String verificationRegexp,
+                            @Nullable Pair<String, String> dependencyField) {
             this.name = Objects.requireNonNull(name);
             this.displayName = Objects.requireNonNull(displayName);
             this.description = Objects.requireNonNull(description);
@@ -77,6 +100,9 @@ public class ProbeRESTApi {
             this.secret = secret;
             this.valueType = valueType;
             this.defaultValue = defaultValue;
+            this.allowedValues = allowedValues;
+            this.verificationRegexp = verificationRegexp;
+            this.dependencyField = dependencyField;
         }
 
         @Override
@@ -110,9 +136,26 @@ public class ProbeRESTApi {
         }
 
         @Override
+        public String getVerificationRegex() {
+            return verificationRegexp;
+        }
+
+        @Override
         @Nullable
         public String getDefaultValue() {
             return defaultValue;
+        }
+
+        @Override
+        @Nullable
+        public List<String> getAllowedValues() {
+            return allowedValues;
+        }
+
+        @Nonnull
+        @Override
+        public Optional<Pair<String, String>> getDependencyField() {
+            return Optional.ofNullable(dependencyField);
         }
     }
 
@@ -127,8 +170,18 @@ public class ProbeRESTApi {
         @ApiModelProperty(value = "The category of the probe (Hypervisor, etc.).", required = true)
         private final String category;
 
+        @ApiModelProperty(value = "The UI category of the probe (Applications and Databases, etc.).", required = true)
+        private final String uiCategory;
+
+        @ApiModelProperty(value = "The license of the probe.")
+        private final String license;
+
         @ApiModelProperty(value = "The type of the probe (vCenter, HyperV, etc.).", required = true)
         private final String type;
+
+        @ApiModelProperty(value = "Indicates if the probe will show in the UI",
+            required = true)
+        private final CreationMode creationMode;
 
         @ApiModelProperty(
                         value = "Input fields required for target management (IP, username, etc.).",
@@ -152,7 +205,10 @@ public class ProbeRESTApi {
         protected ProbeDescription() {
             this.id = -1;
             this.category = null;
+            this.uiCategory = null;
+            this.license = null;
             this.type = null;
+            this.creationMode = CreationMode.STAND_ALONE;
             this.accountFields = null;
             this.error = null;
             this.identifyingFields = null;
@@ -161,12 +217,18 @@ public class ProbeRESTApi {
 
         public ProbeDescription(final long probeId, @Nonnull final String type,
                 @Nonnull final String category,
+                @Nonnull final String uiCategory,
+                @Nullable final String license,
+                @Nonnull final CreationMode creationMode,
                 @Nonnull final List<AccountField> accountFields,
                 @Nonnull final List<String> identifyingFields,
                 @Nonnull final List<ProbeActionCapability> actionPolicies) {
             this.id = probeId;
             this.type = Objects.requireNonNull(type);
             this.category = Objects.requireNonNull(category);
+            this.uiCategory = Objects.requireNonNull(uiCategory);
+            this.license = license;
+            this.creationMode = creationMode;
             this.accountFields = accountFields;
             this.error = null;
             this.identifyingFields = identifyingFields;
@@ -183,7 +245,10 @@ public class ProbeRESTApi {
         public ProbeDescription(@Nonnull final String error) {
             this.id = -1;
             this.category = null;
+            this.uiCategory = null;
+            this.license = null;
             this.type = null;
+            this.creationMode = CreationMode.STAND_ALONE;
             this.accountFields = null;
             this.identifyingFields = null;
             this.error = Objects.requireNonNull(error);
@@ -206,6 +271,23 @@ public class ProbeRESTApi {
         @Override
         public String getCategory() {
             return Objects.requireNonNull(category, "category field is absent");
+        }
+
+        @Nonnull
+        @Override
+        public String getUICategory() {
+            return uiCategory;
+        }
+
+        @Override
+        public Optional<String> getLicense() {
+            return Optional.ofNullable(license);
+        }
+
+        @Nonnull
+        @Override
+        public CreationMode getCreationMode() {
+            return creationMode;
         }
 
         @Override

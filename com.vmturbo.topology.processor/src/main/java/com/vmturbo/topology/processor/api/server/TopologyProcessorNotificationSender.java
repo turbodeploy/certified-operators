@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.api.server;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -21,25 +22,35 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.Data;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.End;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.Start;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyExtension;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
+import com.vmturbo.components.api.chunking.OversizedElementException;
+import com.vmturbo.components.api.chunking.ProtobufChunkCollector;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.OperationListener;
 import com.vmturbo.topology.processor.operation.action.Action;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionApproval;
+import com.vmturbo.topology.processor.operation.actionapproval.ActionUpdateState;
+import com.vmturbo.topology.processor.operation.actionapproval.GetActionState;
+import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
@@ -60,22 +71,28 @@ public class TopologyProcessorNotificationSender
     private final IMessageSender<Topology> schedPlanTopologySender;
     private final IMessageSender<TopologyProcessorNotification> notificationSender;
     private final IMessageSender<TopologySummary> topologySummarySender;
+    private final IMessageSender<EntitiesWithNewState> entitiesWithNewStateSender;
     private final ExecutorService threadPool;
+    private final Clock clock;
 
 
     public TopologyProcessorNotificationSender(@Nonnull final ExecutorService threadPool,
+            @Nonnull final Clock clock,
             @Nonnull IMessageSender<Topology> liveTopologySender,
             @Nonnull IMessageSender<Topology> userPlanTopologySender,
             @Nonnull IMessageSender<Topology> schedPlanTopologySender,
             @Nonnull IMessageSender<TopologyProcessorNotification> notificationSender,
-            @Nonnull IMessageSender<TopologySummary> topologySummarySender) {
+            @Nonnull IMessageSender<TopologySummary> topologySummarySender,
+            @Nonnull IMessageSender<EntitiesWithNewState> entitiesWithNewStateSender) {
         super();
+        this.clock = Objects.requireNonNull(clock);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.liveTopologySender = Objects.requireNonNull(liveTopologySender);
         this.userPlanTopologySender = Objects.requireNonNull(userPlanTopologySender);
         this.schedPlanTopologySender = Objects.requireNonNull(schedPlanTopologySender);
         this.notificationSender = Objects.requireNonNull(notificationSender);
         this.topologySummarySender = Objects.requireNonNull(topologySummarySender);
+        this.entitiesWithNewStateSender = Objects.requireNonNull(entitiesWithNewStateSender);
 
         operationsListeners = new HashMap<>();
         operationsListeners.put(Validation.class,
@@ -84,6 +101,13 @@ public class TopologyProcessorNotificationSender
                         operation -> notifyDiscoveryState((Discovery)operation));
         // TODO (roman, Aug 2016): Add notifications for actions.
         operationsListeners.put(Action.class, operation -> notifyActionState((Action)operation));
+
+        // No-ops because we do not need notifications, but we also do not want getOperationListener
+        // to fail when these operations finish.
+        operationsListeners.put(ActionApproval.class, operation -> { });
+        operationsListeners.put(ActionAudit.class, operation -> { });
+        operationsListeners.put(GetActionState.class, operation -> { });
+        operationsListeners.put(ActionUpdateState.class, operation -> { });
     }
 
     /**
@@ -102,7 +126,8 @@ public class TopologyProcessorNotificationSender
 
     @Override
     public void onTargetAdded(@Nonnull final Target target) {
-        getLogger().debug(() -> "Sending onTargetAdded notifications for target " + target);
+        getLogger().debug(() -> "Sending onTargetAdded notifications for target '"
+                + target.getDisplayName() + "' (" + target.getId() + ")");
         final TopologyProcessorNotification message = createNewMessage()
             .setTargetAddedNotification(target.getNoSecretDto()).build();
         sendMessageSilently(message);
@@ -110,7 +135,8 @@ public class TopologyProcessorNotificationSender
 
     @Override
     public void onTargetUpdated(@Nonnull final Target target) {
-        getLogger().debug(() -> "Sending onTargetChanged notifications for target " + target);
+        getLogger().debug(() -> "Sending onTargetChanged notifications for target '"
+                + target.getDisplayName() + "' (" + target.getId() + ")");
         final TopologyProcessorNotification message =
                 createNewMessage().setTargetChangedNotification(target.getNoSecretDto()).build();
         sendMessageSilently(message);
@@ -118,7 +144,8 @@ public class TopologyProcessorNotificationSender
 
     @Override
     public void onTargetRemoved(@Nonnull final Target target) {
-        getLogger().debug(() -> "Sending onTargetRemoved notifications for target " + target);
+        getLogger().debug(() -> "Sending onTargetRemoved notifications for target '"
+                + target.getDisplayName() + "' (" + target.getId() + ")");
         final TopologyProcessorNotification message =
                 createNewMessage().setTargetRemovedNotification(target.getId()).build();
         sendMessageSilently(message);
@@ -145,8 +172,8 @@ public class TopologyProcessorNotificationSender
     }
 
     private void notifyDiscoveryState(@Nonnull final Discovery result) {
-        getLogger().debug(() -> "Target " + result.getTargetId() + " discovery reported with status "
-                        + result.getStatus());
+        getLogger().debug(() -> "Target " + result.getTargetId() + " " + result.getDiscoveryType()
+            + " discovery reported with status " + result.getStatus());
         final TopologyProcessorNotification message = createNewMessage()
                 .setDiscoveryNotification(convertOperationToDto(result))
                 .build();
@@ -201,7 +228,7 @@ public class TopologyProcessorNotificationSender
     @Nonnull
     @Override
     public TopologyBroadcast broadcastLiveTopology(@Nonnull final TopologyInfo topologyInfo) {
-        return new TopologyBroadcastImpl(liveTopologySender, topologyInfo, this::broadcastTopologySummary);
+        return new TopologyBroadcastImpl(liveTopologySender, topologyInfo);
     }
 
     @Nonnull
@@ -217,11 +244,26 @@ public class TopologyProcessorNotificationSender
         return new TopologyBroadcastImpl(schedPlanTopologySender, topologyInfo);
     }
 
-    public void broadcastTopologySummary(@Nonnull final TopologyInfo topologyInfo) {
+    /**
+     * Sends a {@link EntitiesWithNewState} message.
+     *
+     * @param entitiesWithNewState the {@link EntitiesWithNewState} message
+     * @throws CommunicationException if an error occurs in the communication
+     * @throws InterruptedException if the operation is interrupted
+     */
+    @Nonnull
+    public void onEntitiesWithNewState(@Nonnull final EntitiesWithNewState entitiesWithNewState) throws CommunicationException, InterruptedException {
+        this.entitiesWithNewStateSender.sendMessage(entitiesWithNewState);
+    }
+
+    /**
+     * Broadcast a {@link TopologySummary} describing a successful or failed topology broadcast.
+     *
+     * @param topologySummary The {@link TopologySummary} message.
+     */
+    public void broadcastTopologySummary(@Nonnull final TopologySummary topologySummary) {
         try {
-            topologySummarySender.sendMessage(TopologySummary.newBuilder()
-                    .setTopologyInfo(topologyInfo)
-                    .build());
+            topologySummarySender.sendMessage(topologySummary);
         } catch (CommunicationException|InterruptedException e) {
             getLogger().error("Could not send TopologySummary message", e);
         }
@@ -235,6 +277,19 @@ public class TopologyProcessorNotificationSender
             // TODO implement guaranteed delivery instead of RTE
             throw new RuntimeException("Thread interrupted", e);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void notifyOperationsCleared() {
+        getLogger().info("Sending notification that all in-progress actions got cleared.");
+        final TopologyProcessorNotification message = createNewMessage()
+            .setActionsLost(ActionsLost.newBuilder()
+                .setBeforeTime(clock.millis()))
+            .build();
+        sendMessageSilently(message);
     }
 
     // TODO switch to IClassMap, after SDK is synched between MT and XL
@@ -301,16 +356,24 @@ public class TopologyProcessorNotificationSender
          * An optional command to run
          */
         private final Consumer<TopologyInfo> postBroadcastCommand;
+
         /**
          * Collection to store chunk data.
          */
         @GuardedBy("lock")
-        private final Collection<TopologyEntityDTO> chunk;
+        private final ProtobufChunkCollector<TopologyEntityDTO> chunk;
+
+        /**
+         * Collection to store extension chunk data.
+         */
+        @GuardedBy("lock")
+        private final ProtobufChunkCollector<TopologyExtension> extensionChunk;
+
         /**
          * Sequential number of current chunk, wich will be sent later.
          */
-
         private long totalCount = 0;
+
         /**
          * Whether the broadcast is finished.
          */
@@ -331,7 +394,8 @@ public class TopologyProcessorNotificationSender
             Preconditions.checkArgument(topologyInfo.hasCreationTime());
             Preconditions.checkArgument(topologyInfo.hasTopologyType());
             this.topologyInfo = topologyInfo;
-            this.chunk = new ArrayList<>(MessageChunker.CHUNK_SIZE);
+            this.chunk = new ProtobufChunkCollector<>(messageSender.getRecommendedRequestSizeBytes(), messageSender.getMaxRequestSizeBytes());
+            this.extensionChunk = new ProtobufChunkCollector<>(messageSender.getRecommendedRequestSizeBytes(), messageSender.getMaxRequestSizeBytes());
             this.postBroadcastCommand = postBroadcastCommand;
             final Topology subMessage = Topology.newBuilder()
                     .setTopologyId(getTopologyId())
@@ -385,7 +449,12 @@ public class TopologyProcessorNotificationSender
             awaitInitialMessage();
             synchronized (lock) {
                 finished = true;
-                sendChunk();
+                if (chunk.count() > 0) {
+                    sendChunk(chunk.takeCurrentChunk());
+                }
+                if (extensionChunk.count() > 0) {
+                    sendExtensionsChunk(extensionChunk.takeCurrentChunk());
+                }
                 final Topology subMessage = Topology.newBuilder()
                         .setTopologyId(getTopologyId())
                         .setEnd(End.newBuilder().setTotalCount(totalCount))
@@ -400,29 +469,76 @@ public class TopologyProcessorNotificationSender
         }
 
         @Override
-        public void append(@Nonnull TopologyEntityDTO entity) throws CommunicationException,
-                InterruptedException {
+        public void append(@Nonnull TopologyEntityDTO entity)
+            throws CommunicationException, InterruptedException, OversizedElementException {
             awaitInitialMessage();
             synchronized (lock) {
                 if (finished) {
                     throw new IllegalStateException("Broadcast " + getTopologyId() + " is already " +
                             "finished. It does not accept new entities");
                 }
-                chunk.add(entity);
-                if (chunk.size() >= MessageChunker.CHUNK_SIZE) {
-                    sendChunk();
-                    chunk.clear();
+
+                final Collection<TopologyEntityDTO> chunkToSend = chunk.addToCurrentChunk(entity);
+                if (chunkToSend != null) {
+                    sendChunk(chunkToSend);
                 }
             }
         }
 
-        private void sendChunk() throws CommunicationException, InterruptedException {
+        /**
+         * Appends the next topology extension entity to the notification.
+         * This call may block until the next chunk is sent.
+         *
+         * @param extension to add to broadcast.
+         * @throws InterruptedException   if thread has been interrupted
+         * @throws NullPointerException   if {@code entity} is {@code null}
+         * @throws IllegalStateException  if {@link #finish()} has been already called
+         * @throws CommunicationException persistent communication exception
+         */
+        @Override
+        public void appendExtension(@Nonnull TopologyDTO.TopologyExtension extension)
+            throws CommunicationException, InterruptedException, OversizedElementException {
+            awaitInitialMessage();
+            synchronized (lock) {
+                if (finished) {
+                    throw new IllegalStateException(
+                        "Broadcast " + getTopologyId() + " is already " +
+                        "finished. It does not accept new extensions");
+                }
+                // Send the entities first.
+                if (chunk.count() > 0) {
+                    sendChunk(chunk.takeCurrentChunk());
+                }
+                Collection<TopologyExtension> chunkToSend = extensionChunk.addToCurrentChunk(extension);
+                if (chunkToSend != null) {
+                    sendExtensionsChunk(chunkToSend);
+                }
+            }
+        }
+
+        private void sendChunk(final Collection<TopologyEntityDTO> chunkToSend)
+                throws CommunicationException, InterruptedException {
+            Collection<Topology.DataSegment> segments = chunkToSend.stream().map(dto -> {
+                return Topology.DataSegment.newBuilder().setEntity(dto).build();
+            }).collect(Collectors.toList());
             final Topology subMessage = Topology.newBuilder()
-                    .setData(Data.newBuilder().addAllEntities(chunk))
+                    .setData(Data.newBuilder().addAllEntities(segments))
                     .setTopologyId(getTopologyId())
                     .build();
             sendTopologySegment(subMessage);
-            totalCount += chunk.size();
+            totalCount += chunkToSend.size();
+        }
+
+        private void sendExtensionsChunk(final Collection<TopologyExtension> chunkToSend) throws CommunicationException, InterruptedException {
+            Collection<Topology.DataSegment> segments = chunkToSend.stream().map(ext -> {
+                return Topology.DataSegment.newBuilder().setExtension(ext).build();
+            }).collect(Collectors.toList());
+            final Topology subMessage = Topology.newBuilder()
+                                                .setData(Data.newBuilder().addAllEntities(segments))
+                                                .setTopologyId(getTopologyId())
+                                                .build();
+            sendTopologySegment(subMessage);
+            totalCount += chunkToSend.size();
         }
 
         private void sendTopologySegment(final @Nonnull Topology segment)

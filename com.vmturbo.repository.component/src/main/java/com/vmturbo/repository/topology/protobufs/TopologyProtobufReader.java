@@ -12,13 +12,13 @@ import javax.annotation.Nonnull;
 
 import com.arangodb.ArangoCollection;
 import com.arangodb.entity.BaseDocument;
+import com.arangodb.model.CollectionCreateOptions;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -38,8 +38,10 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
 
     protected TopologyProtobufReader(@Nonnull final ArangoDatabaseFactory arangoDatabaseFactory,
                                      final long topologyId,
-                                     @Nonnull final Optional<TopologyEntityFilter> entityFilter) {
-        super(arangoDatabaseFactory, topologyId);
+                                     @Nonnull final Optional<TopologyEntityFilter> entityFilter,
+                                     @Nonnull final String arangoDatabaseName,
+                                     @Nonnull final CollectionCreateOptions collectionCreateOptions) {
+        super(arangoDatabaseFactory, topologyId, arangoDatabaseName, collectionCreateOptions);
         count = topologyCollection.count().getCount();
         this.entityFilter = entityFilter;
     }
@@ -48,7 +50,8 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
      * Get a handle to the collection.
      */
     @Override
-    protected ArangoCollection collection(@Nonnull final String collectionName) {
+    protected ArangoCollection collection(@Nonnull final String collectionName,
+                                          @Nonnull final CollectionCreateOptions collectionCreateOptions) {
         return database.collection(collectionName);
     }
 
@@ -69,8 +72,9 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
     protected static Stream<ProjectedTopologyEntity> parseJson(final long topologyId,
                                                @Nonnull final Collection<Object> jsonObjects) {
         // We assume we're going to be reading ProjectedTopologyEntity objects. However,
-        // in old saved topologies we may actually read TopologyEntityDTO objects.
-        // Use this flag to detect the old format, to avoid having exceptions on every
+        // in old saved projected topologies or in source topologies, we may actually read
+        // TopologyEntityDTO objects.
+        // Use this flag to detect the latter format, to avoid having exceptions on every
         // encountered entity.
         AtomicBoolean areProjectedEntities = new AtomicBoolean(true);
         return jsonObjects.stream()
@@ -79,6 +83,11 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
                 if (areProjectedEntities.get()) {
                     try {
                         parsedEntity = GSON.fromJson((String)jsonObj, ProjectedTopologyEntity.class);
+                        if (parsedEntity.equals(ProjectedTopologyEntity.getDefaultInstance())) {
+                            // Try parsing the old format - simple TopologyEntityDTOs.
+                            areProjectedEntities.set(false);
+                            logger.warn("Likely reading projected topology {} stored in older format (without price index)!", topologyId);
+                        }
                     } catch (JsonParseException e) {
                         // Try parsing the old format - simple TopologyEntityDTOs.
                         areProjectedEntities.set(false);

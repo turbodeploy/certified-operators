@@ -34,14 +34,17 @@ public class TopologyGraphCreator {
     private final GraphDatabaseDriver graphDatabaseDriver;
     private final GraphDefinition graphDefinition;
     private final ServiceEntitySubGraphCreator serviceEntitySubGraphCreator;
+    private final int collectionReplicaCount;
     static final int BATCH_SIZE = 100;
 
     public TopologyGraphCreator(final GraphDatabaseDriver graphDatabaseDriver,
-                                final GraphDefinition graphDefinition) {
+                                final GraphDefinition graphDefinition,
+                                final int collectionReplicaCount) {
         this.graphDefinition = Objects.requireNonNull(graphDefinition);
         this.graphDatabaseDriver = Objects.requireNonNull(graphDatabaseDriver);
+        this.collectionReplicaCount = collectionReplicaCount;
         this.serviceEntitySubGraphCreator = new ServiceEntitySubGraphCreator(
-                                graphDatabaseDriver, graphDefinition, BATCH_SIZE);
+                                graphDatabaseDriver, graphDefinition, BATCH_SIZE, collectionReplicaCount);
     }
 
     /**
@@ -71,28 +74,13 @@ public class TopologyGraphCreator {
      * @throws GraphDatabaseException
      */
     public void init() throws GraphDatabaseException {
-        final String database = graphDatabaseDriver.getDatabase();
-        // Create the database if it doesn't exist
-        try {
-            if (graphDatabaseDriver.createDatabase()) {
-                logger.info("Created database " + database);
-            } else {
-                logger.warn("Database " + database + " already exists");
-                return;
-            }
-        } catch (GraphDatabaseException e) {
-            throw new GraphDatabaseException(
-                         "Exception encountered while creating database " + database, e);
-        }
-
-
         serviceEntitySubGraphCreator.init();
 
         createTopologyGraph();
 
         createIndices();
 
-        logger.info("Initialized topology graph creation in database " + database);
+        logger.info("Initialized topology graph creation in database " + graphDatabaseDriver.getDatabase());
     }
 
     private void createIndices() throws IndexOperationException {
@@ -144,6 +132,7 @@ public class TopologyGraphCreator {
                 .build();
         GraphParameter p = new GraphParameter.Builder(graphDefinition.getGraphName())
                 .addEdgeDef(edp)
+                .replicaCount(collectionReplicaCount)
                 .build();
         graphDatabaseDriver.createGraph(p);
     }

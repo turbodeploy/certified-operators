@@ -1,22 +1,25 @@
 package com.vmturbo.market.topology.conversions;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
@@ -40,12 +43,15 @@ public class ComputeTierConverter implements TierConverter {
     TopologyInfo topologyInfo;
     CommodityConverter commodityConverter;
     CostDTOCreator costDTOCreator;
+    TierExcluder tierExcluder;
 
     ComputeTierConverter(TopologyInfo topologyInfo, CommodityConverter commodityConverter,
-                         @Nonnull CostDTOCreator costDTOCreator) {
+                         @Nonnull CostDTOCreator costDTOCreator,
+                         @Nonnull TierExcluder tierExcluder) {
         this.topologyInfo = topologyInfo;
         this.commodityConverter = commodityConverter;
         this.costDTOCreator = costDTOCreator;
+        this.tierExcluder = tierExcluder;
     }
 
     /**
@@ -60,40 +66,39 @@ public class ComputeTierConverter implements TierConverter {
     public Map<TraderTO.Builder, MarketTier> createMarketTierTraderTOs(
             @Nonnull TopologyEntityDTO computeTier,
             @Nonnull Map<Long, TopologyEntityDTO> topology,
-            @Nonnull Set<TopologyEntityDTO> businessAccounts) {
+            @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull Set<AccountPricingData> uniqueAccountPricingData) {
         Map<TraderTO.Builder, MarketTier> traderTOs = new HashMap<>();
         List<TopologyEntityDTO> connectedRegions = TopologyDTOUtil.getConnectedEntitiesOfType(
                 computeTier, EntityType.REGION_VALUE, topology);
-        for(TopologyEntityDTO region : connectedRegions) {
-            MarketTier marketTier = new OnDemandMarketTier(computeTier, region);
-            String debugInfo = marketTier.getDisplayName();
-            logger.debug("Creating trader for {}", debugInfo);
-            TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
-                    createCommonTraderSettingsTOBuilder(computeTier, topology);
-            final EconomyDTOs.TraderSettingsTO settings = settingsBuilder
-                    .setClonable(false)
-                    .setSuspendable(false)
-                    // TODO: For canAcceptNewCustomers - Need to check if price is available.
-                    .setCanAcceptNewCustomers(true)
-                    // TODO: Check why isEligibleForResizeDown is true for computeTier?
-                    .setIsEligibleForResizeDown(false)
-                    .setQuoteFunction(QuoteFunctionDTO.newBuilder()
-                            .setRiskBased(RiskBased.newBuilder()
-                                    .setCloudCost(costDTOCreator.createCostDTO(computeTier, region, businessAccounts)).build()))
-                    .setQuoteFactor(1)
-                    .build();
+        MarketTier marketTier = new OnDemandMarketTier(computeTier);
+        String debugInfo = marketTier.getDisplayName();
+        logger.debug("Creating trader for {}", debugInfo);
+        TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils
+                .createCommonTraderSettingsTOBuilder(computeTier, topology);
+        final EconomyDTOs.TraderSettingsTO settings = settingsBuilder
+                .setClonable(false)
+                .setSuspendable(false)
+                // TODO: For canAcceptNewCustomers - Need to check if price is available.
+                .setCanAcceptNewCustomers(true)
+                // TODO: Check why isEligibleForResizeDown is true for computeTier?
+                .setIsEligibleForResizeDown(false)
+                .setQuoteFunction(QuoteFunctionDTO.newBuilder()
+                        .setRiskBased(RiskBased.newBuilder()
+                                .setCloudCost(costDTOCreator.createCostDTO(computeTier, connectedRegions,
+                                        uniqueAccountPricingData)).build()))
+                .setQuoteFactor(1)
+                .build();
 
-            TraderTO.Builder traderTOBuilder = EconomyDTOs.TraderTO.newBuilder()
-                    // Type and Oid are the same in the topology DTOs and economy DTOs
-                    .setOid(IdentityGenerator.next())
-                    .setType(computeTier.getEntityType())
-                    .setState(TopologyConversionUtils.traderState(computeTier))
-                    .setSettings(settings)
-                    .setTemplateForHeadroom(false)
-                    .setDebugInfoNeverUseInCode(debugInfo)
-                    .addAllCommoditiesSold(commoditiesSoldList(computeTier, region));
-            traderTOs.put(traderTOBuilder, marketTier);
-        }
+        TraderTO.Builder traderTOBuilder = EconomyDTOs.TraderTO.newBuilder()
+                // Type and Oid are the same in the topology DTOs and economy DTOs
+                .setOid(IdentityGenerator.next())
+                .setType(computeTier.getEntityType())
+                .setState(TopologyConversionUtils.traderState(computeTier))
+                .setSettings(settings)
+                .setTemplateForHeadroom(false)
+                .setDebugInfoNeverUseInCode(debugInfo)
+                .addAllCommoditiesSold(commoditiesSoldList(computeTier, connectedRegions));
+        traderTOs.put(traderTOBuilder, marketTier);
         return traderTOs;
     }
 
@@ -101,13 +106,17 @@ public class ComputeTierConverter implements TierConverter {
      * Create the commodities to be sold by compute market tier.
      *
      * @param computeTier the computeTier based on which commodities sold are created.
-     * @param region the region based on which commodities sold are created.
+     * @param regions the regions based on which commodities sold are created.
      * @return The commodities to be sold by the marketTier traderTO
      */
     @Nonnull
     protected Collection<CommoditySoldTO> commoditiesSoldList(
-            @Nonnull final TopologyDTO.TopologyEntityDTO computeTier, TopologyEntityDTO region) {
-        Collection<CommoditySoldTO> commoditiesSold = commoditiesSoldFromTier(computeTier, region);
+            @Nonnull final TopologyDTO.TopologyEntityDTO computeTier, List<TopologyEntityDTO> regions) {
+        Collection<CommoditySoldTO> commoditiesSold = commoditiesSoldFromTier(computeTier);
+        UpdatingFunctionTO emptyUf = UpdatingFunctionTO.newBuilder().build();
+        for (TopologyEntityDTO region: regions) {
+            commoditiesSold.addAll(commoditiesSoldFromRegion(region));
+        }
         if (computeTier.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
             // TODO: sell VMPM
             // A VM in zone1 can only use zonal RIs that are in zone1. Given a region with zonal and
@@ -152,30 +161,54 @@ public class ComputeTierConverter implements TierConverter {
                     .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
                     .setKey(computeTier.getTypeSpecificInfo().getComputeTier().getFamily())
                     .build();
-            UpdatingFunctionTO emptyUf = UpdatingFunctionTO.newBuilder().build();
-            commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used, emptyUf));
+            commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
+                    emptyUf));
             commType = CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
-                    // using regionName as the key for the region specific templateAccessSold
-                    .setKey(region.getDisplayName())
+                    .setKey(computeTier.getDisplayName())
                     .build();
-            commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used, emptyUf));
+            commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used,
+                    emptyUf));
+            for (TopologyEntityDTO region : regions) {
+                commType = CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE)
+                        // using regionName as the key for the region specific templateAccessSold
+                        .setKey(region.getDisplayName())
+                        .build();
+                commoditiesSold.add(commodityConverter.createCommoditySoldTO(commType, capacity, used, emptyUf));
+            }
         }
+        // Add template exclusion commodities sold
+        commoditiesSold.addAll(tierExcluder.getTierExclusionCommoditiesToSell(computeTier.getOid()).stream()
+            .map(ct -> commodityConverter.createCommoditySoldTO(
+                ct, TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY, 0, emptyUf))
+            .collect(Collectors.toList()));
         return commoditiesSold;
     }
 
     /**
-     * Create the commodities to be sold by compute market tier.
+     * Create the region commodities to be sold by compute market tier.
      *
-     * @param computeTier the computeTier based on which commodities sold are created.
      * @param region the region based on which commodities sold are created.
      * @return The commodities to be sold by the marketTier traderTO
      */
     @Nonnull
-    protected Collection<CommoditySoldTO> commoditiesSoldFromTier(
-            @Nonnull final TopologyDTO.TopologyEntityDTO computeTier, TopologyEntityDTO region) {
-        Collection<CommoditySoldTO> commoditiesSold = commodityConverter.commoditiesSoldList(computeTier);
+    protected Collection<CommoditySoldTO> commoditiesSoldFromRegion(@Nonnull TopologyEntityDTO region) {
+        Collection<CommoditySoldTO> commoditiesSold = new ArrayList<>();
         commoditiesSold.addAll(commodityConverter.commoditiesSoldList(region));
         return commoditiesSold;
     }
+
+    /**
+     * Create the compute tier commodities to be sold by compute market tier.
+     *
+     * @param computeTier the compute tier on which commodities sold are created.
+     * @return The commodities to be sold by the marketTier traderTO
+     */
+    @Nonnull
+    protected Collection<CommoditySoldTO> commoditiesSoldFromTier(@Nonnull final TopologyDTO.TopologyEntityDTO computeTier) {
+        Collection<CommoditySoldTO> commoditiesSold = commodityConverter.commoditiesSoldList(computeTier);
+        return commoditiesSold;
+    }
+
 }

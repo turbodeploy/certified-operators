@@ -12,17 +12,20 @@ import com.vmturbo.history.db.VmtDbException;
 public interface TopologyPriceIndexVisitor {
 
     /**
-     * @param entityType The entity type.
-     * @param environmentType The environment type.
+     * Visit price indexes with given entity type and environment type.
+     *
+     * @param entityType         The entity type.
+     * @param environmentType    The environment type.
      * @param priceIdxByEntityId The price indices for entities of this type and environment type,
      *                           arranged by ID.
-     * @throws VmtDbException If there is an error connecting to the database. Note - technically
-     *         we should probably hide this exception and throw a visitor-specific exception
-     *         instead, but it's not necessary right now with only one visitor implementation.
+     * @throws VmtDbException       If there is an error connecting to the database. Note - technically
+     *                              we should probably hide this exception and throw a visitor-specific exception
+     *                              instead, but it's not necessary right now with only one visitor implementation.
+     * @throws InterruptedException if interrupted
      */
-    void visit(final Integer entityType,
-               final EnvironmentType environmentType,
-               final Map<Long, Double> priceIdxByEntityId) throws VmtDbException;
+    void visit(Integer entityType,
+            EnvironmentType environmentType,
+            Map<Long, Double> priceIdxByEntityId) throws VmtDbException, InterruptedException;
 
     /**
      * Called after all calls to
@@ -31,6 +34,7 @@ public interface TopologyPriceIndexVisitor {
      * @throws VmtDbException If there is an error connecting to the database. Note - technically
      *         we should probably hide this exception and throw a visitor-specific exception
      *         instead, but it's not necessary right now with only one visitor implementation.
+     * @throws InterruptedException if interrupted
      */
-    void onComplete() throws VmtDbException;
+    void onComplete() throws VmtDbException, InterruptedException;
 }

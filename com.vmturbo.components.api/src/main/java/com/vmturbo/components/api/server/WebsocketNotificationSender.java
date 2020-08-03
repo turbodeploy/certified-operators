@@ -18,11 +18,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.Empty;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
@@ -43,9 +43,16 @@ public class WebsocketNotificationSender<T> implements IMessageSender<T>,
 
     private final Logger logger = LogManager.getLogger(getClass());
     private final ExecutorService threadPool;
+    private final int maxRequestSizeBytes;
+    private final int recommendedRequestSizeBytes;
 
-    public WebsocketNotificationSender(@Nonnull ExecutorService threadPool) {
+
+    WebsocketNotificationSender(@Nonnull ExecutorService threadPool,
+                                       final int maxRequestSizeBytes,
+                                       final int recommendedRequestSizeBytes) {
         this.threadPool = Objects.requireNonNull(threadPool);
+        this.maxRequestSizeBytes = maxRequestSizeBytes;
+        this.recommendedRequestSizeBytes = recommendedRequestSizeBytes;
     }
 
     private Collection<Future<Void>> sendMessageInternal(@Nonnull final T serverMsg) {
@@ -69,6 +76,16 @@ public class WebsocketNotificationSender<T> implements IMessageSender<T>,
                     "Unexpected exception occurred while waiting for the message " +
                             serverMsg.getClass().getSimpleName() + " sending", e.getCause());
         }
+    }
+
+    @Override
+    public int getMaxRequestSizeBytes() {
+        return maxRequestSizeBytes;
+    }
+
+    @Override
+    public int getRecommendedRequestSizeBytes() {
+        return recommendedRequestSizeBytes;
     }
 
     @Nonnull

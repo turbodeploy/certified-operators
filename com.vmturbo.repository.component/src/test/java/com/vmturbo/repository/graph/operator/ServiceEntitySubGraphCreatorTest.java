@@ -46,6 +46,7 @@ public class ServiceEntitySubGraphCreatorTest {
     private GraphCreatorFixture fixture;
 
     private static final int BATCH_SIZE = 2;
+    private static final int REPLICA_COUNT = 1;
 
     @Before
     public void setUp() {
@@ -56,7 +57,7 @@ public class ServiceEntitySubGraphCreatorTest {
         serviceEntitySubGraphCreatorTest = new ServiceEntitySubGraphCreator(
                 graphDatabaseBuilder,
                 graphDefinition,
-                BATCH_SIZE);
+                BATCH_SIZE, REPLICA_COUNT);
     }
 
     @Test
@@ -64,7 +65,7 @@ public class ServiceEntitySubGraphCreatorTest {
         serviceEntitySubGraphCreatorTest.init();
 
         ArgumentCaptor<CollectionParameter> p = ArgumentCaptor.forClass(CollectionParameter.class);
-        verify(graphDatabaseBuilder, times(3)).createCollection(p.capture());
+        verify(graphDatabaseBuilder, times(4)).createCollection(p.capture());
         assertEquals(graphDefinition.getServiceEntityVertex(), p.getAllValues().get(0).getName());
         assertEquals(graphDefinition.getProviderRelationship(), p.getAllValues().get(1).getName());
     }
@@ -149,7 +150,7 @@ public class ServiceEntitySubGraphCreatorTest {
         ServiceEntitySubGraphCreator creator = new ServiceEntitySubGraphCreator(
                 graphDatabaseBuilder,
                 graphDefinition,
-                batchSize);
+                batchSize, REPLICA_COUNT);
 
         creator.create(ses);
 

@@ -1,6 +1,7 @@
 package com.vmturbo.stitching.utilities;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -155,7 +156,7 @@ public class CopyCommodities {
                                 provider, commodityBought);
                         List<CommodityDTO.Builder> commoditiesBought = mergeCommoditiesBought(
                                 commodityBought.getBoughtList(),
-                                cb.isPresent() ? cb.get().getBoughtList() : null,
+                                cb.map(CommoditiesBought::getBoughtList).orElse(null),
                                 commodityMetaData, commBoughtMetaData != null);
                         return new CommoditiesBought(commoditiesBought, commodityBought.getVolumeId());
                     }).collect(Collectors.toList());
@@ -177,27 +178,24 @@ public class CopyCommodities {
      *                              that don't specify commodityMetaData.
      * @return {@List<CommodityDTO.Builder>} giving the merged commodities.
      */
-    private static List<CommodityDTO.Builder> mergeCommoditiesBought(
+    public static List<CommodityDTO.Builder> mergeCommoditiesBought(
             @Nonnull final List<CommodityDTO.Builder> fromCommodities,
             @Nullable final List<CommodityDTO.Builder> ontoCommodities,
-            @Nullable final Optional<Collection<CommodityType>>
-                    commodityMetaData,
+            @Nullable final Optional<Collection<CommodityType>> commodityMetaData,
             boolean filterFromCommodities) {
         List<CommodityDTO.Builder> retVal = Lists.newArrayList();
         // Collect the mergeFromCommodities into a map where they can be looked up by
         // {@link CommodityBuilderIdentifier}.
         final Map<CommodityBuilderIdentifier, CommodityDTO.Builder> mergeFromCommoditiesMap =
                 fromCommodities.stream().collect(Collectors.toMap(
-                        commodity -> new CommodityBuilderIdentifier(commodity.getCommodityType(),
-                                commodity.getKey()), Function.identity()));
+                        commodity -> commodityBuilderIdentifier(commodity), Function.identity()));
 
         // Collect the mergeOntoCommodities into a map where they can be looked up by
         // {@link CommodityBuilderIdentifier}.
         final Map<CommodityBuilderIdentifier, CommodityDTO.Builder> mergeOntoCommoditiesMap =
                 ontoCommodities == null ? Maps.newHashMap() :
                         ontoCommodities.stream().collect(Collectors.toMap(
-                                commodity -> new CommodityBuilderIdentifier(commodity.getCommodityType(),
-                                        commodity.getKey()), Function.identity()));
+                                commodity -> commodityBuilderIdentifier(commodity), Function.identity()));
 
         Set<CommodityType> mergeMetaDataSet = Sets.newHashSet();
         // if we are not filtering based on commodityMetaData, make sure all fromCommodities are
@@ -207,11 +205,7 @@ public class CopyCommodities {
                 mergeMetaDataSet.add(commBuilder.getCommodityType());
             }
         } else {
-            commodityMetaData.ifPresent(commMetaDataCollection -> {
-                for (CommodityType commMetaData : commMetaDataCollection) {
-                    mergeMetaDataSet.add(commMetaData);
-                }
-            });
+            commodityMetaData.ifPresent(mergeMetaDataSet::addAll);
         }
 
         // For all from Commodities whose type exists in mergeMetaData, merge with matching onto
@@ -221,11 +215,72 @@ public class CopyCommodities {
             if (mergeMetaDataSet.contains(entry.getKey().type)) {
                 Builder ontoBuilder = mergeOntoCommoditiesMap.remove(entry.getKey());
                 retVal.add(ontoBuilder == null ? entry.getValue()
-                        : DTOFieldAndPropertyHandler.mergeBuilders(entry.getValue(), ontoBuilder));
+                    : DTOFieldAndPropertyHandler.mergeBuilders(entry.getValue(), ontoBuilder,
+                    // use empty list since we currently merge all fields for bought commodity
+                    // we can specify fields to merge once there is a valid use case
+                    Collections.emptyList()));
             }
         }
         // add any onto builders that didn't have matching from side commodities to the return value
-        mergeOntoCommoditiesMap.values().forEach(builder -> retVal.add(builder));
+        retVal.addAll(mergeOntoCommoditiesMap.values());
         return retVal;
+    }
+
+        /**
+         * For each commodity bought look for a matching commodity sold.
+         * If there is a sold commodity that is an exact match then keep the bought commodity.
+         * Otherwise replace the bought commodity with the best match: Special case to look for
+         * matching partition in VSTORAGE commodity. Then, if there are APPLICATION commodities
+         * that were not matched, look for one sold and copy its key to the commodity bought.
+         * For bought commodities with no match, keep each one as is.
+         *
+         * @param commoditiesBought list of commodities bought
+         * @param commoditiesSold list of commodities sold
+         * @return list of commodities bought that match (as close as possible) the commodities sold
+         */
+    public static List<CommodityDTO.Builder> matchBoughtToSold(
+            @Nonnull final List<CommodityDTO.Builder> commoditiesBought,
+            @Nonnull final List<CommodityDTO.Builder> commoditiesSold) {
+        // local mutable copy
+        List<CommodityDTO.Builder> commoditiesBoughtLocal = Lists.newArrayList(commoditiesBought);
+        // Consider first checking VSTORAGE + partition and only then type + key
+
+        // Look for matching type + key
+        final Map<CommodityBuilderIdentifier, CommodityDTO.Builder> soldCommoditiesMap =
+            commoditiesSold.stream().collect(Collectors.toMap(
+                commodity -> commodityBuilderIdentifier(commodity), Function.identity()));
+
+        List<CommodityDTO.Builder> matching = Lists.newArrayList();
+        matching.addAll(commoditiesBoughtLocal.stream()
+                .filter(comm -> soldCommoditiesMap.containsKey(commodityBuilderIdentifier(comm)))
+                .collect(Collectors.toList()));
+        commoditiesBoughtLocal.removeAll(matching);
+
+        if (!commoditiesBoughtLocal.isEmpty()) {
+            // APPLICATION commodity that were not matched so far: match by type only
+            List<CommodityDTO.Builder> matchFound = Lists.newArrayList();
+            commoditiesSold.stream()
+                .filter(comm -> comm.getCommodityType() == CommodityType.APPLICATION)
+                .findAny()
+                .map(CommodityDTO.Builder::getKey)
+                    .ifPresent(appKeySold -> {
+                    commoditiesBoughtLocal.stream()
+                        .filter(comm -> comm.getCommodityType() == CommodityType.APPLICATION)
+                        .forEach(commBought -> {
+                            commBought.setKey(appKeySold);
+                            matchFound.add(commBought);
+                            matching.add(commBought);
+                        });
+                    }
+                );
+            commoditiesBoughtLocal.removeAll(matchFound);
+        }
+        // Add remaining non-matching commodities.
+        matching.addAll(commoditiesBoughtLocal);
+        return matching;
+    }
+
+    private static CommodityBuilderIdentifier commodityBuilderIdentifier(CommodityDTO.Builder builder) {
+        return new CommodityBuilderIdentifier(builder.getCommodityType(), builder.getKey());
     }
 }

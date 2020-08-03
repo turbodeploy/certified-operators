@@ -26,6 +26,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
+import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -53,7 +54,7 @@ public class RemoteProbeStoreTest {
     @Before
     public void setup() {
         idProvider = Mockito.mock(IdentityProvider.class);
-        store = new RemoteProbeStore(keyValueStore, idProvider, stitchingOperationStore);
+        store = new RemoteProbeStore(keyValueStore, idProvider, stitchingOperationStore,  new ActionMergeSpecsRepository());
     }
 
     @Test
@@ -79,6 +80,7 @@ public class RemoteProbeStoreTest {
         // case that was previously broken
         final ProbeInfo probeInfoWithCategory = ProbeInfo.newBuilder(Probes.emptyProbe)
                 .setProbeCategory(ProbeCategory.DATABASE_SERVER.getCategory())
+                .setUiProbeCategory(ProbeCategory.APPLICATIONS_AND_DATABASES.getCategory())
                 .build();
         final long probeId = 12345L;
         when(idProvider.getProbeId(probeInfoWithCategory)).thenReturn(probeId);
@@ -248,11 +250,11 @@ public class RemoteProbeStoreTest {
     @Test
     public void testCompareProbeStitchingOrder() throws Exception {
         final ProbeInfo storageProbe = ProbeInfo.newBuilder().setProbeType("probe-type-stitching-order-1")
-                .setProbeCategory("Storage").addTargetIdentifierField("targetId").build();
+                .setProbeCategory("Storage").setUiProbeCategory("Storage").addTargetIdentifierField("targetId").build();
         final ProbeInfo hypervisorProbe = ProbeInfo.newBuilder().setProbeType("probe-type-stitching-order-2")
-                .setProbeCategory("HYPERVISOR").addTargetIdentifierField("targetId").build();
+                .setProbeCategory("HYPERVISOR").setUiProbeCategory("Hypervisor").addTargetIdentifierField("targetId").build();
         final ProbeInfo fabricProbe = ProbeInfo.newBuilder().setProbeType("probe-type-stitching-order-3")
-                .setProbeCategory("Fabric").addTargetIdentifierField("targetId").build();
+                .setProbeCategory("Fabric").setUiProbeCategory("Fabric and Network").addTargetIdentifierField("targetId").build();
         final long storageProbeId = 2345L;
         final long hypervisorProbeId = 3456L;
         final long fabricProbeId = 4567L;
@@ -271,10 +273,8 @@ public class RemoteProbeStoreTest {
         ProbeStitchingOperation fabricOp = new ProbeStitchingOperation(fabricProbeId,
                 new StorageStitchingOperation());
         assertEquals(fabricProbe, store.getProbe(fabricProbeId).get());
-        assertEquals(-1, store.getProbeOrdering().compare(hyperVisorOp,
-                storageOp));
+        assertEquals(-1, store.getProbeOrdering().compare(hyperVisorOp, storageOp));
         assertEquals(1, store.getProbeOrdering().compare(storageOp, hyperVisorOp));
-        assertEquals(0, store.getProbeOrdering().compare(storageOp, fabricOp));
         Set<ProbeCategory> storageStitchWith =
                 store.getProbeOrdering().getCategoriesForProbeToStitchWith(storageProbe);
         assertEquals(2, storageStitchWith.size());

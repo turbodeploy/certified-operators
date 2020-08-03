@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -22,12 +24,9 @@ import org.junit.rules.TestName;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.client.IMessageReceiver;
@@ -65,8 +64,6 @@ public abstract class AbstractApiCallsTest {
 
     protected ActionExecutionServiceBlockingStub actionExecutionService;
 
-    protected EntityServiceGrpc.EntityServiceBlockingStub entityServiceBlockingStub;
-
     /**
      * Not using it as a Rule because we get the services from the {@link IntegrationTestServer}.
      */
@@ -95,10 +92,12 @@ public abstract class AbstractApiCallsTest {
                 integrationTestServer.getBean("planTopologyConnection");
         final IMessageReceiver<TopologySummary> topologySummaryReceiver =
                 integrationTestServer.getBean("topologySummaryConnection");
+        final IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver =
+            integrationTestServer.getBean("entitiesWithNewStateConnection");
         topologyProcessor =
                 TopologyProcessorClient.rpcAndNotification(integrationTestServer.connectionConfig(),
                         threadPool, notificationReceiver, liveTopologyReceiver,
-                        planTopologyReceiver, topologySummaryReceiver);
+                        planTopologyReceiver, topologySummaryReceiver, entitiesWithNewStateReceiver);
 
         actionExecutionService =
                 ActionExecutionServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -122,14 +121,14 @@ public abstract class AbstractApiCallsTest {
 
     protected static TargetInfo wrapTarget(@Nonnull final Target target) {
         final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-        Mockito.when(groupScopeResolver.processGroupScope(any(), any()))
-                .then(AdditionalAnswers.returnsFirstArg());
+        Mockito.when(groupScopeResolver.processGroupScope(any(), any(), any()))
+                .then(AdditionalAnswers.returnsSecondArg());
 
         final List<InputField> fields = target.getMediationAccountVals(groupScopeResolver).stream()
                         .map(AbstractApiCallsTest::convertToRest).collect(Collectors.toList());
         final TargetSpec spec =
                         new TargetSpec(target.getProbeId(), fields);
-        return new TargetRESTApi.TargetInfo(target.getId(), null, spec, true, "Validated",
+        return new TargetRESTApi.TargetInfo(target.getId(), target.getDisplayName(), null, spec, true, "Validated",
                 LocalDateTime.now());
     }
 

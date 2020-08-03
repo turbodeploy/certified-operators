@@ -7,19 +7,21 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
-
 import com.google.common.collect.Sets;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
+
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.ResetGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.ResetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
@@ -27,6 +29,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
+import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
 
@@ -167,48 +170,32 @@ public class SettingRpcService extends SettingServiceImplBase {
     @Override
     public void updateGlobalSetting(UpdateGlobalSettingRequest request,
                                     StreamObserver<UpdateGlobalSettingResponse> responseObserver) {
-
-        if (!request.hasSettingSpecName()) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("Setting name is missing")
-                .asException());
-            responseObserver.onCompleted();
-            return;
-        }
-
         try {
-            settingStore.updateGlobalSetting(createSettingFromRequest(request));
-            responseObserver.onNext(UpdateGlobalSettingResponse.newBuilder().build());
+            for (Setting setting : request.getSettingList()) {
+                settingStore.updateGlobalSetting(setting);
+            }
+            responseObserver.onNext(UpdateGlobalSettingResponse.getDefaultInstance());
         } catch (DataAccessException e) {
             responseObserver.onError(
                 Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
-
-        responseObserver.onCompleted();
+       responseObserver.onCompleted();
     }
 
-    private Setting createSettingFromRequest(UpdateGlobalSettingRequest request) {
-
-        Setting.Builder settingBuilder = Setting.newBuilder();
-        settingBuilder.setSettingSpecName(request.getSettingSpecName());
-
-        switch (request.getValueCase()) {
-            case BOOLEAN_SETTING_VALUE:
-                settingBuilder.setBooleanSettingValue(request.getBooleanSettingValue());
-                break;
-            case NUMERIC_SETTING_VALUE:
-                settingBuilder.setNumericSettingValue(request.getNumericSettingValue());
-                break;
-            case STRING_SETTING_VALUE:
-                settingBuilder.setStringSettingValue(request.getStringSettingValue());
-                break;
-            case ENUM_SETTING_VALUE:
-                settingBuilder.setEnumSettingValue(request.getEnumSettingValue());
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown value type " + request.getValueCase());
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void resetGlobalSetting(final ResetGlobalSettingRequest request,
+                                   final StreamObserver<ResetGlobalSettingResponse> responseObserver) {
+        try {
+            settingStore.resetGlobalSetting(request.getSettingSpecNameList());
+            responseObserver.onNext(ResetGlobalSettingResponse.getDefaultInstance());
+        } catch (DataAccessException e) {
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+        } catch (SettingNotFoundException e) {
+            responseObserver.onError(Status.NOT_FOUND.withDescription(e.getMessage()).asException());
         }
-
-        return settingBuilder.build();
+        responseObserver.onCompleted();
     }
 }

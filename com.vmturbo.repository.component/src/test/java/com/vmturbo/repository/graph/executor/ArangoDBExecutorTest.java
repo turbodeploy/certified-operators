@@ -41,16 +41,16 @@ import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.entity.BaseDocument;
 import com.arangodb.model.AqlQueryOptions;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 
 import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.components.common.mapping.UIEnvironmentType;
-import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
@@ -58,8 +58,6 @@ import com.vmturbo.repository.graph.result.ResultsFixture;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex;
 import com.vmturbo.repository.topology.GlobalSupplyChainRelationships;
-import com.vmturbo.repository.topology.TopologyDatabase;
-import com.vmturbo.repository.topology.TopologyDatabases;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ArangoDBExecutorTest {
@@ -81,14 +79,14 @@ public class ArangoDBExecutorTest {
 
     @Before
     public void setUp() {
-        arangoDBExecutor = new ArangoDBExecutor(databaseFactory);
+        arangoDBExecutor = new ArangoDBExecutor(databaseFactory, "db");
 
         given(databaseFactory.getArangoDriver()).willReturn(arangoDriver);
     }
 
     @Test
     public void testExecuteSupplyChainCmdWithException() throws Exception {
-        givenASupplyChainCmd("db", "start", "graph", Optional.empty(), "vertex");
+        givenASupplyChainCmd("start", "graph", Optional.empty(), "vertex");
         givenArangoDriverWillThrowException();
 
         whenExecuteSupplyChainCmd();
@@ -113,23 +111,23 @@ public class ArangoDBExecutorTest {
                 ImmutableList.of(host1a, host1b, host1c, host1d,
                         vm1, vm2, vm3, vm4);
 
-        givenASupplyChainCmd("db","start", "graph", Optional.empty(), "vertex");
+        givenASupplyChainCmd("start", "graph", Optional.empty(), "vertex");
         givenArangoDriverWillThrowException();
         givenSupplyChainSubgraphResults(vertices, vertices);
         whenExecuteSupplyChainCmd();
         final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(supplyChainSubgraph.get());
-        assertEquals(1, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue())));
-        assertEquals(4, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())));
+        assertEquals(1, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(ApiEntityType.PHYSICAL_MACHINE.apiStr())));
+        assertEquals(4, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.apiStr())));
 
         org.hamcrest.MatcherAssert.assertThat(
-            supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue()).getConnectedConsumerTypesList(),
-            contains(RepoEntityType.VIRTUAL_MACHINE.getValue()));
+            supplyChainNodes.get(ApiEntityType.PHYSICAL_MACHINE.apiStr()).getConnectedConsumerTypesList(),
+            contains(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
         org.hamcrest.MatcherAssert.assertThat(
-            supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue()).getConnectedProviderTypesList(),
+            supplyChainNodes.get(ApiEntityType.PHYSICAL_MACHINE.apiStr()).getConnectedProviderTypesList(),
             is(empty()));
         org.hamcrest.MatcherAssert.assertThat(
-            supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue()).getConnectedProviderTypesList(),
-            contains(RepoEntityType.PHYSICAL_MACHINE.getValue()));
+            supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.apiStr()).getConnectedProviderTypesList(),
+            contains(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
     }
 
     @Test
@@ -156,23 +154,23 @@ public class ArangoDBExecutorTest {
                 ImmutableList.of(host1a, host1b, host1c, host1d, host2a,
                         vm1, vm2, vm3, vm4, vm5, dc1a, dc1b);
 
-        givenASupplyChainCmd("db","start", "graph", Optional.empty(), "vertex");
+        givenASupplyChainCmd("start", "graph", Optional.empty(), "vertex");
         givenArangoDriverWillThrowException();
         givenSupplyChainSubgraphResults(vertices, vertices);
         whenExecuteSupplyChainCmd();
         final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(supplyChainSubgraph.get());
-        final SupplyChainNode pmNode = supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue());
+        final SupplyChainNode pmNode = supplyChainNodes.get(ApiEntityType.PHYSICAL_MACHINE.apiStr());
         assertEquals(1, RepositoryDTOUtil.getMemberCount(pmNode));
-        assertEquals(4, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())));
-        assertEquals(1, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.DATACENTER.getValue())));
+        assertEquals(4, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.apiStr())));
+        assertEquals(1, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(ApiEntityType.DATACENTER.apiStr())));
 
         org.hamcrest.MatcherAssert.assertThat(pmNode.getConnectedConsumerTypesList(),
-            contains(RepoEntityType.VIRTUAL_MACHINE.getValue()));
+            contains(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
         org.hamcrest.MatcherAssert.assertThat(pmNode.getConnectedProviderTypesList(),
-            contains(RepoEntityType.DATACENTER.getValue()));
+            contains(ApiEntityType.DATACENTER.apiStr()));
         org.hamcrest.MatcherAssert.assertThat(
-            supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue()).getConnectedProviderTypesList(),
-            contains(RepoEntityType.PHYSICAL_MACHINE.getValue()));
+            supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.apiStr()).getConnectedProviderTypesList(),
+            contains(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
     }
 
     @Test
@@ -208,7 +206,6 @@ public class ArangoDBExecutorTest {
         final Multimap<String, String> providerRels = HashMultimap.create();
         providerRels.putAll(key1,key2);
         final ArangoDatabase mockDatabase = Mockito.mock(ArangoDatabase.class);
-        final TopologyDatabase db = mock(TopologyDatabase.class);
         GlobalSupplyChainRelationships mockResult = new GlobalSupplyChainRelationships(documents);
 
         when(mockDatabase.collection(anyString())).thenReturn(mock(ArangoCollection.class));
@@ -217,10 +214,9 @@ public class ArangoDBExecutorTest {
             BaseDocument.class))
             .thenReturn(searchResultCursor);
         when(searchResultCursor.asListRemaining()).thenReturn(documents);
-        mockDatabase.collection(arangoDBExecutor.SUPPLY_CHAIN_RELS_COLLECTION).insertDocument(document);
-        when(TopologyDatabases.getDbName(db)).thenReturn("topology-id");
+        mockDatabase.collection(arangoDBExecutor.GLOBAL_SUPPLY_CHAIN_RELS_COLLECTION).insertDocument(document);
 
-        assertThat(arangoDBExecutor.getSupplyChainRels(db)).isEqualToComparingFieldByField(mockResult);
+        assertThat(arangoDBExecutor.getSupplyChainRels()).isEqualToComparingFieldByField(mockResult);
     }
 
     @Test
@@ -239,9 +235,7 @@ public class ArangoDBExecutorTest {
                                        final String field,
                                        final String query,
                                        final GraphCmd.SearchType searchType) {
-        final TopologyDatabase topologyDatabase = TopologyDatabase.from("db-foo");
-        graphCmd = new GraphCmd.SearchServiceEntity(collection, field, query, searchType,
-                                                    topologyDatabase);
+        graphCmd = new GraphCmd.SearchServiceEntity(collection, field, query, searchType);
     }
 
     private void givenSearchServiceEntityResults(final List<ServiceEntityRepoDTO> searchResults) throws ArangoDBException {
@@ -257,13 +251,12 @@ public class ArangoDBExecutorTest {
                 .thenReturn(searchResultCursor);
     }
 
-    private void givenASupplyChainCmd(final String databaseName,
-                                      final String starting,
+    private void givenASupplyChainCmd(final String starting,
                                       final String graphName,
-                                      final Optional<UIEnvironmentType> environmentType,
+                                      final Optional<EnvironmentType> environmentType,
                                       final String vertexColl) {
         graphCmd = new GraphCmd.GetSupplyChain(starting, environmentType,
-                TopologyDatabase.from(databaseName),graphName, vertexColl, Optional.empty(),
+            graphName, vertexColl, Optional.empty(),
                 Collections.emptySet(), Collections.emptySet());
     }
 

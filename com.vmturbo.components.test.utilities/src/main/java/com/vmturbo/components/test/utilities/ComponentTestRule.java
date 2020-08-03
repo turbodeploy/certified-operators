@@ -9,14 +9,14 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
@@ -95,7 +95,8 @@ public class ComponentTestRule implements TestRule {
         logger.info("Completed setup for test {}!", testName);
 
         kafkaMessageProducer =
-                new KafkaMessageProducer(DockerEnvironment.getKafkaBootstrapServers());
+                new KafkaMessageProducer(DockerEnvironment.getKafkaBootstrapServers(),
+                    "", 67108864, 126976);
     }
 
     private void teardown() {

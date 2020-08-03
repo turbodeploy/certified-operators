@@ -112,8 +112,18 @@ service DeploymentProfileService {
     rpc DeleteDeploymentProfile(DeleteDeploymentProfileRequest) returns (DeploymentProfile);
 }
 
-// Response for set target's templates and deployment profiles RPC call.
-message SetDiscoveredTemplateDeploymentProfileResponse {
+// Response for setting one single target's templates and deployment profiles RPC call.
+message UpdateDiscoveredTemplateDeploymentProfileResponse {
+    repeated TargetProfileIdentities target_profile_identities = 1;
+    // internal identities are generated during processing of UpdateDiscoveredTemplateDeploymentProfile
+    message TargetProfileIdentities {
+        // target identity
+        required int64 target_oid = 1;
+        // profile vendor identities to internal identities
+        map<string, int64> profile_id_to_oid = 2;
+        // deployment profile vendor identities to internal identities
+        map<string, int64> deployment_profile_id_to_oid = 3;
+    }
 }
 
 // Contains A dsicovered entity profile(template) and a list of deployment profile attached to it.
@@ -126,7 +136,7 @@ message EntityProfileToDeploymentProfile {
 }
 
 // Request for set target's templates and deployment profiles RPC call.
-message SetTargetDiscoveredTemplateDeploymentProfileRequest {
+message UpdateTargetDiscoveredTemplateDeploymentProfileRequest {
     // Target id the discovered templates deployment profiles are reported for.
     required int64 target_id = 1;
 
@@ -136,20 +146,22 @@ message SetTargetDiscoveredTemplateDeploymentProfileRequest {
 
     // Store discovered deployment profiles which have no referenced templates.
     repeated DeploymentProfileInfo deployment_profile_without_templates = 3;
-}
 
-// Request for set discovered templates and deployment profiles within one discover.
-message SetDiscoveredTemplateDeploymentProfileRequest {
-    // list of set templates and deployment profiles request by different target id.
-    repeated SetTargetDiscoveredTemplateDeploymentProfileRequest target_request = 1;
+    // If false, this target hasn't completed a discovery and we don't know whether or not it
+    // has associated templates/deployment profiles. This is useful when determining whether or not
+    // to clean out existing data for the target.
+    //
+    // Set to "true" by default to make it harder to accidentally leave it as "false".
+    // The default assumption is that data is available for every uploaded target.
+    optional bool data_available = 4 [default = true];
 }
 
 // Template to deployment profile relationship is many to many. In order to represent relationship,
 // it needs to cover three case, templates have no deployment profile, template have deployment profile
 // and deployment profile have no templates.
 service DiscoveredTemplateDeploymentProfileService {
-    // Sets the specified discovered templates and deployment profiles for the specified target.
+    // Updates the specified discovered templates and deployment profiles for the specified target.
     // Target-related templates and deployment profiles, not specified in this request will be removed.
-    rpc SetDiscoveredTemplateDeploymentProfile (SetDiscoveredTemplateDeploymentProfileRequest)
-    returns (SetDiscoveredTemplateDeploymentProfileResponse);
+    rpc UpdateDiscoveredTemplateDeploymentProfile (stream UpdateTargetDiscoveredTemplateDeploymentProfileRequest)
+    returns (UpdateDiscoveredTemplateDeploymentProfileResponse);
 }

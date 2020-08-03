@@ -39,3 +39,52 @@ service LogConfigurationService {
     rpc GetLogLevels (GetLogLevelsRequest) returns (GetLogLevelsResponse);
     rpc SetLogLevels (SetLogLevelsRequest) returns (SetLogLevelsResponse);
 }
+
+// The tracing configuration specifies dynamic tracing options.
+message TracingConfiguration {
+
+    // The endpoint of the Jaeger collector.
+    //
+    // Note - we bypass the Jaeger agent and go straight to the collector, because on a one-node
+    // deployment the agent is an unnecessary middleman.
+    optional string jaeger_endpoint = 1;
+
+    // The sampling rate. Should be a number between 0 and 1, indicating the likelihood than
+    // an eligible span will be sampled and sent to jaeger.
+    optional double sampling_rate = 2;
+}
+
+message GetTracingConfigRequest {
+}
+
+message GetTracingConfigResponse {
+
+    optional TracingConfiguration cur_config = 1;
+}
+
+message SetTracingConfigRequest {
+
+    // The new configuration to use.
+    //
+    // Note - the new configuration will be MERGED with the existing configuration. For example,
+    // if the new configuration does not have a sampling rate or endpoint then we will
+    // retain the existing sampling rate or endpoint.
+    optional TracingConfiguration new_config = 1;
+}
+
+message SetTracingConfigResponse {
+
+    // The now-active configuration - i.e. the new configuration from the request merged onto
+    // the configuration active before the request.
+    optional TracingConfiguration result_config = 1;
+}
+
+// Service for dynamically changing the tracing configuration - most notably the sampling
+// options to use, and the location to send the sampled traces to.
+service TracingConfigurationService {
+    // Get the currently active tracing configuration.
+    rpc GetTracingConfig (GetTracingConfigRequest) returns (GetTracingConfigResponse);
+
+    // Set the tracing configuration.
+    rpc SetTracingConfig (SetTracingConfigRequest) returns (SetTracingConfigResponse);
+}

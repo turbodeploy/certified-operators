@@ -7,33 +7,69 @@
             {"inputType": "*", "elements": "VirtualDataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDCnested"},
             {"inputType": "*", "elements": "DiskArray:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByDiskArrayName"},
             {"inputType": "*", "elements": "Storage:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByStorage"},
-            {"inputType": "*", "elements": "Application:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"},
-            {"inputType": "*", "elements": "PhysicalMachine:Cluster:PRODUCES", "filterCategory": "entity", "filterType": "vmsByClusterName"},
+            {"inputType": "*", "elements": "ApplicationComponent:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplicationComponent"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByBusinessTransaction"},
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByService"},
+            {"inputType": "*", "elements": "PhysicalMachine:MemberOf:Cluster:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDC"},
-            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "vmsByState"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vmsByTag"},
+            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "vmsByState", "loadOptions": true},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vmsByTag", "loadOptions": true},
+            {"inputType": "s", "elements": "ephemeral", "filterCategory": "property", "filterType": "vmsConnectedToEphemeralStorage"},
+            {"inputType": "s", "elements": "hotAddMemory", "filterCategory": "property", "filterType": "vmsHotAddMemory"},
+            {"inputType": "s", "elements": "hotAddCPU", "filterCategory": "property", "filterType": "vmsHotAddCPU"},
+            {"inputType": "s", "elements": "hotRemoveCPU", "filterCategory": "property", "filterType": "vmsHotRemoveCPU"},
+            {"inputType": "s", "elements": "encrypted", "filterCategory": "property", "filterType": "vmsConnectedToEncryptedVolume"},
             {"inputType": "*", "elements": "virtualMachineInfoRepoDTO.guestOsType", "filterCategory": "property", "filterType": "vmsByGuestName"},
             {"inputType": "#", "elements": "virtualMachineInfoRepoDTO.numCpus", "filterCategory": "property", "filterType": "vmsByNumCPUs"},
-            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid"},
+            {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid", "loadOptions": true},
             {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "vmsByMem"},
-            {"inputType": "*", "elements": "LogicalPool:displayName:PRODUCES:Storage:PRODUCES", "filterCategory": "entity", "filterType": "vmsByLogicalPoolName"}
+            {"inputType": "*", "elements": "LogicalPool:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByLogicalPoolName"},
+            {"inputType": "*", "elements": "networks", "filterCategory": "property", "filterType": "vmsByNetwork"},
+            {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "vmsByResourceGroupName", "loadOptions": true},
+            {"inputType": "*", "elements": "AvailabilityZone:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByAvailabilityZoneName"},
+            {"inputType": "*", "elements": "Region:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByRegionName"},
+            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "vmsByCloudProvider", "loadOptions": true},
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "vmsByK8sCluster"},
+            {"inputType": "s", "elements": "activeSessions", "filterCategory": "property", "filterType": "vmsByActiveSessions"}
+        ]
+    },
+
+    "ComputeTier": {
+        "criteria": [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "computeTiersByName"},
+            {"inputType": "#", "elements": "commoditySoldList[type=Mem,capacity]", "filterCategory": "property", "filterType": "computeTiersByMem"}
+        ]
+    },
+
+    "DatabaseTier": {
+        "criteria": [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseTiersByName"},
+            {"inputType": "#", "elements": "commoditySoldList[type=DBMem,capacity]", "filterCategory": "property", "filterType": "databaseTiersByDBMem"}
+        ]
+    },
+
+    "DatabaseServerTier": {
+        "criteria": [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseServerTiersByName"},
+            {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "databaseServerTiersByVMem"}
         ]
     },
 
     "VirtualDataCenter" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vdcsByName"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vdcsByTag"}
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vdcsByTag", "loadOptions": true}
         ]
     },
 
     "PhysicalMachine" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "pmsByName"},
-            {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "pmsByClusterName"},
+            {"inputType": "*", "elements": "MemberOf:Cluster:displayName", "filterCategory": "entity", "filterType": "pmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "pmsByDC"},
-            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "pmsByState"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "pmsByTag"},
+            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "pmsByState", "loadOptions": true},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "pmsByTag", "loadOptions": true},
             {"inputType": "*", "elements": "Storage:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "pmsByStorage"},
             {"inputType": "*", "elements": "Switch:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "pmsBySwitch"},
             {"inputType": "#", "elements": "commoditySoldList[type=Mem,capacity]", "filterCategory": "property", "filterType": "pmsByMem"},
@@ -49,11 +85,11 @@
     "Storage" : {
         "criteria": [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storageByName"},
-            {"inputType": "*", "elements": "VirtualMachine:displayName:CONSUMES", "filterCategory": "entity", "filterType": "storageByVMs"},
-            {"inputType": "*", "elements": "PhysicalMachine:Cluster:CONSUMES", "filterCategory": "entity", "filterType": "storageByPMCluster"},
-            {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "storageByStorageCluster"},
-            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "storageByState"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "storageByTag"},
+            {"inputType": "*", "elements": "VirtualMachine:displayName:CONSUMES:1", "filterCategory": "entity", "filterType": "storageByVMs"},
+            {"inputType": "*", "elements": "PhysicalMachine:MemberOf:Cluster:displayName:CONSUMES:Storage", "filterCategory": "entity", "filterType": "storageByPMCluster"},
+            {"inputType": "*", "elements": "MemberOf:StorageCluster:displayName", "filterCategory": "entity", "filterType": "storageByStorageCluster"},
+            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "storageByState", "loadOptions": true},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "storageByTag", "loadOptions": true},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES:1:PhysicalMachine:CONSUMES:1", "filterCategory": "entity", "filterType": "storageByDC"},
             {"inputType": "*", "elements": "storageInfoRepoDTO.local", "filterCategory": "property", "filterType": "storageWithLocalSupport"}
         ]
@@ -62,60 +98,124 @@
     "Container" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containersByName"},
-            {"inputType": "*", "elements": "HostedBy:displayName", "filterCategory": "entity", "filterType": "containersByPodName"}
+            {"inputType": "*", "elements": "ContainerPod:displayName:PRODUCES", "filterCategory": "entity", "filterType": "containersByPodName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES:ContainerPod:PRODUCES", "filterCategory": "entity", "filterType": "containersByNamespace"},
+            {"inputType": "*", "elements": "ApplicationComponent:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByApplicationComponent"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByBusinessTransaction"},
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByService"},
+            {"inputType": "s|*", "elements": "WorkloadController:workloadControllerInfoRepoDTO.controllerType:PRODUCES:ContainerPod:PRODUCES", "filterCategory": "entity", "filterType": "containersByControllerKind", "loadOptions": true},
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "containersByK8sCluster"}
         ]
     },
 
     "ContainerPod" : {
         "criteria" : [
-            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containerpodsByName"},
-            {"inputType": "*", "elements": "HostedBy:displayName", "filterCategory": "entity", "filterType": "containerpodsByVMName"}
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containerPodsByName"},
+            {"inputType": "*", "elements": "VirtualMachine:displayName:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByVMName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByNamespace"},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "containerPodsByTag", "loadOptions": true},
+            {"inputType": "s|*", "elements": "WorkloadController:workloadControllerInfoRepoDTO.controllerType:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByControllerKind", "loadOptions": true},
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "containerPodsByK8sCluster"}
         ]
     },
 
-    "Application" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appsByName"}]
+    "ContainerSpec" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containerSpecsByName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:AGGREGATES:ContainerSpec", "filterCategory": "entity", "filterType": "containerSpecsByNamespace"},
+            {"inputType": "s|*", "elements": "WorkloadController:workloadControllerInfoRepoDTO.controllerType:AGGREGATES", "filterCategory": "entity", "filterType": "containerSpecsByControllerKind", "loadOptions": true},
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "containerSpecsByK8sCluster"}
+        ]
     },
 
-    "ApplicationServer" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appSrvsByName"}]
+    "WorkloadController" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "workloadControllersByName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES", "filterCategory": "entity", "filterType": "workloadControllersByNamespace"},
+            {"inputType": "s|*", "elements": "workloadControllerInfoRepoDTO.controllerType", "filterCategory": "property", "filterType": "workloadControllersByKind", "loadOptions": true},
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "workloadControllersByK8sCluster"}
+        ]
+    },
+
+    "Namespace" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "namespacesByName"},
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "namespacesByK8sCluster"}
+        ]
+    },
+
+    "ApplicationComponent" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appCompsByName"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "applicationComponentByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "applicationComponentByBusinessTransaction"},
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "applicationComponentByService"}
+        ]
     },
 
     "BusinessApplication" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busAppsByName"}]
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busAppsByName"},
+                      {"inputType": "s", "elements": "UserDefinedEntity", "filterCategory": "property", "filterType": "businessApplicationByUserDefinedEntity", "loadOptions": true}
+        ]
+    },
+
+    "BusinessTransaction" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busTransByName"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "businessTransactionByBusinessApplication"},
+            {"inputType": "s", "elements": "UserDefinedEntity", "filterCategory": "property", "filterType": "businessTransactionByUserDefinedEntity", "loadOptions": true}
+        ]
+    },
+
+    "Service" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "servicesByName"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "serviceByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "serviceByBusinessTransaction"},
+            {"inputType": "s", "elements": "UserDefinedEntity", "filterCategory": "property", "filterType": "serviceByUserDefinedEntity", "loadOptions": true}
+        ]
     },
 
     "Database" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag"},
-            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid"}
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag", "loadOptions": true},
+            {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid", "loadOptions": true},
+            {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "databaseByResourceGroupName", "loadOptions": true},
+            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "databaseByCloudProvider", "loadOptions": true},
+            {"inputType": "*", "elements": "ApplicationComponent:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByApplicationComponent"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByBusinessTransaction"},
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByService"}
         ]
     },
 
     "DatabaseServer" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseServerByName"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseServerByTag"},
-            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid"}
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseServerByTag", "loadOptions": true},
+            {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid", "loadOptions": true},
+            {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "databaseServerByResourceGroupName", "loadOptions": true},
+            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "databaseServerByCloudProvider", "loadOptions": true},
+            {"inputType": "*", "elements": "ApplicationComponent:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByApplicationComponent"},
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByBusinessApplication"},
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByBusinessTransaction"},
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByService"}
         ]
-    },
-
-    "VirtualApplication" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vappsByName"}]
     },
 
     "DataCenter": {
         "criteria": [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "datacentersByName"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "datacentersByTag"}
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "datacentersByTag", "loadOptions": true}
         ]
     },
 
     "Cluster" : {
         "criteria" : [
           {"inputType": "*", "elements": "Cluster:displayName", "filterCategory": "property", "filterType": "clustersByName"},
-          {"inputType": "s|*", "elements": "ConsistsOf:PhysicalMachine:MemberOf:Cluster:tags", "filterCategory": "property", "filterType": "clustersByTag"}
+          {"inputType": "s|*", "elements": "ConsistsOf:PhysicalMachine:MemberOf:Cluster:tags", "filterCategory": "property", "filterType": "clustersByTag", "loadOptions": true}
         ]
     },
 
@@ -126,6 +226,20 @@
     "StorageCluster" : {
         "criteria" : [
           {"inputType": "*", "elements": "StorageCluster:displayName", "filterCategory": "property", "filterType": "storageClustersByName"}
+        ]
+    },
+
+    "VirtualMachineCluster" : {
+        "criteria" : [
+          {"inputType": "*", "elements": "VirtualMachineCluster:displayName", "filterCategory": "property", "filterType": "virtualMachineClustersByName"}
+        ]
+    },
+
+    "ResourceGroup" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "resourceGroupByName"},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "resourceGroupByTag", "loadOptions": true},
+            {"inputType": "s", "elements": "BusinessAccount:oid", "filterCategory": "entity", "filterType": "resourceGroupByBusinessAccountUuid", "loadOptions": true}
         ]
     },
 
@@ -150,13 +264,87 @@
     "VirtualVolume" : {
       "criteria" : [
         {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "virtualVolumeByName"},
-        {"inputType": "*", "elements": "Storage:storageInfoRepoDTO.local:CONNECTED_FROM:1", "filterCategory": "property", "filterType": "virtualVolumeWithLocalSupport"}
+        {"inputType": "*", "elements": "Storage:storageInfoRepoDTO.local:CONNECTED_FROM:1", "filterCategory": "property", "filterType": "virtualVolumeWithLocalSupport"},
+        {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "volumeByTag", "loadOptions": true},
+        {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "volumeByAccount", "loadOptions": true},
+        {"inputType": "*", "elements": "VirtualMachine:displayName:CONSUMES:1", "filterCategory":
+        "entity", "filterType": "volumeByConnectedVm"},
+        {"inputType": "s", "elements": "virtualVolumeInfoRepoDTO.attachmentState", "filterCategory": "property", "filterType": "volumeByAttachmentState", "loadOptions": true},
+        {"inputType": "s", "elements": "StorageTier:oid:PRODUCES:1", "filterCategory": "entity", "filterType": "volumeByTier", "loadOptions": true},
+        {"inputType": "s", "elements": "Region:oid:AGGREGATES:VirtualVolume", "filterCategory": "entity", "filterType": "volumeByRegion", "loadOptions": true},
+        {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider", "loadOptions": true},
+        {"inputType": "*", "elements": "vendorId", "filterCategory": "property", "filterType": "volumeById"},
+        {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "volumeByResourceGroupName", "loadOptions": true},
+        {"inputType": "s", "elements": "deletable", "filterCategory": "property", "filterType": "volumeByDeletable"}
       ]
     },
 
     "StorageTier" : {
       "criteria" : [
         {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storageTierByName"}
+      ]
+    },
+    "Network": {
+        "criteria": [
+            {
+                "inputType": "*",
+                "elements": "displayName",
+                "filterCategory": "property",
+                "filterType": "netsByName"
+            }
+        ]
+    },
+
+    "BusinessAccount" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "businessAccountByName"},
+            {"inputType": "s", "elements": "BusinessAccount:oid", "filterCategory": "entity", "filterType": "businessAccountByUuid", "loadOptions": true},
+            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "businessAccountCloudProvider", "loadOptions": true},
+            {"inputType": "*", "elements": "discoveredBy:displayName", "filterCategory": "property", "filterType": "businessAccountTargetName"},
+            {"inputType": "s", "elements": "discoveredBy:validationStatus", "filterCategory": "property", "filterType": "businessAccountValidationStatus", "loadOptions": true},
+            {"inputType": "s", "elements": "OwnerOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "businessAccountByResourceGroup", "loadOptions": true},
+            {"inputType": "s", "elements": "MemberOf:BillingFamily:uuid", "filterCategory": "entity", "filterType": "subBusinessAccountOfUuid", "loadOptions": true}
+        ]
+    },
+
+    "BillingFamily" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "billingFamilyByName"}
+      ]
+    },
+
+    "Region" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "regsByName"},
+        {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "regsByCloudProvider", "loadOptions": true}
+      ]
+    },
+
+    "AvailabilityZone" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "zonsByName"},
+        {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "zoneByCloudProvider", "loadOptions": true}
+      ]
+    },
+
+    "DesktopPool" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "desktopPoolByName"},
+        {"inputType": "*", "elements": "ViewPod:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "desktopPoolByViewPod"}
+      ]
+    },
+
+    "BusinessUser" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "businessUserByName"},
+        {"inputType": "*", "elements": "DesktopPool:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "businessUserByDesktopPool"},
+        {"inputType": "*", "elements": "ViewPod:displayName:PRODUCES:BusinessUser", "filterCategory": "entity", "filterType": "businessUserByViewPod"}
+      ]
+    },
+
+    "ViewPod" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "viewPodByName"}
       ]
     }
 }

@@ -1,12 +1,20 @@
 package com.vmturbo.clustermgr;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.orbitz.consul.model.health.HealthCheck;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiResponse;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -18,45 +26,37 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.HttpServerErrorException;
 
-import com.orbitz.consul.model.health.HealthCheck;
-
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-
-import com.vmturbo.api.dto.admin.HttpProxyDTO;
+import com.vmturbo.clustermgr.api.ClusterConfiguration;
+import com.vmturbo.clustermgr.api.ComponentProperties;
+import com.vmturbo.clustermgr.api.HttpProxyConfig;
 
 /**
- * REST endpoint for ClusterMgr, exposing APIs for component status, component configuration, node configuration.
+ * REST endpoint for ClusterMgr, exposing APIs for component status, component configuration.
  *
- * REST urls:
+ * <p>REST urls:
  *
- * GET or PUT the entire cluster configuration
+ * <p>GET or PUT the entire cluster configuration
  * / <- -> {@link ClusterConfiguration}
  *
- * GET the set of component types registered with VMTurbo
+ * <p>GET the set of component types registered with VMTurbo
  * /components
  *
- * GET the properties of a given component instance
- * /components/{component_type}/instances/{instance_id}/properties -> {property_name -> value_string map}
+ * <p>GET the properties of a given component instance
+ * /components/{component_type}/instances/{instance_id}/properties ->
+ *       {property_name -> value_string map}
  *
- * PUT a property of a given component instance
+ * <p>PUT a property of a given component instance
  * /components/{component_type}/instances/{instance_id}/{property_name} <- {property_value_string}
  *
- * GET (TODO: or PUT) the execution node for the given instanceId
- * /components/{component_type}/instances/{instance_id}/node = {node to run instance on}
- *
- * TODO:
- * GET the default property value map for the given component type
- * /components/{component_type}/defaults -> {property_name -> value_string map}
- *
- *
+ * <p>Fetch the runtime state of all the components
  * /state
  *
- * GET the aggregate diagnostic .zip file for the entire cluster
+ * <p>GET the aggregate diagnostic .zip file for the entire cluster
  * /diagnostics
  *
- * GET the health of the
+ * <p>GET the health of the
  * /health
  *
  **/
@@ -67,6 +67,10 @@ import com.vmturbo.api.dto.admin.HttpProxyDTO;
         produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
 
 public class ClusterMgrController {
+
+    // see HttpResponse.TOO_MANY_REQUESTS
+    private static final int HTTP_RESPONSE_TOO_MANY_REQUESTS = 429;
+
     private final ClusterMgrService clusterMgrService;
 
     ClusterMgrController(@Nonnull final ClusterMgrService clusterMgrService) {
@@ -74,10 +78,10 @@ public class ClusterMgrController {
     }
 
     /**
-     * Get a dump of the current Cluster Configuration
+     * Get a dump of the current Cluster Configuration.
      *
-     * @return a {@link ClusterConfiguration} object containing known components,
-     * components associated with each node, and property key/value maps for each component.
+     * @return a {@link ClusterConfiguration} object containing known components, and
+     * property key/value maps for each component.
      */
     @ApiOperation("Get the full cluster configuration")
     @RequestMapping(method = RequestMethod.GET)
@@ -91,7 +95,7 @@ public class ClusterMgrController {
      * Retrieves the Telemetry initialized flag. This flag is used in Classic to tell whether
      * or not this is an upgrade from a prior version in which Telemetry was not installed.
      *
-     * In XL the only setup required is that the Key/Value store has been initialized during
+     * <p>In XL the only setup required is that the Key/Value store has been initialized during
      * clustermgr startup.
      *
      * @return The Telemetry initialized flag.
@@ -137,6 +141,8 @@ public class ClusterMgrController {
     /**
      * Replace the current Cluster Configuration with a new one.
      *
+     * @param newConfiguration the replacement Cluster Configuration, including component types
+     *                         and configuration properties
      * @return the new Cluster configuration, read back from the key/value store.
      */
     @ApiOperation("Replace the current Cluster Configuration with a new one.")
@@ -153,6 +159,7 @@ public class ClusterMgrController {
     /**
      * Get the map of default (property name -> value) for a VMTurbo component type.
      *
+     * @param componentType type of the component to query
      * @return the map of default property-name/value pairs for the given component type
      */
     @ApiOperation("Get the map of default (property name -> value) for a component type.")
@@ -160,13 +167,16 @@ public class ClusterMgrController {
             method = RequestMethod.GET)
     @ResponseBody
     @SuppressWarnings("unused")
-    public ComponentProperties getDefaultPropertiesForComponentType(@PathVariable("componentType") String componentType) {
+    public ComponentProperties getDefaultPropertiesForComponentType(
+        @PathVariable("componentType") String componentType) {
         return clusterMgrService.getDefaultPropertiesForComponentType(componentType);
     }
 
     /**
      * Replace the map of default (property name -> value) for a VMTurbo component type.
      *
+     * @param componentType the name of the component type to update
+     * @param updatedProperties the new properties to store as the default values
      * @return the updated map of default property-name/value pairs for the given component type
      */
     @ApiOperation("Replace the map of default (property name -> value) for a component type.")
@@ -175,18 +185,56 @@ public class ClusterMgrController {
             method = RequestMethod.PUT)
     @ResponseBody
     @SuppressWarnings("unused")
-    public ComponentProperties putDefaultPropertiesForType(@PathVariable("componentType") String componentType,
-                                                         @RequestBody ComponentProperties updatedProperties) {
-        return clusterMgrService.putDefaultPropertiesForComponentType(componentType, updatedProperties);
+    public ComponentProperties putDefaultPropertiesForType(
+        @PathVariable("componentType") String componentType,
+        @RequestBody ComponentProperties updatedProperties) {
+        return clusterMgrService.putDefaultPropertiesForComponentType(componentType,
+            updatedProperties);
+    }
+
+    /**
+     * Get the map of local (property name -> value) for a VMTurbo component type.
+     *p
+     * @param componentType the name of the component type to fetch local properties for
+     * @return the map of local property-name/value pairs for the given component type
+     */
+    @ApiOperation("Get the map of current (property name -> value) for a component type.")
+    @RequestMapping(path = "components/{componentType}/localProperties",
+        method = RequestMethod.GET)
+    @ResponseBody
+    @SuppressWarnings("unused")
+    public ComponentProperties getLocalPropertiesForComponentType(
+        @PathVariable("componentType") String componentType) {
+        return clusterMgrService.getLocalPropertiesForComponentType(componentType);
+    }
+
+    /**
+     * Replace the map of local (property name -> value) for a VMTurbo component type.
+     *
+     * @param componentType the name of the component type to update
+     * @param updatedProperties the new properties to store as the current values
+     * @return the updated map of default property-name/value pairs for the given component type
+     */
+    @ApiOperation("Replace the map of default (property name -> value) for a component type.")
+    @RequestMapping(path = "components/{componentType}/localProperties",
+            consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
+            method = RequestMethod.PUT)
+    @ResponseBody
+    @SuppressWarnings("unused")
+    public ComponentProperties putLocalPropertiesForComponentType(
+        @PathVariable("componentType") String componentType,
+        @RequestBody(required = false) ComponentProperties updatedProperties) {
+        return clusterMgrService.putLocalPropertiesForComponentType(componentType, updatedProperties);
     }
 
 
     /**
      * Return the Set of component instances for a given component type that are defined.
      *
-     * The instance ids are returned regardless of the execution state of each instance. In other words,
+     * <p>The instance ids are returned regardless of the execution state of each instance. In other words,
      * the instance may not be running, currently, but the ID will still be included.
      *
+     * @param componentType type of component to be updated
      * @return the Set of instance id's for components of this type.
      */
     @ApiOperation("Return the Set of component instances for a given component type that are defined.")
@@ -199,46 +247,32 @@ public class ClusterMgrController {
     }
 
     /**
-     * Return the node that a given Component Instance will run on.
+     * Get the effective map of (property name -> value) for a VMTurbo component instance.
+     * The effective properties include the defaults for the component type (lowest priority)
+     * merged with the current values for the component type, and the instance values for this
+     * particular instance.
      *
-     * @return the node name on which this Component Instance should be run.
+     * @param componentType the type of component to fetch from
+     * @param instanceId the instance id for the specific component instance to fetch from
+     * @return the map of property-name/value pairs for the given component instance
      */
-    @ApiOperation("Return the node that a given Component Instance will run on.")
-    @RequestMapping(path = "components/{componentType}/instances/{instanceId}/node",
+    @ApiOperation("Get the effective combined map of (property name -> value) for a component instance.")
+    @RequestMapping(path = "components/{componentType}/instances/{instanceId}/effectiveProperties",
             method = RequestMethod.GET)
     @ResponseBody
     @SuppressWarnings("unused")
-    public String getNodeForInstance(@PathVariable("componentType") String componentType,
-                                     @PathVariable("instanceId") String instanceId) {
-        return clusterMgrService.getNodeForComponentInstance(componentType, instanceId);
-    }
-
-    /**
-     * Set the name of the Ops Manager Cluster Node on which the given VMT Component Instance should run.
-     * <p>
-     * Component Instance IDs must be unique, and must be legal path components in a URL - no whitespace, '/', etc.
-     * <p>
-     * The Node ID may be either a hostname, IP address, or empty ("") to reset to running on the "default" node
-     * in the cluster.
-     *
-     * @return the name of the Cluster Node on which this component will run.
-     */
-    @ApiOperation("Set the name of the Ops Manager Cluster Node on which the given VMT Component Instance should run.")
-    @RequestMapping(path = "components/{componentType}/instances/{instanceId}/node",
-            consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
-            method = RequestMethod.PUT)
-    @ResponseBody
-    @SuppressWarnings("unused")
-    public String setNodeForComponentInstance(@PathVariable("componentType") String componentType,
-                                              @PathVariable("instanceId") String instanceId,
-                                              @RequestBody String nodeName) {
-        return clusterMgrService.setNodeForComponentInstance(componentType, instanceId, nodeName);
+    public ComponentProperties getEffectivePropertiesForComponent(
+        @PathVariable("componentType") String componentType,
+        @PathVariable("instanceId") String instanceId) {
+        return clusterMgrService.getEffectiveInstanceProperties(componentType, instanceId);
     }
 
     /**
      * Get the map of (property name -> value) for a VMTurbo component instance. If some properties
      * are absent, they are substituted with defaults for this component type.
      *
+     * @param componentType type of component to query
+     * @param instanceId specific instance id to fetch configuration properties from
      * @return the map of property-name/value pairs for the given component instance
      */
     @ApiOperation("Get the map of (property name -> value) for a component instance.")
@@ -254,6 +288,9 @@ public class ClusterMgrController {
     /**
      * Replace the map of (property name -> value) for a VMTurbo component instance.
      *
+     * @param componentType type of component to update
+     * @param instanceId specific instance id for which configuration properties are to be replaced
+     * @param updatedProperties the new configuration properties to store
      * @return the map of property-name/value pairs for the given component instance
      */
     @ApiOperation("Replace the map of (property name -> value) for a component instance.")
@@ -271,6 +308,8 @@ public class ClusterMgrController {
     /**
      * Get the value of a default configuration property for a VMTurbo component type.
      *
+     * @param componentType the type of the component to be queried
+     * @param propertyName the name of the default configuration property to be fetched
      * @return the value of the named property for the given component type
      */
     @ApiOperation("Get the value of a default configuration property for a VMTurbo component type.")
@@ -279,15 +318,37 @@ public class ClusterMgrController {
     )
     @ResponseBody
     @SuppressWarnings("unused")
-    public String getPropertyForComponentType(
+    public String getComponentDefaultProperty(
             @PathVariable("componentType") String componentType,
             @PathVariable("propertyName") String propertyName) {
-        return clusterMgrService.getComponentTypeProperty(componentType, propertyName);
+        return clusterMgrService.getDefaultComponentProperty(componentType, propertyName);
+    }
+
+    /**
+     * Get the value of a local configuration property for a VMTurbo component type.
+     *
+     * @param componentType the type of component to fetch from
+     * @param propertyName the name of the local property to fetch for the given component
+     * @return the value of the named property for the given component type
+     */
+    @ApiOperation("Get the value of a local configuration property for a VMTurbo component type.")
+    @RequestMapping(path = "components/{componentType}/localProperties/{propertyName}",
+            method = RequestMethod.GET
+    )
+    @ResponseBody
+    @SuppressWarnings("unused")
+    public String getComponentLocalProperty(
+            @PathVariable("componentType") String componentType,
+            @PathVariable("propertyName") String propertyName) {
+        return clusterMgrService.getLocalComponentProperty(componentType, propertyName);
     }
 
     /**
      * Get the value of a configuration property for a VMTurbo component instance.
      *
+     * @param componentType type of component to query
+     * @param instanceId id of specific instance to query
+     * @param propertyName name of the configuration property to fetch
      * @return the value of the named property for the given component instance
      */
     @ApiOperation("Get the value of a configuration property for a VMTurbo component instance.")
@@ -296,7 +357,7 @@ public class ClusterMgrController {
     )
     @ResponseBody
     @SuppressWarnings("unused")
-    public String getPropertyForComponent(
+    public String getComponentInstanceProperty(
             @PathVariable("componentType") String componentType,
             @PathVariable("instanceId") String instanceId,
             @PathVariable("propertyName") String propertyName) {
@@ -304,8 +365,52 @@ public class ClusterMgrController {
     }
 
     /**
+     * Set the local value of a configuration property for a VMTurbo component type.
+     *
+     * @param componentType the type of component to update
+     * @param propertyName the name of the local property to store for the given component
+     * @param propertyValue the value to store as local property
+     * @return the new value of the named property for the given component type
+     */
+    @ApiOperation("Set the local value of a configuration property for a VMTurbo component type.")
+    @RequestMapping(path = "components/{componentType}/localProperties/{propertyName}",
+            consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
+            method = RequestMethod.PUT)
+    @ResponseBody
+    @SuppressWarnings("unused")
+    public String setLocalPropertyForComponent(
+            @PathVariable("componentType") String componentType,
+            @PathVariable("propertyName") String propertyName,
+            @RequestBody String propertyValue) {
+        return clusterMgrService.putComponentLocalProperty(componentType, propertyName,
+            propertyValue);
+    }
+
+    /**
+     * Delete the local value of a configuration property for a VMTurbo component type.
+     *
+     * @param componentType the type of component to update
+     * @param propertyName the name of the local property to delete for the given component
+     * @return the default value of the named property for the given component type
+     */
+    @ApiOperation("Set the current value of a configuration property for a VMTurbo component type.")
+    @RequestMapping(path = "components/{componentType}/localProperties/{propertyName}",
+            method = RequestMethod.DELETE)
+    @ResponseBody
+    @SuppressWarnings("unused")
+    public String deleteLocalPropertyForComponent(
+            @PathVariable("componentType") String componentType,
+            @PathVariable("propertyName") String propertyName) {
+        return clusterMgrService.deleteComponentLocalProperty(componentType, propertyName);
+    }
+
+    /**
      * Set the value of a configuration property for a VMTurbo component instance.
      *
+     * @param componentType type of component to update
+     * @param instanceId id of the component instance to update
+     * @param propertyName the name of the configuration property to change
+     * @param propertyValue the new value to assign to the configuration property
      * @return the new value of the named property for the given component instance
      */
     @ApiOperation("Set the value of a configuration property for a VMTurbo component instance.")
@@ -323,7 +428,7 @@ public class ClusterMgrController {
     }
 
     /**
-     * Get the set of components known to VMTurbo
+     * Get the set of components known to VMTurbo.
      *
      * @return the set of all component names known to VMTurbo.
      */
@@ -337,22 +442,28 @@ public class ClusterMgrController {
     }
 
     /**
-     * Get processing state from all running VmtComponents
+     * Get processing state from all running VmtComponents.
+     *
+     * @return a map from component type -> {@link ComponentState} for that type
      */
     @ApiOperation("Get processing state from all running VmtComponents")
-    @RequestMapping(path="/state")
+    @RequestMapping(path = "/state",
+        method = RequestMethod.GET)
     @ResponseBody
     @SuppressWarnings("unused")
     public Map<String, String> getComponentsState() {
         return clusterMgrService.getComponentsState().entrySet().stream()
-                .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().name() ));
+                .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().name()));
     }
 
     /**
-     * Get service health from all running VmtComponents
+     * Get service health from all running VmtComponents.
+     *
+     * @return a map from component type -> {@link HealthCheck}
      */
     @ApiOperation("Get service health from all running VmtComponents")
-    @RequestMapping(path="/cluster/health")
+    @RequestMapping(path = "/cluster/health",
+        method = RequestMethod.GET)
     @ResponseBody
     @SuppressWarnings("unused")
     public Map<String, HealthCheck> getClusterHealth() {
@@ -360,22 +471,33 @@ public class ClusterMgrController {
     }
 
     /**
-     * Get diagnostics from all running VmtComponents
+     * Get diagnostics from all running VmtComponents. The diagnostic output file is in the form
+     * of a .zip file containing nested .zip files, one for each component instance.
+     *
+     * @param responseOutput the output stream the diagnostic zip files should be appended to
      */
     @ApiOperation("Get diagnostics from all running VmtComponents")
-    @RequestMapping(path="/diagnostics",
-            produces={"application/zip"})
+    @RequestMapping(path = "/diagnostics",
+        method = RequestMethod.GET,
+        produces = {"application/zip"})
+    @ApiResponse(code = HTTP_RESPONSE_TOO_MANY_REQUESTS,
+        message = "Diagnostics operation already in progress; only one allowed at a time.")
     @ResponseBody
     @SuppressWarnings("unused")
     public void getDiagnostics(OutputStream responseOutput) {
-        clusterMgrService.collectComponentDiagnostics(responseOutput);
+        try {
+            clusterMgrService.collectComponentDiagnostics(responseOutput);
+        } catch (IOException e) {
+            throw new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
+        }
     }
 
     /**
-     * Health-check API used by Consul to determine whether a component is alive. A "200" response is adequate
-     * to indicate liveness; the content of the response is ignored.
+     * Health-check API used by Consul to determine whether a component is alive.
+     * Don't declare we are "healthy" until the ClusterKvStore has been initialized
+     * indicating that we are open for business.
      *
-     * @return anything, in this case "true"; it is the "ok" HTTP response code that matters.
+     * @return OK/"true" if we are ready, or SERVICE_UNAVAILABLE/"false" if not ready.
      */
     @ApiOperation("Health-check API used by Consul to determine whether a component is alive.")
     @RequestMapping(path = "/health",
@@ -390,20 +512,23 @@ public class ClusterMgrController {
 
 
     /**
-     * Export XL diagnostics to upload.vmturbo.com
-     * @param httpProxyDTO value object to hold http proxy information
+     * Export XL diagnostics to upload.vmturbo.com.
+     *
+     * @param httpProxyConfig value object to hold http proxy information
      * @return true if diagnostics is uploaded successfully; false otherwise
      */
     @ApiOperation("Export XL diagnostics to upload.vmturbo.com.")
     @RequestMapping(
-        path="/diagnostics",
+        path = "/diagnostics",
         consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
         method = RequestMethod.POST)
+    @ApiResponse(code = HTTP_RESPONSE_TOO_MANY_REQUESTS,
+        message = "Diagnostics operation already in progress; only one allowed at a time.")
     @ResponseBody
     @SuppressWarnings("unused")
     public Boolean exportDiagnotics(
-        @RequestBody HttpProxyDTO httpProxyDTO) {
-        return clusterMgrService.exportDiagnostics(httpProxyDTO);
+        @RequestBody HttpProxyConfig httpProxyConfig) {
+        return clusterMgrService.exportDiagnostics(httpProxyConfig);
     }
 
 }

@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.market;
 
 import java.time.Clock;
-import java.util.EnumSet;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,9 +12,11 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
+import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
-import com.vmturbo.market.component.api.impl.MarketClientConfig.Subscription;
+import com.vmturbo.market.component.api.impl.MarketSubscription;
+import com.vmturbo.market.component.api.impl.MarketSubscription.Topic;
 
 /**
  * Configuration for integration with the {@link MarketComponent}.
@@ -67,8 +68,9 @@ public class MarketConfig {
 
     @Bean
     public MarketComponent marketComponent() {
-        final MarketComponent market =
-                marketClientConfig.marketComponent(EnumSet.of(Subscription.ActionPlans));
+        final MarketComponent market = marketClientConfig.marketComponent(
+            MarketSubscription.forTopic(Topic.ActionPlans),
+            MarketSubscription.forTopicWithStartFrom(Topic.AnalysisSummary, StartFrom.BEGINNING));
         market.addActionsListener(marketActionListener());
         return market;
     }

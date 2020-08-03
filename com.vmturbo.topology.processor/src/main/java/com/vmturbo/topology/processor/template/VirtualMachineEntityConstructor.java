@@ -2,11 +2,6 @@ package com.vmturbo.topology.processor.template;
 
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Compute;
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Storage;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.addCommodityConstraints;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommodityBoughtDTO;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommoditySoldDTO;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getActiveCommoditiesWithKeysGroups;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getCommoditySoldConstraint;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +16,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
@@ -28,11 +24,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
  * Create a TopologyEntityDTO from Virtual Machine Template. The new Topology Entity contains such as OID,
@@ -41,54 +39,35 @@ import com.vmturbo.stitching.TopologyEntity;
  *
  * <p>This class will also handle reservation virtual machine entity, the only difference between normal
  * virtual machine with reservation virtual machine is that reservation virtual machine entity only
- * buy provision commodity, all other commodity boght value will be set to zero. It use isReservationEntity
- * field to represent it is a reservation virtual machine or not.
+ * buy provision commodity, all other commodity bought value will be set to zero.
  */
-public class VirtualMachineEntityConstructor implements TopologyEntityConstructor {
+public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
+        implements ITopologyEntityConstructor {
 
     private static final String ZERO = "0";
     private static final String RDM = "RDM";
 
-    // represent that whether the new created entity is reservation entity or not. If it is reservation
-    // entity, it will only buy provision commodity.
-    private final boolean isReservationEntity;
 
-    public VirtualMachineEntityConstructor() {
-        this.isReservationEntity = false;
-    }
-
-    public VirtualMachineEntityConstructor(final boolean isReservationEntity) {
-        this.isReservationEntity = isReservationEntity;
-    }
-
-    /**
-     * Create a TopologyEntityDTO from Virtual Machine Template. based on input template.
-     *
-     * @param template {@link Template}
-     * @param topologyEntityBuilder builder of TopologyEntityDTO which could contains some setting already.
-     * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
-     *                 entities related to the entity being replaced may be updated to fix up relationships
-     *                 to point to the new entity along with the old entity.
-     * @param originalTopologyEntity the original topology entity which this template want to keep its
-     *                               commodity constrains. It could be null, if it is new adding template.
-     * @return {@link TopologyEntityDTO}
-     */
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-            @Nonnull final Template template,
-            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable final TopologyEntityDTOOrBuilder originalTopologyEntity) {
+            @Nonnull final Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
+            @Nullable TopologyEntityDTO.Builder originalTopologyEntity,
+            @Nonnull TemplateActionType actionType, @Nonnull IdentityProvider identityProvider,
+            @Nullable String nameSuffix) throws TopologyEntityConstructorException {
+        TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
+                template, originalTopologyEntity, actionType, identityProvider,
+                EntityType.VIRTUAL_MACHINE_VALUE, nameSuffix);
+
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints =
                 sortAccessCommodityBought(getActiveCommoditiesWithKeysGroups(originalTopologyEntity));
         final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
             originalTopologyEntity);
-        final List<TemplateResource> computeTemplateResources =
-            TemplatesConverterUtils.getTemplateResources(template, Compute);
+        final List<TemplateResource> computeTemplateResources = getTemplateResources(template,
+                Compute);
         addComputeCommodities(topologyEntityBuilder, computeTemplateResources);
 
-        final List<TemplateResource> storageTemplateResources =
-            TemplatesConverterUtils.getTemplateResources(template, Storage);
+        final List<TemplateResource> storageTemplateResources = getTemplateResources(template,
+                Storage);
         addStorageCommodities(topologyEntityBuilder, storageTemplateResources);
         addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
         handleProviderIdForCommodityBought(topologyEntityBuilder);
@@ -138,8 +117,8 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
     private void addComputeCommodities(
             @Nonnull TopologyEntityDTO.Builder topologyEntityBuilder,
             @Nonnull List<TemplateResource> computeTemplateResources) {
-        final Map<String, String> fieldNameValueMap =
-            TemplatesConverterUtils.createFieldNameValueMap(computeTemplateResources);
+        final Map<String, String> fieldNameValueMap = createFieldNameValueMap(
+                computeTemplateResources);
         addComputeCommoditiesBought(topologyEntityBuilder, fieldNameValueMap);
         addComputeCommoditiesSold(topologyEntityBuilder, fieldNameValueMap);
     }
@@ -179,14 +158,14 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
     private List<CommodityBoughtDTO> addComputeCommoditiesBoughtCPU(
             @Nonnull Map<String, String> fieldNameValueMap) {
         final double numOfCpu = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.NUM_OF_CPU, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU, ZERO));
         final double cpuSpeed = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.CPU_SPEED, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED, ZERO));
         final double cpuConsumedFactor = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.CPU_CONSUMED_FACTOR, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR, ZERO));
 
         // if created entity is reservation entity, cpu used value should be 0.
-        final double used = this.isReservationEntity ? 0.0 : numOfCpu * cpuSpeed * cpuConsumedFactor;
+        final double used = numOfCpu * cpuSpeed * cpuConsumedFactor;
         CommodityBoughtDTO cpuCommodity =
                 createCommodityBoughtDTO(CommodityDTO.CommodityType.CPU_VALUE, used);
         CommodityBoughtDTO cpuProvisionCommodity =
@@ -203,11 +182,11 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
     private List<CommodityBoughtDTO> addComputeCommoditiesBoughtMem(
             @Nonnull Map<String, String> fieldNameValueMap) {
         final double memorySize = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.MEMORY_SIZE, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE, ZERO));
         final double memoryConsumedFactor = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.MEMORY_CONSUMED_FACTOR, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR, ZERO));
         // if created entity is reservation entity, memory used value should be 0.
-        final double used = this.isReservationEntity ? 0.0 : memorySize * memoryConsumedFactor;
+        final double used = memorySize * memoryConsumedFactor;
         CommodityBoughtDTO memCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.MEM_VALUE, used);
         CommodityBoughtDTO memProvCommodity =
@@ -224,11 +203,11 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
     private List<CommodityBoughtDTO> addComputeCommoditiesBoughtIONet(
             @Nonnull Map<String, String> fieldNameValueMap) {
         // if created entity is reservation entity, io throughput used value should be 0.
-        final double ioThroughput = this.isReservationEntity ? 0.0 : Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.IO_THROUGHPUT, ZERO));
+        final double ioThroughput = Double.valueOf(
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT, ZERO));
         // if created entity is reservation entity, network throughput used value should be 0.
-        final double netThroughput = this.isReservationEntity ? 0.0 : Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.NETWORK_THROUGHPUT, ZERO));
+        final double netThroughput = Double.valueOf(
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT, ZERO));
 
         CommodityBoughtDTO ioThroughputCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, ioThroughput);
@@ -246,19 +225,24 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
     private void addComputeCommoditiesSold(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
                                                   @Nonnull Map<String, String> fieldNameValueMap) {
         final double numOfCpu = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.NUM_OF_CPU, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU, ZERO));
         final double cpuSpeed = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.CPU_SPEED, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED, ZERO));
         final double memorySize = Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.MEMORY_SIZE, ZERO));
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE, ZERO));
 
         final double totalCpuSold = numOfCpu * cpuSpeed;
         CommoditySoldDTO cpuSoldCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.VCPU_VALUE, totalCpuSold);
+                createCommoditySoldDTO(CommodityDTO.CommodityType.VCPU_VALUE, totalCpuSold);
         CommoditySoldDTO memorySizeCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.VMEM_VALUE, memorySize);
+                createCommoditySoldDTO(CommodityDTO.CommodityType.VMEM_VALUE, memorySize);
         topologyEntityBuilder.addCommoditySoldList(cpuSoldCommodity);
         topologyEntityBuilder.addCommoditySoldList(memorySizeCommodity);
+
+        if (numOfCpu > 0) {
+            topologyEntityBuilder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(VirtualMachineInfo.newBuilder().setNumCpus((int)numOfCpu)));
+        }
     }
 
     /**
@@ -272,7 +256,7 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
         final double totalDiskSize = storageTemplateResources.stream()
             .map(TemplateResource::getFieldsList)
             .flatMap(List::stream)
-            .filter(templateField -> templateField.getName().equals(TemplatesConverterUtils.DISK_SIZE))
+            .filter(templateField -> templateField.getName().equals(TemplateProtoUtil.VM_STORAGE_DISK_SIZE))
             .map(TemplateField::getValue)
             .mapToDouble(Double::valueOf)
             .sum();
@@ -359,8 +343,8 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
     private List<CommodityBoughtDTO> addStorageCommoditiesBought(
             @Nonnull TemplateResource stTemplateSource,
             @Nonnull String type) {
-        final Map<String, String> fieldNameValueMap =
-            TemplatesConverterUtils.createFieldNameValueMap(Lists.newArrayList(stTemplateSource));
+        final Map<String, String> fieldNameValueMap = createFieldNameValueMap(
+                Lists.newArrayList(stTemplateSource));
 
         List<CommodityBoughtDTO> storageCommodityBought =
             addStorageCommoditiesBoughtST(fieldNameValueMap, type);
@@ -378,19 +362,19 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
             @Nonnull Map<String, String> fieldNameValueMap,
             @Nonnull String type) {
         final double disSize = type.toUpperCase().equals(RDM) ? Double.MIN_VALUE :
-            Double.valueOf(fieldNameValueMap.getOrDefault(TemplatesConverterUtils.DISK_SIZE, ZERO));
+            Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_SIZE, ZERO));
         // if created entity is reservation entity, storage amount used value should be 0.
-        final double disConsumedFactor = this.isReservationEntity ? 0.0 : Double.valueOf(
-            fieldNameValueMap.getOrDefault(TemplatesConverterUtils.DISK_CONSUMED_FACTOR, ZERO));
+        final double disConsumedFactor = Double.valueOf(
+            fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR, ZERO));
         final double disIops = type.toUpperCase().equals(RDM) ? Double.MIN_VALUE :
-            Double.valueOf(fieldNameValueMap.getOrDefault(TemplatesConverterUtils.DISK_IOPS, ZERO));
+            Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_IOPS, ZERO));
         CommodityBoughtDTO stAmountCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
                 disSize * disConsumedFactor);
         CommodityBoughtDTO stProvCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE, disSize);
         // if created entity is reservation entity, storage access used value should be 0.
-        final double storageAccessValue = this.isReservationEntity ? 0.0 : disIops;
+        final double storageAccessValue = disIops;
         CommodityBoughtDTO stAccessCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, storageAccessValue);
         return Lists.newArrayList(stAmountCommodity, stProvCommodity, stAccessCommodity);
@@ -407,7 +391,8 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
             @Nonnull double totalDiskSize) {
         if (Double.isFinite(totalDiskSize)) {
             CommoditySoldDTO totalDiskSizeCommodity =
-                createCommoditySoldDTO(CommodityDTO.CommodityType.VSTORAGE_VALUE, totalDiskSize);
+                    createCommoditySoldDTO(CommodityDTO.CommodityType.VSTORAGE_VALUE,
+                            totalDiskSize);
             topologyEntityBuilder.addCommoditySoldList(totalDiskSizeCommodity);
         }
     }

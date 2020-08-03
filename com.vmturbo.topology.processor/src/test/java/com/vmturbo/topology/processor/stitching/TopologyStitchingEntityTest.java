@@ -13,6 +13,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -20,27 +21,38 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
+import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
 
 public class TopologyStitchingEntityTest {
 
-    private final long targetId = 1234L;
+    private static final long targetId = 1234L;
 
-    private final TopologyStitchingEntity pm = new TopologyStitchingEntity(physicalMachine("pm")
-        .selling(cpuMHz().capacity(100.0))
-        .build().toBuilder(), 1L, targetId, 1000L);
+    private static final String pmLocalName = "qqq";
 
-    private final TopologyStitchingEntity vm = new TopologyStitchingEntity(virtualMachine("vm")
-        .buying(cpuMHz().from("pm").used(50.0))
-        .build().toBuilder(), 2L, targetId, 0);
+    private static final TopologyStitchingEntity vm_remove =
+        new TopologyStitchingEntity(virtualMachine("vmRemove").build().toBuilder()
+            .setOrigin(EntityOrigin.PROXY)
+        .setKeepStandalone(false), 3L, targetId, 0);
+
+    private TopologyStitchingEntity pm;
+    private TopologyStitchingEntity vm;
 
     @Before
     public void setup() {
+        pm = new TopologyStitchingEntity(physicalMachine("pm")
+             .selling(cpuMHz().capacity(100.0)).property(SupplyChainConstants.LOCAL_NAME, pmLocalName)
+             .build().toBuilder(), 1L, targetId, 1000L);
+        vm = new TopologyStitchingEntity(virtualMachine("vm")
+              .buying(cpuMHz().from("pm").used(50.0))
+              .build().toBuilder().setOrigin(EntityOrigin.PROXY), 2L, targetId, 0);
         vm.addProviderCommodityBought(pm, new CommoditiesBought(vm.getEntityBuilder()
             .getCommoditiesBought(0).getBoughtList().stream()
             .map(CommodityDTO::toBuilder)
@@ -129,11 +141,18 @@ public class TopologyStitchingEntityTest {
 
     @Test
     public void testDiscoveryOrigin() {
-        assertThat(pm.buildDiscoveryOrigin().getDiscoveringTargetIdsList(), contains(pm.getTargetId()));
+        Map<Long, PerTargetEntityInformation> target2name = pm.buildDiscoveryOrigin()
+                        .getDiscoveredTargetDataMap();
+        assertThat(target2name.keySet(), contains(pm.getTargetId()));
+        assertEquals(pmLocalName, target2name.get(targetId).getVendorId());
 
-        pm.addMergeInformation(new StitchingMergeInformation(123L, 5555L, StitchingErrors.none()));
-        assertThat(pm.buildDiscoveryOrigin().getDiscoveringTargetIdsList(),
-            containsInAnyOrder(pm.getTargetId(), 5555L));
+        String localName2 = "www";
+        long targetId2 = 5555L;
+        pm.addMergeInformation(new StitchingMergeInformation(123L, targetId2, StitchingErrors.none(), localName2));
+        target2name = pm.buildDiscoveryOrigin().getDiscoveredTargetDataMap();
+        assertThat(target2name.keySet(), containsInAnyOrder(pm.getTargetId(), targetId2));
+        assertEquals(pmLocalName, target2name.get(targetId).getVendorId());
+        assertEquals(localName2, target2name.get(targetId2).getVendorId());
     }
 
     @Test
@@ -143,7 +162,8 @@ public class TopologyStitchingEntityTest {
 
         // Merging information from multiple entities for the same target down to a single entity
         // (shouldn't happen) should only result in a single targetId in the list.
-        assertThat(pm.buildDiscoveryOrigin().getDiscoveringTargetIdsList(), contains(pm.getTargetId()));
+        assertThat(pm.buildDiscoveryOrigin().getDiscoveredTargetDataMap().keySet(),
+                   contains(pm.getTargetId()));
     }
 
     @Test
@@ -202,5 +222,17 @@ public class TopologyStitchingEntityTest {
 
         assertEquals(pm.getLastUpdatedTime(), snapshotCopy.getLastUpdatedTime());
         assertEquals(pm.getTargetId(), snapshotCopy.getTargetId());
+        assertEquals(pm.removeIfUnstitched(), snapshotCopy.removeIfUnstitched());
+    }
+
+    /**
+     * Tests that entities with keepStandalone == false and origin == PROXY get marked with
+     * removeIfUnstitched = true, but other entities do not.
+     */
+    @Test
+    public void testRemoveIfUnstitched() {
+        assertFalse(vm.removeIfUnstitched());
+        assertFalse(pm.removeIfUnstitched());
+        assertTrue(vm_remove.removeIfUnstitched());
     }
 }

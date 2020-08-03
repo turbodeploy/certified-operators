@@ -122,6 +122,8 @@ public class LatestActionStatTable implements ActionStatTable {
         @Override
         protected RolledUpActionGroupStat recordToGroupStat(final ActionStatsLatestRecord record) {
             return ImmutableRolledUpActionGroupStat.builder()
+                .priorActionCount(record.getTotalActionCount() - record.getNewActionCount())
+                .newActionCount(record.getNewActionCount())
                 .minActionCount(record.getTotalActionCount())
                 .avgActionCount(record.getTotalActionCount())
                 .maxActionCount(record.getTotalActionCount())

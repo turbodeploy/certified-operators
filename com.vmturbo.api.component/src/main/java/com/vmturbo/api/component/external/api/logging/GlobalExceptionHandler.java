@@ -8,6 +8,12 @@ import javax.servlet.http.HttpServletRequest;
 import javax.validation.ConstraintViolation;
 import javax.validation.ConstraintViolationException;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.base.Throwables;
+
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpStatus;
@@ -24,10 +30,9 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.client.HttpClientErrorException;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.common.base.Throwables;
-
 import com.vmturbo.api.dto.ErrorApiDTO;
+import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.validators.settings.OsMigrationManagerInputException;
@@ -115,6 +120,19 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handle the {@link InvalidOperationException} by creating an error dto to return to client.
+     *
+     * @param req http request
+     * @param ex the exception to handle
+     * @return spring {@link ResponseEntity} wrapping around the error dto
+     */
+    @ExceptionHandler(InvalidOperationException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorApiDTO> handleInvalidOperationException(HttpServletRequest req, InvalidOperationException ex) {
+        return createErrorDTO(req, ex, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
      * Extracts the message from ConstraintViolation from the ConstraintViolationException
      * and returns it into the ResponseEntity.
      *
@@ -196,10 +214,33 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(err, ex.getStatusCode());
     }
 
+    @ExceptionHandler(OperationFailedException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorApiDTO> handleOperationFailedException(HttpServletRequest req, OperationFailedException ex) {
+        return createErrorDTO(req, ex, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * Repackaged {@link StatusRuntimeException} as an ErrorApiDTO to remove stack trace.
+     *
+     * @param req request {@link HttpServletRequest}.
+     * @param ex exception {@link StatusRuntimeException}.
+     * @return {@link ErrorApiDTO}.
+     */
+    @ExceptionHandler(StatusRuntimeException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorApiDTO> handleStatusRuntimeException(HttpServletRequest req,
+            StatusRuntimeException ex) {
+        if (ex.getStatus() != null && ex.getStatus().getCode() == Code.INVALID_ARGUMENT) {
+            return createErrorDTO(req, ex, HttpStatus.BAD_REQUEST);
+        }
+        return createErrorDTO(req, ex, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     protected ResponseEntity<ErrorApiDTO> createErrorDTO(@Nonnull HttpServletRequest req, @Nonnull Exception ex,
                                                        HttpStatus statusCode) {
         String logMsg = "API Status Code: " + statusCode.value();
-        if (req != null) {
+        if (req != null && req.getRequestURI() != null) {
             String url = req.getRequestURL().toString();
             logMsg += " URL: " + url;
         }
