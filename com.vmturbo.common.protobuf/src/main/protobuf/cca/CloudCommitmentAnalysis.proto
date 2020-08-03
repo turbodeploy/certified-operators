@@ -23,13 +23,16 @@ enum AllocatedDemandClassification {
     // The demand represents the current allocated tier of the represented entities.
     ALLOCATED = 1;
 
-    // Demand for an entity, which is not the current/last allocated tier of the entity, but is
-    // within the same instance family.
-    FAMILY_ALLOCATED = 2;
+    // Demand for an entity, which is not the current/last allocated tier of the entity, but could
+    // flexibly be covered by the same commitment as the entities current/latest allocation.
+    FLEXIBLY_ALLOCATED = 2;
 
     // Demand for an entity that is not the current/last allocated tier of the entity and is not
     // within the same instance family.
     STALE_ALLOCATED = 3;
+
+    // Represents short lived demand that should be ignored for coverage and recommendation analysis.
+    EPHEMERAL = 4;
 }
 
 enum ProjectedDemandClassification {
@@ -188,6 +191,9 @@ message DemandClassification {
     // analysis.
     required ClassifiedDemandSelection demand_selection = 3;
 
+    // If true, a detailed summary of classified demand is collected and logged. The detailed summary
+    // includes a breakdown of demand by cloud tier, region, and account.
+    optional bool log_detailed_summary = 4 [default = false];
 
     message ClassifiedDemandSelection {
 
@@ -214,7 +220,7 @@ message DemandClassification {
 
 
     message AllocatedClassificationSettings {
-        // Currently, there are no settings for allocated demand classification.
+        optional int64 min_entity_uptime = 1 [default = 0];
     }
 
     // Specifies how to classify projected demand, which is based on the scaling behavior
@@ -251,7 +257,7 @@ message CommitmentPurchaseProfile {
 
     // The settings to use as part of the purchase profile, including the target savings over
     // on-demand and whether terminated instance demand should be included in the recommendation.
-    required RecommendationSettings recommendation_settings = 2;
+    optional RecommendationSettings recommendation_settings = 2;
 
     // The specific attributes of a purchase profile or a type of cloud commitment (e.g. RIs).
     oneof commitment_specific_profile {

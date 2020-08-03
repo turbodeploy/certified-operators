@@ -10,11 +10,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationStore;
+import com.vmturbo.cloud.commitment.analysis.config.CloudCommitmentSpecMatcherConfig;
+import com.vmturbo.cloud.commitment.analysis.config.DemandClassificationConfig;
+import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReader;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReaderImpl;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisFactory;
@@ -24,8 +27,10 @@ import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisCont
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext.DefaultAnalysisContextFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.ImmutableStaticAnalysisConfig;
 import com.vmturbo.cloud.commitment.analysis.runtime.StaticAnalysisConfig;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.DemandSelectionStage.DemandSelectionFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.selection.DemandSelectionStage.DemandSelectionFactory;
+import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.CloudCommitmentSpecMatcherFactory;
 import com.vmturbo.cloud.commitment.analysis.topology.BillingFamilyRetrieverFactory;
 import com.vmturbo.cloud.commitment.analysis.topology.BillingFamilyRetrieverFactory.DefaultBillingFamilyRetrieverFactory;
 import com.vmturbo.cloud.commitment.analysis.topology.MinimalCloudTopology.MinimalCloudTopologyFactory;
@@ -41,6 +46,10 @@ import com.vmturbo.group.api.GroupMemberRetriever;
  * are autowired into this configuration and must be defined by the hosting component.
  */
 @Lazy
+@Import({
+        CloudCommitmentSpecMatcherConfig.class,
+        DemandClassificationConfig.class
+})
 @Configuration
 public class CloudCommitmentAnalysisConfig {
 
@@ -58,6 +67,12 @@ public class CloudCommitmentAnalysisConfig {
 
     @Autowired
     private TopologyEntityCloudTopologyFactory topologyEntityCloudTopologyFactory;
+
+    @Autowired
+    private CloudCommitmentSpecMatcherFactory cloudCommitmentSpecMatcherFactory;
+
+    @Autowired
+    private DemandClassificationFactory demandClassificationFactory;
 
     @Value("${ccaAnalysisStatusLogInterval:PT1M}")
     private String analysisStatusLogInterval;
@@ -110,7 +125,8 @@ public class CloudCommitmentAnalysisConfig {
     public AnalysisPipelineFactory analysisPipelineFactory() {
         return new AnalysisPipelineFactory(identityProvider,
                 initializationStageFactory(),
-                demandSelectionFactory());
+                demandSelectionFactory(),
+                demandClassificationFactory);
     }
 
     /**
@@ -135,6 +151,7 @@ public class CloudCommitmentAnalysisConfig {
         return new DefaultMinimalEntityCloudTopologyFactory(billingFamilyRetrieverFactory());
     }
 
+
     /**
      * Bean for the analysis context factory.
      *
@@ -146,6 +163,7 @@ public class CloudCommitmentAnalysisConfig {
                 repositoryServiceBlockingStub,
                 minimalCloudTopologyFactory(),
                 topologyEntityCloudTopologyFactory,
+                cloudCommitmentSpecMatcherFactory,
                 staticAnalysisConfig());
     }
 

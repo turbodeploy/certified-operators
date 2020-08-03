@@ -150,7 +150,7 @@
         <docker.registry>docker.io</docker.registry>
         <docker.image.prefix>turbonomic</docker.image.prefix>
 
-        <immutables.version>2.7.3</immutables.version>
+        <immutables.version>2.8.8</immutables.version>
         <roaringbitmap.version>0.8.13</roaringbitmap.version>
         <!-- java slang -->
         <javaslang.version>2.0.5</javaslang.version>
