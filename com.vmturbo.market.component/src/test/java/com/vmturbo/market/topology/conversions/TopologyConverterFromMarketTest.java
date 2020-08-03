@@ -146,6 +146,8 @@ public class TopologyConverterFromMarketTest {
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
             mock(ConsistentScalingHelperFactory.class);
+    private ReversibilitySettingFetcher reversibilitySettingFetcher =
+            mock(ReversibilitySettingFetcher.class);
 
     private static final int BICLIQUE_TYPE_ID = ID_ALLOCATOR.allocate("BICLIQUE");
     private static final int CPU_TYPE_ID = ID_ALLOCATOR.allocate("CPU");
@@ -195,7 +197,9 @@ public class TopologyConverterFromMarketTest {
             mockCCD,
             commodityIndexFactory,
             tierExcluderFactory,
-            consistentScalingHelperFactory, cloudTopology));
+            consistentScalingHelperFactory,
+            cloudTopology,
+            reversibilitySettingFetcher));
     }
 
     /**
@@ -713,7 +717,7 @@ public class TopologyConverterFromMarketTest {
         TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                 false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, indexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory));
+                consistentScalingHelperFactory, reversibilitySettingFetcher));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -860,7 +864,7 @@ public class TopologyConverterFromMarketTest {
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketPriceTable, mockCommodityConverter, mockCCD, indexFactory,
                         tierExcluderFactory,
-            consistentScalingHelperFactory, cloudTopology));
+                        consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -1305,7 +1309,7 @@ public class TopologyConverterFromMarketTest {
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory, cloudTopology));
+            consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
         converter.setCloudTc(mockCloudTc);
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
@@ -1407,7 +1411,7 @@ public class TopologyConverterFromMarketTest {
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
-                consistentScalingHelperFactory, cloudTopology));
+                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
         converter.setCloudTc(mockCloudTc);
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,

@@ -204,14 +204,17 @@ public class TopologyConverter {
      * @param commodityIndexFactory commodity index factory
      * @param tierExcluderFactory tier excluder factory
      * @param consistentScalingHelperFactory CSM helper factory
+     * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
      */
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              @Nonnull final MarketPriceTable marketPriceTable,
                              @Nonnull final CloudCostData cloudCostData,
                              @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @NonNull final TierExcluderFactory tierExcluderFactory,
+                             @Nonnull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory
-                                                consistentScalingHelperFactory) {
+                                     consistentScalingHelperFactory,
+                             @Nonnull final ReversibilitySettingFetcher
+                                     reversibilitySettingFetcher) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.cloudTopology = null;
         this.consistentScalingHelper = consistentScalingHelperFactory
@@ -240,6 +243,7 @@ public class TopologyConverter {
             oidToProjectedTraderTOMap,
             cert,
             projectedRICoverageCalculator, tierExcluder, commodityIndex));
+        this.reversibilitySettingFetcher = reversibilitySettingFetcher;
     }
 
     /**
@@ -284,6 +288,7 @@ public class TopologyConverter {
      * @param tierExcluderFactory tierExcluderFactory
      * @param consistentScalingHelperFactory CSM helper factory
      * @param cloudTopology instance to look up topology relationships
+     * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
      */
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
@@ -296,7 +301,8 @@ public class TopologyConverter {
                              final CommodityIndexFactory commodityIndexFactory,
                              @Nonnull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
-                             @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
+                             @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
+                             @Nonnull final ReversibilitySettingFetcher reversibilitySettingFetcher) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.cloudTopology = cloudTopology;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
@@ -324,6 +330,7 @@ public class TopologyConverter {
             oidToProjectedTraderTOMap,
             cert,
             projectedRICoverageCalculator, tierExcluder, commodityIndex));
+        this.reversibilitySettingFetcher = reversibilitySettingFetcher;
     }
 
     /**
@@ -426,6 +433,10 @@ public class TopologyConverter {
 
     private final MarketMode marketMode;
 
+    private final ReversibilitySettingFetcher reversibilitySettingFetcher;
+
+    private Set<Long> entityOidsWithReversibilityPreferred;
+
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
                              final boolean includeGuaranteedBuyer,
@@ -435,9 +446,11 @@ public class TopologyConverter {
                              @Nonnull final MarketPriceTable marketPriceTable,
                              @Nonnull CommodityConverter incomingCommodityConverter,
                              @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @NonNull final TierExcluderFactory tierExcluderFactory,
+                             @Nonnull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory
-                                     consistentScalingHelperFactory) {
+                                     consistentScalingHelperFactory,
+                             @Nonnull final ReversibilitySettingFetcher
+                                     reversibilitySettingFetcher) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.cloudTopology = null;
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
@@ -463,6 +476,7 @@ public class TopologyConverter {
             projectedRICoverageCalculator, tierExcluder, commodityIndex));
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
+        this.reversibilitySettingFetcher = reversibilitySettingFetcher;
     }
 
     /**
@@ -477,6 +491,7 @@ public class TopologyConverter {
      * @param commodityIndexFactory commodity index factory
      * @param tierExcluderFactory tier excluder factory
      * @param consistentScalingHelperFactory CSM helper factory
+     * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
      */
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
@@ -486,12 +501,22 @@ public class TopologyConverter {
                              @Nonnull final MarketPriceTable marketPriceTable,
                              @Nonnull final CloudCostData cloudCostData,
                              @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @NonNull final TierExcluderFactory tierExcluderFactory,
+                             @Nonnull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory
-                                     consistentScalingHelperFactory) {
+                                     consistentScalingHelperFactory,
+                             @Nonnull final ReversibilitySettingFetcher
+                                     reversibilitySettingFetcher) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
             marketPriceTable, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory, null);
+            consistentScalingHelperFactory, null, reversibilitySettingFetcher);
+    }
+
+    private boolean isReversibilityPreferred(final long entityOid) {
+        if (entityOidsWithReversibilityPreferred == null) {
+            entityOidsWithReversibilityPreferred = reversibilitySettingFetcher
+                    .getEntityOidsWithReversibilityPreferred();
+        }
+        return entityOidsWithReversibilityPreferred.contains(entityOid);
     }
 
     public ProjectedRICoverageCalculator getProjectedRICoverageCalculator() {
@@ -507,13 +532,8 @@ public class TopologyConverter {
         return Collections.unmodifiableMap(shoppingListOidToInfos);
     }
 
-
     private boolean isPlan() {
         return TopologyDTOUtil.isPlan(topologyInfo);
-    }
-
-    private boolean isOptimizeCloudPlan() {
-        return TopologyDTOUtil.isOptimizeCloudPlan(topologyInfo);
     }
 
     /**
@@ -2569,10 +2589,10 @@ public class TopologyConverter {
         }
 
         // Set cloud volume shoppingList to be in Savings mode.
-        // TODO: demandScalable value will come from Savings/Reversibility setting once the setting is implemented.
         if (entityType == EntityType.VIRTUAL_VOLUME_VALUE
                 && originalEntityAsTrader.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-            economyShoppingListBuilder.setDemandScalable(true);
+            final boolean isDemandScalable = !isReversibilityPreferred(entityForSLOid);
+            economyShoppingListBuilder.setDemandScalable(isDemandScalable);
         }
         return economyShoppingListBuilder.build();
     }

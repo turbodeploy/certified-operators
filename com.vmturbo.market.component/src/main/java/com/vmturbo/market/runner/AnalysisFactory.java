@@ -35,6 +35,7 @@ import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
@@ -113,6 +114,8 @@ public interface AnalysisFactory {
 
         private final ConsistentScalingHelperFactory consistentScalingHelperFactory;
 
+        private final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory;
+
         // Determines if the market or the SMA (Stable Marriage Algorithm) library generates compute scaling action for cloud vms
         private final MarketMode marketMode;
 
@@ -132,7 +135,8 @@ public interface AnalysisFactory {
                   final boolean suspensionThrottlingPerCluster,
                   @Nonnull final TierExcluderFactory tierExcluderFactory,
                   @Nonnull AnalysisRICoverageListener listener,
-                  @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory) {
+                  @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
+                  @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -156,6 +160,7 @@ public interface AnalysisFactory {
             this.tierExcluderFactory = tierExcluderFactory;
             this.listener = listener;
             this.consistentScalingHelperFactory = consistentScalingHelperFactory;
+            this.reversibilitySettingFetcherFactory = reversibilitySettingFetcherFactory;
         }
 
         /**
@@ -177,7 +182,9 @@ public interface AnalysisFactory {
                 groupMemberRetriever, clock,
                 configBuilder.build(), cloudTopologyFactory,
                 topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory,
-                buyRIImpactAnalysisFactory, tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementFinder);
+                buyRIImpactAnalysisFactory, tierExcluderFactory, listener,
+                consistentScalingHelperFactory, initialPlacementFinder,
+                reversibilitySettingFetcherFactory);
         }
 
         /**

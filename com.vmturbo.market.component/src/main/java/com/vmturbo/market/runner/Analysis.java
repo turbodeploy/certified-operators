@@ -23,16 +23,16 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 
 import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -85,6 +85,8 @@ import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcher;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.SMAConverter;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
@@ -213,6 +215,8 @@ public class Analysis {
 
     private final InitialPlacementFinder initialPlacementFinder;
 
+    private final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory;
+
     // a set of on-prem application entity type
     private static final Set<Integer> entityTypesToSkip =
             new HashSet<>(Collections.singletonList(EntityType.BUSINESS_APPLICATION_VALUE));
@@ -236,6 +240,7 @@ public class Analysis {
      * @param listener that receives entity ri coverage information availability.
      * @param consistentScalingHelperFactory CSM helper factory
      * @param initialPlacementFinder the class to perform fast reservation
+     * @param reversibilitySettingFetcherFactory factory for {@link ReversibilitySettingFetcher}.
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
@@ -250,7 +255,8 @@ public class Analysis {
                     @Nonnull final TierExcluderFactory tierExcluderFactory,
                     @Nonnull final AnalysisRICoverageListener listener,
                     @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
-                    @Nonnull final InitialPlacementFinder initialPlacementFinder) {
+                    @Nonnull final InitialPlacementFinder initialPlacementFinder,
+                    @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -274,6 +280,7 @@ public class Analysis {
         this.listener = listener;
         this.consistentScalingHelperFactory = consistentScalingHelperFactory;
         this.initialPlacementFinder = initialPlacementFinder;
+        this.reversibilitySettingFetcherFactory = reversibilitySettingFetcherFactory;
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -308,12 +315,14 @@ public class Analysis {
         // Use the cloud cost data we use for cost calculations for the price table.
         final MarketPriceTable marketPriceTable = marketPriceTableFactory.newPriceTable(
                 this.originalCloudTopology, topologyCostCalculator.getCloudCostData());
+        final ReversibilitySettingFetcher reversibilitySettingFetcher
+                = reversibilitySettingFetcherFactory.newReversibilitySettingRetriever();
         this.converter = new TopologyConverter(topologyInfo, config.getIncludeVdc(),
                 config.getQuoteFactor(), config.getMarketMode(),
                 config.getLiveMarketMoveCostFactor(),
                 marketPriceTable, null, topologyCostCalculator.getCloudCostData(),
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
-                originalCloudTopology);
+                originalCloudTopology, reversibilitySettingFetcher);
         this.smaConverter = new SMAConverter(converter);
         final boolean enableThrottling = topologyInfo.getTopologyType() == TopologyType.REALTIME
                 && (config.getSuspensionsThrottlingConfig() == SuspensionsThrottlingConfig.CLUSTER);

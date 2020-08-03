@@ -67,6 +67,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
@@ -131,6 +132,9 @@ public class AnalysisDebuggingTest {
 
     private InitialPlacementFinder initialPlacementFinder =
             mock(InitialPlacementFinder.class);
+
+    private ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory =
+            mock(ReversibilitySettingFetcherFactory.class);
 
     private final TopologyInfo topoInfo = TopologyInfo.newBuilder().setTopologyContextId(1000l).build();
     @Rule
@@ -287,7 +291,8 @@ public class AnalysisDebuggingTest {
             Clock.systemUTC(),
             analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
-                mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory, initialPlacementFinder);
+                mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory,
+                initialPlacementFinder, reversibilitySettingFetcherFactory);
         return analysis;
     }
 

@@ -49,6 +49,8 @@ import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory.DefaultMarketPriceTableFactory;
 import com.vmturbo.market.topology.TopologyProcessorConfig;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory.DefaultReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory.DefaultTierExcluderFactory;
 import com.vmturbo.topology.processor.api.util.ConcurrentLimitProcessingGate;
@@ -182,7 +184,8 @@ public class MarketRunnerConfig {
                 suspensionThrottlingPerCluster,
                 tierExcluderFactory(),
                 analysisRICoverageListener(),
-                consistentResizerFactory());
+                consistentResizerFactory(),
+                reversibilitySettingFetcherFactory());
     }
 
     /**
@@ -289,5 +292,15 @@ public class MarketRunnerConfig {
     @Nonnull
     public ConsistentScalingHelperFactory consistentResizerFactory() {
         return new ConsistentScalingHelperFactory(settingPolicyRpcService());
+    }
+
+    /**
+     * Creates a new {@link ReversibilitySettingFetcherFactory}.
+     *
+     * @return a new {@link ReversibilitySettingFetcherFactory}
+     */
+    @Bean
+    public ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory() {
+        return new DefaultReversibilitySettingFetcherFactory(settingPolicyRpcService());
     }
 }
