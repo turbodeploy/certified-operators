@@ -631,8 +631,9 @@ public class CostRpcService extends CostServiceImplBase {
                 Map<Long, Collection<StatRecord>> snapshotToEntityCostMap = entityCostStore
                         .getEntityCostStats(entityCostFilter);
 
+                Long projectedStatTime = null;
                 if (request.getRequestProjected()) {
-                    final long projectedStatTime = (request.hasEndDate() ? request.getEndDate() : clock.millis())
+                    projectedStatTime = (request.hasEndDate() ? request.getEndDate() : clock.millis())
                             + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS);
                     Collection<StatRecord> projectedStatRecords = new ArrayList<>();
                     boolean projectCostStoreReady = projectedEntityCostStore.isStoreReady();
@@ -680,11 +681,15 @@ public class CostRpcService extends CostServiceImplBase {
                     }
                 }
                 // if this is not a grouping request; everything else.
-                snapshotToEntityCostMap.forEach((time, statRecords) -> {
+                for (Map.Entry<Long, Collection<StatRecord>> entry
+                        : snapshotToEntityCostMap.entrySet()) {
+                    Long time = entry.getKey();
+                    Collection<StatRecord> statRecords = entry.getValue();
                     final CloudCostStatRecord.Builder outerRecordBuilder =
                         CloudCostStatRecord.newBuilder()
-                            .setSnapshotDate(time)
-                            .setQueryId(request.getQueryId());
+                                .setSnapshotDate(time)
+                                .setIsProjected(time.equals(projectedStatTime))
+                                .setQueryId(request.getQueryId());
                     if (statRecords.isEmpty()) {
                         cloudStatRecords.add(outerRecordBuilder.build());
                     } else {
@@ -695,7 +700,7 @@ public class CostRpcService extends CostServiceImplBase {
                                     .build())
                             );
                     }
-                });
+                }
             }
             cloudStatRecords.sort(Comparator.comparingLong(CloudCostStatRecord::getSnapshotDate));
 

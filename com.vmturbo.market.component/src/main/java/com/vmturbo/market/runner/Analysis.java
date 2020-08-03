@@ -810,11 +810,17 @@ public class Analysis {
 
         final List<TopologyEntityDTO> projectedEntitiesFromOriginalTopoNewlyConnected = Lists.newArrayList();
         if (isBusinessAccountToIdToTopologyEntityDTO.containsKey(true)) {
-            final Map<Long, TopologyEntityDTO> businessAccountIdToTopologyEntityDTO = isBusinessAccountToIdToTopologyEntityDTO.get(true);
+            Map<Long, TopologyEntityDTO> accountIdToAccountDto = isBusinessAccountToIdToTopologyEntityDTO.get(true);
+
+            // Remove existing connections to workloads (VMs or Virtual Volumes) from all accounts.
+            accountIdToAccountDto = accountIdToAccountDto.values().stream()
+                    .map(a -> a.toBuilder().clearConnectedEntityList().build())
+                    .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
             final Map<Long, Set<ConnectedEntity>> businessAccountsToNewlyOwnedEntities =
                     converter.getCloudTc().getBusinessAccountsToNewlyOwnedEntities(
-                            traderTOs, originalTopology, businessAccountIdToTopologyEntityDTO);
-            projectedEntitiesFromOriginalTopoNewlyConnected.addAll(businessAccountIdToTopologyEntityDTO.entrySet().stream()
+                            traderTOs, originalTopology, accountIdToAccountDto);
+            projectedEntitiesFromOriginalTopoNewlyConnected.addAll(accountIdToAccountDto.entrySet().stream()
                     .map(idToTopologyEntityDTO -> {
                         final long id = idToTopologyEntityDTO.getKey();
                         TopologyEntityDTO topologyEntityDTOWithNewConnections = idToTopologyEntityDTO.getValue();

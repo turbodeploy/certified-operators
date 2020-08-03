@@ -5,7 +5,6 @@ import static com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper.C
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadTopologyBuilderDTO;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadTopologyInfo;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -43,12 +42,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
@@ -521,25 +517,6 @@ public class CloudMigrationPlanHelperTest {
         // Only the active entity's oid should be returned
 
         assertTrue(activeOids.equals(Collections.singleton(activeVmOid)));
-    }
-
-    /**
-     * Test removal of volume redundancy type.
-     *
-     * @throws Exception exception
-     */
-    @Test
-    public void testRemoveRedundancyType() throws Exception {
-        TopologyEntityDTO.Builder topologyEntityBuilder = TopologyEntityDTO.newBuilder()
-                .setOid(1L)
-                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                        .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                                .setRedundancyType(RedundancyType.LRS).build()));
-
-        CloudMigrationPlanHelper.removeRedundancyType(topologyEntityBuilder);
-        assertTrue(topologyEntityBuilder.hasTypeSpecificInfo());
-        assertTrue(topologyEntityBuilder.getTypeSpecificInfo().hasVirtualVolume());
-        assertFalse(topologyEntityBuilder.getTypeSpecificInfo().getVirtualVolume().hasRedundancyType());
     }
 }
 

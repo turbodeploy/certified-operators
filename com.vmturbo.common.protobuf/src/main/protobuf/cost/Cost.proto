@@ -1044,6 +1044,9 @@ message CloudCostStatRecord {
     //this the query id used in CloudCostStatsQuery to uniquely identity a query in the list.
     optional uint64 query_id = 3;
 
+    // Whether this stats record refers to projected (after action) stats or not.
+    optional bool is_projected = 4;
+
     // an individual stats value.
     message StatRecord {
 

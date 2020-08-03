@@ -373,7 +373,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private static boolean redundancyTypeNotApplicable(final RedundancyType volumeRedundancyType,
                                                        final StorageTierPrice storageTierPrice) {
-        return volumeRedundancyType == null && !storageTierPrice.hasRedundancyType();
+        return !storageTierPrice.hasRedundancyType();
     }
 
     private static boolean redundancyTypesMatch(final RedundancyType volumeRedundancyType,

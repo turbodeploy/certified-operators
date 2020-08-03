@@ -1,7 +1,9 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -21,15 +23,17 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -48,7 +52,6 @@ import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
@@ -329,7 +332,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         });
 
         // get cost stats for all volumes
-        Map<Long, List<StatApiDTO>> volumeCostStatById = getVolumeCostStats(volumes, null);
+        Multimap<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(volumes, null);
 
         // get all VMs consuming given storage tiers
         List<TopologyEntityDTO> vms = storageTierById.keySet().stream()
@@ -442,7 +445,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         // Map of volume ID to a list of cost stats
-        final Map<Long, List<StatApiDTO>> volIdToCostStatsMap =
+        final Multimap<Long, StatApiDTO> volIdToCostStatsMap =
                 getVolumeCostStats(new ArrayList<>(projectedVolumeMap.values()), topologyContextId);
 
         // fetch all the regions and create mapping from region id to region
@@ -503,7 +506,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             List<VirtualDiskApiDTO> virtualDiskList = new ArrayList<>();
             for (CommoditiesBoughtFromProvider commList : virtualDiskCommBoughtLists) {
                 long volId = commList.getVolumeId();
-                List<StatApiDTO> costStats = volIdToCostStatsMap.get(volId);
+                Collection<StatApiDTO> costStats = volIdToCostStatsMap.get(volId);
                 Map<Long, List<CommodityBoughtDTO>> volIdToCommListMap = beforePlanVolIdToCommListMap.get(vm.getOid());
                 List<CommodityBoughtDTO> sourceCommList = volIdToCommListMap != null ? volIdToCommListMap.get(volId) : null;
                 if (sourceCommList == null) {
@@ -539,7 +542,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                                                       TopologyEntityDTO volume,
                                                       List<CommodityBoughtDTO> beforeActionCommList,
                                                       List<CommodityBoughtDTO> afterActionCommList,
-                                                      List<StatApiDTO> costStats,
+                                                      Collection<StatApiDTO> costStats,
                                                       final Map<Long, ApiPartialEntity> regionByVolumeId,
                                                       final Map<Long, ServiceEntityApiDTO> storageTierByVolumeId,
                                                       boolean fetchAttachmentHistory)
@@ -571,15 +574,15 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                 CLOUD_STORAGE_AMOUNT_UNIT, (float)afterActionStorageAmountUsed,
                 (float)(getCommodityCapacity(volume, CommodityType.STORAGE_AMOUNT) / Units.KIBI),
-                null, volume.getDisplayName(), false));
+                null, volume.getDisplayName(), null, false));
         statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
                 CommodityTypeUnits.STORAGE_ACCESS.getUnits(), (float)afterActionStorageAccessUsed,
                 getCommodityCapacity(volume, CommodityType.STORAGE_ACCESS),
-                null, volume.getDisplayName(), false));
+                null, volume.getDisplayName(), null, false));
         statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
                 CommodityTypeUnits.IO_THROUGHPUT.getUnits(), (float)afterActionIOThroughputUsed,
                 getCommodityCapacity(volume, CommodityType.IO_THROUGHPUT),
-                null, volume.getDisplayName(), false));
+                null, volume.getDisplayName(), null, false));
 
         // Add stats for before action stats.
         for (CommodityBoughtDTO commodity : beforeActionCommList) {
@@ -589,19 +592,19 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                     statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                             CLOUD_STORAGE_AMOUNT_UNIT, (float)(commodity.getUsed() / Units.KIBI),
                             (float)(commodity.getUsed() / Units.KIBI),
-                            null, volume.getDisplayName(), true));
+                            null, volume.getDisplayName(), null, true));
                     break;
                 case CommodityType.STORAGE_ACCESS_VALUE:
                     statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
                             CommodityTypeUnits.STORAGE_ACCESS.getUnits(), (float)commodity.getUsed(),
                             (float)commodity.getUsed(),
-                            null, volume.getDisplayName(), true));
+                            null, volume.getDisplayName(), null, true));
                     break;
                 case CommodityType.IO_THROUGHPUT_VALUE:
                     statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
                             CommodityTypeUnits.IO_THROUGHPUT.getUnits(), (float)commodity.getUsed(),
                             (float)commodity.getUsed(),
-                            null, volume.getDisplayName(), true));
+                            null, volume.getDisplayName(), null, true));
                     break;
             }
         }
@@ -764,7 +767,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         );
 
         // get cost stats for all volumes
-        final Map<Long, List<StatApiDTO>> volumeCostStatById = getVolumeCostStats(vols, topologyContextId);
+        final Multimap<Long, StatApiDTO> volumeCostStatById = getVolumeCostStats(vols, topologyContextId);
 
         // convert to VirtualDiskApiDTO
         final List<VirtualDiskApiDTO> virtualDisks = new ArrayList<>(vols.size());
@@ -824,15 +827,17 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      * @param volumes list of volumes to get cost for
      * @return map of cost StatApiDTO for each volume id
      */
-    private Map<Long, List<StatApiDTO>> getVolumeCostStats(@Nonnull List<TopologyEntityDTO> volumes,
+    private Multimap<Long, StatApiDTO> getVolumeCostStats(@Nonnull List<TopologyEntityDTO> volumes,
                                                            @Nullable Long topologyContextId) {
+        final Multimap<Long, StatApiDTO> result = ArrayListMultimap.create();
+
         final Set<Long> cloudVolumeIds = volumes.stream()
             .filter(AbstractAspectMapper::isCloudEntity)
             .map(TopologyEntityDTO::getOid)
             .collect(Collectors.toSet());
 
         if (cloudVolumeIds.isEmpty()) {
-            return Collections.emptyMap();
+            return result;
         }
         final GetCloudCostStatsRequest.Builder request = GetCloudCostStatsRequest.newBuilder();
         final CloudCostStatsQuery.Builder cloudCostStatsQuery = CloudCostStatsQuery.newBuilder();
@@ -852,36 +857,25 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             while (response.hasNext()) {
                 cloudStatRecords.addAll(response.next().getCloudStatRecordList());
             }
-            return cloudStatRecords.stream()
-                    .flatMap(cloudStatRecord -> cloudStatRecord.getStatRecordsList().stream())
-                    .collect(
-                        Collectors.groupingBy(StatRecord::getAssociatedEntityId,
-                            Collectors.mapping((record -> {
-                                // cost stats
-                                StatApiDTO costStat = new StatApiDTO();
-                                costStat.setName(StringConstants.COST_PRICE);
-                                costStat.setUnits(record.getUnits());
-
-                                StatFilterApiDTO filter = new StatFilterApiDTO();
-                                filter.setType(COSTCOMPONENT);
-                                filter.setValue(record.getCategory().toString());
-                                costStat.setFilters(Lists.newArrayList(filter));
-
-                                StatValueApiDTO valueDTO = new StatValueApiDTO();
-                                StatValue value = record.getValues();
-                                valueDTO.setAvg(value.getAvg());
-                                valueDTO.setMin(value.getMin());
-                                valueDTO.setMax(value.getMax());
-                                valueDTO.setTotal(value.getTotal());
-                                costStat.setValues(valueDTO);
-                                costStat.setValue(value.getAvg());
-
-                                return costStat;
-                            }), Collectors.toList())));
+            // Update projected stats record values in result.
+            cloudStatRecords.stream()
+                    .filter(costStatRecord -> costStatRecord.hasIsProjected()
+                            && costStatRecord.getIsProjected())
+                    .forEach(costStatRecord -> {
+                        List<StatRecord> statRecordList = costStatRecord.getStatRecordsList();
+                        for (StatRecord record : statRecordList) {
+                            Long volumeId = record.getAssociatedEntityId();
+                            StatApiDTO statApiDTO = createStatApiDTO(StringConstants.COST_PRICE,
+                                    record.getUnits(), record.getValues().getTotal(),
+                                    null, null, null,
+                                    record.getCategory().toString(), false);
+                            result.put(volumeId, statApiDTO);
+                        }
+                    });
         } catch (StatusRuntimeException e) {
             logger.error("Error when getting cost for volumes: ", e);
-            return Collections.emptyMap();
         }
+        return result;
     }
 
     /**
@@ -930,7 +924,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         retVal.setStats(Collections.singletonList(createStatApiDTO(
             CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
             CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), file.getSizeKb() / 1024F,
-            file.getSizeKb() / 1024F, ServiceEntityMapper.toBasicEntity(storage), file.getPath(), false)));
+            file.getSizeKb() / 1024F, ServiceEntityMapper.toBasicEntity(storage), file.getPath(), null, false)));
         return retVal;
     }
 
@@ -951,7 +945,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             @Nonnull Map<Long, TopologyEntityDTO> vmByVolumeId,
             @Nonnull Map<Long, ServiceEntityApiDTO> storageTierByVolumeId,
             @Nonnull Map<Long, ApiPartialEntity> regionByVolumeId,
-            @Nonnull Map<Long, List<StatApiDTO>> volumeCostStatById,
+            @Nonnull Multimap<Long, StatApiDTO> volumeCostStatById,
             boolean fetchAttachmentHistory)
             throws InterruptedException, ConversionException {
         long volumeId = volume.getOid();
@@ -1056,21 +1050,21 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         if (isCloudEntity(volume)) {
             statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                 CLOUD_STORAGE_AMOUNT_UNIT, convertStorageAmountToCloudStorageAmount(storageAmountUsed),
-                convertStorageAmountToCloudStorageAmount(storageAmountCapacity), storageTier, volume.getDisplayName(), false));
+                convertStorageAmountToCloudStorageAmount(storageAmountCapacity), storageTier, volume.getDisplayName(), null, false));
         } else {
             statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                 CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), storageAmountUsed,
-                storageAmountCapacity, storageTier, volume.getDisplayName(), false));
+                storageAmountCapacity, storageTier, volume.getDisplayName(), null, false));
         }
         // storage access stats
         statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
             CommodityTypeUnits.STORAGE_ACCESS.getUnits(), storageAccessUsed,
-            storageAccessCapacity, storageTier, volume.getDisplayName(), false));
+            storageAccessCapacity, storageTier, volume.getDisplayName(), null, false));
 
         // storage throughput stats
         statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
             CommodityTypeUnits.IO_THROUGHPUT.getUnits(), ioThroughputUsed,
-            ioThroughputCapacity, storageTier, volume.getDisplayName(), false));
+            ioThroughputCapacity, storageTier, volume.getDisplayName(), null, false));
 
         virtualDiskApiDTO.setStats(statDTOs);
 
@@ -1184,15 +1178,17 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      * @param capacity capacity value
      * @param relatedEntity related entity
      * @param volumeName volume name
+     * @param costComponent Name of the cost component category if not null.
      * @param isBeforePlan true is the stats is the before action value, false if it is the projected value.
      * @return
      */
     private StatApiDTO createStatApiDTO(@Nonnull String statName,
             @Nonnull String statUnit,
             float used,
-            float capacity,
+            @Nullable Float capacity,
             @Nullable ServiceEntityApiDTO relatedEntity,
             @Nullable String volumeName,
+            @Nullable String costComponent,
             boolean isBeforePlan) {
         StatApiDTO statApiDTO = new StatApiDTO();
         statApiDTO.setName(statName);
@@ -1208,12 +1204,14 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         statApiDTO.setValue(used);
 
         // capacity
-        StatValueApiDTO capacityDTO = new StatValueApiDTO();
-        capacityDTO.setAvg(capacity);
-        capacityDTO.setMin(capacity);
-        capacityDTO.setMax(capacity);
-        capacityDTO.setTotal(capacity);
-        statApiDTO.setCapacity(capacityDTO);
+        if (capacity != null) {
+            StatValueApiDTO capacityDTO = new StatValueApiDTO();
+            capacityDTO.setAvg(capacity);
+            capacityDTO.setMin(capacity);
+            capacityDTO.setMax(capacity);
+            capacityDTO.setTotal(capacity);
+            statApiDTO.setCapacity(capacityDTO);
+        }
 
         // related entity
         if (relatedEntity != null) {
@@ -1223,15 +1221,24 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
 
         // filters
         List<StatFilterApiDTO> filters = Lists.newArrayList();
-        StatFilterApiDTO filter1 = new StatFilterApiDTO();
-        filter1.setType("key");
-        filter1.setValue(volumeName);
-        filters.add(filter1);
+        if (volumeName != null) {
+            StatFilterApiDTO filter1 = new StatFilterApiDTO();
+            filter1.setType("key");
+            filter1.setValue(volumeName);
+            filters.add(filter1);
+        }
 
         StatFilterApiDTO filter2 = new StatFilterApiDTO();
         filter2.setType("relation");
         filter2.setValue("bought");
         filters.add(filter2);
+
+        if (costComponent != null) {
+            StatFilterApiDTO costComponentFilter = new StatFilterApiDTO();
+            costComponentFilter.setType(COSTCOMPONENT);
+            costComponentFilter.setValue(costComponent);
+            filters.add(costComponentFilter);
+        }
 
         if (isBeforePlan) {
             StatFilterApiDTO resultTypeFilter = new StatFilterApiDTO();
