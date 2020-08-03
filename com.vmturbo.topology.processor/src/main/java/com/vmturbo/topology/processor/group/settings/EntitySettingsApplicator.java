@@ -112,7 +112,7 @@ public class EntitySettingsApplicator {
      */
     private static List<SettingApplicator> buildApplicators(@Nonnull final TopologyInfo topologyInfo,
                                                             @Nonnull final GraphWithSettings graphWithSettings) {
-        return ImmutableList.of(new MoveApplicator(graphWithSettings),
+        return ImmutableList.of(new MoveApplicator(),
                 new VMShopTogetherApplicator(topologyInfo),
                 new SuspendApplicator(true), new SuspendApplicator(false),
                 new ProvisionApplicator(true), new ProvisionApplicator(false),
@@ -222,7 +222,8 @@ public class EntitySettingsApplicator {
                         CommodityType.HEAP),
                 new ScalingPolicyApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.DBMemScalingIncrement,
-                        CommodityType.DB_MEM));
+                        CommodityType.DB_MEM),
+                new EnableScaleApplicator());
     }
 
     /**
@@ -311,10 +312,18 @@ public class EntitySettingsApplicator {
 
         @Override
         protected void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
-            final boolean isMoveEnabled =
-                    getEntitySettingSpecs().getValue(setting, ActionMode.class) !=
-                            ActionMode.DISABLED;
-            apply(entity, isMoveEnabled);
+            apply(entity, isMoveEnabled(setting));
+        }
+
+        /**
+         * Checks if Move is allowed using setting value.
+         *
+         * @param setting Setting value.
+         * @return True is Move is allowed.
+         */
+        protected boolean isMoveEnabled(@Nonnull Setting setting) {
+            return getEntitySettingSpecs().getValue(setting, ActionMode.class)
+                    != ActionMode.DISABLED;
         }
 
         /**
@@ -345,7 +354,7 @@ public class EntitySettingsApplicator {
                     .filter(predicate)
                     .forEach(c -> {
                         // Apply setting value only if move is not disabled by the entity
-                        if (!c.hasMovable() || (c.hasMovable() && c.getMovable())) {
+                        if (!c.hasMovable() || c.getMovable()) {
                             c.setMovable(movable);
                         } else {
                             // Do not override with the setting if move has been disabled at entity level
@@ -387,12 +396,10 @@ public class EntitySettingsApplicator {
      */
     private static class MoveApplicator extends AbstractMoveApplicator {
 
-        private final GraphWithSettings graphWithSettings;
         private final Map<EntityType, BiConsumer<TopologyEntityDTO.Builder, Boolean>> specialCases;
 
-        private MoveApplicator(@Nonnull final GraphWithSettings graphWithSettings) {
+        private MoveApplicator() {
             super(EntitySettingSpecs.Move);
-            this.graphWithSettings = Objects.requireNonNull(graphWithSettings);
             this.specialCases = new HashMap<>();
             this.specialCases.put(EntityType.VIRTUAL_MACHINE, (virtualMachine, isMoveEnabled) -> {
                 applyMovableToCommodities(virtualMachine, isMoveEnabled,
@@ -1209,6 +1216,31 @@ public class EntitySettingsApplicator {
                 }
                 logger.trace("Set scaling policy {} for entity {}",
                         settingValue, entity.getDisplayName());
+            }
+        }
+    }
+
+    /**
+     * Applicator for "Enable Scale Actions" setting.
+     */
+    private static class EnableScaleApplicator extends AbstractMoveApplicator {
+
+        private EnableScaleApplicator() {
+            super(EntitySettingSpecs.EnableScaleActions);
+        }
+
+        @Override
+        protected boolean isMoveEnabled(@Nonnull Setting setting) {
+            return setting.getBooleanSettingValue().getValue();
+        }
+
+        @Override
+        protected void apply(
+                @Nonnull final TopologyEntityDTO.Builder entity,
+                final boolean isMoveEnabled) {
+            final EntityType entityType = EntityType.forNumber(entity.getEntityType());
+            if (getEntitySettingSpecs().getEntityTypeScope().contains(entityType)) {
+                applyMovableToCommodities(entity, isMoveEnabled, builder -> true);
             }
         }
     }

@@ -1761,6 +1761,25 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
+     * Tests application of EnableScaleActions setting.
+     */
+    @Test
+    public void testEnableScaleActionsApplicator() {
+        final Setting setting = Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.EnableScaleActions.getSettingName())
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false))
+                .build();
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                        .setMovable(true));
+        applySettings(TOPOLOGY_INFO, entity, setting);
+        assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+    }
+
+    /**
      * Creates float value setting.
      *
      * @param setting setting ID to create a setting with.
