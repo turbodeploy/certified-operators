@@ -37,19 +37,25 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                         EntityType.CONTAINER_SPEC,
                         EntitySettingSpecs.PercentileAggressivenessContainerSpec,
                         EntityType.VIRTUAL_MACHINE,
-                        EntitySettingSpecs.PercentileAggressivenessVirtualMachine);
+                        EntitySettingSpecs.PercentileAggressivenessVirtualMachine,
+                        EntityType.VIRTUAL_VOLUME,
+                        EntitySettingSpecs.PercentileAggressivenessVirtualVolume);
     private static final Map<EntityType, EntitySettingSpecs> TYPE_MAX_OBSERVATION_PERIOD = ImmutableMap
                     .of(EntityType.BUSINESS_USER,
                         EntitySettingSpecs.MaxObservationPeriodBusinessUser,
                         EntityType.CONTAINER_SPEC,
                         EntitySettingSpecs.MaxObservationPeriodContainerSpec,
                         EntityType.VIRTUAL_MACHINE,
-                        EntitySettingSpecs.MaxObservationPeriodVirtualMachine);
+                        EntitySettingSpecs.MaxObservationPeriodVirtualMachine,
+                        EntityType.VIRTUAL_VOLUME,
+                        EntitySettingSpecs.MaxObservationPeriodVirtualVolume);
     private static final Map<EntityType, EntitySettingSpecs> TYPE_MIN_OBSERVATION_PERIOD =
             ImmutableMap.of(EntityType.CONTAINER_SPEC,
                             EntitySettingSpecs.MinObservationPeriodContainerSpec,
                             EntityType.VIRTUAL_MACHINE,
-                            EntitySettingSpecs.MinObservationPeriodVirtualMachine);
+                            EntitySettingSpecs.MinObservationPeriodVirtualMachine,
+                            EntityType.VIRTUAL_VOLUME,
+                            EntitySettingSpecs.MinObservationPeriodVirtualVolume);
     private final Map<CommodityType, PercentileBuckets> buckets = new HashMap<>();
     private final int maintenanceWindowHours;
     private final int grpcStreamTimeoutSec;

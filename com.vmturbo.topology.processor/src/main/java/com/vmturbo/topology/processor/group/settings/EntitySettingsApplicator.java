@@ -209,6 +209,12 @@ public class EntitySettingsApplicator {
                         EntitySettingSpecs.ResizeTargetUtilizationVcpu, CommodityType.VCPU),
                 new ResizeTargetUtilizationCommoditySoldApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationVmem, CommodityType.VMEM),
+                new ResizeTargetUtilizationCommoditySoldApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationIopsAndThroughput,
+                        CommodityType.STORAGE_ACCESS),
+                new ResizeTargetUtilizationCommoditySoldApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationIopsAndThroughput,
+                        CommodityType.IO_THROUGHPUT),
                 new InstanceStoreSettingApplicator(graphWithSettings.getTopologyGraph(),
                                         new VmInstanceStoreCommoditiesCreator(),
                                         new ComputeTierInstanceStoreCommoditiesCreator()),
