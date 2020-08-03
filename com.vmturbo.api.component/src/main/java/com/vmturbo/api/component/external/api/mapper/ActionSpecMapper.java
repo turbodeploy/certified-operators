@@ -2092,22 +2092,26 @@ public class ActionSpecMapper {
             }
         }
 
-        // We expect to receive only current and future times
+        // We expect to receive only current and future times, unless it is an on-prem to cloud
+        // migration, in which case there are only projected costs.
         Set<Long> timeSet = recordsByTime.keySet();
-        if (timeSet.size() == 2) {
-            Long currentTime = Collections.min(timeSet); // current
+        if (timeSet.size() >= 1) {
+            boolean hasCurrentCosts = timeSet.size() >= 2;
+            Long currentTime = hasCurrentCosts ? Collections.min(timeSet) : null; // current
             Long projectedTime = Collections.max(timeSet); // projected
-            List<StatRecord> currentRecords = recordsByTime.get(currentTime);
+            List<StatRecord> currentRecords = hasCurrentCosts ? recordsByTime.get(currentTime) : null;
             List<StatRecord> projectedRecords = recordsByTime.get(projectedTime);
 
             dtoMap.forEach((id, dto) -> {
-                // get real-time
-                Double onDemandCostBefore = currentRecords
-                        .stream()
-                        .filter(rec -> rec.getAssociatedEntityId() == id)
-                        .map(StatRecord::getValues)
-                        .mapToDouble(StatRecord.StatValue::getTotal)
-                        .sum();
+                Double onDemandCostBefore = 0d;
+                if (hasCurrentCosts) {
+                    // get real-time
+                    onDemandCostBefore = currentRecords.stream()
+                            .filter(rec -> rec.getAssociatedEntityId() == id)
+                            .map(StatRecord::getValues)
+                            .mapToDouble(StatRecord.StatValue::getTotal)
+                            .sum();
+                }
                 // get projected
                 Double onDemandCostAfter = projectedRecords
                         .stream()
@@ -2119,7 +2123,7 @@ public class ActionSpecMapper {
                 dto.setOnDemandCostAfter(onDemandCostAfter.floatValue());
             });
         } else {
-            logger.debug("Unable to provide on-demand costs before and after action for entities {}",
+            logger.debug("Unable to provide on-demand costs before or after action for entities {}",
                     dtoMap);
         }
     }
