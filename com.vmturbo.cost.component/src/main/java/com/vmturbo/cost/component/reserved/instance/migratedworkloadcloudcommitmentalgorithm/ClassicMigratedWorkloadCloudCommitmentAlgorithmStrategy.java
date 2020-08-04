@@ -20,6 +20,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost;
 import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.search.CloudType;
@@ -27,16 +31,23 @@ import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.component.db.tables.pojos.ActionContextRiBuy;
 import com.vmturbo.cost.component.db.tables.pojos.BuyReservedInstance;
+import com.vmturbo.cost.component.db.tables.pojos.PlanProjectedEntityToReservedInstanceMapping;
+import com.vmturbo.cost.component.db.tables.pojos.PlanReservedInstanceBought;
 import com.vmturbo.cost.component.db.tables.records.ActionContextRiBuyRecord;
 import com.vmturbo.cost.component.db.tables.records.BuyReservedInstanceRecord;
+import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
+import com.vmturbo.cost.component.db.tables.records.PlanReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.history.HistoricalStatsService;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanActionContextRiBuyStore;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanBuyReservedInstanceStore;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanProjectedEntityToReservedInstanceMappingStore;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanReservedInstanceSpecStore;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 
 /**
@@ -81,6 +92,13 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     private PlanActionContextRiBuyStore planActionContextRiBuyStore;
 
     /**
+     * Provides access to the plan_projected_entity_to_reserved_instance_mapping database table.
+     */
+    private PlanProjectedEntityToReservedInstanceMappingStore planProjectedEntityToReservedInstanceMappingStore;
+
+    private PlanReservedInstanceBoughtStore planReservedInstanceBoughtStore;
+
+    /**
      * Create a new ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy.
      *
      * @param historicalStatsService            The historical status service that will be used to retrieve historical VCPU metrics
@@ -89,19 +107,25 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
      * @param planBuyReservedInstanceStore      Used to create a record in the buy_reserved_instance database table
      * @param planReservedInstanceSpecStore     Used to match a reserved instance specification to its reserved instance spec record
      * @param planActionContextRiBuyStore       Used to add a record to the action_context_ri_buy database table
+     * @param planProjectedEntityToReservedInstanceMappingStore Used to add a record to the plan_projected_entity_to_reserved_instance_mapping table
+     * @param planReservedInstanceBoughtStore   Used to add a record to the plan_reserved_instance_bought table
      */
     public ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy(HistoricalStatsService historicalStatsService,
                                                                    PriceTableStore priceTableStore,
                                                                    BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore,
                                                                    PlanBuyReservedInstanceStore planBuyReservedInstanceStore,
                                                                    PlanReservedInstanceSpecStore planReservedInstanceSpecStore,
-                                                                   PlanActionContextRiBuyStore planActionContextRiBuyStore) {
+                                                                   PlanActionContextRiBuyStore planActionContextRiBuyStore,
+                                                                   PlanProjectedEntityToReservedInstanceMappingStore planProjectedEntityToReservedInstanceMappingStore,
+                                                                   PlanReservedInstanceBoughtStore planReservedInstanceBoughtStore) {
         this.historicalStatsService = historicalStatsService;
         this.priceTableStore = priceTableStore;
         this.planBuyReservedInstanceStore = planBuyReservedInstanceStore;
         this.businessAccountPriceTableKeyStore = businessAccountPriceTableKeyStore;
         this.planReservedInstanceSpecStore = planReservedInstanceSpecStore;
         this.planActionContextRiBuyStore = planActionContextRiBuyStore;
+        this.planProjectedEntityToReservedInstanceMappingStore = planProjectedEntityToReservedInstanceMappingStore;
+        this.planReservedInstanceBoughtStore = planReservedInstanceBoughtStore;
     }
 
     /**
@@ -400,10 +424,53 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                 .build();
 
         // Create the BuyReservationInstance in the database
-        createBuyReservedInstanceDbRecord(action, costRecord, topologyContextId, masterBusinessAccountOid);
+        createBuyReservedInstanceDbRecord(action, costRecord, topologyContextId, masterBusinessAccountOid, placement.getVirtualMachine().getOid());
 
         // Create the ActionContextRiBuy record in the database
         createActionContextRiBuy(placement, action, topologyContextId);
+
+        // Create plan reserved instance bought
+        long riBoughtId = IdentityGenerator.next();
+        createPlanReservedInstanceBought(
+                riBoughtId,
+                topologyContextId,
+                costRecord.getRiSpecId(),
+                ReservedInstanceBoughtInfo.newBuilder()
+                        .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
+                                .setNumberOfCoupons(costRecord.getNumberOfCoupons())
+                                .setNumberOfCouponsUsed(costRecord.getNumberOfCoupons())
+                                .build())
+                        .setReservedInstanceDerivedCost(ReservedInstanceDerivedCost.newBuilder()
+                                .setOnDemandRatePerHour(CurrencyAmount.newBuilder()
+                                        .setAmount(costRecord.getOnDemandPrice())
+                                        .build())
+                                .setAmortizedCostPerHour(CurrencyAmount.newBuilder()
+                                        .setAmount(costRecord.getAmortizedHourlyCost())
+                                        .build())
+                                .build())
+                        .setReservedInstanceBoughtCost(ReservedInstanceBoughtCost.newBuilder()
+                                .setRecurringCostPerHour(CurrencyAmount.newBuilder()
+                                        .setAmount(costRecord.getOnDemandPrice())
+                                        .build())
+                                .setUsageCostPerHour(CurrencyAmount.newBuilder()
+                                        .setAmount(costRecord.getRecurringPrice())
+                                        .build())
+                                .setFixedCost(CurrencyAmount.newBuilder()
+                                        .setAmount(costRecord.getUpFrontPrice())
+                                        .build())
+                                .build())
+                        .setBusinessAccountId(masterBusinessAccountOid)
+                        .setNumBought(1)
+                        .setReservedInstanceSpec(costRecord.getRiSpecId())
+                        .addVmList(placement.getVirtualMachine().getOid())
+                        .build(),
+                1,
+                costRecord.getUpFrontPrice(),
+                costRecord.getRecurringPrice(),
+                costRecord.getAmortizedHourlyCost());
+
+        // Create the PlanProjectedEntityToReservedInstanceMapping record in the database
+        createPlanProjectedEntityToRIMappingRecord(placement.getVirtualMachine().getOid(), topologyContextId, riBoughtId, costRecord.getNumberOfCoupons());
 
         // Return the constructed action
         return Optional.of(action);
@@ -429,8 +496,9 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
      * @param costRecord               The cost record that contains the various on-demand and RI costs
      * @param topologyContextId        The topologyContextId with which the BuyReservedInstance record should be associated
      * @param masterBusinessAccountOid The business account with which the BuyReservedInstance should be associated
+     * @param vmId                     The VM for which we are recommending buying this RI
      */
-    private void createBuyReservedInstanceDbRecord(ActionDTO.Action action, CostRecord costRecord, Long topologyContextId, Long masterBusinessAccountOid) {
+    private void createBuyReservedInstanceDbRecord(ActionDTO.Action action, CostRecord costRecord, Long topologyContextId, Long masterBusinessAccountOid, Long vmId) {
         // Create the BuyReservationInstance in the database
         BuyReservedInstance buyReservedInstance = new BuyReservedInstance(
                 action.getInfo().getBuyRi().getBuyRiId(),
@@ -466,6 +534,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                                         .setAmount(costRecord.getRecurringPrice())
                                         .build())
                                 .build())
+                        .addVmList(vmId)
                         .build(),
                 costRecord.getUpFrontPrice(),
                 costRecord.getRecurringPrice(),
@@ -474,6 +543,49 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         // Save the BuyReservedInstance to the database
         BuyReservedInstanceRecord buyReservedInstanceRecord = planBuyReservedInstanceStore.save(buyReservedInstance);
         logger.debug("Created BuyReservedInstanceRecord: {}", buyReservedInstanceRecord);
+    }
+
+    /**
+     * Creates a record in the plan_reserved_instance_bought table.
+     *
+     * @param id                                The ID of this record
+     * @param planId                            The plan for which this reserved instance was bought
+     * @param reservedInstanceSpecId            The spec ID of this reserved instance
+     * @param reservedInstanceBoughtInfo        Information about the RI that was bought
+     * @param count                             The number of RIs that were purchased
+     * @param perInstanceFixedCost              The upfront cost of the RI
+     * @param perInstanceRecurringCostHourly    The recurring hourly cost of this RI
+     * @param perInstanceAmortizedCostHourly    The hourly cost of running this RI amortized over the term
+     */
+    private void createPlanReservedInstanceBought(long id,
+                                                  long planId,
+                                                  long reservedInstanceSpecId,
+                                                  ReservedInstanceBoughtInfo reservedInstanceBoughtInfo,
+                                                  int count,
+                                                  double perInstanceFixedCost,
+                                                  double perInstanceRecurringCostHourly,
+                                                  double perInstanceAmortizedCostHourly) {
+        PlanReservedInstanceBought planReservedInstanceBought = new PlanReservedInstanceBought(id, planId, reservedInstanceSpecId, reservedInstanceBoughtInfo, count,
+                perInstanceFixedCost, perInstanceRecurringCostHourly, perInstanceAmortizedCostHourly);
+
+        PlanReservedInstanceBoughtRecord record = planReservedInstanceBoughtStore.save(planReservedInstanceBought);
+        logger.debug("Created PlanReservedInstanceBoughtRecord: {}", record);
+    }
+
+    /**
+     * Creates a new PlanProjectedEntityToReservedInstanceMappingRecord in the database.
+     *
+     * @param entityId           The VM entity OID
+     * @param planId             The plan OID
+     * @param reservedInstanceId The reserved instance OID it is buying
+     * @param usedCoupons        The number of coupons it is using
+     */
+    private void createPlanProjectedEntityToRIMappingRecord(long entityId, long planId, long reservedInstanceId, double usedCoupons) {
+        PlanProjectedEntityToReservedInstanceMapping planProjectedEntityToReservedInstanceMapping =
+                new PlanProjectedEntityToReservedInstanceMapping(entityId, planId, reservedInstanceId, usedCoupons);
+
+        PlanProjectedEntityToReservedInstanceMappingRecord record = planProjectedEntityToReservedInstanceMappingStore.save(planProjectedEntityToReservedInstanceMapping);
+        logger.debug("Created PlanProjectedEntityToReservedInstanceMappingRecord: {}", record);
     }
 
     /**

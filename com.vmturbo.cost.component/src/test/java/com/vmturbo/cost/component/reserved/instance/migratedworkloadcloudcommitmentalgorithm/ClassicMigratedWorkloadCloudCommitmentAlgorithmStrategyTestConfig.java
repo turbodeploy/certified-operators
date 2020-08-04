@@ -52,6 +52,8 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTestConfig {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null);
     }
 }

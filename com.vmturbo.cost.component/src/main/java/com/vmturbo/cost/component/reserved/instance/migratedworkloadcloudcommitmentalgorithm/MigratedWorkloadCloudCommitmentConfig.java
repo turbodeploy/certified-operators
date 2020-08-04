@@ -16,6 +16,8 @@ import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSenderConfig;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanActionContextRiBuyStore;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanBuyReservedInstanceStore;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanProjectedEntityToReservedInstanceMappingStore;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanReservedInstanceSpecStore;
 import com.vmturbo.cost.component.rpc.MigratedWorkloadCloudCommitmentAnalysisService;
 
@@ -72,6 +74,18 @@ public class MigratedWorkloadCloudCommitmentConfig {
     private PlanActionContextRiBuyStore planActionContextRiBuyStore;
 
     /**
+     * Repository use to insert records into the plan_projected_entity_to_reserved_instance_mapping table.
+     */
+    @Autowired
+    private PlanProjectedEntityToReservedInstanceMappingStore planProjectedEntityToReservedInstanceMappingStore;
+
+    /**
+     * Repository use to insert records into the plan_reserved_instance_bought table.
+     */
+    @Autowired
+    private PlanReservedInstanceBoughtStore planReservedInstanceBoughtStore;
+
+    /**
      * The plan service, which is needed by the MigratedWorkloadCloudCommitmentAnalysisService to retrieve PlanInstances.
      */
     @Autowired
@@ -109,6 +123,8 @@ public class MigratedWorkloadCloudCommitmentConfig {
                 pricingConfig.businessAccountPriceTableKeyStore(),
                 planBuyReservedInstanceStore,
                 planReservedInstanceSpecStore,
-                planActionContextRiBuyStore);
+                planActionContextRiBuyStore,
+                planProjectedEntityToReservedInstanceMappingStore,
+                planReservedInstanceBoughtStore);
     }
 }

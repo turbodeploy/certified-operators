@@ -109,6 +109,9 @@ message ReservedInstanceBought {
         // The end milliseconds since epoch for RI bought.
         optional int64 end_time = 13;
 
+        // An optional list of VMs that will use this RI
+        repeated int64 vm_list = 14;
+
         message ReservedInstanceBoughtCost {
             // The upfront one-time cost of the Reserved Instance.
             optional common_dto.CurrencyAmount fixed_cost = 1;

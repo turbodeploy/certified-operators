@@ -179,6 +179,8 @@ public class ReservedInstanceMapper {
                 .map(BaseApiDTO::getDisplayName)
                 .collect(Collectors.toList()));
 
+        reservedInstanceApiDTO.setVmIds(reservedInstanceBoughtInfo.getVmListList());
+
         return reservedInstanceApiDTO;
     }
 
