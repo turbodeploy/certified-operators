@@ -74,7 +74,7 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
     public Set<Long> getControlAffectedEntities() {
         final ActionEntity targetEntity;
         try {
-            targetEntity = ActionDTOUtil.getPrimaryEntity(getActionId(), getActionInfo());
+            targetEntity = ActionDTOUtil.getPrimaryEntity(getActionId(), getActionInfo(), true);
         } catch (UnsupportedActionException e) {
             logger.error("Cannot get action primary entity", e);
             return Collections.emptySet();
@@ -218,7 +218,7 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
                 .build();
     }
 
-    protected ActionItemDTO.Builder actionItemDtoBuilder(final ChangeProvider change,
+    private ActionItemDTO.Builder actionItemDtoBuilder(final ChangeProvider change,
             final long actionId,
             final EntityDTO primaryEntity) throws ContextCreationException {
         long sourceId = change.getSource().getId();
@@ -246,9 +246,6 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
                 .addAllContextData(getContextData());
 
         getHost(primaryEntity).ifPresent(actionBuilder::setHostedBySE);
-        logger.trace("created action item for {}:{}, and provider {} change from {} to {}",
-                primaryEntity.getEntityType(), primaryEntity.getDisplayName(),
-                srcEntityType, sourceEntity.getDisplayName(), destinationEntity.getDisplayName());
         return actionBuilder;
     }
 

@@ -543,24 +543,37 @@ public class ActionDTOUtilTest {
     }
 
     /**
-     * Test for invocation of {@link ActionDTOUtil#getPrimaryEntity(Action)} method for
+     * Test for invocation of {@link ActionDTOUtil#getPrimaryEntity(Action, boolean)} method for
      * Move and Scale actions.
      */
     @Test
     public void testGetPrimaryEntityForMoveAndScale() throws UnsupportedActionException {
         final ActionEntity vm = createActionEntity(11);
         final ActionEntity volume = createActionEntity(22);
+        final ActionEntity storageTier = createActionEntity(33, EntityType.STORAGE_TIER_VALUE);
+        final ChangeProvider changeProvider = ChangeProvider.newBuilder()
+                .setSource(storageTier)
+                .setDestination(storageTier)
+                .setResource(volume)
+                .build();
         final ActionInfo moveInfo = ActionInfo.newBuilder()
-                .setMove(Move.newBuilder().setTarget(vm))
+                .setMove(Move.newBuilder()
+                        .setTarget(vm)
+                        .addChanges(changeProvider))
                 .build();
         final Action move = createAction(moveInfo);
         final ActionInfo scaleInfo = ActionInfo.newBuilder()
-                .setScale(Scale.newBuilder().setTarget(volume))
+                .setScale(Scale.newBuilder()
+                        .setTarget(vm)
+                        .addChanges(changeProvider))
                 .build();
         final Action scale = createAction(scaleInfo);
 
-        assertSame(vm, ActionDTOUtil.getPrimaryEntity(move));
-        assertSame(volume, ActionDTOUtil.getPrimaryEntity(scale));
+        assertSame(volume, ActionDTOUtil.getPrimaryEntity(move, true));
+        assertSame(vm, ActionDTOUtil.getPrimaryEntity(move, false));
+
+        assertSame(vm, ActionDTOUtil.getPrimaryEntity(scale, true));
+        assertSame(vm, ActionDTOUtil.getPrimaryEntity(scale, false));
     }
 
     /**

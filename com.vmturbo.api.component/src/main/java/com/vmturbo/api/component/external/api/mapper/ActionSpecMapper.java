@@ -733,7 +733,7 @@ public class ActionSpecMapper {
             final boolean isVirtualVolumeTarget = targetEntity.getClassName()
                             .equals(ApiEntityType.VIRTUAL_VOLUME.apiStr());
             final Long vmId = isVirtualVolumeTarget
-                            ? ActionDTOUtil.getPrimaryEntity(action).getId()
+                            ? ActionDTOUtil.getPrimaryEntity(action, false).getId()
                             : targetEntityId;
             // set location, which is the region
             setCurrentAndNewLocation(vmId, context, actionApiDTO);
@@ -1082,12 +1082,11 @@ public class ActionSpecMapper {
 
         wrapperDto.setActionType(actionType);
         // Set entity DTO fields for target, source (if needed) and destination entities
-        final ActionEntity target = ActionDTOUtil.getPrimaryEntity(action);
+        final ActionEntity target = ActionDTOUtil.getPrimaryEntity(action, true);
         wrapperDto.setTarget(getServiceEntityDTO(context, target));
 
-        final ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(action).orElse(null);
-        final boolean hasPrimarySource = !initialPlacement
-                && (primaryChange != null) && primaryChange.getSource().hasId();
+        final ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(action);
+        final boolean hasPrimarySource = !initialPlacement && primaryChange.getSource().hasId();
         if (hasPrimarySource) {
             long primarySourceId = primaryChange.getSource().getId();
             wrapperDto.setCurrentValue(Long.toString(primarySourceId));
@@ -1099,12 +1098,10 @@ public class ActionSpecMapper {
             // which throws an error if current entity is unset.
             wrapperDto.setCurrentEntity(new ServiceEntityApiDTO());
         }
-        if (primaryChange != null) {
-            long primaryDestinationId = primaryChange.getDestination().getId();
-            wrapperDto.setNewValue(Long.toString(primaryDestinationId));
-            wrapperDto.setNewEntity(getServiceEntityDTO(context, primaryChange.getDestination()));
-            setRelatedDatacenter(primaryDestinationId, wrapperDto, context, true);
-        }
+        long primaryDestinationId = primaryChange.getDestination().getId();
+        wrapperDto.setNewValue(Long.toString(primaryDestinationId));
+        wrapperDto.setNewEntity(getServiceEntityDTO(context, primaryChange.getDestination()));
+        setRelatedDatacenter(primaryDestinationId, wrapperDto, context, true);
 
         List<ActionApiDTO> actions = Lists.newArrayList();
         for (ChangeProvider change : ActionDTOUtil.getChangeProviderList(action)) {

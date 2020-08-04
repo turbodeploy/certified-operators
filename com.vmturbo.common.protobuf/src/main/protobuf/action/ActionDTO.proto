@@ -359,9 +359,6 @@ message Scale {
 
     // Details of each provider change.
     repeated ChangeProvider changes = 2;
-
-    // Details of each commodity change.
-    repeated ResizeInfo commodity_resizes = 3;
 }
 
 message ChangeProvider {

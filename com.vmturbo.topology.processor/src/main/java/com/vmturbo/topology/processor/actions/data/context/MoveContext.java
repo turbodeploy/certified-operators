@@ -169,7 +169,7 @@ public class MoveContext extends ChangeProviderContext {
      */
     @Override
     protected long getPrimaryEntityId() {
-        return getActionInfo().getMove().getTarget().getId();
+        return ActionDTOUtil.getMoveActionTarget(getActionInfo()).getId();
     }
 
     /**
