@@ -1,24 +1,34 @@
 package com.vmturbo.cost.component.reserved.instance.coverage.analysis;
 
+import static java.util.stream.Collectors.toSet;
+
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.cost.component.util.BusinessAccountHelper;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
-import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
@@ -59,10 +69,13 @@ public class SupplementalRICoverageAnalysisFactory {
     private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
     private final ReservedInstanceSpecStore reservedInstanceSpecStore;
+    private final AccountRIMappingStore accountRIMappingStore;
 
     private boolean riCoverageAllocatorValidation;
 
     private boolean concurrentRICoverageAllocation;
+
+    private final Logger logger = LogManager.getLogger();
 
     /**
      * Constructs a new instance of {@link SupplementalRICoverageAnalysis}
@@ -71,9 +84,9 @@ public class SupplementalRICoverageAnalysisFactory {
      * @param reservedInstanceBoughtStore An instance of {@link ReservedInstanceSpecStore}
      * @param reservedInstanceSpecStore An instance of {@link ReservedInstanceSpecStore}
      * @param riCoverageAllocatorValidation A boolean flag indicating whether validation through the
-     *                                      RI coverage allocator should be enabled
+*                                      RI coverage allocator should be enabled
      * @param concurrentRICoverageAllocation A boolean flag indicating whether concurrent coverage allocation
-     *                                       should be enabled in the RI coverage allocator
+     * @param accountRIMappingStore An instance of {@link AccountRIMappingStore}
      */
     public SupplementalRICoverageAnalysisFactory(
             @Nonnull RICoverageAllocatorFactory allocatorFactory,
@@ -81,7 +94,8 @@ public class SupplementalRICoverageAnalysisFactory {
             @Nonnull ReservedInstanceBoughtStore reservedInstanceBoughtStore,
             @Nonnull ReservedInstanceSpecStore reservedInstanceSpecStore,
             boolean riCoverageAllocatorValidation,
-            boolean concurrentRICoverageAllocation) {
+            boolean concurrentRICoverageAllocation,
+            final AccountRIMappingStore accountRIMappingStore) {
 
         this.allocatorFactory = Objects.requireNonNull(allocatorFactory);
         this.coverageTopologyFactory = Objects.requireNonNull(coverageTopologyFactory);
@@ -89,6 +103,7 @@ public class SupplementalRICoverageAnalysisFactory {
         this.reservedInstanceSpecStore = Objects.requireNonNull(reservedInstanceSpecStore);
         this.riCoverageAllocatorValidation = riCoverageAllocatorValidation;
         this.concurrentRICoverageAllocation = concurrentRICoverageAllocation;
+        this.accountRIMappingStore = accountRIMappingStore;
     }
 
     /**
@@ -106,9 +121,11 @@ public class SupplementalRICoverageAnalysisFactory {
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
             @Nonnull List<EntityRICoverageUpload> entityRICoverageUploads) {
 
-        final List<ReservedInstanceBought> reservedInstances =
+        List<ReservedInstanceBought> reservedInstances =
                 reservedInstanceBoughtStore
                     .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER);
+
+        reservedInstances = updateRIsForUndiscoveredAccounts(cloudTopology, reservedInstances);
 
         // Query only for RI specs referenced from reservedInstances
         final Set<Long> riSpecIds = reservedInstances.stream()
@@ -132,4 +149,76 @@ public class SupplementalRICoverageAnalysisFactory {
                 concurrentRICoverageAllocation,
                 riCoverageAllocatorValidation);
     }
+
+    /**
+     * For supplemental analysis we need to:
+     * 1. Exclude undiscovered RIs in supplemental analysis .
+     * 2. RI capacity of discovered RIs will be
+     * (RI capacity - Current utilization in undiscovered accounts).
+     *
+     *
+     * @param cloudTopology the cloud topology being processed.
+     * @param reservedInstances the reserved instances to be filtered.
+     * @return list of updated reserved instances.
+     */
+    private List<ReservedInstanceBought> updateRIsForUndiscoveredAccounts(
+            final CloudTopology<TopologyEntityDTO> cloudTopology,
+            final List<ReservedInstanceBought> reservedInstances) {
+
+        final List<TopologyEntityDTO> allAccounts = cloudTopology
+                .getAllEntitiesOfType(EntityType.BUSINESS_ACCOUNT_VALUE);
+        final Set<Long> discoveredAccounts = allAccounts.stream().filter(
+                acc -> acc.hasTypeSpecificInfo()
+                        && acc.getTypeSpecificInfo().hasBusinessAccount()
+                        && acc.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId())
+                .map(acc -> acc.getOid())
+                .collect(toSet());
+
+        List<ReservedInstanceBought> updatedRIs =
+                reservedInstances.stream()
+                        .filter(ri -> discoveredAccounts.contains(
+                                ri.getReservedInstanceBoughtInfo().getBusinessAccountId()))
+                        .collect(Collectors.toList());
+        // for the remaining discovered RIs exclude usage in undiscovered accounts from capacity
+        final List<Long> baOids = reservedInstances.stream()
+                .filter(ri -> ri.hasReservedInstanceBoughtInfo()
+                        && ri.getReservedInstanceBoughtInfo().hasBusinessAccountId())
+                .map(ri -> ri.getReservedInstanceBoughtInfo().getBusinessAccountId())
+                .distinct()
+                .collect(Collectors.toList());
+        final Map<Long, Double> riToUsageInUndiscoveredAccounts =
+                BusinessAccountHelper.getUndiscoveredAccountUsageForRI(baOids, accountRIMappingStore);
+
+        if (riToUsageInUndiscoveredAccounts.isEmpty()) {
+            return updatedRIs;
+        }
+        updatedRIs = updatedRIs.stream()
+                .map(ReservedInstanceBought::toBuilder)
+                .peek(ri -> {
+                    if (!ri.getReservedInstanceBoughtInfo().hasReservedInstanceBoughtCoupons()) {
+                        logger.error("No Coupon information for RI {}", ri.getId());
+                        return;
+                    }
+                    final Double usageFromUndiscoveredAccounts =
+                            riToUsageInUndiscoveredAccounts.getOrDefault(ri.getId(), 0d);
+                    Double newCapacity = ri.getReservedInstanceBoughtInfo()
+                            .getReservedInstanceBoughtCoupons()
+                            .getNumberOfCoupons() - usageFromUndiscoveredAccounts;
+                    if (newCapacity < 0) {
+                        logger.error("Resetting number of coupons ot 0, " +
+                                "usage in undiscovered accounts is more than number of coupons for {}",
+                                ri.getId());
+                        newCapacity = 0d;
+                    }
+                    ri.getReservedInstanceBoughtInfoBuilder()
+                            .getReservedInstanceBoughtCouponsBuilder()
+                            .setNumberOfCoupons(newCapacity.intValue());
+                })
+                .map(Builder::build)
+                .collect(Collectors.toList());
+        return updatedRIs;
+
+    }
+
+
 }

@@ -339,7 +339,8 @@ public class ReservedInstanceConfig {
                 reservedInstanceBoughtStore(),
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 supplementalRICoverageValidation,
-                concurrentSupplementalRICoverageAllocation);
+                concurrentSupplementalRICoverageAllocation,
+                accountRIMappingStore());
     }
 
     @Bean

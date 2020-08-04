@@ -193,12 +193,19 @@ public class AccountRIMappingStore {
     /**
      * Class representing item of account RI coverage.
      */
-    protected class AccountRIMappingItem {
+    public class AccountRIMappingItem {
         private final Long businessAccountOid;
         private final Long reservedInstanceId;
         private final Double usedCoupons;
         private final RICoverageSource riSource;
 
+        /**
+         * Represents each row in the account mapping table.
+         * @param businessAccountOid the BA Id the RI is mapped to.
+         * @param reservedInstanceId the ReservedInstance Id.
+         * @param usedCoupons Number of used coupons
+         * @param riSource Source of the mapping - from billing or from supplemental analysiss.
+         */
         public AccountRIMappingItem(Long businessAccountOid, Long reservedInstanceId, Double usedCoupons,
                 RICoverageSource riSource) {
             super();
