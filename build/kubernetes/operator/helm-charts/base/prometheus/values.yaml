@@ -576,6 +576,23 @@ server:
 
   name: server
   sidecarContainers:
+      # Name of the sidecar container inside Prometheus server pod.
+    - name: datacloud-gateway
+      # Container image to use.
+      image: sevone/prometheus-gateway@sha256:42a729194b026df5290ace235d5a08503d848ea948afb7551c12d4b16e879d55
+      # Whether the container image should be pulled every time or only when it's not present.
+      imagePullPolicy: IfNotPresent
+      # Environment variable definitions to configure the sidecar container.
+      env:
+          # Where to send the telemetry data.
+        - name: HOST
+          value: "datacloud.turbonomic.io:443"
+          # How to authenticate with the receiving side. This should be a write-only key.
+        - name: APIKEY
+          value: "put-your-api-key-here"
+          # Logging level for the sidecar container.
+        - name: LOG_LEVEL
+          value: "info"
 
   ## Prometheus server container image
   ##
@@ -645,9 +662,28 @@ server:
     ## How frequently to evaluate rules
     ##
     evaluation_interval: 1m
+    ## The labels to add to any time series or alerts when communicating with
+    ## external systems (federation, remote storage, Alertmanager).
+    external_labels:
+      # These should be overridden automatically with information in the license once it's installed
+      customer_id: "000000"
+      customer_domain: "unlicensed"
+
   ## https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
   ##
-  remoteWrite: []
+  remoteWrite:
+      # Name of the remote write config, which if specified must be unique among remote write
+      # configs. The name will be used in metrics and logging in place of a generated value to help
+      # users distinguish between remote write configs.
+    - name: "datacloud"
+      # URL of the SevOne DataCloud gateway sidecar
+      url: http://127.0.0.1:8123/api/prometheus/write
+      # Send only telemetry data to DataCloud.
+      write_relabel_configs:
+        - action: keep
+          source_labels: [job]
+          regex: telemetry # relabel regexps are anchored on both ends by default.
+
   ## https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_read
   ##
   remoteRead: []
@@ -1581,6 +1617,34 @@ serverFiles:
               - __meta_kubernetes_namespace
             target_label: namespace
             action: replace
+
+      # Scrape config for XL telemetry. Loosely based on 'xl' job.
+      #
+      - job_name: 'telemetry'
+        scrape_interval: 7d # Send telemetry once a week.
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - action: keep
+            source_labels:
+              - __meta_kubernetes_service_name
+            regex: action-orchestrator|api|auth|clustermgr|cost|group|history|market|ml-datastore|plan-orchestrator|repository|topology-processor
+          - action: drop
+            source_labels:
+              - __meta_kubernetes_endpoint_port_name
+            regex: (tcp-|grpc-|https-).*
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_service_name
+            target_label: service
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_endpoint_node_name
+            target_label: node
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_namespace
+            target_label: namespace
 
 # adds additional scrape configs to prometheus.yml
 # must be a string so you have to add a | after extraScrapeConfigs:
