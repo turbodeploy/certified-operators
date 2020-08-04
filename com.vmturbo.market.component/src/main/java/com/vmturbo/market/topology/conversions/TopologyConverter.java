@@ -1993,14 +1993,28 @@ final long providerOid) {
         }
 
         final double originalPercentile = boughtDTO.getHistoricalUsed().getPercentile();
+        long oldSupplierId = shoppingListInfo.getSellerId();
+        long newSupplierId = supplierOid;
+        if (shoppingListInfo.getSellerEntityType().isPresent() && TopologyDTOUtil.isTierEntityType(shoppingListInfo.getSellerEntityType().get())) {
+            // If it is tier type, the traderOid is stored in the shoppinglistInfo.
+            // Need to convert it to the entityOid in order to look up in commodityIndex
+            if (cloudTc.isMarketTier(oldSupplierId)) {
+                oldSupplierId = cloudTc.getMarketTier(oldSupplierId).getTier().getOid();
+            }
+            if (cloudTc.isMarketTier(newSupplierId)) {
+                newSupplierId = cloudTc.getMarketTier(newSupplierId).getTier().getOid();
+            }
+        }
         final Optional<Double> oldCapacity = getCommodityIndex().getCommSold(
-            shoppingListInfo.getSellerId(),
+            oldSupplierId,
             commType).map(CommoditySoldDTO::getCapacity);
         final Optional<Double> newCapacity =
-            getCommodityIndex().getCommSold(supplierOid, commType)
+            getCommodityIndex().getCommSold(newSupplierId, commType)
                                         .map(CommoditySoldDTO::getCapacity)
                                         .filter(capacity -> capacity != 0);
         if (oldCapacity.isPresent() && newCapacity.isPresent()) {
+            logger.debug("converting for commType={}, buyer oid {}, seller {} oid={}.  oldCapacity={}, newcapacity={}, originalPercentile={}, newPercentile={}",
+                commType, shoppingListInfo.getBuyerId(), shoppingListInfo.sellerEntityType, shoppingListInfo.getSellerId(), oldCapacity, newCapacity, originalPercentile, originalPercentile * oldCapacity.get() / newCapacity.get());
             return originalPercentile * oldCapacity.get() / newCapacity.get();
         }
 
