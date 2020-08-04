@@ -220,7 +220,7 @@ public class BusinessAccountPriceTableKeyStore implements DiagsRestorable {
         PriceTableKey priceTableKey = longPriceTableKeyEntry.getValue();
         Long businessAccountOID = longPriceTableKeyEntry.getKey();
         try {
-            logger.info("Create/update a record for BA: {} to priceTableKey {}",
+            logger.debug("Create/update a record for BA: {} to priceTableKey {}",
                     businessAccountOID, priceTableKey);
             // assign oid using priceTableKeyIdentityStore.
             Entry<IdentityMatchingAttributes, Long> newPriceTableKeyOidEntry = priceTableKeyIdentityStore

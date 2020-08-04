@@ -288,7 +288,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     public boolean invokeRIBuyIfBusinessAccountsUpdated(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
         boolean runRiBuy = false;
         final StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
-        logger.info("Business accounts received in topology broadcast: {}", allBusinessAccounts);
+        logger.debug("Business accounts received in topology broadcast: {}", allBusinessAccounts);
         final int newAccountsCount = addNewBAsWithCost(allBusinessAccounts);
         if (newAccountsCount > 0) {
             logger.info("{} new account(s) with Cost found - invoking RI Buy Analysis...", newAccountsCount);
@@ -314,7 +314,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      */
     public boolean invokeRIBuyIfPriceTablesChanged(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
         StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
-        logger.info("Business accounts received in topology broadcast: {}", allBusinessAccounts);
+        logger.debug("Business accounts received in topology broadcast: {}", allBusinessAccounts);
         if (buyRiRequest.getAccountsList().isEmpty()) {
             logger.warn("invokeRIBuyIfPriceTablesChanged: No BAs found. Trigger RI Buy Analysis"
                     + " next inventory/price table update or scheduled interval.");
@@ -460,8 +460,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         Set<BizAccPriceRecord> lastDiscoveredBAs = collectBAsCostRecords(allBusinessAccounts,
                 allBAToPriceTableOid);
 
-        logger.info("Business Accounts w/cost: {}", businessAccountsWithCost);
-        logger.info("Last Discovered BAs: {}", lastDiscoveredBAs);
+        logger.debug("Business Accounts w/cost: {}", businessAccountsWithCost);
+        logger.debug("Last Discovered BAs: {}", lastDiscoveredBAs);
 
         // Run through the list of BAs with price info as was known prior to the last discovery
         // and check if the price info changed for any.
