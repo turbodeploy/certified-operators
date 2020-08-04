@@ -1572,7 +1572,7 @@ public class HistorydbIO extends BasedbIO {
     /**
      * The variables and code immediately below are carried-over directly from Classic code
      */
-    private static final int FAST_SQL_SIZE = 256;
+    @VisibleForTesting protected static final int FAST_SQL_SIZE = 256;
     private static final String[] FAST_SQL = new String[FAST_SQL_SIZE + 1];
 
     static {
@@ -1628,14 +1628,16 @@ public class HistorydbIO extends BasedbIO {
         if (count > 0) {
             ps.executeBatch();
         }
-        // Last row.
-        sql = String.format(FAST_SQL[lastRow], tempTableName);
-        ps = conn.prepareStatement(sql);
-        for (int i = 1; index < uuidArray.length; index++, i++) {
-            ps.setString(i, uuidArray[index]);
+        if (lastRow > 0) {
+            // Last row.
+            sql = String.format(FAST_SQL[lastRow], tempTableName);
+            ps = conn.prepareStatement(sql);
+            for (int i = 1; index < uuidArray.length; index++, i++) {
+                ps.setString(i, uuidArray[index]);
+            }
+            ps.addBatch();
+            ps.executeBatch();
         }
-        ps.addBatch();
-        ps.executeBatch();
     }
 
     /**
