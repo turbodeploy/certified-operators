@@ -19,8 +19,8 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
         final DBEntityAspectApiDTO aspect = new DBEntityAspectApiDTO();
         if (entity.getTypeSpecificInfo().hasDatabase()) {
             final DatabaseInfo databaseInfo = entity.getTypeSpecificInfo().getDatabase();
-            if (databaseInfo.hasEdition()) {
-                aspect.setDbEdition(databaseInfo.getEdition().name());
+            if (databaseInfo.hasRawEdition()) {
+                aspect.setDbEdition(databaseInfo.getRawEdition());
             }
             if (databaseInfo.hasEngine()) {
                 aspect.setDbEngine(databaseInfo.getEngine().name());

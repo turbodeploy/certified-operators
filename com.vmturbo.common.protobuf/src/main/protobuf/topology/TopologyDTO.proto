@@ -240,6 +240,9 @@ message TypeSpecificInfo {
 
         // DB version
         optional string version = 5;
+
+        // Raw DB edition
+        optional string rawEdition = 6;
     }
 
     // specific data for virtual volume
