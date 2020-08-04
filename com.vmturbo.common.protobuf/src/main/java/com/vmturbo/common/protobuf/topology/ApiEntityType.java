@@ -1,7 +1,6 @@
 package com.vmturbo.common.protobuf.topology;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -23,7 +22,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * This enum lists all the entity types that can be named in API calls, linking them with
  * the underlying SDK entity types.
  */
-public enum ApiEntityType {
+public enum  ApiEntityType {
     /** Application Component entity type. */
     APPLICATION_COMPONENT(StringConstants.APPLICATION_COMPONENT, EntityType.APPLICATION_COMPONENT),
     /** Service entity type. */
