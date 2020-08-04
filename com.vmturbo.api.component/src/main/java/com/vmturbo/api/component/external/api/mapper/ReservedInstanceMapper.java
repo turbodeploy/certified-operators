@@ -179,7 +179,8 @@ public class ReservedInstanceMapper {
                 .map(BaseApiDTO::getDisplayName)
                 .collect(Collectors.toList()));
 
-        reservedInstanceApiDTO.setVmIds(reservedInstanceBoughtInfo.getVmListList());
+        // Set the toBuy field based on the value in the ReservedInstanceBoughtInfo
+        reservedInstanceApiDTO.setToBuy(reservedInstanceBoughtInfo.getToBuy());
 
         return reservedInstanceApiDTO;
     }

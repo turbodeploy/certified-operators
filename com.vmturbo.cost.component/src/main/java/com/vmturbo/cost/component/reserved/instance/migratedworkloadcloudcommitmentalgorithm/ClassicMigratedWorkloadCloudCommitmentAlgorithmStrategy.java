@@ -462,7 +462,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                         .setBusinessAccountId(masterBusinessAccountOid)
                         .setNumBought(1)
                         .setReservedInstanceSpec(costRecord.getRiSpecId())
-                        .addVmList(placement.getVirtualMachine().getOid())
+                        .setToBuy(true)
                         .build(),
                 1,
                 costRecord.getUpFrontPrice(),
@@ -534,7 +534,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                                         .setAmount(costRecord.getRecurringPrice())
                                         .build())
                                 .build())
-                        .addVmList(vmId)
+                        .setToBuy(true)
                         .build(),
                 costRecord.getUpFrontPrice(),
                 costRecord.getRecurringPrice(),
