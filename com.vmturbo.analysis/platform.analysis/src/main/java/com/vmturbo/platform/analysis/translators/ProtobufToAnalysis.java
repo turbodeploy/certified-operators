@@ -379,7 +379,10 @@ public final class ProtobufToAnalysis {
     private static List<Context> populateAllContextCbtp(@Nonnull CbtpCostDTO cbtpResourceBundle) {
         final Map<Long, Set<Long>> regionListByAccount =
                         extractContextFromCostTuple(cbtpResourceBundle.getCostTupleListList());
-        return createContextList(regionListByAccount, cbtpResourceBundle.getScopeId());
+        // ParentId is only expected to be one if present, so pass that in.
+        Long parentId = cbtpResourceBundle.getScopeIdsList().isEmpty() ? null
+                : cbtpResourceBundle.getScopeIds(0);
+        return createContextList(regionListByAccount, parentId);
     }
 
     /**
