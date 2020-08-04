@@ -6,9 +6,11 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Unit tests for {@link FileBasedSettingsSpecStore} against real (production) list of settings.
@@ -17,10 +19,12 @@ public class SettingSpecsStoreTest {
 
     private SettingSpecStore specStore;
 
+    private final ThinTargetCache thinTargetCache = Mockito.mock(ThinTargetCache.class);
+
     @Before
     public void init() {
         specStore = new EnumBasedSettingSpecStore(
-            false, false);
+            false, false, thinTargetCache);
     }
 
     /**

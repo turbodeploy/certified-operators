@@ -392,7 +392,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                         .setStartDate(calendar.getTimeInMillis())
                         .setEndDate(currentTime)
                         .addCommodityRequests(CommodityRequest.newBuilder()
-                            .setCommodityName(StringConstants.VM_NUM_VMS)))
+                            .setCommodityName(StringConstants.NUM_VMS)))
                     .build();
             final Iterator<StatSnapshot> snapshotIterator = statsHistoryService
                 .getClusterStatsForHeadroomPlan(vmCountRequest);
@@ -418,11 +418,11 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             }
 
             final Optional<Float> earliestVMCount = earliestSnapshot.get().getStatRecordsList().stream()
-                .filter(statRecord -> statRecord.getName().equals(StringConstants.VM_NUM_VMS))
+                .filter(statRecord -> statRecord.getName().equals(StringConstants.NUM_VMS))
                 .map(statRecord -> statRecord.getValues().getAvg())
                 .findFirst();
             final Optional<Float> latestVMCount = latestSnapshot.get().getStatRecordsList().stream()
-                .filter(statRecord -> statRecord.getName().equals(StringConstants.VM_NUM_VMS))
+                .filter(statRecord -> statRecord.getName().equals(StringConstants.NUM_VMS))
                 .map(statRecord -> statRecord.getValues().getAvg())
                 .findFirst();
 
@@ -501,9 +501,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             commoditiesBoughtByTemplate.get(STORAGE_HEADROOM_COMMODITIES), vmDailyGrowth);
 
         createStatsRecords(cluster.getId(),
-            headroomEntities.get(EntityType.VIRTUAL_MACHINE_VALUE).size(),
-            headroomEntities.get(EntityType.PHYSICAL_MACHINE_VALUE).size(),
-            headroomEntities.get(EntityType.STORAGE_VALUE).size(),
             cpuHeadroom, memHeadroom, storageHeadroom, getMonthlyVMGrowth(vmDailyGrowth));
     }
 
@@ -725,16 +722,12 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * Save the headroom value.
      *
      * @param clusterId cluster id
-     * @param numVms number of vms
-     * @param numHosts number of hosts
-     * @param numStorages number of storages
      * @param cpuHeadroomInfo headroom values for CPU
      * @param memHeadroomInfo headroom values for Memory
      * @param storageHeadroomInfo headroom values for Storage
      * @param monthlyVMGrowth the number of monthly added VMs
      */
-    private void createStatsRecords(final long clusterId, final long numVms,
-                                    final long numHosts, final long numStorages,
+    private void createStatsRecords(final long clusterId,
                                     CommodityHeadroom cpuHeadroomInfo,
                                     CommodityHeadroom memHeadroomInfo,
                                     CommodityHeadroom storageHeadroomInfo,
@@ -747,9 +740,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         try {
             statsHistoryService.saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
                 .setClusterId(clusterId)
-                .setNumVMs(numVms)
-                .setNumHosts(numHosts)
-                .setNumStorages(numStorages)
                 .setHeadroom(minHeadroom)
                 .setCpuHeadroomInfo(cpuHeadroomInfo)
                 .setMemHeadroomInfo(memHeadroomInfo)

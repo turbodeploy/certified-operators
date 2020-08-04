@@ -286,7 +286,8 @@ public class CommunicationConfig {
 
     @Bean
     public RepositoryServiceBlockingStub repositoryRpcService() {
-        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel())
+                .withInterceptors(jwtClientInterceptor());
     }
 
     /**
@@ -296,7 +297,8 @@ public class CommunicationConfig {
      */
     @Bean
     public RepositoryServiceStub repositoryAsyncService() {
-        return RepositoryServiceGrpc.newStub(repositoryClientConfig.repositoryChannel());
+        return RepositoryServiceGrpc.newStub(repositoryClientConfig.repositoryChannel())
+                .withInterceptors(jwtClientInterceptor());
     }
 
     @Bean

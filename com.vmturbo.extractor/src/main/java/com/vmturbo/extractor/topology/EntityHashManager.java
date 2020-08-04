@@ -21,9 +21,9 @@ public class EntityHashManager extends RecordHashManager {
     private static final Set<Column<?>> INCLUDE_COLUMNS_FOR_ENTITY_HASH = ImmutableSet.of(
             ENTITY_OID_AS_OID,
             ModelDefinitions.ENTITY_NAME,
-            ModelDefinitions.ENTITY_TYPE_AS_TYPE,
-            ModelDefinitions.ENTITY_STATE,
-            ModelDefinitions.ENVIRONMENT_TYPE,
+            ModelDefinitions.ENTITY_TYPE_ENUM,
+            ModelDefinitions.ENTITY_STATE_ENUM,
+            ModelDefinitions.ENVIRONMENT_TYPE_ENUM,
             ModelDefinitions.ATTRS,
             ModelDefinitions.SCOPED_OIDS);
 

@@ -25,11 +25,12 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocationFilter;
+import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
+import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocation;
+import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocationFilter;
+import com.vmturbo.cloud.commitment.analysis.demand.store.ImmutableEntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
@@ -73,7 +74,7 @@ public class SQLComputeTierAllocationStoreTest {
             .regionOid(3)
             .availabilityZoneOid(4)
             .serviceProviderOid(5)
-            .cloudTierDemand(ImmutableComputeTierAllocation.builder()
+            .cloudTierDemand(ImmutableComputeTierDemand.builder()
                     .osType(OSType.LINUX)
                     .tenancy(Tenancy.DEFAULT)
                     .cloudTierOid(6).build())
@@ -83,7 +84,7 @@ public class SQLComputeTierAllocationStoreTest {
             .accountOid(8)
             .regionOid(9)
             .serviceProviderOid(10)
-            .cloudTierDemand(ImmutableComputeTierAllocation.builder()
+            .cloudTierDemand(ImmutableComputeTierDemand.builder()
                     .osType(OSType.WINDOWS)
                     .tenancy(Tenancy.HOST)
                     .cloudTierOid(12).build())
@@ -94,7 +95,7 @@ public class SQLComputeTierAllocationStoreTest {
             .accountOid(8)
             .regionOid(9)
             .serviceProviderOid(10)
-            .cloudTierDemand(ImmutableComputeTierAllocation.builder()
+            .cloudTierDemand(ImmutableComputeTierDemand.builder()
                     .osType(OSType.WINDOWS)
                     .tenancy(Tenancy.DEFAULT)
                     .cloudTierOid(12).build())
@@ -152,7 +153,7 @@ public class SQLComputeTierAllocationStoreTest {
 
         // Datapoint B changes its cloud tier
         final ComputeTierAllocationDatapoint datapointB = ImmutableComputeTierAllocationDatapoint.copyOf(baselineDatapointB)
-                .withCloudTierDemand(ImmutableComputeTierAllocation.builder()
+                .withCloudTierDemand(ImmutableComputeTierDemand.builder()
                         .osType(OSType.LINUX)
                         .tenancy(Tenancy.DEFAULT)
                         .cloudTierOid(13).build());
@@ -203,7 +204,7 @@ public class SQLComputeTierAllocationStoreTest {
 
         // Datapoint B changes its cloud tier
         final ComputeTierAllocationDatapoint datapointB = ImmutableComputeTierAllocationDatapoint.copyOf(baselineDatapointB)
-                .withCloudTierDemand(ImmutableComputeTierAllocation.builder()
+                .withCloudTierDemand(ImmutableComputeTierDemand.builder()
                         .osType(OSType.LINUX)
                         .tenancy(Tenancy.DEFAULT)
                         .cloudTierOid(13).build());
@@ -334,10 +335,11 @@ public class SQLComputeTierAllocationStoreTest {
                 .regionOid(allocationDatapoint.regionOid())
                 .availabilityZoneOid(allocationDatapoint.availabilityZoneOid())
                 .serviceProviderOid(allocationDatapoint.serviceProviderOid())
-                .startTime(startTime)
-                .endTime(endTime)
+                .timeInterval(ImmutableTimeInterval.builder()
+                        .startTime(startTime)
+                        .endTime(endTime)
+                        .build())
                 .cloudTierDemand(allocationDatapoint.cloudTierDemand())
-                .cloudTierType(CloudTierType.COMPUTE_TIER)
                 .build();
 
     }

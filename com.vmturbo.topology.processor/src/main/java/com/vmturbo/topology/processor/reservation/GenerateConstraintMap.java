@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServic
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -130,21 +131,24 @@ public class GenerateConstraintMap {
         final List<TopologyEntity> allDatacenters = topologyGraph
                 .entitiesOfType(EntityType.DATACENTER).collect(Collectors.toList());
         for (TopologyEntity dataCenter : allDatacenters) {
-            Optional<TopologyEntity> hostOptional = dataCenter.getConsumers().stream().findFirst();
-            if (!hostOptional.isPresent()) {
-                continue;
+            List<TopologyEntity> hostList = dataCenter.getConsumers();
+            for (TopologyEntity host : hostList) {
+                Optional<CommoditySoldDTO> dataCenterCommoditySold =
+                        host.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                                .filter(a -> a.getCommodityType().getType()
+                                        == CommodityType.DATACENTER_VALUE).findFirst();
+                if (dataCenterCommoditySold.isPresent()) {
+                    String key = dataCenterCommoditySold.get()
+                            .getCommodityType().getKey();
+                    updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
+                            .newBuilder()
+                            .setKey(key)
+                            .setConstraintId(dataCenter.getOid())
+                            .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                            .setType(Type.DATA_CENTER).build());
+                    break;
+                }
             }
-            TopologyEntity host = hostOptional.get();
-            String key = host.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
-                    .filter(a -> a.getCommodityType().getType()
-                            == CommodityType.DATACENTER_VALUE).findFirst().get()
-                    .getCommodityType().getKey();
-            updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
-                    .newBuilder()
-                    .setKey(key)
-                    .setConstraintId(dataCenter.getOid())
-                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .setType(Type.DATA_CENTER).build());
         }
 
         // go over all the policies and find the key of the segmentaion commodity

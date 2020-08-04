@@ -14,6 +14,7 @@ import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -33,6 +34,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.utils.ProbeFeature;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -40,6 +42,7 @@ import com.vmturbo.group.service.SettingRpcService;
 import com.vmturbo.group.setting.EnumBasedSettingSpecStore;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * JUnit test to cover production shipped entity settings transformation in UI.
@@ -49,11 +52,26 @@ public class SettingsMapperIntegrationTest {
     private SettingsPoliciesService settingsPoliciesService = Mockito.mock(
             SettingsPoliciesService.class);
 
+    private ThinTargetCache thinTargetCache;
     // Set of settings that are intentionally hidden from the UI
     private final Set<String> invisibleSettings = ImmutableSet.of(
         EntitySettingSpecs.ScalingGroupMembership.getSettingName(),
         EntitySettingSpecs.VCPURequestUtilization.getSettingName(),
         EntitySettingSpecs.ResizeTargetUtilizationIops.getSettingName());
+
+    /**
+     * Initialise test configuration.
+     */
+    @Before
+    public void init() {
+        // emulate that there is target supported external approval and audit features in
+        // order not to filter out external approval and audit settings
+        thinTargetCache = Mockito.mock(ThinTargetCache.class);
+        Mockito.when(thinTargetCache.getAvailableProbeFeatures())
+                .thenReturn(Sets.newHashSet(ProbeFeature.ACTION_APPROVAL,
+                        ProbeFeature.ACTION_AUDIT,
+                        ProbeFeature.DISCOVERY));
+    }
 
     /**
      * Test ensures, that all the settings from group component are seen in the UI through the
@@ -63,7 +81,8 @@ public class SettingsMapperIntegrationTest {
      */
     @Test
     public void testSettingsMapping() throws Exception {
-        final SettingSpecStore specStore = new EnumBasedSettingSpecStore(false, false);
+        final SettingSpecStore specStore = new EnumBasedSettingSpecStore(false, false,
+                thinTargetCache);
         final SettingStore settingStore = Mockito.mock(SettingStore.class);
         final SettingRpcService settingRpcService =
             new SettingRpcService(specStore, settingStore);
@@ -85,8 +104,7 @@ public class SettingsMapperIntegrationTest {
         final SettingsService settingService =
                 new SettingsService(SettingServiceGrpc.newBlockingStub(channel),
                         StatsHistoryServiceGrpc.newBlockingStub(channel),
-                        mapper, settingsManagerMapping, settingsPoliciesService,
-                        false, false);
+                        mapper, settingsManagerMapping, settingsPoliciesService);
 
         final List<SettingsManagerApiDTO> settingSpecs =
                 settingService.getSettingsSpecs(null, null, false);

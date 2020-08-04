@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.rpc;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -27,7 +28,6 @@ import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverag
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceImplBase;
-import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
@@ -261,7 +261,7 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
             if (coverage.hasUsageStartTimestamp() && coverage.hasUsageEndTimestamp()) {
                 final double hours = (double)Math.abs(
                         coverage.getUsageEndTimestamp() - coverage.getUsageStartTimestamp())
-                        / TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+                        / TimeUnit.HOURS.toMillis(1);
                 coverage.setCoveredCoupons(coverage.getCoveredCoupons() / hours);
             } else {
                 logger.warn(

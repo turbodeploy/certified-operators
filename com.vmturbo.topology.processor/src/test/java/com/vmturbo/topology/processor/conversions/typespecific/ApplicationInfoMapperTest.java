@@ -73,6 +73,7 @@ public class ApplicationInfoMapperTest {
             .setDatabase(DatabaseInfo.newBuilder()
                 .setEngine(DATABASE_ENGINE)
                 .setEdition(DATABASE_EDITION)
+                .setRawEdition(DATABASE_EDITION.name())
                 .setVersion(DATABASE_VERSION)
                 .build())
             .build();
@@ -107,6 +108,7 @@ public class ApplicationInfoMapperTest {
             .setDatabase(DatabaseInfo.newBuilder()
                 .setEngine(DATABASE_ENGINE)
                 .setEdition(DATABASE_EDITION)
+                .setRawEdition(DATABASE_EDITION.name())
                 .setVersion(DATABASE_VERSION)
                 .setLicenseModel(CloudCostDTO.LicenseModel.NO_LICENSE_REQUIRED)
                 .setDeploymentType(CloudCostDTO.DeploymentType.MULTI_AZ))
@@ -142,6 +144,7 @@ public class ApplicationInfoMapperTest {
             .setDatabase(DatabaseInfo.newBuilder()
                 .setEngine(DATABASE_ENGINE)
                 .setEdition(DATABASE_EDITION)
+                .setRawEdition(DATABASE_EDITION.name())
                 .setVersion(DATABASE_VERSION))
             .build();
         final ApplicationInfoMapper testBuilder = new ApplicationInfoMapper();

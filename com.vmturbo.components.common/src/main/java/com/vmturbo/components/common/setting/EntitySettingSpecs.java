@@ -82,20 +82,20 @@ public enum EntitySettingSpecs {
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER,
                             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.DATABASE_SERVER),
+                            EntityType.DATABASE_SERVER, EntityType.WORKLOAD_CONTROLLER),
             actionExecutionModeSetToManual(), true),
 
     /**
      * Resize Up Heap automation mode.
      */
     ResizeUpHeap("resizeUpHeap", "Resize Up Heap", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
+            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToRecommend(), true),
 
     /**
      * Resize Down Heap automation mode.
      */
     ResizeDownHeap("resizeDownHeap", "Resize Down Heap", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
+            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToRecommend(), true),
 
     /**
      * Resize Up DBMem automation mode.
@@ -213,7 +213,10 @@ public enum EntitySettingSpecs {
         EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
             EntityType.CONTAINER_POD, EntityType.CONTAINER,
             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-            EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
+            EntityType.APPLICATION_COMPONENT),
+            actionExecutionModeSetToManualTypeSpecific(
+                    Collections.singletonMap(EntityType.APPLICATION_COMPONENT, ActionMode.RECOMMEND)),
+            true),
 
     /**
      * For some types of entities Suspend actions are disabled by default.
@@ -234,7 +237,10 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
                     EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER,
-                    EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
+                    EntityType.APPLICATION_COMPONENT),
+            actionExecutionModeSetToManualTypeSpecific(
+                    Collections.singletonMap(EntityType.APPLICATION_COMPONENT, ActionMode.RECOMMEND)),
+            true),
 
     /**
      * For some types of entities Suspend actions are disabled by default.
@@ -413,7 +419,7 @@ public enum EntitySettingSpecs {
         "Min Observation Period",
         Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
         SettingTiebreaker.BIGGER, EnumSet.of(EntityType.CONTAINER_SPEC),
-        numeric(0.0f, 7.0f, 1.0f), true),
+        numeric(0.0f, 90.0f, 1.0f), true),
 
     /**
      * Min observation period for business user.
@@ -422,7 +428,7 @@ public enum EntitySettingSpecs {
             "Min Observation Period",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            numeric(0.0f, 7.0f, 0.0f), true),
+            numeric(0.0f, 90.0f, 0.0f), true),
 
     /**
      * Max observation period for business user.
@@ -755,7 +761,8 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
                     EntityType.APPLICATION_COMPONENT,
-                    EntityType.DATABASE_SERVER),
+                    EntityType.DATABASE_SERVER,
+                    EntityType.WORKLOAD_CONTROLLER),
             string(), true),
 
     /**
@@ -768,7 +775,8 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
                     EntityType.APPLICATION_COMPONENT,
-                    EntityType.DATABASE_SERVER),
+                    EntityType.DATABASE_SERVER,
+                    EntityType.WORKLOAD_CONTROLLER),
             string(), true),
 
     /**
@@ -781,7 +789,8 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
                     EntityType.APPLICATION_COMPONENT,
-                    EntityType.DATABASE_SERVER),
+                    EntityType.DATABASE_SERVER,
+                    EntityType.WORKLOAD_CONTROLLER),
         string(), true),
 
     /**
@@ -1288,11 +1297,6 @@ public enum EntitySettingSpecs {
                     EntitySettingSpecs.ShopTogether.name);
 
     /**
-     * Default value for a String-type SettingDataStructure = empty String.
-     */
-    public static final String DEFAULT_STRING_VALUE = "";
-
-    /**
      * Default regex for a String-type SettingDataStructure = matches anything.
      */
     public static final String MATCH_ANYTHING_REGEX = ".*";
@@ -1499,6 +1503,12 @@ public enum EntitySettingSpecs {
     }
 
     @Nonnull
+    private static SettingDataStructure<?> actionExecutionModeSetToManualTypeSpecific(
+            @Nonnull Map<EntityType, ActionMode> entityDefaults) {
+        return new EnumSettingDataType<>(ActionMode.MANUAL, null, entityDefaults, ActionMode.class);
+    }
+
+    @Nonnull
     private static SettingDataStructure<?> actionExecutionModeSetToRecommend() {
         return new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.class);
     }
@@ -1521,7 +1531,7 @@ public enum EntitySettingSpecs {
 
     @Nonnull
     private static SettingDataStructure<?> string() {
-        return new StringSettingDataType(DEFAULT_STRING_VALUE, MATCH_ANYTHING_REGEX);
+        return new StringSettingDataType(null, MATCH_ANYTHING_REGEX);
     }
 
     @Nonnull
@@ -1531,7 +1541,7 @@ public enum EntitySettingSpecs {
 
     @Nonnull
     private static SettingDataStructure<?> sortedSetOfOid(@Nonnull final Type type) {
-        return new SortedSetOfOidSettingDataType(type, Collections.emptySet());
+        return new SortedSetOfOidSettingDataType(type, null);
     }
 
     @Nonnull

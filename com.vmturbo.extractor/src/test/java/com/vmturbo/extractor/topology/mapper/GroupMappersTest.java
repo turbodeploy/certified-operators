@@ -89,6 +89,6 @@ public class GroupMappersTest {
      * @return the group type name, according to our mapper
      */
     private EntityType getNextMappedTypeName(final Iterator<Grouping> groups) {
-        return GroupMappers.mapGroupTypeToName(groups.next().getDefinition().getType());
+        return GroupMappers.mapGroupTypeToEntityType(groups.next().getDefinition().getType());
     }
 }

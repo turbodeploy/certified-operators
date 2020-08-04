@@ -107,7 +107,8 @@ public class UtilizationCountStoreTest {
         for (int i = 0; i <= 100; ++i) {
             oldest.addUtilization(i == 20 ? 1 : 0);
         }
-        PercentileRecord.Builder full = store.checkpoint(Collections.singleton(oldest.build()));
+        PercentileRecord.Builder full = store.checkpoint(Collections.singleton(oldest.build()),
+            true);
         Assert.assertNotNull(full);
         PercentileRecord record = full.build();
 

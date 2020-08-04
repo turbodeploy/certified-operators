@@ -723,11 +723,11 @@ public enum SearchEntityMetadata {
      * Put static fields inside a nested class rather than inside the enum class, since enum
      * constructor is called BEFORE the static fields have all been initialized.
      */
-    private static class Constants {
+    public static class Constants {
         /**
          * Common fields available to all entities.
          */
-        static final Map<FieldApiDTO, SearchMetadataMapping> ENTITY_COMMON_FIELDS =
+        public static final Map<FieldApiDTO, SearchMetadataMapping> ENTITY_COMMON_FIELDS =
             ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
                 // PRIMITIVES
                 .put(PrimitiveFieldApiDTO.oid(), PRIMITIVE_OID)

@@ -729,6 +729,27 @@ public class ActionModeCalculatorTest {
     }
 
     /**
+     * Test: Resize Up action with external approval.
+     * Hot Add : False.
+     * Conditions: Non Disruptive Mode: Disabled.
+     * User Setting Mode: External Approval.
+     * Final Output mode: External Approval.
+     */
+    @Test
+    public void testResizeActionWithExternalApproval() {
+        boolean hotAddSupported = false;
+        boolean nonDisruptiveSetting = false;
+        Action resizeUpAction = getResizeUpAction(VM_ID, SupportLevel.SHOW_ONLY);
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.EXTERNAL_APPROVAL);
+
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
+
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.EXTERNAL_APPROVAL)));
+    }
+
+    /**
      * Test: Memory Resize Up.
      * In range mode: Manual.
      * Hot Add : True.
@@ -1047,9 +1068,13 @@ public class ActionModeCalculatorTest {
     }
 
     private Action getResizeUpAction(long vmId) {
+        return this.getResizeUpAction(vmId, SupportLevel.SUPPORTED);
+    }
+
+    private Action getResizeUpAction(long vmId, SupportLevel supportLevel) {
         final ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
             .setId(ACTION_OID)
-            .setSupportingLevel(SupportLevel.SUPPORTED)
+            .setSupportingLevel(supportLevel)
             .setExplanation(Explanation.newBuilder()
                 .setResize(ResizeExplanation.newBuilder()
                     .setDeprecatedStartUtilization(100)

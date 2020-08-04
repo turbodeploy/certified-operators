@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -1034,20 +1036,19 @@ public class GroupsService implements IGroupsService {
     private List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
             final boolean populateSeverity, @Nullable final EnvironmentType environmentType)
             throws ConversionException, InterruptedException {
-        final List<GroupAndMembers> groupsWithMembers =
-                groupExpander.getGroupsWithMembers(groupsRequest)
-                        .stream()
-                        .filter(group -> !isHiddenGroup(group.group()))
-                        .collect(Collectors.toList());
+        final Iterator<Grouping> response = groupServiceRpc.getGroups(groupsRequest);
+        final List<Grouping> groups = new ArrayList<>();
+        response.forEachRemaining(group -> {
+            if (!isHiddenGroup(group)) {
+                groups.add(group);
+            }
+        });
         final ObjectsPage<GroupApiDTO> result;
         try {
-            result = groupMapper.toGroupApiDto(groupsWithMembers, populateSeverity, null, environmentType);
+            result = groupMapper.toGroupApiDto(groups, populateSeverity, null, environmentType);
         } catch (InvalidOperationException e) {
             throw new ConversionException("Error faced converting groups " +
-                    groupsWithMembers.stream()
-                            .map(GroupAndMembers::group)
-                            .map(Grouping::getId)
-                            .collect(Collectors.toList()), e);
+                groups.stream().map(Grouping::getId).collect(Collectors.toList()), e);
         }
         return result.getObjects();
     }
@@ -1100,18 +1101,18 @@ public class GroupsService implements IGroupsService {
             InterruptedException {
         final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(GroupType.REGULAR,
                 filterList, scopes, includeAllGroupClasses).build();
-        final List<GroupAndMembers> groupsWithMembers = new LinkedList<>();
+        final List<Grouping> groups = new LinkedList<>();
         if (groupEntityTypes != null && !groupEntityTypes.isEmpty()) {
-            final List<GroupAndMembers> rawGroups = groupExpander.getGroupsWithMembers(groupsRequest);
+            final Iterable<Grouping> rawGroups = () -> groupServiceRpc.getGroups(groupsRequest);
             Predicate<GroupDefinition> memberTypePredicate = memberTypePredicate(groupEntityTypes);
-            rawGroups.stream()
-                .filter(g -> memberTypePredicate.test(g.group().getDefinition()))
-                .forEachOrdered(groupsWithMembers::add);
+            StreamSupport.stream(rawGroups.spliterator(), false)
+                .filter(g -> memberTypePredicate.test(g.getDefinition()))
+                .forEachOrdered(groups::add);
         } else {
-            groupsWithMembers.addAll(groupExpander.getGroupsWithMembers(groupsRequest));
+            groupServiceRpc.getGroups(groupsRequest).forEachRemaining(groups::add);
         }
         // Paginate the response and return it.
-        return nextGroupPage(groupsWithMembers, paginationRequest, environmentType);
+        return nextGroupPage(groups, paginationRequest, environmentType);
     }
 
     /**
@@ -1246,7 +1247,7 @@ public class GroupsService implements IGroupsService {
      * Return a SearchPaginationResponse containing groups ordered and limited according to the
      * paginationRequest parameters.
      *
-     * @param groupsWithMembers The groups to populate and order.
+     * @param groups The groups to populate and order.
      * @param paginationRequest Contains the parameters for the pagination.
      * @param environmentType type of the environment to include in response, if null, all are included
      * @return The {@link SearchPaginationResponse} containing the groups.
@@ -1254,12 +1255,12 @@ public class GroupsService implements IGroupsService {
      * @throws ConversionException if error faced converting objects to API DTOs
      * @throws InterruptedException if current thread has been interrupted
      */
-    private SearchPaginationResponse nextGroupPage(final List<GroupAndMembers> groupsWithMembers,
+    private SearchPaginationResponse nextGroupPage(final List<Grouping> groups,
                                                    final SearchPaginationRequest paginationRequest,
                                                    @Nullable final EnvironmentType environmentType)
             throws InvalidOperationException, ConversionException, InterruptedException {
         final ObjectsPage<GroupApiDTO> paginatedGroupApiDTOs =
-                groupMapper.toGroupApiDto(groupsWithMembers, true, paginationRequest,
+                groupMapper.toGroupApiDto(groups, true, paginationRequest,
                         environmentType);
         final int totalRecordCount = paginatedGroupApiDTOs.getTotalCount();
         final List<BaseApiDTO> retList = new ArrayList<>(paginatedGroupApiDTOs.getObjects());

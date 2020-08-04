@@ -34,6 +34,7 @@ import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.reservation.ReservationConfig;
+import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
@@ -147,6 +148,9 @@ public class TopologyConfig {
     @Autowired
     private PlanOrchestratorClientConfig planClientConfig;
 
+    @Autowired
+    private TopologyProcessorRpcConfig topologyProcessorRpcConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -256,7 +260,8 @@ public class TopologyConfig {
                 actionsConfig.actionMergeSpecsUploader(),
                 requestCommodityThresholdsInjector(),
                 ephemeralEntityEditor(),
-                ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel())
+                ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel()),
+                topologyProcessorRpcConfig.groupResolverSearchFilterResolver()
         );
     }
 
@@ -291,7 +296,8 @@ public class TopologyConfig {
                 dmandOverriddenCommodityEditor(),
                 consistentScalingConfig.consistentScalingManager(),
                 requestCommodityThresholdsInjector(),
-                ephemeralEntityEditor()
+                ephemeralEntityEditor(),
+                topologyProcessorRpcConfig.groupResolverSearchFilterResolver()
         );
     }
 

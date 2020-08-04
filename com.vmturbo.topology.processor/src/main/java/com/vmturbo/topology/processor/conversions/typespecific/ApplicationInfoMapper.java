@@ -42,6 +42,7 @@ public class ApplicationInfoMapper extends TypeSpecificInfoMapper {
             final DatabaseInfo.Builder databaseInfoBuilder = DatabaseInfo.newBuilder();
             if (dbData.hasEdition()) {
                 databaseInfoBuilder.setEdition(parseDbEdition(dbData.getEdition()));
+                databaseInfoBuilder.setRawEdition(dbData.getEdition());
             }
             if (dbData.hasEngine()) {
                 databaseInfoBuilder.setEngine(parseDbEngine(dbData.getEngine()));

@@ -3,7 +3,6 @@ package com.vmturbo.common.protobuf.search;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -18,7 +17,6 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.Builder;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -33,16 +31,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 public abstract class SearchFilterResolver {
 
     private final Logger logger = LogManager.getLogger(getClass());
-    private final TargetSearchServiceBlockingStub targetSearchService;
-
-    /**
-     * Constructs search filter resolver.
-     *
-     * @param targetSearchService gRPC to resolve target searches
-     */
-    protected SearchFilterResolver(@Nonnull TargetSearchServiceBlockingStub targetSearchService) {
-        this.targetSearchService = Objects.requireNonNull(targetSearchService);
-    }
 
     /**
      * Returns a set of OIDs of all the members for the groups specified by a group filter.
@@ -63,6 +51,15 @@ public abstract class SearchFilterResolver {
     @Nonnull
     protected abstract Set<Long> getGroupOwners(@Nonnull Collection<Long> groupIds,
             @Nullable GroupType groupType);
+
+    /**
+     * Get all the target Ids that match the property filter.
+     *
+     * @param filter the target filter.
+     * @return the target IDs that match the given filter.
+     */
+    @Nonnull
+    protected abstract Collection<Long> getTargetIdsFromFilter(@Nonnull PropertyFilter filter);
 
     /**
      * Provided an input SearchParameters object, resolve any group filters contained
@@ -190,9 +187,8 @@ public abstract class SearchFilterResolver {
                     throw new IllegalArgumentException(
                             "Target search property must have a property filter: " + targetFilter);
                 }
-                final Collection<Long> matchingTargets =
-                        targetSearchService.searchTargets(targetFilter.getPropertyFilter())
-                                .getTargetsList();
+                final Collection<Long> matchingTargets = getTargetIdsFromFilter(targetFilter
+                        .getPropertyFilter());
                 paramBuilder.addSearchFilter(SearchFilter.newBuilder()
                         .setPropertyFilter(SearchProtoUtil.discoveredBy(matchingTargets)));
             } else {

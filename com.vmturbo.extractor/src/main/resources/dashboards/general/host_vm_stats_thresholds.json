@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1595337937386,
+  "iteration": 1596048754801,
   "links": [],
   "panels": [
     {
@@ -726,7 +726,7 @@
       "fill": 0,
       "fillGradient": 0,
       "gridPos": {
-        "h": 9,
+        "h": 11,
         "w": 12,
         "x": 0,
         "y": 25
@@ -762,7 +762,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "select DATE(metric.\"time\") as \"time\", metric.\"type\" as metric, avg(utilization)\nfrom metric, entity\nwhere metric.entity_oid = entity.oid and\n      metric.entity_hash = entity.hash and \n      entity.\"type\" = 'VIRTUAL_MACHINE' and \n      provider_oid isnull and \n      $__timeFilter(\"time\") and \n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\ngroup by 1, 2\norder by 1",
+          "rawSql": "select DATE(metric.\"time\") as \"time\", metric.\"type\" as metric, avg(utilization)\nfrom metric, entity\nwhere metric.entity_oid = entity.oid and\n      metric.entity_hash = entity.hash and \n      entity.\"type\" = 'VIRTUAL_MACHINE' and \n      provider_oid isnull and \n      $__timeFilter(\"time\") and \n      ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) and\n      entity.environment = 'ON_PREM'\ngroup by 1, 2\norder by 1",
           "refId": "A",
           "select": [
             [
@@ -843,8 +843,8 @@
       "gridPos": {
         "h": 11,
         "w": 12,
-        "x": 0,
-        "y": 34
+        "x": 12,
+        "y": 25
       },
       "id": 5,
       "pageSize": null,
@@ -957,6 +957,10 @@
         "type": "datasource"
       }
     ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
   },
   "timepicker": {
     "refresh_intervals": [

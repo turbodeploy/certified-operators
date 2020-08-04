@@ -5,10 +5,13 @@ import static com.vmturbo.trax.Trax.trax;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -63,9 +66,7 @@ import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
-import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.market.topology.SingleRegionMarketTier;
-import com.vmturbo.market.topology.conversions.CloudEntityResizeTracker.CommodityUsageType;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
@@ -98,17 +99,19 @@ public class ActionInterpreter {
     private final CloudTopologyConverter cloudTc;
     private final Map<Long, TopologyEntityDTO> originalTopology;
     private final Map<Long, EconomyDTOs.TraderTO> oidToProjectedTraderTOMap;
-    private final CloudEntityResizeTracker cert;
+    private final CommoditiesResizeTracker commoditiesResizeTracker;
     private final TierExcluder tierExcluder;
     private final ProjectedRICoverageCalculator projectedRICoverageCalculator;
     private static final Set<EntityState> evacuationEntityState =
         EnumSet.of(EntityState.MAINTENANCE, EntityState.FAILOVER);
     private final CommodityIndex commodityIndex;
+    private final Map<Long, AtomicInteger> provisionActionTracker = new HashMap<>();
 
     ActionInterpreter(@Nonnull final CommodityConverter commodityConverter,
                       @Nonnull final Map<Long, ShoppingListInfo> shoppingListOidToInfos,
                       @Nonnull final CloudTopologyConverter cloudTc, Map<Long, TopologyEntityDTO> originalTopology,
-                      @Nonnull final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap, CloudEntityResizeTracker cert,
+                      @Nonnull final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap,
+                      @Nonnull final CommoditiesResizeTracker commoditiesResizeTracker,
                       @Nonnull final ProjectedRICoverageCalculator projectedRICoverageCalculator,
                       @Nonnull final TierExcluder tierExcluder,
                       @Nonnull final Supplier<CommodityIndex> commodityIndexSupplier) {
@@ -117,7 +120,7 @@ public class ActionInterpreter {
         this.cloudTc = cloudTc;
         this.originalTopology = originalTopology;
         this.oidToProjectedTraderTOMap = oidToTraderTOMap;
-        this.cert = cert;
+        this.commoditiesResizeTracker = commoditiesResizeTracker;
         this.projectedRICoverageCalculator = projectedRICoverageCalculator;
         this.tierExcluder = tierExcluder;
         this.commodityIndex = commodityIndexSupplier.get();
@@ -443,10 +446,15 @@ public class ActionInterpreter {
     private ActionDTO.Provision interpretProvisionByDemand(
             @Nonnull final ProvisionByDemandTO provisionByDemandTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        AtomicInteger index =
+            provisionActionTracker.computeIfAbsent(provisionByDemandTO.getModelSeller(),
+                id -> new AtomicInteger());
+
         return ActionDTO.Provision.newBuilder()
                 .setEntityToClone(createActionEntity(
                     provisionByDemandTO.getModelSeller(), projectedTopology))
                 .setProvisionedSeller(provisionByDemandTO.getProvisionedSeller())
+                .setProvisionIndex(index.getAndIncrement())
                 .build();
     }
 
@@ -454,10 +462,15 @@ public class ActionInterpreter {
     private ActionDTO.Provision interpretProvisionBySupply(
             @Nonnull final ProvisionBySupplyTO provisionBySupplyTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        AtomicInteger index =
+            provisionActionTracker.computeIfAbsent(provisionBySupplyTO.getModelSeller(),
+                id -> new AtomicInteger());
+
         return ActionDTO.Provision.newBuilder()
                 .setEntityToClone(createActionEntity(
                         provisionBySupplyTO.getModelSeller(), projectedTopology))
                 .setProvisionedSeller(provisionBySupplyTO.getProvisionedSeller())
+                .setProvisionIndex(index.getAndIncrement())
                 .build();
     }
 
@@ -592,7 +605,7 @@ public class ActionInterpreter {
                         //
                         // We will grudgingly do that here. Note that this may be subject to
                         // precision and rounding errors. In addition, if in the future we have
-                        // factors other than "limit" that could drive the VM resource
+                        // factors other than "limit" that could drivef the VM resource
                         // utilization threshold to below 100%, then this approximation would
                         // likely be wrong and misleading in those cases.
                         float approximateLimit = commoditySold.getCapacity() * utilizationPercentage;
@@ -1057,17 +1070,19 @@ public class ActionInterpreter {
             case CONGESTION:
                 // For cloud entities we explain create either an efficiency or congestion change
                 // explanation
-                changeProviderExplanation = changeExplanationForCloud(moveTO, savings).orElse(
-                    ChangeProviderExplanation.newBuilder().setCongestion(
+                Optional<ChangeProviderExplanation.Builder> explanationFromTracker = changeExplanationFromTracker(moveTO, savings);
+                ChangeProviderExplanation.Builder  explanationFromM2 = ChangeProviderExplanation.newBuilder().setCongestion(
                         ChangeProviderExplanation.Congestion.newBuilder()
-                        .addAllCongestedCommodities(
-                                moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
-                                        .map(commodityConverter::commodityIdToCommodityTypeAndSlot)
-                                        .map(commTypeAndSlot2ReasonCommodity(
-                                            shoppingListOidToInfos.get(moveTO.getShoppingListToMove())
-                                                .getBuyerId(), moveTO.getSource()))
-                                        .collect(Collectors.toList()))
-                        .build()));
+                                .addAllCongestedCommodities(
+                                        moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
+                                                .map(commodityConverter::commodityIdToCommodityTypeAndSlot)
+                                                .map(commTypeAndSlot2ReasonCommodity(
+                                                        shoppingListOidToInfos.get(moveTO.getShoppingListToMove())
+                                                                .getBuyerId(), moveTO.getSource()))
+                                                .collect(Collectors.toList())).build());
+                changeProviderExplanation = explanationFromTracker.isPresent()
+                        ? mergeM2AndTrackerExplanations(moveTO, explanationFromM2, explanationFromTracker.get())
+                        : explanationFromM2;
                 break;
             case EVACUATION:
                 changeProviderExplanation = ChangeProviderExplanation.newBuilder()
@@ -1097,7 +1112,7 @@ public class ActionInterpreter {
             case PERFORMANCE:
                 // For cloud entities we explain create either an efficiency or congestion change
                 // explanation
-                changeProviderExplanation = changeExplanationForCloud(moveTO, savings)
+                changeProviderExplanation = changeExplanationFromTracker(moveTO, savings)
                     .orElse(ChangeProviderExplanation.newBuilder()
                         .setPerformance(ChangeProviderExplanation.Performance.getDefaultInstance()));
                 break;
@@ -1111,48 +1126,134 @@ public class ActionInterpreter {
         return changeProviderExplanation;
     }
 
-    private Optional<ChangeProviderExplanation.Builder> changeExplanationForCloud(
-        @Nonnull final MoveTO moveTO, @Nonnull final CalculatedSavings savings) {
-        Optional<ChangeProviderExplanation.Builder> explanation = Optional.empty();
-        if (cloudTc.isMarketTier(moveTO.getSource()) && cloudTc.isMarketTier(moveTO.getDestination())) {
-            ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
-            Map<CommodityUsageType, Set<CommodityType>> commsResizedByUsageType =
-                cert.getCommoditiesResizedByUsageType(slInfo.getBuyerId());
-            Set<CommodityType> congestedComms = commsResizedByUsageType.get(CommodityUsageType.CONGESTED);
-            Set<CommodityType> underUtilizedComms = commsResizedByUsageType.get(CommodityUsageType.UNDER_UTILIZED);
-            boolean isPrimaryTierChange = TopologyDTOUtil.isPrimaryTierEntityType(
-                cloudTc.getMarketTier(moveTO.getDestination()).getTier().getEntityType());
-            // First, check if there was a congested commodity. If there was, then that is the one driving the action
-            if (!congestedComms.isEmpty()) {
-                Congestion.Builder congestionBuilder = ChangeProviderExplanation.Congestion.newBuilder()
-                    .addAllCongestedCommodities(commTypes2ReasonCommodities(congestedComms));
-                explanation =  Optional.of(ChangeProviderExplanation.newBuilder().setCongestion(
+    @Nonnull
+    private Optional<ChangeProviderExplanation.Builder> changeExplanationFromTracker(
+            @Nonnull final MoveTO moveTO, @Nonnull final CalculatedSavings savings) {
+        ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
+        long sellerId = slInfo.getSellerId();
+        long buyerId = slInfo.getBuyerId();
+        Optional<ChangeProviderExplanation.Builder> explanation =
+                //Check if this SE has congested commodities pre-stored.
+                Optional.ofNullable(getCongestedExplanationFromTracker(buyerId, sellerId)
+                        //If this SE is cloud and has RI change.
+                .orElseGet(() -> getRIIncreaseExplanation(buyerId, moveTO)
+                        //If this SE has underutilized commodities pre-stored.
+                        .orElseGet(() -> getUndertilizedExplanationFromTracker(buyerId, sellerId)
+                                //Get from savings
+                                .orElseGet(() -> getExplanationFromSaving(savings)
+                                        //Default move explanation
+                                        .orElseGet(() -> getDefaultExplanationForCloud(buyerId, moveTO).orElse(null)
+                        )))));
+        return explanation;
+    }
+
+    private Optional<ChangeProviderExplanation.Builder> getCongestedExplanationFromTracker(long buyerId, long sellerId) {
+        Set<CommodityType> congestedCommodityTypes = commoditiesResizeTracker.getCongestedCommodityTypes(buyerId, sellerId);
+        if (congestedCommodityTypes != null && !congestedCommodityTypes.isEmpty()) {
+            Congestion.Builder congestionBuilder = ChangeProviderExplanation.Congestion.newBuilder()
+                    .addAllCongestedCommodities(commTypes2ReasonCommodities(congestedCommodityTypes));
+            logger.debug("CongestedCommodities from tracker for buyer:{}, seller: {} : [{}]",
+                    buyerId, sellerId,
+                    congestedCommodityTypes.stream().map(type -> type.toString()).collect(Collectors.joining()));
+            return Optional.of(ChangeProviderExplanation.newBuilder().setCongestion(
                     congestionBuilder));
-            } else if (isPrimaryTierChange && didRiCoverageIncrease(slInfo.getBuyerId())) {
-                // Next, check if RI Coverage increased. If yes, that is the reason of the action.
-                Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
-                        .setIsRiCoverageIncreased(true);
-                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+        }
+        return Optional.empty();
+    }
+
+    private Optional<ChangeProviderExplanation.Builder> getUndertilizedExplanationFromTracker(long buyerId, long sellerId) {
+        Set<CommodityType> underutilizedCommodityTypes = commoditiesResizeTracker.getUnderutilizedCommodityTypes(buyerId, sellerId);
+        if (!underutilizedCommodityTypes.isEmpty()) {
+            Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
+                    .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(underutilizedCommodityTypes));
+            logger.debug("CongestedCommodities from tracker for buyer:{}, seller: {} : [{}]",
+                    buyerId, sellerId,
+                    underutilizedCommodityTypes.stream().map(type -> type.toString()).collect(Collectors.joining()));
+            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                                efficiencyBuilder));
+        }
+        return Optional.empty();
+    }
+
+    private Optional<ChangeProviderExplanation.Builder> getRIIncreaseExplanation(long id, @Nonnull final MoveTO moveTO) {
+        if (cloudTc.isMarketTier(moveTO.getSource())
+                && cloudTc.isMarketTier(moveTO.getDestination())
+                && TopologyDTOUtil.isPrimaryTierEntityType(cloudTc.getMarketTier(moveTO.getDestination()).getTier().getEntityType())
+                && didRiCoverageIncrease(id)) {
+            Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
+                    .setIsRiCoverageIncreased(true);
+            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
                     efficiencyBuilder));
-            } else if (!underUtilizedComms.isEmpty()) {
-                // Next, check if there are any underUtilized commodities. If yes, then that is the reason of the action.
-                Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
-                    .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(underUtilizedComms));
-                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                    efficiencyBuilder));
-            } else if (savings.savingsAmount.getValue() > 0) {
-                // There were no under-utilized commodities. Action is purely because the same
-                // requirements fit in a cheaper template.
-                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+        }
+        return Optional.empty();
+    }
+
+    private Optional<ChangeProviderExplanation.Builder> getExplanationFromSaving(@Nonnull final CalculatedSavings savings) {
+        if (savings.savingsAmount.getValue() > 0) {
+            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
                     Efficiency.newBuilder().setIsWastedCost(true)));
-            } else {
-                logger.error("Could not explain cloud scale action. MoveTO = {} .Entity oid = {}",
-                    moveTO, slInfo.getBuyerId());
-                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+        }
+        return Optional.empty();
+    }
+
+    private Optional<ChangeProviderExplanation.Builder> getDefaultExplanationForCloud(long id, @Nonnull final MoveTO moveTO) {
+        if (cloudTc.isMarketTier(moveTO.getSource())
+                && cloudTc.isMarketTier(moveTO.getDestination())) {
+            logger.error("Could not explain cloud scale action. MoveTO = {} .Entity oid = {}", moveTO, id);
+            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
                     Efficiency.getDefaultInstance()));
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Merge the tracker explanation into the m2 congestion explanation.
+     * If exp2 is congestion, then merge them.
+     * If exp2 is efficiency and has different commodity as exp1, keep only the different commodity in exp1.
+     * If exp2 is efficiency and has the same commodity as exp1, use exp2.
+     * If exp2 is efficiency but has no commodity, it is efficiency for other reason(Ri, saving, etc) keep the result as efficiency then.
+     * eg, exp1: congestion [PoolCPU, PoolMem, ImageMem, ImageCPU], exp2: congestion [ImageMem, ImageCPU] -> congestion[PoolCPU, PoolMem, ImageMem, ImageCPU]
+     * exp1: congestion [PoolCPU, PoolMem, ImageMem, ImageCPU], exp2: efficiency [ImageMem, ImageCPU] -> congestion[PoolCPU, PoolMem]
+     * exp1: congestion [ImageMem, ImageCPU], exp2: [ImageMem, ImageCPU] -> efficiency[ImageMem, ImageCPU]
+     *
+     * @param moveTO The moveTO to interpret.
+     * @param m2Explanation A congestion explanation
+     * @param trackerExplanation A congestion or underutilized explanation.
+     * @return The merged explanation
+     */
+    @Nonnull
+    private ChangeProviderExplanation.Builder mergeM2AndTrackerExplanations(
+            @Nonnull MoveTO moveTO, @Nonnull ChangeProviderExplanation.Builder m2Explanation, @Nonnull ChangeProviderExplanation.Builder trackerExplanation) {
+        //For cloud resizing we ignore m2 explanation
+        if (cloudTc.isMarketTier(moveTO.getSource()) && cloudTc.isMarketTier(moveTO.getDestination())) {
+            return trackerExplanation;
+        }
+        if (m2Explanation.getCongestion() != null) {
+            Set<ReasonCommodity> mergedCommodities = new HashSet<ReasonCommodity>(
+                    m2Explanation.getCongestion().getCongestedCommoditiesList());
+            if (trackerExplanation.getCongestion() != null) {
+                List<ReasonCommodity> trackerCongestedCommodities = trackerExplanation.getCongestion().getCongestedCommoditiesList();
+                if (trackerCongestedCommodities != null && !trackerCongestedCommodities.isEmpty()) {
+                    mergedCommodities.addAll(trackerCongestedCommodities);
+                    return ChangeProviderExplanation.newBuilder().setCongestion(
+                        ChangeProviderExplanation.Congestion.newBuilder()
+                                .addAllCongestedCommodities(mergedCommodities));
+                }
+            }
+            if (trackerExplanation.getEfficiency() != null) {
+                List<ReasonCommodity> exp2UnderutilizedCommodities = trackerExplanation.getEfficiency().getUnderUtilizedCommoditiesList();
+                if (exp2UnderutilizedCommodities != null && !exp2UnderutilizedCommodities.isEmpty()) {
+                    mergedCommodities.removeAll(exp2UnderutilizedCommodities);
+                    if (mergedCommodities.isEmpty()) {
+                        return trackerExplanation;
+                    }
+                    return ChangeProviderExplanation.newBuilder().setCongestion(
+                        ChangeProviderExplanation.Congestion.newBuilder()
+                                .addAllCongestedCommodities(mergedCommodities));
+                }
             }
         }
-        return explanation;
+        return trackerExplanation;
     }
 
     /**

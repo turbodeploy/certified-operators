@@ -39,6 +39,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
 import com.vmturbo.api.component.external.api.mapper.UserMapper;
+import com.vmturbo.api.component.external.api.util.ReportingUserCalculator;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
@@ -118,6 +119,8 @@ public class UsersService implements IUsersService {
 
     private final WidgetSetsService widgetsetsService;
 
+    private final ReportingUserCalculator reportingUserCalculator;
+
     /**
      * Constructs the users service.
      * @param authHost     The authentication host.
@@ -127,6 +130,7 @@ public class UsersService implements IUsersService {
      * @param samlEnabled  is SAML enabled
      * @param groupsService The group service is used when translating scope groups back to API groups
      * @param widgetsetsService the widgetset service service to transfer the widget ownership
+     * @param reportingUserCalculator The utility class to use to figure out the reports-specific user.
      */
     public UsersService(final @Nonnull String authHost,
                         final int authPort,
@@ -134,7 +138,8 @@ public class UsersService implements IUsersService {
                         final @Nonnull String samlRegistrationID,
                         final boolean samlEnabled,
                         final @Nonnull GroupsService groupsService,
-                        final @Nonnull WidgetSetsService widgetsetsService) {
+                        final @Nonnull WidgetSetsService widgetsetsService,
+                        final @Nonnull ReportingUserCalculator reportingUserCalculator) {
         authHost_ = Objects.requireNonNull(authHost);
         authPort_ = authPort;
         if (authPort_ < 0 || authPort_ > 65535) {
@@ -150,6 +155,7 @@ public class UsersService implements IUsersService {
         this.invalidScopes.add("ResourceGroup");
         this.registrationId = Objects.requireNonNull(samlRegistrationID);
         this.samlEnabled = samlEnabled;
+        this.reportingUserCalculator = reportingUserCalculator;
     }
 
     /**
@@ -235,17 +241,12 @@ public class UsersService implements IUsersService {
                 .map(AuthUserDTO::getToken);
     }
 
-    /**
-     * Returns the logged in user.
-     *
-     * @return The logged in user.
-     * @throws Exception In case of any error.
-     */
     @Override
-    public @Nonnull UserApiDTO getLoggedInUser() throws Exception {
-        return SAMLUserUtils.getAuthUserDTO()
+    public @Nonnull LoggedInUserInfo getLoggedInUser() throws Exception {
+        UserApiDTO me = SAMLUserUtils.getAuthUserDTO()
                 .map(UserMapper::toUserApiDTO)
                 .orElseThrow(() -> new UnauthorizedObjectException("No user logged in!"));
+        return reportingUserCalculator.getMe(me);
     }
 
     /**

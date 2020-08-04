@@ -4,6 +4,8 @@ import static com.vmturbo.api.component.external.api.service.AuthenticationServi
 
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,7 @@ import com.vmturbo.api.component.security.HeaderAuthenticationFilter;
 import com.vmturbo.api.component.security.HeaderMapper;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PredefinedRole;
 
 /**
  * <p>Spring security configuration for head base authentication and authorization.</p>
@@ -44,6 +47,18 @@ public class HeaderApiSecurityConfig extends ApiSecurityConfig {
 
     @Value("${vendor_supported_admin_role:Server Administrator,Account Administrator,Device Administrator,System Administrator}")
     private String externalAdminRoles;
+
+    @Value("${vendor_supported_siteadmin_role:Site admin}")
+    private String externalSiteAdminRoles;
+
+    @Value("${vendor_supported_automator_role:Automator}")
+    private String externalAutomatorRoles;
+
+    @Value("${vendor_supported_deployer_role:Deployer}")
+    private String externalDeployerRoles;
+
+    @Value("${vendor_supported_advisor_role:Advisor}")
+    private String externalAdvisorRoles;
 
     @Value("${vendor_supported_observer_role:Read-Only}")
     private String externalObserverRoles;
@@ -95,9 +110,18 @@ public class HeaderApiSecurityConfig extends ApiSecurityConfig {
     @Bean
     @Conditional(HeaderAuthenticationCondition.class)
     public HeaderAuthenticationFilter headerAuthenticationFilter() {
+        final ImmutableMap<PredefinedRole, String> roleMap =
+                ImmutableMap.<PredefinedRole, String>builder()
+                        .put(PredefinedRole.ADMINISTRATOR, externalAdminRoles)
+                        .put(PredefinedRole.SITE_ADMIN, externalSiteAdminRoles)
+                        .put(PredefinedRole.AUTOMATOR, externalAutomatorRoles)
+                        .put(PredefinedRole.DEPLOYER, externalDeployerRoles)
+                        .put(PredefinedRole.ADVISOR, externalAdvisorRoles)
+                        .put(PredefinedRole.OBSERVER, externalObserverRoles)
+                        .build();
         final HeaderMapper headerMapper =
-                HeaderMapperFactory.getHeaderMapper(Optional.empty(), externalAdminRoles,
-                        externalObserverRoles, externalUserTag, externalRoleTag, jwtTokenPublicKeyTag, jwtTokenTag);
+                HeaderMapperFactory.getHeaderMapper(Optional.empty(), roleMap, externalUserTag,
+                        externalRoleTag, jwtTokenPublicKeyTag, jwtTokenTag);
 
         logger.info("System is in header authentication and authorization.");
         AuditLog.newEntry(AuditAction.SET_HEADER_AUTH,
