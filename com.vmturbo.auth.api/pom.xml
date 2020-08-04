@@ -7,7 +7,7 @@
     <parent>
         <artifactId>components-api-root</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>7.22.7-SNAPSHOT</version>
+        <version>7.22.100-iops_for_azure_vm_resizing-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components.api.root/pom.xml</relativePath>
     </parent>
 

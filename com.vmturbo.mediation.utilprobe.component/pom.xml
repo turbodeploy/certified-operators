@@ -5,27 +5,27 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>7.22.7-SNAPSHOT</version>
+        <version>7.22.100-iops_for_azure_vm_resizing-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>com.vmturbo.mediation.utilprobe.component</artifactId>
-    <version>7.22.7-SNAPSHOT</version>
+    <version>7.22.100-iops_for_azure_vm_resizing-SNAPSHOT</version>
 
     <description>Mediation Component for UtilProbe</description>
     <dependencies>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.mediation.utilprobe</artifactId>
-            <version>7.22.7-SNAPSHOT</version>
+            <version>7.22.100-iops_for_azure_vm_resizing-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.mediation.client</artifactId>
-            <version>7.22.7-SNAPSHOT</version>
+            <version>7.22.100-iops_for_azure_vm_resizing-SNAPSHOT</version>
         </dependency>
     </dependencies>
 
