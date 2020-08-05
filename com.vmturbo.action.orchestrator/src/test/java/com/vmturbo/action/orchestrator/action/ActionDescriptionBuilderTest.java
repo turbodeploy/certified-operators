@@ -625,7 +625,7 @@ public class ActionDescriptionBuilderTest {
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudVolumeScaleProviderChangeRecommendation);
-        Assert.assertEquals("Scale Virtual Volume vm1_test from storage_source_test to storage_destination_test", description);
+        Assert.assertEquals("Scale Volume vm1_test from storage_source_test to storage_destination_test", description);
     }
 
     /**
@@ -643,7 +643,7 @@ public class ActionDescriptionBuilderTest {
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudVolumeScaleCommodityChangeRecommendation);
-        Assert.assertEquals("Scale up Storage Amount for Virtual Volume vm1_test from 100 to 200", description);
+        Assert.assertEquals("Scale up Disk size for Volume vm1_test from 100.0 MB to 200.0 MB", description);
     }
 
     /**

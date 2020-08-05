@@ -416,7 +416,6 @@ public class ActionDescriptionBuilder {
         } else {
             return getScaleActionWithoutProviderChangeDescription(entitiesSnapshot, recommendation);
         }
-
     }
 
     private static String getMoveOrScaleActionWithProviderChangeDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,

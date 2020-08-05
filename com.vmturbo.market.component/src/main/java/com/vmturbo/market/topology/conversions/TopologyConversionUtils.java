@@ -17,11 +17,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.commons.Units;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.StorageType;
 
@@ -71,6 +73,16 @@ public class TopologyConversionUtils {
     public static boolean isEntityConsumingCloud(TopologyEntityDTO entity) {
         return entity.getCommoditiesBoughtFromProvidersList().stream()
                         .anyMatch(g -> TopologyDTOUtil.isTierEntityType(g.getProviderEntityType()));
+    }
+
+    static double convertMarketUnitToTopologyUnit(final int commodityType,
+            final double valueToConvert, final TopologyEntityDTO entityDTO) {
+        if (isEntityConsumingCloud(entityDTO) &&
+                entityDTO.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE &&
+                commodityType == CommodityType.STORAGE_AMOUNT_VALUE) {
+            return valueToConvert * Units.KBYTE;
+        }
+        return valueToConvert;
     }
 
     /**
