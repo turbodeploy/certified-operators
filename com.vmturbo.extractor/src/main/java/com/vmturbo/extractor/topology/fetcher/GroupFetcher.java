@@ -36,6 +36,13 @@ public class GroupFetcher extends DataFetcher<GroupData> {
 
     private final GroupServiceBlockingStub groupService;
 
+    /**
+     * Create a new instance.
+     *
+     * @param groupService group service endpiont
+     * @param timer        timer
+     * @param consumer     fn to handle fetched group data
+     */
     public GroupFetcher(@Nonnull GroupServiceBlockingStub groupService,
             @Nonnull MultiStageTimer timer,
             @Nonnull Consumer<GroupData> consumer) {
@@ -152,6 +159,9 @@ public class GroupFetcher extends DataFetcher<GroupData> {
         }
     }
 
+    /**
+     * Class to represent group data obtained from group service.
+     */
     public static class GroupData {
         Long2ObjectMap<List<Grouping>> leafEntityToGroups;
         Long2ObjectMap<List<Long>> groupToLeafEntityIds;

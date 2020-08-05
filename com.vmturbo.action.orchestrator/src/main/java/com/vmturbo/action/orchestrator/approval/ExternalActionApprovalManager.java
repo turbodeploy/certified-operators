@@ -19,6 +19,7 @@ import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -101,15 +102,22 @@ public class ExternalActionApprovalManager {
 
     private void processAcceptedAction(@Nonnull ActionStore liveActionStore,
             long recommendationId) {
-        final Optional<Action> action =
+        final Optional<Action> actionOpt =
                 liveActionStore.getActionByRecommendationId(recommendationId);
-        if (!action.isPresent()) {
+        if (!actionOpt.isPresent()) {
             logger.error("Action with recommendation id ({}) doesn't exist, so external "
                     + "approval is not applied.", recommendationId);
             return;
         }
+        final Action action = actionOpt.get();
+        if (action.getMode() != ActionDTO.ActionMode.EXTERNAL_APPROVAL) {
+            logger.info("Action with recommendation id ({}) and mode of {} and state of {} is"
+                + " returned from approval backened as approved but will not get executed.",
+                recommendationId, action.getMode(), action.getState());
+            return;
+        }
         final AcceptActionResponse acceptResult =
-                actionApprovalManager.attemptAndExecute(liveActionStore, USER_ID, action.get());
+                actionApprovalManager.attemptAndExecute(liveActionStore, USER_ID, action);
         if (acceptResult.hasError()) {
             logger.info("Failed accepting action {}: {}", recommendationId,
                     acceptResult.getError());

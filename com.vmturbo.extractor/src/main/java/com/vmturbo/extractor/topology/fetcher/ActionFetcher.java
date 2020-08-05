@@ -54,11 +54,20 @@ public class ActionFetcher extends DataFetcher<Long2IntMap> {
 
     private final long topologyContextId;
 
+    /**
+     * Create a new instance.
+     *
+     * @param actionService     action service endpoint
+     * @param groupData         group data
+     * @param timer             timer
+     * @param consumer          fn to handle fetched action data
+     * @param topologyContextId context id of topology
+     */
     public ActionFetcher(@Nonnull ActionsServiceBlockingStub actionService,
-                         @Nonnull GroupData groupData,
-                         @Nonnull MultiStageTimer timer,
-                         @Nonnull Consumer<Long2IntMap> consumer,
-                         long topologyContextId) {
+            @Nonnull GroupData groupData,
+            @Nonnull MultiStageTimer timer,
+            @Nonnull Consumer<Long2IntMap> consumer,
+            long topologyContextId) {
         super(timer, consumer);
         this.actionService = actionService;
         this.groupData = groupData;

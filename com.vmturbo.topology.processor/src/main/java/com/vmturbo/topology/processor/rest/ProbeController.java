@@ -31,6 +31,7 @@ import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.GetAllProbes;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.ProbeDescription;
 import com.vmturbo.topology.processor.probes.AccountValueAdaptor;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.util.ProbeFeaturesUtil;
 
 /**
  * REST API to retrieve information about registered probes.
@@ -93,6 +94,7 @@ public final class ProbeController {
         return new ProbeDescription(probeId, probeInfo.getProbeType(), probeInfo.getProbeCategory(),
                 probeInfo.getUiProbeCategory(), probeInfo.getLicense(),
                 probeInfo.getCreationMode(), fields, probeInfo.getTargetIdentifierFieldList(),
-                SdkToProbeActionsConverter.convert(probeInfo.getActionPolicyList()));
+                SdkToProbeActionsConverter.convert(probeInfo.getActionPolicyList()),
+                ProbeFeaturesUtil.getFeaturesProvidedByProbe(probeInfo));
     }
 }

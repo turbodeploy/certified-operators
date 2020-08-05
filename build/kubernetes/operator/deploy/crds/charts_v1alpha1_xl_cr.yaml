@@ -93,3 +93,5 @@ spec:
     enabled: true
   newrelic:
     enabled: true
+  tomcat:
+    enabled: false

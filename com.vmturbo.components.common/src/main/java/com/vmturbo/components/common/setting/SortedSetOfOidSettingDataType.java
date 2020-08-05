@@ -25,7 +25,7 @@ public class SortedSetOfOidSettingDataType extends AbstractSettingDataType<Set<L
      * @param type the type of the oids in the list
      * @param defaultValue default value
      */
-    SortedSetOfOidSettingDataType(@Nonnull final Type type, @Nonnull final Set<Long> defaultValue) {
+    SortedSetOfOidSettingDataType(@Nonnull final Type type, @Nullable final Set<Long> defaultValue) {
         super(defaultValue);
         this.type = type;
     }
@@ -37,10 +37,13 @@ public class SortedSetOfOidSettingDataType extends AbstractSettingDataType<Set<L
      */
     @Override
     public void build(@Nonnull final Builder builder) {
-        builder.setSortedSetOfOidSettingValueType(
-            SortedSetOfOidSettingValueType.newBuilder()
-                .setType(type)
-                .addAllDefault(getDefault()));
+        final SortedSetOfOidSettingValueType.Builder settingBuilder =
+                SortedSetOfOidSettingValueType.newBuilder().setType(type);
+        final Set<Long> defaultValue = getDefault();
+        if (defaultValue != null) {
+            settingBuilder.addAllDefault(defaultValue);
+        }
+        builder.setSortedSetOfOidSettingValueType(settingBuilder.build());
     }
 
     /**

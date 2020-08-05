@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import static com.vmturbo.api.component.external.api.util.stats.query.impl.StorageStatsSubQuery.NUM_VOL;
+import static com.vmturbo.api.component.external.api.util.stats.query.impl.StorageStatsSubQuery.toCountStatApiDtos;
 import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES_API_STR;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
@@ -44,6 +45,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
+import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -81,12 +83,12 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupBy
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -101,7 +103,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         StringConstants.NUM_WORKLOADS, "currentNumWorkloads",
         StringConstants.NUM_VMS, "currentNumVMs",
         StringConstants.NUM_DBS, "currentNumDBs",
-        StringConstants.NUM_DBSS, "currentNumDBSs");
+        StringConstants.NUM_DBSS, "currentNumDBSs",
+        StringConstants.NUM_VIRTUAL_VOLUMES, "currentNumVolumes");
 
     private static final Map<String, List<String>> WORKLOAD_NAME_TO_ENTITY_TYPES = ImmutableMap.of(
         StringConstants.NUM_VMS, Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
@@ -114,33 +117,10 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         ApiEntityType.BUSINESS_ACCOUNT, ApiEntityType.REGION, ApiEntityType.AVAILABILITY_ZONE
     );
 
-    /**
-     * Cloud target constant to match UI request, also used in test case.
-     * This is used for the "Cost Breakdown by Cloud Account" widget.
-     */
-    public static final String BUSINESS_UNIT = "businessUnit";
-
-    /**
-     * Cloud service constant to match UI request, also used in test cases.
-     * This is used for the "Cost Breakdown by Cloud Service" widget.
-     */
-    public static final String CLOUD_SERVICE = "cloudService";
-
-    /**
-     * Cloud service provider constant to match UI request, also used in test cases.
-     * This is used for the "Cost Breakdown by Cloud Provider" widget.
-     */
-    public static final String CSP = "CSP";
-
     // Internally generated stat name when stats period are not set.
     private static final String CURRENT_COST_PRICE = "currentCostPrice";
 
-    //only queries tagged costPrice should be used to retrieved cost.
-    protected static final String COST_PRICE_QUERY_KEY = "costPrice";
-
-    protected static final String COST_COMPONENT = "costComponent";
-
-    private static final String CURRENT_NUM_VOLUMES = "currentNumVolumes";
+    static final String COST_COMPONENT = "costComponent";
 
     /**
      *Collection of cloud cost stats metrics.
@@ -189,11 +169,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         // this sub-query.
         final Optional<EnvironmentType> globalScopeEnvType = context.getQueryScope().getGlobalScope()
             .flatMap(GlobalScope::environmentType);
-        if (globalScopeEnvType.isPresent() && globalScopeEnvType.get() != EnvironmentType.CLOUD) {
-            return false;
-        }
-
-        return true;
+        return !globalScopeEnvType.isPresent() || globalScopeEnvType.get() == EnvironmentType.CLOUD;
     }
 
     @Override
@@ -207,20 +183,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         // This is ugly, but seems in line with what the UI expects. :(
         final Set<StatApiInputDTO> countStats = context.findStats(NUM_WORKLOADS_STATS_SET);
 
-        //This was done to handle numVolumes in CloudCostsStatsSubQuery instead of in StorageStatsSubQuery.
-        countStats.addAll(context.findStats(ImmutableSet.of(StringConstants.NUM_VIRTUAL_VOLUMES, CURRENT_NUM_VOLUMES)));
-
         return SubQuerySupportedStats.some(Sets.union(costStats, countStats));
-    }
-
-    private static boolean isGroupByAttachment(Set<StatApiInputDTO> requestedStats) {
-        return requestedStats.stream().anyMatch(requestedStat -> requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
-                ApiEntityType.VIRTUAL_VOLUME.apiStr().equals(requestedStat.getRelatedEntityType()));
-    }
-
-    private static boolean isGroupByStorageTier(Set<StatApiInputDTO> requestedStats) {
-        return requestedStats.stream().anyMatch(requestedStat -> requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(ApiEntityType.STORAGE_TIER.apiStr()) &&
-                ApiEntityType.VIRTUAL_VOLUME.apiStr().equals(requestedStat.getRelatedEntityType()));
     }
 
     @Nonnull
@@ -244,11 +207,11 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
             // get entities to use later to create the stat filters.
             final Map<Long, MinimalEntity> entityDTOs;
-            if (requestGroupBySet.contains(CLOUD_SERVICE)) {
+            if (requestGroupBySet.contains(StatsService.CLOUD_SERVICE)) {
                 // for group by Cloud services, we need to find all the services and
                 // stitch with expenses in Cost component
                 entityDTOs = getDiscoveredEntityDTOs(ApiEntityType.CLOUD_SERVICE);
-            } else if (requestGroupBySet.contains(BUSINESS_UNIT)) {
+            } else if (requestGroupBySet.contains(StringConstants.BUSINESS_UNIT)) {
                 // get business accounts
                 entityDTOs = getDiscoveredEntityDTOs(ApiEntityType.BUSINESS_ACCOUNT);
             } else {
@@ -258,7 +221,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             final List<CloudCostStatRecord> cloudStatRecords =
                     getCloudExpensesRecordList(requestGroupBySet,
                             // if groupBy = cloudService, get only the service costs from the DB.
-                            requestGroupBySet.contains(CLOUD_SERVICE) ?
+                            requestGroupBySet.contains(StatsService.CLOUD_SERVICE) ?
                                     entityDTOs.keySet() :
                                     Collections.emptySet(),
                             context);
@@ -292,9 +255,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             /*
              * Queries with name {@link #COST_PRICE_QUERY_KEY is used for querying to cost component.
              */
-            Set<StatApiInputDTO> requestedCostPriceStats = requestedStats.stream()
-                .filter(requestedStat -> COST_PRICE_QUERY_KEY.equals(requestedStat.getName()))
-                .collect(toSet());
+            Set<StatApiInputDTO> requestedCostPriceStats =
+                filterStatInputs(requestedStats, StringConstants.COST_PRICE, null);
 
             if (isResourceGroup(inputScope)) {
                 requestedCostPriceStats =
@@ -302,45 +264,84 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                                 inputScope);
             }
 
-            final boolean isGroupByAttachment = isGroupByAttachment(requestedStats);
-            final boolean isGroupByStorageTier = isGroupByStorageTier(requestedStats);
+            final Set<StatApiInputDTO> groupByAttachmentInputs =
+                filterStatInputs(requestedStats, null, StringConstants.ATTACHMENT);
+            final Set<StatApiInputDTO> groupByTierInputs =
+                filterStatInputs(requestedStats, null, ApiEntityType.STORAGE_TIER.apiStr());
 
-            List<CloudCostStatRecord> cloudCostStatRecords = getCloudStatRecordList(requestedCostPriceStats,
-                    cloudEntityOids, context, !isGroupByAttachment && !isGroupByStorageTier);
+            final List<CloudCostStatRecord> cloudCostStatRecords =
+                getCloudStatRecordList(requestedCostPriceStats, cloudEntityOids, context,
+                    groupByAttachmentInputs.isEmpty() && groupByTierInputs.isEmpty());
 
             // For Virtual Volume, when it is grouped by either attachment or storage tier,
             //   aggregation need to be handled explicitly
-            List<StatSnapshotApiDTO> statSnapshots = new ArrayList<>();
-            if (isGroupByAttachment || isGroupByStorageTier) {
-                // add List<StatSnapshotApiDTO> if group by attachment
-                if (isGroupByAttachment) {
-                    // Get all the Virtual Volume Oid in the CloudCostStatRecords
-                    Set<StatApiInputDTO> groupByAttachmentStatApiInputDtos = requestedStats.stream().filter(rs -> ApiEntityType.VIRTUAL_VOLUME.apiStr().equals(rs.getRelatedEntityType()) && rs.getGroupBy().contains(StringConstants.ATTACHMENT))
-                            .collect(Collectors.toSet());
-                    List<StatSnapshotApiDTO> groupByAttachmentStat = getGroupByVVAttachmentStat(cloudCostStatRecords, groupByAttachmentStatApiInputDtos);
-                    if (CollectionUtils.isNotEmpty(groupByAttachmentStat)) {
-                        statSnapshots.addAll(groupByAttachmentStat);
+            final List<StatSnapshotApiDTO> statSnapshots = new ArrayList<>();
+            final List<StatApiDTO> numWorkloadStats = new ArrayList<>();
+            if (!groupByAttachmentInputs.isEmpty() || !groupByTierInputs.isEmpty()) {
+                final Set<Long> volumeOids = cloudCostStatRecords.stream()
+                    .flatMap(cloudCostStatRecord ->
+                        cloudCostStatRecord.getStatRecordsList().stream()
+                            .filter(sr -> sr.getAssociatedEntityType() ==
+                                EntityType.VIRTUAL_VOLUME.getNumber())
+                            .map(StatRecord::getAssociatedEntityId))
+                    .collect(Collectors.toSet());
+                final Set<TopologyEntityDTO> volumeEntities = repositoryApi.entitiesRequest(volumeOids)
+                    .getFullEntities().collect(toSet());
+                if (!groupByAttachmentInputs.isEmpty()) {
+                    final Set<Long> attachedOids = volumeEntities.stream()
+                        .filter(topologyEntityDTO -> topologyEntityDTO.hasTypeSpecificInfo() &&
+                            topologyEntityDTO.getTypeSpecificInfo().hasVirtualVolume() &&
+                            topologyEntityDTO.getTypeSpecificInfo().getVirtualVolume()
+                                .hasAttachmentState() &&
+                            AttachmentState.ATTACHED == topologyEntityDTO.getTypeSpecificInfo()
+                                .getVirtualVolume().getAttachmentState()
+                        )
+                        .map(TopologyEntityDTO::getOid)
+                        .collect(Collectors.toSet());
+
+                    final Set<StatApiInputDTO> countInputs = filterStatInputs(requestedStats, NUM_VOL, StringConstants.ATTACHMENT);
+                    if (!countInputs.isEmpty()) {
+                        final Map<String, Long> countMap = ImmutableMap.of(
+                            StringConstants.ATTACHED, (long)attachedOids.size(),
+                            StringConstants.UNATTACHED, (long)volumeOids.size() - attachedOids.size());
+                        countInputs.forEach(inputDTO -> numWorkloadStats.addAll(
+                            toCountStatApiDtos(inputDTO, StringConstants.ATTACHMENT, countMap)));
+                    }
+                    final List<StatSnapshotApiDTO> costStatsByAttachment =
+                        getVolumeCostStatsByAttachment(cloudCostStatRecords,
+                            filterStatInputs(requestedStats, StringConstants.COST_PRICE, StringConstants.ATTACHMENT), attachedOids);
+                    if (CollectionUtils.isNotEmpty(costStatsByAttachment)) {
+                        statSnapshots.addAll(costStatsByAttachment);
                     }
                 }
 
-                // add List<StatSnapshotApiDTO> if group by storage tier
-                if (isGroupByStorageTier) {
-                    Set<StatApiInputDTO> groupByStorageTierStatApiInputDtos = requestedStats.stream().filter(rs -> ApiEntityType.VIRTUAL_VOLUME.apiStr().equals(rs.getRelatedEntityType()) && rs.getGroupBy().contains(ApiEntityType.STORAGE_TIER.apiStr()))
-                            .collect(Collectors.toSet());
-                    List<StatSnapshotApiDTO> groupByStorageTierStat = getGroupByStorageTierStat(cloudCostStatRecords, groupByStorageTierStatApiInputDtos);
+                if (!groupByTierInputs.isEmpty()) {
+                    final Map<String, List<Long>> tierNameToVolumeOids =
+                        groupVolumeOidsByTierName(volumeEntities);
+
+                    final Set<StatApiInputDTO> countInputs = filterStatInputs(requestedStats, NUM_VOL, ApiEntityType.STORAGE_TIER.apiStr());
+                    if (!countInputs.isEmpty()) {
+                        final Map<String, Long> counts = tierNameToVolumeOids.entrySet().stream()
+                            .collect(
+                                Collectors.toMap(e -> e.getKey(), e -> (long)e.getValue().size()));
+                        countInputs.forEach(inputDTO -> numWorkloadStats.addAll(
+                            toCountStatApiDtos(inputDTO, ApiEntityType.STORAGE_TIER.apiStr(), counts)));
+                    }
+                    final List<StatSnapshotApiDTO> groupByStorageTierStat =
+                        getVolumeCostStatsByTier(cloudCostStatRecords,
+                            filterStatInputs(requestedStats, StringConstants.COST_PRICE, ApiEntityType.STORAGE_TIER.apiStr()), tierNameToVolumeOids);
                     if (CollectionUtils.isNotEmpty(groupByStorageTierStat)) {
                         statSnapshots.addAll(groupByStorageTierStat);
                     }
                 }
             } else {
-                statSnapshots = cloudCostStatRecords.stream()
+                statSnapshots.addAll(cloudCostStatRecords.stream()
                     .map(CloudCostsStatsSubQuery::toCloudStatSnapshotApiDTO)
                     .sorted(Comparator.comparing(StatSnapshotApiDTO::getDate))
-                    .collect(toList());
+                    .collect(toList()));
+                numWorkloadStats.addAll(getNumWorkloadStatSnapshot(requestedStats, context));
             }
             statsResponse = mergeStatSnapshotApiDTOWithDate(statSnapshots);
-            // add numWorkloads, numVMs, numDBs, numDBSs if requested
-            final List<StatApiDTO> numWorkloadStats = getNumWorkloadStatSnapshot(requestedStats, context);
             if (!numWorkloadStats.isEmpty()) {
                 // add the numWorkloads to the same timestamp it it exists.
                 if (statSnapshots.isEmpty()) {
@@ -369,6 +370,56 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             statsResponse = Collections.emptyList();
         }
         return statsResponse;
+    }
+
+    @Nonnull
+    private Map<String, List<Long>> groupVolumeOidsByTierName(final Set<TopologyEntityDTO> volumeEntities) {
+        final Map<Long, List<Long>> storageTierOidToVolumeOids = new HashMap<>();
+        volumeEntities.forEach(volume -> {
+            final long tierOid = volume.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(cbfp ->
+                    cbfp.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE)
+                .mapToLong(CommoditiesBoughtFromProvider::getProviderId)
+                .findFirst().orElse(0);
+
+            if (tierOid != 0) {
+                storageTierOidToVolumeOids
+                    .computeIfAbsent(tierOid, k -> new ArrayList<>())
+                    .add(volume.getOid());
+            } else {
+                logger.error("Virtual Volume {} ({}) has no storage tier provider",
+                    volume.getDisplayName(), volume.getOid());
+            }
+        });
+        final Function<MinimalEntity, String> getTierDisplayName = tierEntity -> {
+            if (Strings.isNullOrEmpty(tierEntity.getDisplayName())) {
+                logger.warn("No displayName for storage tier; using oid {}.",
+                    tierEntity.getOid());
+                return String.valueOf(tierEntity.getOid());
+            } else {
+                return tierEntity.getDisplayName();
+            }
+        };
+
+        return repositoryApi
+            .newSearchRequest(
+                SearchProtoUtil.makeSearchParameters(
+                    SearchProtoUtil.idFilter(storageTierOidToVolumeOids.keySet())
+                ).build())
+            .getMinimalEntities()
+            .collect(Collectors.toMap(getTierDisplayName, tier ->
+                storageTierOidToVolumeOids.get(tier.getOid())));
+    }
+
+    @Nonnull
+    private Set<StatApiInputDTO> filterStatInputs(@Nonnull final Set<StatApiInputDTO> statInputs,
+            @Nullable final String statName,
+            @Nullable final String groupBy) {
+        return statInputs.stream()
+            .filter(input -> statName == null || statName.equals(input.getName()))
+            .filter(input -> groupBy == null ||
+                (input.getGroupBy() != null && input.getGroupBy().contains(groupBy)))
+            .collect(toSet());
     }
 
     private static boolean shouldQueryUsingFilter(ApiId inputScope) {
@@ -429,155 +480,84 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     /**
-     * Group {@link List} of {@link CloudCostStatRecord} objects by Storage Tiers and map to
-     *   {@link StatSnapshotApiDTO} objects.
+     * Group {@link CloudCostStatRecord}s by Storage Tier and map to {@link StatSnapshotApiDTO}s.
      *
-     * @param cloudCostStatRecords {@link List} of {@link CloudCostStatRecord}
-     * @param requestedStats {@link Set} of {@link StatSnapshotApiDTO}
-     * @return {@link List} of {@link StatSnapshotApiDTO}
+     * @param cloudCostStatRecords {@link CloudCostStatRecord}s with cost stats
+     * @param requestedStats {@link StatApiInputDTO}s with stat requests
+     * @param storageTierDisplayNameToVolumeOids volume oids by storage tier
+     * @return converted {@link StatSnapshotApiDTO}s
      */
     @Nonnull
-    @VisibleForTesting
-    private List<StatSnapshotApiDTO> getGroupByStorageTierStat(@Nonnull List<CloudCostStatRecord> cloudCostStatRecords,
-                                                       @Nonnull Set<StatApiInputDTO> requestedStats) {
-        Set<Long> vvOids = cloudCostStatRecords.stream().flatMapToLong(cloudCostStatRecord ->
-            cloudCostStatRecord.getStatRecordsList().stream()
-                .filter(sr -> sr.getAssociatedEntityType() == CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME.getNumber())
-                .mapToLong(sr -> sr.getAssociatedEntityId())
-        ).boxed().collect(Collectors.toSet());
-
-        // get list of attached VVs
-        final Set<TopologyDTO.PartialEntity.ApiPartialEntity> vvEntities = repositoryApi
-            .newSearchRequest(
-                SearchProtoUtil
-                    .makeSearchParameters(SearchProtoUtil.idFilter(vvOids))
-                    .build())
-            .getEntities()
-            .collect(Collectors.toSet());
-
-        Map<Long, List<Long>> storageTierOidToConnectedVVOids = new HashMap<>();
-        vvEntities.forEach(vvEntity -> {
-            final RelatedEntity storageTier = vvEntity.getProvidersList().stream()
-                    .filter(relatedEntity -> relatedEntity.getEntityType() == EntityType.STORAGE_TIER.getNumber())
-                    .findFirst().orElse(null);
-
-            if (storageTier != null) {
-                storageTierOidToConnectedVVOids
-                    .computeIfAbsent(storageTier.getOid(), k -> new ArrayList<>())
-                    .add(vvEntity.getOid());
-            } else {
-                logger.error("Virtual Volume {} with uuid {} has NO storage tier provider", vvEntity.getDisplayName(), vvEntity.getOid());
-            }
-        });
-
-        final Function<MinimalEntity, String> getStorageTierDisplayName = storageTierEntity -> {
-            if (Strings.isNullOrEmpty(storageTierEntity.getDisplayName())) {
-                logger.warn("No displayName for storage tier entity {}.  Use oid as displayName instead.", storageTierEntity.getOid());
-                return String.valueOf(storageTierEntity.getOid());
-            } else {
-                return storageTierEntity.getDisplayName();
-            }
-        };
-
-        final Map<String, List<Long>> storageTierDisplayNameToConnectedVVOid = repositoryApi
-            .newSearchRequest(
-                SearchProtoUtil
-                    .makeSearchParameters(SearchProtoUtil.idFilter(storageTierOidToConnectedVVOids.keySet()))
-                    .build())
-            .getMinimalEntities()
-            .collect(Collectors.toMap(getStorageTierDisplayName,
-                storageEntity -> storageTierOidToConnectedVVOids.get(storageEntity.getOid())));
-
-        List<StatSnapshotApiDTO> statSnapshotApiDTOs = new ArrayList<>();
+    private List<StatSnapshotApiDTO> getVolumeCostStatsByTier(
+            @Nonnull final List<CloudCostStatRecord> cloudCostStatRecords,
+            @Nonnull final Set<StatApiInputDTO> requestedStats,
+            @Nonnull final Map<String, List<Long>> storageTierDisplayNameToVolumeOids) {
+        final List<StatSnapshotApiDTO> statSnapshotApiDTOs = new ArrayList<>();
 
         cloudCostStatRecords.forEach(cloudCostStatRecord -> {
-            Map<String, List<CloudCostStatRecord.StatRecord>> cloudCostStatRecordGroupBySt = new HashMap<>();
-            for (String storageTierName : storageTierDisplayNameToConnectedVVOid.keySet()) {
-                List<CloudCostStatRecord.StatRecord> records = cloudCostStatRecord.getStatRecordsList().stream()
-                    .filter(rec -> storageTierDisplayNameToConnectedVVOid.get(storageTierName).contains(rec.getAssociatedEntityId()))
+            final Map<String, List<CloudCostStatRecord.StatRecord>> recordsByTier = new HashMap<>();
+            for (String storageTierName : storageTierDisplayNameToVolumeOids.keySet()) {
+                final List<CloudCostStatRecord.StatRecord> records =
+                    cloudCostStatRecord.getStatRecordsList().stream()
+                        .filter(rec -> storageTierDisplayNameToVolumeOids.get(storageTierName)
+                            .contains(rec.getAssociatedEntityId()))
                     .collect(Collectors.toList());
-
-                if (CollectionUtils.isNotEmpty(records)) {
-                    cloudCostStatRecordGroupBySt.put(storageTierName, records);
+                if (!records.isEmpty()) {
+                    recordsByTier.put(storageTierName, records);
                 }
             }
 
-            requestedStats.stream().forEach(requestedStat -> {
-                ApiEntityType requestEntityType = ApiEntityType.fromString(requestedStat.getRelatedEntityType());
+            requestedStats.forEach(requestedStat -> {
+                final ApiEntityType requestEntityType =
+                    ApiEntityType.fromString(requestedStat.getRelatedEntityType());
 
                 if (ApiEntityType.UNKNOWN.equals(requestEntityType)) {
-                    logger.error("Unknown request entityType {}", requestedStat.getRelatedEntityType());
+                    logger.error("Unknown request entityType {}",
+                        requestedStat.getRelatedEntityType());
                 } else {
                     StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
                     statSnapshotApiDTO.setDisplayName(requestedStat.getName());
                     statSnapshotApiDTO.setDate(DateTimeUtil.toString(cloudCostStatRecord.getSnapshotDate()));
 
-
-                    List<StatApiDTO> statApiDTOs = cloudCostStatRecordGroupBySt.entrySet().stream()
-                        .map(entry -> {
-                            CloudCostStatRecord.StatRecord statRecord = recordAggregator.aggregate(entry.getValue(),
-                                Optional.of(Integer.valueOf(requestEntityType.typeNumber())), false);
-                            return toStatApiDTO(StringConstants.COST_PRICE, statRecord, createStatFilterApiDTO(ApiEntityType.STORAGE_TIER.apiStr(), entry.getKey()));
+                    final List<StatApiDTO> statApiDTOs = recordsByTier.entrySet().stream()
+                        .map(e -> {
+                            final CloudCostStatRecord.StatRecord statRecord = recordAggregator
+                                .aggregate(e.getValue(),
+                                    Optional.of(requestEntityType.typeNumber()), false);
+                            return toStatApiDTO(StringConstants.COST_PRICE, statRecord,
+                                createStatFilterApiDTO(ApiEntityType.STORAGE_TIER.apiStr(), e.getKey()));
                         })
                         .collect(Collectors.toList());
-
                     statSnapshotApiDTO.setStatistics(statApiDTOs);
-
                     statSnapshotApiDTOs.add(statSnapshotApiDTO);
                 }
             });
         });
-
         return statSnapshotApiDTOs;
     }
 
     /**
-     * Group {@link List} of {@link CloudCostStatRecord} objects by attachment status and map to
-     *   {@link StatSnapshotApiDTO} objects.
+     * Group {@link CloudCostStatRecord}s by attachment status and map to {@link StatSnapshotApiDTO}s.
      *
-     * @param cloudCostStatRecords {@link List} of {@link CloudCostStatRecord}
-     * @param requestedStats {@link Set} of {@link StatSnapshotApiDTO}
-     * @return {@link List} of {@link StatSnapshotApiDTO}
+     * @param cloudCostStatRecords {@link CloudCostStatRecord}s with cost stats
+     * @param requestedStats {@link StatApiInputDTO}s with stat requests
+     * @param attachedVolumeOids oids of all attached volumes
+     * @return converted {@link StatSnapshotApiDTO}s
      */
     @Nonnull
-    private List<StatSnapshotApiDTO> getGroupByVVAttachmentStat(@Nonnull List<CloudCostStatRecord> cloudCostStatRecords,
-                                                        @Nonnull Set<StatApiInputDTO> requestedStats) {
-        Set<Long> vvOids = cloudCostStatRecords.stream().flatMapToLong(cloudCostStatRecord ->
-            cloudCostStatRecord.getStatRecordsList().stream()
-                .filter(sr -> sr.getAssociatedEntityType() == CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME.getNumber())
-                .mapToLong(sr -> sr.getAssociatedEntityId())
-        ).boxed().collect(Collectors.toSet());
-
-        // Get list of attached VVs
-        // Note that there may be extra vvOid returned as one VM may have multiple VVs,
-        //  but the VV list will still be the one associated with the cloudCostStatRecords which
-        //  the scope originally retrieved.
-        final Set<Long> vvOidsAttachedToVM = repositoryApi.entitiesRequest(vvOids)
-            .getFullEntities()
-            .filter(topologyEntityDTO -> {
-                if (!topologyEntityDTO.hasTypeSpecificInfo()) {
-                    return false;
-                }
-                TopologyDTO.TypeSpecificInfo typeSpecificInfo = topologyEntityDTO.getTypeSpecificInfo();
-                if (!typeSpecificInfo.hasVirtualVolume()) {
-                    return false;
-                }
-                TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo virtualVolumeInfo = typeSpecificInfo.getVirtualVolume();
-                return virtualVolumeInfo.hasAttachmentState() && virtualVolumeInfo.getAttachmentState().equals(
-                        CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState.ATTACHED);})
-            .map(topologyEntityDTO -> topologyEntityDTO.getOid())
-            .collect(Collectors.toSet());
-
+    private List<StatSnapshotApiDTO> getVolumeCostStatsByAttachment(
+            @Nonnull final List<CloudCostStatRecord> cloudCostStatRecords,
+            @Nonnull final Set<StatApiInputDTO> requestedStats,
+            @Nonnull final Set<Long> attachedVolumeOids) {
         Predicate<StatRecord> attachedVVFilter =
-            testStatRecord -> vvOidsAttachedToVM.contains(testStatRecord.getAssociatedEntityId());
-
+            testStatRecord -> attachedVolumeOids.contains(testStatRecord.getAssociatedEntityId());
         List<StatSnapshotApiDTO> statSnapshotApiDTOs = new ArrayList<>();
 
         cloudCostStatRecords.forEach(cloudCostStatRecord -> {
             List<CloudCostStatRecord.StatRecord> vvAttachedStatRecords = new ArrayList<>();
             List<CloudCostStatRecord.StatRecord> vvUnattachedStatRecords = new ArrayList<>();
 
-            cloudCostStatRecord.getStatRecordsList().stream().forEach(statRecord -> {
+            cloudCostStatRecord.getStatRecordsList().forEach(statRecord -> {
                 if (attachedVVFilter.test(statRecord)) {
                     vvAttachedStatRecords.add(statRecord);
                 } else {
@@ -594,7 +574,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 if (ApiEntityType.UNKNOWN.equals(requestRelatedEntityType)) {
                     logger.error("Unknown related entity type {} from request.", requestedStat.getRelatedEntityType());
                 } else {
-                    final Optional<Integer> relatedEntityTypeIdOpt = Optional.of(Integer.valueOf(requestRelatedEntityType.typeNumber()));
+                    final Optional<Integer> relatedEntityTypeIdOpt = Optional.of(requestRelatedEntityType.typeNumber());
                     CloudCostStatRecord.StatRecord attachedRecord = recordAggregator
                         .aggregate(vvAttachedStatRecords, relatedEntityTypeIdOpt, false);
                     CloudCostStatRecord.StatRecord unattachedRecord = recordAggregator
@@ -640,19 +620,10 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         statApiDTO.setValue(statRecord.getValues().getAvg());
 
         final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
-        StatRecord.StatValue value = statRecord.getValues();
-        if (value.hasAvg()) {
-            statValueApiDTO.setAvg(value.getAvg());
-        }
-        if (value.hasMax()) {
-            statValueApiDTO.setMax(value.getMax());
-        }
-        if (value.hasMin()) {
-            statValueApiDTO.setMin(statRecord.getValues().getMin());
-        }
-        if (value.hasTotal()) {
-            statValueApiDTO.setTotal(statRecord.getValues().getTotal());
-        }
+        statValueApiDTO.setAvg(statRecord.getValues().getAvg());
+        statValueApiDTO.setMax(statRecord.getValues().getMax());
+        statValueApiDTO.setMin(statRecord.getValues().getMin());
+        statValueApiDTO.setTotal(statRecord.getValues().getTotal());
         statApiDTO.setValues(statValueApiDTO);
 
         return statApiDTO;
@@ -665,7 +636,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
         List<StatApiDTO> stats = Lists.newArrayList();
         for (StatApiInputDTO statApiInputDTO : statsFilters) {
-            if (isVirtualVolumeCount(statApiInputDTO)) {
+            if (!filterStatInputs(Collections.singleton(statApiInputDTO), NUM_VOL, null).isEmpty()) {
                 storageStatsSubQuery.getAggregateStats(Collections.singleton(statApiInputDTO), context)
                         .forEach(statSnapshotApiDTO -> {
                     stats.addAll(statSnapshotApiDTO.getStatistics());
@@ -850,11 +821,11 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         if (!entities.isEmpty()) {
             builder.getEntityFilterBuilder().addAllEntityId(entities);
         }
-        if (requestGroupBySet.contains(BUSINESS_UNIT)) {
+        if (requestGroupBySet.contains(StringConstants.BUSINESS_UNIT)) {
             builder.setGroupBy(GroupByType.BUSINESS_UNIT);
-        } else if (requestGroupBySet.contains(CSP)) {
+        } else if (requestGroupBySet.contains(StringConstants.CSP)) {
             builder.setGroupBy(GroupByType.CSP);
-        } else if (requestGroupBySet.contains(CLOUD_SERVICE)) {
+        } else if (requestGroupBySet.contains(StatsService.CLOUD_SERVICE)) {
             builder.setGroupBy(GroupByType.CLOUD_SERVICE);
         }
 
@@ -910,9 +881,9 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     private static boolean isTopDownRequest(final Set<String> requestGroupBySet) {
-        return requestGroupBySet.contains(BUSINESS_UNIT)
-            || requestGroupBySet.contains(CSP)
-            || requestGroupBySet.contains(CLOUD_SERVICE);
+        return requestGroupBySet.contains(StringConstants.BUSINESS_UNIT)
+            || requestGroupBySet.contains(StringConstants.CSP)
+            || requestGroupBySet.contains(StatsService.CLOUD_SERVICE);
     }
 
     /**
@@ -922,14 +893,14 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      * @return a type function which returns the relevant filter type
      */
     private Supplier<String> getTypeFunction(@Nonnull final Set<String> requestGroupBySet) {
-        if (requestGroupBySet.contains(BUSINESS_UNIT)) {
-            return () -> BUSINESS_UNIT;
+        if (requestGroupBySet.contains(StringConstants.BUSINESS_UNIT)) {
+            return () -> StringConstants.BUSINESS_UNIT;
         }
-        if (requestGroupBySet.contains(CSP)) {
-            return () -> CSP;
+        if (requestGroupBySet.contains(StringConstants.CSP)) {
+            return () -> StringConstants.CSP;
         }
-        if (requestGroupBySet.contains(CLOUD_SERVICE)) {
-            return () -> CLOUD_SERVICE;
+        if (requestGroupBySet.contains(StatsService.CLOUD_SERVICE)) {
+            return () -> StatsService.CLOUD_SERVICE;
         }
         throw ApiUtils.notImplementedInXL();
     }
@@ -951,7 +922,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             @Nonnull final Set<String> requestGroupBySet) {
         // When grouping by cloud provider, the filter's value should be the cloud provider name.
         // In this case entityDTOs is empty.
-        if (requestGroupBySet.contains(CSP)) {
+        if (requestGroupBySet.contains(StringConstants.CSP)) {
             return (targetId, entityDTOs) ->
                     thinTargetCache.getTargetInfo(targetId)
                             .flatMap(thinTargetInfo ->
@@ -967,7 +938,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         // When grouping by business account, the filter's value should be the account name.
         // In this case, the associated entity ID is a business account ID, and the DTOs are
         // business account DTOs.
-        if (requestGroupBySet.contains(CLOUD_SERVICE) || requestGroupBySet.contains(BUSINESS_UNIT)) {
+        if (requestGroupBySet.contains(StatsService.CLOUD_SERVICE) || requestGroupBySet.contains(StringConstants.BUSINESS_UNIT)) {
             return (associatedEntityId, entityDTOs) ->
                     Optional.ofNullable(entityDTOs.get(associatedEntityId))
                             .flatMap(entityDTO -> Optional.of(entityDTO.getDisplayName()));
@@ -1026,7 +997,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      * @param statSnapshot stat snap shot
      * @return StatSnapshotApiDTO
      */
-    public static StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudCostStatRecord statSnapshot) {
+    private static StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudCostStatRecord statSnapshot) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
             dto.setDate(DateTimeUtil.toString(statSnapshot.getSnapshotDate()));
@@ -1080,18 +1051,6 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             logger.error("Unknown cost category: " + costCategory, ex);
             return null;
         }
-    }
-
-    private boolean isVirtualVolumeCount(final StatApiInputDTO statApiInputDTO) {
-        boolean isSupportedStatCountQuery = NUM_VOL.equals(statApiInputDTO.getName());
-
-        // Only support attachment OR storage tier or no groupBy in request.
-        final List<String> listOfGroupBy = statApiInputDTO.getGroupBy();
-        boolean isGroupBy = (listOfGroupBy != null && listOfGroupBy.size() == 1 &&
-                (listOfGroupBy.contains(StringConstants.ATTACHMENT) ||
-                        listOfGroupBy.contains(ApiEntityType.STORAGE_TIER.apiStr()))) ||
-                listOfGroupBy == null || listOfGroupBy.isEmpty();
-        return isSupportedStatCountQuery && isGroupBy;
     }
 
     static class CloudStatRecordAggregator {

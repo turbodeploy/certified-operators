@@ -60,6 +60,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.GroupResolverSearchFilterResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
@@ -162,9 +163,13 @@ public class StagesTest {
         when(graph.entities()).thenReturn(Stream.empty());
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
 
+        GroupResolverSearchFilterResolver searchFilterResolver = mock(GroupResolverSearchFilterResolver.class);
+        when(searchFilterResolver.resolveExternalFilters(any()))
+                .thenAnswer(invocation -> invocation.getArguments()[0]);
+
         PlanScope emptyScope = PlanScope.newBuilder().build();
         final PlanScopingStage emptyScopingStage = new PlanScopingStage(scopeEditor, emptyScope , searchResolver,
-                                                                   new ArrayList<ScenarioChange>(), groupServiceClient);
+                new ArrayList<ScenarioChange>(), groupServiceClient, searchFilterResolver);
         assertTrue(emptyScopingStage.execute(graph).getResult().entities().count() == 0);
     }
 
@@ -184,8 +189,11 @@ public class StagesTest {
         final GroupServiceBlockingStub groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
         final PlanScope scope = PlanScope.newBuilder().addScopeEntries(PlanScopeEntry
                 .newBuilder().setClassName(StringConstants.CLUSTER).setScopeObjectOid(11111)).build();
+        GroupResolverSearchFilterResolver searchFilterResolver = mock(GroupResolverSearchFilterResolver.class);
+        when(searchFilterResolver.resolveExternalFilters(any()))
+                .thenAnswer(invocation -> invocation.getArguments()[0]);
         final PlanScopingStage cloudScopingStage = spy(new PlanScopingStage(scopeEditor, scope , searchResolver,
-                new ArrayList<ScenarioChange>(), groupServiceClient));
+                new ArrayList<ScenarioChange>(), groupServiceClient, searchFilterResolver));
         when(cloudScopingStage.getContext()).thenReturn(context);
         when(context.getStitchingJournalContainer()).thenReturn(container);
         when(context.getTopologyInfo()).thenReturn(cloudTopologyInfo);
@@ -213,7 +221,11 @@ public class StagesTest {
         final PlanScope scope = PlanScope.newBuilder().addScopeEntries(PlanScopeEntry
                 .newBuilder().setClassName(StringConstants.CLUSTER).setScopeObjectOid(11111)).build();
         List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
-        final PlanScopingStage onpremScopingStage = spy(new PlanScopingStage(scopeEditor, scope, searchResolver, changes, groupServiceClient));
+        GroupResolverSearchFilterResolver searchFilterResolver = mock(GroupResolverSearchFilterResolver.class);
+        when(searchFilterResolver.resolveExternalFilters(any()))
+                .thenAnswer(invocation -> invocation.getArguments()[0]);
+        final PlanScopingStage onpremScopingStage = spy(new PlanScopingStage(scopeEditor, scope,
+                searchResolver, changes, groupServiceClient, searchFilterResolver));
         TopologyGraph<TopologyEntity> result = mock(TopologyGraph.class);
         when(onpremScopingStage.getContext()).thenReturn(context);
         when(context.getTopologyInfo()).thenReturn(onpremTopologyInfo);
@@ -347,8 +359,12 @@ public class StagesTest {
         final GroupServiceBlockingStub groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
+        GroupResolverSearchFilterResolver searchFilterResolver = mock(GroupResolverSearchFilterResolver.class);
+        when(searchFilterResolver.resolveExternalFilters(any()))
+                .thenAnswer(invocation -> invocation.getArguments()[0]);
         final TopologyEditStage stage =
-                new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient);
+                new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient,
+                        searchFilterResolver);
         stage.setContext(context);
         stage.execute(Collections.emptyMap());
         verify(topologyEditor).editTopology(eq(Collections.emptyMap()),

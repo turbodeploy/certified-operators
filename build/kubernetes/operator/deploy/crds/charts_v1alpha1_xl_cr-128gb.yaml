@@ -89,6 +89,8 @@ spec:
     enabled: true
   mysql:
     enabled: true
+  tomcat:
+    enabled: false
   newrelic:
     enabled: true
   udt:
@@ -228,6 +230,10 @@ spec:
       limits:
         memory: 1Gi
   mediation-mysql:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-tomcat:
     resources:
       limits:
         memory: 1Gi

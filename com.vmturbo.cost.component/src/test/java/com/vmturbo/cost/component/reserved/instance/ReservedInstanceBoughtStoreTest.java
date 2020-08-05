@@ -81,7 +81,7 @@ public class ReservedInstanceBoughtStoreTest {
 
     private PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
 
-    private ReservedInstanceBoughtStore reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
+    private ReservedInstanceBoughtStore reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
                 new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore);
 
     private static final int REGION_VALUE = 54;

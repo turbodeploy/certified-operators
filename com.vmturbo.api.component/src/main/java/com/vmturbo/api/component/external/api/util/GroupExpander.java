@@ -172,6 +172,18 @@ public class GroupExpander {
     }
 
     /**
+     * Get the members for a list of groups.
+     *
+     * @param groups The list of groups that will be populated with members.
+     * @return A stream of {@link GroupAndMembers} describing the groups that matched the request
+     *         and the members of those groups.
+     */
+    @Nonnull
+    public List<GroupAndMembers> getMembersForGroups(@Nonnull final List<Grouping> groups) {
+        return groupMemberRetriever.getMembersForGroup(groups);
+    }
+
+    /**
      * Get multiple groups with their associated members.
      *
      * @param getGroupsRequest A request object outlining the criteria to use to get the groups.

@@ -224,25 +224,26 @@ public class ActionOrchestratorTestUtils {
      */
     public static Map<String, Setting> makeActionModeAndExecutionScheduleSetting(
             @Nonnull ActionMode mode, @Nonnull Collection<Long> executionScheduleIds) {
-        final Setting actionModeSetting = Setting.newBuilder()
+        ImmutableMap.Builder<String, Setting> settingMap = new ImmutableMap.Builder<>();
+        settingMap.put(EntitySettingSpecs.Move.getSettingName(), Setting.newBuilder()
                 .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
                 .setEnumSettingValue(
                         EnumSettingValue.newBuilder().setValue(mode.toString()).build())
-                .build();
-        final Setting executionScheduleSetting = Setting.newBuilder()
+                .build());
+        if (!executionScheduleIds.isEmpty()) {
+            final Setting executionScheduleSetting = Setting.newBuilder()
                 .setSettingSpecName(
                     ActionSettingSpecs.getSubSettingFromActionModeSetting(
                         EntitySettingSpecs.Move, ActionSettingType.SCHEDULE))
                 .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
-                        .addAllOids(executionScheduleIds)
-                        .build())
+                    .addAllOids(executionScheduleIds)
+                    .build())
                 .build();
-        return new ImmutableMap.Builder<String, Setting>()
-                .put(EntitySettingSpecs.Move.getSettingName(), actionModeSetting)
-                .put(ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                        EntitySettingSpecs.Move, ActionSettingType.SCHEDULE),
-                    executionScheduleSetting)
-                .build();
+            settingMap.put(ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                    EntitySettingSpecs.Move, ActionSettingType.SCHEDULE),
+                    executionScheduleSetting);
+        }
+        return settingMap.build();
     }
 
     public static Optional<ActionPartialEntity> createTopologyEntityDTO(Long Oid, int entityType) {

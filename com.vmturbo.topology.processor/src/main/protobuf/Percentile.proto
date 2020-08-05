@@ -18,8 +18,8 @@ message PercentileCounts {
         optional string key = 3;
         // Commodity provider, if bought, unset if sold.
         optional int64 provider_oid = 4;
-        // Capacity for this series.
-        required float capacity = 5;
+        // Capacity for this series. (deprecated, use capacity changes instead).
+        required float capacity = 5 [deprecated = true];
         // Utilization counts per percent value - an array of the number of configured
         // percentile intervals for the metric (no more than 101).
         repeated int32 utilization = 6 [packed = true];
@@ -29,5 +29,14 @@ message PercentileCounts {
         optional int64 start_timestamp = 8;
         // Timestamp of the last addition of points
         optional int64 end_timestamp = 9;
+        // The capacity changes during the period
+        repeated CapacityChange capacity_changes = 10;
+
+        message CapacityChange {
+            // The time that capacity changed
+            optional int64 timestamp = 1;
+            // The new capacity
+            optional float new_capacity = 2;
+        }
     }
 }

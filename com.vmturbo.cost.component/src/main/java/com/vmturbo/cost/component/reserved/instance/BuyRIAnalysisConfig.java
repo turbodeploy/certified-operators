@@ -46,6 +46,9 @@ public class BuyRIAnalysisConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    @Value("${enableRIBuyAfterPricingChange: true}")
+    private boolean enableRIBuyAfterPricingChange;
+
     @Autowired
     private CostDBConfig databaseConfig;
 
@@ -69,6 +72,9 @@ public class BuyRIAnalysisConfig {
 
     @Autowired
     private PricingConfig pricingConfig;
+
+    @Value("${disableRealtimeRIBuyAnalysis:false}")
+    private boolean disableRealtimeRIBuyAnalysis;
 
     /**
      * Gets Buy ReservedInstance Scheduler.
@@ -170,7 +176,9 @@ public class BuyRIAnalysisConfig {
                 repositoryServiceClient(), settingServiceClient(),
                 reservedInstanceAnalysisConfig.reservedInstanceBoughtStore(),
                 pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(),
-                realtimeTopologyContextId);
+                realtimeTopologyContextId,
+                enableRIBuyAfterPricingChange,
+                disableRealtimeRIBuyAnalysis);
         groupClientConfig.settingsClient().addSettingsListener(reservedInstanceAnalysisInvoker);
         return reservedInstanceAnalysisInvoker;
     }

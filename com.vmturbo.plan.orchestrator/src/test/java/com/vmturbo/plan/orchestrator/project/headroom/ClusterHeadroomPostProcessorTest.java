@@ -172,9 +172,6 @@ public class ClusterHeadroomPostProcessorTest {
                 .setCapacity(3)
                 .setHeadroom(2)
                 .setDaysToExhaustion(MORE_THAN_A_YEAR))
-            .setNumHosts(1)
-            .setNumVMs(2)
-            .setNumStorages(1)
             .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookBack days = (0 * 30)/7 = 0
             .setHeadroom(2) // minimum of mem, cpu and storage headroom values : min(10, 4, 2)
             .build());
@@ -204,9 +201,6 @@ public class ClusterHeadroomPostProcessorTest {
                 .setDaysToExhaustion(MORE_THAN_A_YEAR))
             // Every thing same except for Storage headroom because storage commodities had zero usage.
             .setStorageHeadroomInfo(CommodityHeadroom.getDefaultInstance())
-            .setNumHosts(1)
-            .setNumVMs(2)
-            .setNumStorages(1)
             .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookback days = (0 * 30)/7 = 0
             .setHeadroom(0) // minimum of mem, cpu and storage headroom values : min(10, 4, 0)
             .build());
@@ -227,7 +221,6 @@ public class ClusterHeadroomPostProcessorTest {
         // VmGrowth = 0 (because we don't have data in the past)
         verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
             .setClusterId(CLUSTER_ID)
-            .setNumVMs(0L)
             // No active host
             .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
                 .setHeadroom(0)
@@ -247,9 +240,6 @@ public class ClusterHeadroomPostProcessorTest {
                 .setCapacity(3)
                 .setHeadroom(2)
                 .setDaysToExhaustion(MORE_THAN_A_YEAR))
-            .setNumHosts(1)
-            .setNumVMs(2)
-            .setNumStorages(1)
             .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookback days = (0 * 30)/7 = 0
             .setHeadroom(0) // minimum of mem, cpu and storage headroom values : min(0, 0, 2)
             .build());
@@ -485,7 +475,7 @@ public class ClusterHeadroomPostProcessorTest {
                     .setValues(StatValue.newBuilder()
                         .setAvg(numVm)
                         .build())
-                    .setName(StringConstants.VM_NUM_VMS)
+                    .setName(StringConstants.NUM_VMS)
                     .build()))
                 .build();
             statsList.add(statSnapshot);

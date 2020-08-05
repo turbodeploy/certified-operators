@@ -431,6 +431,7 @@ data:
         dbHost: timescaledb
         dbPort: 5432
         enableReporting: {{ .Values.reporting.enabled }}
+        grafanaAdminPassword: {{ .Values.grafana.adminPassword }}
 {{- if eq (index .Values "grafana" "grafana.ini" "database" "type") "postgres"}}
         grafanaDb:
 {{ toYaml (index .Values "grafana" "grafana.ini" "database") | indent 12 }}

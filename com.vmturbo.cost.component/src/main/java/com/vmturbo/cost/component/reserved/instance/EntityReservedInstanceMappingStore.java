@@ -32,6 +32,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Record2;
 import org.jooq.UpdatableRecord;
 import org.jooq.impl.DSL;
 import org.stringtemplate.v4.ST;
@@ -60,8 +61,6 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
     private static final String entityReservedInstanceMappingFile = "entityToReserved_dump";
 
     private static final String RI_SUM_COUPONS = "RI_SUM_COUPONS";
-
-    private static final String ENTITY_SUM_COUPONS = "ENTITY_SUM_COUPONS";
 
     private static final EntityReservedInstanceMappingFilter entityReservedInstanceMappingFilter = EntityReservedInstanceMappingFilter
             .newBuilder().build();
@@ -184,7 +183,7 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
                         // Again, add a minute to the usage end time.
                         Instant.ofEpochMilli(usageEndTime + 1000 * 60),
                         ZoneId.from(ZoneOffset.UTC));
-                logger.info("Usage start/end for Entity/RI pair '{}:{}' = [{} .. {}], covered coupons = {}",
+                logger.debug("Usage start/end for Entity/RI pair '{}:{}' = [{} .. {}], covered coupons = {}",
                         entityOid, reservedInstanceId, usageStart.toString(), usageEnd.toString(), cell.getValue());
 
                 records.add(context.newRecord(HIST_ENTITY_RESERVED_INSTANCE_MAPPING,
@@ -351,6 +350,25 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
         });
 
         return riCoverageByEntity;
+    }
+
+    /**
+     * Gets the reserved instance to covered entities mapping.
+     *
+     * @param reservedInstances the reserved instances for getting entities covered by them
+     * @return the reserved instance to covered entities mapping.
+     */
+    @Nonnull
+    public Map<Long, Set<Long>> getEntitiesCoveredByReservedInstances(
+            @Nonnull final Collection<Long> reservedInstances) {
+        final Condition condition = reservedInstances.isEmpty() ? DSL.noCondition()
+                : Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID.in(
+                        reservedInstances);
+        return dsl.selectDistinct(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+                Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID).from(
+                Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING).where(condition).fetchStream().collect(
+                Collectors.groupingBy(Record2::value1,
+                        Collectors.mapping(Record2::value2, Collectors.toSet())));
     }
 
     /**

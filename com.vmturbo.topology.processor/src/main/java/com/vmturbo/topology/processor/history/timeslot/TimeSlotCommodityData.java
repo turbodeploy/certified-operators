@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.history.timeslot;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -14,7 +15,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
@@ -30,6 +30,7 @@ public class TimeSlotCommodityData
                 implements IHistoryCommodityData<TimeslotHistoricalEditorConfig, List<Pair<Long, StatRecord>>, Void> {
     private static final Logger logger = LogManager.getLogger();
     private static final String LOG_PREFIX = "Timeslot calculation: ";
+    private static final long MILLIS_IN_DAY = TimeUnit.DAYS.toMillis(1);
     // hourly slots' statistics for entire observation period
     private SlotStatistics[] previousSlots;
     // statistics since the beginning of current hour (not accumulated into previousSlots yet)
@@ -127,7 +128,7 @@ public class TimeSlotCommodityData
             if (currentSlot.count == 0) {
                 timestamp = now;
             } else if (timestamp > 0
-                       && (now - timestamp) / TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS > 0) {
+                       && (now - timestamp) / TimeUnit.HOURS.toMillis(1) > 0) {
                 // crossed the hour boundary - dump currentSlot into previousSlots
                 int slot = getSlot(timestamp, previousSlots.length);
                 float hourAverage = currentSlot.total / currentSlot.count;
@@ -178,9 +179,8 @@ public class TimeSlotCommodityData
     }
 
     private static int getSlot(long timestamp, int slots) {
-        long startOfDay = timestamp / TimeInMillisConstants.DAY_LENGTH_IN_MILLIS
-                          * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS;
-        long slotLength = TimeInMillisConstants.DAY_LENGTH_IN_MILLIS / slots;
+        long startOfDay = timestamp / MILLIS_IN_DAY * MILLIS_IN_DAY;
+        long slotLength = MILLIS_IN_DAY / slots;
         return (int)((timestamp - startOfDay) / slotLength);
     }
 

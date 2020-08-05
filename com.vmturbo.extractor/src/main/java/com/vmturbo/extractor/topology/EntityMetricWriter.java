@@ -17,6 +17,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,15 +30,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.MessageOrBuilder;
-import com.google.protobuf.util.JsonFormat;
-import com.google.protobuf.util.JsonFormat.Printer;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -48,20 +42,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.RecordHashManager.SnapshotManager;
 import com.vmturbo.extractor.models.Column;
-import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
@@ -69,12 +59,14 @@ import com.vmturbo.extractor.models.DslUpsertRecordSink;
 import com.vmturbo.extractor.models.ModelDefinitions;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
-import com.vmturbo.extractor.schema.enums.EntityState;
-import com.vmturbo.extractor.schema.enums.EntityType;
-import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
+import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
+import com.vmturbo.extractor.patchers.TagsPatchers.EntityTagsPatcher;
+import com.vmturbo.extractor.patchers.TagsPatchers.GroupTagsPatcher;
 import com.vmturbo.extractor.schema.enums.MetricType;
-import com.vmturbo.extractor.search.EnumUtils;
-import com.vmturbo.extractor.topology.mapper.GroupMappers;
+import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
+import com.vmturbo.extractor.search.EnumUtils.EntityTypeUtils;
+import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -97,8 +89,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
      */
     private static final Pattern QX_VCPU_PATTERN = Pattern.compile("Q.*_VCPU");
 
-    private static final Long[] EMPTY_SCOPE = new Long[0];
-
     // configurations for upsert and update operations for entity table
     private static final ImmutableList<Column<?>> upsertConflicts = ImmutableList.of(
             ENTITY_OID_AS_OID, ModelDefinitions.ENTITY_HASH_AS_HASH);
@@ -107,13 +97,6 @@ public class EntityMetricWriter extends TopologyWriterBase {
             .of(ModelDefinitions.ENTITY_HASH_AS_HASH, ModelDefinitions.LAST_SEEN);
     private static final List<Column<?>> updateMatches = ImmutableList.of(ModelDefinitions.ENTITY_HASH_AS_HASH);
     private static final List<Column<?>> updateUpdates = ImmutableList.of(ModelDefinitions.LAST_SEEN);
-
-    private static final Printer jsonPrinter = JsonFormat.printer()
-            .omittingInsignificantWhitespace()
-            .sortingMapKeys()
-            .preservingProtoFieldNames();
-
-    private static final ObjectMapper mapper = new ObjectMapper();
 
     private final Long2ObjectMap<Record> entityRecordsMap = new Long2ObjectOpenHashMap<>();
 
@@ -124,6 +107,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * List of wasted files records by storage oid.
      */
     private final Long2ObjectMap<List<Record>> wastedFileRecordsByStorageId = new Long2ObjectOpenHashMap<>();
+    private final PrimitiveFieldsOnTEDPatcher tedPatcher = new PrimitiveFieldsOnTEDPatcher(true);
+    private final EntityTagsPatcher entityTagsPatcher = new EntityTagsPatcher();
+    private final GroupPrimitiveFieldsOnGroupingPatcher groupPatcher =
+            new GroupPrimitiveFieldsOnGroupingPatcher();
+    private final GroupTagsPatcher groupTagsPatcher = new GroupTagsPatcher();
 
     /**
      * Create a new writer instance.
@@ -148,30 +136,20 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     @Override
     protected void writeEntity(final TopologyEntityDTO e) {
-        final long oid = e.getOid();
-        EntityType entityType = EnumUtils.entityTypeFromProtoIntToDb(e.getEntityType(), null);
-        if (entityType == null) {
+        if (EntityTypeUtils.protoIntToDb(e.getEntityType(), null) == null) {
             logger.error("Cannot map entity type {} for db storage for entity oid {}; skipping",
                     e.getEntityType(), e.getOid());
             return;
         }
+        final long oid = e.getOid();
         Record entitiesRecord = new Record(ENTITY_TABLE);
-        entitiesRecord.set(ENTITY_OID_AS_OID, oid);
-        entitiesRecord.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE, entityType);
-        entitiesRecord.set(ModelDefinitions.ENTITY_NAME, e.getDisplayName());
-        entitiesRecord.setIf(e.hasEnvironmentType(), ModelDefinitions.ENVIRONMENT_TYPE,
-                () -> EnumUtils.environmentTypeFromProtoToDb(e.getEnvironmentType(),
-                        EnvironmentType.UNKNOWN_ENV));
-        entitiesRecord.setIf(e.hasEntityState(), ModelDefinitions.ENTITY_STATE,
-                () -> EnumUtils.entityStateFromProtoToDb(e.getEntityState(),
-                        EntityState.UNKNOWN));
-        try {
-            entitiesRecord.set(ModelDefinitions.ATTRS, getTypeSpecificInfoJson(e));
-        } catch (InvalidProtocolBufferException invalidProtocolBufferException) {
-            logger.error("Failed to record type-specific info for entity {}", oid);
-        }
+        final HashMap<String, Object> attrs = new HashMap<>();
+        PartialRecordInfo rec = new PartialRecordInfo(e.getOid(), e.getEntityType(), entitiesRecord, attrs);
+        tedPatcher.patch(rec, e);
+        entityTagsPatcher.patch(rec, e);
+        rec.finalizeAttrs();
         // supply chain will be added during finish processing
-        entityRecordsMap.put(oid, entitiesRecord);
+            entityRecordsMap.put(oid, entitiesRecord);
         writeMetrics(e, oid);
         // cache wasted file records, since storage name can only be fetched later
         createWastedFileRecords(e);
@@ -211,7 +189,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
                 .filter(cs -> config.reportingCommodityWhitelist().contains(cs.getCommodityType().getType()))
                 .collect(Collectors.groupingBy(cs -> cs.getCommodityType().getType(),  LinkedHashMap::new, Collectors.toList()));
         csByType.forEach((typeNo, css) -> {
-            MetricType type = EnumUtils.commodityTypeFromProtoIntToDb(typeNo, null);
+            MetricType type = CommodityTypeUtils.protoIntToDb(typeNo, null);
             if (CommodityType.forNumber(typeNo) == null) {
                 logger.error("Skipping invalid sold commodity type {} for entity {}",
                         typeNo, e.getOid());
@@ -466,20 +444,12 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private void writeGroupsAsEntities(final DataProvider dataProvider) {
         dataProvider.getAllGroups()
                 .forEach(group -> {
-                    final GroupDefinition def = group.getDefinition();
                     Record r = new Record(ENTITY_TABLE);
-                    r.set(ENTITY_OID_AS_OID, group.getId());
-                    r.set(ModelDefinitions.ENTITY_NAME, def.getDisplayName());
-                    r.set(ModelDefinitions.ENTITY_TYPE_AS_TYPE,
-                            GroupMappers.mapGroupTypeToName(def.getType()));
-                    r.set(ModelDefinitions.SCOPED_OIDS, EMPTY_SCOPE);
-                    final JsonString attrs;
-                    try {
-                        attrs = getGroupJson(group);
-                        r.set(ModelDefinitions.ATTRS, attrs);
-                    } catch (JsonProcessingException e) {
-                        logger.error("Failed to record group attributes for group {}", group.getId());
-                    }
+                    final PartialRecordInfo rec = new PartialRecordInfo(
+                            group.getId(), group.getDefinition().getType().getNumber(), r, new HashMap<>());
+                    groupPatcher.patch(rec, group);
+                    groupTagsPatcher.patch(rec, group);
+                    rec.finalizeAttrs();
                     entityRecordsMap.put(group.getId(), r);
                 });
     }
@@ -548,96 +518,5 @@ public class EntityMetricWriter extends TopologyWriterBase {
                 }
             });
         });
-    }
-
-    private JsonString getTypeSpecificInfoJson(TopologyEntityDTO entity) throws
-            InvalidProtocolBufferException {
-        final TypeSpecificInfo tsi = entity.hasTypeSpecificInfo() ? entity.getTypeSpecificInfo() : null;
-        MessageOrBuilder trimmed = null;
-        try {
-            trimmed = tsi != null ? stripUnwantedFields(tsi) : null;
-        } catch (IllegalArgumentException e) {
-            logger.warn("Entity type {} not handled by type-specific-info stripper", tsi.getTypeCase());
-        }
-        final String json = trimmed != null ? jsonPrinter.print(trimmed) : null;
-        return json != null ? new JsonString(json) : null;
-    }
-
-    private JsonString getGroupJson(Grouping group) throws JsonProcessingException {
-        final List<String> expectedTypes = group.getExpectedTypesList().stream()
-                .map(MemberType::getEntity)
-                .map(EntityDTO.EntityType::forNumber)
-                .map(Enum::name)
-                .collect(Collectors.toList());
-
-        Map<String, Object> obj = ImmutableMap.of(
-                "expectedTypes", expectedTypes);
-        return new JsonString(mapper.writeValueAsString(obj));
-    }
-
-    @VisibleForTesting
-    static MessageOrBuilder stripUnwantedFields(TypeSpecificInfo tsi) {
-        switch (tsi.getTypeCase()) {
-            case APPLICATION:
-                return tsi.getApplication();
-            case BUSINESS_ACCOUNT:
-                return tsi.getBusinessAccount().toBuilder()
-                        .clearRiSupported();
-            case BUSINESS_USER:
-                return null;
-            case COMPUTE_TIER:
-                return tsi.getComputeTier().toBuilder()
-                        .clearBurstableCPU()
-                        .clearDedicatedStorageNetworkState()
-                        .clearInstanceDiskType()
-                        .clearInstanceDiskSizeGb()
-                        .clearNumInstanceDisks()
-                        .clearQuotaFamily()
-                        .clearSupportedCustomerInfo();
-            case DATABASE:
-                return tsi.getDatabase();
-            case DESKTOP_POOL:
-                return tsi.getDesktopPool();
-            case DISK_ARRAY:
-                return tsi.getDiskArray();
-            case LOGICAL_POOL:
-                return tsi.getLogicalPool();
-            case PHYSICAL_MACHINE:
-                return tsi.getPhysicalMachine();
-            case REGION:
-                return null;
-            case STORAGE:
-                return tsi.getStorage().toBuilder()
-                        .clearIgnoreWastedFiles()
-                        .clearPolicy()
-                        .clearRawCapacity();
-            case STORAGE_CONTROLLER:
-                return tsi.getStorageController();
-            case VIRTUAL_MACHINE:
-                return tsi.getVirtualMachine().toBuilder()
-                        .clearDriverInfo()
-                        .clearLocks()
-                        .clearTenancy()
-                        .clearArchitecture()
-                        .clearBillingType()
-                        .clearVirtualizationType();
-            case VIRTUAL_VOLUME:
-                return tsi.getVirtualVolume().toBuilder()
-                        .clearFiles();
-            case WORKLOAD_CONTROLLER:
-                // TODO: evaluate whether we need these entities, and if so which attrs to strip
-                return null;
-            case DATABASE_TIER:
-                // TODO: evaluate whether we need these entities, and if so which attrs to strip
-                return null;
-            case DATABASE_SERVER_TIER:
-                // TODO: evaluate whether we need these entities, and if so which attrs to strip
-                return null;
-            case TYPE_NOT_SET:
-                return null;
-            default:
-                throw new IllegalArgumentException("Unrecognized type-specific-info case: "
-                        + tsi.getTypeCase().name());
-        }
     }
 }

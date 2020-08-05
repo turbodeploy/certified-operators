@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -63,6 +64,9 @@ public class ReservedInstanceMapper {
      * @param serviceEntityApiDTOMap a map which key is entity id, value is {@link ServiceEntityApiDTO}.
      *                               which contains full entity information if region, account,
      *                               availability zones entity.
+     * @param coveredEntitiesCount count of workload entities covered by the reserved instance.
+     * @param coveredUndiscoveredAccountsCount count of undiscovered accounts covered
+     *                               by the reserved instance.
      * @return a {@link ReservedInstanceApiDTO}.
      * @throws NotFoundMatchPaymentOptionException when no matching payment option can be found.
      * @throws NotFoundMatchTenancyException when no matching tenancy can be found.
@@ -71,7 +75,9 @@ public class ReservedInstanceMapper {
     public ReservedInstanceApiDTO mapToReservedInstanceApiDTO(
             @Nonnull final ReservedInstanceBought reservedInstanceBought,
             @Nonnull final ReservedInstanceSpec reservedInstanceSpec,
-            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
+            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap,
+            @Nullable final Integer coveredEntitiesCount,
+            @Nullable final Integer coveredUndiscoveredAccountsCount)
                 throws NotFoundMatchPaymentOptionException, NotFoundMatchTenancyException,
                 NotFoundMatchOfferingClassException, NotFoundCloudTypeException {
         // TODO: set RI cost data which depends on discount information.
@@ -179,6 +185,9 @@ public class ReservedInstanceMapper {
                 .map(BaseApiDTO::getDisplayName)
                 .collect(Collectors.toList()));
 
+        reservedInstanceApiDTO.setCoveredEntityCount(coveredEntitiesCount);
+        reservedInstanceApiDTO.setUndiscoveredAccountsCoveredCount(
+                coveredUndiscoveredAccountsCount);
         // Set the toBuy field based on the value in the ReservedInstanceBoughtInfo
         reservedInstanceApiDTO.setToBuy(reservedInstanceBoughtInfo.getToBuy());
 

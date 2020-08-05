@@ -133,7 +133,8 @@ public class StatsQueryScopeExpander {
             this.scope = scope;
             this.relatedTypes = relatedTypes;
             this.globalScope = globalScope;
-            if (globalScope != null || CollectionUtils.isEmpty(scopeOids)) {
+            if ((globalScope != null || CollectionUtils.isEmpty(scopeOids))
+                && !expander.supplyChainFetcherFactory.containsApplicationType(relatedTypes)) {
                 this.scopeOids = fetchScopedOids(userSessionContext, Collections.emptySet());
                 this.expandedOids = fetchExpandedOids(userSessionContext, relatedTypes);
             } else {
@@ -314,7 +315,7 @@ public class StatsQueryScopeExpander {
         final Optional<GlobalScope> globalScope = findGlobalScope(scope, relatedTypes);
         final Set<Long> scopeOids;
 
-        if (globalScope.isPresent()) {
+        if (globalScope.isPresent() && !supplyChainFetcherFactory.containsApplicationType(relatedTypes)) {
             scopeOids = null;
         } else {
             scopeOids = scope.getScopeOids(userSessionContext, statistics);

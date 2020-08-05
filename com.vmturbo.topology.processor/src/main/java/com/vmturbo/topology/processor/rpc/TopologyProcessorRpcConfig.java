@@ -17,6 +17,7 @@ import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.communication.SdkServerConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
+import com.vmturbo.topology.processor.group.GroupResolverSearchFilterResolver;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
@@ -93,6 +94,12 @@ public class TopologyProcessorRpcConfig {
     public TargetSearchRpcService targetSearchRpcService() {
         return new TargetSearchRpcService(targetConfig.targetStore(), probeConfig.probeStore(),
                 operationConfig.operationManager());
+    }
+
+    @Bean
+    public GroupResolverSearchFilterResolver groupResolverSearchFilterResolver() {
+        return new GroupResolverSearchFilterResolver(groupConfig.groupServiceBlockingStub(),
+                targetSearchRpcService());
     }
 
     /**

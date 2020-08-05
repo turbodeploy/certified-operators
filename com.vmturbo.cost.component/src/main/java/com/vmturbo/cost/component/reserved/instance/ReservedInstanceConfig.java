@@ -78,6 +78,9 @@ public class ReservedInstanceConfig {
     @Value("${concurrentSupplementalRICoverageAllocation:true}")
     private boolean concurrentSupplementalRICoverageAllocation;
 
+    @Value("${ignoreReservedInstanceInventory:false}")
+    private boolean ignoreReservedInstanceInventory;
+
     @Autowired
     private GroupClientConfig groupClientConfig;
 
@@ -119,9 +122,13 @@ public class ReservedInstanceConfig {
 
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
-        return new ReservedInstanceBoughtStore(databaseConfig.dsl(),
-                identityProviderConfig.identityProvider(), repositoryInstanceCostCalculator(),
-                pricingConfig.priceTableStore());
+        if (ignoreReservedInstanceInventory) {
+            return new EmptyReservedInstanceBoughtStore();
+        } else {
+            return new SQLReservedInstanceBoughtStore(databaseConfig.dsl(),
+                    identityProviderConfig.identityProvider(), repositoryInstanceCostCalculator(),
+                    pricingConfig.priceTableStore());
+        }
     }
 
     /**
@@ -176,7 +183,8 @@ public class ReservedInstanceConfig {
                 PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
                 realtimeTopologyContextId, pricingConfig.priceTableStore(),
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),
-                BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
+                BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
+                accountRIMappingStore());
     }
 
     /**
@@ -215,9 +223,10 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceUtilizationCoverageRpcService reservedInstanceUtilizationCoverageRpcService() {
         return new ReservedInstanceUtilizationCoverageRpcService(reservedInstanceUtilizationStore(),
-                        reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(),
-                        entityReservedInstanceMappingStore(), planProjectedRICoverageAndUtilStore(),
-                        timeFrameCalculator(), realtimeTopologyContextId);
+                reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(),
+                entityReservedInstanceMappingStore(), accountRIMappingStore(),
+                planProjectedRICoverageAndUtilStore(), timeFrameCalculator(),
+                realtimeTopologyContextId);
     }
 
     @Bean

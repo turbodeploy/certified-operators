@@ -25,7 +25,7 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.extractor.ExtractorDbConfig;
-import com.vmturbo.extractor.models.ModelDefinitions;
+import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.search.SearchEntityWriter;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -131,7 +131,7 @@ public class TopologyListenerConfig {
                 .lastSeenAdditionalFuzzMinutes(lastSeenAdditionalFuzzMinutes)
                 .insertTimeoutSeconds(insertTimeoutSeconds)
                 .addAllReportingCommodityWhitelist(getReportingCommodityWhitelist())
-                .unaggregatedCommodities(ModelDefinitions.UNAGGREGATED_KEYED_COMMODITY_TYPES)
+                .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
                 .build();
     }
 
@@ -144,7 +144,7 @@ public class TopologyListenerConfig {
     private Set<Integer> getReportingCommodityWhitelist() {
         // use default whitelist as a basis
         final Set<CommodityType> reportingCommodityTypes = Sets.newHashSet(
-                ModelDefinitions.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST);
+                Constants.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST);
         // add new commodities to whitelist if provided
         if (reportingCommodityWhitelistAdded != null) {
             reportingCommodityTypes.addAll(Arrays.stream(reportingCommodityWhitelistAdded)

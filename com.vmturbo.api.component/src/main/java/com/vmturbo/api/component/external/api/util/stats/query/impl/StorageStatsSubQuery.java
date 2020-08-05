@@ -72,7 +72,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
     /**
      * Supported stat.
      */
-    public static final String NUM_VOL = "numVolumes";
+    static final String NUM_VOL = "numVolumes";
 
     /**
      * Allowed filters for environment type for global scope.
@@ -325,7 +325,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
      * @return list of StatApiDTO with the grouping and stat information
      */
     @Nonnull
-    private static List<StatApiDTO> toCountStatApiDtos(@Nonnull StatApiInputDTO statApiInputDTO,
+    static List<StatApiDTO> toCountStatApiDtos(@Nonnull StatApiInputDTO statApiInputDTO,
                                                        @Nonnull String groupBy,
                                                        @Nonnull Map<String, Long> countsByGroup) {
 

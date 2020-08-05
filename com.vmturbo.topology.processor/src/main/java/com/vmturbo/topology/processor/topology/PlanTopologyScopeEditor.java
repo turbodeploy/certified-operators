@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.topology;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE;
 
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -160,10 +162,10 @@ public class PlanTopologyScopeEditor {
             }
             if (entity.getEntityType() == VIRTUAL_VOLUME_VALUE) {
                 Streams.concat(entity.getInboundAssociatedEntities().stream(), entity.getConsumers().stream())
-                        .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                        .filter(e -> e.getEntityType() == VIRTUAL_MACHINE_VALUE)
                         .map(TopologyEntity::getOid)
                         .forEach(connectedVMsAndVVIds::add);
-            } else if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            } else if (entity.getEntityType() == VIRTUAL_MACHINE_VALUE) {
                 Streams.concat(entity.getOutboundAssociatedEntities().stream(), entity.getProviders().stream())
                         .filter(e -> e.getEntityType() == VIRTUAL_VOLUME_VALUE)
                         .map(TopologyEntity::getOid)
@@ -411,7 +413,7 @@ public class PlanTopologyScopeEditor {
 
             // Pull in outBoundAssociatedEntities for VMs and inBoundAssociatedEntities for Storage
             // so as to not skip entities like vVolume that don't buy/sell commodities.
-            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            if (entity.getEntityType() == VIRTUAL_MACHINE_VALUE) {
                 entity.getOutboundAssociatedEntities().forEach(e -> {
                     final long oid = e.getOid();
                     if (!scopedTopologyOIDs.contains(oid)) {
@@ -456,10 +458,20 @@ public class PlanTopologyScopeEditor {
             final Stream<TopologyEntity> potentialSellers = getPotentialSellers(index, buyer.getTopologyEntityDtoBuilder()
                             .getCommoditiesBoughtFromProvidersList().stream());
             final Stream<TopologyEntity> associatedEntities;
-            if (buyer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            if (buyer.getEntityType() == VIRTUAL_MACHINE_VALUE) {
                 associatedEntities = Stream.concat(potentialSellers, buyer.getOutboundAssociatedEntities().stream());
             } else if (buyer.getEntityType() == STORAGE_VALUE) {
-                associatedEntities = Stream.concat(potentialSellers, buyer.getInboundAssociatedEntities().stream());
+                // In case of an empty storage cluster, Storages will not have VMs as customers.
+                // And we rely on VMs to pull in the PMs. But we still need to pull in PMs even if
+                // there are no VMs. Hence, PMs are pulled in using accesses relation.
+                Stream<TopologyEntity> intermediateAssociatedEntities = Stream.concat(
+                    potentialSellers, buyer.getInboundAssociatedEntities().stream());
+                associatedEntities = Stream.concat(intermediateAssociatedEntities, getAccesses(buyer, topology));
+            } else if (buyer.getEntityType() == PHYSICAL_MACHINE_VALUE) {
+                // In case of an empty cluster, PMs will not have VMs as customers. And we rely on
+                // VMs to pull in the Storages. But we still need to pull in Storages even if
+                // there are no VMs. Hence, Storages are pulled in using accesses relation.
+                associatedEntities = Stream.concat(potentialSellers, getAccesses(buyer, topology));
             } else {
                 associatedEntities = potentialSellers;
             }
@@ -503,6 +515,22 @@ public class PlanTopologyScopeEditor {
 
         logger.info("Completed scoping stage for on-prem topology. {} scoped entities", retGraph.size());
         return retGraph;
+    }
+
+    /**
+     * Get all the accesses relations of an entity
+     * @param entity TopologyEntity to get the accesses relations of
+     * @param topology the topology graph
+     * @return all the accesses relations of the entity
+     */
+    private Stream<TopologyEntity> getAccesses(TopologyEntity entity, TopologyGraph<TopologyEntity> topology) {
+        return entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+            .stream()
+            .filter(CommoditySoldDTO.Builder::hasAccesses)
+            .map(CommoditySoldDTO.Builder::getAccesses)
+            .map(accesses -> topology.getEntity(accesses))
+            .filter(Optional::isPresent)
+            .map(Optional::get);
     }
 
     /**

@@ -154,6 +154,36 @@ public class ActionInfoModelCreatorTest {
         Assert.assertNotEquals(modelInf, modelNan);
     }
 
+    /**
+     * Tests that provision action info mode.
+     */
+    @Test
+    public void testProvisionActionInfo() {
+        final ActionInfo provision1 =  ActionInfo.newBuilder()
+            .setProvision(Provision.newBuilder()
+                .setEntityToClone(createActionEntity(1))
+                .setProvisionIndex(0)
+                .setProvisionedSeller(33))
+            .build();
+        final ActionInfo provision2 = ActionInfo.newBuilder()
+            .setProvision(Provision.newBuilder()
+                .setEntityToClone(createActionEntity(1))
+                .setProvisionIndex(0)
+                .setProvisionedSeller(44))
+            .build();
+        final ActionInfo provision3 =  ActionInfo.newBuilder()
+            .setProvision(Provision.newBuilder()
+                .setEntityToClone(createActionEntity(1))
+                .setProvisionIndex(1)
+                .setProvisionedSeller(33))
+            .build();
+        final ActionInfoModel model1 = modelCreator.apply(provision1);
+        final ActionInfoModel model2 = modelCreator.apply(provision2);
+        final ActionInfoModel model3 = modelCreator.apply(provision3);
+        Assert.assertEquals(model1, model2);
+        Assert.assertNotEquals(model1, model3);
+    }
+
     @Nonnull
     private ActionInfo createMove() {
         return ActionInfo.newBuilder()
@@ -179,6 +209,7 @@ public class ActionInfoModelCreatorTest {
         return ActionInfo.newBuilder()
                 .setProvision(Provision.newBuilder()
                         .setEntityToClone(createActionEntity(1))
+                        .setProvisionIndex(0)
                         .setProvisionedSeller(33))
                 .build();
     }

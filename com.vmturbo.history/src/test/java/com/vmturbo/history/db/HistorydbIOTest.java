@@ -13,6 +13,7 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.UUID;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VCPU;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE;
 import static com.vmturbo.history.db.jooq.JooqUtils.getDoubleField;
+import static com.vmturbo.history.db.jooq.JooqUtils.getField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
@@ -24,15 +25,13 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Arrays;
@@ -44,6 +43,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import javax.validation.constraints.AssertTrue;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.assertj.core.util.Sets;
@@ -52,6 +53,7 @@ import org.jooq.Record3;
 import org.jooq.Table;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -62,17 +64,21 @@ import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.api.enums.CommodityType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.history.db.HistorydbIO.NextPageInfo;
 import com.vmturbo.history.db.HistorydbIO.SeekPaginationCursor;
 import com.vmturbo.history.db.jooq.JooqUtils;
+import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
+import com.vmturbo.history.schema.abstraction.tables.AvailableTimestamps;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -89,6 +95,11 @@ public class HistorydbIOTest {
     private static final Logger logger = LogManager.getLogger();
     private static final EntityType PHYSICAL_MACHINE_ENTITY_TYPE = EntityType.named(PHYSICAL_MACHINE).get();
     private static final EntityType VIRTUAL_MACHINE_ENTITY_TYPE = EntityType.named(VIRTUAL_MACHINE).get();
+    private static final String HISTORY_VARIETY = "history_variety";
+    private static final String TIMESTAMP = "time_stamp";
+    private static final String TIME_FRAME = "time_frame";
+    private static final String LATEST = "LATEST";
+
 
     @Autowired
     private DbTestConfig dbTestConfig;
@@ -713,6 +724,58 @@ public class HistorydbIOTest {
         assertFalse(cursor.getLastValue().isPresent());
         assertTrue(nextPageInfo.getTotalRecordCount().isPresent());
         assertEquals(6, nextPageInfo.getTotalRecordCount().get().longValue());
+    }
+
+    /**
+     * Tests getting the most recent timestamps from the available_timestamps table. If the
+     * request is sorting the commodities by price_index, we get the most recent time stamp among
+     * the available price index data, if the table doesn't have entries with price data variety,
+     * we get the latest value with the entity_stats variety.
+     */
+    @Test
+    public void testAvailableTimeStamps() throws VmtDbException {
+        final Table<?> table =
+            AvailableTimestamps.AVAILABLE_TIMESTAMPS;
+        StatsFilter statsFilter =
+            StatsFilter.newBuilder().addAllCommodityRequests(Arrays.asList(CommodityRequest.newBuilder().setCommodityName("cpu").build())).build();
+        Connection conn = historydbIO.connection();
+        Date date = new Date(100, 1, 1);
+        long time = date.getTime();
+        Timestamp ts = new Timestamp(time);
+
+        historydbIO.using(conn).insertInto(table,
+            getField(table, HISTORY_VARIETY, String.class),
+            getTimestampField(table, TIMESTAMP),
+            getStringField(table, TIME_FRAME))
+            .values(HistoryVariety.ENTITY_STATS.toString(), ts, LATEST)
+            .execute();
+
+        Optional<Timestamp> timeStamp = historydbIO.getClosestTimestampBefore(statsFilter,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.of(new EntityStatsPaginationParams(10, 10, "priceIndex",
+                PaginationParameters.getDefaultInstance())));
+        Assert.assertTrue(timeStamp.isPresent());
+        Assert.assertEquals(ts, timeStamp.get());
+
+        Date date2 = new Date(100,1,2);
+        long time2 = date2.getTime();
+        Timestamp ts2 = new Timestamp(time2);
+
+        historydbIO.using(conn).insertInto(table,
+            getField(table, HISTORY_VARIETY, String.class),
+            getTimestampField(table, TIMESTAMP),
+            getStringField(table, TIME_FRAME))
+            .values(HistoryVariety.ENTITY_STATS.toString(), ts2, LATEST)
+            .execute();
+
+        Optional<Timestamp> timeStamp2 = historydbIO.getClosestTimestampBefore(statsFilter,
+            Optional.empty(),
+            Optional.empty(),
+            Optional.of(new EntityStatsPaginationParams(10, 10, "priceIndex",
+                PaginationParameters.getDefaultInstance())));
+        Assert.assertTrue(timeStamp2.isPresent());
+        Assert.assertEquals(ts2, timeStamp2.get());
     }
 
     /**

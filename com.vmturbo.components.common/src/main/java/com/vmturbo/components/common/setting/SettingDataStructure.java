@@ -19,10 +19,10 @@ public interface SettingDataStructure<T> {
      * Returns default value of the setting for the specified entity type.
      *
      * @param entityType entity type to retrieve default for
-     * @return default value of the setting
+     * @return default value of the setting or null if there is no specified default value
      * @throws NullPointerException if {@code entityType} is null
      */
-    @Nonnull
+    @Nullable
     T getDefault(@Nonnull EntityType entityType);
 
     /**

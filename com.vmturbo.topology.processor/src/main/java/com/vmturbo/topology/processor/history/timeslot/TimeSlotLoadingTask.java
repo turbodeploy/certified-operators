@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -23,7 +24,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.history.AbstractStatsLoadingTask;
@@ -63,12 +63,11 @@ public class TimeSlotLoadingTask extends
         Stopwatch sw = Stopwatch.createStarted();
 
         final long now = config.getClock().millis();
-        final long startMs = getRequestTimestamp(now, range.getFirst(),
-                        TimeInMillisConstants.DAY_LENGTH_IN_MILLIS);
+        final long startMs = getRequestTimestamp(now, range.getFirst(), TimeUnit.DAYS.toMillis(1));
         final long endMs = getRequestTimestamp(now, range.getSecond(),
-                        TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS);
+                TimeUnit.HOURS.toMillis(1));
         final GetEntityStatsRequest request = createStatsRequest(commodities, startMs, endMs,
-                        TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS);
+                TimeUnit.HOURS.toMillis(1));
         long records = 0;
 
         Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> fields2records = new HashMap<>();

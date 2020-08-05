@@ -98,6 +98,8 @@ class HistoricalQueryMapper {
             switch (groupBy) {
                 case StringConstants.RISK_SUB_CATEGORY:
                     return Optional.of(GroupBy.ACTION_CATEGORY);
+                case StringConstants.RISK:
+                    return Optional.of(GroupBy.ACTION_RELATED_RISK);
                 case StringConstants.ACTION_STATES:
                     return Optional.of(GroupBy.ACTION_STATE);
                 case StringConstants.BUSINESS_UNIT:

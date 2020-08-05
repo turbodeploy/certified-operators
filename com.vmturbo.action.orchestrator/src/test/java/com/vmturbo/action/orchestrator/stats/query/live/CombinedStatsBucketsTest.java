@@ -502,7 +502,7 @@ public class CombinedStatsBucketsTest {
     public void testGroupByActionExplanation() {
         final QueryInfo queryInfo = mock(QueryInfo.class);
         when(queryInfo.query()).thenReturn(CurrentActionStatsQuery.newBuilder()
-            .addGroupBy(GroupBy.ACTION_EXPLANATION)
+            .addGroupBy(GroupBy.ACTION_RELATED_RISK)
             .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
         when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
@@ -587,7 +587,7 @@ public class CombinedStatsBucketsTest {
         assertThat(stats, containsInAnyOrder(
             CurrentActionStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
-                    .setActionExplanation(getCommodityDisplayName(TopologyDTO.CommodityType.newBuilder()
+                    .setActionRelatedRisk(getCommodityDisplayName(TopologyDTO.CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.MEM_VALUE).build()) + " Congestion"))
                 .setActionCount(3)
                 .setEntityCount(2)
@@ -596,7 +596,7 @@ public class CombinedStatsBucketsTest {
                 .build(),
             CurrentActionStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
-                    .setActionExplanation(getCommodityDisplayName(TopologyDTO.CommodityType.newBuilder()
+                    .setActionRelatedRisk(getCommodityDisplayName(TopologyDTO.CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.CPU_VALUE).build()) + " Congestion"))
                 .setActionCount(2)
                 .setEntityCount(2)

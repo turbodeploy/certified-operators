@@ -33,5 +33,7 @@ public interface ActionGroup {
         ActionCategory getCategory();
 
         ActionState getActionState();
+
+        String getActionRelatedRisk();
     }
 }
