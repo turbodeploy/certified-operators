@@ -550,7 +550,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
         virtualDiskApiDTO.setUuid(String.valueOf(volume.getOid()));
         virtualDiskApiDTO.setDisplayName(volume.getDisplayName());
-        virtualDiskApiDTO.setAttachedVirtualMachine(ServiceEntityMapper.toBasicEntity(vm));
+        virtualDiskApiDTO.setAttachedVirtualMachine(ServiceEntityMapper.toBaseServiceEntityApiDTO(vm));
         virtualDiskApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
 
         List<StatApiDTO> statDTOs = Lists.newArrayList();
@@ -617,7 +617,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         // find region for the volume and set it in VirtualDiskApiDTO
         final ApiPartialEntity region = regionByVolumeId.get(volume.getOid());
         if (region != null) {
-            virtualDiskApiDTO.setDataCenter(ServiceEntityMapper.toBasicEntity(region));
+            virtualDiskApiDTO.setDataCenter(ServiceEntityMapper.toBaseServiceEntityApiDTO(region));
         }
         // set storage tier
         final ServiceEntityApiDTO storageTier = storageTierByVolumeId.get(volume.getOid());

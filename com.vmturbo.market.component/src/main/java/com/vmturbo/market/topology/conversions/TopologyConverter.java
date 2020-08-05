@@ -326,7 +326,11 @@ public class TopologyConverter {
 
     private final TopologyInfo topologyInfo;
 
-    private final CloudEntityResizeTracker cert = new CloudEntityResizeTracker();
+    private final CommoditiesResizeTracker commoditiesResizeTracker = new CommoditiesResizeTracker();
+
+    // a map keeps shoppinglist oid to ShoppingListInfo which is a container for
+    // shoppinglist oid, buyer oid, seller oid and commodity bought
+    private final Map<Long, ShoppingListInfo> shoppingListOidToInfos = Maps.newHashMap();
 
     private float quoteFactor = MarketAnalysisUtils.QUOTE_FACTOR;
     private float liveMarketMoveCostFactor = MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR;
@@ -526,10 +530,6 @@ public class TopologyConverter {
         return skippedEntities;
     }
 
-    // a map keeps shoppinglist oid to ShoppingListInfo which is a container for
-    // shoppinglist oid, buyer oid, seller oid and commodity bought
-    private final Map<Long, ShoppingListInfo> shoppingListOidToInfos = Maps.newHashMap();
-
     public Set<Long> getCloudVmComputeShoppingListIDs() {
         return cloudVmComputeShoppingListIDs;
     }
@@ -546,7 +546,6 @@ public class TopologyConverter {
     protected final Map<Long, ShoppingListInfo> getShoppingListOidToInfos() {
         return Collections.unmodifiableMap(shoppingListOidToInfos);
     }
-
 
     private boolean isPlan() {
         return TopologyDTOUtil.isPlan(topologyInfo);

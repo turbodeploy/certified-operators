@@ -1164,7 +1164,7 @@ public class ActionInterpreter {
                 // show Performance/Efficiency actions instead of Compliance.
                 if (complianceExplanationOverride != null
                         && complianceExplanationOverride.apply(moveTO)) {
-                    changeProviderExplanation = changeExplanationForCloud(moveTO, savings)
+                    changeProviderExplanation = changeExplanationFromTracker(moveTO, savings)
                             .orElse(ChangeProviderExplanation.newBuilder().setEfficiency(
                                     ChangeProviderExplanation.Efficiency.getDefaultInstance()));
                 }
