@@ -1,17 +1,18 @@
 package com.vmturbo.history.stats.projected;
 
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
+import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
+
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedCalculatedCommodity;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 
@@ -33,10 +34,10 @@ public class ProjectedPriceIndexSnapshot {
      * If we want to get the top X entities by price index in the future we can keep this map
      * sorted.
      */
-    private final Map<Long, Double> priceIndexMap;
+    private final Long2DoubleMap priceIndexMap;
 
-    private ProjectedPriceIndexSnapshot(@Nonnull final Map<Long, Double> priceIndexByEntity) {
-        priceIndexMap = Collections.unmodifiableMap(priceIndexByEntity);
+    private ProjectedPriceIndexSnapshot(@Nonnull final Long2DoubleMap priceIndexByEntity) {
+        priceIndexMap = priceIndexByEntity;
     }
 
     /**
@@ -58,8 +59,8 @@ public class ProjectedPriceIndexSnapshot {
                     paginationParams.getSortCommodity());
         }
         return (id1, id2) -> {
-            final double id1StatValue = priceIndexMap.getOrDefault(id1, 0.0);
-            final double id2StatValue = priceIndexMap.getOrDefault(id2, 0.0);
+            final double id1StatValue = priceIndexMap.getOrDefault(id1.longValue(), 0.0);
+            final double id2StatValue = priceIndexMap.getOrDefault(id2.longValue(), 0.0);
             final int valComparisonResult = paginationParams.isAscending() ?
                     Double.compare(id1StatValue, id2StatValue) :
                     Double.compare(id2StatValue, id1StatValue);
@@ -89,7 +90,9 @@ public class ProjectedPriceIndexSnapshot {
                 new AccumulatedCalculatedCommodity(StringConstants.PRICE_INDEX);
 
         if (targetEntities.isEmpty()) {
-            priceIndexMap.values().forEach(priceIndexCommodity::recordAttributeCommodity);
+            for (double val : priceIndexMap.values()) {
+                priceIndexCommodity.recordAttributeCommodity(val);
+            }
         } else {
             targetEntities.forEach(entityId -> {
                 Double priceIndex = priceIndexMap.get(entityId);
@@ -111,7 +114,10 @@ public class ProjectedPriceIndexSnapshot {
         return new PriceIndexSnapshotFactory() {
             @Nonnull
             @Override
-            public ProjectedPriceIndexSnapshot createSnapshot(@Nonnull final Map<Long, Double> priceIndexByEntity) {
+            public ProjectedPriceIndexSnapshot createSnapshot(@Nonnull final Long2DoubleMap priceIndexByEntity) {
+                if (priceIndexByEntity instanceof Long2DoubleOpenHashMap) {
+                    ((Long2DoubleOpenHashMap)priceIndexByEntity).trim();
+                }
                 return new ProjectedPriceIndexSnapshot(priceIndexByEntity);
             }
         };
@@ -124,6 +130,6 @@ public class ProjectedPriceIndexSnapshot {
     interface PriceIndexSnapshotFactory {
 
         @Nonnull
-        ProjectedPriceIndexSnapshot createSnapshot(@Nonnull final Map<Long, Double> priceIndexByEntity);
+        ProjectedPriceIndexSnapshot createSnapshot(@Nonnull Long2DoubleMap priceIndexByEntity);
     }
 }

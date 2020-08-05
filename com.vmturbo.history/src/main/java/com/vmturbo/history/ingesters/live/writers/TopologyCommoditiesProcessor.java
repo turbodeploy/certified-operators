@@ -38,7 +38,7 @@ public class TopologyCommoditiesProcessor extends ProjectedTopologyWriterBase {
      */
     private TopologyCommoditiesProcessor(@Nonnull ProjectedStatsStore projectedStatsStore) {
         this.projectedStatsStore = projectedStatsStore;
-        this.topologyCommoditiesSnapshotBuilder = new TopologyCommoditiesSnapshot.Builder();
+        this.topologyCommoditiesSnapshotBuilder = new TopologyCommoditiesSnapshot.Builder(projectedStatsStore.getExcludedCommodities());
     }
 
     @Override
