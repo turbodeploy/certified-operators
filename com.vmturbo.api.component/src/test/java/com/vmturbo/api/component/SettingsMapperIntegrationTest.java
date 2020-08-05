@@ -56,8 +56,7 @@ public class SettingsMapperIntegrationTest {
     // Set of settings that are intentionally hidden from the UI
     private final Set<String> invisibleSettings = ImmutableSet.of(
         EntitySettingSpecs.ScalingGroupMembership.getSettingName(),
-        EntitySettingSpecs.VCPURequestUtilization.getSettingName(),
-        EntitySettingSpecs.ResizeTargetUtilizationIops.getSettingName());
+        EntitySettingSpecs.VCPURequestUtilization.getSettingName());
 
     /**
      * Initialise test configuration.
