@@ -40,13 +40,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineException;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.PlanPipelineQueue;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.RealtimePipelineQueue;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.TopologyPipelineQueue;
@@ -446,8 +446,8 @@ public class TopologyPipelineExecutorServiceTest {
      */
     @Test
     public void testPipelineRequestPipelineException() throws Exception {
-        final TopologyPipelineException exception =
-            new TopologyPipelineException("BOO", new IllegalStateException("Boa"));
+        final PipelineException exception =
+            new PipelineException("BOO", new IllegalStateException("Boa"));
 
         final TopologyPipelineRunnable pipelineRunnable = mock(TopologyPipelineRunnable.class);
         when(pipelineRunnable.runPipeline()).thenThrow(exception);
@@ -460,7 +460,7 @@ public class TopologyPipelineExecutorServiceTest {
         try {
             pipelineRequest.waitForBroadcast(1, TimeUnit.MILLISECONDS);
             Assert.fail("Expected exception.");
-        } catch (TopologyPipelineException e) {
+        } catch (PipelineException e) {
             assertThat(e, is(exception));
         }
     }
@@ -533,8 +533,8 @@ public class TopologyPipelineExecutorServiceTest {
      */
     @Test
     public void testPipelineFailSendSummary() throws Exception {
-        final TopologyPipelineException exception =
-            new TopologyPipelineException("Bad Pipe!", new Exception("exception"));
+        final PipelineException exception =
+            new PipelineException("Bad Pipe!", new Exception("exception"));
 
         final TopologyPipelineRequest request = new TopologyPipelineRequest(() -> {
                 throw exception;
@@ -548,7 +548,7 @@ public class TopologyPipelineExecutorServiceTest {
             // Wait for results - should return immediately.
             request.waitForBroadcast(1, TimeUnit.MILLISECONDS);
             Assert.fail("Expected pipeline exception.");
-        } catch (TopologyPipelineException e) {
+        } catch (PipelineException e) {
             assertThat(e, is(exception));
             final ArgumentCaptor<TopologySummary> summaryCapture =
                 ArgumentCaptor.forClass(TopologySummary.class);
@@ -583,7 +583,7 @@ public class TopologyPipelineExecutorServiceTest {
         // Run
         try {
             request.waitForBroadcast(1, TimeUnit.MINUTES);
-        } catch (TopologyPipelineException e) {
+        } catch (PipelineException e) {
             if (e.getCause() instanceof InterruptedException) {
                 assertThat(e.getCause(), is(exception));
                 final ArgumentCaptor<TopologySummary> summaryCapture =

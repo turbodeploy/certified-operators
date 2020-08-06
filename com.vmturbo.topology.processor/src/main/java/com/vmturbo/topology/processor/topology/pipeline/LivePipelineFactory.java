@@ -10,6 +10,7 @@ import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinition;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.search.SearchResolver;
@@ -44,7 +45,6 @@ import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicator
 import com.vmturbo.topology.processor.topology.RequestAndLimitCommodityThresholdsInjector;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.GenerateConstraintMapStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CacheWritingConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
@@ -55,6 +55,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationS
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EnvironmentTypeStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EphemeralEntityHistoryStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.GenerateConstraintMapStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoricalUtilizationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoryAggregationStage;
@@ -273,7 +274,7 @@ public class LivePipelineFactory {
             @Nonnull final StitchingJournalFactory journalFactory,
             @Nonnull final List<TopoBroadcastManager> managers) {
         final MatrixInterface mi = matrix.copy();
-        return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
+        return new TopologyPipeline<>(PipelineDefinition.<EntityStore, TopologyBroadcastInfo, TopologyPipelineContext>newBuilder(context)
                 .addStage(new DCMappingStage(discoveredGroupUploader))
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new Stages.FlowGenerationStage(mi))
@@ -310,8 +311,7 @@ public class LivePipelineFactory {
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new UploadAtomicActionSpecsStage(actionMergeSpecsUploader))
                 .addStage(new TopSortStage())
-                .addStage(new BroadcastStage(managers, mi))
-                .build();
+                .finalStage(new BroadcastStage(managers, mi)));
     }
 
     /**
@@ -332,27 +332,26 @@ public class LivePipelineFactory {
             @Nonnull final TopologyPipelineContext context,
             @Nonnull final StitchingJournalFactory journalFactory,
             @Nonnull final List<TopoBroadcastManager> managers) {
-        return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
-                .addStage(new DCMappingStage(discoveredGroupUploader))
-                .addStage(new StitchingStage(stitchingManager, journalFactory))
-                .addStage(new Stages.FlowGenerationStage(matrix))
-                .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
-                .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
-                        discoveredGroupUploader))
-                .addStage(new ConstructTopologyFromStitchingContextStage())
-                .addStage(new UploadGroupsStage(discoveredGroupUploader))
-                .addStage(new GraphCreationStage())
-                .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
-                .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
-                .addStage(new EnvironmentTypeStage(environmentTypeInjector))
-                .addStage(new GenerateConstraintMapStage(policyManager, groupServiceClient, reservationService))
-                .addStage(new DummySettingsResolutionStage())
-                .addStage(new Stages.MatrixUpdateStage(matrix))
-                .addStage(new PostStitchingStage(stitchingManager))
-                .addStage(new SupplyChainValidationStage(supplyChainValidator))
-                .addStage(new ExtractTopologyGraphStage())
-                .addStage(new TopSortStage())
-                .addStage(new BroadcastStage(managers, matrix))
-                .build();
+        return new TopologyPipeline<>(PipelineDefinition.<EntityStore, TopologyBroadcastInfo, TopologyPipelineContext>newBuilder(context)
+            .addStage(new DCMappingStage(discoveredGroupUploader))
+            .addStage(new StitchingStage(stitchingManager, journalFactory))
+            .addStage(new Stages.FlowGenerationStage(matrix))
+            .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
+            .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
+                    discoveredGroupUploader))
+            .addStage(new ConstructTopologyFromStitchingContextStage())
+            .addStage(new UploadGroupsStage(discoveredGroupUploader))
+            .addStage(new GraphCreationStage())
+            .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
+            .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
+            .addStage(new EnvironmentTypeStage(environmentTypeInjector))
+            .addStage(new GenerateConstraintMapStage(policyManager, groupServiceClient, reservationService))
+            .addStage(new DummySettingsResolutionStage())
+            .addStage(new Stages.MatrixUpdateStage(matrix))
+            .addStage(new PostStitchingStage(stitchingManager))
+            .addStage(new SupplyChainValidationStage(supplyChainValidator))
+            .addStage(new ExtractTopologyGraphStage())
+            .addStage(new TopSortStage())
+            .finalStage(new BroadcastStage(managers, matrix)));
     }
 }

@@ -12,6 +12,8 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinition;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinitionBuilder;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.TopologyEntity;
@@ -215,12 +217,12 @@ public class PlanPipelineFactory {
         final TopologyPipelineContext context =
                 new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient,
                         searchFilterResolver), topologyInfo, consistentScalingManager);
-        final TopologyPipeline.Builder<EntityStore, TopologyBroadcastInfo, EntityStore> topoPipelineBuilder =
-            TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context);
         // if the constructed topology is already in the cache from the realtime topology, just
         // add the stage that will read it from the cache, otherwise add the stitching stage
         // and the construct topology stage so we can build the topology
-        TopologyPipeline.Builder<EntityStore, TopologyBroadcastInfo, Map<Long, Builder>> builderContinuation;
+        PipelineDefinitionBuilder<EntityStore, TopologyBroadcastInfo, EntityStore, TopologyPipelineContext> topoPipelineBuilder =
+                PipelineDefinition.newBuilder(context);
+        PipelineDefinitionBuilder<EntityStore, TopologyBroadcastInfo, Map<Long, Builder>, TopologyPipelineContext> builderContinuation;
         if (constructTopologyStageCache.isEmpty()) {
             builderContinuation = topoPipelineBuilder.addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new ConstructTopologyFromStitchingContextStage());
@@ -228,7 +230,7 @@ public class PlanPipelineFactory {
             builderContinuation = topoPipelineBuilder.addStage(
                 new CachingConstructTopologyFromStitchingContextStage(constructTopologyStageCache));
         }
-        return builderContinuation
+        return new TopologyPipeline<>(builderContinuation
                 .addStage(new ReservationStage(reservationManager))
                 // TODO: Move the ToplogyEditStage after the GraphCreationStage
                 // That way the editstage can work on the graph instead of a
@@ -256,8 +258,7 @@ public class PlanPipelineFactory {
                 .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new TopSortStage())
-                .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
-                .build();
+                .finalStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix)));
     }
 
     /**
@@ -277,22 +278,21 @@ public class PlanPipelineFactory {
         final TopologyPipelineContext context =
                 new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient,
                         searchFilterResolver), topologyInfo, consistentScalingManager);
-        return TopologyPipeline.<Long, TopologyBroadcastInfo>newBuilder(context)
-                .addStage(new TopologyAcquisitionStage(repositoryClient))
-                .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient, searchFilterResolver))
-                .addStage(new GraphCreationStage())
-                .addStage(new ScopeResolutionStage(groupServiceClient, scope))
-                .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
-                // TODO (roman, Nov 2017): We need to do policy and setting application for
-                // plan-over-plan as well. However, the topology we get from the repository
-                // already has some policies and settings applied to it. In order to run those
-                // stages here we need to be able to apply policies/settings on top of existing ones.
-                //
-                // One approach is to clear settings/policies from a topology, and then run the
-                // stages. The other approach is to extend the stages to handle already-existing
-                // policies/settings.
-                .addStage(new TopSortStage())
-                .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
-                .build();
+        return new TopologyPipeline<>(PipelineDefinition.<Long, TopologyBroadcastInfo, TopologyPipelineContext>newBuilder(context)
+            .addStage(new TopologyAcquisitionStage(repositoryClient))
+            .addStage(new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient, searchFilterResolver))
+            .addStage(new GraphCreationStage())
+            .addStage(new ScopeResolutionStage(groupServiceClient, scope))
+            .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
+            // TODO (roman, Nov 2017): We need to do policy and setting application for
+            // plan-over-plan as well. However, the topology we get from the repository
+            // already has some policies and settings applied to it. In order to run those
+            // stages here we need to be able to apply policies/settings on top of existing ones.
+            //
+            // One approach is to clear settings/policies from a topology, and then run the
+            // stages. The other approach is to extend the stages to handle already-existing
+            // policies/settings.
+            .addStage(new TopSortStage())
+            .finalStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix)));
     }
 }
