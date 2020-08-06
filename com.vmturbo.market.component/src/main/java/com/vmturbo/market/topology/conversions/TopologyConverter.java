@@ -177,6 +177,8 @@ public class TopologyConverter {
         CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE
     );
 
+    private static final double MINIMUM_ACHIEVABLE_IOPS_PERCENTAGE = 0.05;
+
     private static final Logger logger = LogManager.getLogger();
 
     // TODO: In legacy this is taken from LicenseManager and is currently false
@@ -2567,7 +2569,6 @@ public class TopologyConverter {
 
         final EconomyDTOs.ShoppingListTO.Builder economyShoppingListBuilder = EconomyDTOs.ShoppingListTO
                 .newBuilder()
-                .addAllCommoditiesBought(values)
                 .setOid(id)
                 .setStorageMoveCost(moveCost)
                 .setMovable(isMovable);
@@ -2596,13 +2597,54 @@ public class TopologyConverter {
             economyShoppingListBuilder.setMovable(false);
         }
 
-        // Set cloud volume shoppingList to be in Savings mode.
         if (entityType == EntityType.VIRTUAL_VOLUME_VALUE
                 && originalEntityAsTrader.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            // Set cloud volume shoppingList to be in Savings/Reversibility mode.
             final boolean isDemandScalable = !isReversibilityPreferred(entityForSLOid);
             economyShoppingListBuilder.setDemandScalable(isDemandScalable);
+            // Modify values set if applicable.
+            dropIopsDemandForThroughputDrivenVolume(entityForSL, values);
         }
+        economyShoppingListBuilder.addAllCommoditiesBought(values);
         return economyShoppingListBuilder.build();
+    }
+
+    /**
+     * For throughput driven volumes, drop IOPS demand for analysis.
+     * A volume is throughput driven if it meets the following formula --
+     * (ThroughputUsed / IOPSUsed) > (MaxThroughput / (MaxIOPS * minimum achievable IOPS percentage)),
+     * which means the average block size transferred to/from the volume is larger than desirable block
+     * size for current tier. We need to drop IOPS demand in this case because --
+     * 1. For large block size case, throughput demand is the driving factor for analysis.
+     * 2. IOPS is based on 16KiB data blocks for SSD tiers, and 1MiB data blocks for HDD tiers. A SSD
+     * volume with large block size can have relatively high IOPS demand because the data blocks are
+     * capped by 16KiB, and if placed on a HDD tier, may not need that many of IOPS.
+     * For example, a volume on SSD with block size 256KiB and 1000IOPS, if placed on HDD tier,
+     * can be 256 * 2000 / 1024 = 250 IOPS with 1MiB block size.
+     *
+     * @param cloudVolume cloud volume to check
+     * @param boughtTOS volume shoppingList boughtTOs.
+     */
+    private void dropIopsDemandForThroughputDrivenVolume(final TopologyEntityDTO cloudVolume,
+                                                         final Set<CommodityDTOs.CommodityBoughtTO> boughtTOS) {
+        CommodityBoughtTO iopsBoughtTO = boughtTOS.stream().filter(b ->
+                CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE == b.getSpecification().getBaseType())
+                .findFirst().orElse(null);
+        CommodityBoughtTO throughputBoughtTO = boughtTOS.stream().filter(b ->
+                CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE == b.getSpecification().getBaseType())
+                .findFirst().orElse(null);
+        if (iopsBoughtTO == null || throughputBoughtTO == null
+                || iopsBoughtTO.getQuantity() == 0f || iopsBoughtTO.getAssignedCapacityForBuyer() == 0f) {
+            return;
+        }
+        if (throughputBoughtTO.getQuantity() / iopsBoughtTO.getQuantity()
+                > throughputBoughtTO.getAssignedCapacityForBuyer()
+                / (iopsBoughtTO.getAssignedCapacityForBuyer() * MINIMUM_ACHIEVABLE_IOPS_PERCENTAGE)) {
+            logger.info("Dropping IOPS quantity {} for cloud volume {} with oid {}",
+                    iopsBoughtTO.getQuantity(), cloudVolume.getDisplayName(), cloudVolume.getOid());
+            boughtTOS.remove(iopsBoughtTO);
+            boughtTOS.add(iopsBoughtTO.toBuilder().setQuantity(0f).build());
+        }
     }
 
     /**
