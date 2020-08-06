@@ -43,6 +43,9 @@ message ScenarioInfo {
 
     // The plan scope
     optional PlanScope scope = 4;
+
+    // Plan global setting
+    optional PlanGlobalSetting plan_global_setting = 5;
 }
 
 // The Plan Scope is a set of entity groups chosen as part of the plan. This scope is used to filter
@@ -65,6 +68,11 @@ message PlanScopeEntry {
 
     // display name of the group -- for UI compatibility and may be removed in the future
     optional string display_name = 4;
+}
+
+// Plan global setting
+message PlanGlobalSetting {
+    optional setting.Setting rate_of_resize = 1;
 }
 
 message ScenarioChange {

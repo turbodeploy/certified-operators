@@ -12,11 +12,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
-import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedBoughtCommodity;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedSoldCommodity;
+import com.vmturbo.history.stats.projected.BoughtCommoditiesInfo.BoughtCommodity;
+import com.vmturbo.history.stats.projected.SoldCommoditiesInfo.SoldCommodity;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 public class AccumulatedCommodityTest {
@@ -52,13 +54,13 @@ public class AccumulatedCommodityTest {
     public void testAccumulatedSoldCommodity() {
         final AccumulatedSoldCommodity commodity =
                 new AccumulatedSoldCommodity(COMMODITY);
-        CommoditySoldDTO soldCommodity = CommoditySoldDTO.newBuilder()
+        SoldCommodity soldCommodity = new SoldCommodity(CommoditySoldDTO.newBuilder()
                 .setCommodityType(MEM_COMMODITY_TYPE)
                 .setUsed(3)
                 .setPeak(4)
                 .setCapacity(5)
                 .setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(0.5D).build())
-                .build();
+                .build());
         // Add two of the same commodity (to make the math easier)
         commodity.recordSoldCommodity(soldCommodity);
         commodity.recordSoldCommodity(soldCommodity);
@@ -91,15 +93,15 @@ public class AccumulatedCommodityTest {
         final AccumulatedBoughtCommodity commodity =
                 new AccumulatedBoughtCommodity(COMMODITY);
 
-        final CommodityBoughtDTO dto = CommodityBoughtDTO.newBuilder()
+        final BoughtCommodity boughtComm = new BoughtCommodity(CommodityBoughtDTO.newBuilder()
                 .setCommodityType(MEM_COMMODITY_TYPE)
                 .setUsed(3)
                 .setPeak(4)
                 .setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(0.5D).build())
-                .build();
+                .build());
 
-        commodity.recordBoughtCommodity(dto, 1L, 5);
-        commodity.recordBoughtCommodity(dto, 2L, 5);
+        commodity.recordBoughtCommodity(boughtComm, 1L, 5);
+        commodity.recordBoughtCommodity(boughtComm, 2L, 5);
 
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
@@ -127,15 +129,15 @@ public class AccumulatedCommodityTest {
         final AccumulatedBoughtCommodity commodity =
             new AccumulatedBoughtCommodity(COMMODITY);
 
-        final CommodityBoughtDTO dto = CommodityBoughtDTO.newBuilder()
+        final BoughtCommodity boughtComm = new BoughtCommodity(CommodityBoughtDTO.newBuilder()
             .setCommodityType(MEM_COMMODITY_TYPE)
             .setUsed(3)
             .setPeak(4)
             .setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(0.5D).build())
-            .build();
+            .build());
 
-        commodity.recordBoughtCommodity(dto, null, 0);
-        commodity.recordBoughtCommodity(dto, null, 0);
+        commodity.recordBoughtCommodity(boughtComm, TopologyCommoditiesSnapshot.NO_PROVIDER_ID, 0);
+        commodity.recordBoughtCommodity(boughtComm, TopologyCommoditiesSnapshot.NO_PROVIDER_ID, 0);
 
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
             .setName(COMMODITY)
@@ -160,15 +162,15 @@ public class AccumulatedCommodityTest {
         final AccumulatedBoughtCommodity commodity =
                 new AccumulatedBoughtCommodity(COMMODITY);
 
-        final CommodityBoughtDTO dto = CommodityBoughtDTO.newBuilder()
+        final BoughtCommodity boughtComm = new BoughtCommodity(CommodityBoughtDTO.newBuilder()
                 .setCommodityType(MEM_COMMODITY_TYPE)
                 .setUsed(3)
                 .setPeak(4)
                 .setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(0.5D).build())
-                .build();
+                .build());
 
-        commodity.recordBoughtCommodity(dto, 1L, 5);
-        commodity.recordBoughtCommodity(dto, 1L, 5);
+        commodity.recordBoughtCommodity(boughtComm, 1L, 5);
+        commodity.recordBoughtCommodity(boughtComm, 1L, 5);
 
         final StatRecord record = commodity.toStatRecord().get();
         assertEquals(Long.toString(1), record.getProviderUuid());

@@ -10,12 +10,17 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
@@ -181,5 +186,25 @@ public class AccountRIMappingStoreTest {
         assertTrue(CollectionUtils.isEmpty(retCvg1Items));
         assertTrue(coverageMap.keySet().size() == 2);
         assertTrue(coverageMap.values().stream().flatMap(List::stream).collect(toList()).size() == 4);
+    }
+
+    /**
+     * Test for {@link AccountRIMappingStore#getUndiscoveredAccountsCoveredByReservedInstances}.
+     */
+    @Test
+    public void testGetAccountsCoveredByReservedInstances() {
+        final List<AccountRICoverageUpload> accountCoverageLists = Arrays.asList(coverageOne,
+                coverageTwo, coverageThree);
+        accountRIMappingStore.updateAccountRICoverageMappings(accountCoverageLists);
+        ImmutableMap.of(Collections.singleton(457L),
+                Collections.singletonMap(457L, ImmutableSet.of(123L, 124L)),
+                Collections.<Long>emptyList(),
+                ImmutableMap.of(456L, Collections.singleton(123L), 457L,
+                        ImmutableSet.of(123L, 124L), 458L, Collections.singleton(124L), 459L,
+                        Collections.singleton(125L))).forEach(
+                (reservedInstances, reservedInstanceToCoveredEntities) -> Assert.assertEquals(
+                        reservedInstanceToCoveredEntities,
+                        accountRIMappingStore.getUndiscoveredAccountsCoveredByReservedInstances(
+                                reservedInstances)));
     }
 }

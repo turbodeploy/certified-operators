@@ -438,10 +438,10 @@ public class ServiceConfig {
             communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
             communicationConfig.planReservedInstanceServiceBlockingStub(),
             communicationConfig.reservedInstanceSpecServiceBlockingStub(),
+            communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
             mapperConfig.reservedInstanceMapper(),
             communicationConfig.repositoryApi(),
             communicationConfig.groupExpander(),
-            communicationConfig.planRpcService(),
             statsQueryExecutor(),
             mapperConfig.uuidMapper());
     }

@@ -183,7 +183,8 @@ public class ReservedInstanceConfig {
                 PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
                 realtimeTopologyContextId, pricingConfig.priceTableStore(),
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),
-                BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
+                BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
+                accountRIMappingStore());
     }
 
     /**
@@ -222,9 +223,10 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceUtilizationCoverageRpcService reservedInstanceUtilizationCoverageRpcService() {
         return new ReservedInstanceUtilizationCoverageRpcService(reservedInstanceUtilizationStore(),
-                        reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(),
-                        entityReservedInstanceMappingStore(), planProjectedRICoverageAndUtilStore(),
-                        timeFrameCalculator(), realtimeTopologyContextId);
+                reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(),
+                entityReservedInstanceMappingStore(), accountRIMappingStore(),
+                planProjectedRICoverageAndUtilStore(), timeFrameCalculator(),
+                realtimeTopologyContextId);
     }
 
     @Bean

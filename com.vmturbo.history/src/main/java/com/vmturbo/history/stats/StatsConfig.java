@@ -31,6 +31,7 @@ import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.history.ingesters.IngestersConfig;
 import com.vmturbo.history.listeners.HistoryPlanGarbageCollector;
 import com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
@@ -63,6 +64,7 @@ import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
  **/
 @Configuration
 @Import({HistoryDbConfig.class,
+        IngestersConfig.class,
     GroupClientConfig.class,
     PlanOrchestratorClientConfig.class})
 public class StatsConfig {
@@ -115,6 +117,9 @@ public class StatsConfig {
 
     @Autowired
     private HistoryApiConfig historyApiConfig;
+
+    @Autowired
+    private IngestersConfig ingestersConfig;
 
     @Autowired
     private PlanOrchestratorClientConfig planOrchestratorClientConfig;
@@ -260,9 +265,10 @@ public class StatsConfig {
                 historyPaginationMaxLimit, historyPaginationDefaultSortCommodity);
     }
 
+
     @Bean
     public ProjectedStatsStore projectedStatsStore() {
-        return new ProjectedStatsStore();
+        return new ProjectedStatsStore(ingestersConfig.excludedCommoditiesList());
     }
 
     @Bean

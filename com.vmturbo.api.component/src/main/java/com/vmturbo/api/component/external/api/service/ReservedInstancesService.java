@@ -19,10 +19,9 @@ import com.google.common.collect.Lists;
 
 import org.apache.commons.lang.StringUtils;
 
-import io.grpc.StatusRuntimeException;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -30,6 +29,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
@@ -46,6 +46,8 @@ import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesResponse.EntitiesCoveredByReservedInstance;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -55,10 +57,8 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 
 public class ReservedInstancesService implements IReservedInstancesService {
@@ -69,13 +69,14 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     private final ReservedInstanceSpecServiceBlockingStub reservedInstanceSpecService;
 
+    private final ReservedInstanceUtilizationCoverageServiceBlockingStub
+            reservedInstanceUtilizationCoverageService;
+
     private final ReservedInstanceMapper reservedInstanceMapper;
 
     private final RepositoryApi repositoryApi;
 
     private final GroupExpander groupExpander;
-
-    private final PlanServiceBlockingStub planRpcService;
 
     private final StatsQueryExecutor statsQueryExecutor;
 
@@ -85,19 +86,20 @@ public class ReservedInstancesService implements IReservedInstancesService {
             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
             @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
             @Nonnull final ReservedInstanceSpecServiceBlockingStub reservedInstanceSpecService,
+            @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub reservedInstanceUtilizationCoverageService,
             @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
             @Nonnull final RepositoryApi repositoryApi,
             @Nonnull final GroupExpander groupExpander,
-            @Nonnull final PlanServiceBlockingStub planRpcService,
             @Nonnull final StatsQueryExecutor statsQueryExecutor,
             @Nonnull final UuidMapper uuidMapper) {
         this.reservedInstanceService = Objects.requireNonNull(reservedInstanceService);
         this.planReservedInstanceService = Objects.requireNonNull(planReservedInstanceService);
         this.reservedInstanceSpecService = Objects.requireNonNull(reservedInstanceSpecService);
         this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
+        this.reservedInstanceUtilizationCoverageService = Objects.requireNonNull(
+                reservedInstanceUtilizationCoverageService);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.groupExpander = Objects.requireNonNull(groupExpander);
-        this.planRpcService = Objects.requireNonNull(planRpcService);
         this.statsQueryExecutor = Objects.requireNonNull(statsQueryExecutor);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
     }
@@ -112,6 +114,9 @@ public class ReservedInstancesService implements IReservedInstancesService {
         final ApiId scope = uuidMapper.fromUuid(scopeUuid);
         final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(
                 scope, Objects.isNull(includeAllUsable) ? false : includeAllUsable);
+        if (reservedInstancesBought.isEmpty()) {
+            return Collections.emptyList();
+        }
         final Set<Long> reservedInstanceSpecIds = reservedInstancesBought.stream()
                 .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
                 .map(ReservedInstanceBoughtInfo::getReservedInstanceSpec)
@@ -123,6 +128,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                 .addAllReservedInstanceSpecIds(reservedInstanceSpecIds)
                                 .build())
                 .getReservedInstanceSpecList();
+
         final Map<Long, ReservedInstanceSpec> reservedInstanceSpecMap = reservedInstanceSpecs.stream()
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
         final Set<Long> relatedEntityIds = getRelatedEntityIds(reservedInstancesBought, reservedInstanceSpecMap);
@@ -130,11 +136,27 @@ public class ReservedInstancesService implements IReservedInstancesService {
         // availability zones, tier...).
         final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap =
             repositoryApi.entitiesRequest(relatedEntityIds).getSEMap();
+
+        final Map<Long, EntitiesCoveredByReservedInstance> entitiesCoveredByReservedInstancesMap =
+                reservedInstanceUtilizationCoverageService.getReservedInstanceCoveredEntities(
+                        GetReservedInstanceCoveredEntitiesRequest.newBuilder()
+                                .addAllReservedInstanceId(reservedInstancesBought.stream()
+                                        .map(ReservedInstanceBought::getId)
+                                        .collect(Collectors.toSet()))
+                                .build()).getEntitiesCoveredByReservedInstancesMap();
+
         final List<ReservedInstanceApiDTO> results = new ArrayList<>();
-        for (ReservedInstanceBought reservedInstanceBought : reservedInstancesBought) {
+        for (final ReservedInstanceBought reservedInstanceBought : reservedInstancesBought) {
+            final EntitiesCoveredByReservedInstance entitiesCoveredByReservedInstance =
+                    entitiesCoveredByReservedInstancesMap.getOrDefault(
+                            reservedInstanceBought.getId(),
+                            EntitiesCoveredByReservedInstance.getDefaultInstance());
             results.add(reservedInstanceMapper.mapToReservedInstanceApiDTO(reservedInstanceBought,
-                    reservedInstanceSpecMap.get(reservedInstanceBought.getReservedInstanceBoughtInfo()
-                            .getReservedInstanceSpec()), serviceEntityApiDTOMap));
+                    reservedInstanceSpecMap.get(
+                            reservedInstanceBought.getReservedInstanceBoughtInfo()
+                                    .getReservedInstanceSpec()), serviceEntityApiDTOMap,
+                    entitiesCoveredByReservedInstance.getCoveredEntityIdCount(),
+                    entitiesCoveredByReservedInstance.getCoveredUndiscoveredAccountIdCount()));
         }
         return results;
     }
@@ -333,24 +355,25 @@ public class ReservedInstancesService implements IReservedInstancesService {
         }
     }
 
-    /**
-     * Fetch the PlanInstance for the given uuid. It will return empty if the uuid is not valid, or
-     * plan doesn't exist.
-     */
-    private Optional<PlanInstance> fetchPlanInstance(@Nonnull String uuid) {
-        try {
-            // the uuid may be magic string from UI
-            final long planId = Long.parseLong(uuid);
-            // fetch plan from plan orchestrator
-            final PlanDTO.OptionalPlanInstance planInstanceOptional = planRpcService.getPlan(
-                PlanDTO.PlanId.newBuilder()
-                    .setPlanId(planId)
-                    .build());
-            return planInstanceOptional.hasPlanInstance()
-                ? Optional.of(planInstanceOptional.getPlanInstance())
-                : Optional.empty();
-        } catch (IllegalArgumentException | StatusRuntimeException e) {
-            return Optional.empty();
+    @Override
+    public List<BaseApiDTO> getEntitiesCoveredByReservedInstance(
+            @Nonnull final String reservedInstanceUuid) {
+        final long reservedInstanceOid = Long.parseLong(reservedInstanceUuid);
+        final EntitiesCoveredByReservedInstance entitiesCoveredByReservedInstances =
+                reservedInstanceUtilizationCoverageService.getReservedInstanceCoveredEntities(
+                        GetReservedInstanceCoveredEntitiesRequest.newBuilder()
+                                .addReservedInstanceId(reservedInstanceOid)
+                                .build()).getEntitiesCoveredByReservedInstancesOrDefault(
+                        reservedInstanceOid,
+                        EntitiesCoveredByReservedInstance.getDefaultInstance());
+        if (entitiesCoveredByReservedInstances.getCoveredEntityIdList().isEmpty()) {
+            return Collections.emptyList();
+        } else {
+            return repositoryApi.entitiesRequest(
+                    new HashSet<>(entitiesCoveredByReservedInstances.getCoveredEntityIdList()))
+                    .getMinimalEntities()
+                    .map(ServiceEntityMapper::toBaseApiDTO)
+                    .collect(Collectors.toList());
         }
     }
 }

@@ -10,25 +10,33 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesResponse.EntitiesCoveredByReservedInstance;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
@@ -59,7 +67,9 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
         = mock(ProjectedRICoverageAndUtilStore.class);
 
     private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore
-        = mock(EntityReservedInstanceMappingStore.class);
+            = mock(EntityReservedInstanceMappingStore.class);
+
+    private final AccountRIMappingStore accountRIMappingStore = mock(AccountRIMappingStore.class);
 
     private PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore = mock(PlanProjectedRICoverageAndUtilStore.class);
 
@@ -71,6 +81,7 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
                reservedInstanceCoverageStore,
                projectedRICoverageStore,
                entityReservedInstanceMappingStore,
+               accountRIMappingStore,
                planProjectedRICoverageAndUtilStore,
                timeFrameCalculator,
                REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -318,5 +329,51 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
         Assert.assertNotNull(projectedRecord);
         Assert.assertEquals(10, projectedRecord.getCapacity().getMax(), 0);
         Assert.assertEquals(6.5, projectedRecord.getValues().getMax(), 0);
+    }
+
+    /**
+     * Test for {@link ReservedInstanceUtilizationCoverageRpcService#getReservedInstanceCoveredEntities}.
+     */
+    @Test
+    public void testGetReservedInstanceCoveredEntities() {
+        ImmutableMap.<List<Long>, Map<Long, Set<Long>>>of(Arrays.asList(1L, 2L, 3L),
+                ImmutableMap.of(1L, ImmutableSet.of(4L, 5L, 6L)), Collections.emptyList(),
+                Collections.emptyMap()).forEach(
+                (reservedInstances, reservedInstanceToCoveredEntities) -> Mockito.when(
+                        entityReservedInstanceMappingStore.getEntitiesCoveredByReservedInstances(
+                                reservedInstances)).thenReturn(reservedInstanceToCoveredEntities));
+        ImmutableMap.<List<Long>, Map<Long, Set<Long>>>of(Arrays.asList(1L, 2L, 3L),
+                ImmutableMap.of(1L, ImmutableSet.of(40L, 45L, 50L), 2L,
+                        ImmutableSet.of(25L, 10L, 15L, 20L)), Collections.emptyList(),
+                Collections.emptyMap()).forEach(
+                (reservedInstances, reservedInstanceToCoveredEntities) -> Mockito.when(
+                        accountRIMappingStore.getUndiscoveredAccountsCoveredByReservedInstances(
+                                reservedInstances)).thenReturn(reservedInstanceToCoveredEntities));
+        Assert.assertEquals(GetReservedInstanceCoveredEntitiesResponse.getDefaultInstance(),
+                client.getReservedInstanceCoveredEntities(
+                        GetReservedInstanceCoveredEntitiesRequest.getDefaultInstance()));
+
+        final Map<Long, EntitiesCoveredByReservedInstance> entitiesCoveredByReservedInstancesMap =
+                client.getReservedInstanceCoveredEntities(
+                        GetReservedInstanceCoveredEntitiesRequest.newBuilder()
+                                .addReservedInstanceId(1)
+                                .addReservedInstanceId(2)
+                                .addReservedInstanceId(3)
+                                .build()).getEntitiesCoveredByReservedInstancesMap();
+        Assert.assertEquals(ImmutableSet.of(1L, 2L),
+                entitiesCoveredByReservedInstancesMap.keySet());
+        final EntitiesCoveredByReservedInstance coveredByReservedInstance1 =
+                entitiesCoveredByReservedInstancesMap.get(1L);
+        Assert.assertEquals(3, coveredByReservedInstance1.getCoveredUndiscoveredAccountIdCount());
+        Assert.assertEquals(3, coveredByReservedInstance1.getCoveredEntityIdCount());
+        Assert.assertThat(coveredByReservedInstance1.getCoveredEntityIdList(),
+                CoreMatchers.hasItems(4L, 5L, 6L));
+        Assert.assertThat(coveredByReservedInstance1.getCoveredUndiscoveredAccountIdList(),
+                CoreMatchers.hasItems(40L, 45L, 50L));
+        final EntitiesCoveredByReservedInstance coveredByReservedInstance2 =
+                entitiesCoveredByReservedInstancesMap.get(2L);
+        Assert.assertEquals(4, coveredByReservedInstance2.getCoveredUndiscoveredAccountIdCount());
+        Assert.assertThat(coveredByReservedInstance2.getCoveredUndiscoveredAccountIdList(),
+                CoreMatchers.hasItems(25L, 10L, 15L, 20L));
     }
 }

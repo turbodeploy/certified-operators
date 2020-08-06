@@ -89,42 +89,6 @@ public class ServiceEntityMapper {
         this.supplyChainBlockingStub = Objects.requireNonNull(supplyChainBlockingStub);
     }
 
-
-    /**
-     * Copies the the basic fields of a {@link BaseApiDTO} object from a {@link TopologyEntityDTO}
-     * object.  Basic fields are: display name, class name, and uuid.
-     *
-     * @param topologyEntityDTO the object whose basic fields are to be copied.
-     */
-    public static ServiceEntityApiDTO toBasicEntity(@Nonnull final ApiPartialEntity topologyEntityDTO) {
-        final ServiceEntityApiDTO baseApiDTO = new ServiceEntityApiDTO();
-        baseApiDTO.setDisplayName(Objects.requireNonNull(topologyEntityDTO).getDisplayName());
-        baseApiDTO.setClassName(ApiEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
-        baseApiDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
-        setNonEmptyDisplayName(baseApiDTO);
-        return baseApiDTO;
-    }
-
-    @Nonnull
-    public static ServiceEntityApiDTO toBasicEntity(@Nonnull final TopologyEntityDTO topologyEntityDTO) {
-        final ServiceEntityApiDTO baseApiDTO = new ServiceEntityApiDTO();
-        baseApiDTO.setDisplayName(Objects.requireNonNull(topologyEntityDTO).getDisplayName());
-        baseApiDTO.setClassName(ApiEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
-        baseApiDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
-        setNonEmptyDisplayName(baseApiDTO);
-        return baseApiDTO;
-    }
-
-    @Nonnull
-    public static ServiceEntityApiDTO toBasicEntity(@Nonnull final MinimalEntity topologyEntityDTO) {
-        final ServiceEntityApiDTO baseApiDTO = new ServiceEntityApiDTO();
-        baseApiDTO.setDisplayName(Objects.requireNonNull(topologyEntityDTO).getDisplayName());
-        baseApiDTO.setClassName(ApiEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
-        baseApiDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
-        setNonEmptyDisplayName(baseApiDTO);
-        return baseApiDTO;
-    }
-
     /**
      * Set displayName to UUID if the former is null or empty.
      * @param apiDTO    DTO to update
@@ -202,7 +166,7 @@ public class ServiceEntityMapper {
 
         apiEntities.forEach(apiEntity -> {
             // basic information
-            final ServiceEntityApiDTO result = ServiceEntityMapper.toBasicEntity(apiEntity);
+            final ServiceEntityApiDTO result = ServiceEntityMapper.toBaseServiceEntityApiDTO(apiEntity);
             if (apiEntity.hasEntityState()) {
                 result.setState(UIEntityState.fromEntityState(apiEntity.getEntityState()).apiStr());
             }
@@ -258,7 +222,8 @@ public class ServiceEntityMapper {
     @Nonnull
     public ServiceEntityApiDTO toServiceEntityApiDTO(@Nonnull final TopologyEntityDTO topologyEntityDTO) {
         // basic information
-        final ServiceEntityApiDTO seDTO = ServiceEntityMapper.toBasicEntity(topologyEntityDTO);
+        final ServiceEntityApiDTO seDTO = ServiceEntityMapper.toBaseServiceEntityApiDTO(
+                topologyEntityDTO);
         if (topologyEntityDTO.hasEntityState()) {
             seDTO.setState(UIEntityState.fromEntityState(topologyEntityDTO.getEntityState()).apiStr());
         }
@@ -452,20 +417,6 @@ public class ServiceEntityMapper {
         return serviceEntityApiDTOMap;
     }
 
-    /**
-     * Convert the given {@link RelatedEntity} to {@link BaseApiDTO}.
-     *
-     * @param relatedEntity the entity to convert
-     * @return {@link BaseApiDTO}
-     */
-    private static BaseApiDTO toBaseApiDTO(@Nonnull RelatedEntity relatedEntity) {
-        BaseApiDTO entityApiDTO = new BaseApiDTO();
-        entityApiDTO.setUuid(String.valueOf(relatedEntity.getOid()));
-        entityApiDTO.setDisplayName(relatedEntity.getDisplayName());
-        entityApiDTO.setClassName(ApiEntityType.fromType(relatedEntity.getEntityType()).apiStr());
-        return entityApiDTO;
-    }
-
     private void setDiscoveredBy(Supplier<Map<Long, PerTargetEntityInformation>> idMapGetter, ServiceEntityApiDTO result) {
         Map<Long, PerTargetEntityInformation> target2data = idMapGetter.get();
         if (!target2data.isEmpty()) {
@@ -548,5 +499,98 @@ public class ServiceEntityMapper {
                 relatedEntity -> relatedEntity.hasDisplayName()
                         && TopologyDTOUtil.isPrimaryTierEntityType(entity.getEntityType(),
                         relatedEntity.getEntityType())).findFirst();
+    }
+
+    /**
+     * Create base {@link ServiceEntityApiDTO} with uuid, display name, class name fields from
+     * {@link ApiPartialEntity}.
+     *
+     * @param apiPartialEntity the {@link ApiPartialEntity}
+     * @return the {@link ServiceEntityApiDTO}
+     */
+    public static ServiceEntityApiDTO toBaseServiceEntityApiDTO(
+            @Nonnull final ApiPartialEntity apiPartialEntity) {
+        final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
+        serviceEntityApiDTO.setDisplayName(
+                Objects.requireNonNull(apiPartialEntity).getDisplayName());
+        serviceEntityApiDTO.setClassName(
+                ApiEntityType.fromType(apiPartialEntity.getEntityType()).apiStr());
+        serviceEntityApiDTO.setUuid(String.valueOf(apiPartialEntity.getOid()));
+        setNonEmptyDisplayName(serviceEntityApiDTO);
+        return serviceEntityApiDTO;
+    }
+
+    /**
+     * Create base {@link ServiceEntityApiDTO} with uuid, display name, class name fields from
+     * {@link TopologyEntityDTO}.
+     *
+     * @param topologyEntityDTO the {@link TopologyEntityDTO}
+     * @return the {@link ServiceEntityApiDTO}
+     */
+    @Nonnull
+    public static ServiceEntityApiDTO toBaseServiceEntityApiDTO(
+            @Nonnull final TopologyEntityDTO topologyEntityDTO) {
+        final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
+        serviceEntityApiDTO.setDisplayName(
+                Objects.requireNonNull(topologyEntityDTO).getDisplayName());
+        serviceEntityApiDTO.setClassName(
+                ApiEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
+        serviceEntityApiDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
+        setNonEmptyDisplayName(serviceEntityApiDTO);
+        return serviceEntityApiDTO;
+    }
+
+    /**
+     * Create base {@link ServiceEntityApiDTO} with uuid, display name, class name fields from
+     * {@link MinimalEntity}.
+     *
+     * @param minimalEntity the {@link MinimalEntity}
+     * @return the {@link ServiceEntityApiDTO}
+     */
+    @Nonnull
+    public static ServiceEntityApiDTO toBaseServiceEntityApiDTO(
+            @Nonnull final MinimalEntity minimalEntity) {
+        final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
+        serviceEntityApiDTO.setDisplayName(Objects.requireNonNull(minimalEntity).getDisplayName());
+        serviceEntityApiDTO.setClassName(
+                ApiEntityType.fromType(minimalEntity.getEntityType()).apiStr());
+        serviceEntityApiDTO.setUuid(String.valueOf(minimalEntity.getOid()));
+        setNonEmptyDisplayName(serviceEntityApiDTO);
+        return serviceEntityApiDTO;
+    }
+
+    /**
+     * Create {@link BaseApiDTO} with uuid, display name, class name fields
+     * from {@link MinimalEntity}.
+     *
+     * @param minimalEntity the {@link MinimalEntity}
+     * @return the {@link BaseApiDTO}
+     */
+    @Nonnull
+    public static BaseApiDTO toBaseApiDTO(@Nonnull final MinimalEntity minimalEntity) {
+        final BaseApiDTO baseApiDTO = new BaseApiDTO();
+        baseApiDTO.setUuid(String.valueOf(minimalEntity.getOid()));
+        if (minimalEntity.hasDisplayName()) {
+            baseApiDTO.setDisplayName(minimalEntity.getDisplayName());
+        }
+        if (minimalEntity.hasEntityType()) {
+            baseApiDTO.setClassName(ApiEntityType.fromType(minimalEntity.getEntityType()).apiStr());
+        }
+        return baseApiDTO;
+    }
+
+    /**
+     * Create base {@link ServiceEntityApiDTO} with uuid, display name, class name fields from
+     * {@link RelatedEntity}.
+     *
+     * @param relatedEntity the {@link RelatedEntity}
+     * @return the {@link ServiceEntityApiDTO}
+     */
+    public static BaseApiDTO toBaseApiDTO(@Nonnull final RelatedEntity relatedEntity) {
+        final BaseApiDTO baseApiDTO = new BaseApiDTO();
+        baseApiDTO.setUuid(String.valueOf(relatedEntity.getOid()));
+        baseApiDTO.setDisplayName(relatedEntity.getDisplayName());
+        baseApiDTO.setClassName(ApiEntityType.fromType(relatedEntity.getEntityType()).apiStr());
+        return baseApiDTO;
     }
 }

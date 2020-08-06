@@ -27,6 +27,7 @@ public class DatabaseInfoMapper extends TypeSpecificInfoMapper {
         return TypeSpecificInfo.newBuilder()
             .setDatabase(DatabaseInfo.newBuilder()
                 .setEdition(parseDbEdition(dbData.getEdition()))
+                .setRawEdition(dbData.getEdition())
                 .setEngine(parseDbEngine(dbData.getEngine()))
                 .setVersion(dbData.getVersion())
                 .build())

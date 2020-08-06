@@ -95,6 +95,9 @@ public class IngestersConfig {
     @Value("${ingest.defaultChunkTimeLimitMsec:60000}") // 1 minute
     private long defaultChunkTimeLimitMsec;
 
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
+
     @Bean
     MarketClientConfig marketClientConfig() {
         return new MarketClientConfig();
@@ -160,7 +163,7 @@ public class IngestersConfig {
                 .hourlyRollupTimeoutSecs(hourlyRollupTimeoutSecs)
                 .repartitioningTimeoutSecs(repartitioningTimeoutSecs)
                 .processingLoopMaxSleepSecs(processingLoopMaxSleepSecs)
-                .realtimeTopologyContextId(statsConfig.realtimeTopologyContextId)
+                .realtimeTopologyContextId(realtimeTopologyContextId)
                 .build();
     }
 
@@ -319,7 +322,7 @@ public class IngestersConfig {
      * @return excluded commodities set
      */
     @Bean
-    ImmutableSet<String> excludedCommoditiesList() {
+    public ImmutableSet<String> excludedCommoditiesList() {
         return ImmutableSet.copyOf(excludedCommodities.orElse(defaultExcludedCommodities())
                 .toLowerCase()
                 .split("\\s+"));

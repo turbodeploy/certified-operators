@@ -23,6 +23,8 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -105,7 +107,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
         }
         final CloudAspectApiDTO aspect = new CloudAspectApiDTO();
         searchConnectedFromEntity(entity.getOid(), ApiEntityType.BUSINESS_ACCOUNT).ifPresent(
-                e -> aspect.setBusinessAccount(createBaseApiDTO(e)));
+                e -> aspect.setBusinessAccount(ServiceEntityMapper.toBaseApiDTO(e)));
         return aspect;
     }
 
@@ -136,14 +138,14 @@ public class CloudAspectMapper extends AbstractAspectMapper {
         if (!CollectionUtils.isEmpty(entityToResourceGroup) && entityToResourceGroup.containsKey(entityOid)) {
             final Grouping resourceGroup = entityToResourceGroup.get(entityOid);
             if (resourceGroup != null) {
-                aspect.setResourceGroup(createBaseApiDTO(resourceGroup));
+                aspect.setResourceGroup(GroupMapper.toBaseApiDTO(resourceGroup));
             }
         }
 
         templateOid.ifPresent(oid -> {
             final MinimalEntity template = oidToMinimalEntity.get(oid);
             if (template != null) {
-                aspect.setTemplate(createBaseApiDTO(template));
+                aspect.setTemplate(ServiceEntityMapper.toBaseApiDTO(template));
             } else {
                 logger.error(
                         "Failed to get template by oid {} from repository for entity with oid {}",
@@ -155,13 +157,14 @@ public class CloudAspectMapper extends AbstractAspectMapper {
             final MinimalEntity availabilityZoneOrRegion =
                     oidToMinimalEntity.get(connectedEntity.getConnectedEntityId());
             if (availabilityZoneOrRegion != null) {
-                final BaseApiDTO baseApiDTO = createBaseApiDTO(availabilityZoneOrRegion);
+                final BaseApiDTO baseApiDTO = ServiceEntityMapper.toBaseApiDTO(
+                        availabilityZoneOrRegion);
                 if (availabilityZoneOrRegion.getEntityType() ==
                         EntityType.AVAILABILITY_ZONE_VALUE) {
                     // AWS case
                     searchConnectedFromEntity(availabilityZoneOrRegion.getOid(),
                             ApiEntityType.REGION).ifPresent(
-                            e -> aspect.setRegion(createBaseApiDTO(e)));
+                            e -> aspect.setRegion(ServiceEntityMapper.toBaseApiDTO(e)));
                     aspect.setZone(baseApiDTO);
                 } else if (availabilityZoneOrRegion.getEntityType() == EntityType.REGION_VALUE) {
                     // Azure case
@@ -175,7 +178,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
         });
 
         searchConnectedFromEntity(entity.getOid(), ApiEntityType.BUSINESS_ACCOUNT).ifPresent(
-                e -> aspect.setBusinessAccount(createBaseApiDTO(e)));
+                e -> aspect.setBusinessAccount(ServiceEntityMapper.toBaseApiDTO(e)));
 
         if (entity.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
             return aspect;

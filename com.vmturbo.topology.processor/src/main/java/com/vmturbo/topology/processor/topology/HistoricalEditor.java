@@ -122,6 +122,10 @@ public class HistoricalEditor {
             // Commodities that do not exhibit volatility
             .add(CommonDTO.CommodityDTO.CommodityType.VCPU_REQUEST_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.VMEM_REQUEST_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.VMEM_LIMIT_QUOTA_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.VCPU_REQUEST_QUOTA_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.VMEM_REQUEST_QUOTA_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE)
