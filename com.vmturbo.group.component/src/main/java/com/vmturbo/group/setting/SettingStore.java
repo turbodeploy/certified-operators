@@ -150,17 +150,16 @@ public class SettingStore implements DiagsRestorable {
 
     /**
      * Create a new SettingStore.
-     *
-     * @param settingSpecStore The source, providing the {@link SettingSpec} definitions.
+     *  @param settingSpecStore The source, providing the {@link SettingSpec} definitions.
      * @param dslContext A context with which to interact with the underlying datastore.
      * @param settingPolicyValidator settingPolicyValidator.
      * @param settingsUpdatesSender broadcaster for settings updates.
      *
      */
     public SettingStore(@Nonnull final SettingSpecStore settingSpecStore,
-            @Nonnull final DSLContext dslContext,
-            @Nonnull final SettingPolicyValidator settingPolicyValidator,
-            @Nonnull final SettingsUpdatesSender settingsUpdatesSender) {
+                        @Nonnull final DSLContext dslContext,
+                        @Nonnull final SettingPolicyValidator settingPolicyValidator,
+                        @Nonnull final SettingsUpdatesSender settingsUpdatesSender) {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.dslContext = Objects.requireNonNull(dslContext);
         this.settingPolicyValidator = Objects.requireNonNull(settingPolicyValidator);
@@ -207,7 +206,7 @@ public class SettingStore implements DiagsRestorable {
             throws StoreOperationException {
         try {
             for (SettingProto.SettingPolicy policy : policies) {
-                settingPolicyValidator.validateSettingPolicy(policy.getInfo(),
+                settingPolicyValidator.validateSettingPolicy(context, policy.getInfo(),
                         policy.getSettingPolicyType());
             }
         } catch (InvalidItemException e) {
@@ -219,14 +218,6 @@ public class SettingStore implements DiagsRestorable {
         if (!duplicates.isEmpty()) {
             throw new StoreOperationException(Status.INVALID_ARGUMENT,
                     "Duplicated policy names found: " + duplicates);
-        }
-        try {
-            for (SettingProto.SettingPolicy policy : policies) {
-                settingPolicyValidator.validateSettingPolicy(policy.getInfo(),
-                        policy.getSettingPolicyType());
-            }
-        } catch (InvalidItemException e) {
-            throw new StoreOperationException(Status.INVALID_ARGUMENT, e.getMessage(), e);
         }
         final Set<String> namesToCheck = policies.stream()
                 .filter(policy -> policy.getSettingPolicyType() != Type.DISCOVERED)
@@ -845,7 +836,8 @@ public class SettingStore implements DiagsRestorable {
         // Validate the setting policy.
         // This should throw an exception if it's invalid.
         try {
-            settingPolicyValidator.validateSettingPolicy(policy.getInfo(), policy.getSettingPolicyType());
+            settingPolicyValidator.validateSettingPolicy(context, policy.getInfo(),
+                policy.getSettingPolicyType());
         } catch (InvalidItemException e) {
             throw new StoreOperationException(Status.INVALID_ARGUMENT, e.getMessage(), e);
         }

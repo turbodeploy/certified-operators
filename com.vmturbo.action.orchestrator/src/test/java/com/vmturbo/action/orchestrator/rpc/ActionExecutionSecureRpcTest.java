@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -318,7 +317,6 @@ public class ActionExecutionSecureRpcTest {
                 .getCompactRepresentation()))
             .acceptAction(acceptActionRequest);
 
-        assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
         assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
@@ -352,7 +350,6 @@ public class ActionExecutionSecureRpcTest {
         AcceptActionResponse response = actionOrchestratorServiceClientWithInterceptor
             .acceptAction(acceptActionRequest);
 
-        assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
         assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
@@ -412,7 +409,6 @@ public class ActionExecutionSecureRpcTest {
         AcceptActionResponse response = actionOrchestratorServiceClient
             .acceptAction(acceptActionRequest); // don't pass JWT token
 
-        assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
         assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
@@ -458,7 +454,7 @@ public class ActionExecutionSecureRpcTest {
                 .getCompactRepresentation()))
             .acceptAction(acceptActionRequest);
 
-        assertFalse(response.hasError());
+
         assertTrue(response.hasActionSpec());
         assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
@@ -505,7 +501,6 @@ public class ActionExecutionSecureRpcTest {
 
         final AcceptActionResponse response1 =
                 actionOrchestratorServiceClient.acceptAction(acceptActionRequest1);
-        assertFalse(response1.hasError());
 
         final SingleActionRequest acceptActionRequest2 = SingleActionRequest.newBuilder()
                 .setActionId(ACTION_ID_2)
@@ -521,8 +516,6 @@ public class ActionExecutionSecureRpcTest {
         // this test.
         expectedException.expect(
                 GrpcRuntimeExceptionMatcher.hasCode(Code.UNKNOWN).anyDescription());
-        final AcceptActionResponse response2 =
-                actionOrchestratorServiceClient.acceptAction(acceptActionRequest2);
-        assertTrue(response2.hasError());
+        actionOrchestratorServiceClient.acceptAction(acceptActionRequest2);
     }
 }

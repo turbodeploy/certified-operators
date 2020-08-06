@@ -2,6 +2,8 @@ package com.vmturbo.group.setting;
 
 import javax.annotation.Nonnull;
 
+import org.jooq.DSLContext;
+
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.group.common.InvalidItemException;
@@ -17,11 +19,13 @@ public interface SettingPolicyValidator {
      * setting names are valid, that the setting values match the expected types, that all
      * required fields are set, etc.
      *
+     * @param context the dsl context.
      * @param settingPolicyInfo The {@link SettingPolicyInfo} to validate.
      * @param type The {@link Type} of the policy. Default and scope
      * policies have slightly different validation rules.
      * @throws InvalidItemException If the policy is invalid.
      */
-    void validateSettingPolicy(@Nonnull final SettingPolicyInfo settingPolicyInfo,
-            @Nonnull final Type type) throws InvalidItemException;
+    void validateSettingPolicy(@Nonnull DSLContext context,
+                               @Nonnull SettingPolicyInfo settingPolicyInfo,
+                               @Nonnull Type type) throws InvalidItemException;
 }
