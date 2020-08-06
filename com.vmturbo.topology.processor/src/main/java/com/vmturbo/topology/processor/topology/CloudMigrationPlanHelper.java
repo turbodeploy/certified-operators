@@ -69,6 +69,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -85,7 +86,6 @@ import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.group.settings.SettingPolicyEditor;
 import com.vmturbo.topology.processor.topology.CloudStorageMigrationHelper.IopsToStorageRatios;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
