@@ -3,6 +3,7 @@ package com.vmturbo.components.api.tracing;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -173,6 +174,27 @@ public class Tracing {
     public static OptScope childOfActiveSpan(@Nonnull final String name) {
         return new OptScope(activeSpan().map(span -> new TracingScope(
             tracer().buildSpan(name)
+                .asChildOf(span)
+                .start())));
+    }
+
+    /**
+     * Add a child sub-operation to the current operation, if the current operation is being traced.
+     * No effect if there is no active trace.
+     * <p/>
+     * In opentracing terms - if there is an active span, create a new child of the span and
+     * start it. If not, this is a noop.
+     * <p/>
+     * Use when generating the name of the span is non-trivial to avoid performance impact
+     * in higher frequency code and tracing is not enabled.
+     *
+     * @param nameSupplier The name of the operation.
+     * @return An {@link TracingScope}, which must be closed when the sub-operation completes.
+     */
+    @Nonnull
+    public static OptScope childOfActiveSpan(@Nonnull final Supplier<String> nameSupplier) {
+        return new OptScope(activeSpan().map(span -> new TracingScope(
+            tracer().buildSpan(nameSupplier.get())
                 .asChildOf(span)
                 .start())));
     }

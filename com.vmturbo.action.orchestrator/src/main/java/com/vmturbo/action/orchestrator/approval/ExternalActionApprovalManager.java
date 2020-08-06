@@ -17,10 +17,10 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
+import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.client.IMessageReceiver;
@@ -116,11 +116,11 @@ public class ExternalActionApprovalManager {
                 recommendationId, action.getMode(), action.getState());
             return;
         }
-        final AcceptActionResponse acceptResult =
-                actionApprovalManager.attemptAndExecute(liveActionStore, USER_ID, action);
-        if (acceptResult.hasError()) {
+        try {
+            actionApprovalManager.attemptAndExecute(liveActionStore, USER_ID, action);
+        } catch (ExecutionInitiationException ex) {
             logger.info("Failed accepting action {}: {}", recommendationId,
-                    acceptResult.getError());
+                ex.toString(), ex);
         }
     }
 

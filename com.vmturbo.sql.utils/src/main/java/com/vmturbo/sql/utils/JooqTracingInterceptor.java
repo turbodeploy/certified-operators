@@ -34,7 +34,7 @@ public class JooqTracingInterceptor extends DefaultExecuteListener {
             // for every ExecuteContext.
             logger.error("Unexpected - scope is not null when execution is started.");
         } else {
-            scope = Tracing.childOfActiveSpan("jooq_query");
+            scope = Tracing.childOfActiveSpan(() -> typeName(ctx));
             if (ctx.sql() != null) {
                 Tracing.log(ctx::sql);
             }
@@ -62,5 +62,9 @@ public class JooqTracingInterceptor extends DefaultExecuteListener {
             scope.close();
             scope = null;
         }
+    }
+
+    private String typeName(ExecuteContext ctx) {
+        return "jooq_" + ctx.type().name().toLowerCase();
     }
 }

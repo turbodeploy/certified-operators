@@ -92,15 +92,4 @@ rules:
   - certificates
   verbs:
   - '*'
-- apiGroups:
-  - apiextensions.k8s.io
-  resources:
-  - customresourcedefinitions
-  verbs:
-  - '*'
-- apiGroups:
-  - jaegertracing.io
-  resources:
-  - jaegers
-  verbs:
-  - '*'
+

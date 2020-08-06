@@ -310,6 +310,10 @@
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk15on</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.antlr</groupId>
+            <artifactId>ST4</artifactId>
+        </dependency>
         <!-- END Prometheus dependencies, for component metrics -->
     </dependencies>
 </project>

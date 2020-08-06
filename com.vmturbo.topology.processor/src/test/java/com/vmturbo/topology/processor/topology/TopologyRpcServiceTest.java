@@ -27,6 +27,7 @@ import javax.annotation.Nullable;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -39,6 +40,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinition;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
+import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -55,9 +59,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.TopologyPipelineRequest;
@@ -235,12 +237,10 @@ public class TopologyRpcServiceTest {
                     mock(ConsistentScalingManager.class));
 
             TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline =
-                TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
+                new TopologyPipeline<>(PipelineDefinition.<EntityStore, TopologyBroadcastInfo, TopologyPipelineContext>newBuilder(context)
                         .addStage(new MockGraphStage(entityDto))
                         .addStage(new TopSortStage())
-                        .addStage(new BroadcastStage(Collections.singletonList(broadcastManager.get(0)),
-                                matrix))
-                    .build();
+                        .finalStage(new BroadcastStage(Collections.singletonList(broadcastManager.get(0)), matrix)));
             TopologyBroadcastInfo broadcastInfo = pipeline.run(mock(EntityStore.class));
             TopologyPipelineRequest req = mock(TopologyPipelineRequest.class);
             when(req.waitForBroadcast(TIMEOUT_MS, TimeUnit.MILLISECONDS)).thenReturn(broadcastInfo);
@@ -353,9 +353,10 @@ public class TopologyRpcServiceTest {
             this.entityDTO = Objects.requireNonNull(entityDTO);
         }
 
+        @NotNull
         @Nonnull
         @Override
-        public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull EntityStore entityStore)
+        public StageResult<TopologyGraph<TopologyEntity>> execute(@NotNull @Nonnull EntityStore entityStore)
             throws PipelineStageException, InterruptedException {
             final TopologyGraph<TopologyEntity> mockGraph = mock(TopologyGraph.class);
             final Stream<TopologyEntity> entityStream = Stream.of(TopologyEntity.newBuilder(entityDTO).build());

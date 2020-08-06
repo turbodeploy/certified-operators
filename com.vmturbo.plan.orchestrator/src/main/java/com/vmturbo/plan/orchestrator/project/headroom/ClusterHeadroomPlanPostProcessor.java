@@ -625,7 +625,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                         entity.getDisplayName(), used, capacity, comm.getScalingFactor());
                 }
 
-                double headroomAvailable = headroomAvailable = availableAmount > 0
+                double headroomAvailable = availableAmount > 0
                     ? Math.floor(availableAmount / templateCommodityUsed) : 0;
                 if (headroomAvailable < headroomAvailableForCurrentEntity) {
                     headroomAvailableForCurrentEntity = headroomAvailable;

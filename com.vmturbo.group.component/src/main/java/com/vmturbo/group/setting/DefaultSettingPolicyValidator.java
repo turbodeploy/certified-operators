@@ -1,5 +1,7 @@
 package com.vmturbo.group.setting;
 
+import java.text.ParseException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -23,10 +25,13 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Ordering;
 
 import org.apache.commons.lang3.StringUtils;
+import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto;
+import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
@@ -41,6 +46,8 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.group.schedule.ScheduleStore;
+import com.vmturbo.group.schedule.ScheduleUtils;
 
 /**
  * The default implementation of {@link SettingPolicyValidator}. This should be the
@@ -52,17 +59,24 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
             settingProcessors;
     private final SettingSpecStore settingSpecStore;
     private final IGroupStore groupStore;
+    private final ScheduleStore scheduleStore;
+    private final Clock clock;
 
     /**
      * Constructs setting policy validator.
-     *
-     * @param settingSpecStore setting specs store
+     *  @param settingSpecStore setting specs store
      * @param groupStore group store
+     * @param scheduleStore schedule store
+     * @param clock clock.
      */
     public DefaultSettingPolicyValidator(@Nonnull final SettingSpecStore settingSpecStore,
-            @Nonnull final IGroupStore groupStore) {
+                                         @Nonnull final IGroupStore groupStore,
+                                         @Nonnull final ScheduleStore scheduleStore,
+                                         @Nonnull final Clock clock) {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.groupStore = Objects.requireNonNull(groupStore);
+        this.scheduleStore = scheduleStore;
+        this.clock = clock;
 
         final Map<SettingValueTypeCase, BiFunction<SettingPolicy, SettingSpec, Collection<String>>>
                 processors = new EnumMap<>(SettingValueTypeCase.class);
@@ -79,8 +93,9 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
      * {@inheritDoc}
      */
     @Override
-    public void validateSettingPolicy(@Nonnull final SettingPolicyInfo settingPolicyInfo,
-            @Nonnull final Type type) throws InvalidItemException {
+    public void validateSettingPolicy(@Nonnull final DSLContext context,
+                                      @Nonnull final SettingPolicyInfo settingPolicyInfo,
+                                      @Nonnull final Type type) throws InvalidItemException {
         // We want to collect everything wrong with the input and put that
         // into the description message.
         final List<String> errors = new LinkedList<>();
@@ -92,6 +107,8 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         if (!settingPolicyInfo.hasEntityType()) {
             errors.add("Setting policy must have an entity type!");
         }
+
+        Set<Long> schedulesUsed = new HashSet<>();
 
         settingPolicyInfo.getSettingsList().forEach((setting) -> {
             final String specName = setting.getSettingSpecName();
@@ -152,10 +169,50 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                             + e.getMessage());
                 }
             }
+
+            if (settingPolicyInfo.hasScheduleId()) {
+                schedulesUsed.add(settingPolicyInfo.getScheduleId());
+            }
         } else {
             if (!settingPolicyInfo.hasTargetId()) {
                 Preconditions.checkArgument(type == Type.DISCOVERED);
                 errors.add("Discovered setting policy must set the target_id field.");
+            }
+        }
+
+        settingPolicyInfo.getSettingsList()
+            .stream()
+            .filter(s -> ActionSettingSpecs.isExecutionScheduleSetting(s.getSettingSpecName()))
+            .map(Setting::getSortedSetOfOidSettingValue)
+            .map(SettingProto.SortedSetOfOidSettingValue::getOidsList)
+            .flatMap(List::stream)
+            .forEach(schedulesUsed::add);
+
+        if (!schedulesUsed.isEmpty()) {
+            Map<Long, ScheduleProto.Schedule> scheduleMap = scheduleStore
+                .getSchedules(context, schedulesUsed)
+                .stream()
+                .collect(Collectors.toMap(ScheduleProto.Schedule::getId, Function.identity()));
+
+            for (Long scheduleId : schedulesUsed) {
+                ScheduleProto.Schedule schedule = scheduleMap.get(scheduleId);
+                if (schedule == null) {
+                    errors.add("The schedule with id" + scheduleId + "that has been associated to policy does"
+                        + " not exist.");
+                } else {
+                    try {
+                        schedule =
+                            ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+                                schedule.toBuilder(), clock.millis());
+                    } catch (ParseException ex) {
+                        errors.add("The schedule " + schedule.getDisplayName() + "that has been associated to policy "
+                            + "and cannot be parsed.");
+                    }
+                    if (!schedule.hasNextOccurrence()) {
+                        errors.add("The schedule " + schedule.getDisplayName() + "that has been associated to policy "
+                            + "does not have any future occurrences and cannot be used in the policy.");
+                    }
+                }
             }
         }
 

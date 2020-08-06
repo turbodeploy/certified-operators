@@ -11,7 +11,6 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -178,7 +177,8 @@ public class ScheduleRpcServiceTest {
      */
     @Test
     public void testGetAllSchedules() {
-        when(scheduleStore.getSchedules(Collections.emptySet())).thenReturn(Stream.of(SCHEDULE, SCHEDULE));
+        when(scheduleStore.getSchedules(Collections.emptySet())).thenReturn(Arrays.asList(SCHEDULE,
+            SCHEDULE));
         final StreamObserver<Schedule> responseObserver =
             (StreamObserver<Schedule>)mock(StreamObserver.class);
 
@@ -198,7 +198,7 @@ public class ScheduleRpcServiceTest {
     @Test
     public void testGetSchedulesByIds() {
         final ImmutableSet<Long> idSet = ImmutableSet.of(11L, 22L);
-        when(scheduleStore.getSchedules(idSet)).thenReturn(Stream.of(SCHEDULE, SCHEDULE));
+        when(scheduleStore.getSchedules(idSet)).thenReturn(Arrays.asList(SCHEDULE, SCHEDULE));
         final StreamObserver<Schedule> responseObserver =
             (StreamObserver<Schedule>)mock(StreamObserver.class);
 
@@ -219,7 +219,7 @@ public class ScheduleRpcServiceTest {
      */
     @Test
     public void testGetAllSchedulesWithRefTime() {
-        when(scheduleStore.getSchedules(Collections.emptySet())).thenReturn(Stream.of(SCHEDULE, SCHEDULE));
+        when(scheduleStore.getSchedules(Collections.emptySet())).thenReturn(Arrays.asList(SCHEDULE, SCHEDULE));
         final StreamObserver<Schedule> responseObserver =
             (StreamObserver<Schedule>)mock(StreamObserver.class);
 
@@ -243,7 +243,7 @@ public class ScheduleRpcServiceTest {
         Schedule testSchedule = SCHEDULE.toBuilder()
             .clearOneTime()
             .setRecurRule("FREQ=DAILY;INTERVAL=2;UNTIL=INVALID").build();
-        when(scheduleStore.getSchedules(Collections.emptySet())).thenReturn(Stream.of(testSchedule));
+        when(scheduleStore.getSchedules(Collections.emptySet())).thenReturn(Collections.singletonList(testSchedule));
         final StreamObserver<Schedule> responseObserver =
             (StreamObserver<Schedule>)mock(StreamObserver.class);
 

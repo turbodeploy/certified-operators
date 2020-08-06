@@ -19,17 +19,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import javax.annotation.Nonnull;
-
+import io.grpc.Status;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
@@ -58,7 +57,6 @@ import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
@@ -158,7 +156,8 @@ public class ActionsServiceTest {
     @Test
     public void testExecuteActionThrowException() throws Exception {
         expectedException.expect(UnknownObjectException.class);
-        when(actionsServiceBackend.acceptAction(any())).thenReturn(acceptanceError("Action error"));
+        when(actionsServiceBackend.acceptActionError(any())).thenReturn(Optional.of(Status.NOT_FOUND
+            .withDescription("test").asException()));
         actionsServiceUnderTest.executeAction(UUID, true, false);
     }
 
@@ -309,11 +308,5 @@ public class ActionsServiceTest {
         assertEquals(topologyContextId, multiActionRequest.getTopologyContextId());
         assertEquals(1, multiActionRequest.getActionIdsCount());
         assertEquals(actionId, multiActionRequest.getActionIds(0));
-    }
-
-    private static AcceptActionResponse acceptanceError(@Nonnull final String error) {
-        return AcceptActionResponse.newBuilder()
-                .setError(error)
-                .build();
     }
 }

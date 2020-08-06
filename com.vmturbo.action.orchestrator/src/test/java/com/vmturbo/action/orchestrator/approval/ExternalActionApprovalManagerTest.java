@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.Optional;
 
+import io.grpc.Status;
 import io.opentracing.SpanContext;
 
 import org.junit.Before;
@@ -17,10 +18,10 @@ import org.mockito.MockitoAnnotations;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
+import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.TriConsumer;
@@ -64,15 +65,17 @@ public class ExternalActionApprovalManagerTest {
 
     /**
      * Initializes the tests.
+     *
+     * @throws ExecutionInitiationException never.
      */
     @Before
-    public void init() {
+    public void init() throws ExecutionInitiationException {
         MockitoAnnotations.initMocks(this);
         mgr = Mockito.mock(ActionApprovalManager.class);
         rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
         Mockito.when(mgr.attemptAndExecute(Mockito.any(), Mockito.anyString(),
                 Mockito.any(Action.class)))
-                .thenReturn(AcceptActionResponse.newBuilder().setError("Some error").build());
+                .thenThrow(new ExecutionInitiationException("Some error", Status.Code.INTERNAL));
         actionStore = Mockito.mock(ActionStore.class);
         storehouse = Mockito.mock(ActionStorehouse.class);
         Mockito.when(storehouse.getStore(CTX_ID))
@@ -146,9 +149,10 @@ public class ExternalActionApprovalManagerTest {
      * Tests the case that the action update is accepted but the action is not in external
      * approval state.
      *
+     * @throws ExecutionInitiationException never.
      */
     @Test
-    public void testAcceptedActionInUnexpectedModeFlow() {
+    public void testAcceptedActionInUnexpectedModeFlow() throws ExecutionInitiationException {
         final Runnable commit = Mockito.mock(Runnable.class);
         final Action readyAction = Mockito.mock(Action.class);
         Mockito.when(readyAction.getMode()).thenReturn(ActionDTO.ActionMode.MANUAL);

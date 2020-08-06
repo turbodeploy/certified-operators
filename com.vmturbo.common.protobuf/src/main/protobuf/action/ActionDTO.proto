@@ -1278,10 +1278,6 @@ message AcceptActionResponse {
     // The spec for the action that was successfully accepted.
     // Only present if the action was successfully accepted.
     optional ActionSpec action_spec = 1;
-
-    // An error describing why the action could not be accepted.
-    // Only present if the action could not be accepted.
-    optional string error = 2;
 }
 
 message ActionOrchestratorAction {
