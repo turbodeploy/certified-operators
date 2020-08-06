@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1594317025827,
+  "iteration": 1596479923641,
   "links": [],
   "panels": [
     {
@@ -74,7 +74,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('hour', m.time) as \"time\",\n  avg(m.utilization) FILTER (WHERE m.type = 'VMEM') AS \"VMem\",\n  avg(m.utilization) FILTER (WHERE m.type = 'VCPU') AS \"VCPU\",\n  avg(m.utilization) FILTER (WHERE m.type = 'VSTORAGE') AS \"VStorage\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid AND\n  m.entity_hash = e.hash AND\n  $__timeFilter(m.\"time\") AND\n  e.type = 'VIRTUAL_MACHINE'  AND\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT\n  date_trunc('hour', m.time) as \"time\",\n  avg(m.utilization) FILTER (WHERE m.type = 'VMEM') AS \"VMem\",\n  avg(m.utilization) FILTER (WHERE m.type = 'VCPU') AS \"VCPU\",\n  avg(m.utilization) FILTER (WHERE m.type = 'VSTORAGE') AS \"VStorage\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid AND\n  m.entity_hash = e.hash AND\n  $__timeFilter(m.\"time\") AND\n  e.type = 'VIRTUAL_MACHINE' AND\n  e.environment = 'ON_PREM' AND\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\nGROUP BY 1\nORDER BY 1",
           "refId": "A",
           "select": [
             [

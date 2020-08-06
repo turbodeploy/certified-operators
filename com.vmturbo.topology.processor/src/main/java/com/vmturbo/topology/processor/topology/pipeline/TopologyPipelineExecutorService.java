@@ -31,13 +31,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastFailure
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineException;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 
 /**
  * This class controls the building and running of topology pipelines. It is responsible for
@@ -296,7 +296,7 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
     @VisibleForTesting
     interface TopologyPipelineRunnable {
 
-        TopologyBroadcastInfo runPipeline() throws TopologyPipelineException, InterruptedException;
+        TopologyBroadcastInfo runPipeline() throws PipelineException, InterruptedException;
     }
 
     /**
@@ -527,14 +527,14 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
          * @param timeToWait The time to wait.
          * @param timeUnit The time unit for the time to wait.
          * @return The {@link TopologyBroadcastInfo} of the broadcast topology.
-         * @throws TopologyPipelineException If the pipeline terminates with an error.
+         * @throws PipelineException If the pipeline terminates with an error.
          * @throws TimeoutException If the pipeline is still running after the specified timeout.
          * @throws InterruptedException If the thread is interrupted while waiting.
          */
         @Nonnull
         public TopologyBroadcastInfo waitForBroadcast(final long timeToWait,
                                                       @Nonnull final TimeUnit timeUnit)
-                throws TopologyPipelineException, TimeoutException, InterruptedException {
+                throws PipelineException, TimeoutException, InterruptedException {
             try {
                 return future.get(timeToWait, timeUnit);
             } catch (ExecutionException e) {
@@ -543,17 +543,17 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
         }
 
         @Nonnull
-        private TopologyPipelineException convertExecutionException(@Nonnull final ExecutionException e) {
-            if (e.getCause() instanceof TopologyPipelineException) {
-                return (TopologyPipelineException)e.getCause();
+        private PipelineException convertExecutionException(@Nonnull final ExecutionException e) {
+            if (e.getCause() instanceof PipelineException) {
+                return (PipelineException)e.getCause();
             } else if (e.getCause() instanceof InterruptedException) {
                 // Don't set the interrupt status of the CURRENT thread, because it is the
                 // internal thread (doing the broadcast) that got interrupted, not this one.
                 // We re-throw it as a regular TopologyPipelineException.
-                return new TopologyPipelineException("Pipeline thread interrupted: " + e.getMessage(),
+                return new PipelineException("Pipeline thread interrupted: " + e.getMessage(),
                     e.getCause());
             } else {
-                return new TopologyPipelineException("Pipeline terminated with unexpected exception", e.getCause());
+                return new PipelineException("Pipeline terminated with unexpected exception", e.getCause());
             }
         }
     }
@@ -592,7 +592,7 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
                     .setSuccess(TopologyBroadcastSuccess.getDefaultInstance())
                     .build());
                 pipelineRequest.future.complete(successfulBroadcast);
-            } catch (TopologyPipelineException e) {
+            } catch (PipelineException e) {
                 // If the pipeline fails with an internal error, we send a notification
                 // over Kafka.
                 sendFailureNotification(pipelineRequest.getTopologyInfo(), e.getCause());

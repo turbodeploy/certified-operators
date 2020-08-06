@@ -95,6 +95,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanGlobalSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
@@ -318,6 +319,7 @@ public class ScenarioMapper {
         // check the scenario and add default automation settings if necessary
         infoBuilder.addAllChanges(checkAndCreateDefaultAutomationSettingsForPlan(dto));
         infoBuilder.setScope(getScope(dto.getScope()));
+        infoBuilder.setPlanGlobalSetting(getPlanGlobalSetting(dto));
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
         return infoBuilder.build();
@@ -425,6 +427,20 @@ public class ScenarioMapper {
                             .setMerge(mergePolicyBuilder)))))
             .build();
         return change;
+    }
+
+    /**
+     * Extract plan global setting from {@link ScenarioApiDTO}.
+     *
+     * @param dto {@link ScenarioApiDTO}
+     * @return plan global setting
+     */
+    @Nonnull
+    private PlanGlobalSetting getPlanGlobalSetting(@Nonnull final ScenarioApiDTO dto) {
+        // The rate of resize is temporarily set to 3. We should get it from ScenarioApiDTO.
+        return PlanGlobalSetting.newBuilder()
+            .setRateOfResize(Setting.newBuilder().setNumericSettingValue(
+                NumericSettingValue.newBuilder().setValue(3))).build();
     }
 
     @Nonnull

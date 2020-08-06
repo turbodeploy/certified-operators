@@ -341,6 +341,9 @@ public class PlanRpcService extends PlanServiceImplBase {
             if (scenarioInfo.hasScope()) {
                 builder.setPlanScope(scenarioInfo.getScope());
             }
+            if (scenarioInfo.hasPlanGlobalSetting()) {
+                builder.setPlanGlobalSetting(scenarioInfo.getPlanGlobalSetting());
+            }
             if (scenarioInfo.hasType()) {
                 builder.setPlanType(scenarioInfo.getType());
             }

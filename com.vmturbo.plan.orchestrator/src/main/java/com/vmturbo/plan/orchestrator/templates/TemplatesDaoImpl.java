@@ -157,6 +157,51 @@ public class TemplatesDaoImpl implements TemplatesDao {
     }
 
     /**
+     * Create a new template.
+     *
+     * @param context the transaction context
+     * @param templateInfo describes the contents of one template
+     * @param type of the template
+     * @param targetId the target id this template is associated with
+     * @return new created template
+     */
+    private TemplateDTO.Template createTemplate(@Nonnull final DSLContext context,
+                                                @Nonnull final TemplateInfo templateInfo,
+                                                @Nonnull final TemplateDTO.Template.Type type,
+                                                @Nonnull final Optional<Long> targetId) {
+        // Create a new template.
+        final TemplateDTO.Template.Builder templateBuilder = TemplateDTO.Template.newBuilder()
+            .setId(IdentityGenerator.next())
+            .setType(type)
+            .setTemplateInfo(templateInfo);
+        targetId.ifPresent(templateBuilder::setTargetId);
+        final TemplateDTO.Template template = templateBuilder.build();
+        final TemplateRecord templateRecord = context.newRecord(TEMPLATE);
+        updateRecordFromProto(template, templateRecord);
+        return template;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public TemplateDTO.Template createOrEditTemplate(@Nonnull final TemplateInfo templateInfo,
+                                                     @Nonnull final Optional<Long> targetId) {
+        return dsl.transactionResult(configuration -> {
+            Optional<TemplateRecord> templateRecordOptional =
+                determineUniqueTemplate(dsl, templateInfo.getName(), null);
+
+            if (templateRecordOptional.isPresent()) {
+                // If a template with the same name exists, update it.
+                return editTemplate(templateRecordOptional.get().getId(), templateInfo);
+            } else {
+                return createTemplate(dsl, templateInfo, TemplateDTO.Template.Type.USER, targetId);
+            }
+        });
+    }
+
+    /**
      * Check if a template with the given name and id exists in the db.
      * If id is null, check if a template with the given name exists in the db.
      * Otherwise, check if a template with the given name but a different id exists in the db.
@@ -176,7 +221,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
     }
 
     /**
-     * Create a new template. If a template with the same name exists, update it.
+     * Create a new template. If a template with the same name exists, throw a DuplicateTemplateException.
      *
      * @param context the transaction context
      * @param templateInfo describes the contents of one template
@@ -197,19 +242,10 @@ public class TemplatesDaoImpl implements TemplatesDao {
                     determineUniqueTemplate(context, templateInfo.getName(), null);
 
                 if (templateRecordOptional.isPresent()) {
-                    // If a template with the same name exists, update it.
+                    // If a template with the same name exists, throw a DuplicateTemplateException.
                     throw new DuplicateTemplateException(templateInfo.getName());
                 } else {
-                    // Create a new template.
-                    final TemplateDTO.Template.Builder templateBuilder = TemplateDTO.Template.newBuilder()
-                        .setId(IdentityGenerator.next())
-                        .setType(type)
-                        .setTemplateInfo(templateInfo);
-                    targetId.ifPresent(templateBuilder::setTargetId);
-                    final TemplateDTO.Template template = templateBuilder.build();
-                    final TemplateRecord templateRecord = context.newRecord(TEMPLATE);
-                    updateRecordFromProto(template, templateRecord);
-                    return template;
+                    return createTemplate(context, templateInfo, type, targetId);
                 }
             });
         } catch (DataAccessException e) {

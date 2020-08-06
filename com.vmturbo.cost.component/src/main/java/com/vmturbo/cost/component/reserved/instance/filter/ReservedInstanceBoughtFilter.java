@@ -8,6 +8,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 
@@ -63,26 +64,13 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceBoughtTableFil
             AccountFilterType filterType = accountFilter.getAccountFilterType();
             switch (filterType) {
                 case USED_AND_PURCHASED_BY:
+                    Condition purchasedByCondition = Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(
+                            accountFilter.getAccountIdList());
+                    Condition usedByCondition = getAccountUsedByCondition(context);
+                    allConditions.add(purchasedByCondition.or(usedByCondition));
+                    break;
                 case USED_BY:
-                    Condition riCondition = Tables.RESERVED_INSTANCE_BOUGHT.ID.in(
-                            context.select(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID)
-                                    .from(Tables.RESERVED_INSTANCE_COVERAGE_LATEST.join(
-                                            Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
-                                            .on(Tables.RESERVED_INSTANCE_COVERAGE_LATEST.ENTITY_ID.eq(
-                                                    Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)))
-                                    .where(Tables.RESERVED_INSTANCE_COVERAGE_LATEST.BUSINESS_ACCOUNT_ID
-                                            .in(accountFilter.getAccountIdList())));
-                    allConditions.add(riCondition);
-                    // get the RIs used by undiscovered accounts.
-                    if (includeUndiscovered) {
-                        // An example use case for this condition:
-                        // Fetch all discovered and undiscovered bought RIs used by a given set of accounts.
-                        Condition riUsedByUndiscoveredAcctCondition = Tables.RESERVED_INSTANCE_BOUGHT.ID.in(
-                                context.select(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID)
-                                        .where(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.BUSINESS_ACCOUNT_OID
-                                                .in(accountFilter.getAccountIdList())));
-                        allConditions.add(riUsedByUndiscoveredAcctCondition);
-                    }
+                    allConditions.add(getAccountUsedByCondition(context));
                     break;
             }
         }
@@ -99,6 +87,30 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceBoughtTableFil
         return allConditions.toArray(new Condition[allConditions.size()]);
     }
 
+    @Nonnull
+    protected  Condition getAccountUsedByCondition(final DSLContext context) {
+
+        Condition usedByCondition = Tables.RESERVED_INSTANCE_BOUGHT.ID.in(
+                context.select(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID)
+                        .from(Tables.RESERVED_INSTANCE_COVERAGE_LATEST.join(
+                                Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                                .on(Tables.RESERVED_INSTANCE_COVERAGE_LATEST.ENTITY_ID.eq(
+                                        Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)))
+                        .where(Tables.RESERVED_INSTANCE_COVERAGE_LATEST.BUSINESS_ACCOUNT_ID
+                                .in(accountFilter.getAccountIdList())));
+        // get the RIs used by undiscovered accounts.
+        if (includeUndiscovered) {
+            // An example use case for this condition:
+            // Fetch all discovered and undiscovered bought RIs used by a given set of accounts.
+            Condition riUsedByUndiscoveredAcctCondition = Tables.RESERVED_INSTANCE_BOUGHT.ID.in(
+                    context.select(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID)
+                            .from(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING)
+                            .where(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.BUSINESS_ACCOUNT_OID
+                                    .in(accountFilter.getAccountIdList())));
+            usedByCondition = usedByCondition.or(riUsedByUndiscoveredAcctCondition);
+        }
+        return usedByCondition;
+    }
 
     /**
      * A builder class for {@link ReservedInstanceBoughtFilter}

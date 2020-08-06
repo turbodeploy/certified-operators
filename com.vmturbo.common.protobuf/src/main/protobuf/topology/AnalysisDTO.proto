@@ -37,6 +37,9 @@ message StartAnalysisRequest {
 
     // The sub-type of the plan initiated.
     optional string plan_sub_type = 7;
+
+    // Plan global setting
+    optional plan.PlanGlobalSetting plan_global_setting = 8;
 }
 
 message StartAnalysisResponse {

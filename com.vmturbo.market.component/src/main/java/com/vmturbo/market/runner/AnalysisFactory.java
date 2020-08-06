@@ -11,7 +11,8 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import io.grpc.StatusRuntimeException;
@@ -20,6 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanGlobalSetting;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
@@ -122,6 +124,13 @@ public interface AnalysisFactory {
         // Determines if the market or the SMA (Stable Marriage Algorithm) library generates compute scaling action for cloud vms
         private final MarketMode marketMode;
 
+        // for now only interested in DefaultRateOfResize, ContainerRateOfResize,
+        // and DisableAllActions global settings.
+        private final ImmutableSet<String> globalSettings = ImmutableSet.of(
+            GlobalSettingSpecs.DisableAllActions.getSettingName(),
+            GlobalSettingSpecs.DefaultRateOfResize.getSettingName(),
+            GlobalSettingSpecs.ContainerRateOfResize.getSettingName());
+
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
                                       @Nonnull final SettingServiceBlockingStub settingServiceClient,
                                       @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
@@ -175,7 +184,7 @@ public interface AnalysisFactory {
                                     @Nonnull final Set<TopologyEntityDTO> topologyEntities,
                                     @Nonnull final AnalysisConfigCustomizer configCustomizer,
                                     @Nonnull final InitialPlacementFinder initialPlacementFinder) {
-            final Map<String, Setting> globalSettings = retrieveSettings();
+            final Map<String, Setting> globalSettings = retrieveSettings(topologyInfo);
             final float quoteFactor = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo) ?
                     alleviatePressureQuoteFactor : standardQuoteFactor;
             final AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilderWithSMA(marketMode, quoteFactor,
@@ -192,21 +201,26 @@ public interface AnalysisFactory {
         /**
          * Retrieve global settings used for analysis configuration.
          *
+         * @param topologyInfo topology info
          * @return The map of setting values, arranged by name.
          */
-        private Map<String, Setting> retrieveSettings() {
+        private Map<String, Setting> retrieveSettings(@Nonnull final TopologyInfo topologyInfo) {
 
             final Map<String, Setting> settingsMap = new HashMap<>();
 
-            // for now only interested in DefaultRateOfResize, ContainerRateOfResize,
-            // and DisableAllActions global settings.
-            ImmutableList<String> inputSettings = ImmutableList.of(
-                GlobalSettingSpecs.DisableAllActions.getSettingName(),
-                GlobalSettingSpecs.DefaultRateOfResize.getSettingName(),
-                GlobalSettingSpecs.ContainerRateOfResize.getSettingName());
+            // If it's a plan, get plan global settings from plan info.
+            if (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().hasPlanGlobalSetting()) {
+                final PlanGlobalSetting planGlobalSetting = topologyInfo.getPlanInfo().getPlanGlobalSetting();
+                if (planGlobalSetting.hasRateOfResize()) {
+                    settingsMap.put(GlobalSettingSpecs.DefaultRateOfResize.getSettingName(),
+                        planGlobalSetting.getRateOfResize());
+                }
+            }
+
+            // Retrieve the remaining global settings from group component.
             final GetMultipleGlobalSettingsRequest settingRequest =
                             GetMultipleGlobalSettingsRequest.newBuilder()
-                                .addAllSettingSpecName(inputSettings)
+                                .addAllSettingSpecName(Sets.difference(globalSettings, settingsMap.keySet()))
                                 .build();
 
             try {
@@ -215,10 +229,10 @@ public interface AnalysisFactory {
                         settingsMap.put(setting.getSettingSpecName(), setting);
                     });
 
-                if (settingsMap.size() != inputSettings.size()) {
+                if (settingsMap.size() != globalSettings.size()) {
                     logger.error("Failed to get requested global settings from group component."
                                     + " Requested {} but received {} .",
-                                    inputSettings.size(), settingsMap.size());
+                                    globalSettings.size(), settingsMap.size());
                 }
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to get global settings from group component. Will run analysis " +

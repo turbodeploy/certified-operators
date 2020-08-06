@@ -335,7 +335,7 @@ public class PlanProjectExecutorTest {
             .build();
 
         when(templatesDao.getClusterHeadroomTemplateForGroup(anyLong())).thenReturn(Optional.empty());
-        when(templatesDao.createTemplate(any())).thenReturn(Template.getDefaultInstance());
+        when(templatesDao.createOrEditTemplate(any(), any())).thenReturn(Template.getDefaultInstance());
 
         headroomExecutor.createClusterPlanInstance(Collections.singleton(groupWithoutHeadroomClusterInfo),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
@@ -364,14 +364,14 @@ public class PlanProjectExecutorTest {
                 .setType(GroupType.COMPUTE_HOST_CLUSTER))
             .build();
 
-        when(templatesDao.createTemplate(any(), any())).thenReturn(Template.getDefaultInstance());
+        when(templatesDao.createOrEditTemplate(any(), any())).thenReturn(Template.getDefaultInstance());
 
         when(templatesDao.getClusterHeadroomTemplateForGroup(anyLong())).thenReturn(Optional.empty());
 
         headroomExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
         verify(templatesDao).getClusterHeadroomTemplateForGroup(anyLong());
-        verify(templatesDao).createTemplate(any(), any());
+        verify(templatesDao).createOrEditTemplate(any(), any());
         verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
     }
 
@@ -521,7 +521,7 @@ public class PlanProjectExecutorTest {
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao).editTemplate(eq(avgHeadroomTemplateId), any(), any());
-        verify(templatesDao, never()).createTemplate(any());
+        verify(templatesDao, never()).createOrEditTemplate(any(), any());
         verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
 
         // 1.2. associated template is default headroom template
@@ -529,13 +529,13 @@ public class PlanProjectExecutorTest {
         reset(groupServiceMole);
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
             .thenReturn(defaultHeadroomTemplate);
-        when(templatesDao.createTemplate(any(), any())).thenReturn(avgHeadroomTemplate);
+        when(templatesDao.createOrEditTemplate(any(), any())).thenReturn(avgHeadroomTemplate);
         headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
         verify(templatesDao, never()).editTemplate(anyLong(), any(), any());
-        verify(templatesDao).createTemplate(any(), any());
+        verify(templatesDao).createOrEditTemplate(any(), any());
         verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), avgHeadroomTemplateId);
 
         // 1.3. associated template is not avg template or default headroom template
@@ -550,7 +550,7 @@ public class PlanProjectExecutorTest {
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
         verify(templatesDao, never()).editTemplate(anyLong(), any(), any());
-        verify(templatesDao).createTemplate(any(), any());
+        verify(templatesDao).createOrEditTemplate(any(), any());
         verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
 
         // 2. associated template doesn't exist in the db
@@ -558,26 +558,26 @@ public class PlanProjectExecutorTest {
         reset(groupServiceMole);
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
             .thenReturn(Optional.empty());
-        when(templatesDao.createTemplate(any(), any())).thenReturn(avgHeadroomTemplate);
+        when(templatesDao.createOrEditTemplate(any(), any())).thenReturn(avgHeadroomTemplate);
         headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
         verify(templatesDao, never()).editTemplate(anyLong(), any(), any());
-        verify(templatesDao).createTemplate(any(), any());
+        verify(templatesDao).createOrEditTemplate(any(), any());
         verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), avgHeadroomTemplateId);
 
         // 3. cluster doesn't have clusterHeadroomTemplateId (by default it will be 0)
         reset(templatesDao);
         reset(groupServiceMole);
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId())).thenReturn(Optional.empty());
-        when(templatesDao.createTemplate(any(), any())).thenReturn(avgHeadroomTemplate);
+        when(templatesDao.createOrEditTemplate(any(), any())).thenReturn(avgHeadroomTemplate);
         headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
         verify(templatesDao, never()).editTemplate(anyLong(), any(), any());
-        verify(templatesDao).createTemplate(any(), any());
+        verify(templatesDao).createOrEditTemplate(any(), any());
         verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), avgHeadroomTemplateId);
     }
 
@@ -614,7 +614,7 @@ public class PlanProjectExecutorTest {
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
-        verify(templatesDao, never()).createTemplate(any());
+        verify(templatesDao, never()).createOrEditTemplate(any(), any());
         verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
 
         // cluster template doesn't exist in the db
@@ -626,7 +626,7 @@ public class PlanProjectExecutorTest {
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
-        verify(templatesDao, never()).createTemplate(any());
+        verify(templatesDao, never()).createOrEditTemplate(any(), any());
         verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), defaultHeadroomTemplateId);
 
         // cluster doesn't have clusterHeadroomTemplateId (by default it will be 0)
@@ -638,7 +638,7 @@ public class PlanProjectExecutorTest {
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
-        verify(templatesDao, never()).createTemplate(any());
+        verify(templatesDao, never()).createOrEditTemplate(any(), any());
         verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), defaultHeadroomTemplateId);
     }
 
@@ -667,7 +667,7 @@ public class PlanProjectExecutorTest {
 
         verify(templatesDao, never()).getClusterHeadroomTemplateForGroup(anyLong());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
-        verify(templatesDao, never()).createTemplate(any());
+        verify(templatesDao, never()).createOrEditTemplate(any(), any());
         verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
     }
 }

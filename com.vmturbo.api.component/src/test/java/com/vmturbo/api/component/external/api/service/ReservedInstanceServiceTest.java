@@ -30,6 +30,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.AccountFilterType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeResponse;
@@ -156,7 +157,7 @@ public class ReservedInstanceServiceTest {
         Mockito.when(repositoryApi.entitiesRequest(ImmutableSet.of(0L, 100L))).thenReturn(req);
 
         final List<ReservedInstanceApiDTO> reservedInstanceApiDTOs =
-                reservedInstancesService.getReservedInstances("Market", true);
+                reservedInstancesService.getReservedInstances("Market", true, AccountFilterType.PURCHASED_BY);
 
         Assert.assertEquals(1, reservedInstanceApiDTOs.size());
         final ReservedInstanceApiDTO reservedInstanceApiDTO =
