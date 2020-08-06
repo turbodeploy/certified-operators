@@ -358,8 +358,9 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                                                          volumeRedundancyType) {
         final Map<Price.Unit, List<Price>> pricesByUnit =
             storageTierPrices.getCloudStoragePriceList().stream()
-                .filter(priceList -> redundancyTypeNotApplicable(volumeRedundancyType, priceList)
-                    || redundancyTypesMatch(volumeRedundancyType, priceList))
+                .filter(priceList -> redundancyTypeNotApplicable(priceList)
+                        || defaultRedundancyTypeApplicable(volumeRedundancyType, priceList)
+                        || redundancyTypesMatch(volumeRedundancyType, priceList))
                 .flatMap(storageTierPrice -> storageTierPrice.getPricesList().stream())
                 .collect(Collectors.groupingBy(Price::getUnit));
         // Sort each price list by end range.
@@ -371,9 +372,32 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         return pricesByUnit;
     }
 
-    private static boolean redundancyTypeNotApplicable(final RedundancyType volumeRedundancyType,
-                                                       final StorageTierPrice storageTierPrice) {
+    /**
+     * The redundancy type is not applicable if price entry does not have a redundancy type. The
+     * price will be included even if volume has a redundancy type. It can happen when migration
+     * a volume from Azure to AWS.
+     *
+     * @param storageTierPrice storage tier price
+     * @return true is storage tier price does not have a redundancy type; false otherwise.
+     */
+    private static boolean redundancyTypeNotApplicable(final StorageTierPrice storageTierPrice) {
         return !storageTierPrice.hasRedundancyType();
+    }
+
+    /**
+     * Use the default redundancy type when migrating a volume without redundancy type to a tier
+     * that supports redundancy type.
+     * For example, AWS and on-prem volumes don't have a redundancy type. When migrating a volume
+     * to Azure, assume redundancy type is LRS.
+     *
+     * @param volumeRedundancyType volume redundancy type
+     * @param storageTierPrice storage tier price
+     * @return true if volume redundancy type is null and price has LRS redundancy type; false otherwise.
+     */
+    private static boolean defaultRedundancyTypeApplicable(final RedundancyType volumeRedundancyType,
+                                                           final StorageTierPrice storageTierPrice) {
+        return volumeRedundancyType == null && storageTierPrice.hasRedundancyType()
+                && storageTierPrice.getRedundancyType() == RedundancyType.LRS;
     }
 
     private static boolean redundancyTypesMatch(final RedundancyType volumeRedundancyType,
