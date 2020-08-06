@@ -804,7 +804,8 @@ public class ServiceConfig {
     public HistoricalCommodityStatsSubQuery historicalCommodityStatsSubQuery() {
         final HistoricalCommodityStatsSubQuery historicalStatsQuery =
             new HistoricalCommodityStatsSubQuery(mapperConfig.statsMapper(),
-                communicationConfig.historyRpcService(), userSessionContext());
+                communicationConfig.historyRpcService(), userSessionContext(),
+                communicationConfig.repositoryApi());
         statsQueryExecutor().addSubquery(historicalStatsQuery);
         return historicalStatsQuery;
     }

@@ -102,15 +102,17 @@ class BoughtCommoditiesInfo {
      * Get the accumulated information about a particular commodity bought by a set of entities.
      *
      * @param commodityName The name of the commodity. The names are derived from
-     *           {@link CommodityTypes}. This is not ideal - we should consider using the
+     *           {@link CommodityType}. This is not ideal - we should consider using the
      *           {@link CommodityType} enum directly.
      * @param targetEntities The entities to get the information from. If empty, accumulate
      *                       information from the whole topology.
+     * @param providerOids oids of the potential commodity providers.
      * @return An optional containing the accumulated {@link StatRecord}, or an empty optional
      *         if there is no information for the commodity over the target entities.
      */
     Optional<StatRecord> getAccumulatedRecord(@Nonnull final String commodityName,
-                                                     @Nonnull final Set<Long> targetEntities) {
+                                              @Nonnull final Set<Long> targetEntities,
+                                              @Nonnull final Set<Long> providerOids) {
         final Map<Long, Multimap<Long, CommodityBoughtDTO>> boughtByEntityId =
                 boughtCommodities.get(commodityName);
         final AccumulatedBoughtCommodity overallCommoditiesBought =
@@ -121,20 +123,23 @@ class BoughtCommoditiesInfo {
         } else if (targetEntities.isEmpty()) {
             // No entities = looping over all the entities.
             boughtByEntityId.forEach((entityId, boughtFromProviders) ->
-                    boughtFromProviders.asMap().forEach((providerId, commoditiesBought) -> {
+                boughtFromProviders.asMap().forEach((providerId, commoditiesBought) -> {
+                    if (providerOids.isEmpty() || providerOids.contains(providerId)) {
                         Optional<Double> capacity = (providerId != null) ?
-                                soldCommoditiesInfo.getCapacity(commodityName, providerId) :
-                                Optional.empty();
+                            soldCommoditiesInfo.getCapacity(commodityName, providerId) :
+                            Optional.empty();
                         if (providerId == null || capacity.isPresent()) {
-                            commoditiesBought.forEach( commodityBought ->
-                                    overallCommoditiesBought.recordBoughtCommodity(
-                                            commodityBought,providerId, capacity.orElse(0.0)));
+                            commoditiesBought.forEach(commodityBought ->
+                                overallCommoditiesBought.recordBoughtCommodity(
+                                    commodityBought, providerId, capacity.orElse(0.0)));
                         } else {
                             logger.warn("Entity {} buying commodity {} from provider {}," +
-                                            " but provider is not selling it!", entityId, commodityName,
-                                    providerId);
+                                    " but provider is not selling it!", entityId, commodityName,
+                                providerId);
                         }
-                    }));
+                    }
+                })
+            );
         } else {
             // A specific set of entities.
             targetEntities.forEach(entityId -> {
@@ -145,16 +150,18 @@ class BoughtCommoditiesInfo {
                     logger.debug("Entity {} not buying {}...", entityId, commodityName);
                 } else {
                     entitiesProviders.asMap().forEach((providerId, commoditiesBought) -> {
-                        final Optional<Double> capacity = (providerId != null) ?
+                        if (providerOids.isEmpty() || providerOids.contains(providerId)) {
+                            final Optional<Double> capacity = (providerId != null) ?
                                 soldCommoditiesInfo.getCapacity(commodityName, providerId) :
                                 Optional.empty();
-                        if (providerId == null || capacity.isPresent()) {
-                            commoditiesBought.forEach(commodityBought ->
+                            if (providerId == null || capacity.isPresent()) {
+                                commoditiesBought.forEach(commodityBought ->
                                     overallCommoditiesBought.recordBoughtCommodity(commodityBought,
-                                            providerId, capacity.orElse(0.0)));
-                        } else {
-                            logger.warn("No capacity found for {} by provider {}",
+                                        providerId, capacity.orElse(0.0)));
+                            } else {
+                                logger.warn("No capacity found for {} by provider {}",
                                     commodityName, providerId);
+                            }
                         }
                     });
                 }

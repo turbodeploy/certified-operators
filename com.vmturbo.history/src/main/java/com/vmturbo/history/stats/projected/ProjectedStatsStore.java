@@ -83,6 +83,7 @@ public class ProjectedStatsStore {
      *                    be for each seed entity, but its value will be aggregated on derived
      *                    entities.
      * @param commodities The commodities to retrieve. Must be non-empty.
+     * @param providerOids oids of the potential commodity providers.
      * @param paginationParams {@link EntityStatsPaginationParams} for the page.
      * @return The {@link ProjectedEntityStatsResponse} to return to the client.
      */
@@ -90,6 +91,7 @@ public class ProjectedStatsStore {
     public ProjectedEntityStatsResponse getEntityStats(
             @Nonnull final Map<Long, Set<Long>> entitiesMap,
             @Nonnull final Set<String> commodities,
+            @Nonnull final Set<Long> providerOids,
             @Nonnull final EntityStatsPaginationParams paginationParams) {
         if (entitiesMap.isEmpty()) {
             // For now we don't support paginating through all entities. The client is responsible
@@ -119,6 +121,7 @@ public class ProjectedStatsStore {
             statSnapshotCalculator,
             entitiesMap,
             commodities,
+            providerOids,
             paginationParams);
     }
 
@@ -132,11 +135,13 @@ public class ProjectedStatsStore {
      *
      * @param targetEntities the entities to collect the stats for
      * @param commodityNames the commodities to collect for those entities
+     * @param providerOids oids of the potential commodity providers
      * @return an Optional containing the snapshot, or empty optional if no data is available
      */
     @Nonnull
     public Optional<StatSnapshot> getStatSnapshotForEntities(@Nonnull final Set<Long> targetEntities,
-                                                             @Nonnull final Set<String> commodityNames) {
+                                                             @Nonnull final Set<String> commodityNames,
+                                                             @Nonnull final Set<Long> providerOids) {
 
         // capture the current topologyCommodities object; new topologies replace the entire object
         final TopologyCommoditiesSnapshot targetCommodities;
@@ -148,7 +153,7 @@ public class ProjectedStatsStore {
             return Optional.empty();
         }
 
-        return Optional.of(statSnapshotCalculator.buildSnapshot(targetCommodities, targetEntities, commodityNames));
+        return Optional.of(statSnapshotCalculator.buildSnapshot(targetCommodities, targetEntities, commodityNames, providerOids));
     }
 
     /**
@@ -201,6 +206,7 @@ public class ProjectedStatsStore {
                 @Nonnull final StatSnapshotCalculator statSnapshotCalculator,
                 @Nonnull final Map<Long, Set<Long>> entitiesMap,
                 @Nonnull final Set<String> commodityNames,
+                @Nonnull final Set<Long> providerOids,
                 @Nonnull final EntityStatsPaginationParams paginationParams) {
             // Get the entity comparator to use.
             final Comparator<Long> entityComparator = targetCommodities.getEntityComparator(
@@ -230,7 +236,7 @@ public class ProjectedStatsStore {
                     .map(entityId -> EntityStats.newBuilder()
                             .setOid(entityId)
                             .addStatSnapshots(statSnapshotCalculator.buildSnapshot(
-                                targetCommodities, entitiesMap.get(entityId), commodityNames))
+                                targetCommodities, entitiesMap.get(entityId), commodityNames, providerOids))
                             .build())
                     .forEach(responseBuilder::addEntityStats);
             return responseBuilder.build();
@@ -247,11 +253,12 @@ public class ProjectedStatsStore {
         default StatSnapshot buildSnapshot(
                 @Nonnull final TopologyCommoditiesSnapshot targetCommodities,
                 @Nonnull final Set<Long> targetEntities,
-                @Nonnull final Set<String> commodityNames) {
+                @Nonnull final Set<String> commodityNames,
+                @Nonnull final Set<Long> providerIds) {
             // accumulate 'standard' and 'count' stats
             final StatSnapshot.Builder builder = StatSnapshot.newBuilder();
             targetCommodities
-                    .getRecords(commodityNames, targetEntities)
+                    .getRecords(commodityNames, targetEntities, providerIds)
                     .forEach(builder::addStatRecords);
             return builder.build();
         }
