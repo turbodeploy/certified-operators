@@ -1618,7 +1618,7 @@ public class TopologyConverter {
                                                                float[] histUsed,
                                                                final float[] histPeak,
                                                                final CommoditySoldDTO commoditySoldDTO,
-final long providerOid) {
+                                                               final long providerOid) {
 
         if (commBought.hasHistoricalUsed() && commBought.getHistoricalUsed().hasPercentile()) {
             float targetUtil = (float)commBought.getResizeTargetUtilization();
@@ -1999,9 +1999,23 @@ final long providerOid) {
             // If it is tier type, the traderOid is stored in the shoppinglistInfo.
             // Need to convert it to the entityOid in order to look up in commodityIndex
             if (cloudTc.isMarketTier(oldSupplierId)) {
-                oldSupplierId = cloudTc.getMarketTier(oldSupplierId).getTier().getOid();
+                final MarketTier marketTier = cloudTc.getMarketTier(oldSupplierId);
+                if (marketTier.hasRIDiscount()) {
+                    // For now the system only support RI for computeTier.  In the further if other tiers
+                    // can be RI, this needs to be handled in a generic way.
+                    final Optional<TopologyEntityDTO> computeTier = cloudTopology.getComputeTier(shoppingListInfo.getBuyerId());
+                    if (computeTier.isPresent()) {
+                        oldSupplierId = computeTier.get().getOid();
+                    } else {
+                        logger.error("{} does not have compute tier supplier", shoppingListInfo.getBuyerId());
+                        oldSupplierId = marketTier.getTier().getOid();
+                    }
+                } else {
+                    oldSupplierId = cloudTc.getMarketTier(oldSupplierId).getTier().getOid();
+                }
             }
             if (cloudTc.isMarketTier(newSupplierId)) {
+                // new supplier is always OnDemandMarketTier
                 newSupplierId = cloudTc.getMarketTier(newSupplierId).getTier().getOid();
             }
         }
