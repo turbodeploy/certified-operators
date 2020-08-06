@@ -16,10 +16,14 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.component.external.api.service.GroupsService;
+import com.vmturbo.api.dto.group.BaseGroupApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.topologydefinition.AutomatedEntityDefinitionData;
 import com.vmturbo.api.dto.topologydefinition.IEntityDefinitionData;
 import com.vmturbo.api.dto.topologydefinition.IManualConnectionsData;
@@ -29,6 +33,8 @@ import com.vmturbo.api.dto.topologydefinition.ManualGroupConnections;
 import com.vmturbo.api.dto.topologydefinition.ManualStaticConnections;
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
 import com.vmturbo.api.enums.EntityType;
+import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition;
@@ -88,14 +94,19 @@ public class TopologyDataDefinitionMapper {
                     .build();
 
     private final EntityFilterMapper entityFilterMapper;
+    private final GroupsService groupsService;
 
     /**
      * Constructor.
      *
      * @param entityFilterMapper - a converted between API filters and search filters.
+     * @param groupsService      - a provider of group models.
      */
-    public TopologyDataDefinitionMapper(@Nonnull final EntityFilterMapper entityFilterMapper) {
+    @ParametersAreNonnullByDefault
+    public TopologyDataDefinitionMapper(final EntityFilterMapper entityFilterMapper,
+                                        final GroupsService groupsService) {
         this.entityFilterMapper = entityFilterMapper;
+        this.groupsService = groupsService;
     }
 
     /**
@@ -266,7 +277,20 @@ public class TopologyDataDefinitionMapper {
                 case ASSOCIATED_GROUP:
                     connections = new ManualGroupConnections();
                     if (criteria.getAssociatedGroup().hasId()) {
-                        ((ManualGroupConnections)connections).setConnectedGroupId(String.valueOf(criteria.getAssociatedGroup().getId()));
+                        final ManualGroupConnections groupConnection = (ManualGroupConnections)connections;
+                        final String groupId = String.valueOf(criteria.getAssociatedGroup().getId());
+                        try {
+                            final GroupApiDTO groupApiDto = groupsService.getGroupByUuid(groupId, false);
+                            if (groupApiDto != null) {
+                                BaseGroupApiDTO baseGroupApiDTO = new BaseGroupApiDTO();
+                                baseGroupApiDTO.setUuid(groupApiDto.getUuid());
+                                baseGroupApiDTO.setDisplayName(groupApiDto.getDisplayName());
+                                baseGroupApiDTO.setMembersCount(groupApiDto.getMembersCount());
+                                groupConnection.setConnectedGroup(baseGroupApiDTO);
+                            }
+                        } catch (UnknownObjectException | ConversionException | InterruptedException e) {
+                            logger.warn(e);
+                        }
                     }
                     break;
                 case DYNAMIC_CONNECTION_FILTERS:
@@ -464,15 +488,14 @@ public class TopologyDataDefinitionMapper {
      * @return criteria for group connections
      */
     private AssociatedEntitySelectionCriteria.Builder getGroupCriteria(@Nonnull final ManualGroupConnections groupConnections) {
-        GroupDTO.GroupID.Builder builder = GroupDTO.GroupID.newBuilder();
-
-        // Empty Group ID allowed too
-        if (!groupConnections.getConnectedGroupId().isEmpty()) {
-            builder.setId(Long.parseLong(groupConnections
-                    .getConnectedGroupId()));
+        AssociatedEntitySelectionCriteria.Builder criteriaBuilder = AssociatedEntitySelectionCriteria.newBuilder();
+        if (groupConnections.getConnectedGroup() != null
+                && !StringUtils.isBlank(groupConnections.getConnectedGroup().getUuid())) {
+            criteriaBuilder.setAssociatedGroup(GroupDTO.GroupID.newBuilder()
+                    .setId(Long.parseLong(groupConnections.getConnectedGroup().getUuid()))
+                    .build());
         }
-        return AssociatedEntitySelectionCriteria.newBuilder()
-                .setAssociatedGroup(builder.build());
+        return criteriaBuilder;
     }
 
     /**
