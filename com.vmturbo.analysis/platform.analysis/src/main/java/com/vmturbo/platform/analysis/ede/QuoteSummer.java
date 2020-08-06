@@ -70,6 +70,7 @@ final class QuoteSummer {
     private final Map<ShoppingList, Optional<Context>> shoppingListContextMap = new HashMap<>();
     private final QuoteCache cache_;
     private int shoppingListIndex_ = 0;
+    private int numOfSLs_ = 0;
 
     // Constructors
 
@@ -78,11 +79,14 @@ final class QuoteSummer {
      *
      * @param economy See {@link #getEconomy()}.
      * @param quality See {@link #getClique()}.
+     * @param cache See {@link QuoteCache}
+     * @param numOfSLs number of shopping lists for this trader
      */
-    public QuoteSummer(@NonNull Economy economy, long quality, QuoteCache cache) {
+    QuoteSummer(@NonNull Economy economy, long quality, QuoteCache cache, int numOfSLs) {
         economy_ = economy;
         clique_ = quality;
         cache_ = cache;
+        numOfSLs_ = numOfSLs;
     }
 
     // Getters
@@ -187,7 +191,18 @@ final class QuoteSummer {
         bestSellers_.add(minimizer.getBestSeller());
         economy_.getPlacementStats().incrementQuoteSummerCount();
         Trader bestSeller = minimizer.getBestSeller();
-        simulate(minimizer, entry, bestSeller);
+        if (!isBestSellerPresentAndDifferentFromCurrentSupplier(bestSeller, entry)) {
+            unplacedShoppingListQuoteTrackers.put(entry.getKey(), minimizer.getQuoteTracker());
+        }
+        // We simulate the effect of placing the shopping list on the bestSeller, so that the
+        // next shopping lists of this trader get quotes which reflect the fact that this SL was
+        // placed on bestSeller. But we don't need to do this for the last 2 shopping lists
+        // because for a VM, the last two shopping lists will correspond to the last storage shopping
+        // list and the PM shopping list, and there are no further PM/Storage shopping lists which
+        // will ask for quote.
+        if (shoppingListIndex_ <= numOfSLs_ - 2) {
+            simulate(minimizer, entry, bestSeller);
+        }
     }
 
     /**
@@ -224,7 +239,7 @@ final class QuoteSummer {
      * @param bestSeller The best provider
      */
     public void simulate(QuoteMinimizer minimizer, @NonNull @ReadOnly Entry<@NonNull ShoppingList, @NonNull Market> entry, Trader bestSeller) {
-        if (bestSeller != null && (entry.getKey().getSupplier() != bestSeller)) {
+        if (isBestSellerPresentAndDifferentFromCurrentSupplier(bestSeller, entry)) {
             if (bestSeller.getSettings().isCanSimulateAction()) {
                 // when we have a best seller for a shoppingList, we simulate the move to this seller
                 // not doing so can lead to ping-pongs as observed in OM-34056
@@ -232,9 +247,18 @@ final class QuoteSummer {
                 QuoteCacheUtils.invalidate(cache_, move);
                 simulatedMoveActions_.add(move);
             }
-        } else {
-            unplacedShoppingListQuoteTrackers.put(entry.getKey(), minimizer.getQuoteTracker());
         }
+    }
+
+    /**
+     * Is bestSeller present and different from current supplier?
+     * @param bestSeller the bestSeller for the SL in entry
+     * @param entry the entry of SL and its market
+     * @return true if bestSeller is present and different from current supplier.
+     */
+    private boolean isBestSellerPresentAndDifferentFromCurrentSupplier(Trader bestSeller,
+                                                                      @NonNull Entry<@NonNull ShoppingList, @NonNull Market> entry) {
+        return bestSeller != null && (entry.getKey().getSupplier() != bestSeller);
     }
 
 } // end QuoteSummer class

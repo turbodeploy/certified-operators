@@ -233,7 +233,7 @@ final class CliqueMinimizer {
      */
     public void accept(long clique) {
         final @NonNull QuoteSummer quoteSummer = entries_.stream()
-            .collect(()->new QuoteSummer(economy_, clique, cache_), QuoteSummer::accept, QuoteSummer::combine);
+            .collect(() -> new QuoteSummer(economy_, clique, cache_, entries_.size()), QuoteSummer::accept, QuoteSummer::combine);
 
         // keep the minimum between total quotes
         if (quoteSummer.getTotalQuote() < bestTotalQuote_) {

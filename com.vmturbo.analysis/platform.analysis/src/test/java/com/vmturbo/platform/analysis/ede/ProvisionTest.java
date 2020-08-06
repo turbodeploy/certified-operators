@@ -183,51 +183,6 @@ public class ProvisionTest {
     }
 
     /**
-     * Setup economy with 2 PM selling CPU and memory, 2 DS selling storage
-     * and 2 VMs buying from the same PM and the same DS.
-     * All resources have utilization above the max desired utilization, this would justify cloning.
-     * There is an empty PM and an empty DS.
-     * Expected result: 0 PROVISION_BY_SUPPLY actions.
-     */
-    @Test
-    public void testProvisionDecisions_EmptyPMAndDSExist() {
-        Economy economy = new Economy();
-        economy.getSettings().setEstimatesEnabled(false);
-        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
-        pm1.getSettings().setMaxDesiredUtil(0.9);
-        pm1.setDebugInfoNeverUseInCode("PM1");
-        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
-        pm2.getSettings().setMaxDesiredUtil(0.9);
-        pm2.setDebugInfoNeverUseInCode("PM2");
-        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
-        st1.getSettings().setMaxDesiredUtil(0.9);
-        st1.setDebugInfoNeverUseInCode("DS1");
-        Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
-        st2.getSettings().setMaxDesiredUtil(0.9);
-        st2.setDebugInfoNeverUseInCode("DS2");
-        // Place vm1 on pm1 and st1.
-        Trader vm1 = TestUtils.createVM(economy);
-        TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{48, 48}, pm1);
-        TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{145}, st1);
-        vm1.setDebugInfoNeverUseInCode("VM1");
-        // Place vm2 on pm1 and st1.
-        Trader vm2 = TestUtils.createVM(economy);
-        TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{48, 48}, pm1);
-        TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{145}, st1);
-        vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
-
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
-
-        assertAllCount(actions, 2);
-        assertMoveCount(actions, 2);
-    }
-
-    /**
      * Setup economy with 1 PM selling CPU and memory, 1 DS selling storage
      * and 2 VMs buying from PM and DS.
      * All resources have utilization above the max desired utilization, this would justify cloning.
