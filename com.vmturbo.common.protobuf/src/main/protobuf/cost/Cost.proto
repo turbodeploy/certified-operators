@@ -719,6 +719,8 @@ message GetReservedInstanceBoughtForAnalysisRequest {
 message GetReservedInstanceBoughtForScopeRequest {
     // If the topology is to be scoped, the OIDs specified here seed the scoping expansion.
     repeated int64 scope_seed_oids = 5;
+    optional AccountFilter.AccountFilterType account_filter_type = 6 [default = PURCHASED_BY];
+    optional bool include_undiscovered = 7 [default = true];
 }
 
 // This response contains a list reserved instance bought by topology.
