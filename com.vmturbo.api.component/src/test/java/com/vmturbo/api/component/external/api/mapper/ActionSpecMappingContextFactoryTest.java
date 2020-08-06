@@ -283,7 +283,7 @@ public class ActionSpecMappingContextFactoryTest {
         virtualDisksAspectApiDTO.setVirtualDisks(Lists.newArrayList(virtualDiskApiDTO));
         final Map<Long, EntityAspect> virtualDisksAspectApiDTOMap = new HashMap<>();
         virtualDisksAspectApiDTOMap.put(73385266467456L, virtualDisksAspectApiDTO);
-        when(virtualVolumeAspectMapper.mapUnattachedVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.of(virtualDisksAspectApiDTOMap));
+        when(virtualVolumeAspectMapper.mapVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.of(virtualDisksAspectApiDTOMap));
 
         final ActionSpecMappingContextFactory actionSpecMappingContextFactory = new
             ActionSpecMappingContextFactory(policyService,

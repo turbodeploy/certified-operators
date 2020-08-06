@@ -153,7 +153,7 @@ public class CompoundMoveTest {
         when(repositoryApi.getRegion(any())).thenReturn(emptySearchReq);
 
         when(virtualVolumeAspectMapper.mapVirtualMachines(anySetOf(Long.class), anyLong())).thenReturn(Collections.emptyMap());
-        when(virtualVolumeAspectMapper.mapUnattachedVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.empty());
+        when(virtualVolumeAspectMapper.mapVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.empty());
 
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
                 Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,

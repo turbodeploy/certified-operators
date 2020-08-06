@@ -59,6 +59,7 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
+import com.vmturbo.api.dto.action.ActionExecutionCharacteristicApiDTO;
 import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
@@ -76,7 +77,9 @@ import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.enums.ActionDisruptiveness;
 import com.vmturbo.api.enums.ActionMode;
+import com.vmturbo.api.enums.ActionReversibility;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.AspectName;
@@ -686,7 +689,7 @@ public class ActionSpecMapper {
     private void addMoreInfoToActionApiDTO(@Nonnull ActionApiDTO actionApiDTO,
                                            @Nonnull ActionSpecMappingContext context,
                                            @Nonnull ActionDTO.Action action)
-                throws UnsupportedActionException {
+            throws UnsupportedActionException {
         final ServiceEntityApiDTO targetEntity = actionApiDTO.getTarget();
         final ServiceEntityApiDTO newEntity = actionApiDTO.getNewEntity();
         final String targetEntityUuid = targetEntity.getUuid();
@@ -712,9 +715,7 @@ public class ActionSpecMapper {
                 virtualDisksAspectApiDTO.setVirtualDisks(volumeAspectsList);
                 aspectMap.put(AspectName.VIRTUAL_VOLUME, virtualDisksAspectApiDTO);
                 actionApiDTO.getTarget().setAspectsByName(aspectMap);
-                actionApiDTO.setVirtualDisks(volumeAspectsList);
             }
-            setCurrentAndNewLocation(targetEntityId, context, actionApiDTO);
         }
 
         // add more info for cloud actions
@@ -725,27 +726,28 @@ public class ActionSpecMapper {
             templateApiDTO.setDisplayName(newEntity.getDisplayName());
             templateApiDTO.setClassName(newEntity.getClassName());
             actionApiDTO.setTemplate(templateApiDTO);
-
+        }
+        // For cloud changing tier actions and virtual volume SCALE/MOVE/DELETE actions,
+        // set region and virtualDisks.
+        // (Volume action is SCALE in real time and optimized plan, and is MOVE in migration plan.)
+        if (newEntity != null && CLOUD_ACTIONS_TIER_VALUES.contains(newEntity.getClassName())
+                || targetEntity.getClassName().equals(ApiEntityType.VIRTUAL_VOLUME.apiStr())) {
             /*
-             * Set virtualDisks on ActionApiDTO. Scale virtual volume actions have virtual volume as
-             * target entity after converting to the ActionApiDTO. SO we need get VM ID from action info.
+             * Move volume actions in migration plan have virtual volume as target entity
+             * after converting to the ActionApiDTO. So we need to get VM ID from action info.
              */
-            final boolean isVirtualVolumeTarget = targetEntity.getClassName()
-                            .equals(ApiEntityType.VIRTUAL_VOLUME.apiStr());
-            final Long vmId = isVirtualVolumeTarget
-                            ? ActionDTOUtil.getPrimaryEntity(action, false).getId()
-                            : targetEntityId;
+            final Long actionTargetId = ActionDTOUtil.getPrimaryEntity(action, false).getId();
             // set location, which is the region
-            setCurrentAndNewLocation(vmId, context, actionApiDTO);
+            setCurrentAndNewLocation(actionTargetId, context, actionApiDTO);
+            final ActionTypeCase actionTypeCase = action.getInfo().getActionTypeCase();
+            // Filter virtual disks if it is MOVE virtual volume action in migration plan.
+            final Predicate<VirtualDiskApiDTO> filter = actionTypeCase == ActionTypeCase.MOVE
+                    ? vd -> targetEntityUuid.equals(vd.getUuid())
+                    : vd -> true;
 
-            // Filter virtual disks if it is scale virtual volume action.
-            final Predicate<VirtualDiskApiDTO> filter = isVirtualVolumeTarget
-                            ? vd -> targetEntityUuid.equals(vd.getUuid())
-                            : vd -> true;
-
-            final List<VirtualDiskApiDTO> virtualDisks = context.getVolumeAspects(vmId).stream()
-                            .filter(filter)
-                            .collect(Collectors.toList());
+            final List<VirtualDiskApiDTO> virtualDisks = context.getVolumeAspects(actionTargetId).stream()
+                    .filter(filter)
+                    .collect(Collectors.toList());
             actionApiDTO.setVirtualDisks(virtualDisks);
         }
     }
@@ -1124,6 +1126,20 @@ public class ActionSpecMapper {
             context.getCloudAspect(target.getId()).map(cloudAspect -> aspects.put(
                 AspectName.CLOUD, cloudAspect));
             wrapperDto.getTarget().setAspectsByName(aspects);
+        }
+
+        if (action.hasDisruptive() || action.hasReversible()) {
+            ActionExecutionCharacteristicApiDTO actionExecutionCharacteristicsDTO
+                    = new ActionExecutionCharacteristicApiDTO();
+            if (action.hasDisruptive()) {
+                actionExecutionCharacteristicsDTO.setDisruptiveness(action.getDisruptive()
+                        ? ActionDisruptiveness.DISRUPTIVE : ActionDisruptiveness.NON_DISRUPTIVE);
+            }
+            if (action.hasReversible()) {
+                actionExecutionCharacteristicsDTO.setReversibility(action.getReversible()
+                        ? ActionReversibility.REVERSIBLE : ActionReversibility.IRREVERSIBLE);
+            }
+            wrapperDto.setExecutionCharacteristics(actionExecutionCharacteristicsDTO);
         }
     }
 
@@ -1905,6 +1921,7 @@ public class ActionSpecMapper {
 
         Map<String, ActionDetailsApiDTO> response = new HashMap<>();
         Map<String, Long> actionToEntityUuidMap = new HashMap<>();
+        Map<String, Long> scaleCloudVolumeActionToVolumeUuidMap = new HashMap<>();
 
         for (ActionOrchestratorAction action: actions) {
             final ActionSpec actionSpec = action.getActionSpec();
@@ -1945,15 +1962,28 @@ public class ActionSpecMapper {
                         logger.warn("Cannot create action details for on-prem actions");
                         continue;
                     }
-                    actionToEntityUuidMap.put(Long.toString(action.getActionId()), entityUuid);
+                    final String actionIdString = Long.toString(action.getActionId());
+                    // Scaling cloud volume action
+                    if (entity.getType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+                        scaleCloudVolumeActionToVolumeUuidMap.put(actionIdString, entityUuid);
+                    } else {
+                        // Scaling cloud VM/DB/DBS action
+                        actionToEntityUuidMap.put(actionIdString, entityUuid);
+                    }
                 }
             }
         }
 
-        Map<Long, CloudResizeActionDetailsApiDTO> actionDetailMap = createCloudResizeActionDetailsDTO(actionToEntityUuidMap.values(), topologyContextId);
+        Map<Long, CloudResizeActionDetailsApiDTO> actionDetailMap =
+                createCloudResizeActionDetailsDTO(actionToEntityUuidMap.values(),
+                        scaleCloudVolumeActionToVolumeUuidMap.values(), topologyContextId);
 
         actionToEntityUuidMap.forEach((actionId, entityId) -> {
             response.put(actionId, actionDetailMap.get(entityId));
+        });
+
+        scaleCloudVolumeActionToVolumeUuidMap.forEach((actionId, volumeId) -> {
+            response.put(actionId, actionDetailMap.get(volumeId));
         });
 
         return response;
@@ -1962,12 +1992,15 @@ public class ActionSpecMapper {
     /**
      * Create Cloud Resize Action Details DTOs for a list of entity ids.
      * @param entityUuids - list of uuid of the action target entity
+     * @param cloudVolumesToBeScaledUuids - list of uuid of action target entities which are cloud volumes.
      * @param topologyContextId - the topology context that the action corresponds to
      * @return dtoMap - A map that contains additional details about the actions
      * like on-demand rates, costs and RI coverage before/after the resize, indexed by entity id
      */
     @Nonnull
-    public Map<Long, CloudResizeActionDetailsApiDTO> createCloudResizeActionDetailsDTO(Collection<Long> entityUuids, Long topologyContextId) {
+    public Map<Long, CloudResizeActionDetailsApiDTO> createCloudResizeActionDetailsDTO(Collection<Long> entityUuids,
+                                                                                       Collection<Long> cloudVolumesToBeScaledUuids,
+                                                                                       Long topologyContextId) {
         Set<Long> entityUuidSet = new HashSet<>(entityUuids);
         Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = entityUuidSet.stream().collect(Collectors.toMap(e -> e, e -> new CloudResizeActionDetailsApiDTO()));
 
@@ -1979,6 +2012,13 @@ public class ActionSpecMapper {
 
         // get RI coverage before/after
         setRiCoverage(topologyContextId, dtoMap);
+
+        if (!cloudVolumesToBeScaledUuids.isEmpty()) {
+            Map<Long, CloudResizeActionDetailsApiDTO> volumeDTOMap
+                    = cloudVolumesToBeScaledUuids.stream().collect(Collectors.toMap(e -> e, e -> new CloudResizeActionDetailsApiDTO()));
+            setVolumeCosts(topologyContextId, volumeDTOMap);
+            dtoMap.putAll(volumeDTOMap);
+        }
 
         return dtoMap;
     }
@@ -2052,6 +2092,70 @@ public class ActionSpecMapper {
             });
         } else {
             logger.debug("Unable to provide on-demand costs before and after action for entities {}",
+                    dtoMap);
+        }
+    }
+
+    /**
+     * Set before/after on-demand cost and on-demand rate for volumes within cloud scaling volume actions.
+     *
+     * @param topologyContextId topology context Id
+     * @param dtoMap cloud resize action details DTO map, key is volume id
+     */
+    private void setVolumeCosts(Long topologyContextId, Map<Long, CloudResizeActionDetailsApiDTO> dtoMap) {
+        EntityFilter entityFilter = EntityFilter.newBuilder().addAllEntityId(dtoMap.keySet()).build();
+        CloudCostStatsQuery.Builder cloudCostStatsQueryBuilder = CloudCostStatsQuery.newBuilder()
+                .setRequestProjected(true)
+                .setEntityFilter(entityFilter)
+                .setCostCategoryFilter(CostCategoryFilter.newBuilder()
+                        .setExclusionFilter(false)
+                        .addCostCategory(CostCategory.STORAGE)
+                        .build());
+        if (Objects.nonNull(topologyContextId)) {
+            cloudCostStatsQueryBuilder.setTopologyContextId(topologyContextId);
+        }
+        GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
+                .addCloudCostStatsQuery(cloudCostStatsQueryBuilder.build())
+                .build();
+        final Iterator<GetCloudCostStatsResponse> response =
+                costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
+        Map<Long, List<StatRecord>> recordsByTime = new HashMap<>();
+        while (response.hasNext()) {
+            for (CloudCostStatRecord rec: response.next().getCloudStatRecordList()) {
+                recordsByTime.computeIfAbsent(rec.getSnapshotDate(), x -> new ArrayList<>()).addAll(rec.getStatRecordsList());
+            }
+        }
+
+        // We expect to receive only current and future times
+        Set<Long> timeSet = recordsByTime.keySet();
+        if (timeSet.size() == 2) {
+            Long currentTime = Collections.min(timeSet); // current
+            Long projectedTime = Collections.max(timeSet); // projected
+            List<StatRecord> currentRecords = recordsByTime.get(currentTime);
+            List<StatRecord> projectedRecords = recordsByTime.get(projectedTime);
+
+            dtoMap.forEach((id, dto) -> {
+                // get real-time
+                Double onDemandCostBefore = currentRecords
+                        .stream()
+                        .filter(rec -> rec.getAssociatedEntityId() == id)
+                        .map(StatRecord::getValues)
+                        .mapToDouble(StatRecord.StatValue::getTotal)
+                        .sum();
+                // get projected
+                Double onDemandCostAfter = projectedRecords
+                        .stream()
+                        .filter(rec -> rec.getAssociatedEntityId() == id)
+                        .map(StatRecord::getValues)
+                        .mapToDouble(StatRecord.StatValue::getTotal)
+                        .sum();
+                dto.setOnDemandCostBefore(onDemandCostBefore.floatValue());
+                dto.setOnDemandRateBefore(onDemandCostBefore.floatValue());
+                dto.setOnDemandCostAfter(onDemandCostAfter.floatValue());
+                dto.setOnDemandRateAfter(onDemandCostAfter.floatValue());
+            });
+        } else {
+            logger.debug("Unable to provide on-demand costs before and after action for volumes {}",
                     dtoMap);
         }
     }

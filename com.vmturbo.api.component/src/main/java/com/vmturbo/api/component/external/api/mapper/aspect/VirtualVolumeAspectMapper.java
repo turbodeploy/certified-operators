@@ -454,17 +454,17 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     }
 
     public Map<Long, List<VirtualDiskApiDTO>> mapVirtualMachines(@Nonnull Set<Long> vmIds,
-            final long topologyContextId) throws InterruptedException, ConversionException {
+                                                                 final long topologyContextId) throws InterruptedException, ConversionException {
         // fetch vms from given topology, for example: a plan projected topology
         final List<TopologyEntityDTO> vms = repositoryApi.entitiesRequest(vmIds)
-            .contextId(topologyContextId)
-            .getFullEntities()
-            .collect(Collectors.toList());
+                .contextId(topologyContextId)
+                .getFullEntities()
+                .collect(Collectors.toList());
         return mapVirtualMachines(vms, topologyContextId);
     }
 
     /**
-     * Map Unattached Volumes.
+     * Map Virtual Volumes.
      *
      * @param volumeIds - uuids of unattached volumes
      * @param topologyContextId - context ID of topology
@@ -472,13 +472,13 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      * @throws ConversionException if errors faced during converting data to API DTOs
      * @throws InterruptedException if thread has been interrupted
      */
-    public Optional<Map<Long, EntityAspect>> mapUnattachedVirtualVolumes(@Nonnull Set<Long> volumeIds,
+    public Optional<Map<Long, EntityAspect>> mapVirtualVolumes(@Nonnull Set<Long> volumeIds,
                final long topologyContextId) throws ConversionException, InterruptedException {
-        final List<TopologyEntityDTO> unattachedVolumes = repositoryApi.entitiesRequest(volumeIds)
+        final List<TopologyEntityDTO> volumes = repositoryApi.entitiesRequest(volumeIds)
                 .contextId(topologyContextId)
                 .getFullEntities()
                 .collect(Collectors.toList());
-        return mapEntityToAspectBatch(unattachedVolumes);
+        return mapEntityToAspectBatch(volumes);
     }
 
     /**

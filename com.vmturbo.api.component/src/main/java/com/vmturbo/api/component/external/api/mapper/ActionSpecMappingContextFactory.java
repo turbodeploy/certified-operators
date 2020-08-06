@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
@@ -510,12 +511,24 @@ public class ActionSpecMappingContextFactory {
     private Map<Long, List<VirtualDiskApiDTO>> fetchVolumeAspects(@Nonnull List<Action> actions,
             long topologyContextId) throws InterruptedException, ConversionException {
         Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByEntity = new HashMap<>();
-        final Map<ApiEntityType, Set<Long>> involvedWorkloadIdsMap = getEntityIdsToFetchVolumeAspects(actions);
+        final Set<Long> scaleVolumeIds = new HashSet<>();
+        final Set<Long> deleteVolumeIds = new HashSet<>();
+        final Set<Long> moveVolumeVMIds = new HashSet<>();
+        getEntityIdsToFetchVolumeAspects(actions, scaleVolumeIds, moveVolumeVMIds, deleteVolumeIds);
 
         // retrieve volume aspects for move volume actions
-        final Set<Long> virtualMachinesOIDs = involvedWorkloadIdsMap.get(ApiEntityType.VIRTUAL_MACHINE);
-        if (!virtualMachinesOIDs.isEmpty()) {
-            volumesAspectsByEntity = volumeAspectMapper.mapVirtualMachines(virtualMachinesOIDs, topologyContextId);
+        if (!moveVolumeVMIds.isEmpty()) {
+            volumesAspectsByEntity.putAll(volumeAspectMapper.mapVirtualMachines(moveVolumeVMIds, topologyContextId));
+        }
+
+        // retrieve volume aspects for scale volume actions
+        if (!scaleVolumeIds.isEmpty()) {
+            final Optional<Map<Long, EntityAspect>> scaleVolumeAspects =
+                    volumeAspectMapper.mapVirtualVolumes(scaleVolumeIds, topologyContextId);
+            scaleVolumeAspects.ifPresent(longEntityAspectMap -> longEntityAspectMap.forEach((id, aspect) -> {
+                List<VirtualDiskApiDTO> virtualDiskApiDTOS = Collections.unmodifiableList(((VirtualDisksAspectApiDTO)aspect).getVirtualDisks());
+                volumesAspectsByEntity.put(id, virtualDiskApiDTOS);
+            }));
         }
 
         // only process volumes aspects if we have them
@@ -549,10 +562,9 @@ public class ActionSpecMappingContextFactory {
 
         // retrieve volume aspects for delete volume actions
         final Map<Long, List<VirtualDiskApiDTO>> aspectsByEntity = new HashMap<>(volumesAspectsByEntity);
-        final Set<Long> virtualVolumeOIDs = involvedWorkloadIdsMap.get(ApiEntityType.VIRTUAL_VOLUME);
-        if (!virtualVolumeOIDs.isEmpty()) {
+        if (!deleteVolumeIds.isEmpty()) {
             final Optional<Map<Long, EntityAspect>> unattachedVolumeAspects = volumeAspectMapper
-                    .mapUnattachedVirtualVolumes(virtualVolumeOIDs, topologyContextId);
+                    .mapVirtualVolumes(deleteVolumeIds, topologyContextId);
             unattachedVolumeAspects.ifPresent(longEntityAspectMap -> longEntityAspectMap.forEach((id, aspect) -> {
                 List<VirtualDiskApiDTO> virtualDiskApiDTOS = Collections.unmodifiableList(((VirtualDisksAspectApiDTO)aspect).getVirtualDisks());
                 aspectsByEntity.put(id, virtualDiskApiDTOS);
@@ -565,21 +577,31 @@ public class ActionSpecMappingContextFactory {
     /**
      * Get the oids of the entities which we need to fetch volume aspects for and set to the ActionApiDTO later.
      *
-     * @param actions list of Move or Delete Volume actions
-     * @return enumeration map of ApiEntityType and set of oids of action targets
+     * @param actions list of MOVE, SCALE or Delete Volume actions.
+     * @param scaleVolumeIds set to preserve volume ids that are going to be scaled.
+     * @param moveVolumeVMIds set to preserve vm ids that have move volume actions.
+     * @param deleteVolumeIds set to preserve volume ids that are going to be deleted.
      */
-    private Map<ApiEntityType, Set<Long>> getEntityIdsToFetchVolumeAspects(@Nonnull final List<Action> actions) {
-        // action here could be volume MOVE or volume DELETE action
-        final Set<Long> vmIds = new HashSet<>();
-        final Set<Long> volumeIds = new HashSet<>();
+    private void getEntityIdsToFetchVolumeAspects(@Nonnull final List<Action> actions,
+                                                  @Nonnull final Set<Long> scaleVolumeIds,
+                                                  @Nonnull final Set<Long> moveVolumeVMIds,
+                                                  @Nonnull final Set<Long> deleteVolumeIds) {
         actions.forEach(action -> {
             ActionTypeCase actionTypeCase = action.getInfo().getActionTypeCase();
+            // volume scales
+            if (actionTypeCase.equals(ActionTypeCase.SCALE)) {
+                Scale scaleInfo = action.getInfo().getScale();
+                if (scaleInfo.getTarget().getEnvironmentType() == EnvironmentType.CLOUD
+                        && scaleInfo.getTarget().getType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+                    scaleVolumeIds.add(scaleInfo.getTarget().getId());
+                }
+            }
             // volume moves
             if (actionTypeCase.equals(ActionTypeCase.MOVE)) {
                 Move moveInfo = action.getInfo().getMove();
                 if (moveInfo.getTarget().getEnvironmentType() == EnvironmentType.CLOUD
                         && moveInfo.getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                    vmIds.add(moveInfo.getTarget().getId());
+                    moveVolumeVMIds.add(moveInfo.getTarget().getId());
                 }
             }
             // volume deletes
@@ -587,15 +609,10 @@ public class ActionSpecMappingContextFactory {
                 Delete deleteInfo = action.getInfo().getDelete();
                 if (deleteInfo.getTarget().getEnvironmentType().equals(EnvironmentType.CLOUD)
                         && deleteInfo.getTarget().getType() == EntityType.VIRTUAL_VOLUME_VALUE) {
-                    volumeIds.add(deleteInfo.getTarget().getId());
+                    deleteVolumeIds.add(deleteInfo.getTarget().getId());
                 }
             }
         });
-
-        final Map<ApiEntityType, Set<Long>> entityTypeToIdsMapping = new HashMap<ApiEntityType, Set<Long>>();
-        entityTypeToIdsMapping.put(ApiEntityType.VIRTUAL_MACHINE, vmIds);
-        entityTypeToIdsMapping.put(ApiEntityType.VIRTUAL_VOLUME, volumeIds);
-        return entityTypeToIdsMapping;
     }
 
     /**
