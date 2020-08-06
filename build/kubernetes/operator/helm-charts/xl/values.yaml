@@ -115,15 +115,6 @@ grafana:
       user: grafana_backend
 chronograf:
   enabled: false
-jaeger-operator:
-  enabled: false
-  jaeger:
-    create: true
-    spec:
-      storage:
-        options:
-          memory:
-            max-traces: 100000
 datacloud:
   enabled: false
 intersight-integration:

@@ -150,12 +150,6 @@ dependencies:
     version: 0.1.0
     condition: datacloud.enabled
 
-# Tracing dependencies
-  - name: jaeger-operator
-    repository: file://../base/jaeger-operator
-    version: 2.15.1
-    condition: jaeger-operator.enabled
-
 # Integration dependencies
   - name: intersight-integration
     repository: file://../services/intersight-integration
