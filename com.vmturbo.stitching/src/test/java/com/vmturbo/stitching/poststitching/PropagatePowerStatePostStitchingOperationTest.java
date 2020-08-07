@@ -154,4 +154,89 @@ public class PropagatePowerStatePostStitchingOperationTest {
         assertEquals(EntityState.POWERED_OFF, appEntity2.getEntityState());
         assertEquals(EntityState.MAINTENANCE, vmEntity1.getEntityState());
     }
+
+    /**
+     * Test that propagation happens from VMs in UNKNOWN state.
+     */
+    @Test
+    public void testPropagateUnknownState() {
+        // apply operation
+        final UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
+        // if vm state is unknown, it should propagate
+        vmEntity1.getTopologyEntityDtoBuilder().setEntityState(EntityState.UNKNOWN);
+        propagatePowerStateOp.performOperation(Stream.of(vmEntity1), settingsCollection, resultBuilder);
+        // check that no changes applied
+        assertEquals(1, resultBuilder.getChanges().size());
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+
+        // after operation, verify that app1 and app2 states are changed
+        assertEquals(EntityState.UNKNOWN, appEntity1.getEntityState());
+        assertEquals(EntityState.UNKNOWN, appEntity2.getEntityState());
+        assertEquals(EntityState.UNKNOWN, vmEntity1.getEntityState());
+    }
+
+    /**
+     * Test that consumer propagation is recursive.
+     */
+    @Test
+    public void testRecursivePropagation() {
+        // VM <-- ContainerPod <-- Container <-- AppComponent <-- Service
+        final UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
+
+        final TopologyEntity.Builder serviceBuilder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(1000L)
+                .setDisplayName("Service")
+                .setEntityType(EntityType.SERVICE_VALUE)
+                .setEntityState(EntityState.POWERED_ON));
+
+        final TopologyEntity.Builder appBuilder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(1001L)
+                .setDisplayName("RealApp")
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
+                .setEntityState(EntityState.POWERED_ON));
+
+        final TopologyEntity.Builder containerBuilder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(1002L)
+                .setDisplayName("Container")
+                .setEntityType(EntityType.CONTAINER_VALUE)
+                .setEntityState(EntityState.POWERED_ON));
+
+        final TopologyEntity.Builder containerPodBuilder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(1003L)
+                .setDisplayName("ContainerPod")
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .setEntityState(EntityState.POWERED_ON));
+
+        final TopologyEntity.Builder vmBuilder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(1004L)
+                .setDisplayName("VirtualMachine")
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEntityState(EntityState.UNKNOWN));
+
+        appBuilder.addConsumer(serviceBuilder);
+        containerBuilder.addConsumer(appBuilder);
+        containerPodBuilder.addConsumer(containerBuilder);
+        vmBuilder.addConsumer(containerPodBuilder);
+
+        final TopologyEntity service = serviceBuilder.build();
+        final TopologyEntity app = appBuilder.build();
+        final TopologyEntity container = containerBuilder.build();
+        final TopologyEntity containerPod = containerPodBuilder.build();
+        final TopologyEntity vm = vmBuilder.build();
+
+        propagatePowerStateOp.performOperation(Stream.of(vm), settingsCollection, resultBuilder);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+
+        // All consumers except the service should have UNKNOWN power state.
+        assertEquals(EntityState.POWERED_ON, service.getEntityState());
+        assertEquals(EntityState.UNKNOWN, app.getEntityState());
+        assertEquals(EntityState.UNKNOWN, container.getEntityState());
+        assertEquals(EntityState.UNKNOWN, containerPod.getEntityState());
+        assertEquals(EntityState.UNKNOWN, vm.getEntityState());
+    }
 }
