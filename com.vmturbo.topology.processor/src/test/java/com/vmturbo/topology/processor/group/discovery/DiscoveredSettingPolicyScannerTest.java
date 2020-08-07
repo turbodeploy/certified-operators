@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -79,10 +78,10 @@ public class DiscoveredSettingPolicyScannerTest {
                     new DiscoveredSettingPolicyScanner(probeStore, targetStore);
 
     @Captor
-    private ArgumentCaptor<Collection<InterpretedGroup>> groupsCaptor;
+    private ArgumentCaptor<List<InterpretedGroup>> groupsCaptor;
 
     @Captor
-    private ArgumentCaptor<Collection<DiscoveredSettingPolicyInfo>> settingPolicyCaptor;
+    private ArgumentCaptor<List<DiscoveredSettingPolicyInfo>> settingPolicyCaptor;
 
     private final List<TopologyStitchingEntity> hosts = new ArrayList<>();
 
@@ -299,7 +298,7 @@ public class DiscoveredSettingPolicyScannerTest {
             groupsCaptor.capture(),
             settingPolicyCaptor.capture());
 
-        assertThat(new HashSet<>(groupsCaptor.getValue()), containsInAnyOrder(group1, group2));
+        assertThat(groupsCaptor.getValue(), containsInAnyOrder(group1, group2));
         assertThat(settingPolicyCaptor.getValue(),
             containsInAnyOrder(settingPolicy1.build(), settingPolicy2.build()));
     }

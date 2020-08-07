@@ -13,16 +13,18 @@ import java.util.Enumeration;
 import java.util.Optional;
 import java.util.Vector;
 
-import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.powermock.api.mockito.PowerMockito;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
+import org.powermock.core.classloader.annotations.PrepareForTest;
+import org.powermock.modules.junit4.PowerMockRunner;
 
-//@RunWith(PowerMockRunner.class)
-//@PrepareForTest({ ComponentUtils.class })
-//// Prevent linkage error:
-//// http://stackoverflow.com/questions/16520699/mockito-powermock-linkageerror-while-mocking-system-class
-//@PowerMockIgnore("javax.management.*")
-@Ignore("This unit test fails on Java11. Need to be fixed later")
+@RunWith(PowerMockRunner.class)
+@PrepareForTest({ ComponentUtils.class })
+// Prevent linkage error:
+// http://stackoverflow.com/questions/16520699/mockito-powermock-linkageerror-while-mocking-system-class
+@PowerMockIgnore("javax.management.*")
 public class ComponentUtilsTest {
 
     @Test

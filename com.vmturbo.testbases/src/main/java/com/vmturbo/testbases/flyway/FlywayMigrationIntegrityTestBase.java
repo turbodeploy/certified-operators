@@ -6,7 +6,6 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.http.impl.client.HttpClients;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -79,8 +78,7 @@ public class FlywayMigrationIntegrityTestBase {
     }
 
     protected GitlabApi getGitlabApi() {
-        return new GitlabApi(GitlabApi.TURBO_GITLAB_HOST, GitlabApi.XL_PROJECT_PATH,
-                HttpClients::createDefault);
+        return new GitlabApi(GitlabApi.TURBO_GITLAB_HOST, GitlabApi.XL_PROJECT_PATH);
     }
 
     protected List<String> getRelativeSourceDirs() {
