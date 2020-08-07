@@ -40,6 +40,7 @@ import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
+import com.vmturbo.api.enums.AccountFilterType;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.auth.api.Pair;
@@ -307,7 +308,8 @@ public class ActionSpecMappingContextFactory {
             try {
                 final List<ReservedInstanceApiDTO> risForPlan =
                         reservedInstancesService.getReservedInstances(
-                                String.valueOf(topologyContextId), true);
+                                String.valueOf(topologyContextId), true,
+                                AccountFilterType.USED_AND_PURCHASED_BY);
                 context.setReservedInstances(risForPlan);
             } catch (Exception e) {
                 throw new ExecutionException("Unable to get RIs for plan " + topologyContextId, e);
