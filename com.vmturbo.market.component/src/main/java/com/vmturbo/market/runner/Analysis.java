@@ -1018,16 +1018,10 @@ public class Analysis {
                     // Validate that we were able to find a compute tier and region
                     if (!computeTier.isPresent()) {
                         logger.warn("Could not find compute tier for workload placement for VM: {}", entity.getOid());
-                        return;
-                    }
-                    if (!region.isPresent()) {
+                    } else if (!region.isPresent()) {
                         logger.warn("Could not find region for workload placement for VM: {}, compute tier: {}", entity.getOid(), computeTier.get().getOid());
-                        return;
-                    }
-
-                    // Only add the VM to the list to analyze if it has not been resized specifically to use an existing reserved instance
-                    if (!isVMUsingRI(entity, computeTier.get())) {
-                        // Add the VM to our workload placement list
+                    } else if (!isVMUsingRI(entity, computeTier.get())) {
+                        // Only add the VM to the list to analyze if it has not been resized specifically to use an existing reserved instance
                         workloadPlacementList.add(Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement.newBuilder()
                                 .setVirtualMachine(entity)
                                 .setComputeTier(computeTier.get())
@@ -1045,11 +1039,12 @@ public class Analysis {
         // Validate that we actually found a master business account
         if (!masterBusinessAccount.isPresent()) {
             logger.warn("Could not find master business account in projected cloud topology");
-            return;
         }
 
         // Send the request to start the analysis
-        migratedWorkloadCloudCommitmentAnalysisService.startAnalysis(topologyInfo.getTopologyContextId(), masterBusinessAccount.get().getOid(), workloadPlacementList);
+        migratedWorkloadCloudCommitmentAnalysisService.startAnalysis(topologyInfo.getTopologyContextId(),
+                masterBusinessAccount.map(TopologyEntityDTO::getOid),
+                workloadPlacementList);
     }
 
     /**

@@ -86,7 +86,7 @@ public class MigratedWorkloadCloudCommitmentAnalysisService extends MigratedWork
         // Retrieve the plan and its scenarios
         Optional<Map<CloudType, RIProviderSetting>> riProviderSettingMap = getRIProviderSetting(request.getTopologyContextId());
         List<ActionDTO.Action> actions = new ArrayList<>();
-        if (riProviderSettingMap.isPresent() && !riProviderSettingMap.get().isEmpty()) {
+        if (riProviderSettingMap.isPresent() && !riProviderSettingMap.get().isEmpty() && request.hasBusinessAccount()) {
             // Only perform the analysis if we have valid RI provider settings
             CloudType cloudType = riProviderSettingMap.get().keySet().stream().findFirst().get();
             RIProviderSetting riProviderSetting = riProviderSettingMap.get().get(cloudType);

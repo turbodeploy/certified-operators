@@ -229,7 +229,7 @@ public class AnalysisTest {
                 .thenReturn(Collections.singletonList(wastedFileAction));
         when(wastedFilesAnalysis.getStorageAmountReleasedForOid(anyLong())).thenReturn(Optional.empty());
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
-        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), anyLong(), anyList());
+        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
 
         return new Analysis(topoInfo, topologySet,
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,

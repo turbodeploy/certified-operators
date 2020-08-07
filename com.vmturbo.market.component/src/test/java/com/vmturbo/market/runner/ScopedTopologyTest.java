@@ -180,7 +180,7 @@ public class ScopedTopologyTest {
                 mock(BuyRIImpactAnalysisFactory.class);
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
-        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), anyLong(), anyList());
+        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
         testAnalysis = new Analysis(PLAN_TOPOLOGY_INFO,
             Collections.emptySet(),
             new GroupMemberRetriever(groupServiceClient),
@@ -374,7 +374,7 @@ public class ScopedTopologyTest {
                 when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(MarketPriceTable.class));
                 when(topologyCostCalculatorFactory.newCalculator(any(), any())).thenReturn(topologyCostCalculator);
                 final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
-                doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), anyLong(), anyList());
+                doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
 
                 return new Analysis(topologyInfo, topologyDTOs,
                         new GroupMemberRetriever(groupServiceClient), Clock.systemUTC(),

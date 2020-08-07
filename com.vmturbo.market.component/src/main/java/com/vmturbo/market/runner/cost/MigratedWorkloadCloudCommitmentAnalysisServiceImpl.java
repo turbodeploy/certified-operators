@@ -1,6 +1,7 @@
 package com.vmturbo.market.runner.cost;
 
 import java.util.List;
+import java.util.Optional;
 
 import io.grpc.Channel;
 
@@ -42,11 +43,11 @@ public class MigratedWorkloadCloudCommitmentAnalysisServiceImpl implements Migra
      * @param workloadPlacementList A list of workload placements (VM, compute tier, and region)
      */
     @Override
-    public void startAnalysis(long topologyContextId, long businessAccountOid, List<Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement> workloadPlacementList) {
+    public void startAnalysis(long topologyContextId, Optional<Long> businessAccountOid, List<Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement> workloadPlacementList) {
         Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.Builder builder = Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.newBuilder();
 
         builder.setTopologyContextId(topologyContextId);
-        builder.setBusinessAccount(businessAccountOid);
+        businessAccountOid.ifPresent(ba -> builder.setBusinessAccount(ba));
 
         // TODO: this information needs to be extracted from the plan scenario; hardcoded for now
         builder.setMigrationProfile(Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigrationProfile.newBuilder()
