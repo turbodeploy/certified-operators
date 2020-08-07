@@ -477,7 +477,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         // available for placement
         newTrader.getSettings().setCanAcceptNewCustomers(modelSeller.getSettings()
                                                                          .canAcceptNewCustomers());
-
+        newTrader.getSettings().setContext(modelSeller.getSettings().getContext());
         Collection<Market> marketsToScan = basketSold.equals(modelSeller.getBasketSold()) ?
             getMarketsAsSeller(modelSeller) : markets_.values();
 
