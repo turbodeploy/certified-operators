@@ -94,7 +94,7 @@ public class PolicyMapper {
 
         final PolicyInfo policyInfo = policyProto.getPolicyInfo();
         policyApiDTO.setName(policyInfo.getName());
-        policyApiDTO.setDisplayName(policyInfo.getName());
+        policyApiDTO.setDisplayName(policyInfo.getDisplayName());
         policyApiDTO.setUuid(Long.toString(policyProto.getId()));
         policyApiDTO.setEnabled(policyInfo.getEnabled());
         if (policyInfo.hasCommodityType()) {

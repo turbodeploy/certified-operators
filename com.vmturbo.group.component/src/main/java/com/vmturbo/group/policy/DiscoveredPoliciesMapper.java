@@ -87,6 +87,7 @@ public class DiscoveredPoliciesMapper {
 
         // create the policy
         final PolicyInfo.Builder builder = PolicyInfo.newBuilder()
+                        .setDisplayName(spec.getPolicyDisplayName())
                         .setName(spec.getPolicyName());
         switch (spec.getConstraintType()) {
             case ConstraintType.BUYER_SELLER_AFFINITY_VALUE:

@@ -230,7 +230,11 @@ message OriginFilter {
 // These are uploaded to group component together with discovered groups.
 message DiscoveredPolicyInfo {
     // Name of constraint which was used for creating of Policy info
+    // The name should be unique.
     required string policy_name = 1;
+
+    // Display name of of Policy info
+    optional string policy_display_name = 5;
 
     // Name of the seller's group. It will be replaced to OID in group component.
     // When creating a discovered policy, a group of the same name must exist in the
