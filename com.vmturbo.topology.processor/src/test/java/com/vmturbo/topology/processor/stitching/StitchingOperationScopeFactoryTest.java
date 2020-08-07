@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.powermock.api.mockito.PowerMockito;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -66,7 +66,7 @@ public class StitchingOperationScopeFactoryTest {
     @Before
     public void setup() {
         final TargetStore targetStore = mock(TargetStore.class);
-        PowerMockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
+        Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
 
         final Builder contextBuilder = StitchingContext.newBuilder(5, targetStore)
             .setIdentityProvider(mock(IdentityProviderImpl.class));

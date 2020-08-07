@@ -7,7 +7,6 @@ import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.SCALE;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PATTERN;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PREFIX;
 
-import java.beans.PropertyDescriptor;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.MessageFormat;
@@ -41,6 +40,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
+import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -973,8 +973,7 @@ public class ActionSpecMapper {
                 final Optional<ServiceEntityApiDTO> entity = context.getEntity(oid);
                 if (entity.isPresent()) {
                     // invoke the getter via reflection
-                    Object fieldValue = new PropertyDescriptor(matcher.group(2),
-                            ServiceEntityApiDTO.class).getReadMethod().invoke(entity.get());
+                    final Object fieldValue = BeanUtils.getProperty(entity.get(), matcher.group(2));
                     sb.append(fieldValue);
                 } else {
                     // use the substitute/fallback value because there is no entity in topology

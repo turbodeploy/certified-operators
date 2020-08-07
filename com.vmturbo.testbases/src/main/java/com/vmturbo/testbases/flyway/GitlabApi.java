@@ -5,7 +5,11 @@ import java.net.URISyntaxException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,6 +19,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Streams;
 import com.google.common.net.MediaType;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
@@ -23,7 +28,6 @@ import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.apache.http.protocol.HttpCoreContext;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
@@ -54,6 +58,7 @@ public class GitlabApi {
             ImmutableList.of("repository","tags");
 
     private static ObjectMapper objectMapper = new ObjectMapper();
+    private final Supplier<CloseableHttpClient> httpClientSupplier;
 
     static final ResponseHandler<JsonNode> jsonResponseHandler = response -> {
         int status = response.getStatusLine().getStatusCode();
@@ -75,10 +80,13 @@ public class GitlabApi {
      *
      * @param gitlabHost      host name or IP address of gitlab service
      * @param fullProjectPath full path name of project (not url-encoded)
+     * @param httpClientSupplier a supplier to obtain a HTTP client
      */
-    public GitlabApi(String gitlabHost, String fullProjectPath) {
+    public GitlabApi(String gitlabHost, String fullProjectPath,
+            @Nonnull Supplier<CloseableHttpClient> httpClientSupplier) {
         this.gitlabHost = gitlabHost;
         this.fullProjectPath = fullProjectPath;
+        this.httpClientSupplier = Objects.requireNonNull(httpClientSupplier);
     }
 
     /**
@@ -142,7 +150,7 @@ public class GitlabApi {
         HttpGet request = new HttpGet(uriBuilder.build());
         request.addHeader(API_TOKEN_HEADER_NAME, getApiToken());
         request.addHeader(HttpHeaders.ACCEPT, JSON_MEDIA_TYPE);
-        try (CloseableHttpClient client = HttpClients.createDefault()) {
+        try (CloseableHttpClient client = httpClientSupplier.get()) {
             return client.execute(request, jsonResponseHandler, HttpCoreContext.create());
         }
     }

@@ -416,6 +416,7 @@
                 <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
                 <module>../com.vmturbo.mediation.hyperflex.component</module>
+                <module>../com.vmturbo.mediation.hyperv.conversion</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.netflow.component</module>
@@ -441,6 +442,7 @@
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
+                <module>../com.vmturbo.mediation.vmm.conversion</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.xtremio.component</module>
