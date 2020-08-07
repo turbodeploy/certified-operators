@@ -25,9 +25,12 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost;
 import com.vmturbo.common.protobuf.cost.Pricing;
+import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.component.db.tables.pojos.ActionContextRiBuy;
 import com.vmturbo.cost.component.db.tables.pojos.BuyReservedInstance;
@@ -48,7 +51,11 @@ import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitm
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.PricingDTO;
+import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 
 /**
  * MigratedWorkloadCloudCommitmentAlgorithmStrategy that replicates the strategy used in the classic OpsManager.
@@ -101,14 +108,14 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     /**
      * Create a new ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy.
      *
-     * @param historicalStatsService            The historical status service that will be used to retrieve historical VCPU metrics
-     * @param priceTableStore                   The price table store, from which we retrieve on-demand and reserved instance prices
-     * @param businessAccountPriceTableKeyStore Used to map the business account to a price table key
-     * @param planBuyReservedInstanceStore      Used to create a record in the buy_reserved_instance database table
-     * @param planReservedInstanceSpecStore     Used to match a reserved instance specification to its reserved instance spec record
-     * @param planActionContextRiBuyStore       Used to add a record to the action_context_ri_buy database table
+     * @param historicalStatsService                            The historical status service that will be used to retrieve historical VCPU metrics
+     * @param priceTableStore                                   The price table store, from which we retrieve on-demand and reserved instance prices
+     * @param businessAccountPriceTableKeyStore                 Used to map the business account to a price table key
+     * @param planBuyReservedInstanceStore                      Used to create a record in the buy_reserved_instance database table
+     * @param planReservedInstanceSpecStore                     Used to match a reserved instance specification to its reserved instance spec record
+     * @param planActionContextRiBuyStore                       Used to add a record to the action_context_ri_buy database table
      * @param planProjectedEntityToReservedInstanceMappingStore Used to add a record to the plan_projected_entity_to_reserved_instance_mapping table
-     * @param planReservedInstanceBoughtStore   Used to add a record to the plan_reserved_instance_bought table
+     * @param planReservedInstanceBoughtStore                   Used to add a record to the plan_reserved_instance_bought table
      */
     public ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy(HistoricalStatsService historicalStatsService,
                                                                    PriceTableStore priceTableStore,
@@ -379,7 +386,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
 
         // Build our BuyRI action info
         ActionDTO.BuyRI buyRI = ActionDTO.BuyRI.newBuilder()
-                .setBuyRiId(IdentityGenerator.next())  // TODO: determine what to put here
+                .setBuyRiId(IdentityGenerator.next())
                 .setComputeTier(ActionDTO.ActionEntity.newBuilder()
                         .setId(placement.getComputeTier().getOid())
                         .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
@@ -548,14 +555,14 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     /**
      * Creates a record in the plan_reserved_instance_bought table.
      *
-     * @param id                                The ID of this record
-     * @param planId                            The plan for which this reserved instance was bought
-     * @param reservedInstanceSpecId            The spec ID of this reserved instance
-     * @param reservedInstanceBoughtInfo        Information about the RI that was bought
-     * @param count                             The number of RIs that were purchased
-     * @param perInstanceFixedCost              The upfront cost of the RI
-     * @param perInstanceRecurringCostHourly    The recurring hourly cost of this RI
-     * @param perInstanceAmortizedCostHourly    The hourly cost of running this RI amortized over the term
+     * @param id                             The ID of this record
+     * @param planId                         The plan for which this reserved instance was bought
+     * @param reservedInstanceSpecId         The spec ID of this reserved instance
+     * @param reservedInstanceBoughtInfo     Information about the RI that was bought
+     * @param count                          The number of RIs that were purchased
+     * @param perInstanceFixedCost           The upfront cost of the RI
+     * @param perInstanceRecurringCostHourly The recurring hourly cost of this RI
+     * @param perInstanceAmortizedCostHourly The hourly cost of running this RI amortized over the term
      */
     private void createPlanReservedInstanceBought(long id,
                                                   long planId,
@@ -610,13 +617,47 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         // Get the virtual machine operating system
         costRecord.setOsType(placement.getVirtualMachine().getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType());
 
-        // Lookup costs. TODO: add null checks
-        Pricing.OnDemandPriceTable onDemandPriceTable = priceTable.getOnDemandPriceByRegionIdMap().get(placement.getRegion().getOid());
-        PricingDTO.ComputeTierPriceList computeTierPriceList = onDemandPriceTable.getComputePricesByTierIdMap().get(placement.getComputeTier().getOid());
-        costRecord.setOnDemandPrice(computeTierPriceList.getBasePrice().getPricesList().get(0).getPriceAmount().getAmount());
-        costRecord.setNumberOfCoupons(placement.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons());
+        // Lookup on-demand costs costs
+        Map<Long, OnDemandPriceTable> onDemandPriceTableMap = priceTable.getOnDemandPriceByRegionIdMap();
+        if (onDemandPriceTableMap != null) {
+            Pricing.OnDemandPriceTable onDemandPriceTable = onDemandPriceTableMap.get(placement.getRegion().getOid());
+            Map<Long, ComputeTierPriceList> computeTierPriceListMap = onDemandPriceTable.getComputePricesByTierIdMap();
+            if (computeTierPriceListMap != null) {
+                PricingDTO.ComputeTierPriceList computeTierPriceList = computeTierPriceListMap.get(placement.getComputeTier().getOid());
+                ComputeTierConfigPrice computeTierConfigPrice = computeTierPriceList.getBasePrice();
+                if (computeTierConfigPrice != null) {
+                    List<Price> priceList = computeTierConfigPrice.getPricesList();
+                    if (CollectionUtils.isNotEmpty(priceList)) {
+                        Price price = priceList.get(0);
+                        CurrencyAmount currencyAmount = price.getPriceAmount();
+                        if (currencyAmount != null) {
+                            // Set the on-demand base price
+                            costRecord.setOnDemandBasePrice(currencyAmount.getAmount());
+                        }
+                    }
+                }
 
-        // TODO: Get on-demand license cost, not presently in the price table for this compute tier
+                // Set the on-demand license price
+                costRecord.setOnDemandLicencePrice(getOnDemandLicenseHourlyCost(computeTierPriceList, costRecord.getOsType()));
+            }
+        }
+
+        // Log warning if we can't find the on-demand cost
+        if (costRecord.getOnDemandBasePrice() <= 0.0) {
+            logger.warn("Unable to retrieve on-demand costs for VM: {}, compute tier: {}, region: {}",
+                    placement.getVirtualMachine().getOid(),
+                    placement.getComputeTier().getOid(),
+                    placement.getRegion().getOid());
+        }
+
+        // Retrieve the number of coupons used by this compute tier
+        TypeSpecificInfo typeSpecificInfo = placement.getComputeTier().getTypeSpecificInfo();
+        if (typeSpecificInfo != null) {
+            ComputeTierInfo computeTierInfo = typeSpecificInfo.getComputeTier();
+            if (computeTierInfo != null) {
+                costRecord.setNumberOfCoupons(computeTierInfo.getNumCoupons());
+            }
+        }
 
         // Find the reserved instance spec for the RI we want to buy
         List<Cost.ReservedInstanceSpec> riSpecs = new ArrayList<>();
@@ -654,10 +695,43 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         costRecord.setTerm(riProviderSetting.getPreferredTerm());
 
         // Get RI costs
-        PricingDTO.ReservedInstancePrice reservedInstancePrice = riPriceTable.getRiPricesBySpecIdMap().get(costRecord.getRiSpecId());
-        costRecord.setUpFrontPrice(reservedInstancePrice.getUpfrontPrice().getPriceAmount().getAmount());
-        costRecord.setRecurringPrice(reservedInstancePrice.getRecurringPrice().getPriceAmount().getAmount());
-        costRecord.setUsagePrice(reservedInstancePrice.getUsagePrice().getPriceAmount().getAmount());
+        Map<Long, PricingDTO.ReservedInstancePrice> reservedInstancePriceMap = riPriceTable.getRiPricesBySpecIdMap();
+        if (reservedInstancePriceMap != null) {
+            PricingDTO.ReservedInstancePrice reservedInstancePrice = reservedInstancePriceMap.get(costRecord.getRiSpecId());
+            if (reservedInstancePrice != null) {
+                // Handle the upfront price
+                Price upfrontPrice = reservedInstancePrice.getUpfrontPrice();
+                if (upfrontPrice != null) {
+                    CurrencyAmount currencyAmount = upfrontPrice.getPriceAmount();
+                    if (currencyAmount != null) {
+                        // Set the upfront RI price
+                        costRecord.setUpFrontPrice(currencyAmount.getAmount());
+                    }
+                }
+
+                // Handle the recurring price
+                Price recurringPrice = reservedInstancePrice.getRecurringPrice();
+                if (recurringPrice != null) {
+                    CurrencyAmount currencyAmount = recurringPrice.getPriceAmount();
+                    if (currencyAmount != null) {
+                        if (cloudType == CloudType.AZURE) {
+                            costRecord.setRecurringPrice(currencyAmount.getAmount() + costRecord.getOnDemandLicencePrice());
+                        } else {
+                            costRecord.setRecurringPrice(currencyAmount.getAmount());
+                        }
+                    }
+                }
+
+                // Handle the usage price
+                Price usagePrice = reservedInstancePrice.getUsagePrice();
+                if (usagePrice != null) {
+                    CurrencyAmount currencyAmount = usagePrice.getPriceAmount();
+                    if (currencyAmount != null) {
+                        costRecord.setUsagePrice(currencyAmount.getAmount());
+                    }
+                }
+            }
+        }
 
         // Compute the amortized hourly cost
         costRecord.setAmortizedHourlyCost(costRecord.getUpFrontPrice() / (riProviderSetting.getPreferredTerm() * 365 * 24) + costRecord.getRecurringPrice());
@@ -667,11 +741,31 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     }
 
     /**
+     * Returns the total on-demand hourly cost, which includes the base cost and the OS license cost.
+     *
+     * @param computeTierPriceList The compute tier price list from which to extract the on-demand price
+     * @param osType               The OS for which to retrieve the cost
+     * @return The total hourly cost, including the base cost and the OS license cost
+     */
+    private double getOnDemandLicenseHourlyCost(PricingDTO.ComputeTierPriceList computeTierPriceList, OSType osType) {
+        // Get the hourly cost
+        double basePrice = computeTierPriceList.getBasePrice().getPricesList().get(0).getPriceAmount().getAmount();
+
+        // Get OS license cost
+        Optional<ComputeTierConfigPrice> licenseCost = computeTierPriceList.getPerConfigurationPriceAdjustmentsList().stream()
+                .filter(adj -> adj.getGuestOsType() == osType)
+                .findFirst();
+
+        // Total hourly license cost
+        return licenseCost.isPresent() ? licenseCost.get().getPricesList().get(0).getPriceAmount().getAmount() : 0;
+    }
+
+    /**
      * Helper class that wraps cost information.
      */
     private class CostRecord {
         private CloudCostDTO.OSType osType;
-        private double onDemandPrice;
+        private double onDemandBasePrice;
         private double onDemandLicencePrice;
         private int numberOfCoupons;
         private double upFrontPrice;
@@ -693,12 +787,21 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
             return this;
         }
 
-        public double getOnDemandPrice() {
-            return onDemandPrice;
+        public double getOnDemandBasePrice() {
+            return onDemandBasePrice;
         }
 
-        public void setOnDemandPrice(double onDemandPrice) {
-            this.onDemandPrice = onDemandPrice;
+        public void setOnDemandBasePrice(double onDemandBasePrice) {
+            this.onDemandBasePrice = onDemandBasePrice;
+        }
+
+        /**
+         * The on-demand price is computed as the on-demand base price + on-demand license price.
+         *
+         * @return Total on-demand price
+         */
+        public double getOnDemandPrice() {
+            return onDemandBasePrice + onDemandLicencePrice;
         }
 
         public double getOnDemandLicencePrice() {
@@ -766,11 +869,11 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         }
 
         public double calculateSavingsPerHour() {
-            return onDemandPrice - amortizedHourlyCost;
+            return getOnDemandPrice() - amortizedHourlyCost;
         }
 
         public double calculateOnDemandCostForTerm() {
-            return onDemandPrice * 24 * 365 * term;
+            return getOnDemandPrice() * 24 * 365 * term;
         }
     }
 }
