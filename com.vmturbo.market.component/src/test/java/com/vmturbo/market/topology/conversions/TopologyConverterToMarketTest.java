@@ -920,6 +920,44 @@ public class TopologyConverterToMarketTest {
     }
 
     /**
+     * Test that if the percentile utilization is within target band, then resize quantity is
+     * same as current capacity.
+     */
+    @Test
+    public void testGetResizedCapacityWithinTargetBand() {
+        double used = 30;
+        double peak = 50;
+        double max = 100;
+        double histPercentile = 0.72;
+        double histUtilizaiton = 0.72;
+        double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_VOLUME_VALUE,
+            CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
+            CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
+            used, peak, max, 100, 0.7,
+            histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null);
+        assertEquals(100, quantities[0], 0.01f);
+    }
+
+    /**
+     * Test that if the percentile utilization is outside of target band, then resize quantity is
+     * calculated based on target utilization, percentile and capacity.
+     */
+    @Test
+    public void testGetResizedCapacityOutsideTargetBand() {
+        double used = 10;
+        double peak = 20;
+        double max = 20;
+        double histPercentile = 0.2;
+        double histUtilizaiton = 0.2;
+        double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_VOLUME_VALUE,
+            CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
+            CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
+            used, peak, max, 100, 0.7,
+            histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null);
+        assertEquals(0.2 * 100 / 0.7, quantities[0], 0.01f);
+    }
+
+    /**
      * Test for getResizedCapacity when no history is set.
      */
     @Test

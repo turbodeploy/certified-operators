@@ -418,7 +418,8 @@ public enum EntitySettingSpecs {
             //path is needed for the UI to display this setting in a separate category
             Arrays.asList(CategoryPathConstants.ADVANCED, CategoryPathConstants.UTILTARGET),
             SettingTiebreaker.BIGGER, /*this is related to the center setting. bigger diameter is more conservative*/
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/), true),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_VOLUME), numeric(0.0f/*min*/,
+        100.0f/*max*/, 10.0f/*default*/), true),
 
     /**
      * Aggressiveness for business user.
