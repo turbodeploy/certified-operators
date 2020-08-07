@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -30,6 +31,7 @@ import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
@@ -168,24 +170,37 @@ public class ReservedInstanceMapper {
 
         // The following properties are used for Azure
         reservedInstanceApiDTO.setTrueID(reservedInstanceBoughtInfo.getProbeReservedInstanceId());
-        reservedInstanceApiDTO.setScopeType(
-            reservedInstanceBoughtInfo.getReservedInstanceScopeInfo().getShared()
-                ? AzureRIScopeType.SHARED
-                : AzureRIScopeType.SINGLE);
         reservedInstanceApiDTO.setOrderID(reservedInstanceBoughtInfo.getReservationOrderId());
-        reservedInstanceApiDTO.setAppliedScopes(reservedInstanceBoughtInfo
-                .getReservedInstanceScopeInfo().getApplicableBusinessAccountIdList()
-                .stream()
-                .map(oid -> {
-                    final ServiceEntityApiDTO account = serviceEntityApiDTOMap.get(oid);
-                    if (account == null) {
-                        logger.error("Cannot find account specified in applied scopes: " + oid);
-                    }
-                    return account;
-                })
-                .filter(Objects::nonNull)
-                .map(BaseApiDTO::getDisplayName)
-                .collect(Collectors.toList()));
+
+        if (reservedInstanceBoughtInfo.hasReservedInstanceScopeInfo()) {
+            final ReservedInstanceScopeInfo reservedInstanceScopeInfo =
+                    reservedInstanceBoughtInfo.getReservedInstanceScopeInfo();
+            final List<Long> applicableBusinessAccountIdList =
+                    reservedInstanceScopeInfo.getApplicableBusinessAccountIdList();
+            if (!applicableBusinessAccountIdList.isEmpty()) {
+                reservedInstanceApiDTO.setScopeType(AzureRIScopeType.SINGLE);
+                reservedInstanceApiDTO.setAppliedScopes(
+                    reservedInstanceBoughtInfo.getReservedInstanceScopeInfo()
+                        .getApplicableBusinessAccountIdList()
+                        .stream()
+                        .map(oid -> {
+                            final ServiceEntityApiDTO account = serviceEntityApiDTOMap.get(oid);
+                            if (account == null) {
+                                logger.error("Cannot find account specified in applied scopes: {}",
+                                        oid);
+                            }
+                            return account;
+                        })
+                        .filter(Objects::nonNull)
+                        .map(BaseApiDTO::getDisplayName)
+                        .collect(Collectors.toList()));
+            } else if (reservedInstanceScopeInfo.hasShared()) {
+                reservedInstanceApiDTO.setScopeType(reservedInstanceScopeInfo.getShared()
+                        ? AzureRIScopeType.SHARED : AzureRIScopeType.SINGLE);
+            } else {
+                reservedInstanceApiDTO.setScopeType(AzureRIScopeType.UNKNOWN);
+            }
+        }
 
         reservedInstanceApiDTO.setCoveredEntityCount(coveredEntitiesCount);
         reservedInstanceApiDTO.setUndiscoveredAccountsCoveredCount(
