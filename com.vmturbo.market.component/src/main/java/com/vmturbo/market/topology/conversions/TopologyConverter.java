@@ -190,7 +190,7 @@ public class TopologyConverter {
 
     private final ProjectedRICoverageCalculator projectedRICoverageCalculator;
 
-    private final CloudStorageTierIOPSCalculator cloudStorageTierIOPSCalculator;
+    private CloudStorageTierIOPSCalculator cloudStorageTierIOPSCalculator;
 
     /**
      * A non-shop-together TopologyConverter.
@@ -241,7 +241,6 @@ public class TopologyConverter {
                 commoditiesResizeTracker,
                 projectedRICoverageCalculator, tierExcluder, commodityIndex,
                 getExplanationOverride()));
-        this.cloudStorageTierIOPSCalculator = new CloudStorageTierIOPSCalculator(unmodifiableEntityOidToDtoMap);
     }
 
     /**
@@ -433,7 +432,6 @@ public class TopologyConverter {
                 commoditiesResizeTracker,
                 projectedRICoverageCalculator, tierExcluder, commodityIndex,
                 getExplanationOverride()));
-        this.cloudStorageTierIOPSCalculator = new CloudStorageTierIOPSCalculator(unmodifiableEntityOidToDtoMap);
     }
 
     @VisibleForTesting
@@ -476,7 +474,6 @@ public class TopologyConverter {
             getExplanationOverride()));
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
-        this.cloudStorageTierIOPSCalculator = new CloudStorageTierIOPSCalculator(unmodifiableEntityOidToDtoMap);
     }
 
     /**
@@ -766,6 +763,7 @@ public class TopologyConverter {
             logger.info("Converting {} projectedTraders to topologyEntityDTOs", projectedTraders.size());
             projectedTraders.forEach(t -> oidToProjectedTraderTOMap.put(t.getOid(), t));
             projectedRICoverageCalculator.relinquishCoupons(projectedTraders);
+            cloudStorageTierIOPSCalculator = new CloudStorageTierIOPSCalculator(unmodifiableEntityOidToDtoMap);
             final Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopologyEntities = new HashMap<>(
                 projectedTraders.size());
             for (TraderTO projectedTrader : projectedTraders) {
@@ -1540,7 +1538,7 @@ public class TopologyConverter {
                                                     CommoditiesBoughtFromProvider commBoughtGrouping) {
         long providerId = commBoughtGrouping.getProviderId();
         TopologyEntityDTO tier = unmodifiableEntityOidToDtoMap.get(providerId);
-        if (tier != null) {
+        if (tier != null && cloudStorageTierIOPSCalculator != null) {
             cloudStorageTierIOPSCalculator.getIopsCapacity(commBoughtGrouping.getCommodityBoughtList(), tier)
                     .ifPresent(commSoldBuilder::setCapacity);
         }
