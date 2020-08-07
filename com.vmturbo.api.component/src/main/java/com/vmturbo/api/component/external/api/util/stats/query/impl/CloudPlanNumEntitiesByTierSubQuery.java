@@ -36,10 +36,10 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -234,6 +234,9 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         // It should be safe to look up the tiers in the real-time topology because
         // Storage tiers available in plan are always going to be a subset of tiers available
         // in real-time, and the properties (like displayName) of the tiers won't change.
+        // Unplaced entities have a provider (tier ID) of 0.  We don't want to include these in the
+        // number of entities stats, so remove them here.
+        tierIdToNumEntities.remove(Optional.of(0L));
         final Map<Long, String> tierIdToName = repositoryApi.entitiesRequest(tierIdToNumEntities.keySet()
                         .stream().filter(key -> key.isPresent())
                         .map(Optional::get).collect(Collectors.toSet()))
