@@ -166,6 +166,12 @@ spec:
                   description: Enable nginx ingress
                   type: boolean
               type: object
+            openshiftingress:
+              properties:
+                enabled:
+                  description: Enable Openshift routes
+                  type: boolean
+              type: object
             istioingress:
               properties:
                 enabled:
