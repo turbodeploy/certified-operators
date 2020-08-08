@@ -33,6 +33,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
+import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -306,11 +307,12 @@ public class ActionSpecMappingContextFactory {
             context.setHasMigrationActions(true);
             context.setVMProjectedAspects(vmProjectedAspects);
             try {
-                final List<ReservedInstanceApiDTO> risForPlan =
-                        reservedInstancesService.getReservedInstances(
-                                String.valueOf(topologyContextId), true,
-                                AccountFilterType.USED_AND_PURCHASED_BY);
-                context.setReservedInstances(risForPlan);
+                if (StatsUtils.isValidScopeForRIBoughtQuery(
+                        uuidMapper.fromUuid(String.valueOf(topologyContextId)))) {
+                    context.setReservedInstances(reservedInstancesService
+                            .getReservedInstances(String.valueOf(topologyContextId), true,
+                                    AccountFilterType.USED_AND_PURCHASED_BY));
+                }
             } catch (Exception e) {
                 throw new ExecutionException("Unable to get RIs for plan " + topologyContextId, e);
             }
