@@ -9,13 +9,6 @@ exec &> /tmp/restore-gluster-${current_time}.log
 
 # Functions
 
-# Run this as the root user
-if [[ $(/usr/bin/id -u) -ne 0 ]]
-then
-  echo "Not running as root, please become the root user, or use sudo"
-  exit
-fi
-
 # Check to see if kubernetes is up and running
 export KUBECONFIG=/root/.kube/config
 /usr/local/bin/kubectl get pod -n kube-system
