@@ -39,7 +39,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.TopologyEntity;
