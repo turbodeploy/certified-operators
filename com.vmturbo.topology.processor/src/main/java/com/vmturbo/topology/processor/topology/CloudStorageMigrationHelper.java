@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.Units;
@@ -134,8 +135,10 @@ public class CloudStorageMigrationHelper {
             @Nonnull double maxHistoricalIopsBoughtValue) {
         double histMaxIOPS = Math.max(maxHistoricalIopsBoughtValue, commodityBoughtDTO.getPeak());
         CommodityBoughtDTO.Builder commodityBoughtBuilder = commodityBoughtDTO.toBuilder();
-        commodityBoughtBuilder.setPeak(histMaxIOPS);
         commodityBoughtBuilder.setUsed(histMaxIOPS);
+        commodityBoughtBuilder.setPeak(histMaxIOPS);
+        commodityBoughtBuilder.setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(histMaxIOPS).build());
+        commodityBoughtBuilder.setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(histMaxIOPS).build());
         return commodityBoughtBuilder;
     }
 

@@ -546,7 +546,7 @@ public class CloudMigrationPlanHelper {
 
                     // Need to set movable/scalable true for provider commBought.
                     prepareBoughtCommodities(providerDtoBuilder, topologyInfo,
-                            sourceToProducerToMaxStorageAccess, true);
+                            sourceToProducerToMaxStorageAccess, false);
                     prepareSoldCommodities(providerDtoBuilder);
                 });
     }
@@ -671,24 +671,33 @@ public class CloudMigrationPlanHelper {
                         .setActive(false)
                         .build();
                 commoditiesToInclude.add(dtoBoughtUpdated);
-            } else if (isConsumer && commodityType == CommodityType.STORAGE_ACCESS) {
-                // Use historical max value for storage access.
-                double maxHistoricalIopsBoughtValue = 0;
-                final Map<Long, Double> producerToMaxHistoricalIops = sourceToProducerToMaxStorageAccess.get(entityOid);
-                if (producerToMaxHistoricalIops != null) {
-                    Double maxHistoricalIopsBought = producerToMaxHistoricalIops.get(commBoughtGrouping.getProviderId());
-                    if (maxHistoricalIopsBought != null) {
-                        maxHistoricalIopsBoughtValue = maxHistoricalIopsBought;
+            } else if (commodityType == CommodityType.STORAGE_ACCESS) {
+                if (isConsumer) {
+                    // Use historical max value for storage access.
+                    double maxHistoricalIopsBoughtValue = 0;
+                    final Map<Long, Double> producerToMaxHistoricalIops = sourceToProducerToMaxStorageAccess.get(entityOid);
+                    if (producerToMaxHistoricalIops != null) {
+                        Double maxHistoricalIopsBought = producerToMaxHistoricalIops.get(commBoughtGrouping.getProviderId());
+                        if (maxHistoricalIopsBought != null) {
+                            maxHistoricalIopsBoughtValue = maxHistoricalIopsBought;
+                        }
                     }
+                    final CommodityBoughtDTO.Builder commodityBoughtDTO = CloudStorageMigrationHelper.getHistoricalMaxIOPS(
+                            dtoBought, maxHistoricalIopsBoughtValue);
+
+                    if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
+                        // Disable Storage Access commodity for Lift and Shift plan so it can always
+                        // fit in GP2 or Azure Managed Premium.
+                        commodityBoughtDTO.setActive(false);
+                        commoditiesToInclude.add(commodityBoughtDTO.build());
+                    }
+                } else if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
+                    CommodityBoughtDTO dtoBoughtUpdated = CommodityBoughtDTO
+                            .newBuilder(dtoBought)
+                            .setActive(false)
+                            .build();
+                    commoditiesToInclude.add(dtoBoughtUpdated);
                 }
-                final CommodityBoughtDTO.Builder commodityBoughtDTO = CloudStorageMigrationHelper.getHistoricalMaxIOPS(
-                        dtoBought, maxHistoricalIopsBoughtValue);
-                if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
-                    // Disable Storage Access commodity for Lift and Shift plan so it can always
-                    // fit in GP2 or Azure Managed Premium.
-                    commodityBoughtDTO.setActive(false);
-                }
-                commoditiesToInclude.add(commodityBoughtDTO.build());
             } else if (isConsumer && commodityType == CommodityType.STORAGE_AMOUNT) {
                 if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
                     // Assign storage provisioned used value for storage amount.

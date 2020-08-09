@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.protobuf.util.JsonFormat;
@@ -415,26 +416,30 @@ public class TopologyEntityUtils {
 
     static TopologyEntity.Builder buildTopologyEntityWithCommBought(
             long oid, int commType, int entityType, long provider) {
-        return buildTopologyEntityWithCommBought(oid, commType, entityType, provider, 0, 0, 0, 0);
+        return buildTopologyEntityWithCommBought(oid, commType, entityType, provider, 0, 0, null, null);
     }
 
     static TopologyEntity.Builder buildTopologyEntityWithCommBought(
         long oid, int commType, int entityType, long provider, double used, double peak) {
-        return buildTopologyEntityWithCommBought(oid, commType, entityType, provider, used, peak, 0, 0);
+        return buildTopologyEntityWithCommBought(oid, commType, entityType, provider, used, peak, null, null);
     }
 
     static TopologyEntity.Builder buildTopologyEntityWithCommBought(
             long oid, int commType, int entityType, long provider,
-            double used, double peak, double historicalUsed, double historicalPeak) {
+            double used, double peak, @Nullable Double historicalUsed, @Nullable Double historicalPeak) {
+        CommodityBoughtDTO.Builder commodityBoughtDTO = CommodityBoughtDTO.newBuilder().setCommodityType(
+                CommodityType.newBuilder().setType(commType).setKey("").build())
+                .setActive(true)
+                .setUsed(used)
+                .setPeak(peak);
+        if (historicalUsed != null) {
+            commodityBoughtDTO.setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(historicalUsed));
+        }
+        if (historicalPeak != null) {
+            commodityBoughtDTO.setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(historicalPeak));
+        }
         CommoditiesBoughtFromProvider.Builder commFromProvider =
-            CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
-                CommodityBoughtDTO.newBuilder().setCommodityType(
-                    CommodityType.newBuilder().setType(commType).setKey("").build())
-                    .setActive(true)
-                    .setUsed(used)
-                    .setPeak(peak)
-                    .setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(historicalUsed))
-                    .setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(historicalPeak)))
+            CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(commodityBoughtDTO)
                 .setProviderId(provider);
 
         return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
