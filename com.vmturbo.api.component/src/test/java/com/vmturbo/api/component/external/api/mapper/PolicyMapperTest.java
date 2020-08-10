@@ -280,36 +280,6 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyToApiDtoBindToGroupGeoRedundancy() throws Exception {
-        rawPolicyBuilder.getPolicyInfoBuilder()
-            .setBindToGroupAndGeoRedundancy(PolicyInfo.BindToGroupAndGeoRedundancyPolicy.newBuilder()
-                        .setConsumerGroupId(testConsumerId)
-                        .setProviderGroupId(testProviderId)
-                        .build())
-            .build();
-        final Policy policy = rawPolicyBuilder.build();
-
-        final PolicyApiDTO result =
-                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
-                        .iterator()
-                        .next();
-
-        assertEquals(result.getDisplayName(), result.getDisplayName());
-        assertEquals(result.getName(), testPolicyName);
-        assertEquals(result.getUuid(), Long.toString(testPolicyID));
-        assertFalse(result.isEnabled());
-        assertEquals(result.getCommodityType(), testPolicyCommodityType);
-
-        assertEquals(result.getType(), PolicyType.BIND_TO_GROUP_AND_GEO_REDUNDANCY);
-        assertEquals(result.getConsumerGroup(), consumerDTO);
-        assertEquals(result.getProviderGroup(), providerDTO);
-
-        // the reverse conversion
-        Policy reverse = policyMapper.policyApiDtoToProto(result);
-        assertEquals(policy, reverse);
-    }
-
-    @Test
     public void testPolicyToApiDtoMergeCluster() throws Exception {
 
         rawPolicyBuilder.getPolicyInfoBuilder()
@@ -646,23 +616,6 @@ public class PolicyMapperTest {
         assertTrue(result.hasMustNotRunTogether());
         final PolicyInfo.MustNotRunTogetherPolicy policy = result.getMustNotRunTogether();
         assertEquals(policy.getGroupId(), testConsumerId);
-    }
-
-    @Test
-    public void testPolicyApiInputDtoToProtoBindGroupGeoRedundancy() {
-        PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
-        inputDTO.setType(PolicyType.BIND_TO_GROUP_AND_GEO_REDUNDANCY);
-
-        final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
-
-        assertEquals(result.getName(), testPolicyName);
-        assertFalse(result.getEnabled());
-
-        assertTrue(result.hasBindToGroupAndGeoRedundancy());
-        final PolicyInfo.BindToGroupAndGeoRedundancyPolicy policy =
-                result.getBindToGroupAndGeoRedundancy();
-        assertEquals(policy.getConsumerGroupId(), testConsumerId);
-        assertEquals(policy.getProviderGroupId(), testProviderId);
     }
 
     /**
