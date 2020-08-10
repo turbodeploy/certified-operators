@@ -578,8 +578,8 @@ server:
   sidecarContainers:
       # Name of the sidecar container inside Prometheus server pod.
     - name: datacloud-gateway
-      # Container image to use.
-      image: sevone/prometheus-gateway@sha256:42a729194b026df5290ace235d5a08503d848ea948afb7551c12d4b16e879d55
+      # Container image to use. It has to be a version that supports service accounts.
+      image: sevone/prometheus-gateway:e9c9f3da
       # Whether the container image should be pulled every time or only when it's not present.
       imagePullPolicy: IfNotPresent
       # Environment variable definitions to configure the sidecar container.
@@ -587,12 +587,23 @@ server:
           # Where to send the telemetry data.
         - name: HOST
           value: "datacloud.turbonomic.io:443"
-          # How to authenticate with the receiving side. This should be a write-only key.
-        - name: APIKEY
-          value: "put-your-api-key-here"
-          # Logging level for the sidecar container.
+          # DataCloud project ID as it appears in the URL when you login to the UI. Data will be
+          # sent to this project.
+        - name: PROJECT_ID
+          value: "turbo-telemetry-prod"
+          # Path to a JSON file describing the service account that should be used for
+          # authenticating with DataCloud. The service account should have write-only access.
+        - name: SA_JSON_FILE
+          value: "/var/run/secrets/datacloud/serviceaccount/collector.json"
+          # Logging level for the sidecar container. At info level it logs every write request from
+          # Prometheus. Given such requests will be coming infrequently for telemetry, this seems
+          # appropriate.
         - name: LOG_LEVEL
           value: "info"
+      volumeMounts:
+        - name: datacloud-service-account # must match the name of the secret volume below.
+          mountPath: "/var/run/secrets/datacloud/serviceaccount"
+          readOnly: true
 
   ## Prometheus server container image
   ##
@@ -683,6 +694,9 @@ server:
         - action: keep
           source_labels: [job]
           regex: telemetry # relabel regexps are anchored on both ends by default.
+        - action: labeldrop # IPs and ports of pods shouldn't be sent to DataCloud for privacy...
+          regex: instance # ...reasons but will uniqueness be maintained in the presence of multiple
+                    # pods per service? We'll need multiple pods per service for high-availability.
 
   ## https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_read
   ##
@@ -702,7 +716,10 @@ server:
 
   ## Additional Prometheus server Volumes
   ##
-  extraVolumes: []
+  extraVolumes:
+    - name: datacloud-service-account # must be a valid DNS subdomain name
+      secret:
+        secretName: prometheus-datacloud-gateway # must match the name of the secret in xl/templates
 
   ## Additional Prometheus server hostPath mounts
   ##
@@ -1622,6 +1639,9 @@ serverFiles:
       #
       - job_name: 'telemetry'
         scrape_interval: 7d # Send telemetry once a week.
+        sample_limit: 10000 # Currently XL components export ~300 metrics or ~3k time series. 10k
+          # should be big enough to support growth, but still prevent a bug from creating millions
+          # of new time series, flooding DataCloud and incurring high costs.
         kubernetes_sd_configs:
           - role: endpoints
         relabel_configs:
@@ -1637,14 +1657,13 @@ serverFiles:
             source_labels:
               - __meta_kubernetes_service_name
             target_label: service
-          - action: replace
+        metric_relabel_configs:
+          - action: keep
             source_labels:
-              - __meta_kubernetes_endpoint_node_name
-            target_label: node
-          - action: replace
-            source_labels:
-              - __meta_kubernetes_namespace
-            target_label: namespace
+              - __name__
+            regex: turbo.* # Only send metrics whose name begins with 'turbo' until we have a chance
+              # to review the existing ~300 metrics (or ~3k time series) exported by XL components
+              # to decide what is safe and useful to send. Also look at OM-61607.
 
 # adds additional scrape configs to prometheus.yml
 # must be a string so you have to add a | after extraScrapeConfigs:
