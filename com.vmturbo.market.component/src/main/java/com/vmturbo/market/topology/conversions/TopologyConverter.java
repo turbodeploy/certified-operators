@@ -161,6 +161,16 @@ public class TopologyConverter {
         EntityType.DATABASE_SERVER_VALUE
     );
 
+
+    /**
+     * Provider utilization should be updated when removing the following entities.
+     */
+    private static final Set<Integer> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
+        EntityType.VIRTUAL_MACHINE_VALUE,
+        EntityType.CONTAINER_VALUE,
+        EntityType.CONTAINER_POD_VALUE,
+        EntityType.APPLICATION_COMPONENT_VALUE);
+
     private static final Logger logger = LogManager.getLogger();
 
     // TODO: In legacy this is taken from LicenseManager and is currently false
@@ -511,6 +521,19 @@ public class TopologyConverter {
     @Nonnull
     public Set<EconomyDTOs.TraderTO> convertToMarket(
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> topology) {
+        return convertToMarket(topology, Collections.emptySet());
+    }
+
+    /**
+     * Convert a collection of common protobuf topology entity DTOs to analysis protobuf economy DTOs.
+     * @param topology list of topology entity DTOs
+     * @param oidsToRemove oids to remove
+     * @return set of economy DTOs
+     */
+    @Nonnull
+    public Set<EconomyDTOs.TraderTO> convertToMarket(
+                @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> topology,
+                @Nonnull final Set<Long> oidsToRemove) {
         // Initialize the consistent resizer
         consistentScalingHelper.initialize(topology);
         // TODO (roman, Jul 5 2018): We don't need to create a new entityOidToDto map.
@@ -580,6 +603,9 @@ public class TopologyConverter {
             // Initialize the template exclusion applicator
             tierExcluder.initialize(topology, tierExcluderEntityOids);
 
+            commodityConverter.setProviderUsedSubtractionMap(
+                createProviderUsedSubtractionMap(entityOidToDto, oidsToRemove));
+
             return convertToMarket();
         } catch (RuntimeException e) {
             //throw new RuntimeException("RuntimeException in convertToMarket(topology) ", e);
@@ -630,6 +656,8 @@ public class TopologyConverter {
                     .map(this::topologyDTOtoTraderTO)
                     .filter(Objects::nonNull)
                     .forEach(t -> oidToOriginalTraderTOMap.put(t.getOid(), t));
+
+            commodityConverter.clearProviderUsedSubtractionMap();
 
             logger.info("Converted topologyEntityDTOs to traderTOs");
             return new HashSet<>(oidToOriginalTraderTOMap.values());
@@ -3361,5 +3389,55 @@ public class TopologyConverter {
             index.addEntity(dto);
         }
         return index;
+    }
+
+    /**
+     * Create providerUsedSubtractionMap.
+     * provider oid -> commodity type -> used value of all consumers to be removed of this provider.
+     * This map is used to update the utilization of providers if there are entities to be removed.
+     * This can only happen in a plan with entities to remove.
+     *
+     * @param entityOidToDto topology entity DTOs
+     * @param oidsToRemove oids to remove
+     * @return providerUsedSubtractionMap
+     */
+    @VisibleForTesting
+    Map<Long, Map<TopologyDTO.CommodityType, Double>> createProviderUsedSubtractionMap(
+            final Map<Long, TopologyEntityDTO> entityOidToDto, final Set<Long> oidsToRemove) {
+        if (oidsToRemove.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        final Map<Long, Map<TopologyDTO.CommodityType, Double>> providerUsedSubtractionMap = new HashMap<>();
+        for (long oid : oidsToRemove) {
+            final TopologyEntityDTO entity = entityOidToDto.get(oid);
+            for (CommoditiesBoughtFromProvider commBoughtProvider : entity.getCommoditiesBoughtFromProvidersList()) {
+                final TopologyEntityDTO provider = entityOidToDto.get(commBoughtProvider.getProviderId());
+                // SKip non-workload type entity and entity without provider.
+                if (!WORKLOAD_ENTITY_TYPES.contains(entity.getEntityType()) || provider == null) {
+                    continue;
+                }
+
+                for (CommodityBoughtDTO commBought : commBoughtProvider.getCommodityBoughtList()) {
+                    // Skip segmentation commodity.
+                    if (commBought.getCommodityType().hasKey()) {
+                        continue;
+                    }
+                    final Map<TopologyDTO.CommodityType, Double> commodityUsed =
+                        providerUsedSubtractionMap.computeIfAbsent(commBoughtProvider.getProviderId(),
+                            key -> new HashMap<>());
+                    final List<Pair<Float, Float>> quantityList =
+                        getCommBoughtQuantities(entity, commBought, provider.getOid());
+                    // The size of quantityList is greater than 1 only when the commBought is a time slot commodity.
+                    if (quantityList.size() >= 1) {
+                        commodityUsed.put(commBought.getCommodityType(),
+                            commodityUsed.getOrDefault(commBought.getCommodityType(), 0.0d)
+                                + quantityList.get(0).first);
+                    }
+                }
+            }
+        }
+
+        return providerUsedSubtractionMap;
     }
 }

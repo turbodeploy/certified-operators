@@ -65,6 +65,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Analys
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Removed;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -1781,4 +1783,61 @@ public class TopologyConverterToMarketTest {
         });
     }
 
+    /**
+     * Test {@link TopologyConverter#createProviderUsedSubtractionMap(Map, Set)}.
+     */
+    @Test
+    public void testCreateProviderUsedSubtractionMap() {
+        final TopologyEntityDTO pm = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .setEntityState(EntityState.POWERED_ON)
+            .setOid(3L)
+            .build();
+
+        final long topologyId = 2222;
+        final double used1 = 10;
+        final double scalingFactor1 = 20;
+        final double used2 = 5;
+        final double scalingFactor2 = 3;
+        final CommodityType commodityType = CommodityType.newBuilder().setType(10).build();
+
+        final TopologyEntityDTO removedVM1 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setEntityState(EntityState.POWERED_ON)
+            .setEdit(Edit.newBuilder()
+                .setRemoved(Removed.newBuilder().setPlanId(topologyId).build())
+                .build())
+            .setOid(1L)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(pm.getOid()).addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(commodityType).setUsed(used1).setScalingFactor(scalingFactor1)))
+            .build();
+        final TopologyEntityDTO removedVM2 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setEntityState(EntityState.POWERED_ON)
+            .setEdit(Edit.newBuilder()
+                .setRemoved(Removed.newBuilder().setPlanId(topologyId).build())
+                .build())
+            .setOid(2L)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(pm.getOid()).addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(commodityType).setUsed(used2).setScalingFactor(scalingFactor2)))
+            .build();
+
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+            consistentScalingHelperFactory);
+
+        final Map<Long, Map<CommodityType, Double>> result =
+            converter.createProviderUsedSubtractionMap(ImmutableMap.of(pm.getOid(), pm,
+                removedVM1.getOid(), removedVM1, removedVM2.getOid(), removedVM2),
+                ImmutableSet.of(removedVM1.getOid(), removedVM2.getOid()));
+
+        assertEquals(1, result.size());
+        assertEquals(1, result.get(pm.getOid()).size());
+        assertEquals(used1 * scalingFactor1 + used2 * scalingFactor2,
+            result.get(pm.getOid()).get(commodityType), 10e-7);
+    }
 }

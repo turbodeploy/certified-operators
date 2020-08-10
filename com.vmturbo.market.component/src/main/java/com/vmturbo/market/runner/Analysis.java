@@ -368,6 +368,29 @@ public class Analysis {
             state = AnalysisState.IN_PROGRESS;
             startTime = clock.instant();
             logger.info("{} Started", logPrefix);
+
+            // remove any (scoped) traders that may have been flagged for removal
+            // We are doing this after the convertToMarket() function because we need the original
+            // traders available in the "old providers maps" so the biclique calculation can
+            // preserve the original topology structure. We may refactor this in a way that lets us
+            // remove the old provider map though -- see OM-26631.
+            //
+            // Note that although we do NOT attempt to unplace buyers of the entities being removed
+            // here, the effect on the analysis is exactly equivalent if we had unplaced them
+            // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
+            // an infinite quote which is exactly the same as not having a provider.
+            Set<Long> reservationEntityOids = new HashSet<>();
+            for (TopologyEntityDTO dto : topologyDTOs.values()) {
+                if (dto.hasEdit()) {
+                    if (dto.getEdit().hasRemoved() || dto.getEdit().hasReplaced()) {
+                        oidsToRemove.add(dto.getOid());
+                    }
+                }
+                if (dto.hasOrigin() && dto.getOrigin().hasReservationOrigin()) {
+                    reservationEntityOids.add(dto.getOid());
+                }
+            }
+
             try {
                 final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
                 Set<TraderTO> traderTOs = new HashSet<>();
@@ -383,7 +406,7 @@ public class Analysis {
                     }
 
                     if (!stopAnalysis) {
-                        traderTOs.addAll(converter.convertToMarket(topologyDTOs));
+                        traderTOs.addAll(converter.convertToMarket(topologyDTOs, oidsToRemove));
                     }
                     // cache the traderTOs converted from fake TopologyEntityDTOs
                     if (enableThrottling) {
@@ -402,28 +425,6 @@ public class Analysis {
 
                 // remove skipped entities we don't want to send to market
                 converter.removeSkippedEntitiesFromTraderTOs(traderTOs);
-
-                // remove any (scoped) traders that may have been flagged for removal
-                // We are doing this after the convertToMarket() function because we need the original
-                // traders available in the "old providers maps" so the biclique calculation can
-                // preserve the original topology structure. We may refactor this in a way that lets us
-                // remove the old provider map though -- see OM-26631.
-                //
-                // Note that although we do NOT attempt to unplace buyers of the entities being removed
-                // here, the effect on the analysis is exactly equivalent if we had unplaced them
-                // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
-                // an infinite quote which is exactly the same as not having a provider.
-                Set<Long> reservationEntityOids = new HashSet<>();
-                for (TopologyEntityDTO dto : topologyDTOs.values()) {
-                    if (dto.hasEdit()) {
-                        if (dto.getEdit().hasRemoved() || dto.getEdit().hasReplaced()) {
-                            oidsToRemove.add(dto.getOid());
-                        }
-                    }
-                    if (dto.hasOrigin() && dto.getOrigin().hasReservationOrigin()) {
-                        reservationEntityOids.add(dto.getOid());
-                    }
-                }
 
                 if (oidsToRemove.size() > 0) {
                     logger.debug("Removing {} traders before analysis: ", oidsToRemove.size());
