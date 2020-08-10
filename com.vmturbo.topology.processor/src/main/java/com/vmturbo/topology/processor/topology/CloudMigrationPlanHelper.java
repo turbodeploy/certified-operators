@@ -689,8 +689,8 @@ public class CloudMigrationPlanHelper {
                         // Disable Storage Access commodity for Lift and Shift plan so it can always
                         // fit in GP2 or Azure Managed Premium.
                         commodityBoughtDTO.setActive(false);
-                        commoditiesToInclude.add(commodityBoughtDTO.build());
                     }
+                    commoditiesToInclude.add(commodityBoughtDTO.build());
                 } else if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
                     CommodityBoughtDTO dtoBoughtUpdated = CommodityBoughtDTO
                             .newBuilder(dtoBought)
