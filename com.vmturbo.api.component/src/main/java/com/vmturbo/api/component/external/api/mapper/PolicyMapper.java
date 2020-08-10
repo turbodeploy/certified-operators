@@ -163,17 +163,6 @@ public class PolicyMapper {
                         getPolicyGroupApiDTO(bindToGroupAndLicense.getProviderGroupId(),
                                 policyInfo.getName(), groupsByID));
                 break;
-            case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
-                final PolicyDTO.PolicyInfo.BindToGroupAndGeoRedundancyPolicy bindToGroupAndGeoRedundancy =
-                        policyInfo.getBindToGroupAndGeoRedundancy();
-                policyApiDTO.setType(PolicyType.BIND_TO_GROUP_AND_GEO_REDUNDANCY);
-                policyApiDTO.setConsumerGroup(
-                        getPolicyGroupApiDTO(bindToGroupAndGeoRedundancy.getConsumerGroupId(),
-                                policyInfo.getName(), groupsByID));
-                policyApiDTO.setProviderGroup(
-                        getPolicyGroupApiDTO(bindToGroupAndGeoRedundancy.getProviderGroupId(),
-                                policyInfo.getName(), groupsByID));
-                break;
             case MERGE:
                 final PolicyDTO.PolicyInfo.MergePolicy merge = policyInfo.getMerge();
                 policyApiDTO.setType(PolicyType.MERGE);
@@ -284,10 +273,6 @@ public class PolicyMapper {
                 case MUST_RUN_TOGETHER:
                     policyInfoBuilder.setMustRunTogether(mustRunTogetherPolicy(policyApiDTO));
                     break;
-                case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
-                    policyInfoBuilder.setBindToGroupAndGeoRedundancy(
-                        bindToGroupAndGeoRedundancyPolicy(policyApiDTO));
-                    break;
                 default:
                     logger.error("Unhandled policy type: {}", policyApiDTO.getType());
             }
@@ -379,16 +364,6 @@ public class PolicyMapper {
         return PolicyInfo.MustNotRunTogetherPolicy.newBuilder()
                         .setGroupId(consumersId(policyApiDTO))
                         .build();
-    }
-
-    @Nonnull
-    private PolicyInfo.BindToGroupAndGeoRedundancyPolicy bindToGroupAndGeoRedundancyPolicy(
-                    @Nonnull PolicyApiDTO policyApiDTO) {
-        return PolicyInfo.BindToGroupAndGeoRedundancyPolicy.newBuilder()
-                        .setProviderGroupId(providersId(policyApiDTO))
-                        .setConsumerGroupId(consumersId(policyApiDTO))
-                        .build();
-
     }
 
     /**
@@ -525,16 +500,6 @@ public class PolicyMapper {
                                     .setGroupId(consumerId)
                                     .build();
                     inputPolicyBuilder.setMustNotRunTogether(mustNotRunTogetherPolicy);
-                    break;
-                case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
-                    providerId = providersGroupId(policyApiInputDTO);
-                    consumerId = consumersGroupId(policyApiInputDTO);
-                    final PolicyDTO.PolicyInfo.BindToGroupAndGeoRedundancyPolicy bindToGroupAndGeoRedundancyPolicy =
-                            PolicyDTO.PolicyInfo.BindToGroupAndGeoRedundancyPolicy.newBuilder()
-                                    .setProviderGroupId(providerId)
-                                    .setConsumerGroupId(consumerId)
-                                    .build();
-                    inputPolicyBuilder.setBindToGroupAndGeoRedundancy(bindToGroupAndGeoRedundancyPolicy);
                     break;
             }
         } else {
