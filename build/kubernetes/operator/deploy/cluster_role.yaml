@@ -98,4 +98,3 @@ rules:
     - routes
   verbs:
     - '*'
-

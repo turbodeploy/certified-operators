@@ -1,4 +1,4 @@
-packageName: t8c
+packageName: t8c-marketplace-certified
 channels:
   - name: stable
     currentCSV: t8c-operator.v7.22.0
