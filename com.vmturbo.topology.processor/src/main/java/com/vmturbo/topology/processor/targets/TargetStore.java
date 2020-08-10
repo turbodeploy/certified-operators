@@ -157,6 +157,15 @@ public interface TargetStore extends RequiresDataInitialization {
     Set<Long> getDerivedTargetIds(long parentTargetId);
 
     /**
+     * Get all parent target ids which belong to the specific derived target.
+     *
+     * @param derivedTargetId The derived target id.
+     * @return The set of parent target ids which belong to the derived target.
+     */
+    @Nonnull
+    Set<Long> getParentTargetIds(long derivedTargetId);
+
+    /**
      * Get the probe type for a given target id.
      *
      * @param targetId the id of the target to get probe type for

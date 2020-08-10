@@ -437,7 +437,7 @@ public class StitchingManager {
         // if a scope is provided, create a stream of stitching entities from the scope, otherwise
         // use the internal entities from the stitching context of the correct entity type with this
         // targetId
-        Stream<StitchingEntity> scopeEntities = operation.getScope(scopeFactory)
+        Stream<StitchingEntity> scopeEntities = operation.getScope(scopeFactory, targetId)
                 .map(scope -> scope.entities()
                         .filter(stitchEntity -> stitchEntity.getTargetId() == targetId))
                 .orElseGet(() -> scopeFactory.getStitchingContext()
@@ -502,7 +502,8 @@ public class StitchingManager {
             // the index provided by the operation.
             // Exclude entities that come from the same target as the one being stitched.
             final Stopwatch swExternalEntitiesCollected = Stopwatch.createStarted();
-            final Stream<StitchingEntity> externalEntities = operation.getScope(scopeFactory)
+            final Stream<StitchingEntity> externalEntities = operation.getScope(scopeFactory,
+                    targetId)
                             .map(f -> f.entities().map(StitchingEntity.class::cast)
                                             .filter(e -> e.getTargetId() != targetId)).orElseGet(() -> stitchingContext
                                             .externalEntities(externalEntityType, targetId).map(StitchingEntity.class::cast));

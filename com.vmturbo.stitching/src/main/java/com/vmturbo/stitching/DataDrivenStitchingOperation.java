@@ -24,6 +24,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.StitchingScopeType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
@@ -86,7 +87,18 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
     @Nonnull
     @Override
     public Optional<StitchingScope<StitchingEntity>> getScope(
-            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+            long targetId) {
+        // TODO add support for more scope types like GLOBAL and CATEGORY.  Eventually, all scopes
+        // could be defined in the metadata.
+        if (matchingInformation.getStitchingScope().isPresent()
+                && matchingInformation.getStitchingScope().get().getScopeType()
+                == StitchingScopeType.PARENT) {
+            logger.trace("Returning parent scope for stitching operation with target {}",
+                    targetId);
+            return Optional.of(stitchingScopeFactory
+                    .parentTargetEntityType(getExternalEntityType().get(), targetId));
+        }
         if (categoriesToStitchWith.isEmpty()) {
             return Optional.empty();
         }

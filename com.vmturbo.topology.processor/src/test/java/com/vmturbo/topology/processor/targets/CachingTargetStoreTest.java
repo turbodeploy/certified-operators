@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.targets;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -857,6 +858,9 @@ public class CachingTargetStoreTest {
             parentTarget1.getId());
         final Target derivedTargetUpdate1 = targetStore.getTarget(derivedTargetId1).get();
         verifyAddressAccountValue(derivedTargetAddress1, derivedTargetUpdate1);
+        assertEquals(2, targetStore.getParentTargetIds(derivedTargetId1).size());
+        assertThat(targetStore.getParentTargetIds(derivedTargetId1),
+                containsInAnyOrder(parentTarget1.getId(), parentTarget2.getId()));
         // now remove one parent of the derived target and ensure that parent fields are
         // updated properly
         targetStore.createOrUpdateDerivedTargets(Collections.emptyList(),
@@ -868,7 +872,9 @@ public class CachingTargetStoreTest {
         assertEquals(1, parentTarget2Update2.getSpec().getDerivedTargetIdsCount());
         assertEquals((Long) derivedTargetId1,
             parentTarget2Update2.getSpec().getDerivedTargetIdsList().iterator().next());
-        // confirm that we are now using the account values from the derived target spec that came
+        assertEquals(1, targetStore.getParentTargetIds(derivedTargetId1).size());
+        assertTrue(targetStore.getParentTargetIds(derivedTargetId1).contains(parentTarget2.getId()));
+                // confirm that we are now using the account values from the derived target spec that came
         // from parentTarget2
         verifyAddressAccountValue(derivedTargetAddress2, derivedTargetUpdate2);
         // now delete the derived target for the only remaining parent and make sure it gets deleted

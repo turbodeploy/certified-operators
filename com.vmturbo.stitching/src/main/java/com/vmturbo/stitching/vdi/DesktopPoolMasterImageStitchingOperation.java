@@ -34,7 +34,8 @@ public class DesktopPoolMasterImageStitchingOperation implements StitchingOperat
     @Nonnull
     @Override
     public Optional<StitchingScope<StitchingEntity>>
-    getScope(@Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+    getScope(@Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+            long targetId) {
         return Optional.of(
                 stitchingScopeFactory.probeEntityTypeScope(SDKProbeType.VCENTER.getProbeType(),
                         EntityType.VIRTUAL_MACHINE));
