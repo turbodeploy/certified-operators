@@ -1,4 +1,4 @@
-apiVersion: charts.helm.k8s.io/v1alpha1
+apiVersion: charts.helm.k8s.io/v1
 kind: Xl
 metadata:
   name: xl-release
@@ -83,6 +83,8 @@ spec:
     enabled: false
   ucs:
     enabled: true
+  udt:
+    enabled: true
   vcenter:
     enabled: true
   vmax:
@@ -97,9 +99,7 @@ spec:
     enabled: true
   mysql:
     enabled: false
-  tomcat:
-    enabled: false
   newrelic:
     enabled: true
-  udt:
-    enabled: true
+  tomcat:
+    enabled: false
