@@ -732,6 +732,28 @@ services:
       instance_id: mediation-actionscript-1
     restart: always
 
+  mediation-acims-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.acims.component
+    environment:
+      consul_host: consul
+      component_type: mediation-acims
+      instance_id: mediation-acims-1
+    restart: always
+
+  mediation-apic-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.apic.component
+    environment:
+      consul_host: consul
+      component_type: mediation-apic
+      instance_id: mediation-apic-1
+    restart: always
+
   mediation-wmi-prod:
     extends:
       file: common-services.yml
