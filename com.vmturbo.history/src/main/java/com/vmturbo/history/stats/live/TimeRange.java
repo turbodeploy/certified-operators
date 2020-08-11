@@ -1,6 +1,8 @@
 package com.vmturbo.history.stats.live;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.CURRENT_PRICE_INDEX;
 import static com.vmturbo.common.protobuf.utils.StringConstants.INTERNAL_NAME;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PRICE_INDEX;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.RECORDED_ON;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
@@ -32,6 +34,7 @@ import org.jooq.Table;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
@@ -39,6 +42,7 @@ import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.stats.ClusterStatsReader;
 
 /**
@@ -55,15 +59,19 @@ public class TimeRange {
 
     private final List<Timestamp> timestampsInRange;
 
+    private final Optional<Timestamp> latestPriceIndexTimeStamp;
+
     private TimeRange(final long startTime,
             final long endTime,
             @Nonnull final TimeFrame timeFrame,
-            @Nonnull final List<Timestamp> timestampsInRange) {
+            @Nonnull final List<Timestamp> timestampsInRange,
+            final Optional<Timestamp> latestPriceIndexTimeStamp) {
         Preconditions.checkArgument(!timestampsInRange.isEmpty());
         this.startTime = startTime;
         this.endTime = endTime;
         this.timeFrame = Objects.requireNonNull(timeFrame);
         this.timestampsInRange = Objects.requireNonNull(timestampsInRange);
+        this.latestPriceIndexTimeStamp = latestPriceIndexTimeStamp;
     }
 
     /**
@@ -75,6 +83,16 @@ public class TimeRange {
     @Nonnull
     public List<Timestamp> getSnapshotTimesInRange() {
         return Collections.unmodifiableList(timestampsInRange);
+    }
+
+    /**
+     * Get the most recent timestamp used to generate price index stats.
+     *
+     * @return The most recent timestamp for price index if it exists
+     */
+    @Nonnull
+    public Optional<Timestamp> getLatestPriceIndexTimeStamp() {
+        return latestPriceIndexTimeStamp;
     }
 
     /**
@@ -189,6 +207,7 @@ public class TimeRange {
                 long resolvedEndTime = -1;
                 List<Timestamp> timestampsInRange = null;
                 TimeFrame timeFrame = null;
+                Optional<Timestamp> priceIndexTimeStamp = Optional.empty();
 
                 // Right now we are only dealing with a single specific entity, not a group
                 // of them. let's check if a single entity has been specified
@@ -205,8 +224,13 @@ public class TimeRange {
                     // different "most recent "timestamps and we might not get data for some of them
 
                     final Optional<Timestamp> mostRecentDbTimestamp = historydbIO
-                            .getClosestTimestampBefore(statsFilter,
-                                    Optional.empty(), requiredTimeFrame, paginationParams);
+                            .getClosestTimestampBefore(Optional.empty(), requiredTimeFrame, HistoryVariety.ENTITY_STATS);
+
+                    if (commRequestContainsPI(statsFilter.getCommodityRequestsList())) {
+                        priceIndexTimeStamp = historydbIO
+                            .getClosestTimestampBefore(Optional.empty(), requiredTimeFrame,
+                                HistoryVariety.PRICE_DATA);
+                    }
 
                     if (!mostRecentDbTimestamp.isPresent()) {
                         // no data persisted yet; just return an empty answer
@@ -240,8 +264,13 @@ public class TimeRange {
                         if (statsFilter.getStartDate() == statsFilter.getEndDate()) {
                             // resolve the most recent time stamp with regard to the start date
                             Optional<Timestamp> closestTimestamp = historydbIO
-                                    .getClosestTimestampBefore(statsFilter, Optional.of(statsFilter.getStartDate()),
-                                            Optional.of(currentTimeFrame), paginationParams);
+                                    .getClosestTimestampBefore(Optional.of(statsFilter.getStartDate()),
+                                            Optional.of(currentTimeFrame), HistoryVariety.ENTITY_STATS);
+                            if(commRequestContainsPI(statsFilter.getCommodityRequestsList())) {
+                                priceIndexTimeStamp = historydbIO
+                                    .getClosestTimestampBefore(Optional.empty(), requiredTimeFrame,
+                                        HistoryVariety.PRICE_DATA);
+                            }
                             if (closestTimestamp.isPresent()) {
                                 resolvedEndTime = statsFilter.getStartDate();
                                 resolvedStartTime = closestTimestamp.get().getTime();
@@ -269,7 +298,8 @@ public class TimeRange {
                     return Optional.empty();
                 } else {
                     // Now that we have the page of records, get all the records to use.
-                    return Optional.of(new TimeRange(resolvedStartTime, resolvedEndTime, timeFrame, timestampsInRange));
+                    return Optional.of(new TimeRange(resolvedStartTime, resolvedEndTime,
+                        timeFrame, timestampsInRange, priceIndexTimeStamp));
                 }
 
             }
@@ -287,6 +317,27 @@ public class TimeRange {
                 int lastDayOfMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
                 cal.set(Calendar.DAY_OF_MONTH, lastDayOfMonth);
                 return cal.getTimeInMillis();
+            }
+
+            /**
+             * Whether a given list contains only price index or current price index request.
+             *
+             * <p>Note: If the request is empty, returns false.</p>
+             *
+             * @param commRequestsList a given commodity request list
+             * @return true if the commRequestsList contains price index or current price index
+             *         request, false if the list is empty or it has at least one commodity
+             *         request that is not price index and not current price index.
+             */
+            public boolean commRequestContainsPI(List<CommodityRequest> commRequestsList) {
+                // If the commodity request contains priceIndex or currentPriceIndex,
+                // return true.
+                // NOTE: Though XL tables do not have the current price index commodity,
+                // UX is shared between classic and XL which asks for both price index
+                // and current price index commodity when populating the risk widget.
+                return !commRequestsList.isEmpty() && commRequestsList.stream()
+                    .anyMatch(c -> c.getCommodityName().equals(PRICE_INDEX)
+                        || c.getCommodityName().equals(CURRENT_PRICE_INDEX));
             }
 
             @Nonnull
@@ -351,7 +402,8 @@ public class TimeRange {
                             timeFrame);
                     if (latest != null) {
                         final long millis = latest.getTime();
-                        result = new TimeRange(millis, millis, timeFrame, Collections.singletonList(latest));
+                        result = new TimeRange(millis, millis, timeFrame,
+                            Collections.singletonList(latest), Optional.empty());
                     }
                 } else {
                     // in this case we have a start and end time. Check whether start time in the
@@ -377,7 +429,7 @@ public class TimeRange {
 
                         if (latest != null) {
                             result = new TimeRange(latest.getTime(), statsFilter.getEndDate(),
-                                    timeFrame, Collections.singletonList(latest));
+                                    timeFrame, Collections.singletonList(latest), Optional.empty());
                         }
                     } else {
                         // both times given, but they're different
@@ -386,7 +438,7 @@ public class TimeRange {
                         if (available.size() > 0) {
                             result = new TimeRange(
                                     available.get(0).getTime(), statsFilter.getEndDate(),
-                                    timeFrame, available);
+                                    timeFrame, available, Optional.empty());
                         }
                     }
                 }

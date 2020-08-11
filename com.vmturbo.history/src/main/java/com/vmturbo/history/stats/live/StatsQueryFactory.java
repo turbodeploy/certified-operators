@@ -8,12 +8,15 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.ENTITY_TYPE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.ENVIRONMENT_TYPE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.MAX_VALUE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.MIN_VALUE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PRICE_INDEX;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PRODUCER_UUID;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_SUBTYPE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.RELATION;
 import static com.vmturbo.common.protobuf.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.common.protobuf.utils.StringConstants.UUID;
+import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
+import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.max;
 import static org.jooq.impl.DSL.min;
@@ -173,9 +176,14 @@ public interface StatsQueryFactory {
             List<Condition> whereConditions = new ArrayList<>();
 
             // add where clause for time range; null if the timeframe cannot be determined
-            final Condition timeRangeCondition = HistoryStatsUtils.betweenStartEndTimestampCond(JooqUtils.getField(table, SNAPSHOT_TIME),
+            Condition timeRangeCondition = HistoryStatsUtils.betweenStartEndTimestampCond(JooqUtils.getField(table, SNAPSHOT_TIME),
                     timeRange.getTimeFrame(), timeRange.getStartTime(), timeRange.getEndTime());
             if (timeRangeCondition != null) {
+                if (timeRange.getLatestPriceIndexTimeStamp().isPresent()) {
+                    timeRangeCondition = timeRangeCondition
+                        .or(getTimestampField(table, SNAPSHOT_TIME).eq(timeRange.getLatestPriceIndexTimeStamp().get())
+                            .and(getStringField(table, PROPERTY_TYPE).equal(PRICE_INDEX)));
+                }
                 logger.debug("table {}, timeRangeCondition: {}", table.getName(), timeRangeCondition);
                 whereConditions.add(timeRangeCondition);
             }
