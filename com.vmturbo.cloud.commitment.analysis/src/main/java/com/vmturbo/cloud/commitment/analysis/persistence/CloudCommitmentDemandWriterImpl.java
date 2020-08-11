@@ -52,6 +52,9 @@ public class CloudCommitmentDemandWriterImpl implements CloudCommitmentDemandWri
     public void writeAllocationDemand(final CloudTopology<TopologyEntityDTO> cloudTopology, final TopologyInfo topologyInfo) {
         try {
             if (recordCloudAllocationData) {
+
+                logger.info("Recording CCA allocation demand (Topology ID={})", topologyInfo.getTopologyId());
+
                 final List<TopologyEntityDTO> listOfWorkloadsToBeUpdated = filterWorkloads(cloudTopology);
                 final List<ComputeTierAllocationDatapoint> allocationDataPointsPersisted = new ArrayList<>();
                 for (TopologyEntityDTO entity : listOfWorkloadsToBeUpdated) {
