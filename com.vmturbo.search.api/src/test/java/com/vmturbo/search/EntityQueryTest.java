@@ -774,6 +774,60 @@ public class EntityQueryTest {
      * Expect pagination results to include nextCursor and totalRecordCount
      *
      * <p>In this specific case
+     * 1. The default sortBy name, oid should be applied in that order,
+     *    cursor cause will fail if not the case
+     * 2. The number of records exceeds the limit requested.
+     *    Last Record should be used to create the next-cursor</p>
+     * 3. Record values for name will be null to test cursorBuild Values
+     *
+     * @throws SearchQueryFailedException problems processing request
+     */
+    @Test
+    public void testPaginationCursorResultsWithNullValues() throws SearchQueryFailedException {
+        //GIVEN
+        final EntityType type = EntityType.VirtualMachine;
+        final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
+        final FieldApiDTO primitiveName = PrimitiveFieldApiDTO.name();
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
+                .fields(primitiveOid, primitiveName)
+                .build();
+
+        PaginationApiDTO pagination = PaginationApiDTO.orderBy().limit(1).build();
+
+        EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity, pagination);
+        EntityQuery query = entityQuery(request);
+
+        //Jooq Fields for building results
+        final Field oidField = query.buildAndTrackSelectFieldFromEntityType(primitiveOid);
+        final Field nameField = query.buildAndTrackSelectFieldFromEntityType(primitiveName);
+        //Values for jooq results
+        final Long oidValue = 123L;
+        final String nameValue = null;
+
+        Result<Record2> result = dSLContextSpy.newResult(oidField, nameField);
+        //This results record is the one to be used for creating cursor.
+        result.add(dSLContextSpy.newRecord(oidField, nameField).values(oidValue, nameValue));
+        result.add(dSLContextSpy.newRecord(oidField, nameField).values(5L, "potatoes"));
+
+        doReturn(result).when(dSLContextSpy).fetch(any(Select.class));
+        final int totalRecordCount = 12;
+        doReturn(totalRecordCount).when(dSLContextSpy).fetchCount(any(Select.class));
+
+        //WHEN
+        SearchQueryPaginationResponse<SearchQueryRecordApiDTO> paginationResponse = query.readQueryAndExecute();
+        ResponseEntity<List<SearchQueryRecordApiDTO>>  responseEntity = paginationResponse.getRestResponse();
+
+        //THEN
+        assertTrue(responseEntity.getBody().size() == 1);
+        assertTrue(responseEntity.getHeaders().get("X-Next-Cursor").get(0).equals(SearchPaginationUtil.constructNextCursor(
+                Lists.newArrayList(nameValue, String.valueOf(oidValue)))));
+        assertTrue(responseEntity.getHeaders().get("X-Total-Record-Count").get(0).equals(String.valueOf(totalRecordCount)));
+    }
+
+    /**
+     * Expect pagination results to include nextCursor and totalRecordCount
+     *
+     * <p>In this specific case
      * 1. sortBy and cursor will come from user configured {@link OrderByApiDTO}
      * 2. The number of records exceeds the limit requested.
      *    Last Record should be used to create the next-cursor</p>
