@@ -557,7 +557,9 @@ public class TopologyConverter {
     public Set<EconomyDTOs.TraderTO> convertToMarket(
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> topology) {
         // Initialize the consistent resizer
-        consistentScalingHelper.initialize(topology);
+        if (!TopologyDTOUtil.isCloudMigrationPlan(topologyInfo)) {
+            consistentScalingHelper.initialize(topology);
+        }
         // TODO (roman, Jul 5 2018): We don't need to create a new entityOidToDto map.
         // We can have a helper class that will apply the skipped entity logic on the
         // original topology.
