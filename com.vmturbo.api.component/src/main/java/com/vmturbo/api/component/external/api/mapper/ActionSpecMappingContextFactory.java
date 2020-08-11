@@ -29,6 +29,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
@@ -307,8 +308,8 @@ public class ActionSpecMappingContextFactory {
             context.setHasMigrationActions(true);
             context.setVMProjectedAspects(vmProjectedAspects);
             try {
-                if (StatsUtils.isValidScopeForRIBoughtQuery(
-                        uuidMapper.fromUuid(String.valueOf(topologyContextId)))) {
+                ApiId scope = uuidMapper.fromUuid(String.valueOf(topologyContextId));
+                if (scope != null && StatsUtils.isValidScopeForRIBoughtQuery(scope)) {
                     context.setReservedInstances(reservedInstancesService
                             .getReservedInstances(String.valueOf(topologyContextId), true,
                                     AccountFilterType.USED_AND_PURCHASED_BY));
