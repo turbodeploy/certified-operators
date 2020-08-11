@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -26,6 +28,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyDemandCluster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -364,9 +367,16 @@ public class ReservedInstanceAnalyzer {
                 analysisContextInfo.regionalRIMatcherCache(),
                 demandDataType);
         //get all the BA oids from analysis context
-        final Set<Long> primaryAccounts =  analysisContextInfo.regionalContexts().stream()
-                .map(e -> demandCalculator.calculateUncoveredDemand(e))
-                .map(RIBuyDemandCalculationInfo::primaryAccountOid).collect(Collectors.toSet());
+        final Set<Long> primaryAccounts = new HashSet<>();
+        for (RIBuyRegionalContext riBuyRegionalContext : analysisContextInfo.regionalContexts()) {
+            final Iterator<RIBuyDemandCluster> iterator =
+                            riBuyRegionalContext.demandClusters().iterator();
+            while (iterator.hasNext()) {
+                primaryAccounts.add(iterator.next().accountOid());
+            }
+        }
+        logger.debug("Number of Business Account OIDs extracted from analysis context: {}", primaryAccounts.size());
+
         final RIBuyRateProvider rateProvider =
                 new RIBuyRateProvider(priceTableStore, baPriceTableStore, primaryAccounts);
         // For each cluster
