@@ -380,6 +380,8 @@
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
                 <module>../com.vmturbo.mediation.aix.component</module>
+                <module>../com.vmturbo.mediation.acims.component</module>
+                <module>../com.vmturbo.mediation.apic.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
@@ -872,6 +874,20 @@
         </profile>
 
         <profile>
+            <id>mediation-acims</id>
+            <modules>
+                <module>../com.vmturbo.mediation.acims.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-apic</id>
+            <modules>
+                <module>../com.vmturbo.mediation.apic.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-stressprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -1178,6 +1194,8 @@
                 <module>../com.vmturbo.mediation.aix.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
+                <module>../com.vmturbo.mediation.acims.component</module>
+                <module>../com.vmturbo.mediation.apic.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
