@@ -76,6 +76,13 @@ public class ActionMergeSpecsRepository {
     }
 
     /**
+     * Clear all data in the {@link ActionMergeSpecsRepository}.
+     */
+    public void clear() {
+        actionMergePolicyMap.clear();
+    }
+
+    /**
      * Create a list of {@link AtomicActionSpec} for the entities belonging
      * to a given probe and target.
      *
