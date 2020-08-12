@@ -225,8 +225,11 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         // fetch entities
         final Map<Long, ApiPartialEntity> entities = request.getEntities()
             .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
-        // tier id --> number of entities using the tier
+        // tier id --> number of entities using the tier. Only include entities that are connected
+        // to a region.  If they are not, they are unplaced and should be omitted.
         final Map<Optional<Long>, Long> tierIdToNumEntities = entities.values().stream()
+                .filter(partialEntity -> partialEntity.getConnectedToList().stream()
+                        .anyMatch(entity -> entity.getEntityType() == EntityType.REGION_VALUE))
             .collect(Collectors.groupingBy(getTierId, Collectors.counting()));
         // tier id --> tier name
         // Looking up display name in real-time topology, as some (like NVME_SSD StorageTier -
