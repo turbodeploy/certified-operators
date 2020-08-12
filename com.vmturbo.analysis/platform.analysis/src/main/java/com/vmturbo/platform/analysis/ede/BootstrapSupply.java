@@ -585,29 +585,33 @@ public class BootstrapSupply {
                                     + " buyer {} has an infinity quote.", buyerDebugInfo);
                         }
                     } else {
-                        Trader currentSupplier = sl.getSupplier();
-                        Action action = new ProvisionByDemand(economy, sl,
+                        try {
+                            Trader currentSupplier = sl.getSupplier();
+                            Action action = new ProvisionByDemand(economy, sl,
                                 (currentSupplier != null && clonableSellers.contains(currentSupplier)) ?
-                                        currentSupplier : clonableSellers.get(0)).take();
-                        ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
-                        Trader newSeller = ((ProvisionByDemand)action).getProvisionedSeller();
-                        boolean isDebugSeller = newSeller.isDebugEnabled();
-                        String sellerDebugInfo = newSeller.getDebugInfoNeverUseInCode();
-                        if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
-                            logger.info("New seller " + sellerDebugInfo
+                                    currentSupplier : clonableSellers.get(0)).take();
+                            ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
+                            Trader newSeller = ((ProvisionByDemand)action).getProvisionedSeller();
+                            boolean isDebugSeller = newSeller.isDebugEnabled();
+                            String sellerDebugInfo = newSeller.getDebugInfoNeverUseInCode();
+                            if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
+                                logger.info("New seller " + sellerDebugInfo
                                     + " was provisioned to fit " + buyerDebugInfo + ".");
-                        }
+                            }
 
-                        // provisionByDemand does not place the provisioned trader. We try finding
-                        // best placement for it, if none exists, we create one supply for
-                        // provisioned trader
-                        provisionedRelatedActions
+                            // provisionByDemand does not place the provisioned trader. We try finding
+                            // best placement for it, if none exists, we create one supply for
+                            // provisioned trader
+                            provisionedRelatedActions
                                 .addAll(shopTogetherBootstrapForIndividualBuyer(economy, newSeller,
-                                        slsThatNeedProvBySupply));
-                        provisionedRelatedActions.add(action);
-                        provisionedRelatedActions.addAll(((ProvisionByDemand)action).getSubsequentActions());
-                        newSuppliers.put(sl, newSeller);
-                        newSuppliersToIgnore.add(newSeller);
+                                    slsThatNeedProvBySupply));
+                            provisionedRelatedActions.add(action);
+                            provisionedRelatedActions.addAll(((ProvisionByDemand)action).getSubsequentActions());
+                            newSuppliers.put(sl, newSeller);
+                            newSuppliersToIgnore.add(newSeller);
+                        } catch (Exception e) {
+                            logger.error("Error when creating ProvisionByDemand action", e);
+                        }
                     }
                 }
             } else {
@@ -1061,40 +1065,44 @@ public class BootstrapSupply {
 
             return Collections.emptyList();
         } else if (!clonableSellers.isEmpty()) {
-            // if none of the existing sellers can fit the shoppingList, provision current seller
-            bootstrapAction = new ProvisionByDemand(economy, shoppingList,
+            try {
+                // if none of the existing sellers can fit the shoppingList, provision current seller
+                bootstrapAction = new ProvisionByDemand(economy, shoppingList,
                     (shoppingList.getSupplier() != null
-                            && clonableSellers.contains(shoppingList.getSupplier()))
-                            ? shoppingList.getSupplier() : clonableSellers.get(0)).take();
-            ((ActionImpl)bootstrapAction).setImportance(Double.POSITIVE_INFINITY);
-            provisionedSeller = ((ProvisionByDemand)bootstrapAction).getProvisionedSeller();
-            provisionRelatedActionList.add(bootstrapAction);
-            provisionRelatedActionList.addAll(((ProvisionByDemand)bootstrapAction).getSubsequentActions());
-            if (logger.isTraceEnabled() || isDebugBuyer) {
-                logger.info(provisionedSeller.getDebugInfoNeverUseInCode() + " was provisioned to"
-                            + " accommodate " + buyerDebugInfo + ".");
+                        && clonableSellers.contains(shoppingList.getSupplier()))
+                        ? shoppingList.getSupplier() : clonableSellers.get(0)).take();
+                ((ActionImpl)bootstrapAction).setImportance(Double.POSITIVE_INFINITY);
+                provisionedSeller = ((ProvisionByDemand)bootstrapAction).getProvisionedSeller();
+                provisionRelatedActionList.add(bootstrapAction);
+                provisionRelatedActionList.addAll(((ProvisionByDemand)bootstrapAction).getSubsequentActions());
+                if (logger.isTraceEnabled() || isDebugBuyer) {
+                    logger.info(provisionedSeller.getDebugInfoNeverUseInCode() + " was provisioned to"
+                        + " accommodate " + buyerDebugInfo + ".");
+                }
+                // provisionByDemand does not place the new newClone provisionedTrader. We try finding
+                // best seller, if none exists, we create one
+                economy.getMarketsAsBuyer(provisionedSeller).entrySet().forEach(entry -> {
+                    ShoppingList sl = entry.getKey();
+                    List<Trader> sellers = entry.getValue().getActiveSellers();
+                    QuoteMinimizer minimizer =
+                        (sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                            ? sellers.stream() : sellers.parallelStream())
+                            .collect(() -> new QuoteMinimizer(economy, sl),
+                                QuoteMinimizer::accept, QuoteMinimizer::combine);
+                    // If quote is infinite, we create a new provider
+                    if (Double.isInfinite(minimizer.getTotalBestQuote())) {
+                        provisionRelatedActionList.addAll(checkAndApplyProvision(economy,
+                            sl, entry.getValue(), slsThatNeedProvBySupply));
+                    } else {
+                        // place the sl of the clone on the seller that is able to hold it
+                        provisionRelatedActionList
+                            .addAll((new Move(economy, sl, minimizer.getBestSeller()))
+                                .take().getAllActions());
+                    }
+                });
+            } catch (Exception e) {
+                logger.error("Error when creating ProvisionByDemand action", e);
             }
-            // provisionByDemand does not place the new newClone provisionedTrader. We try finding
-            // best seller, if none exists, we create one
-            economy.getMarketsAsBuyer(provisionedSeller).entrySet().forEach(entry -> {
-                        ShoppingList sl = entry.getKey();
-                        List<Trader> sellers = entry.getValue().getActiveSellers();
-                        QuoteMinimizer minimizer =
-                            (sellers.size() < economy.getSettings().getMinSellersForParallelism()
-                                     ? sellers.stream() : sellers.parallelStream())
-                                         .collect(() -> new QuoteMinimizer(economy, sl),
-                                            QuoteMinimizer::accept, QuoteMinimizer::combine);
-                        // If quote is infinite, we create a new provider
-                        if (Double.isInfinite(minimizer.getTotalBestQuote())) {
-                            provisionRelatedActionList.addAll(checkAndApplyProvision(economy,
-                                            sl, entry.getValue(), slsThatNeedProvBySupply));
-                        } else {
-                            // place the sl of the clone on the seller that is able to hold it
-                            provisionRelatedActionList
-                                .addAll((new Move(economy, sl, minimizer.getBestSeller()))
-                                    .take().getAllActions());
-                        }
-            });
             // When the current seller can't accept new customers the active sellers are not empty
             // and we want to avoid a reconfigure action. Look OM-34627.
         } else if (market.getActiveSellers().isEmpty()) {
