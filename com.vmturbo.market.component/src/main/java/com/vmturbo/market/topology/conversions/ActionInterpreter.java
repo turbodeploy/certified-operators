@@ -84,6 +84,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.trax.Trax;
@@ -1188,18 +1189,30 @@ public class ActionInterpreter {
                 }
                 break;
             case CONGESTION:
-                // For cloud entities we explain create either an efficiency or congestion change
-                // explanation
+                // If the congested commodities contains segmentationCommodities, we categorize such an action as COMPLIANCE.
+                List<ReasonCommodity> congestedSegments = moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
+                        .map(commodityConverter::commodityIdToCommodityTypeAndSlot)
+                        .map(p -> p.first)
+                        .filter(ct -> ct.getType() == CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+                        .map(commType2ReasonCommodity())
+                        .collect(Collectors.toList());
+                if (!congestedSegments.isEmpty()) {
+                    changeProviderExplanation = ChangeProviderExplanation.newBuilder()
+                            .setCompliance(ChangeProviderExplanation.Compliance.newBuilder()
+                            .addAllMissingCommodities(congestedSegments));
+                    break;
+                }
+                // For cloud entities we create either an efficiency or congestion change explanation
                 Optional<ChangeProviderExplanation.Builder> explanationFromTracker = changeExplanationFromTracker(moveTO, savings);
                 ChangeProviderExplanation.Builder  explanationFromM2 = ChangeProviderExplanation.newBuilder().setCongestion(
                         ChangeProviderExplanation.Congestion.newBuilder()
-                                .addAllCongestedCommodities(
-                                        moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
-                                                .map(commodityConverter::commodityIdToCommodityTypeAndSlot)
-                                                .map(commTypeAndSlot2ReasonCommodity(
-                                                        shoppingListOidToInfos.get(moveTO.getShoppingListToMove())
-                                                                .getBuyerId(), moveTO.getSource()))
-                                                .collect(Collectors.toList())).build());
+                        .addAllCongestedCommodities(moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
+                                .map(commodityConverter::commodityIdToCommodityTypeAndSlot)
+                                .map(commTypeAndSlot2ReasonCommodity(
+                                    shoppingListOidToInfos.get(moveTO.getShoppingListToMove())
+                                        .getBuyerId(), moveTO.getSource()))
+                                .collect(Collectors.toList()))
+                        .build());
                 changeProviderExplanation = explanationFromTracker.isPresent()
                         ? mergeM2AndTrackerExplanations(moveTO, explanationFromM2, explanationFromTracker.get())
                         : explanationFromM2;

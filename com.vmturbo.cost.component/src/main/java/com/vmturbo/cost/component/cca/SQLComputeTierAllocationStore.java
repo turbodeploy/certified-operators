@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.cca;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -171,7 +172,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                                    @Nonnull Collection<ComputeTierAllocationDatapoint> allocationDatapoints) {
 
 
-        try (DataMetricTimer persistenDurationTimer = TOTAL_PERSISTENCE_DURATION_SUMMARY_METRIC.startTimer()) {
+        try (DataMetricTimer persistenceDurationTimer = TOTAL_PERSISTENCE_DURATION_SUMMARY_METRIC.startTimer()) {
 
             // First, index the records by the entity OID - this is used later in checking for previously
             // recorded records for each entity.
@@ -207,10 +208,12 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                 insertAllocations(batchAllocations, newRecordTimestamp);
             });
 
-
             // Record the number of records extended and inserted.
             EXTENSION_COUNT_SUMMARY_METRIC.observe((double)extendedEntityRecords.size());
             NEW_ALLOCATION_COUNT_SUMMARY_METRIC.observe((double)newAllocationEntityOids.size());
+
+            logger.info("Finished persisting {} data points in {}", allocationDatapoints.size(),
+                    Duration.ofSeconds((long)persistenceDurationTimer.getTimeElapsedSecs()));
         }
 
     }
@@ -302,12 +305,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
 
         try {
 
-            dslContext.loadInto(Tables.ENTITY_CLOUD_SCOPE)
-                    .batchAll()
-                    .onDuplicateKeyUpdate()
-                    .loadRecords(cloudScopeRecords)
-                    .fields(Tables.ENTITY_CLOUD_SCOPE.fields())
-                    .execute();
+            insertCloudScopeRecords(cloudScopeRecords);
 
             Set<EntityComputeTierAllocationRecord> allocationRecords = allocationDatapoints.stream()
                     .map(allocation -> createAllocationRecord(allocation, recordTimestamp))

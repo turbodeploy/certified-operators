@@ -634,6 +634,18 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
         return derivedTargetIds;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public Set<Long> getParentTargetIds(long derivedTargetId) {
+        synchronized (storeLock) {
+            return new HashSet<>(parentTargetIdsByDerivedTargetId.getOrDefault(derivedTargetId,
+                    Collections.emptySet()));
+        }
+    }
+
     @Override
     public Optional<SDKProbeType> getProbeTypeForTarget(final long targetId) {
         Optional<Target> optionalTarget = getTarget(targetId);

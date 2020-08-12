@@ -43,7 +43,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
-import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -450,14 +449,8 @@ public class ActionDTOUtil {
             case ATOMICRESIZE:
                 final List<ActionEntity> atomicResizeEntities = new ArrayList<>();
                 atomicResizeEntities.add(getPrimaryEntity(action));
-                for (ResizeInfo resize : action.getInfo().getAtomicResize().getResizesList()) {
-                    atomicResizeEntities.addAll(resize.getSourceEntitiesList());
-                    if (resize.hasTarget()) {
-                        atomicResizeEntities.add(resize.getTarget());
-                    }
-                }
                 return atomicResizeEntities;
-                case RESIZE:
+            case RESIZE:
             case ACTIVATE:
             case DEACTIVATE:
             case PROVISION:

@@ -58,7 +58,8 @@ public class ElasticVDCStitchingOperation implements StitchingOperation<String, 
     @Nonnull
     @Override
     public Optional<StitchingScope<StitchingEntity>> getScope(
-            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+            long targetId) {
         // now we only stitch VCD with VC target
         return Optional.of(stitchingScopeFactory.probeScope(SDKProbeType.VCENTER.getProbeType()));
     }

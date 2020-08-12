@@ -20,6 +20,9 @@ message PolicyInfo {
     // Name of the policy
     optional string name = 1;
 
+    // Name of the policy
+    optional string display_name = 4;
+
     // Shows if the policy is enabled.
     optional bool enabled = 2 [default = true];
 

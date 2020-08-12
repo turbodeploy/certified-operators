@@ -111,9 +111,9 @@ public class StitchingTestUtils {
 
         public StitchingEntityData forTarget(final long targetId) {
             return StitchingEntityData.newBuilder(getEntityDtoBuilder())
-                .targetId(targetId)
-                .oid(IdentityGenerator.next())
-                .lastUpdatedTime(0).build();
+                    .targetId(targetId)
+                    .oid(IdentityGenerator.next())
+                    .lastUpdatedTime(0).build();
         }
     }
 

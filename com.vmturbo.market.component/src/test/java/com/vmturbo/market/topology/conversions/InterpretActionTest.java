@@ -413,6 +413,75 @@ public class InterpretActionTest {
         assertEquals(totalSlotNumber, reasonCommodity.getTimeSlot().getTotalSlotNumber());
     }
 
+    /**
+     * Test compliance action generation due to segment congestion.
+     *
+     * @throws Exception Any unexpected exception
+     */
+    @Test
+    public void testInterpretMoveActionDueToSegmentCongestion() throws Exception {
+        final TopologyDTO.TopologyEntityDTO entityDto =
+                TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
+
+        final long shoppingListId = 5L;
+        final ShoppingListInfo slInfo = new ShoppingListInfo(shoppingListId, entityDto.getOid(), null, null,
+                null, null, Arrays.asList());
+        final Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(shoppingListId, slInfo);
+        final Map<Long, TopologyEntityDTO> originalTopology = ImmutableMap.of(entityDto.getOid(),
+                entityDto);
+        final int congestedCommodityMarketId = 50;
+        final int slot = 1;
+
+        final CommodityType congestedCommodityType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+                .setKey("abc")
+                .build();
+        final CommodityConverter mockCommodityConverter = mock(CommodityConverter.class);
+        when(mockCommodityConverter.commodityIdToCommodityTypeAndSlot(eq(congestedCommodityMarketId)))
+                .thenReturn((new Pair(congestedCommodityType, Optional.of(slot))));
+        CloudTopologyConverter mockCloudTc = mock(CloudTopologyConverter.class);
+        TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
+        Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
+
+        final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
+                slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
+                new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
+                CommodityIndex.newFactory()::newIndex, null);
+
+        final long moveSrcId = entityDto.getCommoditiesBoughtFromProvidersList().get(0)
+                .getProviderId();
+
+        final Map<Long, ProjectedTopologyEntity> projectedTopology = ImmutableMap.of(
+                entityDto.getOid(), entity(entityDto),
+                moveSrcId, entity(entityDto));
+
+        final ActionTO actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)
+                .setMove(MoveTO.newBuilder()
+                        .setShoppingListToMove(shoppingListId)
+                        .setSource(moveSrcId)
+                        .setDestination(entityDto.getOid())
+                        .setMoveExplanation(MoveExplanation.newBuilder()
+                                .setCongestion(Congestion.newBuilder()
+                                        .addCongestedCommodities(congestedCommodityMarketId))
+                                .build())
+                        .build())
+                .build();
+
+        final List<Action> actionList = interpreter.interpretAction(actionTO, projectedTopology,
+                null, projectedCosts,
+                mockTopologyCostCalculator);
+
+        assertTrue(actionList != null);
+        assertEquals(actionList.size(), 1);
+        final Action action = actionList.get(0);
+        assertTrue(action.hasExplanation());
+        assertTrue(action.getExplanation().hasMove());
+        assertEquals(1, action.getExplanation().getMove().getChangeProviderExplanationCount());
+        final ChangeProviderExplanation changeProviderExplanation =
+                action.getExplanation().getMove().getChangeProviderExplanationList().get(0);
+        assertTrue(changeProviderExplanation.hasCompliance());
+    }
+
     @Test
     public void testInterpretReconfigureAction() throws IOException {
         long reconfigureSourceId = 1234;

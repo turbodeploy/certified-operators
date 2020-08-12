@@ -133,7 +133,7 @@ public class PolicyMapperTest {
                         .next();
 
         // then - general to any type of policy
-        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -169,7 +169,7 @@ public class PolicyMapperTest {
                         .next();
 
         // then - general
-        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -203,7 +203,7 @@ public class PolicyMapperTest {
                         .next();
 
         // then - general
-        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -234,7 +234,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -263,7 +263,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -271,36 +271,6 @@ public class PolicyMapperTest {
         assertEquals(result.getType(), PolicyType.BIND_TO_GROUP_AND_LICENSE);
 
         assertEquals(result.getType(), PolicyType.BIND_TO_GROUP_AND_LICENSE);
-        assertEquals(result.getConsumerGroup(), consumerDTO);
-        assertEquals(result.getProviderGroup(), providerDTO);
-
-        // the reverse conversion
-        Policy reverse = policyMapper.policyApiDtoToProto(result);
-        assertEquals(policy, reverse);
-    }
-
-    @Test
-    public void testPolicyToApiDtoBindToGroupGeoRedundancy() throws Exception {
-        rawPolicyBuilder.getPolicyInfoBuilder()
-            .setBindToGroupAndGeoRedundancy(PolicyInfo.BindToGroupAndGeoRedundancyPolicy.newBuilder()
-                        .setConsumerGroupId(testConsumerId)
-                        .setProviderGroupId(testProviderId)
-                        .build())
-            .build();
-        final Policy policy = rawPolicyBuilder.build();
-
-        final PolicyApiDTO result =
-                policyMapper.policyToApiDto(Collections.singletonList(policy), policyGroups)
-                        .iterator()
-                        .next();
-
-        assertEquals(result.getName(), result.getDisplayName());
-        assertEquals(result.getName(), testPolicyName);
-        assertEquals(result.getUuid(), Long.toString(testPolicyID));
-        assertFalse(result.isEnabled());
-        assertEquals(result.getCommodityType(), testPolicyCommodityType);
-
-        assertEquals(result.getType(), PolicyType.BIND_TO_GROUP_AND_GEO_REDUNDANCY);
         assertEquals(result.getConsumerGroup(), consumerDTO);
         assertEquals(result.getProviderGroup(), providerDTO);
 
@@ -324,7 +294,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -355,7 +325,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -386,7 +356,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -416,7 +386,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -446,7 +416,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -648,23 +618,6 @@ public class PolicyMapperTest {
         assertEquals(policy.getGroupId(), testConsumerId);
     }
 
-    @Test
-    public void testPolicyApiInputDtoToProtoBindGroupGeoRedundancy() {
-        PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
-        inputDTO.setType(PolicyType.BIND_TO_GROUP_AND_GEO_REDUNDANCY);
-
-        final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
-
-        assertEquals(result.getName(), testPolicyName);
-        assertFalse(result.getEnabled());
-
-        assertTrue(result.hasBindToGroupAndGeoRedundancy());
-        final PolicyInfo.BindToGroupAndGeoRedundancyPolicy policy =
-                result.getBindToGroupAndGeoRedundancy();
-        assertEquals(policy.getConsumerGroupId(), testConsumerId);
-        assertEquals(policy.getProviderGroupId(), testProviderId);
-    }
-
     /**
      * Test that if group can not be found, basic info for PolicyApiDTO is still populated, and
      * GroupApiDTO is returned with only one uuid field.
@@ -691,7 +644,7 @@ public class PolicyMapperTest {
                         .next();
 
         // check that policy info is still populated in PolicyApiDTO
-        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());

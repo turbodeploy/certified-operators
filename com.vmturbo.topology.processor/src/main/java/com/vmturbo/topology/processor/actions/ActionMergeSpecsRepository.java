@@ -213,6 +213,7 @@ public class ActionMergeSpecsRepository {
                                         .setEntity(ActionEntity.newBuilder()
                                                 .setType(aggregationEntity.getEntityType())
                                                 .setId(aggregationEntity.getOid())
+                                                .setEnvironmentType(aggregationEntity.getEnvironmentType())
                                                 .build())
                                         .setEntityName(aggregationEntity.getDisplayName()));
 
@@ -425,6 +426,7 @@ public class ActionMergeSpecsRepository {
                                 .setEntity(ActionEntity.newBuilder()
                                         .setId(deDuplicationEntity.getOid())
                                         .setType(deDuplicationEntity.getEntityType())
+                                        .setEnvironmentType(deDuplicationEntity.getEnvironmentType())
                                         .build())
                                 .setEntityName(deDuplicationEntity.getDisplayName())
                                 .build());
@@ -458,6 +460,7 @@ public class ActionMergeSpecsRepository {
                                 .setEntity(ActionEntity.newBuilder()
                                         .setId(deDuplicationEntity.getOid())
                                         .setType(deDuplicationEntity.getEntityType())
+                                        .setEnvironmentType(deDuplicationEntity.getEnvironmentType())
                                         .build())
                                 .setEntityName(deDuplicationEntity.getDisplayName())
                                 .build());

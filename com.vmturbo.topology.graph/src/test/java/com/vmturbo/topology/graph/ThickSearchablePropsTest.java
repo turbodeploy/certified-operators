@@ -15,13 +15,17 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CronJobInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CustomControllerInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.topology.graph.SearchableProps.BusinessAccountProps;
+import com.vmturbo.topology.graph.SearchableProps.DatabaseServerProps;
 import com.vmturbo.topology.graph.SearchableProps.PmProps;
 import com.vmturbo.topology.graph.SearchableProps.StorageProps;
 import com.vmturbo.topology.graph.SearchableProps.VmProps;
@@ -151,6 +155,25 @@ public class ThickSearchablePropsTest {
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(baInfo)));
         assertThat(baProps.getAccountId(), is(baInfo.getAccountId()));
         assertThat(baProps.hasAssociatedTargetId(), is(true));
+
+    }
+
+    /**
+     * DB server props.
+     */
+    @Test
+    public void testDBServer() {
+        DatabaseInfo dbInfo = DatabaseInfo.newBuilder()
+                .setEngine(DatabaseEngine.MARIADB)
+                .setEdition(DatabaseEdition.EXPRESS)
+                .setVersion("1.0.1")
+                .build();
+        final DatabaseServerProps dbProps = (DatabaseServerProps)ThickSearchableProps.newProps(TopologyEntityDTO.newBuilder()
+                .setEntityType(ApiEntityType.DATABASE_SERVER.typeNumber())
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setDatabase(dbInfo)));
+        assertThat(dbProps.getDatabaseEngine(), is(dbInfo.getEngine()));
+        assertThat(dbProps.getDatabaseEdition(), is(dbInfo.getEdition()));
+        assertThat(dbProps.getDatabaseVersion(), is(dbInfo.getVersion()));
 
     }
 

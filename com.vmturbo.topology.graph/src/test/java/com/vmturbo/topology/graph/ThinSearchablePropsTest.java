@@ -1,5 +1,8 @@
 package com.vmturbo.topology.graph;
 
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertThat;
+
 import java.util.function.BiFunction;
 
 import org.junit.Assert;
@@ -14,6 +17,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResi
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.topology.graph.SearchableProps.VmProps;
 import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
 
@@ -40,6 +44,40 @@ public class ThinSearchablePropsTest {
         final TagIndex tags = DefaultTagIndex.singleEntity(0L, Tags.newBuilder().build());
         final VmProps vm = getVmProps(tags, Builder::setHotRemoveSupported);
         testVmHotChangeSupported(vm, VmProps::isHotRemoveSupported);
+    }
+
+    /**
+     * Checks DB server parameters correctness.
+     */
+    @Test
+    public void testDBServer() {
+        final TagIndex tags = DefaultTagIndex.singleEntity(0L, Tags.newBuilder().build());
+        TopologyDTO.TypeSpecificInfo.DatabaseInfo dbInfo = TopologyDTO.TypeSpecificInfo.DatabaseInfo.newBuilder()
+                .setEngine(CloudCostDTO.DatabaseEngine.MARIADB)
+                .setEdition(CloudCostDTO.DatabaseEdition.EXPRESS)
+                .setVersion("1.0.1")
+                .build();
+        final SearchableProps.DatabaseServerProps dbProps = (SearchableProps.DatabaseServerProps)ThinSearchableProps
+                .newProps(tags,
+                    TestGraphEntity.newBuilder(0L, ApiEntityType.DATABASE_SERVER)
+                        .setTypeSpecificInfo(TopologyDTO.TypeSpecificInfo
+                                .newBuilder()
+                                .setDatabase(dbInfo)
+                                .build())
+                            .build(),
+                    TopologyEntityDTO.newBuilder()
+                            .setOid(0L)
+                            .setDisplayName("Test_DisplayName")
+                            .setEntityType(EntityType.DATABASE_SERVER_VALUE)
+                            .setTypeSpecificInfo(TopologyDTO.TypeSpecificInfo
+                                    .newBuilder()
+                                    .setDatabase(dbInfo)
+                                    .build())
+                            .build()
+                );
+        assertThat(dbProps.getDatabaseEngine(), is(dbInfo.getEngine()));
+        assertThat(dbProps.getDatabaseEdition(), is(dbInfo.getEdition()));
+        assertThat(dbProps.getDatabaseVersion(), is(dbInfo.getVersion()));
     }
 
     private static void testVmHotChangeSupported(VmProps vm,

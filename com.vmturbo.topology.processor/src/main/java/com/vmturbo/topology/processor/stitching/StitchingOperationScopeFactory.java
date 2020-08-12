@@ -150,10 +150,17 @@ public class StitchingOperationScopeFactory implements StitchingScopeFactory<Sti
     }
 
     @Override
-    public StitchingScope<TopologyEntity> hasAndLacksProbeCategoryEntityTypeStitchingScope(
+    public StitchingScope<StitchingEntity> hasAndLacksProbeCategoryEntityTypeStitchingScope(
             @Nonnull Set<ProbeCategory> owningProbeCategories, @Nonnull Set<ProbeCategory> missingProbeCategories, @Nonnull EntityType entityType) {
         throw new UnsupportedOperationException(
                 "missingSingleProbeCategoryEntityTypeStitchingScope is not needed for stitching");
+    }
+
+    @Override
+    public StitchingScope<StitchingEntity> parentTargetEntityType(@Nonnull EntityType entityType,
+            long targetId) {
+        return new ParentTargetEntityTypeStitchingScope(stitchingContext, entityType, targetId,
+                targetStore);
     }
 
     public StitchingContext getStitchingContext() {
@@ -487,6 +494,44 @@ public class StitchingOperationScopeFactory implements StitchingScopeFactory<Sti
                     .flatMap(probeId -> targetStore.getProbeTargets(probeId).stream())
                     .map(Target::getId)
                     .flatMap(targetId -> getStitchingContext().internalEntities(entityType, targetId));
+        }
+    }
+
+    /**
+     * A calculation scope for applying a calculation globally to entities of a specific
+     * {@link EntityType} that come from a parent target with a given target id.
+     */
+    private static class ParentTargetEntityTypeStitchingScope extends BaseStitchingScope {
+
+        private final EntityType entityType;
+
+        private final long targetId;
+
+        private final TargetStore targetStore;
+
+        ParentTargetEntityTypeStitchingScope(@Nonnull StitchingContext stitchingContext,
+                @Nonnull final EntityType entityType, long targetId,
+                @Nonnull final TargetStore targetStore) {
+            super(stitchingContext);
+            this.entityType = Objects.requireNonNull(entityType);
+            this.targetId = targetId;
+            this.targetStore = Objects.requireNonNull(targetStore);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<StitchingEntity> entities() {
+            final Set<Long> parentIds = targetStore.getParentTargetIds(targetId);
+            logger.trace("Returning entities discovered by parents {}.", () -> parentIds.stream()
+                    .map(targetStore::getTarget)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .map(Target::toString)
+                    .collect(Collectors.toSet()));
+            return getStitchingContext().getEntitiesOfType(entityType)
+                    .filter(entity -> entity.getDiscoveringTargetIds()
+                            .anyMatch(parentIds::contains))
+                    .map(Function.identity());
         }
     }
 }
