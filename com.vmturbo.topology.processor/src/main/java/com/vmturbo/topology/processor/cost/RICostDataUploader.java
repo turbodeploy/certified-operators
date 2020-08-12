@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -298,6 +297,44 @@ public class RICostDataUploader {
                 return;
             }
 
+            final ReservedInstanceSpecInfo.Builder reservedInstanceSpecInfo =
+                    ReservedInstanceSpecInfo.newBuilder();
+            if (riData.hasRegion()) {
+                final Long regionId = cloudEntitiesMap.get(riData.getRegion());
+                if (regionId != null) {
+                    reservedInstanceSpecInfo.setRegionId(regionId);
+                } else {
+                    logger.info("Ignoring RI {} because the region oid by id {} was not found.",
+                            ri.getLocalId(), riData.getRegion());
+                    return;
+                }
+            }
+            if (riData.hasRelatedProfileId()) {
+                final Long tierId = cloudEntitiesMap.get(riData.getRelatedProfileId());
+                if (tierId != null) {
+                    reservedInstanceSpecInfo.setTierId(tierId);
+                } else {
+                    logger.info(
+                            "Ignoring RI {} because the tier oid by related profile id {} was not found.",
+                            ri.getLocalId(), riData.getRelatedProfileId());
+                    return;
+                }
+            }
+
+            final ReservedInstanceBoughtInfo.Builder reservedInstanceBoughtInfo =
+                    ReservedInstanceBoughtInfo.newBuilder();
+            if (riData.hasAvailabilityZone()) {
+                final Long availabilityZoneId = cloudEntitiesMap.get(riData.getAvailabilityZone());
+                if (availabilityZoneId != null) {
+                    reservedInstanceBoughtInfo.setAvailabilityZoneId(availabilityZoneId);
+                } else {
+                    logger.info(
+                            "Ignoring RI {} because the availability zone oid by id {} was not found.",
+                            ri.getLocalId(), riData.getAvailabilityZone());
+                    return;
+                }
+            }
+
             final ReservedInstanceType.Builder reservedInstanceType =
                     ReservedInstanceType.newBuilder()
                             .setOfferingClass(
@@ -308,29 +345,11 @@ public class RICostDataUploader {
             // Precision can't be guaranteed here, rounding to the nearest number of years.
             reservedInstanceType.setTermYears(
                     (int)Math.round((double)riData.getDuration() / MILLIS_PER_YEAR));
-            final ReservedInstanceSpecInfo.Builder reservedInstanceSpecInfo =
-                    ReservedInstanceSpecInfo.newBuilder().setType(reservedInstanceType).setTenancy(
-                            Tenancy.forNumber(riData.getInstanceTenancy().getNumber())).setOs(
-                            CloudCostUtils.platformToOSType(riData.getPlatform()));
-            if (riData.hasRegion()) {
-                final Long regionId = cloudEntitiesMap.get(riData.getRegion());
-                if (regionId != null) {
-                    reservedInstanceSpecInfo.setRegionId(regionId);
-                } else {
-                    logger.warn("Could not find region oid by id {} for reserved instance {}.",
-                            riData.getRegion(), ri.getLocalId());
-                }
-            }
-            if (riData.hasRelatedProfileId()) {
-                final Long tierId = cloudEntitiesMap.get(riData.getRelatedProfileId());
-                if (tierId != null) {
-                    reservedInstanceSpecInfo.setTierId(tierId);
-                } else {
-                    logger.warn(
-                            "Could not find tier oid by related profile id {} for reserved instance {}.",
-                            riData.getRelatedProfileId(), ri.getLocalId());
-                }
-            }
+
+            reservedInstanceSpecInfo.setType(reservedInstanceType)
+                    .setTenancy(Tenancy.forNumber(riData.getInstanceTenancy().getNumber()))
+                    .setOs(CloudCostUtils.platformToOSType(riData.getPlatform()));
+
             if (riData.hasInstanceSizeFlexible()) {
                 reservedInstanceSpecInfo.setSizeFlexible(riData.getInstanceSizeFlexible());
             }
@@ -380,9 +399,8 @@ public class RICostDataUploader {
                             .setNumberOfCoupons(numberOfCoupons)
                             .setNumberOfCouponsUsed(0);
 
-            final ReservedInstanceBoughtInfo.Builder reservedInstanceBoughtInfo =
-                    ReservedInstanceBoughtInfo.newBuilder()
-                            .setProbeReservedInstanceId(ri.getLocalId())
+
+            reservedInstanceBoughtInfo.setProbeReservedInstanceId(ri.getLocalId())
                             .setReservedInstanceSpec(riSpecInfoToInternalId.get(riSpecInfo))
                             .setReservedInstanceBoughtCost(riBoughtCost)
                             .setReservedInstanceBoughtCoupons(riBoughtCoupons);
@@ -415,17 +433,6 @@ public class RICostDataUploader {
 
             if (riData.hasReservationOrderId()) {
                 reservedInstanceBoughtInfo.setReservationOrderId(riData.getReservationOrderId());
-            }
-
-            if (riData.hasAvailabilityZone()) {
-                final Long availabilityZoneId = cloudEntitiesMap.get(riData.getAvailabilityZone());
-                if (availabilityZoneId != null) {
-                    reservedInstanceBoughtInfo.setAvailabilityZoneId(availabilityZoneId);
-                } else {
-                    logger.warn(
-                            "Could not find availability zone oid by id {} for reserved instance {}.",
-                            riData.getAvailabilityZone(), ri.getLocalId());
-                }
             }
 
             final ReservedInstanceScopeInfo.Builder scopeInfo =
