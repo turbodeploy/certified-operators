@@ -13,11 +13,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -40,7 +40,7 @@ public class TopologyStitchingChanges {
     private static final Logger logger = LogManager.getLogger();
 
     private TopologyStitchingChanges() {
-        // Never instantiate this class. Only inner classes may be instantiated.s
+        // Never instantiate this class. Only inner classes may be instantiated.
     }
 
     /**
@@ -112,7 +112,7 @@ public class TopologyStitchingChanges {
             // add new entities to graph
             List<TopologyStitchingEntity> newEntities = stitchingContext.addEntities(entities);
             // add the new added entities to StitchingJournal
-            newEntities.forEach(entity -> changeset.observeAddition(entity));
+            newEntities.forEach(changeset::observeAddition);
         }
     }
 
@@ -125,17 +125,20 @@ public class TopologyStitchingChanges {
         private final StitchingEntity mergeFromEntity;
         private final StitchingEntity mergeOntoEntity;
         private final CommoditySoldMerger commoditySoldMerger;
+        private final PropertiesMerger propertiesMerger;
         private final List<EntityFieldMerger<?>> fieldMergers;
 
         public MergeEntitiesChange(@Nonnull final StitchingContext stitchingContext,
                                    @Nonnull final StitchingEntity mergeFromEntity,
                                    @Nonnull final StitchingEntity mergeOntoEntity,
                                    @Nonnull final CommoditySoldMerger commoditySoldMerger,
+                                   @Nonnull final PropertiesMerger propertiesMerger,
                                    @Nonnull final List<EntityFieldMerger<?>> fieldMergers) {
             this.stitchingContext = Objects.requireNonNull(stitchingContext);
             this.mergeFromEntity = Objects.requireNonNull(mergeFromEntity);
             this.mergeOntoEntity = Objects.requireNonNull(mergeOntoEntity);
             this.commoditySoldMerger = Objects.requireNonNull(commoditySoldMerger);
+            this.propertiesMerger = Objects.requireNonNull(propertiesMerger);
             this.fieldMergers = Objects.requireNonNull(fieldMergers);
         }
 
@@ -145,6 +148,7 @@ public class TopologyStitchingChanges {
                 mergeDetails.getMergeFromEntity(),
                 mergeDetails.getMergeOntoEntity(),
                 new CommoditySoldMerger(mergeDetails.getMergeCommoditySoldStrategy()),
+                new PropertiesMerger(mergeDetails.getMergePropertiesStrategy()),
                 mergeDetails.getFieldMergers());
         }
 
@@ -222,6 +226,9 @@ public class TopologyStitchingChanges {
                     }
 
             );
+
+            // Merge entity properties
+            propertiesMerger.merge(from.getEntityBuilder(), onto.getEntityBuilder());
 
             trackMergeInformation(from, onto);
             stitchingContext.removeEntity(from);

@@ -52,7 +52,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
     /**
      * The errors encountered by this entity during any part of stitching.
      */
-    private StitchingErrors stitchingErrors = new StitchingErrors();
+    private final StitchingErrors stitchingErrors = new StitchingErrors();
 
     /**
      * A list of {@link StitchingMergeInformation} for entities that were that were merged onto this entity.
