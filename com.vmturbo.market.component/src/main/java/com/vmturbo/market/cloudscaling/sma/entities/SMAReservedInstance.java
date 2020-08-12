@@ -1,10 +1,10 @@
 package com.vmturbo.market.cloudscaling.sma.entities;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -104,13 +104,20 @@ public class SMAReservedInstance {
 
         This is done so that we can know the preference of RI within a coupon family.
         Also we can get the most preferred vm which needs < x coupons efficiently.
+        Also note that the list is maintained sorted based on the index (the actual
+        index in the RI preference list).
      */
-    private HashMap<Integer, List<Pair<SMAVirtualMachine, Integer>>> couponToBestVM;
+    private HashMap<Integer, Deque<Pair<SMAVirtualMachine, Integer>>> couponToBestVM;
 
     /*
      * list of VMs partitioned by business account id, to handle Azure single scoping.
      */
     private HashSet<SMAVirtualMachine> discountableVMs;
+
+    // the set of vms skipped by the RI. The ones which are not discounted.
+    // we maintain this because when the RI gains coupons we have to add this back to the list.
+    // the second entry in the list is the index of the vm in the ri's sorted discountable vm list.
+    private Deque<Pair<SMAVirtualMachine, Integer>> skippedVMsWIthIndex;
 
     /*
      * Availability zone.  If zone == NO_ZONE then regional RI.
@@ -174,6 +181,7 @@ public class SMAReservedInstance {
         lastDiscountedVM = null;
         riCoveragePerGroup = new HashMap<>();
         discountableVMs = new HashSet<>();
+        skippedVMsWIthIndex = new LinkedList<>();
     }
 
     /**
@@ -299,6 +307,25 @@ public class SMAReservedInstance {
     }
 
     /**
+     * Add vm to the skippedVms list.
+     * @param vm vm to be skipped.
+     * @param index the actual index in the RI preference list
+     */
+    public void addToSkippedVMsWIthIndex(SMAVirtualMachine vm, int index) {
+        skippedVMsWIthIndex.addFirst(new Pair(vm, index));
+    }
+
+    /**
+     * restore all the skipped vms back to CouponToBestVM. And then clear the skippedVMsWIthIndex.
+     */
+    public void restoreSkippedVMs() {
+        while (!skippedVMsWIthIndex.isEmpty()) {
+            Pair<SMAVirtualMachine, Integer> entry = skippedVMsWIthIndex.pop();
+            addVMToCouponToBestVM(entry.second, entry.first, true);
+        }
+    }
+
+    /**
      * Checks if couponToBestVM map is empty. This signifies that the RI has proposed to every
      * possible VM.
      *
@@ -312,23 +339,27 @@ public class SMAReservedInstance {
      * Add  the pair (VM, vmIndex) to couponToBestVM.get(coupon).
      * Side Effect: updates discountableVMs.
      *
-     * @param coupon  the key to search in couponToBestVM
      * @param vmIndex the index of VM in RI's preference list.
      * @param vm      the VM to be added.
+     * @param addFirst should the VM be added to end of beginning to the list.
      */
-    public void addVMToCouponToBestVM(int coupon, Integer vmIndex, SMAVirtualMachine vm) {
+    public void addVMToCouponToBestVM(Integer vmIndex, SMAVirtualMachine vm, boolean addFirst) {
+        int coupon = getTemplate().getCoupons() * vm.getGroupSize();
+        if (isIsf()) {
+            coupon = vm.getMinCostProviderPerFamily(getTemplate().getFamily()).getCoupons()
+                    * vm.getGroupSize();
+        }
         if (couponToBestVM.get(coupon) == null) {
-            List<Pair<SMAVirtualMachine, Integer>> vmList =
-                    new ArrayList(Arrays.asList(new Pair(vm, vmIndex)));
-            couponToBestVM.put(coupon, vmList);
+            Deque<Pair<SMAVirtualMachine, Integer>> vmToIndexQueue =
+                    new LinkedList<>();
+            couponToBestVM.put(coupon, vmToIndexQueue);
+        }
+        if (addFirst) {
+            couponToBestVM.get(coupon).addFirst(new Pair(vm, vmIndex));
         } else {
-            couponToBestVM.get(coupon).add(new Pair(vm, vmIndex));
+            couponToBestVM.get(coupon).addLast(new Pair(vm, vmIndex));
         }
         discountableVMs.add(vm);
-    }
-
-    public HashMap<Integer, List<Pair<SMAVirtualMachine, Integer>>> getCouponToBestVM() {
-        return couponToBestVM;
     }
 
     /**
@@ -338,14 +369,14 @@ public class SMAReservedInstance {
      * @param coupon the key to search in couponToBestVM
      */
     public void removeVMFromCouponToBestVM(int coupon) {
-        List<Pair<SMAVirtualMachine, Integer>> vmList = couponToBestVM.get(coupon);
+        Deque<Pair<SMAVirtualMachine, Integer>> vmList = couponToBestVM.get(coupon);
         if (vmList != null) {
             if (vmList.isEmpty()) {
                 couponToBestVM.remove(coupon);
             } else {
-                SMAVirtualMachine vm = vmList.get(0).first;
+                Pair<SMAVirtualMachine, Integer> vmIndexPair = vmList.pop();
+                SMAVirtualMachine vm = vmIndexPair.first;
                 discountableVMs.remove(vm);
-                vmList.remove(0);
                 if (vmList.isEmpty()) {
                     couponToBestVM.remove(coupon);
                 }
@@ -359,32 +390,27 @@ public class SMAReservedInstance {
      * ignoring coupon value.
      *
      * @param coupon                 the max key value to search in couponToBestVM
-     * @param includePartialCoverage ignore coupon parameter if true
      * @param virtualMachineGroupMap map from group name to virtualMachine Group
      * @return the most preferred vm for the RI that the RI has not yet proposed and doesnt require more
      * coupons than what the RI has. In other words vm that can be fully covered by RI.
      */
-    public SMAVirtualMachine findBestVMIndexFromCouponToBestVM(int coupon, boolean includePartialCoverage,
+    public Pair<SMAVirtualMachine, Integer> findBestVMIndexFromCouponToBestVM(int coupon,
                                                                Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
-        if (!includePartialCoverage) {
-            // all possible coupons are passed to compute bestPartialVM.
-            SMAVirtualMachine bestPartialVM =  findBestVM(couponToBestVM.keySet());
-            // only those coupons which are below "coupon" are passed. We need full coverage.
-            SMAVirtualMachine bestFullVM =  findBestVM(couponToBestVM.keySet().stream()
-                    .filter(a -> a <= coupon).collect(Collectors.toSet()));
-            if (bestFullVM == null) {
-                return bestPartialVM;
-            }
-            if (bestPartialVM == null) {
-                return bestFullVM;
-            }
-            if (compareCost(bestFullVM, bestPartialVM, virtualMachineGroupMap, coupon) > 0) {
-                return bestPartialVM;
-            } else {
-                return bestFullVM;
-            }
+        // all possible coupons are passed to compute bestPartialVM.
+        Pair<SMAVirtualMachine, Integer> bestPartialVM = findBestVM(couponToBestVM.keySet());
+        // only those coupons which are below "coupon" are passed. We need full coverage.
+        Pair<SMAVirtualMachine, Integer> bestFullVM = findBestVM(couponToBestVM.keySet().stream()
+                .filter(a -> a <= coupon).collect(Collectors.toSet()));
+        if (bestFullVM.first == null) {
+            return bestPartialVM;
+        }
+        if (bestPartialVM.first == null) {
+            return bestFullVM;
+        }
+        if (compareCost(bestFullVM.first, bestPartialVM.first, virtualMachineGroupMap, coupon) > 0) {
+            return bestPartialVM;
         } else {
-            return findBestVM(couponToBestVM.keySet());
+            return bestFullVM;
         }
     }
 
@@ -393,17 +419,17 @@ public class SMAReservedInstance {
      * @param possibleCoupons the set of possible coupons.
      * @return the best VM the RI can discount.
      */
-    public SMAVirtualMachine findBestVM(Set<Integer> possibleCoupons) {
+    public Pair<SMAVirtualMachine, Integer> findBestVM(Set<Integer> possibleCoupons) {
         SMAVirtualMachine bestVM = null;
         Integer bestIndex = Integer.MAX_VALUE;
         for (Integer c : possibleCoupons) {
-            List<Pair<SMAVirtualMachine, Integer>> vmList = couponToBestVM.get(c);
-            if (vmList != null && !vmList.isEmpty() && vmList.get(0).second < bestIndex) {
-                bestIndex = vmList.get(0).second;
-                bestVM = vmList.get(0).first;
+            Deque<Pair<SMAVirtualMachine, Integer>> vmList = couponToBestVM.get(c);
+            if (vmList != null && !vmList.isEmpty() && vmList.getFirst().second < bestIndex) {
+                bestIndex = vmList.getFirst().second;
+                bestVM = vmList.getFirst().first;
             }
         }
-        return bestVM;
+        return new Pair(bestVM, bestIndex);
     }
 
     /**

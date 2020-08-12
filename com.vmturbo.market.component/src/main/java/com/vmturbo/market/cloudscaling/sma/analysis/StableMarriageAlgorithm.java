@@ -6,8 +6,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.base.Stopwatch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,13 +39,23 @@ public class StableMarriageAlgorithm {
      */
     public static SMAOutput execute(@Nonnull SMAInput input) {
         Objects.requireNonNull(input, "SMA execute() input is null!");
+        final Stopwatch stopWatch = Stopwatch.createStarted();
+        long actionCount = 0;
         List<SMAOutputContext> outputContexts = new ArrayList<>();
         for (SMAInputContext inputContext : input.getContexts()) {
             SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
             postProcessing(outputContext);
             outputContexts.add(outputContext);
+            for (SMAMatch match : outputContext.getMatches()) {
+                if ((match.getVirtualMachine().getCurrentTemplate() != match.getTemplate())
+                        || (Math.abs(match.getVirtualMachine().getCurrentRICoverage()
+                        - match.getProjectedRICoverage()) > SMAUtils.EPSILON)) {
+                    actionCount++;
+                }
+            }
         }
-        logger.info("created {} outputContexts", outputContexts.size());
+        long timeInMilliseconds = stopWatch.elapsed(TimeUnit.MILLISECONDS);
+        logger.info("created {} outputContexts with {} actions in {}ms", outputContexts.size(), actionCount, timeInMilliseconds);
         SMAOutput output = new SMAOutput(outputContexts);
         if (logger.isDebugEnabled()) {
             for (SMAOutputContext outputContext : output.getContexts()) {
