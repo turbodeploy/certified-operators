@@ -1,4 +1,4 @@
-package com.vmturbo.repository.topology.util;
+package com.vmturbo.common.protobuf.utils;
 
 import java.util.Map;
 
@@ -9,7 +9,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
-import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 
 /**
  * Contains methods for filtering GuestLoad applications.
@@ -36,7 +35,7 @@ public final class GuestLoadFilters {
     }
 
     /**
-     * Checks {@link RepoGraphEntity} that it's not a Guest Load application.
+     * Checks {@link TopologyEntityDTO} that it's not a Guest Load application.
      *
      * @param entity topology entity dto
      * @return Returns {@code true} if it's not a Guest Load application.
