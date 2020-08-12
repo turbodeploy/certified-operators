@@ -79,7 +79,7 @@ promtail:
 fluent-bit:
   enabled: false
 prometheus:
-  enabled: false
+  enabled: true
 prometheus-mysql-exporter:
   enabled: false
 grafana:
