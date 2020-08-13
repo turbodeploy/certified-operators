@@ -1,5 +1,7 @@
 package com.vmturbo.market.diagnostics;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -21,7 +23,6 @@ import com.google.gson.Gson;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -53,8 +54,9 @@ public class AnalysisDiagnosticsCollectorTest {
     private List<CommoditySpecification> commSpecsToAdjustOverhead = new ArrayList<>();
     private List<Action> replayActions = new ArrayList<>();
     private List<Deactivate> replayDeactivateActions = new ArrayList<>();
-    //Change this to the location of unzipped analysis diags
-    private final String unzippedAnalysisDiagsLocation = "/Users/thiru_arun/Downloads/analysisDiags-777777-73588625748280";
+    // To run your own diagnostics, change this to the location of your unzipped analysis diags.
+    // For ex., change it to "/Users/thiru_arun/Downloads/analysisDiags-777777-73588629312080"
+    private final String unzippedAnalysisDiagsLocation = "target/test-classes/analysisDiags";
 
     /**
      * Unit test to run analysis from the unzipped analysis diags.
@@ -63,22 +65,23 @@ public class AnalysisDiagnosticsCollectorTest {
      * 2. Change the variable unzippedAnalysisDiagsLocation.
      * 3. Run the unit test.
      */
-    @Ignore
     @Test
     public void testRunAnalysisFromDiags() {
         IdentityGenerator.initPrefix(9L);
         restoreAnalysisMembers(unzippedAnalysisDiagsLocation);
-        if (!traderTOs.isEmpty() && analysisConfig.isPresent() && topologyInfo.isPresent()
-            && !commSpecsToAdjustOverhead.isEmpty()) {
-            Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, topologyInfo.get(),
-                commSpecsToAdjustOverhead);
-            Analysis analysis = createAnalysis(topology);
-            AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
-                traderTOs, topologyInfo.get(), analysisConfig.get(), analysis, topology);
-            logger.info("Analysis generated {} actions", results.getActionsList().size());
-        } else {
-            logger.error("Could not create topology. Analysis was not run.");
-        }
+        assertFalse(traderTOs.isEmpty());
+        assertTrue(analysisConfig.isPresent());
+        assertTrue(topologyInfo.isPresent());
+        assertFalse(commSpecsToAdjustOverhead.isEmpty());
+
+        Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, topologyInfo.get(),
+            commSpecsToAdjustOverhead);
+        Analysis analysis = createAnalysis(topology);
+        AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
+            traderTOs, topologyInfo.get(), analysisConfig.get(), analysis, topology);
+        logger.info("Analysis generated {} actions", results.getActionsList().size());
+
+        assertTrue(results.getActionsList().size() > 0);
     }
 
     private Analysis createAnalysis(Topology topology) {
@@ -91,7 +94,8 @@ public class AnalysisDiagnosticsCollectorTest {
 
     private void restoreAnalysisMembers(String unzippedAnalysisDiagsLocation) {
         try {
-            Iterator<Path> paths = Files.walk(Paths.get(unzippedAnalysisDiagsLocation), 1).iterator();
+            Iterator<Path> paths = Files.walk(Paths.get(unzippedAnalysisDiagsLocation), 1)
+                .filter(Files::isRegularFile).iterator();
             while (paths.hasNext()) {
                 Path path = paths.next();
                 String fileName = path.getFileName().toString();
