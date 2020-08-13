@@ -161,6 +161,8 @@ public class AdminService implements IAdminService {
 
     private final boolean enableReporting;
 
+    private final boolean enableSearchApi;
+
     private final SettingsService settingsService;
 
     AdminService(@Nonnull final ClusterService clusterService,
@@ -171,7 +173,8 @@ public class AdminService implements IAdminService {
                  @Nonnull final BuildProperties buildProperties,
                  @Nonnull final DeploymentMode deploymentMode,
                  @Nonnull final boolean enableReporting,
-                 @Nonnull final SettingsService settingsService) {
+                 @Nonnull final SettingsService settingsService,
+                 @Nonnull final boolean enableSearchApi) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.clusterMgrApi = Objects.requireNonNull(clusterMgrApi);
@@ -181,6 +184,7 @@ public class AdminService implements IAdminService {
         this.deploymentMode = deploymentMode;
         this.enableReporting = enableReporting;
         this.settingsService = settingsService;
+        this.enableSearchApi = enableSearchApi;
     }
 
     @Override
@@ -502,6 +506,7 @@ public class AdminService implements IAdminService {
         ProductCapabilityDTO productCapabilityDTO = new ProductCapabilityDTO();
         productCapabilityDTO.setDeploymentMode(this.deploymentMode);
         productCapabilityDTO.setReportingEnabled(this.enableReporting);
+        productCapabilityDTO.setSearchApiEnabled(this.enableSearchApi);
         return productCapabilityDTO;
     }
 
