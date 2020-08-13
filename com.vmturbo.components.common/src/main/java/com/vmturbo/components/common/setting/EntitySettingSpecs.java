@@ -231,6 +231,12 @@ public enum EntitySettingSpecs {
         EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME), actionExecutionModeSetToManual(), true),
 
     /**
+     * Delete Volume action automation mode.
+     */
+    DeleteVolume("deleteVolume", "DeleteVolume", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME), actionModeWithoutDisabledOption(), true),
+
+    /**
      * Provision action automation mode.
      */
     Provision("provision", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
@@ -266,6 +272,13 @@ public enum EntitySettingSpecs {
      * Enable Scale actions (currently it is used for Volumes only).
      */
     EnableScaleActions("enableScaleActions", "Enable Scale Actions", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            new BooleanSettingDataType(true), true),
+
+    /**
+     * Enable Delete actions (currently it is used for Volumes only).
+     */
+    EnableDeleteActions("enableDeleteActions", "Enable Delete Actions", Collections.emptyList(),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
             new BooleanSettingDataType(true), true),
 
