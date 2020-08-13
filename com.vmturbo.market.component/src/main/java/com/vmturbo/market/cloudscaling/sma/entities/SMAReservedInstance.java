@@ -442,7 +442,7 @@ public class SMAReservedInstance {
      */
     public float computeSaving(SMAVirtualMachine vm,
                                Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
-                               int coupons) {
+                               float coupons) {
         final List<SMAVirtualMachine> vmList;
         if (vm.getGroupSize() > 1) {
             vmList = virtualMachineGroupMap.get(vm.getGroupName()).getVirtualMachines();
@@ -469,8 +469,8 @@ public class SMAReservedInstance {
             float afterMoveCostvm = isIsf() ? member.getMinCostProviderPerFamily(
                     riTemplate.getFamily()).getNetCost(vm.getBusinessAccountId(),
                             vm.getOsType(),
-                            (float)coupons / vm.getGroupSize()) : riTemplate
-                    .getNetCost(vm.getBusinessAccountId(), vm.getOsType(), (float)coupons / vm.getGroupSize());
+                            coupons / vm.getGroupSize()) : riTemplate
+                    .getNetCost(vm.getBusinessAccountId(), vm.getOsType(), coupons / vm.getGroupSize());
 
             netSavingvm += (onDemandCostvm - afterMoveCostvm);
         }
