@@ -127,13 +127,12 @@ public class CloudStorageMigrationHelper {
      * Get the historical max IOPS. If it is not available, fallback to use peak value.
      *
      * @param commodityBoughtDTO the storage access commodity DTO
-     * @param maxHistoricalIopsBoughtValue the maximum StorageAccess bought value of the last 30 days
+     * @param histMaxIOPS the maximum StorageAccess bought value of the last 30 days
      * @return the updated storage access commodity DTO
      */
     static CommodityBoughtDTO.Builder getHistoricalMaxIOPS(
             @Nonnull CommodityBoughtDTO commodityBoughtDTO,
-            @Nonnull double maxHistoricalIopsBoughtValue) {
-        double histMaxIOPS = Math.max(maxHistoricalIopsBoughtValue, commodityBoughtDTO.getPeak());
+            double histMaxIOPS) {
         CommodityBoughtDTO.Builder commodityBoughtBuilder = commodityBoughtDTO.toBuilder();
         commodityBoughtBuilder.setUsed(histMaxIOPS);
         commodityBoughtBuilder.setPeak(histMaxIOPS);
@@ -286,49 +285,38 @@ public class CloudStorageMigrationHelper {
      * @param commBoughtGroupingForSL commodity bought grouping for shopping list
      * @param iopsToStorageRatios iopsToStorageRatios
      * @param entityOid OID of the entity that owns the commodity list
+     * @param historicalMaxIops historical max IOPS used in the last 30 days
      * @return updated CommodityBoughtDTO
      */
     static CommodityBoughtDTO adjustStorageAmountForCloudMigration(
             @Nonnull final CommodityBoughtDTO storageAmountCommodity,
             @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL,
             @Nonnull final IopsToStorageRatios iopsToStorageRatios,
-            @Nonnull final Long entityOid) {
+            @Nonnull final Long entityOid,
+            @Nonnull final Double historicalMaxIops) {
 
         // Optimization plan (a.k.a. Consumption plan): Adjust storage amount commodity
         // value based on IOPs
-        List<CommodityBoughtDTO> commodityList = commBoughtGroupingForSL.getCommodityBoughtList();
-        Optional<CommodityBoughtDTO> iopsCommodityBoughtOpt = commodityList.stream()
-                .filter(s -> s.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE)
-                .findAny();
-
         // Use storage provisioned "used" value for storage amount.
         float diskSizeInGB = (float)(getStorageProvisionedAmount(commBoughtGroupingForSL) / Units.KIBI);
 
-        if (diskSizeInGB > 0 && iopsCommodityBoughtOpt.isPresent()
+        if (diskSizeInGB > 0
                 && storageAmountCommodity.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE) {
-            CommodityBoughtDTO iopsCommodityBought = iopsCommodityBoughtOpt.get();
-
-            float iopsUsed = (float)(iopsCommodityBought.hasHistoricalPeak()
-                    && iopsCommodityBought.getHistoricalPeak().hasMaxQuantity()
-                    ? iopsCommodityBought.getHistoricalPeak().getMaxQuantity() : iopsCommodityBought.getPeak());
-            // Use the "Used" value if it is higher than the peak.
-            iopsUsed = (float)Math.max(iopsCommodityBought.getUsed(), iopsUsed);
-
-            if ((iopsUsed < iopsToStorageRatios.getMaxCapacity())
-                    && (iopsUsed > iopsToStorageRatios.getMaxCapacityOnNonExpensiveTier())
-                    && (diskSizeInGB * iopsToStorageRatios.getMaxRatio() < iopsUsed)) {
+            if ((historicalMaxIops < iopsToStorageRatios.getMaxCapacity())
+                    && (historicalMaxIops > iopsToStorageRatios.getMaxCapacityOnNonExpensiveTier())
+                    && (diskSizeInGB * iopsToStorageRatios.getMaxRatio() < historicalMaxIops)) {
                 // when iops is more than the capacity of non-expensive tiers,
                 // but less than the most expensive tier, and if the disk size
                 // limits the iops availability, we should try to resize up disk
                 // to match iops demand so that it will be placed on the most
                 // expensive tier.
-                diskSizeInGB = (float)Math.ceil(iopsUsed / iopsToStorageRatios.getMaxRatio());
+                diskSizeInGB = (float)Math.ceil(historicalMaxIops / iopsToStorageRatios.getMaxRatio());
                 logger.info("Entity {} has a commodity list with provider {} that has storage "
                                 + "Amount commodity value is set to {}GB because of high IOPS value {}."
                                 + "IOPS value is above non-expensive max.", entityOid,
-                        commBoughtGroupingForSL.getProviderId(), diskSizeInGB, iopsUsed);
-            } else if ((iopsUsed <= iopsToStorageRatios.getMaxCapacityOnNonExpensiveTier())
-                    && (diskSizeInGB * iopsToStorageRatios.getMaxRatioOnNonExpensiveTier() < iopsUsed)) {
+                        commBoughtGroupingForSL.getProviderId(), diskSizeInGB, historicalMaxIops);
+            } else if ((historicalMaxIops <= iopsToStorageRatios.getMaxCapacityOnNonExpensiveTier())
+                    && (diskSizeInGB * iopsToStorageRatios.getMaxRatioOnNonExpensiveTier() < historicalMaxIops)) {
                 // when iops is less than the capacity of non-expensive tiers,
                 // and if the disk size limits the iops availability,
                 // we should try to resize the disk so that it will be placed
@@ -338,11 +326,11 @@ public class CloudStorageMigrationHelper {
                 // for many tiers, the small disk doesnt really comply with
                 // the ratio, so resize using minIopsRatioOnNonExpensiveTier
                 // can lead to incorrect result.
-                diskSizeInGB = (float)Math.ceil(iopsUsed / iopsToStorageRatios.getMaxRatioOnNonExpensiveTier());
+                diskSizeInGB = (float)Math.ceil(historicalMaxIops / iopsToStorageRatios.getMaxRatioOnNonExpensiveTier());
                 logger.info("Entity {} has a commodity list with provider {} that has storage "
                                 + "Amount commodity value is set to {}GB because of high IOPS value {}."
                                 + "IOPS value is below non-expensive max.", entityOid,
-                        commBoughtGroupingForSL.getProviderId(), diskSizeInGB, iopsUsed);
+                        commBoughtGroupingForSL.getProviderId(), diskSizeInGB, historicalMaxIops);
             } else {
                 // When iops is more than capacity of iops available, resize doesn't help.
                 logger.debug("Entity {} has a commodity list with provider {} is using storage "

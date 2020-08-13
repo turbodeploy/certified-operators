@@ -72,6 +72,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.mediation.hybrid.cloud.common.OsType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -673,18 +674,10 @@ public class CloudMigrationPlanHelper {
                 commoditiesToInclude.add(dtoBoughtUpdated);
             } else if (commodityType == CommodityType.STORAGE_ACCESS) {
                 if (isConsumer) {
-                    // Use historical max value for storage access.
-                    double maxHistoricalIopsBoughtValue = 0;
-                    final Map<Long, Double> producerToMaxHistoricalIops = sourceToProducerToMaxStorageAccess.get(entityOid);
-                    if (producerToMaxHistoricalIops != null) {
-                        Double maxHistoricalIopsBought = producerToMaxHistoricalIops.get(commBoughtGrouping.getProviderId());
-                        if (maxHistoricalIopsBought != null) {
-                            maxHistoricalIopsBoughtValue = maxHistoricalIopsBought;
-                        }
-                    }
-                    final CommodityBoughtDTO.Builder commodityBoughtDTO = CloudStorageMigrationHelper.getHistoricalMaxIOPS(
-                            dtoBought, maxHistoricalIopsBoughtValue);
-
+                    final double historicalMaxIOP = getHistoricalMaxIOPSValue(commBoughtGrouping, entityOid,
+                            sourceToProducerToMaxStorageAccess);
+                    final CommodityBoughtDTO.Builder commodityBoughtDTO =
+                            CloudStorageMigrationHelper.getHistoricalMaxIOPS(dtoBought, historicalMaxIOP);
                     if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
                         // Disable Storage Access commodity for Lift and Shift plan so it can always
                         // fit in GP2 or Azure Managed Premium.
@@ -702,9 +695,11 @@ public class CloudMigrationPlanHelper {
                 if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
                     // Assign storage provisioned used value for storage amount.
                     // Also adjust storage amount based on IOPS value if necessary.
+                    final double historicalMaxIOP = getHistoricalMaxIOPSValue(commBoughtGrouping, entityOid,
+                            sourceToProducerToMaxStorageAccess);
                     commoditiesToInclude.add(CloudStorageMigrationHelper
                             .adjustStorageAmountForCloudMigration(dtoBought, commBoughtGrouping,
-                                    iopsToStorageRatios, entityOid));
+                                    iopsToStorageRatios, entityOid, historicalMaxIOP));
                 } else {
                     // Assign storage provisioned used value for storage amount
                     commoditiesToInclude.add(CloudStorageMigrationHelper
@@ -715,6 +710,32 @@ public class CloudMigrationPlanHelper {
             }
         }
         return commoditiesToInclude;
+    }
+
+    @Nonnull
+    private Double getHistoricalMaxIOPSValue(
+            @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping,
+            final long entityOid,
+            @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess) {
+        // Use historical max value for storage access.
+        Double maxHistoricalIopsBoughtValue = 0d;
+        final Map<Long, Double> producerToMaxHistoricalIops = sourceToProducerToMaxStorageAccess.get(entityOid);
+        if (producerToMaxHistoricalIops != null) {
+            maxHistoricalIopsBoughtValue = producerToMaxHistoricalIops.get(commBoughtGrouping.getProviderId());
+            if (maxHistoricalIopsBoughtValue == null) {
+                // If we don't have historical max value from database, use the peak value.
+                List<CommodityBoughtDTO> commodityList = commBoughtGrouping.getCommodityBoughtList();
+                Optional<CommodityBoughtDTO> iopsCommodityBoughtOpt = commodityList.stream()
+                        .filter(s -> s.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE)
+                        .findAny();
+                if (iopsCommodityBoughtOpt.isPresent() && iopsCommodityBoughtOpt.get().hasPeak()) {
+                    maxHistoricalIopsBoughtValue = iopsCommodityBoughtOpt.get().getPeak();
+                } else {
+                    maxHistoricalIopsBoughtValue = 0d;
+                }
+            }
+        }
+        return maxHistoricalIopsBoughtValue;
     }
 
     /**
