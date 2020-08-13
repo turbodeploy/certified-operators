@@ -37,6 +37,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
@@ -220,6 +221,9 @@ public class ActionSpecMapper {
 
     private final UuidMapper uuidMapper;
 
+    private final Map<Long, Map<EntityFilter, Map<Long, Cost.EntityReservedInstanceCoverage>>> topologyContextIdToEntityFilterToEntityRiCoverage =
+            Maps.newHashMap();
+
     private static final Predicate<ActionState> IN_PROGRESS_PREDICATE = (state) ->
             state == ActionState.IN_PROGRESS
                     || state == ActionState.PRE_IN_PROGRESS
@@ -319,10 +323,16 @@ public class ActionSpecMapper {
                 actionSpecMappingContextFactory.createActionSpecMappingContext(recommendations,
                         topologyContextId, uuidMapper);
         final ImmutableList.Builder<ActionApiDTO> actionApiDTOS = ImmutableList.builder();
+        final List<Long> entityUuids = actionSpecs.stream()
+                .map(ActionSpecMapper::getEntityUuidFromActionSpec)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        final Map<Long, Cost.EntityReservedInstanceCoverage> coverageMap = getEntityRiCoverageMap(
+                topologyContextId,
+                EntityFilter.newBuilder().addAllEntityId(entityUuids).build());
         for (ActionSpec spec : actionSpecs) {
             final ActionApiDTO actionApiDTO =
-                    mapActionSpecToActionApiDTOInternal(spec, context, topologyContextId,
-                            detailLevel);
+                    mapActionSpecToActionApiDTOInternal(spec, context, topologyContextId, coverageMap, detailLevel);
             actionApiDTOS.add(actionApiDTO);
         }
 
@@ -392,7 +402,7 @@ public class ActionSpecMapper {
                 actionSpecMappingContextFactory.createActionSpecMappingContext(
                         Lists.newArrayList(actionSpec.getRecommendation()), topologyContextId,
                         uuidMapper);
-        return mapActionSpecToActionApiDTOInternal(actionSpec, context, topologyContextId, detailLevel);
+        return mapActionSpecToActionApiDTOInternal(actionSpec, context, topologyContextId, Maps.newHashMap(), detailLevel);
     }
 
     /**
@@ -485,7 +495,9 @@ public class ActionSpecMapper {
     private ActionApiDTO mapActionSpecToActionApiDTOInternal(
             @Nonnull final ActionSpec actionSpec,
             @Nonnull final ActionSpecMappingContext context,
-            final long topologyContextId, @Nullable final ActionDetailLevel detailLevel)
+            final long topologyContextId,
+            @Nonnull final Map<Long, Cost.EntityReservedInstanceCoverage> coverageMap,
+            @Nullable final ActionDetailLevel detailLevel)
             throws UnsupportedActionException {
         // Construct a response ActionApiDTO to return
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
@@ -612,7 +624,7 @@ public class ActionSpecMapper {
         }
 
         // update actionApiDTO with more info for realtime or plan actions
-        addMoreInfoToActionApiDTO(actionApiDTO, context, recommendation);
+        addMoreInfoToActionApiDTO(actionApiDTO, context, recommendation, coverageMap);
 
         // add the Execution status
         if (ActionDetailLevel.EXECUTION == detailLevel) {
@@ -683,18 +695,74 @@ public class ActionSpecMapper {
     }
 
     /**
+     * Associate a reserved instance with an action given RI coverage data, and a set of
+     * {@link ReservedInstanceApiDTO} in the given context.
+     *
+     * @param coverage data representing the RI coverage of an action target entity
+     * @param contextRis reserved instances in a given context
+     * @return the reserved instance to be associated with a given {@link ActionApiDTO}
+     */
+    private ReservedInstanceApiDTO getActionAsscociatedRi(
+            @Nonnull final Cost.EntityReservedInstanceCoverage coverage,
+            @Nonnull final Set<ReservedInstanceApiDTO> contextRis) {
+        final Map<String, ReservedInstanceApiDTO> riUuidToInstance = contextRis.stream()
+                .collect(Collectors.toMap(
+                        ReservedInstanceApiDTO::getUuid,
+                        Function.identity()));
+        final Map<Long, Double> buyRiToCouponsCovered = coverage.getCouponsCoveredByBuyRiMap();
+        final Map<Long, Double> riToCouponsCovered = coverage.getCouponsCoveredByRiMap();
+        ReservedInstanceApiDTO actionReservedInstanceApiDTO = null;
+        // Try to associate a buyRi first...
+        if (!buyRiToCouponsCovered.isEmpty()) {
+            actionReservedInstanceApiDTO = getRiFromCoverageMap(
+                    buyRiToCouponsCovered.entrySet().iterator(),
+                    riUuidToInstance);
+        }
+        // Try to match an existing RI if no buyRis matched...
+        if (Objects.isNull(actionReservedInstanceApiDTO) && !riToCouponsCovered.isEmpty()) {
+            actionReservedInstanceApiDTO = getRiFromCoverageMap(
+                    riToCouponsCovered.entrySet().iterator(),
+                    riUuidToInstance);
+        }
+        return actionReservedInstanceApiDTO;
+    }
+
+    /**
+     * Get the first relevant {@link ReservedInstanceApiDTO} represented in the entries of an RI
+     * coverage map given a map of UUID -> RI representing the current context.
+     *
+     * @param entries the entries of an RI coverage map - RI UUID to coupons covered
+     * @param riUuidToInstance a map of UUID -> {@link ReservedInstanceApiDTO}
+     * @return a {@link ReservedInstanceApiDTO} representing the first relevant RI in the coverage map
+     */
+    private ReservedInstanceApiDTO getRiFromCoverageMap(
+            @Nonnull final Iterator<Map.Entry<Long, Double>> entries,
+            @Nonnull final Map<String, ReservedInstanceApiDTO> riUuidToInstance) {
+        ReservedInstanceApiDTO reservedInstanceApiDTO = null;
+        do {
+            final String coveringRiUuid = entries.next().getKey().toString();
+            if (riUuidToInstance.containsKey(coveringRiUuid)) {
+                reservedInstanceApiDTO = riUuidToInstance.get(coveringRiUuid);
+            }
+        } while (entries.hasNext() && Objects.isNull(reservedInstanceApiDTO));
+        return reservedInstanceApiDTO;
+    }
+
+    /**
      * Update the given ActionApiDTO with more info for actions, such as aspects, template,
      * location, etc.
      *
      * @param actionApiDTO the ActionApiDTO to add more info to
      * @param context the ActionSpecMappingContext
      * @param action action info
+     * @param coverageMap a map of RI ID -> RI coverage
      * @throws UnsupportedActionException if the action type of the {@link ActionSpec}
      * is not supported.
      */
     private void addMoreInfoToActionApiDTO(@Nonnull ActionApiDTO actionApiDTO,
-                                           @Nonnull ActionSpecMappingContext context,
-                                           @Nonnull ActionDTO.Action action)
+            @Nonnull ActionSpecMappingContext context,
+            @Nonnull ActionDTO.Action action,
+            @Nonnull final Map<Long, Cost.EntityReservedInstanceCoverage> coverageMap)
                 throws UnsupportedActionException {
         final ServiceEntityApiDTO targetEntity = actionApiDTO.getTarget();
         final ServiceEntityApiDTO newEntity = actionApiDTO.getNewEntity();
@@ -754,8 +822,14 @@ public class ActionSpecMapper {
                 newEntity.setAspectsByName(newAspects);
 
                 // If RI for plan is available, set it.
-                if (!context.getReservedInstances().isEmpty()) {
-                    actionApiDTO.setReservedInstance(context.getReservedInstances().iterator().next());
+                final Cost.EntityReservedInstanceCoverage coverage = coverageMap.get(targetEntityId);
+                final Set<ReservedInstanceApiDTO> contextRis = context.getReservedInstances();
+                if (Objects.nonNull(coverage) && !contextRis.isEmpty()) {
+                    final ReservedInstanceApiDTO actionReservedInstanceApiDTO =
+                            getActionAsscociatedRi(coverage, contextRis);
+                    if (Objects.nonNull(actionReservedInstanceApiDTO)) {
+                        actionApiDTO.setReservedInstance(actionReservedInstanceApiDTO);
+                    }
                 }
             }
 
@@ -1978,17 +2052,8 @@ public class ActionSpecMapper {
             }
 
             if (shouldGetDetailsForActionType(actionSpec.getRecommendation())) {
-                long entityUuid;
-                ActionEntity entity;
-                try {
-                    entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
-                    entityUuid = entity.getId();
-                } catch (UnsupportedActionException e) {
-                    logger.warn("Cannot create action details due to unsupported action type", e);
-                    continue;
-                }
-                if (entity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
-                    logger.warn("Cannot create action details for on-prem actions");
+                Long entityUuid = getEntityUuidFromActionSpec(actionSpec);
+                if (Objects.isNull(entityUuid)) {
                     continue;
                 }
                 actionToEntityUuidMap.put(Long.toString(action.getActionId()), entityUuid);
@@ -2002,6 +2067,29 @@ public class ActionSpecMapper {
         });
 
         return response;
+    }
+
+    /**
+     * Get the UUID of the primary entity involved in a given action.
+     *
+     * @param actionSpec the {@link ActionSpec} corresponding to a given action
+     * @return the UUID of the primary entity involved in a given action
+     */
+    private static Long getEntityUuidFromActionSpec(final ActionSpec actionSpec) {
+        long entityUuid;
+        ActionEntity entity;
+        try {
+            entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
+            entityUuid = entity.getId();
+        } catch (UnsupportedActionException e) {
+            logger.warn("Cannot create action details due to unsupported action type", e);
+            return null;
+        }
+        if (entity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+            logger.warn("Cannot create action details for on-prem actions");
+            return null;
+        }
+        return entityUuid;
     }
 
     /**
@@ -2236,23 +2324,7 @@ public class ActionSpecMapper {
             }
         });
 
-
-        // get projected RI coverage for target entity
-        Cost.GetProjectedEntityReservedInstanceCoverageRequest.Builder builder =
-                Cost.GetProjectedEntityReservedInstanceCoverageRequest
-                        .newBuilder()
-                        .setEntityFilter(entityFilter);
-        if (!Objects.isNull(topologyContextId)) {
-            builder.setTopologyContextId(topologyContextId);
-        }
-
-        Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest = builder.build();
-        Cost.GetProjectedEntityReservedInstanceCoverageResponse projectedEntityReservedInstanceCoverageResponse =
-                reservedInstanceUtilizationCoverageServiceBlockingStub
-                        .getProjectedEntityReservedInstanceCoverageStats(projectedEntityReservedInstanceCoverageRequest);
-
-        Map<Long, Cost.EntityReservedInstanceCoverage> projectedCoverageMap = projectedEntityReservedInstanceCoverageResponse
-                .getCoverageByEntityIdMap();
+        Map<Long, Cost.EntityReservedInstanceCoverage> projectedCoverageMap = getEntityRiCoverageMap(topologyContextId, entityFilter);
 
         dtoMap.forEach((entityUuid, cloudResizeActionDetailsApiDTO) -> {
             if (projectedCoverageMap.containsKey(entityUuid)) {
@@ -2272,6 +2344,68 @@ public class ActionSpecMapper {
                 logger.debug("Failed to retrieve projected RI coverage for entity with ID: {}", entityUuid);
             }
         });
+    }
+
+    /**
+     * Given a {@param topologyContextId} and an {@link EntityFilter}, retrieve the corresponding
+     * map of RI coverage by entity ID.
+     *
+     * @param topologyContextId the context ID of a given topology
+     * @param entityFilter the {@link EntityFilter} representing a given group of entities
+     * @return a map of RI coverage by entity ID
+     */
+    private Map<Long, Cost.EntityReservedInstanceCoverage> fetchEntityRiCoverageMap(
+            Long topologyContextId,
+            EntityFilter entityFilter) {
+        // get projected RI coverage for target entity
+        Cost.GetProjectedEntityReservedInstanceCoverageRequest.Builder builder =
+                Cost.GetProjectedEntityReservedInstanceCoverageRequest
+                        .newBuilder()
+                        .setEntityFilter(entityFilter);
+        if (!Objects.isNull(topologyContextId)) {
+            builder.setTopologyContextId(topologyContextId);
+        }
+
+        Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest = builder.build();
+        Cost.GetProjectedEntityReservedInstanceCoverageResponse projectedEntityReservedInstanceCoverageResponse =
+                reservedInstanceUtilizationCoverageServiceBlockingStub
+                        .getProjectedEntityReservedInstanceCoverageStats(projectedEntityReservedInstanceCoverageRequest);
+
+        return projectedEntityReservedInstanceCoverageResponse
+                .getCoverageByEntityIdMap();
+    }
+
+    /**
+     * Retrieve the RI coverage map corresponding to a given {@param topologyContextId} and
+     * {@param entityFilter} from cache if present, otherwise fetch it via gRPC request.
+     *
+     * @param topologyContextId the context ID of a given topology
+     * @param entityFilter the {@link EntityFilter} representing a set of entities
+     * @return the corresponding RI coverage map
+     */
+    private Map<Long, Cost.EntityReservedInstanceCoverage> getEntityRiCoverageMap(
+            Long topologyContextId,
+            EntityFilter entityFilter) {
+        boolean containsTopologyContextEntry = topologyContextIdToEntityFilterToEntityRiCoverage.containsKey(topologyContextId);
+        if (containsTopologyContextEntry
+                && topologyContextIdToEntityFilterToEntityRiCoverage.get(topologyContextId).containsKey(entityFilter)) {
+            return topologyContextIdToEntityFilterToEntityRiCoverage.get(topologyContextId).get(entityFilter);
+        } else {
+            Map<Long, Cost.EntityReservedInstanceCoverage> coverageMap = fetchEntityRiCoverageMap(topologyContextId, entityFilter);
+            // Update the cache...
+            if (!containsTopologyContextEntry) {
+                // Bust the cache when it gets large
+                if (topologyContextIdToEntityFilterToEntityRiCoverage.size() >= 20) {
+                    topologyContextIdToEntityFilterToEntityRiCoverage.clear();
+                }
+                final Map<EntityFilter, Map<Long, Cost.EntityReservedInstanceCoverage>> entityFilterToRiCoverage = Maps.newHashMap();
+                entityFilterToRiCoverage.put(entityFilter, coverageMap);
+                topologyContextIdToEntityFilterToEntityRiCoverage.put(topologyContextId, entityFilterToRiCoverage);
+            } else {
+                topologyContextIdToEntityFilterToEntityRiCoverage.get(topologyContextId).put(entityFilter, coverageMap);
+            }
+            return coverageMap;
+        }
     }
 
     /**
