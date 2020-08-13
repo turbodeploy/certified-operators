@@ -53,6 +53,7 @@ import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
+import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
@@ -78,6 +79,8 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
     private final PriceTableStore priceTableStore;
 
     private final Set<Runnable> updateCallbacks = new HashSet<>();
+
+
 
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
@@ -115,13 +118,21 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
      * @param identityProvider The identity provider
      * @param reservedInstanceCostCalculator The calculator for RI related costs.
      * @param priceTableStore The {@link PriceTableStore}, used to calculate RI costs when discovery
-     *                        is unable to discover them.
+     * @param entityReservedInstanceMappingStore The {@Link EntityReservedInstanceMappingStore},
+     *                                          used to look up discovered accounts usage for an RI.
+     * @param accountRIMappingStore The {@Link AccountRIMappingStore}, used to look up
+     *                             undiscovered accounts usage for an RI.
+     * @param businessAccountHelper Business Account helper to look up discovered accounts.
      */
     public SQLReservedInstanceBoughtStore(@Nonnull final DSLContext dsl,
                                           @Nonnull final IdentityProvider identityProvider,
                                           @Nonnull final ReservedInstanceCostCalculator reservedInstanceCostCalculator,
-                                          @Nonnull final PriceTableStore priceTableStore) {
-        super(dsl, identityProvider, reservedInstanceCostCalculator);
+                                          @Nonnull final PriceTableStore priceTableStore,
+                                          @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
+                                          @Nonnull final AccountRIMappingStore accountRIMappingStore,
+                                          @Nonnull final BusinessAccountHelper businessAccountHelper) {
+        super(dsl, identityProvider, reservedInstanceCostCalculator,
+                accountRIMappingStore, entityReservedInstanceMappingStore, businessAccountHelper);
         this.priceTableStore = priceTableStore;
     }
 
@@ -365,6 +376,23 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
     @Override
     public void onInventoryChange(@Nonnull final Runnable callback) {
         updateCallbacks.add(callback);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<ReservedInstanceBought> getReservedInstanceBoughtForAnalysis(
+            @Nonnull final ReservedInstanceBoughtFilter filter) {
+
+        List<ReservedInstanceBought> reservedInstances = getReservedInstanceBoughtByFilter(filter);
+        logger.info("Retrieved {} reserved instance. Updating for partial cloud environment as applicable.", reservedInstances.size());
+
+        if (reservedInstances.isEmpty()) {
+            return reservedInstances;
+        }
+        reservedInstances = adjustAvailableCouponsForPartialCloudEnv(reservedInstances);
+        return reservedInstances;
     }
 
     private List<ReservedInstanceBoughtInfo> internalCheckRIBoughtAndUpdatePrices(
@@ -613,4 +641,9 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
                 .setReservedInstanceBoughtInfo(reservedInstanceRecord.getReservedInstanceBoughtInfo())
                 .build();
     }
+
+
+
+
+
 }
