@@ -1,6 +1,7 @@
 package com.vmturbo.search.metadata;
 
 import static com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.capacity;
+import static com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.currentUtilization;
 import static com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.percentileHistoricalUtilization;
 import static com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.used;
 import static com.vmturbo.api.dto.searchquery.CommodityFieldApiDTO.weightedHistoricalUtilization;
@@ -44,21 +45,23 @@ import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_SPACE_
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_STORAGE_ACCESS_HISTORICAL_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_STORAGE_ACCESS_USED;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_STORAGE_AMOUNT_CAPACITY;
-import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_STORAGE_AMOUNT_HISTORICAL_UTILIZATION;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_STORAGE_AMOUNT_CURRENT_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_STORAGE_AMOUNT_USED;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_STORAGE_LATENCY_HISTORICAL_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_STORAGE_LATENCY_USED;
-import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_STORAGE_PROVISIONED_HISTORICAL_UTILIZATION;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_STORAGE_PROVISIONED_CURRENT_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_STORAGE_PROVISIONED_USED;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_SWAPPING_HISTORICAL_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_TRANSACTION_USED;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VCPU_HISTORICAL_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VCPU_PERCENTILE_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VCPU_USED;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VMEM_CAPACITY;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VMEM_HISTORICAL_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VMEM_PERCENTILE_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VMEM_USED;
-import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VSTORAGE_PERCENTILE_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VSTORAGE_USED;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VSTORAGE_WEIGHTED_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.NUM_VMS;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_ATTACHMENT_STATE;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_CONNECTED_NETWORKS;
@@ -127,7 +130,7 @@ public enum SearchEntityMetadata {
     Chassis(EntityType.Chassis, getChassisMetadata()),
     Container(EntityType.Container, getContainerMetadata()),
     ContainerPod(EntityType.ContainerPod, getContainerPodMetadata()),
-    ContainerSpec(EntityType.ContainerSpec, getContainerPodMetadata()),
+    ContainerSpec(EntityType.ContainerSpec, getContainerSpecMetadata()),
     Database(EntityType.Database, getDBMetaData()),
     DatabaseServer(EntityType.DatabaseServer, getDBServerMetaData()),
     DataCenter(EntityType.DataCenter, getDataCenterMetadata()),
@@ -206,7 +209,7 @@ public enum SearchEntityMetadata {
             .put(used(CommodityType.VMEM), COMMODITY_VMEM_USED)
             .put(percentileHistoricalUtilization(CommodityType.VMEM), COMMODITY_VMEM_PERCENTILE_UTILIZATION)
             .put(used(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_USED)
-            .put(percentileHistoricalUtilization(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_PERCENTILE_UTILIZATION)
+            .put(weightedHistoricalUtilization(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_WEIGHTED_UTILIZATION)
             // related entities
             .put(entityNames(EntityType.ApplicationComponent), RELATED_APPLICATION_COMPONENT)
             .put(entityNames(EntityType.BusinessAccount), RELATED_ACCOUNT)
@@ -339,11 +342,12 @@ public enum SearchEntityMetadata {
             .put(weightedHistoricalUtilization(CommodityType.STORAGE_ACCESS), COMMODITY_STORAGE_ACCESS_HISTORICAL_UTILIZATION)
             .put(capacity(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_CAPACITY)
             .put(used(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_USED)
-            .put(weightedHistoricalUtilization(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_HISTORICAL_UTILIZATION)
+            .put(currentUtilization(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_CURRENT_UTILIZATION)
             .put(used(CommodityType.STORAGE_LATENCY), COMMODITY_STORAGE_LATENCY_USED)
             .put(weightedHistoricalUtilization(CommodityType.STORAGE_LATENCY), COMMODITY_STORAGE_LATENCY_HISTORICAL_UTILIZATION)
             .put(used(CommodityType.STORAGE_PROVISIONED), COMMODITY_STORAGE_PROVISIONED_USED)
-            .put(weightedHistoricalUtilization(CommodityType.STORAGE_PROVISIONED), COMMODITY_STORAGE_PROVISIONED_HISTORICAL_UTILIZATION)
+            .put(currentUtilization(CommodityType.STORAGE_PROVISIONED),
+                    COMMODITY_STORAGE_PROVISIONED_CURRENT_UTILIZATION)
             // related entities
             .put(entityNames(EntityType.DataCenter), RELATED_DATA_CENTER)
             .put(entityNames(EntityType.VirtualMachine), RELATED_VM)
@@ -367,11 +371,12 @@ public enum SearchEntityMetadata {
             .put(weightedHistoricalUtilization(CommodityType.STORAGE_ACCESS), COMMODITY_STORAGE_ACCESS_HISTORICAL_UTILIZATION)
             .put(capacity(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_CAPACITY)
             .put(used(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_USED)
-            .put(weightedHistoricalUtilization(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_HISTORICAL_UTILIZATION)
+            .put(currentUtilization(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_CURRENT_UTILIZATION)
             .put(used(CommodityType.STORAGE_LATENCY), COMMODITY_STORAGE_LATENCY_USED)
             .put(weightedHistoricalUtilization(CommodityType.STORAGE_LATENCY), COMMODITY_STORAGE_LATENCY_HISTORICAL_UTILIZATION)
             .put(used(CommodityType.STORAGE_PROVISIONED), COMMODITY_STORAGE_PROVISIONED_USED)
-            .put(weightedHistoricalUtilization(CommodityType.STORAGE_PROVISIONED), COMMODITY_STORAGE_PROVISIONED_HISTORICAL_UTILIZATION)
+            .put(currentUtilization(CommodityType.STORAGE_PROVISIONED),
+                    COMMODITY_STORAGE_PROVISIONED_CURRENT_UTILIZATION)
             .build();
     }
 
@@ -389,7 +394,7 @@ public enum SearchEntityMetadata {
             .put(weightedHistoricalUtilization(CommodityType.STORAGE_ACCESS), COMMODITY_STORAGE_ACCESS_HISTORICAL_UTILIZATION)
             .put(capacity(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_CAPACITY)
             .put(used(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_USED)
-            .put(weightedHistoricalUtilization(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_HISTORICAL_UTILIZATION)
+            .put(currentUtilization(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_CURRENT_UTILIZATION)
             .put(used(CommodityType.STORAGE_LATENCY), COMMODITY_STORAGE_LATENCY_USED)
             .put(weightedHistoricalUtilization(CommodityType.STORAGE_LATENCY), COMMODITY_STORAGE_LATENCY_HISTORICAL_UTILIZATION)
             .build();
@@ -542,10 +547,10 @@ public enum SearchEntityMetadata {
             .putAll(Constants.ENTITY_COMMON_FIELDS)
             // commodities
             .put(used(CommodityType.VCPU), COMMODITY_VCPU_USED)
-            .put(percentileHistoricalUtilization(CommodityType.VCPU), COMMODITY_VCPU_PERCENTILE_UTILIZATION)
+            .put(weightedHistoricalUtilization(CommodityType.VCPU), COMMODITY_VCPU_HISTORICAL_UTILIZATION)
             .put(capacity(CommodityType.VMEM), COMMODITY_VMEM_CAPACITY)
             .put(used(CommodityType.VMEM), COMMODITY_VMEM_USED)
-            .put(percentileHistoricalUtilization(CommodityType.VMEM), COMMODITY_VMEM_PERCENTILE_UTILIZATION)
+            .put(weightedHistoricalUtilization(CommodityType.VMEM), COMMODITY_VMEM_HISTORICAL_UTILIZATION)
             // related entities
             .put(entityNames(EntityType.VirtualMachine), RELATED_VM)
             .put(entityNames(EntityType.Namespace), RELATED_NAMESPACE)
@@ -689,7 +694,7 @@ public enum SearchEntityMetadata {
             .put(used(CommodityType.VMEM), COMMODITY_VMEM_USED)
             .put(percentileHistoricalUtilization(CommodityType.VMEM), COMMODITY_VMEM_PERCENTILE_UTILIZATION)
             .put(used(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_USED)
-            .put(percentileHistoricalUtilization(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_PERCENTILE_UTILIZATION)
+            .put(weightedHistoricalUtilization(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_WEIGHTED_UTILIZATION)
             // related entities
             .put(entityNames(EntityType.BusinessAccount), RELATED_ACCOUNT)
             .put(entityNames(EntityType.Region), RELATED_REGION)
@@ -709,7 +714,7 @@ public enum SearchEntityMetadata {
             // commodities
             .put(used(CommodityType.TRANSACTION), COMMODITY_TRANSACTION_USED)
             .put(used(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_USED)
-            .put(percentileHistoricalUtilization(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_PERCENTILE_UTILIZATION)
+            .put(weightedHistoricalUtilization(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_WEIGHTED_UTILIZATION)
             // related entities
             .put(entityNames(EntityType.BusinessAccount), RELATED_ACCOUNT)
             .put(entityNames(EntityType.Region), RELATED_REGION)

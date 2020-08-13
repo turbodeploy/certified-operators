@@ -313,6 +313,11 @@ public enum SearchMetadataMapping {
         CommodityType.STORAGE_AMOUNT, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
         null, Type.NUMBER),
 
+    /** storage amount historical utilization. */
+    COMMODITY_STORAGE_AMOUNT_CURRENT_UTILIZATION("attrs", "storage_amount_current_utilization",
+            CommodityType.STORAGE_AMOUNT, CommodityAttribute.CURRENT_UTILIZATION,
+            null, Type.NUMBER),
+
     /** storage latency used. */
     COMMODITY_STORAGE_LATENCY_USED("attrs", "storage_latency_used",
         CommodityType.STORAGE_LATENCY, CommodityAttribute.USED,
@@ -329,8 +334,8 @@ public enum SearchMetadataMapping {
         CommodityTypeUnits.STORAGE_PROVISIONED, Type.NUMBER),
 
     /** storage provisioned historical utilization. */
-    COMMODITY_STORAGE_PROVISIONED_HISTORICAL_UTILIZATION("attrs", "storage_provisioned_hist_utilization",
-        CommodityType.STORAGE_PROVISIONED, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+    COMMODITY_STORAGE_PROVISIONED_CURRENT_UTILIZATION("attrs", "storage_provisioned_current_utilization",
+        CommodityType.STORAGE_PROVISIONED, CommodityAttribute.CURRENT_UTILIZATION,
         null, Type.NUMBER),
 
     /** swapping historical utilization. */
@@ -358,6 +363,11 @@ public enum SearchMetadataMapping {
         CommodityType.VCPU, CommodityAttribute.PERCENTILE_HISTORICAL_UTILIZATION,
         null, Type.NUMBER),
 
+    /** vCPU percentile historical utilization. */
+    COMMODITY_VCPU_HISTORICAL_UTILIZATION("attrs", "vcpu_historical_utilization",
+            CommodityType.VCPU, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+            null, Type.NUMBER),
+
     /** vMem capacity. */
     COMMODITY_VMEM_CAPACITY("attrs", "vmem_capacity",
         CommodityType.VMEM, CommodityAttribute.CAPACITY,
@@ -373,14 +383,19 @@ public enum SearchMetadataMapping {
         CommodityType.VMEM, CommodityAttribute.PERCENTILE_HISTORICAL_UTILIZATION,
         null, Type.NUMBER),
 
+    /** vMem percentile historical utilization. */
+    COMMODITY_VMEM_HISTORICAL_UTILIZATION("attrs", "vmem_historical_utilization",
+            CommodityType.VMEM, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+            null, Type.NUMBER),
+
     /** vStorage used. */
     COMMODITY_VSTORAGE_USED("attrs", "vstorage_used",
         CommodityType.VSTORAGE, CommodityAttribute.USED,
         CommodityTypeUnits.VSTORAGE, Type.NUMBER),
 
     /** vStorage percentile historical utilization. */
-    COMMODITY_VSTORAGE_PERCENTILE_UTILIZATION("attrs", "vstorage_percentile_utilization",
-        CommodityType.VSTORAGE, CommodityAttribute.PERCENTILE_HISTORICAL_UTILIZATION,
+    COMMODITY_VSTORAGE_WEIGHTED_UTILIZATION("attrs", "vstorage_historical_utilization",
+        CommodityType.VSTORAGE, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
         null, Type.NUMBER),
 
     /**
