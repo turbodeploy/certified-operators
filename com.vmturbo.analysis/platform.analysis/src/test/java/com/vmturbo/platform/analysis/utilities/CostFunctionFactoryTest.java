@@ -30,7 +30,6 @@ import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.CapacityLimitation;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.PriceData;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
-import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 /**
  * Unit tests for cost calculate in CostFunctionFactory.
@@ -133,48 +132,6 @@ public class CostFunctionFactoryTest {
     }
 
     /**
-     * Test calculateCost for compute tier when the VM with no region no business account(on prem VM).
-     * Expected: linux VM will get cheapest cost across all regions all business accounts
-     * considering linux license. Windows VM will get cheapest cost across all regions all
-     * business accounts considering windows license.
-     */
-    @Test
-    public void testOnPremMCPComputeAndDatabaseCost() {
-        CostFunction computeCostFunction = CostFunctionFactory
-                .createCostFunctionForComputeTier(createComputeCost());
-        MutableQuote linuxQuote = computeCostFunction.calculateCost(linuxComputeSL, computeTier, true, economy);
-        MutableQuote windowsQuote = computeCostFunction.calculateCost(windowsComputeSL, computeTier, true, economy);
-        assertEquals(5, linuxQuote.getQuoteValue(), 0.00000);
-        assertEquals(50, windowsQuote.getQuoteValue(), 0.00000);
-    }
-
-    /**
-     * Test calculateCost for storage tier when the VM with no region no business account(on prem VM).
-     * Expected: VM will get cheapest cost across all regions all business accounts.
-     */
-    @Test
-    public void testOnPremMCPStorageCost() {
-        CostFunction storageCostFunction = CostFunctionFactory
-                .createCostFunctionForStorageTier(createStorageCost());
-        MutableQuote quote = storageCostFunction.calculateCost(stSL, storageTier, true, economy);
-        assertEquals(600, quote.getQuoteValue(), 0.00000);
-    }
-
-    /**
-     * Test retrieveCbtpCostTuple for VM with no region no business account(on prem VM).
-     */
-    @Test
-    public void testOnPremMCPRetriveCbtpCostTuple() {
-        CbtpCostDTO cbtpCostDTO = createCbtpCost();
-        CostTable costTable = new CostTable(cbtpCostDTO.getCostTupleListList());
-        CostTuple tuple = CostFunctionFactory.retrieveCbtpCostTuple(null, cbtpCostDTO, costTable,
-                TestUtils.WINDOWS_COMM_TYPE);
-        assertEquals(50, tuple.getPrice(), 0.00000);
-        assertEquals(TestUtils.WINDOWS_COMM_TYPE, tuple.getLicenseCommodityType());
-
-    }
-
-    /**
      * Tests storage tier quote lookup for with and without context cases.
      */
     @Test
@@ -241,16 +198,5 @@ public class CostFunctionFactoryTest {
         assertFalse(quote2.getContext().isPresent());
         assertEquals(Double.POSITIVE_INFINITY, quote2.getQuoteValue(), 0d);
 
-        // 3. Set null context, so it should return cheapest cost among the 2 regions - i.e
-        // region 2 with $5000, instead of region 1 with $8000.
-        buyerVm.getSettings().setContext(null);
-        CommodityQuote quote3 = CostFunctionFactory.calculateStorageTierCost(priceDataMap,
-                commCapacity, shoppingList, storageTier);
-        assertNotNull(quote3);
-        assertTrue(quote3.getContext().isPresent());
-        Context context3 = quote3.getContext().get();
-        assertEquals(regionId21, context3.getRegionId());
-        assertEquals(accountId2, context3.getBalanceAccount().getId());
-        assertEquals(5000d, quote3.getQuoteValue(), 0d);
     }
 }

@@ -123,7 +123,8 @@ public class CompoundMove extends ActionImpl {
             Trader source = sourceIter.next();
             Trader destination = destinationIter.next();
             Optional<Context> context = contextIter.next();
-            if (destination != null && !destination.equals(source)) {
+            if ((context.isPresent() && !sl.getContext().equals(context)) || (destination != null
+                    && !destination.equals(source))) {
                 moves.add(context.isPresent()
                         ? new Move(economy, sl, source, destination, context)
                         : new Move(economy, sl, source, destination));

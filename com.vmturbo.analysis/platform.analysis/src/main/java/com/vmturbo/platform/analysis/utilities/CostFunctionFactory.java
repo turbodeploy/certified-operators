@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -21,7 +20,6 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.commons.Pair;
@@ -786,10 +784,6 @@ public class CostFunctionFactory {
         final int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
         final long groupFactor = sl.getGroupFactor();
         final Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
-        if (!optionalContext.isPresent()) {
-            // on prem entities do not have context can reach here in migration plan
-            return getCheapestComputeCostWithoutContext(seller, sl, costTable, licenseCommBoughtIndex);
-        }
         final Context context = optionalContext.get();
         final long regionIdBought = context.getRegionId();
         final BalanceAccount balanceAccount = context.getBalanceAccount();
@@ -834,47 +828,6 @@ public class CostFunctionFactory {
         return Double.isInfinite(cost) && licenseCommBoughtIndex != CostTable.NO_VALUE ?
                 new LicenseUnavailableQuote(seller, sl.getBasket().get(licenseCommBoughtIndex)) :
                 new CommodityCloudQuote(seller, cost * (groupFactor > 0 ? groupFactor : 1), regionId, accountId);
-    }
-
-    /**
-     * Iterate the CostTable to get the cheapest cost. It is applied when buyer does not have
-     * a context specifying the region or business account information.
-     *
-     * @param seller the seller
-     * @param sl the buyer
-     * @param costTable pricing information table
-     * @param licenseCommBoughtIndex the index of the license access commodity in the basket
-     * @return
-     */
-    private static MutableQuote getCheapestComputeCostWithoutContext(@Nonnull final Trader seller,
-                                                                     @Nonnull final ShoppingList sl,
-                                                                     @Nonnull final CostTable costTable,
-                                                                     final int licenseCommBoughtIndex) {
-        Set<Long> accountIds = costTable.getAccountIds();
-        if (accountIds.isEmpty()) {
-            // empty cost table, return infinity to not place entity on this seller
-            logger.warn("No cost information found for seller {}, return infinity quote",
-                    seller.getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
-        }
-        if (licenseCommBoughtIndex == -1) {
-            // when there is no license for the shopping list, return infinity quote
-            // NOTE: we assume that on prem entities have to contain LicenseAccessCommodity
-            logger.warn("No license commodity found for buyer {}, return infinity quote",
-                    sl.getBuyer().getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
-        }
-        int licenseTypeKey = sl.getBasket().get(licenseCommBoughtIndex).getType();
-        CostTuple cheapestTuple = getCheapestTuple(costTable, licenseTypeKey);
-        if (cheapestTuple == null) {
-            logger.warn("Seller {} does not support license {}, return infinity quote",
-                    seller.getDebugInfoNeverUseInCode(),
-                    sl.getBasket().get(licenseCommBoughtIndex).getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
-        }
-        return new CommodityCloudQuote(seller, cheapestTuple.getPrice() * (sl.getGroupFactor() > 0
-                ? sl.getGroupFactor() : 1), cheapestTuple.hasZoneId() ? cheapestTuple.getZoneId()
-                : cheapestTuple.getRegionId(), cheapestTuple.getBusinessAccountId());
     }
 
     /**
@@ -1099,10 +1052,6 @@ public class CostFunctionFactory {
                                                           @Nonnull ShoppingList sl, Trader seller) {
         // TODO: refactor the PriceData to improve performance for region and business account lookup
         Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
-        if (!optionalContext.isPresent()) {
-            // On-prem entities do not have context can reach here in cloud migration plan.
-            return getCheapestStorageCostWithoutContext(priceDataMap, commCapacity, sl, seller);
-        }
         final Context context = optionalContext.get();
         final long regionId = context.getRegionId();
         final BalanceAccount balanceAccount = context.getBalanceAccount();
@@ -1192,69 +1141,6 @@ public class CostFunctionFactory {
             businessAccountChosenId = accountId;
         }
         return new Pair<>(totalCost, businessAccountChosenId);
-    }
-
-    /**
-     * Used when no context info is available, e.g in on-prem to cloud storage migration.
-     * In such cases, we go over all available regions, and pick the region/account where the
-     * total costs are the least, and quote is returned with that region/account/cost.
-     *
-     * @param priceDataMap Map containing selling pricing data.
-     * @param commCapacity Info about commodities and their capacities.
-     * @param shoppingList Shopping list with basket and quantities.
-     * @param seller Seller whose pricing data is being checked.
-     * @return Quote for the cheapest region/account, or infinite quote if no regions found.
-     */
-    private static CommodityQuote getCheapestStorageCostWithoutContext(
-            @Nonnull final Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap,
-            @Nonnull final Map<CommoditySpecification, CapacityLimitation> commCapacity,
-            @Nonnull final ShoppingList shoppingList,
-            @Nonnull final Trader seller) {
-        // Get the cheapest cost across all the accounts and regions.
-        AtomicDouble cheapestCost = new AtomicDouble(Double.MAX_VALUE);
-        AtomicLong accountId = new AtomicLong();
-        AtomicLong regionId = new AtomicLong();
-
-        // Map used to avoid getting (same) costs multiple times for same account and region.
-        // Key is '<accountId>-<regionId>', value is cost for that combination.
-        Map<String, Double> accountsRegionsToCosts = new HashMap<>();
-        priceDataMap.values()
-                .stream()
-                .map(Map::entrySet)
-                .flatMap(Set::stream)
-                .forEach(entry -> {
-                    Long currentAccountId = entry.getKey();
-                    entry.getValue()
-                            .stream()
-                            .map(PriceData::getRegionId)
-                            .forEach(currentRegionId -> {
-                                String currentAccountRegion = String.format("%s-%s",
-                                        currentAccountId, currentRegionId);
-                                if (!accountsRegionsToCosts.containsKey(currentAccountRegion)) {
-                                    Double currentCost = getTotalCost(currentRegionId,
-                                            currentAccountId, null, priceDataMap, commCapacity,
-                                            shoppingList).first;
-                                    if (currentCost < cheapestCost.get()) {
-                                        // Update cheapest cost and its region/account,
-                                        // as we found something cheaper.
-                                        cheapestCost.set(currentCost);
-                                        accountId.set(currentAccountId);
-                                        regionId.set(currentRegionId);
-                                    }
-                                    accountsRegionsToCosts.put(currentAccountRegion, currentCost);
-                                }
-                            });
-                });
-        if (accountId.get() == 0 || regionId.get() == 0) {
-            logger.warn("No (cheapest) cost found for storage {}.",
-                    seller.getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
-        }
-        logger.trace("Returning cheapest storage cost {} for seller = {}, account = {}, "
-                + "region = {}, total cost tuples = {}.", cheapestCost,
-                seller.getDebugInfoNeverUseInCode(), accountId.get(), regionId.get(),
-                accountsRegionsToCosts);
-        return new CommodityCloudQuote(seller, cheapestCost.get(), regionId.get(), accountId.get());
     }
 
     /**
