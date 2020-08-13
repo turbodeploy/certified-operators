@@ -472,7 +472,10 @@ public class Analysis {
                         for (Entry<Long, Set<Long>> entry : cloudVmOidToTraderTOs.entrySet()) {
                             Set<Long> providerOIDList = new HashSet<>();
                             for (Long traderTO : entry.getValue()) {
-                                providerOIDList.add(converter.convertTraderTOToTopologyEntityDTO(traderTO));
+                                Optional<Long> computeTierID = converter.getTopologyEntityOIDForOnDemandMarketTier(traderTO);
+                                if (computeTierID.isPresent()) {
+                                    providerOIDList.add(computeTierID.get());
+                                }
                             }
                             cloudVmOidToProvidersOIDsMap.put(entry.getKey(), providerOIDList);
                         }
