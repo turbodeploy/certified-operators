@@ -197,6 +197,7 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                 .map(c -> commodityConverter.createCommonCommoditySoldTOList(c, computeTier
                 ))
                 .flatMap(List::stream)
+                .map(comm -> comm.toBuilder().setCapacity(Float.MAX_VALUE).build())
                 .collect(Collectors.toList());
     }
 
