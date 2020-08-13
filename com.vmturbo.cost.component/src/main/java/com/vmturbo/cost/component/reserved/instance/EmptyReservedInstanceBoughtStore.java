@@ -90,6 +90,11 @@ public class EmptyReservedInstanceBoughtStore implements ReservedInstanceBoughtS
         // no-op
     }
 
+    @Override
+    public List<ReservedInstanceBought> getReservedInstanceBoughtForAnalysis(@Nonnull final ReservedInstanceBoughtFilter filter) {
+        return Collections.emptyList();
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -135,4 +140,6 @@ public class EmptyReservedInstanceBoughtStore implements ReservedInstanceBoughtS
 
         return Collections.emptyList();
     }
+
+
 }

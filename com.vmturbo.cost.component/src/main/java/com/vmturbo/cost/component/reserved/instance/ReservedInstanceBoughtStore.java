@@ -90,4 +90,16 @@ public interface ReservedInstanceBoughtStore extends ReservedInstanceCostStore, 
      */
     void onInventoryChange(@Nonnull Runnable callback);
 
+
+    /**
+     * Retrieve the reserved instances per the passed filter and then update the capacities for a
+     * partial cloud environment. If an RI is undiscovered, cap the available number of coupons to
+     * the number of coupons used by discovered accounts. If it is discovered, exclude the usage
+     * from undiscovered accounts.
+     *
+     * @param filter {@link ReservedInstanceBoughtFilter} which contains all filter condition.
+     * @return a list of {@link ReservedInstanceBought}.
+     */
+    List<ReservedInstanceBought>  getReservedInstanceBoughtForAnalysis(
+            @Nonnull ReservedInstanceBoughtFilter filter);
 }

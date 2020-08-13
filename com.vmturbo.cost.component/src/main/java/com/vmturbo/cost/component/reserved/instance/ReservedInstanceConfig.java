@@ -29,6 +29,7 @@ import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
+import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
@@ -120,6 +121,9 @@ public class ReservedInstanceConfig {
     @Autowired
     private CostClientConfig costClientConfig;
 
+    @Autowired
+    private CostConfig costConfig;
+
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
         if (ignoreReservedInstanceInventory) {
@@ -127,7 +131,10 @@ public class ReservedInstanceConfig {
         } else {
             return new SQLReservedInstanceBoughtStore(databaseConfig.dsl(),
                     identityProviderConfig.identityProvider(), repositoryInstanceCostCalculator(),
-                    pricingConfig.priceTableStore());
+                    pricingConfig.priceTableStore(),
+                    entityReservedInstanceMappingStore(),
+                    accountRIMappingStore(),
+                    costConfig.businessAccountHelper());
         }
     }
 
@@ -139,7 +146,8 @@ public class ReservedInstanceConfig {
     @Bean
     public PlanReservedInstanceStore planReservedInstanceStore() {
         return new PlanReservedInstanceStore(databaseConfig.dsl(), identityProviderConfig.identityProvider(),
-                        repositoryInstanceCostCalculator());
+                        repositoryInstanceCostCalculator(),
+                costConfig.businessAccountHelper(), entityReservedInstanceMappingStore(), accountRIMappingStore());
     }
 
     @Bean
@@ -184,7 +192,7 @@ public class ReservedInstanceConfig {
                 realtimeTopologyContextId, pricingConfig.priceTableStore(),
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
-                accountRIMappingStore());
+                accountRIMappingStore(), planReservedInstanceStore(), costConfig.businessAccountHelper());
     }
 
     /**
