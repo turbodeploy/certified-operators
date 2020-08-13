@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.ReservationProtoUtil;
@@ -54,6 +55,7 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**
  * Handle reservation related stuff. This is the place where we check if the current
@@ -77,6 +79,18 @@ public class ReservationManager implements ReservationDeletedListener {
     private static final Object reservationSetLock = new Object();
 
     private Map<Long, ReservationConstraintInfo> constraintIDToCommodityTypeMap = new HashMap<>();
+
+    private static final String DELETED_STATUS = "DELETED";
+
+    /**
+     * Track reservation counts.
+     */
+    private static final DataMetricCounter RESERVATION_STATUS_COUNTER = DataMetricCounter.builder()
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "reservations_total")
+            .withHelp("Reservation status count that have been run in the system")
+            .withLabelNames("status")
+            .build()
+            .register();
 
     /**
      * constructor for ReservationManager.
@@ -583,6 +597,7 @@ public class ReservationManager implements ReservationDeletedListener {
                             + " Current Status: " + updatedReservation.getStatus()
                             + " id: " + updatedReservation.getId());
                     statusUpdatedReservation.add(updatedReservation);
+                    RESERVATION_STATUS_COUNTER.labels(updatedReservation.getStatus().toString()).increment();
                 }
             }
             try {
@@ -711,6 +726,7 @@ public class ReservationManager implements ReservationDeletedListener {
     public void onReservationDeleted(@Nonnull final Reservation reservation) {
         logger.info(logPrefix + " Deleted reservation: " + reservation.getName()
                 + " id: " + reservation.getId());
+        RESERVATION_STATUS_COUNTER.labels(DELETED_STATUS).increment();
         deleteReservationFromMarketCache(Collections.singleton(reservation));
         checkAndStartReservationPlan();
     }
