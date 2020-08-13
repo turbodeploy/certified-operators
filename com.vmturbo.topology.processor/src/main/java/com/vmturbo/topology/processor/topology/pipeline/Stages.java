@@ -96,6 +96,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
@@ -793,11 +794,24 @@ public class Stages {
      */
     public static class GraphCreationStage extends Stage<Map<Long, TopologyEntity.Builder>, TopologyGraph<TopologyEntity>> {
 
+        private GroupScopeResolver groupScopeResolver;
+
+        GraphCreationStage() {
+            this(null);
+        }
+
+        GraphCreationStage(@Nullable GroupScopeResolver groupScopeResolver) {
+            this.groupScopeResolver = groupScopeResolver;
+        }
+
         @NotNull
         @Nonnull
         @Override
         public StageResult<TopologyGraph<TopologyEntity>> execute(@NotNull @Nonnull final Map<Long, TopologyEntity.Builder> input) {
             final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(input);
+            if (groupScopeResolver != null) {
+                groupScopeResolver.setTopologyGraph(graph);
+            }
             return StageResult.withResult(graph)
                 .andStatus(Status.success());
         }

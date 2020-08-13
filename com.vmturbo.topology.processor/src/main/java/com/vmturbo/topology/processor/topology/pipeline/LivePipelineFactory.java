@@ -35,6 +35,7 @@ import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
@@ -155,39 +156,42 @@ public class LivePipelineFactory {
 
     private final GroupResolverSearchFilterResolver searchFilterResolver;
 
+    private final GroupScopeResolver groupScopeResolver;
+
     public LivePipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
-                               @Nonnull final PolicyManager policyManager,
-                               @Nonnull final StitchingManager stitchingManager,
-                               @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
-                               @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
-                               @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
-                               @Nonnull final DiscoveredCloudCostUploader cloudCostUploader,
-                               @Nonnull final EntitySettingsResolver entitySettingsResolver,
-                               @Nonnull final EntitySettingsApplicator settingsApplicator,
-                               @Nonnull final EnvironmentTypeInjector environmentTypeInjector,
-                               @Nonnull final SearchResolver<TopologyEntity> searchResolver,
-                               @Nonnull final GroupServiceBlockingStub groupServiceClient,
-                               @Nonnull final ReservationManager reservationManager,
-                               @Nonnull final DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner,
-                               @Nonnull final StitchingGroupFixer stitchingGroupFixer,
-                               @Nonnull final EntityValidator entityValidator,
-                               @Nonnull final SupplyChainValidator supplyChainValidator,
-                               @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
-                               @Nonnull final ApplicationCommodityKeyChanger applicationCommodityKeyChanger,
-                               @Nonnull final ControllableManager controllableManager,
-                               @Nonnull final HistoricalEditor historicalEditor,
-                               @Nonnull final MatrixInterface matrix,
-                               @Nonnull final CachedTopology constructTopologyStageCache,
-                               @Nonnull final ProbeActionCapabilitiesApplicatorEditor applicatorEditor,
-                               @Nonnull HistoryAggregator historyAggregationStage,
-                               @Nonnull final LicenseCheckClient licenseCheckClient,
-                               @Nonnull final ConsistentScalingManager consistentScalingManager,
-                               @Nonnull final ActionConstraintsUploader actionConstraintsUploader,
-                               @Nonnull final ActionMergeSpecsUploader actionMergeSpecsUploader,
-                               @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector,
-                               @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
-                               @Nonnull final ReservationServiceBlockingStub reservationService,
-                               @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver) {
+            @Nonnull final PolicyManager policyManager,
+            @Nonnull final StitchingManager stitchingManager,
+            @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
+            @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
+            @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
+            @Nonnull final DiscoveredCloudCostUploader cloudCostUploader,
+            @Nonnull final EntitySettingsResolver entitySettingsResolver,
+            @Nonnull final EntitySettingsApplicator settingsApplicator,
+            @Nonnull final EnvironmentTypeInjector environmentTypeInjector,
+            @Nonnull final SearchResolver<TopologyEntity> searchResolver,
+            @Nonnull final GroupServiceBlockingStub groupServiceClient,
+            @Nonnull final ReservationManager reservationManager,
+            @Nonnull final DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner,
+            @Nonnull final StitchingGroupFixer stitchingGroupFixer,
+            @Nonnull final EntityValidator entityValidator,
+            @Nonnull final SupplyChainValidator supplyChainValidator,
+            @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
+            @Nonnull final ApplicationCommodityKeyChanger applicationCommodityKeyChanger,
+            @Nonnull final ControllableManager controllableManager,
+            @Nonnull final HistoricalEditor historicalEditor,
+            @Nonnull final MatrixInterface matrix,
+            @Nonnull final CachedTopology constructTopologyStageCache,
+            @Nonnull final ProbeActionCapabilitiesApplicatorEditor applicatorEditor,
+            @Nonnull HistoryAggregator historyAggregationStage,
+            @Nonnull final LicenseCheckClient licenseCheckClient,
+            @Nonnull final ConsistentScalingManager consistentScalingManager,
+            @Nonnull final ActionConstraintsUploader actionConstraintsUploader,
+            @Nonnull final ActionMergeSpecsUploader actionMergeSpecsUploader,
+            @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector,
+            @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
+            @Nonnull final ReservationServiceBlockingStub reservationService,
+            @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver,
+            @Nonnull final GroupScopeResolver groupScopeResolver) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -221,6 +225,7 @@ public class LivePipelineFactory {
         this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
         this.reservationService = Objects.requireNonNull(reservationService);
         this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
+        this.groupScopeResolver = Objects.requireNonNull(groupScopeResolver);
     }
 
     /**
@@ -283,14 +288,13 @@ public class LivePipelineFactory {
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                         discoveredGroupUploader))
                 .addStage(new UploadActionConstraintsStage(actionConstraintsUploader))
-
                 .addStage(new CacheWritingConstructTopologyFromStitchingContextStage(constructTopologyStageCache))
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
                 .addStage(new UploadWorkflowsStage(discoveredWorkflowUploader))
                 .addStage(new UploadTemplatesStage(discoveredTemplateDeploymentProfileNotifier))
                 .addStage(new ReservationStage(reservationManager))
                 .addStage(new ControllableStage(controllableManager))
-                .addStage(new GraphCreationStage())
+                .addStage(new GraphCreationStage(groupScopeResolver))
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
@@ -341,7 +345,7 @@ public class LivePipelineFactory {
                     discoveredGroupUploader))
             .addStage(new ConstructTopologyFromStitchingContextStage())
             .addStage(new UploadGroupsStage(discoveredGroupUploader))
-            .addStage(new GraphCreationStage())
+            .addStage(new GraphCreationStage(groupScopeResolver))
             .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
             .addStage(new ChangeAppCommodityKeyOnVMAndAppStage(applicationCommodityKeyChanger))
             .addStage(new EnvironmentTypeStage(environmentTypeInjector))
