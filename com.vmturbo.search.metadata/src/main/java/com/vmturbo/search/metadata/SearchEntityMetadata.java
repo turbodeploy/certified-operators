@@ -64,11 +64,14 @@ import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VSTORA
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VSTORAGE_WEIGHTED_UTILIZATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.NUM_VMS;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_ATTACHMENT_STATE;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_SERVICE_PROVIDER;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_CONNECTED_NETWORKS;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_CPU_MODEL;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_ENTITY_TYPE;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_ENVIRONMENT_TYPE;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_GUEST_OS_TYPE;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_IS_ENCRYPTED_VOLUME;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_IS_EPHEMERAL_VOLUME;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_IS_LOCAL;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_MODEL;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_NAME;
@@ -77,6 +80,7 @@ import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_PM_NUM
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_SEVERITY;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_STATE;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_TIMEZONE;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_VENDOR_ID;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_VM_NUM_CPUS;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_ACCOUNT;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_ACTION_COUNT;
@@ -202,6 +206,8 @@ public enum SearchEntityMetadata {
             .put(primitive("connectedNetworks"), PRIMITIVE_CONNECTED_NETWORKS)
             .put(primitive("guestOsType"), PRIMITIVE_GUEST_OS_TYPE)
             .put(primitive("numCpus"), PRIMITIVE_VM_NUM_CPUS)
+            .put(primitive("isEphemeralVolume"), PRIMITIVE_IS_EPHEMERAL_VOLUME)
+            .put(primitive("isEncryptedVolume"), PRIMITIVE_IS_ENCRYPTED_VOLUME)
             // commodities
             .put(capacity(CommodityType.VMEM), COMMODITY_VMEM_CAPACITY)
             .put(used(CommodityType.VCPU), COMMODITY_VCPU_USED)
@@ -289,6 +295,7 @@ public enum SearchEntityMetadata {
             .putAll(Constants.ENTITY_COMMON_FIELDS)
             // type specific fields
             .put(primitive("attachmentState"), PRIMITIVE_ATTACHMENT_STATE)
+            .put(primitive("volumeId"), PRIMITIVE_VENDOR_ID)
             // commodities
             .put(capacity(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_CAPACITY)
             // related entities
@@ -297,6 +304,7 @@ public enum SearchEntityMetadata {
             .put(entityNames(EntityType.Storage), RELATED_STORAGE)
             .put(entityNames(EntityType.StorageTier), RELATED_STORAGE_TIER)
             .put(entityNames(EntityType.VirtualMachine), RELATED_VM)
+            .put(entityNames(EntityType.ServiceProvider), RELATED_SERVICE_PROVIDER)
             // related groups
             .put(groupNames(GroupType.Resource), RELATED_RESOURCE_GROUP_NAME_FOR_VV)
             .build();
@@ -601,6 +609,10 @@ public enum SearchEntityMetadata {
         return ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
             // common fields
             .putAll(Constants.ENTITY_COMMON_FIELDS)
+            // type specific fields
+            .put(primitive("vendorID"), PRIMITIVE_VENDOR_ID)
+            // related entities
+            .put(entityNames(EntityType.ServiceProvider), RELATED_SERVICE_PROVIDER)
             // related groups
             .put(groupNames(GroupType.BillingFamily), RELATED_BILLING_FAMILY_NAME)
             .build();

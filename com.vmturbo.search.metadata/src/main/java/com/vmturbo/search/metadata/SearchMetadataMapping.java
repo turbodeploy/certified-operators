@@ -119,6 +119,21 @@ public enum SearchMetadataMapping {
     PRIMITIVE_VM_NUM_CPUS("attrs", "num_cpus", Type.NUMBER, null,
             entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus())),
 
+    PRIMITIVE_VENDOR_ID("attrs", "vendor_id", Type.TEXT, null,
+            entity -> entity.getOrigin().hasDiscoveryOrigin()
+                    ? entity.getOrigin()
+                        .getDiscoveryOrigin()
+                        .getDiscoveredTargetDataMap()
+                        .values()
+                        .stream()
+                        .map(perTargetEntityInformation -> (Object) perTargetEntityInformation.getVendorId())
+                        .findFirst()
+                    : Optional.empty()),
+
+    PRIMITIVE_IS_EPHEMERAL_VOLUME("attrs", "is_ephemeral_volume", Type.BOOLEAN, ImmutableSet.of(EntityType.VirtualVolume)),
+
+    PRIMITIVE_IS_ENCRYPTED_VOLUME("attrs", "is_encrypted_volume", Type.BOOLEAN, ImmutableSet.of(EntityType.VirtualVolume)),
+
     /**
      * Commodities for entity.
      */
@@ -449,6 +464,9 @@ public enum SearchMetadataMapping {
     RELATED_VM("attrs", "related_vm", Collections.singleton(EntityType.VirtualMachine),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
+    RELATED_SERVICE_PROVIDER("attrs", "related_service_provider", Collections.singleton(EntityType.ServiceProvider),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
     NUM_VMS("attrs", "num_vms", Collections.singleton(EntityType.VirtualMachine),
             RelatedEntitiesProperty.COUNT, Type.INTEGER),
 
@@ -627,6 +645,16 @@ public enum SearchMetadataMapping {
         this.apiDatatype = Objects.requireNonNull(apiDatatype);
         this.enumClass = enumClass;
         this.topoFieldFunction = Objects.requireNonNull(topoFieldFunction);
+    }
+
+    SearchMetadataMapping(@Nonnull String columnName,
+            @Nonnull String jsonKeyName,
+            @Nonnull Type apiDatatype,
+            @Nonnull Set<EntityType> relatedEntityTypes) {
+        this.columnName = Objects.requireNonNull(columnName);
+        this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
+        this.apiDatatype = Objects.requireNonNull(apiDatatype);
+        this.relatedEntityTypes = Objects.requireNonNull(relatedEntityTypes);
     }
 
     /**
