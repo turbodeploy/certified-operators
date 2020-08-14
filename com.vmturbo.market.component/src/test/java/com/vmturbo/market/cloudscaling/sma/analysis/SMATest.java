@@ -85,6 +85,41 @@ public class SMATest {
 
     }
 
+    /**
+     * test post processing. undo unnecessary coverage.
+     */
+    @Test
+    public void testPostProcessing2() {
+        String filename = "2vm1rinorioptimisation2.json";
+        JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
+        SMAInput smaInput = jsonToSMAInputTranslator
+                .parseInput(dirPath + filename);
+        SMAOutputContext outputContext = StableMarriageAlgorithm.execute(smaInput).getContexts().get(0);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)
+                .findFirst().get().getProjectedRICoverage(), 32f, 0.001);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000002L)
+                .findFirst().get().getProjectedRICoverage(), 0f, 0.001);
+
+    }
+
+    /**
+     * test post processing. ri optimization investment can arise if the RI is not available.
+     * If source coverage is more than the available coupons.
+     */
+    @Test
+    public void testPostProcessing3() {
+        String filename = "2vm1rinorioptimisation3.json";
+        JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
+        SMAInput smaInput = jsonToSMAInputTranslator
+                .parseInput(dirPath + filename);
+        SMAOutputContext outputContext = StableMarriageAlgorithm.execute(smaInput).getContexts().get(0);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)
+                .findFirst().get().getProjectedRICoverage(), 2f, 0.001);
+
+    }
 
     /**
      * wrapper method to run the SMA for various scenarios.

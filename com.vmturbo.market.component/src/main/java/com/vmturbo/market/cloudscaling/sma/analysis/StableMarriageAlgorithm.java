@@ -140,7 +140,7 @@ public class StableMarriageAlgorithm {
                     }
                 }
                 outgoingCouponMatch.setProjectedRICoverage(outgoingCouponMatch
-                        .getVirtualMachine().getCurrentRICoverage());
+                        .getVirtualMachine().getCurrentRICoverage() - coupons_required);
                 outgoingCouponMatch.setReservedInstance(outgoingCouponMatch.getVirtualMachine()
                         .getCurrentRI());
             }
@@ -167,6 +167,7 @@ public class StableMarriageAlgorithm {
                                 new HashMap<>(), smaMatch.getProjectedRICoverage());
                 if (saving < SMAUtils.EPSILON) {
                     smaMatch.setReservedInstance(null);
+                    smaMatch.setProjectedRICoverage(0);
                     smaMatch.setTemplate(smaMatch.getVirtualMachine().getNaturalTemplate());
                 }
             }
@@ -188,6 +189,7 @@ public class StableMarriageAlgorithm {
                 if (saving < SMAUtils.EPSILON) {
                     for (SMAMatch smaMatch : smaMatches) {
                         smaMatch.setReservedInstance(null);
+                        smaMatch.setProjectedRICoverage(0);
                         smaMatch.setTemplate(smaMatch.getVirtualMachine().getNaturalTemplate());
                     }
                 }
