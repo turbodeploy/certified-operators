@@ -45,6 +45,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator.Results;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * Unit tests for {@link PolicyManager}.
@@ -122,7 +123,7 @@ public class PolicyManagerTest {
 
         // set up the GroupService to test
         policyManager = new com.vmturbo.topology.processor.group.policy.PolicyManager(
-            policyRpcService, groupServiceStub, new PolicyFactory(), policyApplicator);
+            policyRpcService, groupServiceStub, new PolicyFactory(mock(TopologyInvertedIndexFactory.class)), policyApplicator);
     }
 
     @Test

@@ -241,6 +241,7 @@ public class PolicyMapper {
 
         if (policyApiDTO.getName() != null) {
             policyInfoBuilder.setName(policyApiDTO.getName());
+            policyInfoBuilder.setDisplayName(policyApiDTO.getName());
         } else {
             logger.warn("The 'name' field in PolicyApiDTO is null : " + policyApiDTO);
         }
@@ -409,6 +410,7 @@ public class PolicyMapper {
 
         if (policyApiInputDTO.getPolicyName() != null) {
             inputPolicyBuilder.setName(policyApiInputDTO.getPolicyName());
+            inputPolicyBuilder.setDisplayName(policyApiInputDTO.getPolicyName());
         } else {
             logger.warn("The 'name' field in PolicyApiInputDTO is null");
         }

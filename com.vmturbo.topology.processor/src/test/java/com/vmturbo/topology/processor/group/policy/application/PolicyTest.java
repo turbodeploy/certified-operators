@@ -18,10 +18,12 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 public class PolicyTest {
     final GroupResolver groupResolver = mock(GroupResolver.class);
     final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
+    final TopologyInvertedIndexFactory invertedIndexFactory = mock(TopologyInvertedIndexFactory.class);
 
     @Test
     public void testAppliesEnabled() throws Exception {
@@ -32,7 +34,7 @@ public class PolicyTest {
             .build();
 
         MutableBoolean applied = new MutableBoolean(false);
-        PlacementPolicyApplication application = new PlacementPolicyApplication(groupResolver, topologyGraph) {
+        PlacementPolicyApplication<PlacementPolicy> application = new PlacementPolicyApplication<PlacementPolicy>(groupResolver, topologyGraph, invertedIndexFactory) {
             @Override
             protected Map<PlacementPolicy, PolicyApplicationException> applyInternal(@Nonnull final List<PlacementPolicy> policies) {
                 applied.setTrue();
@@ -53,7 +55,7 @@ public class PolicyTest {
                 .setEnabled(false))
             .build();
 
-        PlacementPolicyApplication application = new PlacementPolicyApplication(groupResolver, topologyGraph) {
+        PlacementPolicyApplication<PlacementPolicy> application = new PlacementPolicyApplication<PlacementPolicy>(groupResolver, topologyGraph, invertedIndexFactory) {
             @Override
             protected Map<PlacementPolicy, PolicyApplicationException> applyInternal(@Nonnull final List<PlacementPolicy> policies) {
                 Assert.assertTrue("Shouldn't apply any disabled policies.", policies.isEmpty());

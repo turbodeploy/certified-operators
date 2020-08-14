@@ -40,6 +40,7 @@ import com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper;
 import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * The tests use the following topology:
@@ -289,7 +290,7 @@ public class MustNotRunTogetherPolicyTest {
     private void applyPolicy(@Nonnull final MustNotRunTogetherPolicy policy,
                              @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
         MustNotRunTogetherPolicyApplication application =
-            new MustNotRunTogetherPolicyApplication(groupResolver, topologyGraph);
+            new MustNotRunTogetherPolicyApplication(groupResolver, topologyGraph, new TopologyInvertedIndexFactory());
         application.apply(Collections.singletonList(policy));
     }
 

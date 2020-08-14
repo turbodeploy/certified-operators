@@ -48,10 +48,6 @@ public class BindToComplementaryGroupPolicy extends PlacementPolicy {
         this.providerPolicyEntities = Objects.requireNonNull(providerPolicyEntities);
     }
 
-    public void applyInternal(@Nonnull final GroupResolver groupResolver, @Nonnull final TopologyGraph<TopologyEntity> topologyGraph)
-            throws GroupResolutionException, PolicyApplicationException {
-    }
-
     @Nonnull
     public PolicyInfo.BindToComplementaryGroupPolicy getDetails() {
         return bindToComplementaryGroup;

@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
+import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
@@ -974,24 +975,28 @@ public class Stages {
                 .setEmptyValue("No policies to apply.");
             final boolean errors = applicationResults.getErrors().size() > 0;
             if (errors) {
-                statusMsg.add(applicationResults.getErrors().size() +
-                    " policies encountered errors and failed to run!\n");
+                statusMsg.add(applicationResults.getErrors().size()
+                    + " policies encountered errors and failed to run!\n");
             }
             if (applicationResults.getInvalidPolicyCount() > 0) {
-                statusMsg.add(applicationResults.getInvalidPolicyCount() +
-                    " policies were invalid and got ignored!\n");
+                statusMsg.add(applicationResults.getInvalidPolicyCount()
+                    + " policies were invalid and got ignored!\n");
             }
             if (applicationResults.getAppliedCounts().size() > 0) {
-                statusMsg.add("(policy type) : (num applied)\n" +
-                    applicationResults.getAppliedCounts().entrySet().stream()
-                        .map(entry -> entry.getKey() + " : " + entry.getValue())
-                        .collect(Collectors.joining("\n")));
+                statusMsg.add("(policy type) : (num applied)");
+                applicationResults.getAppliedCounts().forEach((policyType, numApplied) -> {
+                    statusMsg.add(FormattedString.format("{} : {}", policyType, numApplied));
+                    applicationResults.getAddedCommodityCounts(policyType).forEach((commType, numAdded) -> {
+                        statusMsg.add(FormattedString.format("    Added {} {} commodities.", numAdded, commType));
+                    });
+                });
             }
-            if (applicationResults.getAddedCommodityCounts().size() > 0) {
-                statusMsg.add("(commodity type) : (num commodities added)\n" +
-                    applicationResults.getAddedCommodityCounts().entrySet().stream()
-                        .map(entry -> entry.getKey() + " : " + entry.getValue())
-                        .collect(Collectors.joining("\n")));
+
+            if (applicationResults.getTotalAddedCommodityCounts().size() > 0) {
+                statusMsg.add("(commodity type) : (num commodities added)");
+                applicationResults.getTotalAddedCommodityCounts().forEach((commType, numAddded) -> {
+                    statusMsg.add(FormattedString.format("{} : {}", commType, numAddded));
+                });
             }
 
             if (errors || applicationResults.getInvalidPolicyCount() > 0) {

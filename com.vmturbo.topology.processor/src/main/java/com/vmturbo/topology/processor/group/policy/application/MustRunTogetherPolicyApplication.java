@@ -18,15 +18,17 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * Applies a collection of {@link MustRunTogetherPolicyApplication}s. No bulk optimizations.
  */
-public class MustRunTogetherPolicyApplication extends PlacementPolicyApplication {
+public class MustRunTogetherPolicyApplication extends PlacementPolicyApplication<MustRunTogetherPolicy> {
 
     protected MustRunTogetherPolicyApplication(final GroupResolver groupResolver,
-                                               final TopologyGraph<TopologyEntity> topologyGraph) {
-        super(groupResolver, topologyGraph);
+            final TopologyGraph<TopologyEntity> topologyGraph,
+            final TopologyInvertedIndexFactory invertedIndexFactory) {
+        super(groupResolver, topologyGraph, invertedIndexFactory);
     }
 
     /**
@@ -40,35 +42,32 @@ public class MustRunTogetherPolicyApplication extends PlacementPolicyApplication
      */
     @Override
     protected Map<PlacementPolicy, PolicyApplicationException> applyInternal(
-            @Nonnull final List<PlacementPolicy> policies) {
+            @Nonnull final List<MustRunTogetherPolicy> policies) {
         final Map<PlacementPolicy, PolicyApplicationException> errors = new HashMap<>();
-        policies.stream()
-            .filter(policy -> policy instanceof MustRunTogetherPolicy)
-            .map(policy -> (MustRunTogetherPolicy)policy)
-            .forEach(policy -> {
-                try {
-                    logger.debug("Applying MustRunTogether policy.");
+        policies.forEach(policy -> {
+            try {
+                logger.debug("Applying MustRunTogether policy.");
 
-                    // get group of entities that need to run together (consumers)
-                    final Grouping consumerGroup = policy.getPolicyEntities().getGroup();
-                    GroupProtoUtil.checkEntityTypeForPolicy(consumerGroup);
-                    final ApiEntityType consumerEntityType = GroupProtoUtil.getEntityTypes(consumerGroup).iterator().next();
-                    Set<Long> additionalEntities = policy.getPolicyEntities().getAdditionalEntities();
-                    final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType),
-                        additionalEntities);
+                // get group of entities that need to run together (consumers)
+                final Grouping consumerGroup = policy.getPolicyEntities().getGroup();
+                GroupProtoUtil.checkEntityTypeForPolicy(consumerGroup);
+                final ApiEntityType consumerEntityType = GroupProtoUtil.getEntityTypes(consumerGroup).iterator().next();
+                Set<Long> additionalEntities = policy.getPolicyEntities().getAdditionalEntities();
+                final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType),
+                    additionalEntities);
 
-                    // Add the commodity sold to the provider
-                    addCommoditySoldToSelectedProvider(policy, consumers);
+                // Add the commodity sold to the provider
+                addCommoditySoldToSelectedProvider(policy, consumers);
 
-                    // Add the commodity bought to the entities that need to run separate
-                    addCommodityBought(consumers, policy.getDetails().getProviderEntityType(),
-                        commodityBought(policy));
-                } catch (GroupResolutionException e) {
-                    errors.put(policy, new PolicyApplicationException(e));
-                } catch (PolicyApplicationException e2) {
-                    errors.put(policy, e2);
-                }
-            });
+                // Add the commodity bought to the entities that need to run separate
+                addCommodityBought(consumers, policy.getDetails().getProviderEntityType(),
+                    commodityBought(policy));
+            } catch (GroupResolutionException e) {
+                errors.put(policy, new PolicyApplicationException(e));
+            } catch (PolicyApplicationException e2) {
+                errors.put(policy, e2);
+            }
+        });
         return errors;
     }
 

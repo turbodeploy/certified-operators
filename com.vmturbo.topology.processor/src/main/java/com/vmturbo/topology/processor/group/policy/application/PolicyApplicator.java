@@ -83,7 +83,7 @@ public class PolicyApplicator {
                 policiesByType.getOrDefault(policyClass, Collections.emptyList());
             if (!policiesOfClass.isEmpty()) {
                 try (DataMetricTimer timer = Metrics.POLICY_APPLICATION_SUMMARY.labels(policyClass.name()).startTimer()) {
-                    final PlacementPolicyApplication application =
+                    final PlacementPolicyApplication<?> application =
                         policyFactory.newPolicyApplication(policyClass, groupResolver, topologyGraph);
 
                     final PolicyApplicationResults res =
@@ -92,14 +92,9 @@ public class PolicyApplicator {
                     results.putAppliedCounts(policyClass, policiesOfClass.size() - res.errors().size());
 
                     res.addedCommodities().forEach((commType, numAdded) ->
-                        totalAddedCommodities.computeIfAbsent(commType, k -> new MutableInt(0))
-                            .add(numAdded));
+                        results.putAddedCommodityCounts(commType, policyClass, numAdded));
                 }
             }
-        });
-
-        totalAddedCommodities.forEach((commType, totalNumAdded) -> {
-            results.putAddedCommodityCounts(commType, totalNumAdded.toInteger());
         });
 
         // Go through the remaining policies, regardless of the order.
@@ -139,7 +134,7 @@ public class PolicyApplicator {
         /**
          * The number of commodities added to the topology, broken down by the type of commodity.
          */
-        private final Map<CommodityDTO.CommodityType, Integer> addedCommodityCounts = new HashMap<>();
+        private final Map<PolicyDetailCase, Map<CommodityDTO.CommodityType, Integer>> addedCommodityCounts = new HashMap<>();
 
         /**
          * (Any policies that encountered errors) -> (error encountered by the policy).
@@ -152,11 +147,14 @@ public class PolicyApplicator {
          * Record the number of commodities of a particular type added by policies.
          *
          * @param commType The commodity type.
+         * @param policyType The type of policy.
          * @param commodityCount The number of commodities added.
          */
         public void putAddedCommodityCounts(@Nonnull final CommodityType commType,
+                                            @Nonnull final PolicyDetailCase policyType,
                                             final int commodityCount) {
-            addedCommodityCounts.put(commType, commodityCount);
+            addedCommodityCounts.computeIfAbsent(policyType, k -> new HashMap<>())
+                .put(commType, commodityCount);
         }
 
         /**
@@ -197,12 +195,34 @@ public class PolicyApplicator {
         }
 
         /**
+         * Get counts of commodities added by a specific policy, broken down by commodity type.
+         *
+         * @param type The type of policy.
+         * @return Map of commodity type -> number of commodities of that type added by policies.
+         */
+        public Map<CommodityDTO.CommodityType, Integer> getAddedCommodityCounts(@Nonnull final PolicyDetailCase type) {
+            return addedCommodityCounts.getOrDefault(type, Collections.emptyMap());
+        }
+
+        /**
          * Get counts of commodities added by all policies, broken down by commodity type.
          *
          * @return Map of commodity type -> number of commodities of that type added by policies.
          */
-        public Map<CommodityDTO.CommodityType, Integer> getAddedCommodityCounts() {
-            return addedCommodityCounts;
+        public Map<CommodityDTO.CommodityType, Integer> getTotalAddedCommodityCounts() {
+            Map<CommodityDTO.CommodityType, Integer> ret = new HashMap<>();
+            addedCommodityCounts.forEach((type, commsAdded) -> {
+                commsAdded.forEach((commType, numAdded) -> {
+                    ret.compute(commType, (k, oldVal) -> {
+                        if (oldVal == null) {
+                            return numAdded;
+                        } else {
+                            return numAdded + oldVal;
+                        }
+                    });
+                });
+            });
+            return ret;
         }
 
         /**
