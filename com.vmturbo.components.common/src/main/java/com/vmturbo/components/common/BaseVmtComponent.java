@@ -209,7 +209,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Value("${server.grpcMaxMessageBytes:12000000}")
     private int grpcMaxMessageBytes;
 
-    @Value("${enableMemoryMonitor:false}")
+    @Value("${enableMemoryMonitor:true}")
     private boolean enableMemoryMonitor;
 
     private static final SetOnce<org.eclipse.jetty.server.Server> JETTY_SERVER = new SetOnce<>();
