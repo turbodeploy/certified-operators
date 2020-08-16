@@ -1,0 +1,35 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: prometheus-configuration-update
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  schedule: "* * * * *" # run every 1 minute
+  # Jobs will be writing the same file so prohibiting concurrent executions ensures it won't be
+  # corrupted. If old job is stuck for some reason, the new one will replace it.
+  concurrencyPolicy: Replace
+  # Keep a few more past jobs that the default (3 successful & 1 failed) in case we need to
+  # troubleshoot. Keeping the jobs is currently required to keep their logs.
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: prometheus-config-manager
+              image: turbonomic/prometheus-config-manager # need to set the version using a template
+              imagePullPolicy: IfNotPresent
+              args: []
+              volumeMounts:
+                - name: config-volume
+                  mountPath: /etc/config
+                  readOnly: true
+          restartPolicy: OnFailure
+          volumes:
+            - name: config-volume
+              configMap:
+                name: prometheus-server # name needs to match the one used by Prometheus chart.

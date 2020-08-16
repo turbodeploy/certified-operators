@@ -1,6 +1,10 @@
 #! /usr/bin/python3
 
+# Needs to take less than 1 minute to run!
+
 import requests
+
+print(open("/etc/config/prometheus.yml", "r").read())
 
 # defining endpoint to get telemetryEnabled setting from group component
 SETTINGS_ENDPOINT = "http://group:8080/SettingService/getMultipleGlobalSettings"
