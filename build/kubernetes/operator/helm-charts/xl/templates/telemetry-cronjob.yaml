@@ -25,11 +25,16 @@ spec:
               imagePullPolicy: IfNotPresent
               args: []
               volumeMounts:
-                - name: config-volume
+                - name: config-in-volume
                   mountPath: /etc/config
                   readOnly: true
+                - name: config-out-volume
+                  mountPath: /etc/merged-config
           restartPolicy: OnFailure
           volumes:
-            - name: config-volume
+            - name: config-in-volume
               configMap:
                 name: prometheus-server # name needs to match the one used by Prometheus chart.
+            - name: config-out-volume
+              persistentVolumeClaim:
+                claimName: prometheus-merged-config

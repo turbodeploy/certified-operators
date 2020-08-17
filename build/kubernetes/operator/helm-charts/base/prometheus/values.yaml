@@ -322,7 +322,7 @@ configmapReload:
   prometheus:
     ## If false, the configmap-reload container will not be deployed
     ##
-    enabled: true
+    enabled: false
 
     ## configmap-reload container name
     ##
@@ -661,7 +661,7 @@ server:
     # - storage.tsdb.wal-compression
 
   ## Path to a configuration file on prometheus server container FS
-  configPath: /etc/config/prometheus.yml
+  configPath: /etc/merged-config/prometheus.yml
 
   global:
     ## How frequently to scrape targets by default
@@ -712,7 +712,9 @@ server:
 
   ## Additional Prometheus server Volume mounts
   ##
-  extraVolumeMounts: []
+  extraVolumeMounts:
+    - name: prometheus-merged-config
+      mountPath: /etc/merged-config
 
   ## Additional Prometheus server Volumes
   ##
@@ -720,6 +722,9 @@ server:
     - name: datacloud-service-account # must be a valid DNS subdomain name
       secret:
         secretName: prometheus-datacloud-gateway # must match the name of the secret in xl/templates
+    - name: prometheus-merged-config
+      persistentVolumeClaim:
+        claimName: prometheus-merged-config
 
   ## Additional Prometheus server hostPath mounts
   ##
