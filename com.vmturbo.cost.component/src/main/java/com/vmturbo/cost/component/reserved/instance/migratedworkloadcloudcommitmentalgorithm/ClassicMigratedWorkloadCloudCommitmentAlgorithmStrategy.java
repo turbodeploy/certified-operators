@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommit
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,6 +56,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry.LicensePrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 
 /**
@@ -642,6 +645,47 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
             }
         }
 
+        // If the cloud type is Azure then we want to get the RI license cost
+        if (cloudType == CloudType.AZURE) {
+
+            // Get reserved instance license price
+            TypeSpecificInfo typeSpecificInfo = placement.getComputeTier().getTypeSpecificInfo();
+            if (typeSpecificInfo != null) {
+                ComputeTierInfo computeTierInfo = typeSpecificInfo.getComputeTier();
+                if (computeTierInfo != null) {
+                    // See if the compute tier is burstable
+                    boolean isBurstable = computeTierInfo.getBurstableCPU();
+
+                    // Get the number of cores for our compute tier
+                    int numberOfCores = computeTierInfo.getNumCores();
+
+                    // Find the price list entries for this OS (and whether or not it is a burstable template)
+                    List<LicensePriceEntry> licensePriceEntries = priceTable.getReservedLicensePricesList().stream()
+                            .filter(l -> l.getOsType() == costRecord.getOsType() && l.getBurstableCPU() == isBurstable)
+                            .collect(Collectors.toList());
+
+                    // We should have one match
+                    if (CollectionUtils.isNotEmpty(licensePriceEntries)) {
+                        // Find the minimum LicensePrice that supports the number of cores in the compute tier
+                        Optional<LicensePrice> licensePrice = licensePriceEntries.get(0).getLicensePricesList().stream()
+                                .filter(lp -> lp.getNumberOfCores() >= numberOfCores)
+                                .min(Comparator.comparingInt(LicensePrice::getNumberOfCores));
+
+                        // Set the reserved instance license cost
+                        licensePrice.ifPresent(lp -> {
+                            Price price = lp.getPrice();
+                            if (price != null) {
+                                CurrencyAmount currencyAmount = price.getPriceAmount();
+                                if (currencyAmount != null) {
+                                    costRecord.setReservedInstanceLicensePrice(currencyAmount.getAmount());
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
         // Log warning if we can't find the on-demand cost
         if (costRecord.getOnDemandBasePrice() <= 0.0) {
             logger.warn("Unable to retrieve on-demand costs for VM: {}, compute tier: {}, region: {}",
@@ -715,7 +759,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                     CurrencyAmount currencyAmount = recurringPrice.getPriceAmount();
                     if (currencyAmount != null) {
                         if (cloudType == CloudType.AZURE) {
-                            costRecord.setRecurringPrice(currencyAmount.getAmount() + costRecord.getOnDemandLicencePrice());
+                            costRecord.setRecurringPrice(currencyAmount.getAmount() + costRecord.getReservedInstanceLicensePrice());
                         } else {
                             costRecord.setRecurringPrice(currencyAmount.getAmount());
                         }
@@ -767,6 +811,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         private CloudCostDTO.OSType osType;
         private double onDemandBasePrice;
         private double onDemandLicencePrice;
+        private double reservedInstanceLicensePrice;
         private int numberOfCoupons;
         private double upFrontPrice;
         private double recurringPrice;
@@ -810,6 +855,14 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
 
         public void setOnDemandLicencePrice(double onDemandLicencePrice) {
             this.onDemandLicencePrice = onDemandLicencePrice;
+        }
+
+        public double getReservedInstanceLicensePrice() {
+            return reservedInstanceLicensePrice;
+        }
+
+        public void setReservedInstanceLicensePrice(double reservedInstanceLicensePrice) {
+            this.reservedInstanceLicensePrice = reservedInstanceLicensePrice;
         }
 
         public int getNumberOfCoupons() {
