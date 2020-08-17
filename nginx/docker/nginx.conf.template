@@ -184,6 +184,14 @@ http {
             proxy_set_header        X-Original-URI $request_uri;
         }
 
+        # Named location for use for unauthorized access to the /reports endpoint.
+        location @unauthenticatedReport {
+            # We return a redirect to the login screen, with a continuation back to the
+            # /reports sub-route that triggered the redirect. That way the user gets taken to the
+            # desired URL after they log in.
+            return 307 https://$host/app/index.html#/authentication/login?continue=/reports$uri;
+        }
+
         # Proxying the report-related route, and redirecting to Grafana.
         location /reports {
             set $grafana_servers $GRAFANA;
@@ -201,6 +209,10 @@ http {
             auth_request /iam/auth;
             # Extract the reporting (grafana) username from the authentication request.
             auth_request_set $webauth_user $upstream_http_x_report_username;
+
+            # If the request is not authorized, (e.g. if a user goes to the /reports
+            # endpoint directly) re-route to the main app login screen.
+            error_page 401 @unauthenticatedReport;
 
             # If it is set, then pass through to grafana.
             proxy_pass         http://$grafana_servers:3000;
