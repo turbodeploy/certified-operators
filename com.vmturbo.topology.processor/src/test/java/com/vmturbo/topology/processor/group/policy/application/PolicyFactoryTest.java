@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 public class PolicyFactoryTest {
 
@@ -36,7 +37,7 @@ public class PolicyFactoryTest {
                 put(groupIdB, groupB);
             }};
 
-    private final PolicyFactory policyFactory = new PolicyFactory();
+    private final PolicyFactory policyFactory = new PolicyFactory(new TopologyInvertedIndexFactory());
 
     @Test
     public void testBindToGroupPolicy() {

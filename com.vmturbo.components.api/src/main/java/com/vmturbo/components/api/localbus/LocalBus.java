@@ -103,7 +103,7 @@ public class LocalBus implements IMessageSenderFactory, IMessageReceiverFactory 
     }
 
     @Override
-    public boolean lastSendFailed() {
+    public boolean lastSendAttemptFailed() {
         // Errors? Impossible!
         return false;
     }

@@ -7,6 +7,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 
 /**
@@ -14,6 +16,8 @@ import com.vmturbo.proactivesupport.DataMetricHistogram;
  */
 public class PlanMetricsListener implements PlanStatusListener {
     private static final Logger logger = LogManager.getLogger();
+
+    private static final String DELETED_STATUS = "DELETED";
 
     private static final DataMetricHistogram PLAN_RUNTIME_HISTOGRAM = DataMetricHistogram.builder()
         .withName("plan_run_time_seconds")
@@ -23,6 +27,16 @@ public class PlanMetricsListener implements PlanStatusListener {
         .withLabelNames("status", "plan_type")
         .build()
         .register();
+
+    /**
+     * Record plans that are run and their status.
+     */
+    private static final DataMetricCounter PLAN_TYPES_COUNTER = DataMetricCounter.builder()
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "plans_total")
+            .withHelp("Counter for Plans that have been run.")
+            .withLabelNames("type", "status")
+            .build()
+            .register();
 
     @Override
     public void onPlanStatusChanged(@Nonnull final PlanInstance plan) throws PlanStatusListenerException {
@@ -42,6 +56,8 @@ public class PlanMetricsListener implements PlanStatusListener {
             PLAN_RUNTIME_HISTOGRAM
                 .labels(plan.getStatus().name(), plan.getScenario().getScenarioInfo().getType())
                 .observe(runtimeSeconds);
+            PLAN_TYPES_COUNTER
+                .labels(plan.getScenario().getScenarioInfo().getType(), DELETED_STATUS).increment();
         } catch (Exception e) {
             logger.error("Encountered exception while trying to log plan metrics: ", e);
         }
@@ -54,6 +70,8 @@ public class PlanMetricsListener implements PlanStatusListener {
             PLAN_RUNTIME_HISTOGRAM
                 .labels(plan.getStatus().name(), plan.getScenario().getScenarioInfo().getType())
                 .observe(runtimeSeconds);
+            PLAN_TYPES_COUNTER.labels(plan.getScenario().getScenarioInfo().getType(),
+                    plan.getStatus().name()).increment();
         } catch (Exception e) {
             logger.error("Encountered exception while trying to log plan metrics: ", e);
         }

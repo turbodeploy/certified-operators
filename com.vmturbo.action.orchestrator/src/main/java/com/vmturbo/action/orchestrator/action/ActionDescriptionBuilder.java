@@ -52,6 +52,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -590,7 +591,7 @@ public class ActionDescriptionBuilder {
             return "";
         }
         int actionCommodityType = explanation.getMostExpensiveCommodityInfo().getCommodityType().getType();
-        if (!isVSANRelatedCommodity(actionCommodityType)) {
+        if (!HCIUtils.isVSANRelatedCommodity(actionCommodityType)) {
             return "";
         }
         for (ConnectedEntity connected : entityDTO.getConnectedEntitiesList())  {
@@ -604,18 +605,6 @@ public class ActionDescriptionBuilder {
             }
         }
         return "";
-    }
-
-    /**
-     * Checks whether the commodity type is of a vSAN storage commodity.
-     * @param commodityType integer value for the commodity type
-     * @return true if the commodity type is related to vSAN storage
-     */
-    private static boolean isVSANRelatedCommodity(int commodityType) {
-        return commodityType == CommodityType.STORAGE_AMOUNT_VALUE
-                        || commodityType == CommodityType.STORAGE_PROVISIONED_VALUE
-                        || commodityType == CommodityType.STORAGE_ACCESS_VALUE
-                        || commodityType == CommodityType.STORAGE_LATENCY_VALUE;
     }
 
     /**

@@ -1,4 +1,4 @@
-package com.vmturbo.repository.topology.util;
+package com.vmturbo.common.protobuf.utils;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

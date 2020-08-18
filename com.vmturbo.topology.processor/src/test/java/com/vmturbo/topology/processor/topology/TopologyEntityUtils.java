@@ -409,8 +409,8 @@ public class TopologyEntityUtils {
     private static void addCommodityBoughtMap(TopologyEntityDTO.Builder builder, long... producers) {
         for (long producer : producers) {
             builder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(producer)
-                    .build());
+                .setProviderId(producer)
+                .build());
         }
     }
 

@@ -39,6 +39,7 @@ import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicyApplication.PolicyApplicationResults;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 public class AtMostNBoundPolicyTest {
 
@@ -208,7 +209,7 @@ public class AtMostNBoundPolicyTest {
     private PolicyApplicationResults applyPolicy(
                 @Nonnull final AtMostNBoundPolicy policy) {
         final AtMostNBoundPolicyApplication application =
-            new AtMostNBoundPolicyApplication(groupResolver, topologyGraph);
+            new AtMostNBoundPolicyApplication(groupResolver, topologyGraph, new TopologyInvertedIndexFactory());
         return application.apply(Collections.singletonList(policy));
     }
 }

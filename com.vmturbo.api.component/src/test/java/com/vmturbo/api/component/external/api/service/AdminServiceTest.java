@@ -182,7 +182,8 @@ public class AdminServiceTest {
                 Mockito.mock(BuildProperties.class),
                 DeploymentMode.SAAS,
                 false,
-                Mockito.mock(SettingsService.class));
+                Mockito.mock(SettingsService.class),
+                false);
         //WHEN
         ProductCapabilityDTO dto = adminService.getProductCapabilities();
 
@@ -207,7 +208,8 @@ public class AdminServiceTest {
                 Mockito.mock(BuildProperties.class),
                 DeploymentMode.SAAS,
                 true,
-                Mockito.mock(SettingsService.class));
+                Mockito.mock(SettingsService.class),
+                false);
         //WHEN
         ProductCapabilityDTO dto = adminService.getProductCapabilities();
 
@@ -504,7 +506,8 @@ public class AdminServiceTest {
         public AdminService adminService() {
             return new AdminService(clusterService, keyValueStore(),
                 clusterMgrClient(), restTemplate, apiWebsocketHandler(),
-                buildProperties(), DeploymentMode.SERVER, false, settingsService);
+                buildProperties(), DeploymentMode.SERVER, false, settingsService,
+                    false);
         }
 
         /**

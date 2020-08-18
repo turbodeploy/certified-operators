@@ -6,6 +6,7 @@ import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topolo
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -14,6 +15,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -28,6 +32,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -40,6 +46,7 @@ import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicyApplication.PolicyApplicationResults;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 public class AtMostNPolicyTest {
     /**
@@ -80,6 +87,8 @@ public class AtMostNPolicyTest {
 
     private final GroupResolver groupResolver = mock(GroupResolver.class);
 
+    TopologyInvertedIndexFactory invertedIndexFactory = mock(TopologyInvertedIndexFactory.class);
+
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
@@ -102,6 +111,17 @@ public class AtMostNPolicyTest {
         policyMatcher = new PolicyMatcher(topologyGraph);
     }
 
+    private InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> mockInvertedIndex(
+            Set<Long> potentialProviders) {
+        final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> index = mock(InvertedIndex.class);
+        when(index.getSatisfyingSellers(any())).thenAnswer(invocation -> potentialProviders.stream()
+                .map(topologyGraph::getEntity)
+                .filter(Optional::isPresent)
+                .map(Optional::get));
+        when(invertedIndexFactory.typeInvertedIndex(any(), any())).thenReturn(index);
+        return index;
+    }
+
     @Test
     public void testApplyEmpty() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
@@ -115,21 +135,27 @@ public class AtMostNPolicyTest {
             not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
         assertThat(topologyGraph.getEntity(2L).get(),
             not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
-        // assert that replaced host sells segment with capacity of 1.0
+        // No commodities being sold, because the consumer group is empty, so no one wants these
+        // commodities anyway.
         assertThat(topologyGraph.getEntity(9L).get(),
                 not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
         assertThat(topologyGraph.getEntity(1L).get(),
-            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY));
+            not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY)));
         assertThat(topologyGraph.getEntity(2L).get(),
-            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY));
+            not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY)));
     }
 
     @Test
-    public void testApplyEmptyConsumers() throws GroupResolutionException, PolicyApplicationException {
+    public void testApplyEmptyProviders() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
             .thenReturn(resolvedGroup(consumerGroup, 4L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(resolvedGroup(providerGroup));
+
+        // All PMs are valid providers.
+        mockInvertedIndex(topologyGraph.entitiesOfType(EntityType.PHYSICAL_MACHINE)
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toSet()));
 
         applyPolicy(new AtMostNPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
                 new PolicyEntities(providerGroup)));
@@ -145,12 +171,55 @@ public class AtMostNPolicyTest {
             not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
     }
 
+    /**
+     * Providers that are not accessible from the consumers shouldn't get the segmentation policies.
+     *
+     * @throws GroupResolutionException To satisfy compiler.
+     */
     @Test
-    public void testApplyVmToHostAntiAffinity() throws GroupResolutionException, PolicyApplicationException {
+    public void testApplyIgnoreUnaccessibleProviders() throws GroupResolutionException {
+        when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
+                .thenReturn(resolvedGroup(consumerGroup, 4L));
+        when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
+                .thenReturn(resolvedGroup(providerGroup));
+
+        // PM 1 is a valid provider.
+        // PM 2 is not.
+        mockInvertedIndex(Collections.singleton(1L));
+
+        applyPolicy(new AtMostNPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
+                new PolicyEntities(providerGroup)));
+        assertThat(topologyGraph.getEntity(1L).get(),
+                policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY));
+        // PM 2 and 9 (which replaces 2) should not sell the segmentation commodity because they
+        // are not valid destinations for VM 4 (according to the mock inverted index).
+        assertThat(topologyGraph.getEntity(2L).get(),
+                not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY)));
+        assertThat(topologyGraph.getEntity(9L).get(),
+                not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY)));
+        assertThat(topologyGraph.getEntity(4L).get(),
+                policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
+        assertThat(topologyGraph.getEntity(5L).get(),
+                not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
+
+    }
+
+    /**
+     * Test that hosts get segmentation commodities applied to them properly.
+     *
+     * @throws GroupResolutionException To satisfy compiler.
+     */
+    @Test
+    public void testApplyVmToHostAntiAffinity() throws GroupResolutionException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
             .thenReturn(resolvedGroup(consumerGroup, 4L, 5L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(resolvedGroup(providerGroup, 1L, 2L));
+
+        // All PMs are valid providers for the VMs.
+        mockInvertedIndex(topologyGraph.entitiesOfType(EntityType.PHYSICAL_MACHINE)
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toSet()));
 
         applyPolicy(new AtMostNPolicy(policy, new PolicyEntities(consumerGroup, Sets.newHashSet(8L)),
                 new PolicyEntities(providerGroup)));
@@ -191,6 +260,11 @@ public class AtMostNPolicyTest {
                     .setAtMostN(atMostNPolicy))
                 .build();
 
+        // All Storages are valid providers for the VMs.
+        mockInvertedIndex(topologyGraph.entitiesOfType(EntityType.STORAGE)
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toSet()));
+
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
             .thenReturn(resolvedGroup(consumerGroup, 4L, 5L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
@@ -203,7 +277,7 @@ public class AtMostNPolicyTest {
     }
 
     private PolicyApplicationResults applyPolicy(@Nonnull final AtMostNPolicy policy) {
-        AtMostNPolicyApplication application = new AtMostNPolicyApplication(groupResolver, topologyGraph);
+        AtMostNPolicyApplication application = new AtMostNPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
         return application.apply(Collections.singletonList(policy));
     }
 }

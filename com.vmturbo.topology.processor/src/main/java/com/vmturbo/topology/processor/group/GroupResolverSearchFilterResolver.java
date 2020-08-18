@@ -16,11 +16,11 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceImplBase;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.rpc.SearchTargetsStreamObserver;
-import com.vmturbo.topology.processor.rpc.TargetSearchRpcService;
 
 /**
  * This class is used to convert the search filters before using them to search entities in the
@@ -35,7 +35,7 @@ public class GroupResolverSearchFilterResolver extends SearchFilterResolver {
 
     private final GroupServiceBlockingStub groupServiceClient;
     private final GroupMemberRetriever groupMemberRetriever;
-    private final TargetSearchRpcService targetSearchService;
+    private final TargetSearchServiceImplBase targetSearchService;
 
     /**
      * Constructs the resolver using the specified group store.
@@ -45,7 +45,7 @@ public class GroupResolverSearchFilterResolver extends SearchFilterResolver {
      */
     public GroupResolverSearchFilterResolver(
             @Nonnull GroupServiceBlockingStub groupServiceClient,
-            @Nonnull TargetSearchRpcService targetSearchService) {
+            @Nonnull TargetSearchServiceImplBase targetSearchService) {
         super();
         this.groupServiceClient = groupServiceClient;
         this.groupMemberRetriever = new GroupMemberRetriever(groupServiceClient);

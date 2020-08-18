@@ -29,6 +29,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * The {@link MustNotRunTogetherPolicy} specifies a consumer group and a provider type.
@@ -67,7 +68,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
  *         rely on {@link PolicyApplicator} to apply
  *         the merge policies before the must not run together policies).
  */
-public class MustNotRunTogetherPolicyApplication extends PlacementPolicyApplication {
+public class MustNotRunTogetherPolicyApplication extends PlacementPolicyApplication<MustNotRunTogetherPolicy> {
 
     /**
      * These provider types sell either cluster or datacenter commodities, which limits
@@ -87,8 +88,9 @@ public class MustNotRunTogetherPolicyApplication extends PlacementPolicyApplicat
         SEGM_BOUGHT_USED_VALUE + SMALL_DELTA_VALUE;
 
     protected MustNotRunTogetherPolicyApplication(final GroupResolver groupResolver,
-                                                  final TopologyGraph<TopologyEntity> topologyGraph) {
-        super(groupResolver, topologyGraph);
+            final TopologyGraph<TopologyEntity> topologyGraph,
+            final TopologyInvertedIndexFactory invertedIndexFactory) {
+        super(groupResolver, topologyGraph, invertedIndexFactory);
     }
 
     /**
@@ -96,14 +98,12 @@ public class MustNotRunTogetherPolicyApplication extends PlacementPolicyApplicat
      */
     @Override
     protected Map<PlacementPolicy, PolicyApplicationException> applyInternal(
-            @Nonnull final List<PlacementPolicy> policies) {
+            @Nonnull final List<MustNotRunTogetherPolicy> policies) {
         logger.debug("Running {} on {} policies", getClass().getSimpleName(), policies.size());
         final Map<PlacementPolicy, PolicyApplicationException> errors = new HashMap<>();
         // Arrange the policies by the provider type.
         final Map<Integer, List<MustNotRunTogetherPolicy>> policiesByProviderType =
             policies.stream()
-                .filter(policy -> policy instanceof MustNotRunTogetherPolicy)
-                .map(policy -> (MustNotRunTogetherPolicy)policy)
                 .collect(Collectors.groupingBy(policy -> policy.getDetails().getProviderEntityType()));
 
         policiesByProviderType.forEach((providerType, mustNotRunTogether) -> {

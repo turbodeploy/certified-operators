@@ -140,8 +140,8 @@ public class PolicyApplicatorTest {
             Arrays.asList(mustNotRunTogetherPolicy, mergePolicy);
 
         final Results results = policyApplicator.applyPolicies(policies, groupResolver, topologyGraph);
-        assertThat(results.getAddedCommodityCounts().get(CommodityType.SEGMENTATION), is(10));
-        assertThat(results.getAddedCommodityCounts().get(CommodityType.VSTORAGE), is(1));
+        assertThat(results.getTotalAddedCommodityCounts().get(CommodityType.SEGMENTATION), is(10));
+        assertThat(results.getTotalAddedCommodityCounts().get(CommodityType.VSTORAGE), is(1));
     }
 
     private MergePolicy mergePolicy() {

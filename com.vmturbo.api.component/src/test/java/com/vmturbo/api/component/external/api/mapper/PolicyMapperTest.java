@@ -71,6 +71,7 @@ public class PolicyMapperTest {
                 .setPolicyInfo(PolicyInfo.newBuilder()
                     .setCommodityType(testPolicyCommodityType)
                     .setEnabled(false)
+                    .setDisplayName(testPolicyName)
                     .setName(testPolicyName));
 
         rawMergeBuilder = PolicyInfo.MergePolicy.newBuilder()
@@ -133,7 +134,7 @@ public class PolicyMapperTest {
                         .next();
 
         // then - general to any type of policy
-        assertEquals(result.getDisplayName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -169,7 +170,7 @@ public class PolicyMapperTest {
                         .next();
 
         // then - general
-        assertEquals(result.getDisplayName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -203,7 +204,7 @@ public class PolicyMapperTest {
                         .next();
 
         // then - general
-        assertEquals(result.getDisplayName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -234,7 +235,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getDisplayName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -263,7 +264,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getDisplayName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -294,7 +295,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getDisplayName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -325,7 +326,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getDisplayName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -356,7 +357,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getDisplayName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -386,7 +387,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getDisplayName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -416,7 +417,7 @@ public class PolicyMapperTest {
                         .iterator()
                         .next();
 
-        assertEquals(result.getDisplayName(), result.getDisplayName());
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
@@ -436,6 +437,7 @@ public class PolicyMapperTest {
         final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
         assertEquals(result.getName(), testPolicyName);
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasBindToGroup());
@@ -454,6 +456,7 @@ public class PolicyMapperTest {
         final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
         assertEquals(result.getName(), testPolicyName);
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasBindToComplementaryGroup());
@@ -471,6 +474,7 @@ public class PolicyMapperTest {
         final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
         assertEquals(result.getName(), testPolicyName);
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasBindToGroupAndLicense());
@@ -495,6 +499,7 @@ public class PolicyMapperTest {
         final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
         assertEquals(result.getName(), testPolicyName);
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasMerge());
@@ -519,6 +524,7 @@ public class PolicyMapperTest {
         final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
         assertEquals(result.getName(), testPolicyName);
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertFalse(result.getEnabled());
         assertTrue(result.hasMerge());
         final PolicyInfo.MergePolicy policy = result.getMerge();
@@ -542,6 +548,7 @@ public class PolicyMapperTest {
         final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
         assertEquals(result.getName(), testPolicyName);
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertFalse(result.getEnabled());
         assertTrue(result.hasMerge());
         final PolicyInfo.MergePolicy policy = result.getMerge();
@@ -560,6 +567,7 @@ public class PolicyMapperTest {
         final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
         assertEquals(result.getName(), testPolicyName);
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasAtMostN());
@@ -579,6 +587,7 @@ public class PolicyMapperTest {
         final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
         assertEquals(result.getName(), testPolicyName);
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasAtMostNbound());
@@ -596,6 +605,7 @@ public class PolicyMapperTest {
         final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
         assertEquals(result.getName(), testPolicyName);
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasMustRunTogether());
@@ -611,6 +621,7 @@ public class PolicyMapperTest {
         final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
         assertEquals(result.getName(), testPolicyName);
+        assertEquals(result.getDisplayName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasMustNotRunTogether());

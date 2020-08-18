@@ -1,0 +1,167 @@
+{
+  "Contexts": [
+    {
+      "context": {
+        "os": "LINUX",
+        "csp": "AWS",
+        "region": 31,
+        "billingAccount": 1,
+        "tenancy": "DEFAULT"
+      },
+      "Templates": [
+        {
+          "oid": 100001,
+          "name": "m5.nano",
+          "family": "m5",
+          "onDemandCost": [
+            {
+              "compute": 10.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 1
+        },
+        {
+          "oid": 100002,
+          "name": "m5.medium",
+          "family": "m5",
+          "onDemandCost": [
+            {
+              "compute": 160.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 16
+        },
+        {
+          "oid": 100003,
+          "name": "m5.large",
+          "family": "m5",
+          "onDemandCost": [
+            {
+              "compute": 320.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 32
+        },
+        {
+          "oid": 100004,
+          "name": "t3.medium",
+          "family": "t3",
+          "onDemandCost": [
+            {
+              "compute": 112.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 16
+        },
+        {
+          "oid": 100005,
+          "name": "t2.large",
+          "family": "t2",
+          "onDemandCost": [
+            {
+              "compute": 192.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "discountedCost": [
+            {
+              "compute": 0.0,
+              "license": 0.0,
+              "businessAccount": 10,
+              "os": "LINUX"
+            }
+          ],
+          "coupons": 32
+        }
+      ],
+      "VirtualMachines": [
+        {
+          "oid": 2000001,
+          "name": "VM1",
+          "businessAccount": 10,
+          "providers": [
+            100003,
+            100005
+          ],
+          "zone": 21,
+          "currentRICoverage": 32,
+          "currentRIKeyID": 3000001,
+          "currentTemplate": 100003,
+          "os": "LINUX"
+        },
+        {
+          "oid": 2000002,
+          "name": "VM2",
+          "businessAccount": 10,
+          "providers": [
+            100004,
+            100002
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100004,
+          "os": "LINUX"
+        }
+      ],
+      "ReservedInstances": [
+        {
+          "oid": 1000001,
+          "keyOid": 3000001,
+          "name": "RI1",
+          "businessAccount": 10,
+          "utilization": 0,
+          "zone": 21,
+          "template": 100001,
+          "count": 36,
+          "isf": true
+        }
+      ]
+    }
+  ]
+}

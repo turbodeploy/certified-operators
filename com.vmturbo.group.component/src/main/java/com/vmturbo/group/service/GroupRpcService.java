@@ -82,6 +82,7 @@ import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchSe
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.group.common.Truncator;
 import com.vmturbo.group.group.DiscoveredGroupHash;
 import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore;
@@ -1169,7 +1170,9 @@ public class GroupRpcService extends GroupServiceImplBase {
             @Nonnull StitchingGroup src) {
         final GroupDefinition groupDefinition = src.buildGroupDefinition();
         final Set<MemberType> expectedMembers = findGroupExpectedTypes(groupStore, groupDefinition);
-        return new DiscoveredGroup(src.getOid(), groupDefinition, src.getSourceId(),
+        final String truncatedSourceIdentifier =
+            Truncator.truncateGroupSourceIdentifier(src.getSourceId(), true);
+        return new DiscoveredGroup(src.getOid(), groupDefinition, truncatedSourceIdentifier,
                 src.getTargetIds(), expectedMembers,
                 determineMemberReverseLookupSupported(groupDefinition));
     }

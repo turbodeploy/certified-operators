@@ -36,9 +36,9 @@ public interface IMessageSenderFactory {
     <S extends AbstractMessage> IMessageSender<S> messageSender(@Nonnull String topic);
 
     /**
-     * True if the last send operation failed. Used for health monitoring.
+     * True if the last send attempt failed. Used for health monitoring.
      *
-     * @return True if the last send failed, false otherwise.
+     * @return True if the last send attempt failed, false otherwise.
      */
-    boolean lastSendFailed();
+    boolean lastSendAttemptFailed();
 }

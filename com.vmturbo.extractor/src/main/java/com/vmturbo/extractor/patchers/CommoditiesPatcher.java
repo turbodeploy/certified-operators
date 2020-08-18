@@ -117,7 +117,6 @@ public class CommoditiesPatcher implements EntityRecordPatcher<TopologyEntityDTO
      */
     private OptionalDouble getPercentileHistoricalUtilization(List<CommoditySoldDTO> commoditySoldDTOs) {
         return commoditySoldDTOs.stream()
-            .filter(commoditySoldDTO -> commoditySoldDTO.hasHistoricalUsed())
             .filter(commoditySoldDTO -> commoditySoldDTO.getHistoricalUsed().hasPercentile())
             .mapToDouble(commoditySoldDTO -> commoditySoldDTO.getHistoricalUsed().getPercentile())
             // For most cases, entity sells one commodity of a type. If there are multiple, we do an
@@ -139,9 +138,10 @@ public class CommoditiesPatcher implements EntityRecordPatcher<TopologyEntityDTO
      */
     private OptionalDouble getWeightedAverageHistoricalUtilization(List<CommoditySoldDTO> commoditySoldDTOs) {
         return commoditySoldDTOs.stream()
-            .filter(commoditySoldDTO -> commoditySoldDTO.hasHistoricalUsed())
-            .filter(commoditySoldDTO -> commoditySoldDTO.getHistoricalUsed().hasHistUtilization())
-            .mapToDouble(commoditySoldDTO -> commoditySoldDTO.getHistoricalUsed().getHistUtilization())
+            .filter(commoditySoldDTO -> commoditySoldDTO.getHistoricalUsed().hasHistUtilization()
+                    && commoditySoldDTO.hasCapacity()
+                    && commoditySoldDTO.getCapacity() > 0)
+            .mapToDouble(commoditySoldDTO -> commoditySoldDTO.getHistoricalUsed().getHistUtilization() / commoditySoldDTO.getCapacity())
             // For most cases, entity sells one commodity of a type. If there are multiple, we do an
             // average on all of them, since historical utilization is a percentage.
             .average();

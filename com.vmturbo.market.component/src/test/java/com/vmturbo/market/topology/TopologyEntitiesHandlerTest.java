@@ -437,7 +437,7 @@ public class TopologyEntitiesHandlerTest {
                 .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                 .setReplayProvisionsForRealTime(replayProvisionsForRealTime)
                 .build();
-        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo, analysis);
+        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo, Collections.emptyList());
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
                         analysisConfig, analysis, topology);
 
@@ -820,7 +820,8 @@ public class TopologyEntitiesHandlerTest {
                         .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                         .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
         // Call analysis
-        final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO, analysis);
+        final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO,
+            Collections.emptyList());
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
                         REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology);
         logger.info(results.getActionsList());
@@ -932,7 +933,8 @@ public class TopologyEntitiesHandlerTest {
                             .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                             .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
             // Call analysis
-            final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO, analysis);
+            final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO,
+                Collections.emptyList());
             AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
                             REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology);
             logger.info(results.getActionsList());
@@ -1078,7 +1080,8 @@ public class TopologyEntitiesHandlerTest {
                 .setMaxPlacementsOverride(maxPlacementIterations)
                 .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                 .build();
-        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo, analysis);
+        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
+            Collections.emptyList());
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
                 analysisConfig, analysis, topology);
         return results;

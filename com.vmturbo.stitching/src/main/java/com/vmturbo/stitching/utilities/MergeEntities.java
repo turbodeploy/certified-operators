@@ -57,12 +57,42 @@ public class MergeEntities {
         }
 
         public MergeEntitiesDetails onto(@Nonnull final StitchingEntity mergeOntoEntity) {
-            return new MergeEntitiesDetails(mergeFromEntity, mergeOntoEntity);
+            return onto(mergeOntoEntity, MergePropertiesStrategy.KEEP_ONTO);
         }
 
         public MergeEntitiesDetails onto(@Nonnull final StitchingEntity mergeOntoEntity,
-                                         @Nonnull final MergeCommoditySoldStrategy strategy) {
-            return new MergeEntitiesDetails(mergeFromEntity, mergeOntoEntity, strategy);
+                                         @Nonnull final MergeCommoditySoldStrategy mergeCommoditySoldStrategy) {
+            return onto(mergeOntoEntity, mergeCommoditySoldStrategy,
+                    MergePropertiesStrategy.KEEP_ONTO);
+        }
+
+        /**
+         * Create {@link MergeEntitiesDetails} for given "onto" entity and merge properties
+         * strategy.
+         *
+         * @param mergeOntoEntity "Onto" entity to merge.
+         * @param mergePropertiesStrategy Merge properties strategy.
+         * @return New instance of {@link MergeEntitiesDetails}.
+         */
+        public MergeEntitiesDetails onto(@Nonnull final StitchingEntity mergeOntoEntity,
+                                         @Nonnull final MergePropertiesStrategy mergePropertiesStrategy) {
+            return onto(mergeOntoEntity, KEEP_DISTINCT_FAVOR_ONTO, mergePropertiesStrategy);
+        }
+
+        /**
+         * Create {@link MergeEntitiesDetails} for given "onto" entity, merge sold commodities
+         * strategy and merge properties strategy.
+         *
+         * @param mergeOntoEntity "Onto" entity to merge.
+         * @param mergeCommoditySoldStrategy Merge sold commodities strategy.
+         * @param mergePropertiesStrategy Merge properties strategy.
+         * @return New instance of {@link MergeEntitiesDetails}.
+         */
+        public MergeEntitiesDetails onto(@Nonnull final StitchingEntity mergeOntoEntity,
+                                         @Nonnull final MergeCommoditySoldStrategy mergeCommoditySoldStrategy,
+                                         @Nonnull final MergePropertiesStrategy mergePropertiesStrategy) {
+            return new MergeEntitiesDetails(mergeFromEntity, mergeOntoEntity,
+                    mergeCommoditySoldStrategy, mergePropertiesStrategy);
         }
     }
 
@@ -73,20 +103,18 @@ public class MergeEntities {
     public static class MergeEntitiesDetails {
         private final StitchingEntity mergeFromEntity;
         private final StitchingEntity mergeOntoEntity;
-        private MergeCommoditySoldStrategy mergeCommoditySoldStrategy;
-        private List<EntityFieldMerger<?>> fieldMergers;
-
-        private MergeEntitiesDetails(@Nonnull final StitchingEntity entityToBeReplaced,
-                                     @Nonnull final StitchingEntity mergeOntoEntity) {
-            this(entityToBeReplaced, mergeOntoEntity, KEEP_DISTINCT_FAVOR_ONTO);
-        }
+        private final MergeCommoditySoldStrategy mergeCommoditySoldStrategy;
+        private final MergePropertiesStrategy mergePropertiesStrategy;
+        private final List<EntityFieldMerger<?>> fieldMergers;
 
         private MergeEntitiesDetails(@Nonnull final StitchingEntity entityToBeReplaced,
                                      @Nonnull final StitchingEntity mergeOntoEntity,
-                                     @Nonnull final MergeCommoditySoldStrategy mergeStrategy) {
+                                     @Nonnull final MergeCommoditySoldStrategy mergeCommoditySoldStrategy,
+                                     @Nonnull final MergePropertiesStrategy mergePropertiesStrategy) {
             this.mergeFromEntity = Objects.requireNonNull(entityToBeReplaced);
             this.mergeOntoEntity = Objects.requireNonNull(mergeOntoEntity);
-            this.mergeCommoditySoldStrategy = mergeStrategy;
+            this.mergeCommoditySoldStrategy = mergeCommoditySoldStrategy;
+            this.mergePropertiesStrategy = mergePropertiesStrategy;
             this.fieldMergers = new ArrayList<>();
         }
 
@@ -99,26 +127,22 @@ public class MergeEntities {
         }
 
         /**
-         * Set the strategy for how commodities sold by the entities should be merged to form
+         * Get the strategy for how commodities sold by the entities should be merged to form
          * a unified set of commodities sold.
          *
-         * @param mergeCommoditySoldStrategy The strategy describing how the commodities should be sold.
-         * @return A reference to {@link this} for method chaining.
-         */
-        public MergeEntitiesDetails mergeCommoditiesSoldStrategy(
-            @Nonnull final MergeCommoditySoldStrategy mergeCommoditySoldStrategy) {
-            this.mergeCommoditySoldStrategy = Objects.requireNonNull(mergeCommoditySoldStrategy);
-
-            return this;
-        }
-
-        /**
-         * Get the strategy for how commodities sold should be merged.
-         *
-         * @return the strategy for how commodities sold should be merged.
+         * @return The strategy describing how the commodities should be merged.
          */
         public MergeCommoditySoldStrategy getMergeCommoditySoldStrategy() {
             return mergeCommoditySoldStrategy;
+        }
+
+        /**
+         * Get the strategy describing how to merge entity properties.
+         *
+         * @return The strategy describing how to merge entity properties.
+         */
+        public MergePropertiesStrategy getMergePropertiesStrategy() {
+            return mergePropertiesStrategy;
         }
 
         /**

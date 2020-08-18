@@ -61,6 +61,7 @@ import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
@@ -140,6 +141,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -951,6 +953,57 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
         assertEquals(DC2_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertEquals(DC2_NAME, actionApiDTO.getNewLocation().getDisplayName());
+    }
+
+    /**
+     * Test the mapping of action data for vSAN causing host provision action.
+     * @throws Exception that encompasses possible exceptions
+     */
+    @Test
+    public void testMapProvisionCausedByVSAN() throws Exception  {
+        final long clonedEntityId = 3;
+        final String clonedEntityName = "EntityToClone";
+
+        final ActionInfo provisionActionInfo = ActionInfo.newBuilder().setProvision(
+                        Provision.newBuilder()
+                            .setEntityToClone(ApiUtilsTest.createActionEntity(clonedEntityId))
+                            .setProvisionedSeller(-1).build())
+                        .build();
+        final Explanation provisionExplanation = Explanation.newBuilder().setProvision(
+                        ProvisionExplanation.newBuilder().setProvisionBySupplyExplanation(
+                            ProvisionBySupplyExplanation.newBuilder().setMostExpensiveCommodityInfo(
+                                ReasonCommodity.newBuilder().setCommodityType(
+                                    CommodityType.newBuilder().setType(
+                                        CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build())
+                                .build()))
+                        .build()).build();
+
+        final MultiEntityRequest srcReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+                        topologyEntityDTO(clonedEntityName, clonedEntityId, EntityType.PHYSICAL_MACHINE_VALUE)));
+        final MultiEntityRequest projReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+                        topologyEntityDTO(clonedEntityName, -1, EntityType.PHYSICAL_MACHINE_VALUE)));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(clonedEntityId))).thenReturn(srcReq);
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(-1L))).thenReturn(projReq);
+
+        BaseApiDTO vsanEntity = new BaseApiDTO();
+        vsanEntity.setUuid("vsanID");
+        vsanEntity.setClassName(StringConstants.STORAGE);
+        vsanEntity.setDisplayName("vsan_entity_name");
+        TestEntity clonedEntity = new TestEntity(clonedEntityName, clonedEntityId, EntityType.PHYSICAL_MACHINE_VALUE);
+        clonedEntity.consumers = new ArrayList<BaseApiDTO>(1);
+        clonedEntity.consumers.add(vsanEntity);
+        topologyEntityDTOList(Lists.newArrayList(clonedEntity,
+                        new TestEntity(clonedEntityName, -1, EntityType.PHYSICAL_MACHINE_VALUE),
+                        new TestEntity(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE),
+                        new TestEntity(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE)));
+
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+                        buildActionSpec(provisionActionInfo, provisionExplanation),
+                        REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        assertEquals(vsanEntity.getUuid(), actionApiDTO.getNewEntity().getUuid());
+        assertEquals(vsanEntity.getClassName(), actionApiDTO.getNewEntity().getClassName());
+        assertEquals(vsanEntity.getDisplayName(), actionApiDTO.getNewEntity().getDisplayName());
     }
 
     @Test
@@ -2347,6 +2400,7 @@ public class ActionSpecMapperTest {
         public String displayName;
         public long oid;
         public int entityType;
+        public List<BaseApiDTO> consumers;
 
         TestEntity(String displayName, long oid, int entityType) {
             this.displayName = displayName;
@@ -2363,6 +2417,7 @@ public class ActionSpecMapperTest {
             mappedE.setDisplayName(testEntity.displayName);
             mappedE.setUuid(Long.toString(testEntity.oid));
             mappedE.setClassName(ApiEntityType.fromType(testEntity.entityType).apiStr());
+            mappedE.setConsumers(testEntity.consumers);
             map.put(testEntity.oid, mappedE);
             ApiPartialEntity e = ApiPartialEntity.newBuilder()
                     .setOid(testEntity.oid)

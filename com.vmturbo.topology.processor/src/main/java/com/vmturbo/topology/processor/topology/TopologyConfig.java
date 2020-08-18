@@ -273,7 +273,8 @@ public class TopologyConfig {
                 requestCommodityThresholdsInjector(),
                 ephemeralEntityEditor(),
                 ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel()),
-                topologyProcessorRpcConfig.groupResolverSearchFilterResolver()
+                topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),
+                targetConfig.groupScopeResolver()
         );
     }
 

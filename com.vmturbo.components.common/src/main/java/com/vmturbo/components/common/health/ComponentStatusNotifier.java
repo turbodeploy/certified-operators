@@ -124,10 +124,10 @@ public class ComponentStatusNotifier {
             logger.info("Sending startup notification for component {}.", logId);
             try {
                 notificationSender.sendStartingNotification(ComponentStarting.newBuilder()
-                    .setStartTimestamp(startupTime)
-                    .setComponentInfo(componentInfo)
-                    .setBuildProperties(BuildProperties.get().toProto())
-                    .build());
+                        .setStartTimestamp(startupTime)
+                        .setComponentInfo(componentInfo)
+                        .setBuildProperties(BuildProperties.get().toProto())
+                        .build());
             } catch (CommunicationException e) {
                 logger.error("Failed to send startup notification.", e);
             } catch (InterruptedException e) {

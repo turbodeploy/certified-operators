@@ -128,6 +128,10 @@ public abstract class Operation {
         return completionTime;
     }
 
+    public DataMetricTimer getDurationTimer() {
+        return durationTimer;
+    }
+
     /**
      * Get the status of the operation.
      *

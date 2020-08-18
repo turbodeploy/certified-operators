@@ -29,6 +29,7 @@ import org.jooq.DSLContext;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
@@ -141,6 +142,12 @@ public class SearchEntityWriter extends TopologyWriterBase {
         if (!SearchMetadataUtils.hasMetadata(entity.getEntityType())) {
             // this is legitimate, since not all entities are ingested
             logger.trace("Skipping entity {} of type {} due to lack of metadata definition",
+                    entity.getOid(), EntityType.forNumber(entity.getEntityType()));
+            return;
+        }
+
+        if (GuestLoadFilters.isGuestLoad(entity)) {
+            logger.trace("Skipping entity {} of type {} because GuestLoad",
                     entity.getOid(), EntityType.forNumber(entity.getEntityType()));
             return;
         }

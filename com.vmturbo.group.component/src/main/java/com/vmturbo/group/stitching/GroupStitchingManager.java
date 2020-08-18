@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
+import com.vmturbo.group.common.Truncator;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
 import com.vmturbo.group.identity.IdentityProvider;
@@ -101,7 +102,9 @@ public class GroupStitchingManager {
                         (group.getDefinition().getType() == GroupType.RESOURCE
                                 || group.getDefinition().getType() == GroupType.BILLING_FAMILY)
                                 ? crossTargetIdProvider : targetLocalIdProvider;
-                final String stitchKey = idProvider.getStitchingKey(targetId, group);
+                final String groupSourceIdentifier =
+                    Truncator.truncateGroupSourceIdentifier(group.getSourceIdentifier(), false);
+                final String stitchKey = idProvider.getStitchingKey(targetId, group, groupSourceIdentifier);
                 final StitchingGroup foundGroup = stitchingGroups.get(stitchKey);
                 if (foundGroup != null) {
                     logger.trace("Found 2 groups for stitching: {} and {}", () -> foundGroup,
@@ -184,10 +187,11 @@ public class GroupStitchingManager {
          * stitching keys from different providers may be identical.
          * @param target target group reported by
          * @param group group to get stitching key for
+         * @param sourceId group source identifier
          * @return stitching key
          */
         @Nonnull
-        String getStitchingKey(long target, @Nonnull UploadedGroup group);
+        String getStitchingKey(long target, @Nonnull UploadedGroup group, @Nonnull String sourceId);
     }
 
     /**
@@ -221,9 +225,9 @@ public class GroupStitchingManager {
 
         @Nonnull
         @Override
-        public String getStitchingKey(long target, @Nonnull UploadedGroup group) {
+        public String getStitchingKey(long target, @Nonnull UploadedGroup group, @Nonnull String sourceId) {
             return String.format(CROSS_TARGET_STITCHING_KEY,
-                    GroupProtoUtil.createIdentifyingKey(group));
+                    GroupProtoUtil.createIdentifyingKey(group.getDefinition().getType(), sourceId));
         }
 
         public String toString() {
@@ -255,9 +259,9 @@ public class GroupStitchingManager {
 
         @Nonnull
         @Override
-        public String getStitchingKey(long target, @Nonnull UploadedGroup group) {
+        public String getStitchingKey(long target, @Nonnull UploadedGroup group, @Nonnull String sourceId) {
             return String.format(TARGET_LOCAL_STITCHING_KEY, target,
-                    GroupProtoUtil.createIdentifyingKey(group));
+                GroupProtoUtil.createIdentifyingKey(group.getDefinition().getType(), sourceId));
         }
 
         public String toString() {

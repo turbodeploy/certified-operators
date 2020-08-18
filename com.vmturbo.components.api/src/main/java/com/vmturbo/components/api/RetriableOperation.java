@@ -422,7 +422,7 @@ public class RetriableOperation<T> {
          *
          * @param cause The underlying cause.
          */
-        public RetriableOperationFailedException(@Nonnull final Exception cause) {
+        public RetriableOperationFailedException(@Nonnull final Throwable cause) {
             super(cause);
         }
 

@@ -425,15 +425,34 @@ public class TopologyConverter {
         this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
             oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
-        this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
-        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
+        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(
+                commodityConverter,
+                shoppingListOidToInfos,
                 cloudTc,
                 unmodifiableEntityOidToDtoMap,
                 oidToProjectedTraderTOMap,
                 commoditiesResizeTracker,
-                projectedRICoverageCalculator, tierExcluder, commodityIndex,
+                projectedRICoverageCalculator,
+                tierExcluder,
+                commodityIndex,
                 getExplanationOverride()));
+        this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
+        this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
+    }
+
+    /**
+     * get the TopologyEntityDTO OID corresponding to the oid of a On-demand TemplateProvider.
+     * return empty if the traderTOOID is a CBTP.
+     * @param traderTOOID  oid of a TemplateProvider
+     * @return the OID of corresponding TopologyEntityDTO
+     */
+    public Optional<Long> getTopologyEntityOIDForOnDemandMarketTier(Long traderTOOID) {
+        MarketTier marketTier = cloudTc.getMarketTier(traderTOOID);
+        if (marketTier.hasRIDiscount()) {
+            return Optional.empty();
+        } else {
+            return Optional.of(marketTier.getTier().getOid());
+        }
     }
 
     @VisibleForTesting

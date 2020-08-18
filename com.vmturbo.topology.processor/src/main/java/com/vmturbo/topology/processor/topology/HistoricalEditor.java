@@ -509,22 +509,22 @@ public class HistoricalEditor {
                         populateHistoricalCommodityInfo(histSoldInfo, commodityType, used, peak,
                             histSoldInfo.getSourceId(), histSoldInfo.getMatched(), true);
                             historicalInfo.replace(topoEntity.getOid(), histSeInfo);
-                        }
-                        topoCommSold.getHistoricalUsedBuilder().setHistUtilization(used);
-                        topoCommSold.getHistoricalPeakBuilder().setHistUtilization(peak);
-                        break;
                     }
+                    topoCommSold.getHistoricalUsedBuilder().setHistUtilization(used);
+                    topoCommSold.getHistoricalPeakBuilder().setHistUtilization(peak);
+                    break;
                 }
-                if (!commSoldFound) {
-                    int type = commodityType.getType();
-                    // don't repeat log messages within a cycle
-                    if (!commodityTypesAlreadyLoggedAsMissingHistory.contains(type)) {
-                        logger.error("A sold commodity with type {} is missing in HistoricalServiceEntityInfo", type);
-                        commodityTypesAlreadyLoggedAsMissingHistory.add(type);
-                    }
+            }
+            if (!commSoldFound) {
+                int type = commodityType.getType();
+                // don't repeat log messages within a cycle
+                if (!commodityTypesAlreadyLoggedAsMissingHistory.contains(type)) {
+                    logger.error("A sold commodity with type {} is missing in HistoricalServiceEntityInfo", type);
+                    commodityTypesAlreadyLoggedAsMissingHistory.add(type);
                 }
             }
         }
+    }
 
     /*
      * This method calculates the used and peak values for all the bought commodities

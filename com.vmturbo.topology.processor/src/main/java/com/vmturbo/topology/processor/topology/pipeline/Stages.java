@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
+import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
@@ -96,6 +97,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
@@ -291,6 +293,7 @@ public class Stages {
                     .append(metrics.getTotalEmptyChangests())
                     .append(" empty changesets\n")
                     .toString();
+            entityStore.sendMetricsEntityAndTargetData(stitchingContext);
             return StageResult.withResult(context)
                 .andStatus(Status.success(status));
         }
@@ -794,11 +797,24 @@ public class Stages {
      */
     public static class GraphCreationStage extends Stage<Map<Long, TopologyEntity.Builder>, TopologyGraph<TopologyEntity>> {
 
+        private GroupScopeResolver groupScopeResolver;
+
+        GraphCreationStage() {
+            this(null);
+        }
+
+        GraphCreationStage(@Nullable GroupScopeResolver groupScopeResolver) {
+            this.groupScopeResolver = groupScopeResolver;
+        }
+
         @NotNull
         @Nonnull
         @Override
         public StageResult<TopologyGraph<TopologyEntity>> execute(@NotNull @Nonnull final Map<Long, TopologyEntity.Builder> input) {
             final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(input);
+            if (groupScopeResolver != null) {
+                groupScopeResolver.setTopologyGraph(graph);
+            }
             return StageResult.withResult(graph)
                 .andStatus(Status.success());
         }
@@ -961,24 +977,28 @@ public class Stages {
                 .setEmptyValue("No policies to apply.");
             final boolean errors = applicationResults.getErrors().size() > 0;
             if (errors) {
-                statusMsg.add(applicationResults.getErrors().size() +
-                    " policies encountered errors and failed to run!\n");
+                statusMsg.add(applicationResults.getErrors().size()
+                    + " policies encountered errors and failed to run!\n");
             }
             if (applicationResults.getInvalidPolicyCount() > 0) {
-                statusMsg.add(applicationResults.getInvalidPolicyCount() +
-                    " policies were invalid and got ignored!\n");
+                statusMsg.add(applicationResults.getInvalidPolicyCount()
+                    + " policies were invalid and got ignored!\n");
             }
             if (applicationResults.getAppliedCounts().size() > 0) {
-                statusMsg.add("(policy type) : (num applied)\n" +
-                    applicationResults.getAppliedCounts().entrySet().stream()
-                        .map(entry -> entry.getKey() + " : " + entry.getValue())
-                        .collect(Collectors.joining("\n")));
+                statusMsg.add("(policy type) : (num applied)");
+                applicationResults.getAppliedCounts().forEach((policyType, numApplied) -> {
+                    statusMsg.add(FormattedString.format("{} : {}", policyType, numApplied));
+                    applicationResults.getAddedCommodityCounts(policyType).forEach((commType, numAdded) -> {
+                        statusMsg.add(FormattedString.format("    Added {} {} commodities.", numAdded, commType));
+                    });
+                });
             }
-            if (applicationResults.getAddedCommodityCounts().size() > 0) {
-                statusMsg.add("(commodity type) : (num commodities added)\n" +
-                    applicationResults.getAddedCommodityCounts().entrySet().stream()
-                        .map(entry -> entry.getKey() + " : " + entry.getValue())
-                        .collect(Collectors.joining("\n")));
+
+            if (applicationResults.getTotalAddedCommodityCounts().size() > 0) {
+                statusMsg.add("(commodity type) : (num commodities added)");
+                applicationResults.getTotalAddedCommodityCounts().forEach((commType, numAddded) -> {
+                    statusMsg.add(FormattedString.format("{} : {}", commType, numAddded));
+                });
             }
 
             if (errors || applicationResults.getInvalidPolicyCount() > 0) {

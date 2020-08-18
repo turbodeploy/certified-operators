@@ -426,7 +426,7 @@ public class StagesTest {
         final PolicyApplicator.Results results = mock(PolicyApplicator.Results.class);
         when(results.getErrors()).thenReturn(Collections.emptyMap());
         when(results.getAppliedCounts()).thenReturn(Collections.emptyMap());
-        when(results.getAddedCommodityCounts()).thenReturn(Collections.emptyMap());
+        when(results.getTotalAddedCommodityCounts()).thenReturn(Collections.emptyMap());
 
         when(policyManager.applyPolicies(eq(context), eq(topologyGraph),
                 eq(Collections.emptyList())))

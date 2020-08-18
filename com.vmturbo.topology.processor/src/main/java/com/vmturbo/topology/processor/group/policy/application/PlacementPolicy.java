@@ -4,12 +4,13 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.base.Preconditions;
-
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.components.api.FormattedString;
 
 /**
  * A policy applies a constraint on a topology to restrict the possible options available to the market
@@ -60,5 +61,13 @@ public abstract class PlacementPolicy {
      */
     public boolean isEnabled() {
         return policyDefinition.getPolicyInfo().getEnabled();
+    }
+
+    @Override
+    public String toString() {
+        return FormattedString.format("{} (id: {}, type: {})",
+                policyDefinition.getPolicyInfo().getName(),
+                policyDefinition.getId(),
+                getClass().getSimpleName());
     }
 }
