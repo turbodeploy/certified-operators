@@ -65,7 +65,7 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
                             getDataFromHistUtilization(entityIds, propertyTypeToUtilizationTypes);
 
             Map<Integer, Set<Long>> commodityToProviderIds = new HashMap<>();
-            statsFilter.getCommodityRequestsList().stream().forEach(commodityRequest -> {
+            statsFilter.getCommodityRequestsList().forEach(commodityRequest -> {
                 final String commodityName = commodityRequest.getCommodityName();
                 final int commodityOid = UICommodityType.fromString(commodityName).typeNumber();
                 commodityRequest.getPropertyValueFilterList().stream()
@@ -73,7 +73,6 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
                    .forEach(propertyValueFilter -> {
                        Set<Long> providerIds = commodityToProviderIds.computeIfAbsent(commodityOid, (k) -> new HashSet<>());
                        providerIds.add(Long.valueOf(propertyValueFilter.getValue()));
-                       commodityToProviderIds.put(commodityOid, providerIds);
                    });
             });
 
