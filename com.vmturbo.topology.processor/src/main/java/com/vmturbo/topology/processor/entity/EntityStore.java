@@ -38,6 +38,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState.Builder;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -47,6 +48,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
@@ -149,6 +151,26 @@ public class EntityStore {
                     }
                 })
     );
+
+    /**
+     * Specifies the entity count per target type from the stitching context.
+     */
+    private static final DataMetricGauge ENTITY_COUNT_GAUGE = DataMetricGauge.builder()
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "entities")
+            .withHelp("Entity Count Per Target.")
+            .withLabelNames("target_type", "entity_type")
+            .build()
+            .register();
+
+    /**
+     * Specifies the amount of targets per type from the stitching context.
+     */
+    private static final DataMetricGauge TARGET_COUNT_GAUGE = DataMetricGauge.builder()
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "targets")
+            .withHelp("Target Count.")
+            .withLabelNames("target")
+            .build()
+            .register();
 
     public EntityStore(@Nonnull final TargetStore targetStore,
                        @Nonnull final IdentityProvider identityProvider,
@@ -939,5 +961,37 @@ public class EntityStore {
             return targetDataMap.values().stream()
                 .flatMap(targetMap -> targetMap.values().stream());
         }
+    }
+
+    /**
+     * Push entity and target related information to topology-processor metrics endpoint.
+     *
+     * @param stitchingContext The topology stitching context containing entity related information.
+     */
+    public void sendMetricsEntityAndTargetData(StitchingContext stitchingContext) {
+        ENTITY_COUNT_GAUGE.getLabeledMetrics().forEach((key, val) -> {
+            val.setData(0.0);
+        });
+        TARGET_COUNT_GAUGE.getLabeledMetrics().forEach((key, val) -> {
+            val.setData(0.0);
+        });
+        stitchingContext.getEntitiesByEntityTypeAndTarget().forEach((entityType, values) -> {
+            values.forEach((target, entitiesList) -> {
+                if (entitiesList.size() > 0) {
+                    Optional<Target> t = targetStore.getTarget(target);
+                    if (t.isPresent()) {
+                        double currentVal = ENTITY_COUNT_GAUGE.labels(t.get().getProbeInfo()
+                            .getProbeType(), entityType.toString()).getData();
+                        ENTITY_COUNT_GAUGE.labels(t.get().getProbeInfo().getProbeType(),
+                            entityType.toString()).setData(currentVal + entitiesList.size());
+                    }
+                }
+            });
+        });
+
+        targetStore.getAll().forEach((target) -> {
+            String targetType = target.getProbeInfo().getProbeType();
+            TARGET_COUNT_GAUGE.labels(targetType).increment();
+        });
     }
 }

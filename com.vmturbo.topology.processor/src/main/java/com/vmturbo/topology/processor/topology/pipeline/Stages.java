@@ -292,6 +292,7 @@ public class Stages {
                     .append(metrics.getTotalEmptyChangests())
                     .append(" empty changesets\n")
                     .toString();
+            entityStore.sendMetricsEntityAndTargetData(stitchingContext);
             return StageResult.withResult(context)
                 .andStatus(Status.success(status));
         }
