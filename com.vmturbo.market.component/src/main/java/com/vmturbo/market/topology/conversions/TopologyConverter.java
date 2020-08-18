@@ -64,7 +64,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Pair;
@@ -2525,18 +2527,35 @@ public class TopologyConverter {
                 if (providerId.second == RiDiscountedMarketTier.class) {
                     computeTierProviderId = providerId.first;
                 }
-                shoppingLists.add(createShoppingList(
-                        entityForSL,
-                        topologyEntity,
-                        entityForSL.getEntityType(),
-                        topologyEntity.getAnalysisSettings().getShopTogether(),
-                        providerId.first,
-                        commBoughtGroupingForSL,
-                        providers,
-                        scalingGroupUsage));
+                if (skipShoppingListCreation(entityForSL)) {
+                    logger.trace("For context: {}: Skip SL creation for: {} ({}), entity: {}.",
+                            topologyInfo.getTopologyContextId(), entityForSL.getDisplayName(),
+                            entityForSL.getOid(), topologyEntity.getDisplayName());
+                } else {
+                    shoppingLists.add(createShoppingList(entityForSL, topologyEntity, entityForSL.getEntityType(),
+                            topologyEntity.getAnalysisSettings().getShopTogether(), providerId.first,
+                            commBoughtGroupingForSL, providers, scalingGroupUsage));
+                }
             }
         }
         return new Pair<>(shoppingLists, computeTierProviderId);
+    }
+
+    /**
+     * Checks if shopping list creation needs to be skipped - e.g in case of ephemeral local
+     * volumes that are transient.
+     *
+     * @param entityDto Entity DTO for which shopping list creation needs to be checked.
+     * @return True if shopping list creation will be skipped for the entity.
+     */
+    @VisibleForTesting
+    boolean skipShoppingListCreation(@Nonnull final TopologyEntityDTO entityDto) {
+        if (entityDto.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE
+                || entityDto.getTypeSpecificInfo().getTypeCase() != TypeCase.VIRTUAL_VOLUME) {
+            return false;
+        }
+        final VirtualVolumeInfo volumeInfo = entityDto.getTypeSpecificInfo().getVirtualVolume();
+        return volumeInfo.hasIsEphemeral() && volumeInfo.getIsEphemeral();
     }
 
     /**

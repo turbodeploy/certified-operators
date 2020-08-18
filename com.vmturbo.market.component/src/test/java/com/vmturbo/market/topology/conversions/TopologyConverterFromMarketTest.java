@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -63,6 +64,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -2121,12 +2123,32 @@ public class TopologyConverterFromMarketTest {
                         }}, new HashMap<Long, TopologyDTO.TopologyEntityDTO>() {{
                             put(baOid, ba);
                         }});
-        Assert.assertFalse(businessAccountsToNewlyOwnedEntities.isEmpty());
+        assertFalse(businessAccountsToNewlyOwnedEntities.isEmpty());
         Set<ConnectedEntity> connectedEntities = businessAccountsToNewlyOwnedEntities.get(baOid);
         assertEquals(1, connectedEntities.size());
         ConnectedEntity connectedEntity = connectedEntities.iterator().next();
         assertEquals(ConnectionType.OWNS_CONNECTION, connectedEntity.getConnectionType());
         assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, connectedEntity.getConnectedEntityType());
         assertEquals(vmOid, connectedEntity.getConnectedEntityId());
+    }
+
+    /**
+     * Checks if logic to skip shopping list creation for ephemeral storage works or not.
+     */
+    @Test
+    public void skipShoppingListForEphemeralStorage() {
+        final TopologyDTO.TopologyEntityDTO ephemeralVolume =
+                TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(VOLUME_ID).setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(
+                        VirtualVolumeInfo.newBuilder().setIsEphemeral(true)))
+                .build();
+        assertTrue(converter.skipShoppingListCreation(ephemeralVolume));
+
+        final TopologyDTO.TopologyEntityDTO nonEphemeralVolume =
+                TopologyDTO.TopologyEntityDTO.newBuilder()
+                        .setOid(VOLUME_ID).setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .build();
+        assertFalse(converter.skipShoppingListCreation(nonEphemeralVolume));
     }
 }
