@@ -228,7 +228,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                 &&  baDTO.getTypeSpecificInfo().hasBusinessAccount()
                 && baDTO.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId()
                 && riPurchasingAccount
-                        == baDTO.getTypeSpecificInfo().getBusinessAccount().getAssociatedTargetId())
+                        == baDTO.getOid())
                 .findFirst();
         return discoveredBA.isPresent();
     }
