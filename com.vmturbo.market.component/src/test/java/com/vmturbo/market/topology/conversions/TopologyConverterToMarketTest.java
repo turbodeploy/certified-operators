@@ -7,6 +7,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -1678,6 +1680,46 @@ public class TopologyConverterToMarketTest {
                 assertFalse(traderTO.getSettings().getSuspendable());
             }
         }
+    }
+
+    /**
+     * Ensure that contaienr pods hosted on cloud entities do not get entries inserted into the
+     * CommoditiesResizeTracker. The CommoditiesResizeTracker should only be used to track entities
+     * whose bought commodities are adjusted prior to entering the market for cloud scaling.
+     * @throws IOException when one of the files cannot be load
+     */
+    @Test
+    public void testNoResizeTrackerForCloudPod() throws IOException {
+        final List<TopologyEntityDTO.Builder> topologyDTOBuilders = Arrays.asList(
+            messageFromJsonFile("protobuf/messages/vm-1.dto.json").toBuilder(),
+            messageFromJsonFile("protobuf/messages/vm-3.dto.json").toBuilder(),
+            messageFromJsonFile("protobuf/messages/pod-1.dto.json").toBuilder(),
+            messageFromJsonFile("protobuf/messages/container-1.dto.json").toBuilder(),
+            messageFromJsonFile("protobuf/messages/container-2.dto.json").toBuilder(),
+            messageFromJsonFile("protobuf/messages/vm-4.dto.json").toBuilder());
+        final Map<Long, TopologyEntityDTO> topologyDTOs = topologyDTOBuilders.stream()
+            .map(builder -> {
+                // Set environment type to cloud
+                return builder.setEnvironmentType(EnvironmentType.CLOUD).build();
+            }).collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketPriceTable,
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
+        final CommoditiesResizeTracker resizeTracker = Mockito.mock(CommoditiesResizeTracker.class);
+        Whitebox.setInternalState(topologyConverter,
+            "commoditiesResizeTracker", resizeTracker);
+
+        topologyConverter.convertToMarket(topologyDTOs);
+        // Only the VirtualMachine (OID==101) should be saved to the resize tracker. The other converted
+        // entities should not be saved. The other VMs in the test case have no commodities bought.
+        Mockito.verify(resizeTracker).save(Mockito.eq(101L), anyLong(),
+            Mockito.eq(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE).setKey("P1").build()), anyBoolean());
+        Mockito.verify(resizeTracker).save(Mockito.eq(101L), anyLong(),
+            Mockito.eq(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE).setKey("").build()), anyBoolean());
+        Mockito.verifyNoMoreInteractions(resizeTracker);
     }
 
     /**

@@ -1564,11 +1564,14 @@ public class TopologyConverter {
         float[] histPeak = histPeakValue.orElseGet(() -> new float[] {});
 
         // TODO: Need to add check for Cloud migration here. This will apply to Cloud Migration too.
-        if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD) {
-            final float[][] onPremResizedCapacity = getOnPremResizedCapacity(histUsed, histPeak,
-                    commBought, providerOid, topologyDTO);
-            return new float[][]{onPremResizedCapacity[0], onPremResizedCapacity[1]};
+        if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD
+            || !CLOUD_SCALING_ENTITY_TYPES.contains(topologyDTO.getEntityType())) {
+            final float[][] standardResizedCapacity = getStandardResizedCapacity(histUsed, histPeak,
+                commBought, providerOid, topologyDTO);
+            return new float[][]{standardResizedCapacity[0], standardResizedCapacity[1]};
         }
+
+        // Handle entities for which we generate cloud-scaling actions.
         final Integer drivingCommSoldType =
                 TopologyConversionConstants.commDependancyMapForCloudResize.get(
                         commBought.getCommodityType().getType());
@@ -1738,6 +1741,7 @@ public class TopologyConverter {
     /**
      * Calculates the new resized  capacities for the bought commodity based on historical
      * demands.
+     *
      * @param used Bought commodity historical used value.
      * @param peak Bought commodity peak value.
      * @param commBought Bought commodity.
@@ -1745,14 +1749,13 @@ public class TopologyConverter {
      * @param topologyDTO the TopologyDTO buying this commodity.
      * @return the new calculated capacities for the bought commodity.
      */
-    private float[][] getOnPremResizedCapacity(final float[] used,
-                                              final float[] peak,
-                                              @Nonnull final TopologyDTO.CommodityBoughtDTO commBought,
-                                              final Long providerOid,
-                                              @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
+    private float[][] getStandardResizedCapacity(final float[] used,
+                                                 final float[] peak,
+                                                 @Nonnull final TopologyDTO.CommodityBoughtDTO commBought,
+                                                 final Long providerOid,
+                                                 @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
         // An example use case for the condition below is the
         // VDI use case where we need to apply the target Util on the percentile.
-
         final TopologyEntityDTO providerTopologyEntity = entityOidToDto.get(providerOid);
         if (providerTopologyEntity == null) {
             logger.warn("Could not find provider for entity {} with id {}." +
@@ -1772,9 +1775,9 @@ public class TopologyConverter {
                                 == commBought.getCommodityType().getType())
                         .collect(Collectors.toList());
         if (commoditiesSoldByProvider.size() != 1 || commoditiesSoldByProvider.get(0) == null) {
-            logger.warn("Could not find corresponding sold commodity from provider {} for" +
-                            "type {},  for entity {}. Using percentile used and peak without" +
-                            "applying the target utilization", providerTopologyEntity.getDisplayName(),
+            logger.debug("Could not find corresponding sold commodity from provider {} for "
+                    + "type {}, for entity {}. Using percentile used and peak without "
+                    + "applying the target utilization", providerTopologyEntity.getDisplayName(),
                     commBought.getCommodityType().getType(), topologyDTO.getDisplayName());
             return new float[][]{new float[]{histUsed}, new float[]{histPeak}};
         } else {
