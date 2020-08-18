@@ -355,6 +355,15 @@
         </profile>
 
         <profile>
+            <id>prometheus-config-manager</id>
+            <modules>
+                <module>../com.vmturbo.prometheus.config.manager</module>
+                <module>../com.vmturbo.group.component</module>
+                <module>../com.vmturbo.group.api</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>api</id>
             <modules>
                 <module>../com.vmturbo.auth.api</module>
@@ -958,6 +967,7 @@
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.prometheus.config.manager</module>
                 <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
@@ -1048,6 +1058,7 @@
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.prometheus.config.manager</module>
                 <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
@@ -1155,6 +1166,7 @@
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.extractor</module>
                 <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.prometheus.config.manager</module>
                 <module>../com.vmturbo.search.metadata</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
@@ -1922,6 +1934,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>extractor-schema</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>prometheus-config-manager</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
