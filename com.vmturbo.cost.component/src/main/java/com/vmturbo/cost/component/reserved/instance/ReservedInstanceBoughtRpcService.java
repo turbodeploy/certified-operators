@@ -199,21 +199,23 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                 .map(ReservedInstanceBought::toBuilder)
                 .peek(riBuilder -> {
                     if (undiscoveredRiIds.contains(riBuilder.getId())) {
+                        int coupons = (int)Math.round(discRiToUsedCouponMap
+                                .getOrDefault(riBuilder.getId(), 0d));
                         riBuilder.getReservedInstanceBoughtInfoBuilder()
                                 .getReservedInstanceBoughtCouponsBuilder()
-                                .setNumberOfCouponsUsed(
-                                        discRiToUsedCouponMap.getOrDefault(riBuilder.getId(),
-                                                0d))
-                                .setNumberOfCoupons(discRiToUsedCouponMap.getOrDefault(riBuilder.getId(),
-                                        0d).intValue());
+                                .setNumberOfCouponsUsed(coupons)
+                                .setNumberOfCoupons(coupons);
                     } else {
                         int capacity = riBuilder.getReservedInstanceBoughtInfoBuilder()
                                 .getReservedInstanceBoughtCouponsBuilder()
                                 .getNumberOfCoupons();
-                        riBuilder.getReservedInstanceBoughtInfoBuilder()
-                                .getReservedInstanceBoughtCouponsBuilder()
-                                .setNumberOfCoupons(capacity - undiscoveredAccountRIUsage.getOrDefault(riBuilder.getId(),
-                                        0d).intValue());
+                        int coupons = (int)Math.round(undiscoveredAccountRIUsage
+                                .getOrDefault(riBuilder.getId(), 0d));
+                        if (coupons > 0) {
+                            riBuilder.getReservedInstanceBoughtInfoBuilder()
+                                    .getReservedInstanceBoughtCouponsBuilder()
+                                    .setNumberOfCoupons(capacity - coupons);
+                        }
                     }
                 })
                 .map(ReservedInstanceBought.Builder::build)
