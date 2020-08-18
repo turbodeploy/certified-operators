@@ -79,7 +79,6 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
-import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
@@ -369,68 +368,52 @@ public class SettingStore implements DiagsRestorable {
                     .defaultSettingPoliciesFromSpecs(settingSpecStore.getAllSettingSpecs())
                     .get(existingPolicy.getInfo().getEntityType());
             if (defaultSettingPolicy == null) {
-                logger.error("Cannot get default info for policy {}, entity type {}",
-                        newInfo.getName(), existingPolicy.getInfo().getEntityType());
+                throw new StoreOperationException(Status.INTERNAL, "Cannot get default "
+                    + "info for policy" + newInfo.getName()
+                    + "entity type " + existingPolicy.getInfo().getEntityType());
             }
             final Map<String, Setting> defaultSettings = defaultSettingPolicy == null
                     ? Collections.emptyMap()
                     : defaultSettingPolicy.getSettingsList().stream()
                     .collect(Collectors.toMap(Setting::getSettingSpecName, Functions.identity()));
             List<Setting> settingsToAdd = new ArrayList<>();
-            for (Setting existingSetting : existingPolicy.getInfo().getSettingsList()) {
-                final String existingSettingName = existingSetting.getSettingSpecName();
-                if (!newSettingNames.contains(existingSettingName)) {
-                    /*
-                     * SLA is created behind the scenes, not exposed in the UI.
-                     * TODO If this changes this will have to be revisited.
-                     */
-                    if (existingSettingName.contains("slaCapacity")) {
-                        settingsToAdd.add(existingSetting);
-                        continue;
-                    }
 
-                    final Setting defaultSetting = defaultSettings.get(existingSettingName);
-                    if (defaultSetting == null) {
-                        logger.error("Cannot get default value for setting {} in policy {}",
-                                existingSettingName, newInfo.getName());
-                    } else if (SettingDTOUtil.areValuesEqual(existingSetting, defaultSetting)) {
-                        // Prevent removing setting if its existing value matches default
-                        settingsToAdd.add(existingSetting);
-                        continue;
-                    }
+            // calculate removed setting with default value
+            List<String> unsentSettingNames = defaultSettings
+                .keySet()
+                .stream()
+                .filter(s -> !newSettingNames.contains(s))
+                .collect(Collectors.toList());
 
-                    /*
-                     * TODO (Marco, August 05 2018) OM-48940
-                     * ActionWorkflow and ActionScript settings are missing in the ui and
-                     * in the payload of the request due to OM-48950.
-                     * This workaround will be removed when OM-48950 will be fixed.
-                     */
-                    if (!existingSettingName.contains("ActionWorkflow") &&
-                            !existingSettingName.contains("ActionScript")) {
-                        throw new StoreOperationException(Status.INVALID_ARGUMENT,
-                                "Illegal attempt to remove a default setting "
-                                        + existingSettingName);
-                    }
+            final Map<String, Setting> existingPolicySettings =
+                existingPolicy.getInfo().getSettingsList().stream()
+                .collect(Collectors.toMap(Setting::getSettingSpecName, Functions.identity()));
+
+            // for those settings that should have a value but not sent from API, use existing value
+            for (String unsentSettingName : unsentSettingNames) {
+                Setting existingSetting = existingPolicySettings.get(unsentSettingName);
+                if (existingPolicy != null) {
+                    settingsToAdd.add(existingSetting);
+                } else {
+                    settingsToAdd.add(defaultSettings.get(unsentSettingName));
                 }
             }
 
-            if (!settingsToAdd.isEmpty()) {
-                // add the default entities that are missing
-                settingsToAdd.addAll(newInfo.getSettingsList());
+            // add all the new setting to the list
+            settingsToAdd.addAll(newInfo.getSettingsList());
 
-                SettingPolicyInfo newNewInfo = SettingPolicyInfo.newBuilder(newInfo)
-                    .clearSettings()
-                    .addAllSettings(settingsToAdd)
-                    .build();
+            SettingPolicyInfo newNewInfo = SettingPolicyInfo.newBuilder(newInfo)
+                .clearSettings()
+                .addAllSettings(settingsToAdd)
+                .build();
 
-                boolean removeAcceptancesAndRejectionsForAssociatedActions =
-                        shouldAcceptancesAndRejectionsForActionsAssociatedWithPolicyBeRemoved(newInfo,
-                                existingPolicy.getInfo());
+            boolean removeAcceptancesAndRejectionsForAssociatedActions =
+                    shouldAcceptancesAndRejectionsForActionsAssociatedWithPolicyBeRemoved(newInfo,
+                            existingPolicy.getInfo());
 
-                return Pair.create(internalUpdateSettingPolicy(context,
-                        existingPolicy.toBuilder().setInfo(newNewInfo).build()),
-                        removeAcceptancesAndRejectionsForAssociatedActions);
-            }
+            return Pair.create(internalUpdateSettingPolicy(context,
+                    existingPolicy.toBuilder().setInfo(newNewInfo).build()),
+                    removeAcceptancesAndRejectionsForAssociatedActions);
         }
 
         if (type.equals(Type.DISCOVERED)) {
