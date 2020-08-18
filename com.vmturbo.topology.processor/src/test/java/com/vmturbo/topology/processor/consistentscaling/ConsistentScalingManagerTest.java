@@ -2,6 +2,9 @@ package com.vmturbo.topology.processor.consistentscaling;
 
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityWithName;
+import static org.hamcrest.CoreMatchers.anyOf;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -41,6 +44,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServic
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -223,6 +227,19 @@ public class ConsistentScalingManagerTest {
         Assert.assertTrue(userSettingsByEntityAndName.values().stream()
             .allMatch(m -> m.keySet()
                 .contains(EntitySettingSpecs.ScalingGroupMembership.getSettingName())));
+
+        // Serialize to string because some of the fields we wish to inspect are not accessible
+        // in the package where this test lives.
+        final String serializedSettings = ComponentGsonFactory.createGsonNoPrettyPrint()
+            .toJson(userSettingsByEntityAndName.values());
+        // Settings for Group-C and DiscoveredGroup-B should NOT have the OID of the CSG in their values
+        // because they are already unique.
+        assertThat(serializedSettings, containsString("\"stringSettingValue\":{\"value\":\"Group-C\""));
+        assertThat(serializedSettings, containsString("\"stringSettingValue\":{\"value\":\"DiscoveredGroup-B\""));
+        // There are duplicate CSG's for the settings where Group-A and Group-B are contributing groups.
+        assertThat(serializedSettings, anyOf(
+            containsString("\"stringSettingValue\":{\"value\":\"Group-B, Group-A[101]\""),
+            containsString("\"stringSettingValue\":{\"value\":\"Group-A, Group-B[101]\"")));
     }
 
     /**

@@ -83,31 +83,39 @@ public class ConsistentScalingManager {
      */
     public void addScalingGroupSettings(final Map<Long, Map<String, SettingAndPolicyIdRecord>>
                                             userSettingsByEntityAndName) {
-        groups.values().forEach(group -> {
-            String groupName = group.getScalingGroupId();
-            // Add a scaling group membership setting to each group.
-            group.getMemberList().stream()
-                // Since the settings are shared amongst all members of the scaling group, the
-                // setting will apply to all of them.
-                .findAny()
-                .ifPresent(oid -> {
-                    // policies cannot be null, because all scaling group members have an entry
-                    // pre-populated in userSettingsByEntityAndName.
-                    Map<String, SettingAndPolicyIdRecord> policies =
-                        userSettingsByEntityAndName.get(oid);
-                    Setting setting = Setting.newBuilder()
-                        .setSettingSpecName(EntitySettingSpecs.ScalingGroupMembership
-                            .getSettingName())
-                        .setStringSettingValue(StringSettingValue.newBuilder()
-                            .setValue(groupName)).build();
-                    SettingAndPolicyIdRecord settingAndPolicyIdRecord =
-                        new SettingAndPolicyIdRecord(TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
-                                Collections.singletonList(setting)), 0L,
-                                Type.USER, false);
-                    policies.put(EntitySettingSpecs.ScalingGroupMembership.getSettingName(),
-                        settingAndPolicyIdRecord);
+        groups.values().stream()
+            .collect(Collectors.groupingBy(ScalingGroup::getScalingGroupId))
+            .forEach((groupId, groups) -> {
+                final boolean hasDuplicates = groups.size() > 1;
+                groups.forEach(group -> {
+                    // When we have two groups with the same name, distinguish them further by ID.
+                    // This reduces visual clutter when we don't need the ID, and prevents accidentally
+                    // merging by name when there are multiple with the same name.
+                    final String groupName = groupId + (hasDuplicates ? ("[" + group.key + "]") : "");
+                    // Add a scaling group membership setting to each group.
+                    group.getMemberList().stream()
+                        // Since the settings are shared amongst all members of the scaling group, the
+                        // setting will apply to all of them.
+                        .findAny()
+                        .ifPresent(oid -> {
+                            // policies cannot be null, because all scaling group members have an entry
+                            // pre-populated in userSettingsByEntityAndName.
+                            Map<String, SettingAndPolicyIdRecord> policies =
+                                userSettingsByEntityAndName.get(oid);
+                            Setting setting = Setting.newBuilder()
+                                .setSettingSpecName(EntitySettingSpecs.ScalingGroupMembership
+                                    .getSettingName())
+                                .setStringSettingValue(StringSettingValue.newBuilder()
+                                    .setValue(groupName)).build();
+                            SettingAndPolicyIdRecord settingAndPolicyIdRecord =
+                                new SettingAndPolicyIdRecord(TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                                    Collections.singletonList(setting)), 0L,
+                                    Type.USER, false);
+                            policies.put(EntitySettingSpecs.ScalingGroupMembership.getSettingName(),
+                                settingAndPolicyIdRecord);
+                        });
                 });
-        });
+            });
     }
 
     /**
