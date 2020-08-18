@@ -2,7 +2,9 @@ package com.vmturbo.topology.processor.topology;
 
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.buildTopologyEntityWithCommBought;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.buildTopologyEntityWithCommSold;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -56,6 +58,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.GroupResolverSearchFilterResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor.ConstraintsEditorException;
 
@@ -66,12 +69,16 @@ public class ConstraintsEditorTest {
 
     private GroupServiceBlockingStub groupService;
 
-    private GroupResolver groupResolver = new TestGroupResolver();
+    private GroupResolver groupResolver;
 
     private ConstraintsEditor constraintsEditor;
 
     @Before
     public void setup() throws IOException {
+        GroupResolverSearchFilterResolver searchFilterResolver = mock(GroupResolverSearchFilterResolver.class);
+        when(searchFilterResolver.resolveExternalFilters(any()))
+                .thenAnswer(invocation -> invocation.getArguments()[0]);
+        groupResolver = new TestGroupResolver(searchFilterResolver);
         constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
     }
 
@@ -366,8 +373,8 @@ public class ConstraintsEditorTest {
      */
     private static class TestGroupResolver extends GroupResolver {
 
-        private TestGroupResolver() {
-            super(mock(SearchResolver.class), Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
+        private TestGroupResolver(GroupResolverSearchFilterResolver searchFilterResolver) {
+            super(mock(SearchResolver.class), Mockito.mock(GroupConfig.class).groupServiceBlockingStub(), searchFilterResolver);
         }
 
         @Override

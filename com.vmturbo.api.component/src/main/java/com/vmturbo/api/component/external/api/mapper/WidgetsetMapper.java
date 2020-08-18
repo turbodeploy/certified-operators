@@ -281,7 +281,8 @@ public class WidgetsetMapper {
             try {
                 repositoryApi.entitiesRequest(entityScopedWidgets.keySet()).getMinimalEntities()
                         .forEach(entity -> {
-                            ServiceEntityApiDTO entityApiDTO = ServiceEntityMapper.toBasicEntity(entity);
+                            final ServiceEntityApiDTO entityApiDTO =
+                                    ServiceEntityMapper.toBaseServiceEntityApiDTO(entity);
                             // also set environment type since it's needed by UI
                             if (entity.hasEnvironmentType()) {
                                 entityApiDTO.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(

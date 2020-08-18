@@ -310,6 +310,7 @@ public class AtomicResizeMerger implements AtomicActionMerger {
                     .setId(IdentityGenerator.next())
                     .setExplanation(explanation)
                     .setDeprecatedImportance(1.0)
+                    .setExecutable(true)
                     .setInfo(ActionInfo.newBuilder()
                             .setAtomicResize(atomicResizeInfoBuilder.build())
                             .build());

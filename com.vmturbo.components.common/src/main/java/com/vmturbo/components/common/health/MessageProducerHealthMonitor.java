@@ -46,7 +46,7 @@ public class MessageProducerHealthMonitor extends SimpleHealthStatusProvider {
         SimpleHealthStatus lastStatus = super.getHealthStatus();
 
         // only return a new status object if the health status has changed.
-        boolean isNowHealthy = !messageProducer.lastSendFailed();
+        boolean isNowHealthy = !messageProducer.lastSendAttemptFailed();
         if (lastStatus.isHealthy() == isNowHealthy) {
             return lastStatus;
         }

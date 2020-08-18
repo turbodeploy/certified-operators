@@ -185,8 +185,8 @@ public class DiscoveredGroupUploader {
             policy.setEntityType(group.getEntityType().getNumber());
             policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
             String targetName = getTargetDisplayName(targetId);
-            String displayName = String.format("%s - %s - Consistent Scaling Policy (account %d)",
-                                        targetName, group.getDisplayName(), targetId);
+            String displayName = String.format("%s - Consistent Scaling Policy (account %d)",
+                                        group.getDisplayName(), targetId);
             policy.setDisplayName(displayName);
             policy.setName(createPolicyName(group, targetId, "CSP"));
             policy.addSettings(setting);
@@ -225,7 +225,7 @@ public class DiscoveredGroupUploader {
             DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
             policy.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
             policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
-            String name = String.format("%s - %s - %s (account %d)", targetName,
+            String name = String.format("%s - %s (account %d)",
                     group.getDisplayName(), "Cloud Compute Tier Exclusion Policy", targetId);
             policy.setDisplayName(name);
             policy.setName(createPolicyName(group, targetId, "EXP"));
@@ -253,7 +253,7 @@ public class DiscoveredGroupUploader {
             ? group.getGroupName() : group.getConstraintInfo().getConstraintId(),
             String.valueOf(targetId));
         // The name of policy should not be longer than character limit. Fix if that is the case
-        return SDKUtil.fixUuid(name, 255, 200);
+        return SDKUtil.fixUuid(name, 255, 215);
     }
 
     @Nonnull

@@ -330,6 +330,7 @@ public class LiveActionStore implements ActionStore {
             final List<ActionView> completedSinceLastPopulate = new ArrayList<>();
             final List<Action> actionsToRemove = new ArrayList<>();
             final Set<Long> newActionIds = Sets.newHashSet();
+            final Set<Long> existingActionIds = Sets.newHashSet();
 
             actions.doForEachMarketAction(action -> {
                 // Only retain IN-PROGRESS, QUEUED, ACCEPTED, REJECTED and READY actions which are
@@ -349,7 +350,7 @@ public class LiveActionStore implements ActionStore {
                     case FAILED:
                         completedSinceLastPopulate.add(action);
                         actionsToRemove.add(action);
-                        newActionIds.add(action.getId());
+                        existingActionIds.add(action.getId());
                         break;
                     default:
                         actionsToRemove.add(action);
@@ -405,6 +406,7 @@ public class LiveActionStore implements ActionStore {
                     action = actionFactory.newAction(recommendedAction, planId, recommendationOid);
                     newActionIds.add(action.getId());
                 }
+                existingActionIds.add(action.getId());
                 final ActionState actionState = action.getState();
                 if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED || actionState == ActionState.REJECTED) {
                     actionsToTranslate.add(action);
@@ -469,11 +471,11 @@ public class LiveActionStore implements ActionStore {
                     .filter(VISIBILITY_PREDICATE));
             final int deletedActions =
                 entitiesWithNewStateCache.clearActionsAndUpdateCache(sourceTopologyInfo.getTopologyId());
-            final List<ActionView> newActions = newActionIds.stream().map(actions::get)
+            final List<ActionView> existingActions = existingActionIds.stream().map(actions::get)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toList());
-            auditOnGeneration(newActions);
+            auditOnGeneration(existingActions);
             if (deletedActions > 0) {
                 severityCache.refresh(this);
             }

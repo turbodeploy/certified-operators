@@ -120,10 +120,10 @@ public class TopologyProcessorNotificationSenderTest {
     }
 
     private void checkLiveTopology(@Nonnull TopologyProcessorNotificationReceiver receiver) {
-        receiver.addLiveTopoListener((info, iterator) -> {});
+        receiver.addLiveTopoListener((info, iterator, spanContext) -> { });
     }
 
     private void checkPlanTopology(@Nonnull TopologyProcessorNotificationReceiver receiver) {
-        receiver.addPlanTopoListener((info, iterator) -> {});
+        receiver.addPlanTopoListener((info, iterator, spanContext) -> { });
     }
 }

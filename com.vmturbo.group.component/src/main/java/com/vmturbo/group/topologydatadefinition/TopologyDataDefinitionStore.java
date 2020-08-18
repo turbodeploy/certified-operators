@@ -82,9 +82,9 @@ public class TopologyDataDefinitionStore implements DiagsRestorable {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final String OID_ALREADY_IN_USE =
-            "Cannot create topology entity definition with OID %d because a definition with that "
-                    + "OID already exists.";
+    private static final String NAME_ALREADY_IN_USE =
+            "Cannot create topology entity definition '%s' because a definition with that "
+                    + "name already exists.";
 
     private static final String MANUAL_TYPE = "MANUAL";
 
@@ -177,7 +177,7 @@ public class TopologyDataDefinitionStore implements DiagsRestorable {
             AutomatedEntityDefinition automatedEntityDefinition) throws StoreOperationException {
         if (oidExistsInDb(context, oid)) {
             throw new StoreOperationException(Status.ALREADY_EXISTS,
-                    String.format(OID_ALREADY_IN_USE, oid));
+                    String.format(NAME_ALREADY_IN_USE, automatedEntityDefinition.getNamingPrefix()));
         }
         AutoTopoDataDefs definitionPojo = createAutoDefinitionPojo(oid,
                 automatedEntityDefinition);
@@ -193,7 +193,7 @@ public class TopologyDataDefinitionStore implements DiagsRestorable {
             @Nonnull ManualEntityDefinition manualEntityDefinition) throws StoreOperationException {
         if (oidExistsInDb(context, oid)) {
             throw new StoreOperationException(Status.ALREADY_EXISTS,
-                    String.format(OID_ALREADY_IN_USE, oid));
+                    String.format(NAME_ALREADY_IN_USE, manualEntityDefinition.getEntityName()));
         }
         ManualTopoDataDefs definitionPojo = createManualDefinitionPojo(oid,
                 manualEntityDefinition, context);

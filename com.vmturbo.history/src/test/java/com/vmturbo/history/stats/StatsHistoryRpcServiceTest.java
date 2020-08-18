@@ -587,7 +587,6 @@ public class StatsHistoryRpcServiceTest {
         SaveClusterHeadroomRequest request = SaveClusterHeadroomRequest.newBuilder()
                 .setClusterId(clusterId)
                 .setHeadroom(headroom)
-                .setNumVMs(numVMs)
                 .build();
         clientStub.saveClusterHeadroom(request);
         verify(mockLoader, atLeastOnce()).insert(any());

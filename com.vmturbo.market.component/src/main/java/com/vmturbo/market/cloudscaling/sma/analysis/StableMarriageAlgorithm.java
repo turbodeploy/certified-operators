@@ -2,12 +2,18 @@ package com.vmturbo.market.cloudscaling.sma.analysis;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.base.Stopwatch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,13 +42,23 @@ public class StableMarriageAlgorithm {
      */
     public static SMAOutput execute(@Nonnull SMAInput input) {
         Objects.requireNonNull(input, "SMA execute() input is null!");
+        final Stopwatch stopWatch = Stopwatch.createStarted();
+        long actionCount = 0;
         List<SMAOutputContext> outputContexts = new ArrayList<>();
         for (SMAInputContext inputContext : input.getContexts()) {
             SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
             postProcessing(outputContext);
             outputContexts.add(outputContext);
+            for (SMAMatch match : outputContext.getMatches()) {
+                if ((match.getVirtualMachine().getCurrentTemplate() != match.getTemplate())
+                        || (Math.abs(match.getVirtualMachine().getCurrentRICoverage()
+                        - match.getProjectedRICoverage()) > SMAUtils.EPSILON)) {
+                    actionCount++;
+                }
+            }
         }
-        logger.info("created {} outputContexts", outputContexts.size());
+        long timeInMilliseconds = stopWatch.elapsed(TimeUnit.MILLISECONDS);
+        logger.info("created {} outputContexts with {} actions in {}ms", outputContexts.size(), actionCount, timeInMilliseconds);
         SMAOutput output = new SMAOutput(outputContexts);
         if (logger.isDebugEnabled()) {
             for (SMAOutputContext outputContext : output.getContexts()) {
@@ -118,21 +134,71 @@ public class StableMarriageAlgorithm {
                         coupons_required = coupons_required - coupons_grabbed;
                         incomingCouponMatch.setProjectedRICoverage(incomingCouponMatch.getProjectedRICoverage()
                                 - coupons_grabbed);
-                        if (incomingCouponMatch.getProjectedRICoverage() < SMAUtils.EPSILON) {
-                            incomingCouponMatch.setReservedInstance(null);
-                        }
                     }
                     if (coupons_required < SMAUtils.EPSILON) {
                         break;
                     }
                 }
                 outgoingCouponMatch.setProjectedRICoverage(outgoingCouponMatch
-                        .getVirtualMachine().getCurrentRICoverage());
+                        .getVirtualMachine().getCurrentRICoverage() - coupons_required);
                 outgoingCouponMatch.setReservedInstance(outgoingCouponMatch.getVirtualMachine()
                         .getCurrentRI());
             }
         }
+
+        // get all the matches that involve RIs. Group together the ASG.
+        Map<String, Set<SMAMatch>> matchByASG = new HashMap<>();
+        Set<SMAMatch> nonASGMatch = new HashSet();
+        for (SMAMatch smaMatch : outputContext.getMatches()) {
+            String groupName = smaMatch.getVirtualMachine().getGroupName();
+            if (groupName.equals(SMAUtils.NO_GROUP_ID)) {
+                nonASGMatch.add(smaMatch);
+            } else {
+                matchByASG.putIfAbsent(groupName, new HashSet<>());
+                matchByASG.get(groupName).add(smaMatch);
+            }
+        }
+        // for non ASG vms compute the savings again and see if it still makes sense to
+        // stay in the RI template or its better to move to natural template.
+        for (SMAMatch smaMatch : nonASGMatch) {
+            if (smaMatch.getReservedInstance() != null) {
+                float saving = smaMatch.getReservedInstance()
+                        .computeSaving(smaMatch.getVirtualMachine(),
+                                new HashMap<>(), smaMatch.getProjectedRICoverage());
+                if (saving < SMAUtils.EPSILON) {
+                    smaMatch.setReservedInstance(null);
+                    smaMatch.setProjectedRICoverage(0);
+                    smaMatch.setTemplate(smaMatch.getVirtualMachine().getNaturalTemplate());
+                }
+            }
+        }
+        // for asg first make sure atleast one of the member is discounted. If so
+        // compute the saving if all the members move to the natural template vs
+        // all member stay in the ri template and get discounted.
+        for (Set<SMAMatch> smaMatches : matchByASG.values()) {
+            float saving = 0;
+            Optional<SMAMatch> matchWithCoverage = smaMatches.stream()
+                    .filter(a -> a.getReservedInstance() != null).findFirst();
+            // at least one member is convered.
+            if (matchWithCoverage.isPresent()) {
+                for (SMAMatch smaMatch : smaMatches) {
+                    saving += matchWithCoverage.get().getReservedInstance()
+                            .computeSaving(smaMatch.getVirtualMachine(),
+                                    new HashMap<>(), smaMatch.getProjectedRICoverage());
+                }
+                if (saving < SMAUtils.EPSILON) {
+                    for (SMAMatch smaMatch : smaMatches) {
+                        smaMatch.setReservedInstance(null);
+                        smaMatch.setProjectedRICoverage(0);
+                        smaMatch.setTemplate(smaMatch.getVirtualMachine().getNaturalTemplate());
+                    }
+                }
+            }
+        }
+
     }
+
+
 
     /**
      * determine if the virtual machine in the smaMatch lost coverage while staying in same template.

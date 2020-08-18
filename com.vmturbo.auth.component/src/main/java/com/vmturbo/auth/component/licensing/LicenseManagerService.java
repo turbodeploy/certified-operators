@@ -311,15 +311,26 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
                 .filter(license -> LicenseUtil.isNotExpired(license.getExpirationDate()))
                 .map(LicenseDTOUtils::licenseDTOtoLicense)
                 .collect(Collectors.toList());
-        // we'll also validate the incoming licenses against each other, so add them to the list too
-        allNonexpiredLicenses.addAll(licenses);
-        // get a combined feature set across all licenses. We'll use this to validate that all feature
-        // sets are the same (and thus, compatible -- XL does not support licenses with mismatched
-        // feature sets).
-        Set<String> combinedFeatures = allNonexpiredLicenses.stream()
+
+        // get a combined feature set across all currently-installed, non-expired licenses. We'll
+        // use this to validate that all feature sets are the same (and thus, compatible -- XL does
+        // not support licenses with mismatched feature sets).
+        Set<String> targetLicenseFeatures = allNonexpiredLicenses.stream()
                 .map(ILicense::getFeatures)
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet());
+
+        // we'll also validate the incoming licenses against each other, so add them to the list too
+        allNonexpiredLicenses.addAll(licenses);
+        // if the existing feature set is empty, then let's build it again, this time using the
+        // incoming licenses. This will let us validate that the incoming licenses are at least
+        // compatible with each other.
+        if (targetLicenseFeatures.isEmpty()) {
+            targetLicenseFeatures = licenses.stream()
+                    .map(ILicense::getFeatures)
+                    .flatMap(Set::stream)
+                    .collect(Collectors.toSet());
+        }
 
         for (ILicense license : licenses) {
             // run the standard validations and set the error reasons on the licenseApiDTO object we
@@ -350,7 +361,7 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
                 }
 
                 // verify that the feature set for this license is compatible with the other licenses
-                if (!LicenseUtil.equalFeatures(license.getFeatures(), combinedFeatures)) {
+                if (!LicenseUtil.equalFeatures(license.getFeatures(), targetLicenseFeatures)) {
                     license.addErrorReason(ErrorReason.INVALID_FEATURE_SET);
                 }
             }

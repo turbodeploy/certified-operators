@@ -51,6 +51,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -93,7 +94,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_DELETE("Delete wasted file ''{0}'' from {1} to free up {2}"),
         ACTION_DESCRIPTION_DELETE_CLOUD_NO_ACCOUNT("Delete Unattached {0} Volume {1}"),
         ACTION_DESCRIPTION_DELETE_CLOUD("Delete Unattached {0} Volume {1} from {2}"),
-        ACTION_DESCRIPTION_ATOMIC_RESIZE("Resize on {0} for {1}"),
+        ACTION_DESCRIPTION_ATOMIC_RESIZE("Resize {0} for {1}"),
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RESIZE_RESERVATION("Resize {0} {1} reservation for {2} from {3} to {4}"),
@@ -219,13 +220,19 @@ public class ActionDescriptionBuilder {
             if (formattedCommodityTypes.length() > 0) {
                 formattedCommodityTypes.append(',');
             }
-            formattedCommodityTypes.append(beautifyCommodityType(commType));
+
+            if (commType.getType() == CommodityType.VCPU_VALUE
+                    || commType.getType() == CommodityType.VMEM_VALUE)    {
+                formattedCommodityTypes.append(beautifyCommodityType(commType)).append(" Limit");
+            } else {
+                formattedCommodityTypes.append(beautifyCommodityType(commType));
+            }
         }
 
         ActionMessageFormat messageFormat = ActionMessageFormat.ACTION_DESCRIPTION_ATOMIC_RESIZE;
         return messageFormat.format(
-                beautifyEntityTypeAndName(targetEntity),
-                formattedCommodityTypes.toString()
+                formattedCommodityTypes.toString(),
+                beautifyEntityTypeAndName(targetEntity)
         );
     }
 
@@ -524,7 +531,7 @@ public class ActionDescriptionBuilder {
             return "";
         }
         int actionCommodityType = explanation.getMostExpensiveCommodityInfo().getCommodityType().getType();
-        if (!isVSANRelatedCommodity(actionCommodityType)) {
+        if (!HCIUtils.isVSANRelatedCommodity(actionCommodityType)) {
             return "";
         }
         for (ConnectedEntity connected : entityDTO.getConnectedEntitiesList())  {
@@ -538,18 +545,6 @@ public class ActionDescriptionBuilder {
             }
         }
         return "";
-    }
-
-    /**
-     * Checks whether the commodity type is of a vSAN storage commodity.
-     * @param commodityType integer value for the commodity type
-     * @return true if the commodity type is related to vSAN storage
-     */
-    private static boolean isVSANRelatedCommodity(int commodityType) {
-        return commodityType == CommodityType.STORAGE_AMOUNT_VALUE
-                        || commodityType == CommodityType.STORAGE_PROVISIONED_VALUE
-                        || commodityType == CommodityType.STORAGE_ACCESS_VALUE
-                        || commodityType == CommodityType.STORAGE_LATENCY_VALUE;
     }
 
     /**
@@ -686,7 +681,9 @@ public class ActionDescriptionBuilder {
         if (commodityTypeToDefaultUnits.containsKey(commodityType)) {
             long capacityInBytes = (long)(capacity * commodityTypeToDefaultUnits.get(commodityType) / Units.BYTE);
             return getHumanReadableSize(capacityInBytes);
-        } else if (entityType == EntityType.CONTAINER_VALUE) {
+        } else if (entityType == EntityType.CONTAINER_VALUE
+                || entityType == EntityType.WORKLOAD_CONTROLLER_VALUE
+                || entityType == EntityType.CONTAINER_SPEC_VALUE) {
             return ActionMessageFormat.CONTAINER_VCPU_MHZ.format(capacity);
         } else {
             return ActionMessageFormat.SIMPLE.format(capacity);

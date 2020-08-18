@@ -68,7 +68,8 @@ public class CostDebugConfig {
                 reservedInstanceConfig.entityReservedInstanceMappingStore(),
                 buyRIAnalysisConfig.reservedInstanceAnalysisInvoker(),
                 buyRIImpactReportGenerator(),
-                cloudCommitmentAnalysisConfig.cloudCommitmentAnalysisManager());
+                cloudCommitmentAnalysisConfig.cloudCommitmentAnalysisManager(),
+                buyRIAnalysisConfig.repositoryServiceClient());
     }
 
     /**

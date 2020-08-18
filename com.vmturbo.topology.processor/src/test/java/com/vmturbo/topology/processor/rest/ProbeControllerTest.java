@@ -14,6 +14,7 @@ import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
 import org.hamcrest.CoreMatchers;
@@ -46,6 +47,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
+import com.vmturbo.common.protobuf.utils.ProbeFeature;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
@@ -56,6 +58,8 @@ import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.GroupScopePropertySet;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalFeature;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionAuditFeature;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -439,6 +443,26 @@ public final class ProbeControllerTest {
         final ProbeDescription resp = GSON.fromJson(resultStr, ProbeDescription.class);
         Assert.assertThat(resp.getError(), CoreMatchers.containsString(Long.toString(probeId)));
         Assert.assertThat(resp.getError(), CoreMatchers.containsString("not found"));
+    }
+
+    /**
+     * Test determining of feature provided by probe.
+     */
+    @Test
+    public void testSupportedProbeFeatures() {
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder()
+                .setProbeType("type")
+                .setProbeCategory("cat")
+                .setUiProbeCategory("uiCat")
+                .addAccountDefinition(optionalEntry)
+                .addTargetIdentifierField("name")
+                .setActionApproval(ActionApprovalFeature.getDefaultInstance())
+                .setActionAudit(ActionAuditFeature.getDefaultInstance())
+                .build();
+        final ProbeDescription probeDescription = ProbeController.create(1L, probeInfo);
+        Assert.assertEquals(
+                Sets.newHashSet(ProbeFeature.ACTION_AUDIT, ProbeFeature.ACTION_APPROVAL),
+                probeDescription.getSupportedFeatures());
     }
 
     /**

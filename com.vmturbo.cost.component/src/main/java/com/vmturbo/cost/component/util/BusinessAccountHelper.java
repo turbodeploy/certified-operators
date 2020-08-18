@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.util;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -14,6 +15,9 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore;
+import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore.AccountRIMappingItem;
 
 /**
  * A helper class for business account. It's currently only used
@@ -84,5 +88,26 @@ public class BusinessAccountHelper {
     @Nonnull
     public Set<ImmutablePair<Long, String>> getAllBusinessAccounts() {
         return businessAccountToTargetIdMap.keySet();
+    }
+
+    /**
+
+     * Returns the sum of usage from all undiscovered accounts.
+     *
+     * @param baOids the list of undiscovered ba oids for which we want the usage.
+     * @param accountRIMappingStore An instance of {@link AccountRIMappingStore}
+     * @return Map of RI id and corresponding usage from undiscovered accounts.
+     */
+    public static Map<Long, Double> getUndiscoveredAccountUsageForRI(
+            final List<Long> baOids, AccountRIMappingStore accountRIMappingStore) {
+        final Map<Long, List<AccountRIMappingItem>> usedCouponInUndiscAccounts =
+                accountRIMappingStore.getAccountRICoverageMappings(baOids);
+        Map<Long, Double> undiscoveredAccountRIUsage =
+                usedCouponInUndiscAccounts.values().stream()
+                        .flatMap(List::stream)
+                        .collect(Collectors.toMap(AccountRIMappingItem::getReservedInstanceId,
+                                AccountRIMappingItem::getUsedCoupons,
+                                (oldValue, newValue) -> oldValue + newValue));
+        return undiscoveredAccountRIUsage;
     }
 }

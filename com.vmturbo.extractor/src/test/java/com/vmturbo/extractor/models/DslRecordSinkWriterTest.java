@@ -49,13 +49,13 @@ public class DslRecordSinkWriterTest {
 
     private static final WriterConfig config = ImmutableWriterConfig.builder()
             .addAllReportingCommodityWhitelist(
-                    ModelDefinitions.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST.stream()
+                    Constants.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST.stream()
                             .map(CommodityType::getNumber)
                             .collect(Collectors.toList()))
             .insertTimeoutSeconds(60)
             .lastSeenAdditionalFuzzMinutes(10)
             .lastSeenUpdateIntervalMinutes(10)
-            .unaggregatedCommodities(ModelDefinitions.UNAGGREGATED_KEYED_COMMODITY_TYPES)
+            .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
             .build();
 
     private DslRecordSink metricSink;

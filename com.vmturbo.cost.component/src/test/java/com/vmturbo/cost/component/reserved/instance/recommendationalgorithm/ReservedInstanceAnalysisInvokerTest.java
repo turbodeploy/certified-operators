@@ -9,7 +9,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -30,8 +29,6 @@ import com.google.common.collect.Sets;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
-import reactor.core.publisher.Flux;
-
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey.Builder;
@@ -45,8 +42,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.SQLPriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore.ReservedInstanceBoughtChangeType;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker.BizAccPriceRecord;
 
 /**
  * Class to unit test ReservedInstanceAnalysisInvoker.
@@ -88,6 +83,8 @@ public class ReservedInstanceAnalysisInvokerTest {
         JsonFormat.parser().merge(probeKeyMaterialString, priceTableKeyBuilder);
         PriceTableKey prKey = priceTableKeyBuilder.build();
         prTabOidToTabKey.put(10001L, prKey);
+        prTabOidToTabKey.put(20002L, prKey);
+        prTabOidToTabKey.put(30003L, prKey);
         Mockito.when(prTabStore.getPriceTableKeys(any())).thenReturn(prTabOidToTabKey);
 
         Map<PriceTableKey, Long> prTabkeyToChkSum = Maps.newHashMap();
@@ -97,8 +94,8 @@ public class ReservedInstanceAnalysisInvokerTest {
         ReservedInstanceAnalysisInvoker invoker = getReservedInstanceAnalysisInvoker();
 
         logger.info("Add BAs with Cost {}", allBusinessAccounts);
-        boolean result = invoker.addNewBAsWithCost(allBusinessAccounts);
-        assertEquals(true, result);
+        int result = invoker.addNewBAsWithCost(allBusinessAccounts);
+        assertEquals(3, result);
 
         // A new business account is added but has no cost.
         allBusinessAccounts.add(ImmutablePair.of(4L, "Acc D"));
@@ -108,9 +105,36 @@ public class ReservedInstanceAnalysisInvokerTest {
         Mockito.when(store.fetchPriceTableKeyOidsByBusinessAccount(newBa))
                 .thenReturn(new HashMap<>());
 
-        logger.info("Add new BA *w/o* Cost {}", allBusinessAccounts);
+        logger.info("Add new BA __w/o__ Cost {}", allBusinessAccounts);
         result = invoker.addNewBAsWithCost(allBusinessAccounts);
-        assertEquals(false, result);
+        assertEquals(0, result);
+
+        // Now costs are also available for the new business account.
+        allBusinessAccountsWithCost.put(4L, 40004L);
+
+        final Map<Long, Long> newBaWithCost = new HashMap<>();
+        newBaWithCost.put(4L, 40004L);
+        Mockito.when(store.fetchPriceTableKeyOidsByBusinessAccount(newBa))
+                .thenReturn(newBaWithCost);
+        prTabOidToTabKey.put(40004L, prKey);
+        Mockito.when(prTabStore.getPriceTableKeys(any())).thenReturn(prTabOidToTabKey);
+
+        logger.info("------Add new BA __with__ Cost------\nallBusinessAccounts: {}",
+                allBusinessAccounts);
+        result = invoker.addNewBAsWithCost(allBusinessAccounts);
+        assertEquals(1, result);
+
+        // Now test removal of BA:
+        // Use case: target deleted or account doesn't exist in the target and is not discovered anymore.
+        logger.info("Delete stale BA *with* Cost from 'All Business Accounts' - {}", allBusinessAccounts);
+        assertTrue("Failed to remove BA with cost from 'allBusinessAccounts' collection.",
+                allBusinessAccounts.remove(ImmutablePair.of(2L, "Acc B")));
+        boolean res = invoker.rmObsoleteBAs(allBusinessAccounts);
+        assertEquals(true, res);
+
+        logger.info("Call 'Remove Obsolete BAs' again on same BAs - {}", allBusinessAccounts);
+        res = invoker.rmObsoleteBAs(allBusinessAccounts);
+        assertEquals(false, res);
     }
 
     @Test
@@ -121,7 +145,7 @@ public class ReservedInstanceAnalysisInvokerTest {
         ReservedInstanceAnalysisInvoker invoker = spy(getReservedInstanceAnalysisInvoker());
         StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = StartBuyRIAnalysisRequest.newBuilder().build();
         doReturn(startBuyRIAnalysisRequest).when(invoker).getStartBuyRIAnalysisRequest();
-        invoker.onRIInventoryUpdated(ReservedInstanceBoughtChangeType.UPDATED);
+        invoker.onRIInventoryUpdated();
         verify(invoker, never()).invokeBuyRIAnalysis(startBuyRIAnalysisRequest);
 
         // Scenario where the BA's are present in the repository. In this case the RI Buy Analysis
@@ -130,14 +154,12 @@ public class ReservedInstanceAnalysisInvokerTest {
                 .addAllAccounts(Lists.newArrayList(1L, 2L, 3L)).build();
         doReturn(startBuyRIAnalysisRequest).when(invoker).getStartBuyRIAnalysisRequest();
         Mockito.doNothing().when(invoker).invokeBuyRIAnalysis(startBuyRIAnalysisRequest);
-        invoker.onRIInventoryUpdated(ReservedInstanceBoughtChangeType.UPDATED);
+        invoker.onRIInventoryUpdated();
         verify(invoker).invokeBuyRIAnalysis(startBuyRIAnalysisRequest);
     }
 
     private ReservedInstanceAnalysisInvoker getReservedInstanceAnalysisInvoker() {
         final ReservedInstanceBoughtStore riBoughtStore = Mockito.mock(ReservedInstanceBoughtStore.class);
-        final Flux<ReservedInstanceBoughtChangeType> updateEventStream = Flux.empty();
-        Mockito.when(riBoughtStore.getUpdateEventStream()).thenReturn(updateEventStream);
 
         ReservedInstanceAnalysisInvoker invoker = new
                 ReservedInstanceAnalysisInvoker(Mockito.mock(ReservedInstanceAnalyzer.class),
@@ -146,7 +168,10 @@ public class ReservedInstanceAnalysisInvokerTest {
                 riBoughtStore,
                 store,
                 prTabStore,
-                1);
+                1,
+                true,
+                false,
+                false);
 
         return invoker;
     }

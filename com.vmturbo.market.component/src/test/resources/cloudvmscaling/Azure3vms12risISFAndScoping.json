@@ -134,7 +134,8 @@
           "template": 100001,
           "count": 1,
           "isf": false,
-          "shared": false
+          "shared": false,
+          "applicableBusinessAccounts" : [11]
         },
         {
           "oid": 1000005,
@@ -145,7 +146,8 @@
           "template": 100001,
           "count": 1,
           "isf": false,
-          "shared": false
+          "shared": false,
+          "applicableBusinessAccounts" : [12]
         },
         {
           "oid": 1000006,
@@ -156,7 +158,8 @@
           "template": 100001,
           "count": 1,
           "isf": false,
-          "shared": false
+          "shared": false,
+          "applicableBusinessAccounts" : [13]
         },
         {
           "oid": 1000007,
@@ -178,7 +181,8 @@
           "template": 100001,
           "count": 1,
           "isf": false,
-          "shared": false
+          "shared": false,
+          "applicableBusinessAccounts" : [12]
         },
         {
           "oid": 1000009,
@@ -189,7 +193,8 @@
           "template": 100001,
           "count": 1,
           "isf": false,
-          "shared": false
+          "shared": false,
+          "applicableBusinessAccounts" : [13]
         },
         {
           "oid": 1000010,
@@ -200,7 +205,8 @@
           "template": 100001,
           "count": 1,
           "isf": true,
-          "shared": false
+          "shared": false,
+          "applicableBusinessAccounts" : [11]
         },
         {
           "oid": 1000011,
@@ -211,7 +217,8 @@
           "template": 100001,
           "count": 1,
           "isf": true,
-          "shared": false
+          "shared": false,
+          "applicableBusinessAccounts" : [12]
         },
         {
           "oid": 1000012,
@@ -222,7 +229,8 @@
           "template": 100001,
           "count": 1,
           "isf": true,
-          "shared": false
+          "shared": false,
+          "applicableBusinessAccounts" : [13]
         }
       ],
       "Matching": [

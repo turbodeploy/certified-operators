@@ -32,7 +32,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -54,6 +53,7 @@ public class TimeSlotEditor extends
                                 List<Pair<Long, StatRecord>>,
                                 StatsHistoryServiceBlockingStub,
                                 Void> {
+
     private static final Set<CommodityType> ENABLED_TIMESLOT_COMMODITY_TYPES = Sets.immutableEnumSet(
                         CommodityDTO.CommodityType.POOL_CPU,
                         CommodityDTO.CommodityType.POOL_MEM,
@@ -160,9 +160,8 @@ public class TimeSlotEditor extends
             List<List<EntityCommodityReference>> partitions = Lists
                 .partition(period2comm.getValue(), getConfig().getLoadingChunkSize());
             for (List<EntityCommodityReference> chunk : partitions) {
-                final Pair<Long, Long> range = new Pair<>(now
-                    - period2comm.getKey() * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS,
-                    null);
+                final Pair<Long, Long> range = new Pair<>(
+                        now - TimeUnit.DAYS.toMillis(period2comm.getKey()), null);
                 loadingTasks.add(new HistoryLoadingCallable(context,
                     new TimeSlotLoadingTask(getStatsHistoryClient(), range), chunk));
             }
@@ -215,15 +214,15 @@ public class TimeSlotEditor extends
         long startMs = Long.MAX_VALUE;
         long endMs = Long.MIN_VALUE;
         final long nowMs = getConfig().getClock().millis();
-        final long maintenancePeriodMs = getConfig().getMaintenanceWindowHours()
-                        * TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+        final long maintenancePeriodMs = TimeUnit.HOURS.toMillis(
+                getConfig().getMaintenanceWindowHours());
         // anyMatch has been called explicitly for optimization purposes
         final Logger logger = getLogger();
         for (Entry<EntityCommodityFieldReference, TimeSlotCommodityData> refToData : getCache()
                         .entrySet()) {
             final EntityCommodityFieldReference ref = refToData.getKey();
-            final long observationWindowMs = getConfig().getObservationPeriod(context, ref)
-                            * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS;
+            final long observationWindowMs = TimeUnit.DAYS.toMillis(
+                    getConfig().getObservationPeriod(context, ref));
             final long startTimestampMs = refToData.getValue().getLastMaintenanceTimestamp();
             if (!(startTimestampMs < nowMs - observationWindowMs - maintenancePeriodMs)) {
                 continue;
@@ -274,7 +273,7 @@ public class TimeSlotEditor extends
     }
 
     @Override
-    public void restoreDiags(@Nonnull byte[] bytes) throws DiagnosticsException {
+    protected void restoreState(@Nonnull byte[] bytes) throws DiagnosticsException {
         // TODO Alexander Vasin
     }
 }

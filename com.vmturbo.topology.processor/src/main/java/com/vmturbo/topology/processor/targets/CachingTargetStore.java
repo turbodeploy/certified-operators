@@ -27,6 +27,7 @@ import com.google.common.collect.Table;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineException;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
@@ -41,7 +42,6 @@ import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 
 /**
  * The {@link CachingTargetStore} caches targets in-memory for easy access, and contains logic
@@ -538,7 +538,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
             // not throw back to the client.
             Thread.currentThread().interrupt(); // set interrupt flag
             logger.error("Interruption during broadcast of latest topology.");
-        } catch (TopologyPipelineException e) {
+        } catch (PipelineException e) {
             logger.error("Could not send topology broadcast after removing target " + targetId, e);
         }
         return oldTarget;
@@ -632,6 +632,18 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
             }
         }
         return derivedTargetIds;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public Set<Long> getParentTargetIds(long derivedTargetId) {
+        synchronized (storeLock) {
+            return new HashSet<>(parentTargetIdsByDerivedTargetId.getOrDefault(derivedTargetId,
+                    Collections.emptySet()));
+        }
     }
 
     @Override

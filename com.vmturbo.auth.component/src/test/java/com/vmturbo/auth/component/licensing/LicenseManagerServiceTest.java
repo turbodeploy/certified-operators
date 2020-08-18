@@ -282,18 +282,16 @@ public class LicenseManagerServiceTest {
     }
 
     /**
-     * Multiple licenses that have conflicting feature sets should be rejected.
+     * Multiple incoming licenses that have conflicting feature sets should be rejected, even if
+     * there is no licnese installed yet.
      *
      * @throws IOException if there's a problem reading persisted licenses
      */
     @Test
     public void testValidateMultipleLicensesMixedFeatures() throws IOException {
         String email = "somebody@mail.com";
-        List<String> features = Arrays.asList("Feature");
         // put one license in the license store
         Instant tomorrow = Instant.now().plus(1, ChronoUnit.DAYS);
-        ILicense originalLicense = LicenseTestUtils.createLicense(Date.from(tomorrow), email, features, 1);
-        licenseKVStore.storeLicense(LicenseDTOUtils.iLicenseToLicenseDTO(originalLicense));
 
         // now try adding two more licenses that have differing feature sets
         ILicense license1 = LicenseTestUtils.createLicense(Date.from(tomorrow.plus(2, ChronoUnit.DAYS)), email,
@@ -302,6 +300,32 @@ public class LicenseManagerServiceTest {
                 Arrays.asList("Feature", "NewOldFeature"), 1);
 
         Collection<ILicense> validatedLicenses = licenseManagerService.validateMultipleLicenses(ImmutableList.of(license1, license2));
+        // both licenses should be invalid and marked with invalid feature sets.
+        Predicate<ILicense> licenseMatcher = license -> (!license.isValid())
+                && license.getErrorReasons().contains(ErrorReason.INVALID_FEATURE_SET);
+        assertTrue(validatedLicenses.stream().allMatch(licenseMatcher));
+    }
+
+    /**
+     * Multiple licenses that have conflicting feature sets should be rejected -- even if one license
+     * contains a superset of the other's features.
+     *
+     * @throws IOException if there's a problem reading persisted licenses
+     */
+    @Test
+    public void testValidateMultipleLicensesOverlappingFeatures() throws IOException {
+        String email = "somebody@mail.com";
+        List<String> features = Arrays.asList("Feature");
+        // put one license in the license store
+        Instant tomorrow = Instant.now().plus(1, ChronoUnit.DAYS);
+        ILicense originalLicense = LicenseTestUtils.createLicense(Date.from(tomorrow), email, features, 1);
+        licenseKVStore.storeLicense(LicenseDTOUtils.iLicenseToLicenseDTO(originalLicense));
+
+        // now try adding a new license that has a superset of the current license
+        ILicense license1 = LicenseTestUtils.createLicense(Date.from(tomorrow.plus(1, ChronoUnit.DAYS)), email,
+                Arrays.asList("Feature", "NewOldFeature"), 1);
+
+        Collection<ILicense> validatedLicenses = licenseManagerService.validateMultipleLicenses(ImmutableList.of(license1));
         // both licenses should be invalid and marked with invalid feature sets.
         Predicate<ILicense> licenseMatcher = license -> (!license.isValid())
                 && license.getErrorReasons().contains(ErrorReason.INVALID_FEATURE_SET);

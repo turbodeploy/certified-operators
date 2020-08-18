@@ -8,7 +8,7 @@ global:
 #  imageUsername: turbouser
 #  imagePassword: turbopassword
   repository: turbonomic
-  tag: 7.22.0
+  tag: 7.22.6
 #  pullPolicy: IfNotPresent
   customImageNames: true
   nodeSelector: {}
@@ -54,6 +54,8 @@ global:
 
 nginxingress:
   enabled: true
+openshiftingress:
+  enabled: false
 istioingress:
   enabled: false
   mtls: true
@@ -115,15 +117,6 @@ grafana:
       user: grafana_backend
 chronograf:
   enabled: false
-jaeger-operator:
-  enabled: false
-  jaeger:
-    create: true
-    spec:
-      storage:
-        options:
-          memory:
-            max-traces: 100000
 datacloud:
   enabled: false
 intersight-integration:
@@ -137,6 +130,10 @@ telemetry:
 actionscript:
   enabled: false
 aix:
+  enabled: false
+acims:
+  enabled: false
+apic:
   enabled: false
 appdynamics:
   enabled: false
@@ -179,6 +176,8 @@ istio:
 mssql:
   enabled: false
 mysql:
+  enabled: false
+tomcat:
   enabled: false
 netapp:
   enabled: false

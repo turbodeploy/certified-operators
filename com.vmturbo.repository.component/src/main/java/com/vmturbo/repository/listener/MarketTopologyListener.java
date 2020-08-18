@@ -9,6 +9,8 @@ import javax.annotation.concurrent.GuardedBy;
 
 import com.arangodb.ArangoDBException;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -23,6 +25,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.RemoteIteratorDrain;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.market.component.api.AnalysisSummaryListener;
 import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
@@ -62,10 +66,11 @@ public class MarketTopologyListener implements
     @Override
     public void onProjectedTopologyReceived(final long projectedTopologyId,
                 @Nonnull final TopologyInfo originalTopologyInfo,
-                @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo) {
+                @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo,
+                @Nonnull final SpanContext tracingContext) {
         try {
             onProjectedTopologyReceivedInternal(projectedTopologyId, originalTopologyInfo,
-                    projectedTopo);
+                    projectedTopo, tracingContext);
         } catch (CommunicationException | InterruptedException e) {
             logger.error(
                     "Failed to send notification about received topology " + projectedTopologyId, e);
@@ -112,7 +117,8 @@ public class MarketTopologyListener implements
 
     private void onProjectedTopologyReceivedInternal(long projectedTopologyId,
             TopologyInfo originalTopologyInfo,
-            @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo)
+            @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo,
+            @Nonnull final SpanContext tracingContext)
             throws CommunicationException, InterruptedException {
         if (originalTopologyInfo.getTopologyType() == TopologyType.REALTIME) {
             updateLatestKnownProjectedTopologyId(projectedTopologyId);
@@ -150,7 +156,7 @@ public class MarketTopologyListener implements
         }
 
         TopologyCreator<ProjectedTopologyEntity> topologyCreator = null;
-        try {
+        try (TracingScope tracingScope = Tracing.trace("repository_handle_projected_topology", tracingContext)) {
             topologyCreator = topologyManager.newProjectedTopologyCreator(tid, originalTopologyInfo);
             topologyCreator.initialize();
             logger.info("Start updating topology {}", tid);

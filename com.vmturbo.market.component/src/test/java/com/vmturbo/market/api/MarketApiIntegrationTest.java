@@ -10,6 +10,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -22,9 +25,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -123,7 +123,7 @@ public class MarketApiIntegrationTest {
         notificationSender.notifyActionsRecommended(actionPlan);
 
         Mockito.verify(listener, Mockito.timeout(TIMEOUT_MS).times(1))
-                        .onActionsReceived(actionCaptor.capture());
+                        .onActionsReceived(actionCaptor.capture(), Mockito.any());
 
         final ActionPlan receivedActions = actionCaptor.getValue();
         assertThat(receivedActions, is(actionPlan));

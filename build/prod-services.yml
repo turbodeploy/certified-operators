@@ -710,6 +710,17 @@ services:
       instance_id: mediation-mysql-1
     restart: always
 
+  mediation-tomcat-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.tomcat.component
+    environment:
+      consul_host: consul
+      component_type: mediation-tomcat
+      instance_id: mediation-tomcat-1
+    restart: always
+
   mediation-actionscript-prod:
     extends:
       file: common-services.yml
@@ -719,6 +730,28 @@ services:
       consul_host: consul
       component_type: mediation-actionscript
       instance_id: mediation-actionscript-1
+    restart: always
+
+  mediation-acims-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.acims.component
+    environment:
+      consul_host: consul
+      component_type: mediation-acims
+      instance_id: mediation-acims-1
+    restart: always
+
+  mediation-apic-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.apic.component
+    environment:
+      consul_host: consul
+      component_type: mediation-apic
+      instance_id: mediation-apic-1
     restart: always
 
   mediation-wmi-prod:

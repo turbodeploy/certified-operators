@@ -10,10 +10,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
-import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationStore;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint.Builder;
+import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -50,20 +50,27 @@ public class CloudCommitmentDemandWriterImpl implements CloudCommitmentDemandWri
 
     @Override
     public void writeAllocationDemand(final CloudTopology<TopologyEntityDTO> cloudTopology, final TopologyInfo topologyInfo) {
-        if (recordCloudAllocationData) {
-            final List<TopologyEntityDTO> listOfWorkloadsToBeUpdated = filterWorkloads(cloudTopology);
-            final List<ComputeTierAllocationDatapoint> allocationDataPointsPersisted = new ArrayList<>();
-            for (TopologyEntityDTO entity : listOfWorkloadsToBeUpdated) {
-                Optional<ComputeTierAllocationDatapoint> computeTierAllocationDatapoint =
-                        buildComputeTierAllocationDatapoint(entity, cloudTopology);
-                if (computeTierAllocationDatapoint.isPresent()) {
-                    allocationDataPointsPersisted.add(computeTierAllocationDatapoint.get());
-                } else {
-                    logger.error("No allocation datapoint could be constructed for entity with"
-                            + " name {} and oid {}", entity.getDisplayName(), entity.getOid());
+        try {
+            if (recordCloudAllocationData) {
+
+                logger.info("Recording CCA allocation demand (Topology ID={})", topologyInfo.getTopologyId());
+
+                final List<TopologyEntityDTO> listOfWorkloadsToBeUpdated = filterWorkloads(cloudTopology);
+                final List<ComputeTierAllocationDatapoint> allocationDataPointsPersisted = new ArrayList<>();
+                for (TopologyEntityDTO entity : listOfWorkloadsToBeUpdated) {
+                    Optional<ComputeTierAllocationDatapoint> computeTierAllocationDatapoint =
+                            buildComputeTierAllocationDatapoint(entity, cloudTopology);
+                    if (computeTierAllocationDatapoint.isPresent()) {
+                        allocationDataPointsPersisted.add(computeTierAllocationDatapoint.get());
+                    } else {
+                        logger.error("No allocation datapoint could be constructed for entity with"
+                                + " name {} and oid {}", entity.getDisplayName(), entity.getOid());
+                    }
                 }
+                computeTierAllocationStore.persistAllocations(topologyInfo, allocationDataPointsPersisted);
             }
-            computeTierAllocationStore.persistAllocations(topologyInfo, allocationDataPointsPersisted);
+        } catch (Exception e) {
+            logger.error("Error recording cloud commitment allocation demand", e);
         }
     }
 
@@ -100,53 +107,54 @@ public class CloudCommitmentDemandWriterImpl implements CloudCommitmentDemandWri
      */
     public Optional<ComputeTierAllocationDatapoint> buildComputeTierAllocationDatapoint(TopologyEntityDTO entityDTO,
                                                                               CloudTopology cloudTopology) {
-        final Builder datapointBuilder = ImmutableComputeTierAllocationDatapoint.builder();
-        long entityOid = entityDTO.getOid();
-        datapointBuilder.entityOid(entityOid);
-
-        // Set the service provider oid
-        Optional<TopologyEntityDTO> serviceProvider = cloudTopology.getServiceProvider(entityOid);
-        serviceProvider.map(sp -> datapointBuilder.serviceProviderOid(sp.getOid()));
-
-        // Set the region oid
-        Optional<TopologyEntityDTO> region = cloudTopology.getConnectedRegion(entityOid);
-        region.map(reg -> datapointBuilder.regionOid(reg.getOid()));
-
-        // Set the availability zone oid
-        Optional<TopologyEntityDTO> availabilityZone = cloudTopology.getConnectedAvailabilityZone(entityOid);
-        availabilityZone.map(aZ -> datapointBuilder.availabilityZoneOid(aZ.getOid()));
-
-        // Set the account oid
-        Optional<TopologyEntityDTO> businessAccount = cloudTopology.getOwner(entityOid);
-        businessAccount.map(ba -> datapointBuilder.accountOid(ba.getOid()));
-
-        ImmutableComputeTierAllocation.Builder computeTierAllocationDemandBuilder = ImmutableComputeTierAllocation.builder();
-
-        // Set the cloud tier on the compute tier allocation demand builder
-        Optional<TopologyEntityDTO> cloudTier = cloudTopology.getComputeTier(entityDTO.getOid());
-        cloudTier.map(ct -> computeTierAllocationDemandBuilder.cloudTierOid(ct.getOid()));
-
-        if (entityDTO.hasTypeSpecificInfo() && entityDTO.getTypeSpecificInfo().hasVirtualMachine()) {
-            VirtualMachineInfo vmInfo = entityDTO.getTypeSpecificInfo().getVirtualMachine();
-
-            // Set the tenancy
-            if (vmInfo.hasTenancy()) {
-                computeTierAllocationDemandBuilder.tenancy(vmInfo.getTenancy());
-            }
-
-            // Set the OS Type
-            if (vmInfo.hasGuestOsInfo() && vmInfo.getGuestOsInfo().hasGuestOsType()) {
-                computeTierAllocationDemandBuilder.osType(vmInfo.getGuestOsInfo().getGuestOsType());
-            }
-        }
-        datapointBuilder.cloudTierDemand(computeTierAllocationDemandBuilder.build());
         try {
+            final Builder datapointBuilder = ImmutableComputeTierAllocationDatapoint.builder();
+            long entityOid = entityDTO.getOid();
+            datapointBuilder.entityOid(entityOid);
+
+            // Set the service provider oid
+            Optional<TopologyEntityDTO> serviceProvider = cloudTopology.getServiceProvider(entityOid);
+            serviceProvider.map(sp -> datapointBuilder.serviceProviderOid(sp.getOid()));
+
+            // Set the region oid
+            Optional<TopologyEntityDTO> region = cloudTopology.getConnectedRegion(entityOid);
+            region.map(reg -> datapointBuilder.regionOid(reg.getOid()));
+
+            // Set the availability zone oid
+            Optional<TopologyEntityDTO> availabilityZone = cloudTopology.getConnectedAvailabilityZone(entityOid);
+            availabilityZone.map(aZ -> datapointBuilder.availabilityZoneOid(aZ.getOid()));
+
+            // Set the account oid
+            Optional<TopologyEntityDTO> businessAccount = cloudTopology.getOwner(entityOid);
+            businessAccount.map(ba -> datapointBuilder.accountOid(ba.getOid()));
+
+            ImmutableComputeTierDemand.Builder computeTierAllocationDemandBuilder = ImmutableComputeTierDemand.builder();
+
+            // Set the cloud tier on the compute tier allocation demand builder
+            Optional<TopologyEntityDTO> cloudTier = cloudTopology.getComputeTier(entityDTO.getOid());
+            cloudTier.map(ct -> computeTierAllocationDemandBuilder.cloudTierOid(ct.getOid()));
+
+            if (entityDTO.hasTypeSpecificInfo() && entityDTO.getTypeSpecificInfo().hasVirtualMachine()) {
+                VirtualMachineInfo vmInfo = entityDTO.getTypeSpecificInfo().getVirtualMachine();
+
+                // Set the tenancy
+                if (vmInfo.hasTenancy()) {
+                    computeTierAllocationDemandBuilder.tenancy(vmInfo.getTenancy());
+                }
+
+                // Set the OS Type
+                if (vmInfo.hasGuestOsInfo() && vmInfo.getGuestOsInfo().hasGuestOsType()) {
+                    computeTierAllocationDemandBuilder.osType(vmInfo.getGuestOsInfo().getGuestOsType());
+                }
+            }
+            datapointBuilder.cloudTierDemand(computeTierAllocationDemandBuilder.build());
+
             logger.debug("The builder for entity {} with oid {} is {}", entityDTO.getDisplayName(),
                     entityDTO.getOid(), datapointBuilder);
             return Optional.of(datapointBuilder.build());
-        } catch (IllegalStateException e) {
-            logger.debug("Exception encountered while building the compute tier allocation data point {}"
-                    + "because one of the attributes wasn't set.", datapointBuilder, e);
+        } catch (Exception e) {
+            logger.debug("Exception encountered while building the compute tier allocation data point for entity {}",
+                    entityDTO.getOid());
             return Optional.empty();
         }
     }

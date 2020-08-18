@@ -96,7 +96,7 @@ public class EntityCountQueryTest {
                 case "entityType":
                     com.vmturbo.api.enums.EntityType entityType =
                         com.vmturbo.api.enums.EntityType.fromString(enumFieldValue.getValue());
-                    assertEquals(com.vmturbo.api.enums.EntityType.VIRTUAL_MACHINE, entityType);
+                    assertEquals(com.vmturbo.api.enums.EntityType.VirtualMachine, entityType);
                     break;
                 case "environmentType":
                     com.vmturbo.api.enums.EnvironmentType environmentType =

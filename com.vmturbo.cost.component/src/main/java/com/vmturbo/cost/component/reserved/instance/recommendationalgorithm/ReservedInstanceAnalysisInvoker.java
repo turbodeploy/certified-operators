@@ -9,6 +9,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -17,6 +22,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -49,7 +55,6 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore.ReservedInstanceBoughtChangeType;
 import com.vmturbo.group.api.SettingMessages.SettingNotification;
 import com.vmturbo.group.api.SettingsListener;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -86,6 +91,15 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
 
     private static List<String> riSettingNames = new ArrayList<>();
 
+    private boolean enableRIBuyAfterPricingChange;
+
+    private boolean disableRealtimeRIBuyAnalysis;
+
+    private boolean runRIBuyOnNewRequest;
+
+    private final ExecutorService executorService;
+
+    private final AtomicReference<Future<Void>> currentRunningRIBuy = new AtomicReference<>();
     /**
      * List of Business Accounts with associated pricing information.
      */
@@ -109,7 +123,10 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                                            @Nonnull ReservedInstanceBoughtStore riBoughtStore,
                                            @Nonnull BusinessAccountPriceTableKeyStore prTabKeyStore,
                                            @Nonnull PriceTableStore prTabStore,
-                                           long realtimeTopologyContextId) {
+                                           long realtimeTopologyContextId,
+                                           boolean enableRIBuyAfterPricingChange,
+                                           boolean disableRealtimeRIBuyAnalysis,
+                                           boolean runRIBuyOnNewRequest) {
         this.reservedInstanceAnalyzer = reservedInstanceAnalyzer;
         this.repositoryClient = repositoryClient;
         this.settingsServiceClient = settingsServiceClient;
@@ -117,9 +134,13 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         this.riBoughtStore = riBoughtStore;
         this.prTabKeyStore = prTabKeyStore;
         this.prTabStore = prTabStore;
-        this.riBoughtStore.getUpdateEventStream()
-                .filter(event -> event == ReservedInstanceBoughtChangeType.UPDATED)
-                .subscribe(this::onRIInventoryUpdated);
+        this.riBoughtStore.onInventoryChange(this::onRIInventoryUpdated);
+        this.enableRIBuyAfterPricingChange = enableRIBuyAfterPricingChange;
+        this.disableRealtimeRIBuyAnalysis = disableRealtimeRIBuyAnalysis;
+        this.runRIBuyOnNewRequest = runRIBuyOnNewRequest;
+        ThreadFactory namedThreadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("Realtime RI Buy Analysis").build();
+        this.executorService = Executors.newSingleThreadExecutor(namedThreadFactory);
     }
 
     /**
@@ -136,7 +157,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         // We don't want to run Buy RI twice (once for reason A, another for reason B).
         boolean hasRIBuyRun = false;
         hasRIBuyRun = invokeRIBuyIfBusinessAccountsUpdated(allBusinessAccounts);
-        if (!hasRIBuyRun) {
+        if (!hasRIBuyRun && enableRIBuyAfterPricingChange) {
             hasRIBuyRun = invokeRIBuyIfPriceTablesChanged(allBusinessAccounts);
         }
         if (!hasRIBuyRun && isRunBuyRIOnNextBroadcast()) {
@@ -157,33 +178,72 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      *
      * @param buyRiRequest StartBuyRIAnalysisRequest.
      */
-    public synchronized void invokeBuyRIAnalysis(StartBuyRIAnalysisRequest buyRiRequest) {
-        if (cloudTopology.isPresent()) {
-            logger.info("Started BuyRIAnalysis with accounts: {}, regions: {}, platforms: {},"
-                    + " tenancies: {} and profile: {}",
-                    buyRiRequest.getAccountsList(),
-                    buyRiRequest.getRegionsList(),
-                    buyRiRequest.getPlatformsList(),
-                    buyRiRequest.getTenanciesList(),
-                    buyRiRequest.getPurchaseProfileByCloudtypeMap());
-            ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
-                    new ReservedInstanceAnalysisScope(buyRiRequest);
-            try {
-                reservedInstanceAnalyzer.runRIAnalysisAndSendActions(realtimeTopologyContextId,
-                        cloudTopology.get(), reservedInstanceAnalysisScope,
-                        ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
-            } catch (InterruptedException e) {
-                logger.error("Interrupted publishing of Buy RI actions", e);
-                Thread.currentThread().interrupt();
-            } catch (CommunicationException e) {
-                logger.error("Exception while publishing Buy RI actions", e);
-            }
+    public void invokeBuyRIAnalysis(StartBuyRIAnalysisRequest buyRiRequest) {
+        if (cloudTopology.isPresent() && !disableRealtimeRIBuyAnalysis) {
+            currentRunningRIBuy.updateAndGet((currentFuture) -> {
+                if (currentFuture == null || runRIBuyOnNewRequest) {
+                    if (currentFuture != null) {
+                        logger.info(
+                                "RI Buy is already running, but will be discarded. A new RI buy round"
+                                        + "of analysis will be run for topology id {}",
+                                buyRiRequest.getTopologyInfo().getTopologyId());
+                        currentFuture.cancel(true);
+                    }
+                    return runRIBuyAsync(buyRiRequest);
+                } else {
+                    logger.warn("RI buy already running. Wil not be run again for topology id {}",
+                            buyRiRequest.getTopologyInfo().getTopologyId());
+                    return currentFuture;
+                }
+            });
         } else {
-            logger.warn("No cloud topology defined in the Cost. Trigger Buy RI on next topology broadcast.");
-            // Set flag to run RI Buy on next topology broadcast.
-            setRunBuyRIOnNextBroadcast(true);
+            if (!disableRealtimeRIBuyAnalysis) {
+                logger.warn("No cloud topology defined in the Cost. Trigger Buy RI on next topology broadcast.");
+                // Set flag to run RI Buy on next topology broadcast.
+                setRunBuyRIOnNextBroadcast(true);
+            } else {
+                logger.warn("Realtime RI buy analysis is disabled. Skipping");
+                reservedInstanceAnalyzer.clearRealtimeRIBuyActions();
+            }
         }
     }
+
+    private synchronized void startRIBuyRun(StartBuyRIAnalysisRequest buyRiRequest) {
+        logger.info("Started BuyRIAnalysis with accounts: {}, regions: {}, platforms: {},"
+                        + " tenancies: {} and profile: {}",
+                buyRiRequest.getAccountsList(),
+                buyRiRequest.getRegionsList(),
+                buyRiRequest.getPlatformsList(),
+                buyRiRequest.getTenanciesList(),
+                buyRiRequest.getPurchaseProfileByCloudtypeMap());
+        ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
+                new ReservedInstanceAnalysisScope(buyRiRequest);
+        try {
+            reservedInstanceAnalyzer.runRIAnalysisAndSendActions(realtimeTopologyContextId,
+                    cloudTopology.get(), reservedInstanceAnalysisScope,
+                    ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
+        } catch (InterruptedException e) {
+            logger.error("Interrupted publishing of Buy RI actions", e);
+            Thread.currentThread().interrupt();
+        } catch (CommunicationException e) {
+            logger.error("Exception while publishing Buy RI actions", e);
+        }
+    }
+
+    /**
+     * Executes the RI buy in a separate thread.
+     *
+     * @param buyRiRequest The buyRIRequest.
+     *
+     * @return A future containing the running RI buy reference.
+     */
+    private synchronized Future<Void> runRIBuyAsync(StartBuyRIAnalysisRequest buyRiRequest) {
+        return executorService.submit(() -> {
+            startRIBuyRun(buyRiRequest);
+            return null;
+        });
+    }
+
 
     /**
      * Invokes the RI Buy Algorithm when RI Buy Settings are updated.
@@ -204,11 +264,9 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
 
     /**
      * Invokes RI Buy Analysis if the RI Inventory is updated.
-     *
-     * @param type ReservedInstanceBoughtChangeType
      */
     @VisibleForTesting
-    protected void onRIInventoryUpdated(final ReservedInstanceBoughtChangeType type) {
+    protected void onRIInventoryUpdated() {
         StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
         if (buyRiRequest.getAccountsList().isEmpty()) {
             logger.warn("onRIInventoryUpdated: No BAs found. Trigger RI Buy Analysis on"
@@ -230,9 +288,10 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     public boolean invokeRIBuyIfBusinessAccountsUpdated(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
         boolean runRiBuy = false;
         final StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
-        logger.info("Business accounts received in topology broadcast: {}", allBusinessAccounts);
-        if (addNewBAsWithCost(allBusinessAccounts)) {
-            logger.info("Invoke RI Buy Analysis as a new BA with Cost was found.");
+        logger.debug("Business accounts received in topology broadcast: {}", allBusinessAccounts);
+        final int newAccountsCount = addNewBAsWithCost(allBusinessAccounts);
+        if (newAccountsCount > 0) {
+            logger.info("{} new account(s) with Cost found - invoking RI Buy Analysis...", newAccountsCount);
             runRiBuy = true;
         }
         if (rmObsoleteBAs(allBusinessAccounts)) {
@@ -255,10 +314,10 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      */
     public boolean invokeRIBuyIfPriceTablesChanged(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
         StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
-        logger.info("Business accounts received in topology broadcast: {}", allBusinessAccounts);
+        logger.debug("Business accounts received in topology broadcast: {}", allBusinessAccounts);
         if (buyRiRequest.getAccountsList().isEmpty()) {
             logger.warn("invokeRIBuyIfPriceTablesChanged: No BAs found. Trigger RI Buy Analysis"
-                    + " next inventory/price table udpate or scheduled interval.");
+                    + " next inventory/price table update or scheduled interval.");
             return false;
         }
 
@@ -393,7 +452,6 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     protected boolean checkAndUpdatePricing(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
         boolean priceChanged = false;
 
-        Set<BizAccPriceRecord> newBusinessAccountsWithCost = new HashSet<>();
         // Get all BAs which have cost (includes old and new).
         final Map<Long, Long> allBAToPriceTableOid = prTabKeyStore
                 .fetchPriceTableKeyOidsByBusinessAccount(allBusinessAccounts.stream().map(p -> p.left)
@@ -402,8 +460,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         Set<BizAccPriceRecord> lastDiscoveredBAs = collectBAsCostRecords(allBusinessAccounts,
                 allBAToPriceTableOid);
 
-        logger.info("Business Accounts w/cost: {}", businessAccountsWithCost);
-        logger.info("Last Discovered BAs: {}", lastDiscoveredBAs);
+        logger.debug("Business Accounts w/cost: {}", businessAccountsWithCost);
+        logger.debug("Last Discovered BAs: {}", lastDiscoveredBAs);
 
         // Run through the list of BAs with price info as was known prior to the last discovery
         // and check if the price info changed for any.
@@ -473,9 +531,9 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      *
      * @param allBusinessAccounts All Business Accounts in topology.
      *
-     * @return whether any new BAs with cost were discovered since last topology broadcast.
+     * @return count of new BAs with cost that were discovered since last topology broadcast.
      */
-    protected boolean addNewBAsWithCost(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
+    protected int addNewBAsWithCost(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
         Set<BizAccPriceRecord> newBusinessAccountsWithCost = getNewBusinessAccountsWithCost(allBusinessAccounts);
         if (newBusinessAccountsWithCost.size() > 0) {
             businessAccountsWithCost.addAll(newBusinessAccountsWithCost);
@@ -484,7 +542,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
             logger.info("Size of the updated collection 'Business Accounts With Cost' = {}",
                     businessAccountsWithCost.size());
         }
-        return (newBusinessAccountsWithCost.size() > 0);
+        return newBusinessAccountsWithCost.size();
     }
 
     /**
@@ -537,6 +595,11 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                 businessAccountsWithCost.stream().map(baRec -> baRec.getBusinessAccountOid())
                         .collect(Collectors.toSet())).immutableCopy();
 
+        logger.debug("getNewBusinessAccountsWithCost:\n"
+                + "  - allBusinessAccounts {},\n"
+                + "  - businessAccountsWithCost {},\n"
+                + "  - newBusinessAccounts {}",
+                allBusinessAccounts, businessAccountsWithCost, newBusinessAccounts);
         if (CollectionUtils.isEmpty(newBusinessAccounts)) {
             return new HashSet<>();
         }
@@ -544,6 +607,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         // Get all BAs which have cost (includes old and new).
         final Map<Long, Long> newBAToPriceTableOid = prTabKeyStore
                 .fetchPriceTableKeyOidsByBusinessAccount(newBusinessAccounts);
+        logger.debug("getNewBusinessAccountsWithCost:\n  - newBAToPriceTableOid {}", newBAToPriceTableOid);
 
         return collectBAsCostRecords(allBusinessAccounts, newBAToPriceTableOid);
     }
@@ -578,6 +642,24 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      */
     public void setRunBuyRIOnNextBroadcast(boolean runBuyRIOnNextBroadcast) {
         this.runBuyRIOnNextBroadcast = runBuyRIOnNextBroadcast;
+    }
+
+    /**
+     * Gets BA price table key store.
+     *
+     * @return BA price table key store.
+     */
+    public BusinessAccountPriceTableKeyStore getPrTabKeyStore() {
+        return prTabKeyStore;
+    }
+
+    /**
+     * Gets BA price table store.
+     *
+     * @return BA price table store.
+     */
+    public PriceTableStore getPrTabStore() {
+        return prTabStore;
     }
 
     /**

@@ -20,6 +20,8 @@ import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 import org.skyscreamer.jsonassert.JSONAssert;
 
+import com.vmturbo.api.component.external.api.service.GroupsService;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.ManualEntityDefinition;
@@ -50,15 +52,16 @@ public class TopologyDataDefinitionMapperTest {
     private EntityFilterMapper filterMapper = new EntityFilterMapper(
             new GroupUseCaseParser("groupBuilderUsecases.json"),
             Mockito.mock(ThinTargetCache.class));
-    private TopologyDataDefinitionMapper mapper = new TopologyDataDefinitionMapper(filterMapper);
+    private GroupsService groupsService = Mockito.mock(GroupsService.class);
+    private TopologyDataDefinitionMapper mapper = new TopologyDataDefinitionMapper(filterMapper, groupsService);
 
     /**
      * Setting up.
      *
-     * @throws IOException if file processing fails
+     * @throws Exception - in case of failure of files processing or group service mocking.
      */
     @Before
-    public void setUp() throws IOException {
+    public void setUp() throws Exception {
         String manualJsonText = IOUtils.toString(
                 this.getClass().getResourceAsStream(MANUAL_API_DTO),
                 "UTF-8"
@@ -105,9 +108,13 @@ public class TopologyDataDefinitionMapperTest {
 
     /**
      * Test for converting API DTO into XL definition.
+     * @throws Exception in case of anu parsing errors.
      */
     @Test
-    public void convertTopologyDataDefinitionTest() throws JSONException, IOException {
+    public void convertTopologyDataDefinitionTest() throws Exception {
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setUuid("123434550");
+        Mockito.when(groupsService.getGroupByUuid("123434550", false)).thenReturn(groupApiDTO);
         TopologyDataDefinitionApiDTO manualDefinitionApiDTO = mapper.convertTopologyDataDefinition(manualProto);
         TopologyDataDefinitionApiDTO automatedDefinitionApiDTO = mapper.convertTopologyDataDefinition(automatedProto);
         ObjectMapper objectMapper = new ObjectMapper();

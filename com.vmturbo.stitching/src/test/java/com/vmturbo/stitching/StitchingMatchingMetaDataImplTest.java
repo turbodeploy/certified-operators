@@ -18,6 +18,7 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityFi
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityPropertyName;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.StitchingScopeType;
 
 public class StitchingMatchingMetaDataImplTest {
     private final static String STORAGE_ID = "StorageId";
@@ -65,6 +66,9 @@ public class StitchingMatchingMetaDataImplTest {
                         .addPatchedFields(displayName)
                         .addPatchedProperties(fooProperty)
                         .addPatchedProperties(barProperty)
+                        .setStitchingScope(MergedEntityMetadata.StitchingScope.newBuilder()
+                                .setScopeType(StitchingScopeType.PARENT)
+                                .build())
                         .build();
         return storageMergeEntityMetadata;
     }
@@ -99,6 +103,8 @@ public class StitchingMatchingMetaDataImplTest {
                 .filter(list -> !list.isEmpty())
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList()));
+        assertEquals(StitchingScopeType.PARENT,
+                matchingMetaData.getStitchingScope().get().getScopeType());
     }
 
 }

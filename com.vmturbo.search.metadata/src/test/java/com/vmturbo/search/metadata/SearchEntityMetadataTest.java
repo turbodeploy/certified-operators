@@ -137,7 +137,9 @@ public class SearchEntityMetadataTest {
         @Override
         public void verify(SearchMetadataMapping metadata) {
             commonVerify(metadata);
-            if (metadata == SearchMetadataMapping.PRIMITIVE_SEVERITY) {
+            if (metadata == SearchMetadataMapping.PRIMITIVE_SEVERITY
+            || metadata == SearchMetadataMapping.PRIMITIVE_IS_EPHEMERAL_VOLUME
+            || metadata == SearchMetadataMapping.PRIMITIVE_IS_ENCRYPTED_VOLUME) {
                 assertNull(metadata.getTopoFieldFunction());
             } else {
                 assertNotNull(metadata.getTopoFieldFunction());

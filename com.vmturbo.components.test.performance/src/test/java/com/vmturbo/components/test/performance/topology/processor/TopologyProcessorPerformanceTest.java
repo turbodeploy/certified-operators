@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import io.grpc.stub.StreamObserver;
+import io.opentracing.SpanContext;
 import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
 
@@ -329,7 +330,8 @@ public class TopologyProcessorPerformanceTest {
 
         @Override
         public void onTopologyNotification(TopologyInfo topologyInfo,
-                                           @Nonnull RemoteIterator<Topology.DataSegment> topologyDTOs) {
+                                           @Nonnull RemoteIterator<Topology.DataSegment> topologyDTOs,
+                                           @Nonnull SpanContext tracingContext) {
             int entityCount = 0;
             while (topologyDTOs.hasNext()) {
                 try {

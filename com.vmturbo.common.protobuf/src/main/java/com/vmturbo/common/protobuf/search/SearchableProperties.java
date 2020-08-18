@@ -150,5 +150,20 @@ public class SearchableProperties {
      */
     public static final String K8S_CLUSTER = "k8sCluster";
 
+    /**
+     * DB Server engine property.
+     */
+    public static final String DB_ENGINE = "dbEngine";
+
+    /**
+     * DB Server edition property.
+     */
+    public static final String DB_EDITION = "dbEdition";
+
+    /**
+     * DB Server version property.
+     */
+    public static final String DB_VERSION = "dbVersion";
+
     private SearchableProperties() {}
 }

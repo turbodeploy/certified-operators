@@ -5,8 +5,11 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.searchquery.EntityCountRequestApiDTO;
+import com.vmturbo.api.dto.searchquery.EntityMetadataRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.EntityQueryApiDTO;
+import com.vmturbo.api.dto.searchquery.FieldValueTypeApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupCountRequestApiDTO;
+import com.vmturbo.api.dto.searchquery.GroupMetadataRequestApiDTO;
 import com.vmturbo.api.dto.searchquery.GroupQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchAllQueryApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchCountRecordApiDTO;
@@ -26,8 +29,10 @@ import com.vmturbo.search.IApiQueryEngine;
  * <ul>
  *     <li>POST /entities/query</li>
  *     <li>POST /entities/count</li>
+ *     <li>POST /entities/query/fields</li>
  *     <li>POST /groups/query</li>
  *     <li>POST /groups/count</li>
+ *     <li>POST /groups/query/fields</li>
  *     <li>POST /search/query</li>
  * </ul>
  */
@@ -110,5 +115,34 @@ public class SearchQueryService implements ISearchQueryService {
     public List<SearchCountRecordApiDTO> countGroups(@Nonnull GroupCountRequestApiDTO input)
             throws Exception {
         return apiQueryEngine.countGroups(input);
+    }
+
+    /**
+     * Field metadata for entities.  Endpoint: POST /entities/query/fields
+     *
+     * @param input {@link EntityMetadataRequestApiDTO} object that specifies
+     *              the entity type for which the request is made
+     * @return list of fields associated with their values
+     * @throws Exception when some error happens
+     */
+    @Override
+    @Nonnull
+    public List<FieldValueTypeApiDTO> entityFields(@Nonnull EntityMetadataRequestApiDTO input)
+            throws Exception {
+        return apiQueryEngine.entityFields(input);
+    }
+
+    /**
+     * Field metadata for groups.  Endpoint: POST /groups/query/fields
+     *
+     * @param input {@link GroupMetadataRequestApiDTO} object that specifies
+     *        the entity type for which the request is made
+     * @return list of fields associated with their values
+     * @throws Exception when some error happens
+     */
+    @Override
+    @Nonnull
+    public List<FieldValueTypeApiDTO> groupFields(@Nonnull GroupMetadataRequestApiDTO input) throws Exception {
+        return apiQueryEngine.groupFields(input);
     }
 }

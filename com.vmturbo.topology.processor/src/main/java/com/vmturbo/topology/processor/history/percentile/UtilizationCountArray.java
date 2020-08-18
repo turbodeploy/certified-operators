@@ -2,10 +2,16 @@ package com.vmturbo.topology.processor.history.percentile;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
+import java.util.List;
 
 import javax.annotation.Nonnull;
+
+import it.unimi.dsi.fastutil.floats.FloatArrayList;
+import it.unimi.dsi.fastutil.floats.FloatList;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
+import it.unimi.dsi.fastutil.longs.LongList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,10 +39,10 @@ public class UtilizationCountArray {
     private static final float EPSILON = 0.005F;
 
     private final PercentileBuckets buckets;
-    private float capacity;
     private int[] counts;
     private long startTimestamp;
     private long endTimestamp;
+    private CapacityChangeHistory capacityList;
 
     /**
      * Construct the counts array.
@@ -46,6 +52,7 @@ public class UtilizationCountArray {
     public UtilizationCountArray(PercentileBuckets buckets) {
         this.buckets = buckets;
         this.counts = new int[buckets.size()];
+        this.capacityList = new CapacityChangeHistory();
     }
 
     /**
@@ -59,8 +66,8 @@ public class UtilizationCountArray {
         endTimestamp = other.endTimestamp;
         startTimestamp = other.startTimestamp;
         buckets = other.buckets;
-        capacity = other.capacity;
         counts = Arrays.copyOf(other.counts, other.counts.length);
+        capacityList = new CapacityChangeHistory(other.capacityList);
     }
 
     /**
@@ -116,54 +123,142 @@ public class UtilizationCountArray {
      * @param newCapacity capacity value, if capacity changes from the previous invocation,
      *                    the counts will be proportionally rescaled
      * @param key array identifier for logging
-     * @param add whether the count should be added or subtracted
      * @param timestamp of the point which is currently processing
-     * @throws HistoryCalculationException when capacity is non-positive
      */
-    public void addPoint(float usage, float newCapacity, String key, boolean add, long timestamp) throws HistoryCalculationException {
-        final boolean remove = !add;
-        if (capacity <= 0F && remove) {
-            logger.trace("No percentile counts defined to subtract yet for {}", key);
-            return;
-        }
+    public void addPoint(float usage, float newCapacity, String key, long timestamp) {
         if (newCapacity <= 0F) {
             logger.warn("Skipping non-positive capacity usage point for " + key + ": " + newCapacity);
             return;
         }
+
         if (usage < 0F) {
             logger.warn("Skipping negative percentile usage point {} for {}", usage, key);
             return;
         }
-        if (startTimestamp == 0 || remove && timestamp > startTimestamp) {
-            logger.trace("Updating start timestamp from {} to {} during {} operation for key {}",
-                        startTimestamp,
+
+        if (usage > newCapacity) {
+            logger.warn("Percentile usage point {} exceeds capacity {} for {}", usage, newCapacity, key);
+            usage = newCapacity;
+        }
+
+        if (startTimestamp == 0) {
+            logger.trace("Updating start timestamp from 0 to {} during add operation for key {}",
                         timestamp,
-                        add ? "add" : "remove",
                         key);
             startTimestamp = timestamp;
         }
-        if (usage > newCapacity) {
-            logger.warn("Percentile usage point {} exceeds capacity {} for {}", usage, capacity, key);
-            usage = newCapacity;
+        endTimestamp = timestamp;
+
+        // rescale the existing datapoints in necessary
+        rescaleCountsIfNecessary(newCapacity, key);
+
+        // If the capacity has changed, record it
+        capacityList.add(timestamp, newCapacity);
+
+        // increment the associated bucket
+        Integer index = buckets.index((int)Math.ceil(Math.abs(usage) * 100 / newCapacity));
+        if (index != null && index < counts.length) {
+            ++counts[index];
         }
-        int percent = (int)Math.ceil(Math.abs(usage) * 100 / newCapacity);
-        if (add) {
-            rescaleCountsIfNecessary(newCapacity, key);
-            capacity = newCapacity;
-            endTimestamp = timestamp;
-        } else if (capacity != 0F && Math.abs(capacity - newCapacity) > EPSILON) {
-            // reverse-rescale the value being subtracted
-            percent = Math.min(100, (int)Math.ceil(buckets.average(percent) * newCapacity / capacity));
+    }
+
+    /**
+     * Decrement a datapoint from a bucket in the count array.
+     *
+     * @param dailyRecordIndex the index of the bucket that
+     * @param numberToDecrement the number of times to decrement.
+     * @param dailyRecordCapacity the capacity at the time this datapoint captured.
+     * @param timestamp the timestamp for the datapoint.
+     * @param key array identifier for logging.
+     */
+    public void removePoint(int dailyRecordIndex, int numberToDecrement, float dailyRecordCapacity,
+                            long timestamp, String key) {
+        if (capacityList.isEmpty()) {
+            logger.trace("No percentile counts defined to subtract yet for {}", key);
+            return;
         }
 
-        Integer index = buckets.index(percent);
-        if (index != null && index < counts.length) {
-            if (add) {
-                ++counts[index];
-            } else {
-                counts[index] = Math.max(0, counts[index] - 1);
-            }
+        if (dailyRecordCapacity <= 0F) {
+            logger.warn("Skipping non-positive capacity usage point for " + key + ": " + dailyRecordCapacity);
+            return;
         }
+
+        if (dailyRecordIndex < 0) {
+            logger.error("Trying to remove a point negative index from percentile record of {} ",
+                key);
+            return;
+        }
+
+        // update the timestamp
+        if (startTimestamp == 0 || timestamp > startTimestamp) {
+            logger.trace("Updating start timestamp from {} to {} during remove operation for key {}",
+                startTimestamp,
+                timestamp,
+                key);
+            startTimestamp = timestamp;
+        }
+
+        // remove the capacity changes that are no longer relevant
+        capacityList.removeOlderCapacities(timestamp);
+
+        // find what is the bucket index that should be decremented
+        final int bucketToDecrement = getBucketToDecrement(dailyRecordIndex, dailyRecordCapacity);
+
+        if (counts[bucketToDecrement] >= numberToDecrement) {
+            counts[bucketToDecrement] -= numberToDecrement;
+        } else {
+            // something is wrong. log an error
+            // TODO (mahdi) it may be good idea to to flag this record as invalid and therefore
+            //  should be re-calculated.
+            logger.error("The is no datapoint to decrement for {} at index {}. This indicates "
+                + "corrupted percentile record.", key, bucketToDecrement);
+            counts[bucketToDecrement] = 0;
+        }
+    }
+
+    /**
+     * Finds the index to decrement from the full record.
+     * NOTE: It is expected that the capacities with older timestamp that record capacity has
+     * been trimmed from capacity list.
+     *
+     * @param dailyRecordIndex the index in daily record.
+     * @param dailyRecordCapacity the capacity in the daily record.
+     * @return the index to decrement from the full record.
+     */
+    private int getBucketToDecrement(int dailyRecordIndex, float dailyRecordCapacity) {
+        final int bucketToDecrement;
+        if (!capacityList.isEmpty()) {
+            // replay the changes to come up with final index
+            int currentBucketIndex = dailyRecordIndex;
+            float currentCapacity = dailyRecordCapacity;
+            for (float newCapacity : capacityList.capacities) {
+                if (Math.abs(currentCapacity - newCapacity) > EPSILON) {
+                    currentBucketIndex = getBucketIndexAfterScaling(currentBucketIndex,
+                        currentCapacity, newCapacity);
+                    currentCapacity = newCapacity;
+                }
+            }
+            bucketToDecrement = currentBucketIndex;
+        } else {
+            bucketToDecrement = getBucketIndexAfterScaling(dailyRecordIndex,
+                dailyRecordCapacity, capacityList.getCapacity());
+        }
+        return bucketToDecrement;
+    }
+
+    /**
+     * Gets the index of the bucket that a datapoint has been moved to after a capacity change.
+     *
+     * @param currentBucketIndex current bucket index.
+     * @param currentCapacity current capacity.
+     * @param newCapacity the new capacity.
+     * @return the new index.
+     */
+    private int getBucketIndexAfterScaling(int currentBucketIndex, float currentCapacity,
+                                           float newCapacity) {
+        int currentUtilization = Math.min(100,
+            (int)Math.ceil(buckets.average(currentBucketIndex) * currentCapacity / newCapacity));
+        return buckets.index(currentUtilization);
     }
 
     /**
@@ -203,31 +298,32 @@ public class UtilizationCountArray {
                                                   + buckets.size());
         }
 
-        if (record.getCapacity() <= 0F) {
+        if (record.getCapacityChangesCount() > 0) {
+
+            // replaying the capacity changes
+            float currentCapacity = capacityList.getCapacity();
+
+            for (PercentileRecord.CapacityChange capacityChange : record.getCapacityChangesList()) {
+                if (Math.abs(currentCapacity - capacityChange.getNewCapacity()) > EPSILON) {
+                    rescaleCounts(counts.length, currentCapacity, capacityChange.getNewCapacity(), key);
+                    currentCapacity = capacityChange.getNewCapacity();
+                }
+            }
+            capacityList.add(record.getCapacityChangesList());
+        } else if (record.getCapacity() > 0F) {
+            rescaleCountsIfNecessary(record.getCapacity(), key);
+            capacityList.add(record.getEndTimestamp(), record.getCapacity());
+        } else {
             // we may sometimes have 0 capacity uninitialized records in the db
             // but they should also have no counts, consequently there's nothing to add up
             logger.trace("Skipping deserialization of a record {} with non-positive capacity {}, current {}",
-                            () -> key, record::getCapacity, () -> capacity);
+                () -> key, record::getCapacity, capacityList::getCapacity);
             return;
         }
 
-        final Iterator<Integer> recordUtilization;
-        rescaleCountsIfNecessary(record.getCapacity(), key);
-        capacity = record.getCapacity();
-
-        if (!shouldRescale(record.getCapacity(), capacity)) {
-            recordUtilization = record.getUtilizationList().iterator();
-        } else {
-            final int[] recordUtilizationArray =
-                rescaleCounts(record.getUtilizationList().iterator(),
-                    record.getUtilizationList().size(), record.getCapacity(), capacity,
-                    "DB record for " + key);
-            recordUtilization = Arrays.stream(recordUtilizationArray).iterator();
-        }
-
         int i = 0;
-        while (recordUtilization.hasNext()) {
-            counts[i++] += recordUtilization.next();
+        for (Integer recordUtilization : record.getUtilizationList()) {
+            counts[i++] += recordUtilization;
         }
 
         // Update existing startTimestamp and endTimestamp based on given serialized record
@@ -245,9 +341,11 @@ public class UtilizationCountArray {
         PercentileRecord.Builder builder = PercentileRecord.newBuilder()
                         .setEntityOid(fieldRef.getEntityOid())
                         .setCommodityType(fieldRef.getCommodityType().getType())
-                        .setCapacity(capacity)
+                        .setCapacity(capacityList.getCapacity())
                         .setEndTimestamp(endTimestamp)
-                        .setStartTimestamp(startTimestamp);
+                        .setStartTimestamp(startTimestamp)
+                        .addAllCapacityChanges(capacityList.serialize());
+
         if (fieldRef.getProviderOid() != null) {
             builder.setProviderOid(fieldRef.getProviderOid());
         }
@@ -266,12 +364,12 @@ public class UtilizationCountArray {
     public void clear() {
         if (logger.isTraceEnabled()) {
             logger.trace("Cleared array with capacity {}, startTimestamp {} and endTimestamp {}",
-                            capacity,
+                            capacityList.getCapacity(),
                             startTimestamp,
                             endTimestamp);
         }
         Arrays.fill(counts, 0);
-        capacity = 0F;
+        capacityList.clear();
         startTimestamp = 0;
         endTimestamp = 0;
     }
@@ -295,25 +393,23 @@ public class UtilizationCountArray {
     }
 
     private String getFieldDescriptions(boolean withoutCounts) {
-        final boolean notInitialized = capacity == 0;
+        final boolean notInitialized = capacityList.isEmpty();
         if (notInitialized) {
             return EMPTY;
         }
         if (withoutCounts) {
-            return String.format("{capacity=%s}", capacity);
+            return String.format("{capacity=%s}", capacityList.toString());
         }
-        return String.format("{capacity=%s; counts=%s}", capacity, Arrays.toString(counts));
+        return String.format("{capacity=%s; counts=%s}", capacityList.toDebugString(), Arrays.toString(counts));
     }
 
     private void rescaleCountsIfNecessary(float newCapacity, String key) {
-        if (shouldRescale(capacity, newCapacity)) {
-            counts = rescaleCounts(Arrays.stream(counts).iterator(), counts.length, capacity,
-                newCapacity, key);
+        if (shouldRescale(newCapacity)) {
+            rescaleCounts(counts.length, capacityList.getCapacity(), newCapacity, key);
         }
     }
 
-    private int[] rescaleCounts(Iterator<Integer> iterator,
-                                int size,
+    private void rescaleCounts(int size,
                                 float currentCapacity,
                                 float newCapacity,
                                 String loggingKey) {
@@ -321,24 +417,129 @@ public class UtilizationCountArray {
         logger.trace("Rescaling percentile counts for {} due to capacity change from {} to {}",
             () -> loggingKey, () -> currentCapacity, () -> newCapacity);
         int[] newCounts = new int[size];
-        int i = 0;
-        while (iterator.hasNext()) {
+
+        for (int i = 0; i < size; i++) {
             int newPercent = Math.min(100,
                 (int)Math.ceil(buckets.average(i) * currentCapacity / newCapacity));
             Integer newIndex = buckets.index(newPercent);
             if (newIndex != null && newIndex < size) {
-                newCounts[newIndex] += iterator.next();
+                newCounts[newIndex] += counts[i];
             } else {
                 logger.warn("Rescaling percentile index {} to capacity {} failed - out of bounds for {}",
                     i, newCapacity, loggingKey);
             }
-            i++;
         }
-        return newCounts;
+        counts = newCounts;
     }
 
-    private static boolean shouldRescale(float currentCapacity, float newCapacity) {
-        return currentCapacity != 0D && newCapacity != 0D
-            && Math.abs(currentCapacity - newCapacity) > EPSILON;
+    private boolean shouldRescale(float newCapacity) {
+        return !capacityList.isEmpty() && newCapacity != 0D
+            && Math.abs(capacityList.getCapacity() - newCapacity) > EPSILON;
+    }
+
+    /**
+     * Keeps the changes of the capacity for a commodity over time.
+     */
+    private static class CapacityChangeHistory {
+        private LongList timestamps;
+        private FloatList capacities;
+
+        CapacityChangeHistory() {
+            timestamps = new LongArrayList();
+            capacities = new FloatArrayList();
+        }
+
+        CapacityChangeHistory(CapacityChangeHistory capacityChangeHistory) {
+            timestamps = new LongArrayList(capacityChangeHistory.timestamps);
+            capacities = new FloatArrayList(capacityChangeHistory.capacities);
+        }
+
+        public boolean add(long timestamp, float newCapacity) {
+            if (Math.abs(newCapacity - getCapacity()) > EPSILON) {
+                if (!timestamps.isEmpty()
+                    && timestamp < timestamps.getLong(timestamps.size() - 1)) {
+                    // This may happen if the time on appliance changes.
+                    logger.warn("The capacities should be added in order to "
+                        + "utilization array. Received a timestamp of {} while the oldest "
+                        + "timestamp in array is {}.", timestamp,
+                        timestamps.getLong(timestamps.size() - 1));
+                }
+
+                timestamps.add(timestamp);
+                capacities.add(newCapacity);
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        public void add(List<PercentileRecord.CapacityChange> capacityChangesList) {
+            capacityChangesList.forEach(cc -> add(cc.getTimestamp(), cc.getNewCapacity()));
+        }
+
+        public boolean isEmpty() {
+            return timestamps.isEmpty();
+        }
+
+        public void clear() {
+            timestamps.clear();
+            capacities.clear();
+        }
+
+        @Override
+        public String toString() {
+            return String.valueOf(getCapacity());
+        }
+
+        public String toDebugString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("[");
+            String separator = "";
+            for (int i = 0; i < timestamps.size(); i++) {
+                sb.append(separator);
+                separator = ",";
+                sb.append("{\"timestamp\": ");
+                sb.append(timestamps.getLong(i));
+                sb.append(", \"newCapacity\": \"");
+                sb.append(capacities.getFloat(i));
+                sb.append("\"}");
+            }
+            sb.append("]");
+            return sb.toString();
+        }
+
+        public void removeOlderCapacities(long timestamp) {
+            if (timestamps.size() < 1 || timestamps.getLong(0) >= timestamp) {
+                return;
+            }
+
+            int endIndex = 0;
+            while (endIndex < timestamps.size() - 1 && timestamps.getLong(endIndex) < timestamp) {
+                endIndex++;
+            }
+
+            timestamps.removeElements(0, endIndex);
+            capacities.removeElements(0, endIndex);
+        }
+
+        public float getCapacity() {
+            return isEmpty() ? 0F : capacities.getFloat(capacities.size() - 1);
+        }
+
+        /**
+         * Converts the values in this object to a iterable of DTO objects that can be serialized.
+         *
+         * @return the iterable on DTO objects.
+         */
+        public Iterable<? extends PercentileRecord.CapacityChange> serialize() {
+            List<PercentileRecord.CapacityChange> serialized = new ArrayList<>(timestamps.size());
+            for (int i = 0; i < timestamps.size(); i++) {
+                serialized.add(PercentileRecord.CapacityChange.newBuilder()
+                    .setTimestamp(timestamps.getLong(i))
+                    .setNewCapacity(capacities.getFloat(i))
+                    .build());
+            }
+            return serialized;
+        }
     }
 }

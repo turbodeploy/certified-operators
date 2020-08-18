@@ -1,5 +1,6 @@
 package com.vmturbo.group.setting;
 
+import java.time.Clock;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -20,12 +21,17 @@ import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.api.SettingMessages.SettingNotification;
 import com.vmturbo.group.api.SettingsUpdatesReciever;
 import com.vmturbo.group.group.GroupConfig;
+import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 @Configuration
 @Import({GroupComponentDBConfig.class, IdentityProviderConfig.class, GroupConfig.class,
-        BaseKafkaProducerConfig.class, PlanOrchestratorClientConfig.class})
+        BaseKafkaProducerConfig.class, PlanOrchestratorClientConfig.class, ScheduleConfig.class})
 public class SettingConfig {
 
     @Autowired
@@ -39,6 +45,12 @@ public class SettingConfig {
 
     @Autowired
     private PlanOrchestratorClientConfig planOrchestratorClientConfig;
+
+    @Autowired
+    private TopologyProcessorClientConfig topologyProcessorClientConfig;
+
+    @Autowired
+    private ScheduleConfig scheduleConfig;
 
     @Value("${createDefaultSettingPolicyRetryIntervalSec}")
     public long createDefaultSettingPolicyRetryIntervalSec;
@@ -61,12 +73,24 @@ public class SettingConfig {
     @Bean
     public SettingSpecStore settingSpecsStore() {
         return new EnumBasedSettingSpecStore(hideExecutionScheduleSetting,
-            hideExternalApprovalOrAuditSettings);
+            hideExternalApprovalOrAuditSettings, thinTargetCache());
+    }
+
+    /**
+     * A cache for simple target information.
+     *
+     * @return instance of thin target cache
+     */
+    @Bean
+    public ThinTargetCache thinTargetCache() {
+        return new ThinTargetCache(topologyProcessorClientConfig.topologyProcessor(
+                TopologyProcessorSubscription.forTopic(Topic.Notifications)));
     }
 
     @Bean
     public SettingPolicyValidator settingPolicyValidator() {
-        return new DefaultSettingPolicyValidator(settingSpecsStore(), groupConfig.groupStore());
+        return new DefaultSettingPolicyValidator(settingSpecsStore(), groupConfig.groupStore(),
+            scheduleConfig.scheduleStore(), Clock.systemDefaultZone());
     }
 
     @Bean

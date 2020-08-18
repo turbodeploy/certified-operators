@@ -35,6 +35,7 @@ import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.targets.TargetConfig;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * The configuration for dealing with groups.
@@ -141,7 +142,7 @@ public class GroupConfig {
      */
     @Bean
     public PolicyFactory policyFactory() {
-        return new PolicyFactory();
+        return new PolicyFactory(new TopologyInvertedIndexFactory());
     }
 
     @Bean

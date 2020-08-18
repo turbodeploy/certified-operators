@@ -1,11 +1,13 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,8 +27,11 @@ import com.vmturbo.api.enums.ReservedInstanceType;
 import com.vmturbo.api.enums.Tenancy;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
@@ -63,6 +68,9 @@ public class ReservedInstanceMapper {
      * @param serviceEntityApiDTOMap a map which key is entity id, value is {@link ServiceEntityApiDTO}.
      *                               which contains full entity information if region, account,
      *                               availability zones entity.
+     * @param coveredEntitiesCount count of workload entities covered by the reserved instance.
+     * @param coveredUndiscoveredAccountsCount count of undiscovered accounts covered
+     *                               by the reserved instance.
      * @return a {@link ReservedInstanceApiDTO}.
      * @throws NotFoundMatchPaymentOptionException when no matching payment option can be found.
      * @throws NotFoundMatchTenancyException when no matching tenancy can be found.
@@ -71,7 +79,9 @@ public class ReservedInstanceMapper {
     public ReservedInstanceApiDTO mapToReservedInstanceApiDTO(
             @Nonnull final ReservedInstanceBought reservedInstanceBought,
             @Nonnull final ReservedInstanceSpec reservedInstanceSpec,
-            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
+            @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap,
+            @Nullable final Integer coveredEntitiesCount,
+            @Nullable final Integer coveredUndiscoveredAccountsCount)
                 throws NotFoundMatchPaymentOptionException, NotFoundMatchTenancyException,
                 NotFoundMatchOfferingClassException, NotFoundCloudTypeException {
         // TODO: set RI cost data which depends on discount information.
@@ -160,25 +170,41 @@ public class ReservedInstanceMapper {
 
         // The following properties are used for Azure
         reservedInstanceApiDTO.setTrueID(reservedInstanceBoughtInfo.getProbeReservedInstanceId());
-        reservedInstanceApiDTO.setScopeType(
-            reservedInstanceBoughtInfo.getReservedInstanceScopeInfo().getShared()
-                ? AzureRIScopeType.SHARED
-                : AzureRIScopeType.SINGLE);
         reservedInstanceApiDTO.setOrderID(reservedInstanceBoughtInfo.getReservationOrderId());
-        reservedInstanceApiDTO.setAppliedScopes(reservedInstanceBoughtInfo
-                .getReservedInstanceScopeInfo().getApplicableBusinessAccountIdList()
-                .stream()
-                .map(oid -> {
-                    final ServiceEntityApiDTO account = serviceEntityApiDTOMap.get(oid);
-                    if (account == null) {
-                        logger.error("Cannot find account specified in applied scopes: " + oid);
-                    }
-                    return account;
-                })
-                .filter(Objects::nonNull)
-                .map(BaseApiDTO::getDisplayName)
-                .collect(Collectors.toList()));
 
+        if (reservedInstanceBoughtInfo.hasReservedInstanceScopeInfo()) {
+            final ReservedInstanceScopeInfo reservedInstanceScopeInfo =
+                    reservedInstanceBoughtInfo.getReservedInstanceScopeInfo();
+            final List<Long> applicableBusinessAccountIdList =
+                    reservedInstanceScopeInfo.getApplicableBusinessAccountIdList();
+            if (!applicableBusinessAccountIdList.isEmpty()) {
+                reservedInstanceApiDTO.setScopeType(AzureRIScopeType.SINGLE);
+                reservedInstanceApiDTO.setAppliedScopes(
+                    reservedInstanceBoughtInfo.getReservedInstanceScopeInfo()
+                        .getApplicableBusinessAccountIdList()
+                        .stream()
+                        .map(oid -> {
+                            final ServiceEntityApiDTO account = serviceEntityApiDTOMap.get(oid);
+                            if (account == null) {
+                                logger.error("Cannot find account specified in applied scopes: {}",
+                                        oid);
+                            }
+                            return account;
+                        })
+                        .filter(Objects::nonNull)
+                        .map(BaseApiDTO::getDisplayName)
+                        .collect(Collectors.toList()));
+            } else if (reservedInstanceScopeInfo.hasShared()) {
+                reservedInstanceApiDTO.setScopeType(reservedInstanceScopeInfo.getShared()
+                        ? AzureRIScopeType.SHARED : AzureRIScopeType.SINGLE);
+            } else {
+                reservedInstanceApiDTO.setScopeType(AzureRIScopeType.UNKNOWN);
+            }
+        }
+
+        reservedInstanceApiDTO.setCoveredEntityCount(coveredEntitiesCount);
+        reservedInstanceApiDTO.setUndiscoveredAccountsCoveredCount(
+                coveredUndiscoveredAccountsCount);
         return reservedInstanceApiDTO;
     }
 
@@ -371,6 +397,28 @@ public class ReservedInstanceMapper {
     public static class NotFoundCloudTypeException extends Exception {
         NotFoundCloudTypeException(String message) {
             super(message);
+        }
+    }
+
+    /**
+     * Map an API account filter type string to an equivalent XL account filter type.
+     *
+     * @param accountFilterType The string representing the account filter type in UI.
+     * @return An optional containing a {@link AccountFilter.AccountFilterType}, or an empty optional if
+     *         no equivalent filter type exists in XL.
+     */
+    @Nonnull
+    public static AccountFilter.AccountFilterType mapApiAccountFilterTypeToXl(
+            @Nonnull final String accountFilterType) {
+        switch (accountFilterType) {
+            case "USED_BY":
+                return AccountFilterType.USED_BY;
+            case "USED_AND_PURCHASED_BY":
+                return AccountFilterType.USED_AND_PURCHASED_BY;
+            case "PURCHASED_BY":
+                return AccountFilterType.PURCHASED_BY;
+            default:
+                return AccountFilterType.PURCHASED_BY;
         }
     }
 }

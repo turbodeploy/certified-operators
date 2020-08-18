@@ -41,5 +41,5 @@
         </property>
     </bean>
 
-
+    <bean id="compositeHealthMonitor" class="com.vmturbo.components.common.health.CompositeHealthMonitor"/>
 </beans>

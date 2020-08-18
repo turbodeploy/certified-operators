@@ -44,7 +44,16 @@ public class ReservedInstanceBoughtFilterTest {
     private static final String USED_UNDISCOVERED_ACCOUNT_CLAUSE =
             "\"cost\".\"reserved_instance_bought\".\"id\" in ("
             + " select \"cost\".\"account_to_reserved_instance_mapping\".\"reserved_instance_id\""
+            + "from\"cost\".\"account_to_reserved_instance_mapping\""
             + " where \"cost\".\"account_to_reserved_instance_mapping\".\"business_account_oid\" in (10))";
+    private static final String USED_ACCOUNT_CLAUSE =
+            "(" + USED_DISCOVERED_ACCOUNT_CLAUSE + "or" + USED_UNDISCOVERED_ACCOUNT_CLAUSE + ")";
+    private static final String PURCHASED_ACCOUNT_CLAUSE =
+            "\"cost\".\"reserved_instance_bought\".\"business_account_id\" in (10)";
+
+    private static final String USED_PURCHASED_ACCOUNT_CLAUSE =
+            "(" + PURCHASED_ACCOUNT_CLAUSE + "or" + USED_DISCOVERED_ACCOUNT_CLAUSE
+                    + "or" + USED_UNDISCOVERED_ACCOUNT_CLAUSE + ")";
 
 
     /**
@@ -94,9 +103,35 @@ public class ReservedInstanceBoughtFilterTest {
                 .map(Condition::toString)
                 .map(s -> s.replaceAll("\\s", ""))
                 .collect(ImmutableList.toImmutableList());
-        Assert.assertTrue(conditionStrings.contains(USED_DISCOVERED_ACCOUNT_CLAUSE
-                .replaceAll("\\s", "")));
-        Assert.assertTrue(conditionStrings.contains(USED_UNDISCOVERED_ACCOUNT_CLAUSE
+        Assert.assertTrue(conditionStrings.contains(
+                USED_ACCOUNT_CLAUSE.replaceAll("\\s", "")));
+
+    }
+
+    /**
+     * Tests the generate condition for purhased and used by account filter type.
+     */
+    @Test
+    public void testUsedAndPurchasedAccountFilterTypeCondition() {
+
+        final Connection conn = mock(Connection.class);
+        DSLContext ctx = new DefaultDSLContext(conn, SQLDialect.MARIADB);
+        ctx.settings().setRenderFormatted(true);
+        ctx.settings().setRenderKeywordStyle(RenderKeywordStyle.UPPER);
+        ReservedInstanceBoughtFilter testFilter =
+                ReservedInstanceBoughtFilter.newBuilder()
+                        .accountFilter(AccountFilter.newBuilder()
+                                .setAccountFilterType(AccountFilterType.USED_AND_PURCHASED_BY)
+                                .addAccountId(10).build())
+                        .includeUndiscovered(true)
+                        .build();
+        final List<Condition> conditions =
+                ImmutableList.copyOf(testFilter.generateConditions(ctx));
+        final List<String> conditionStrings = conditions.stream()
+                .map(Condition::toString)
+                .map(s -> s.replaceAll("\\s", ""))
+                .collect(ImmutableList.toImmutableList());
+        Assert.assertTrue(conditionStrings.contains(USED_PURCHASED_ACCOUNT_CLAUSE
                 .replaceAll("\\s", "")));
 
     }

@@ -229,7 +229,7 @@ public class MapperConfig {
      */
     @Bean
     public TopologyDataDefinitionMapper topologyDataDefinitionMapper() {
-        return new TopologyDataDefinitionMapper(entityFilterMapper());
+        return new TopologyDataDefinitionMapper(entityFilterMapper(), serviceConfig.groupsService());
     }
 
     @Bean

@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
-import com.vmturbo.extractor.models.ModelDefinitions;
+import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.EntityMetricWriter;
 import com.vmturbo.extractor.topology.ITopologyWriter;
@@ -34,13 +34,13 @@ public class ExtractorTestUtil {
      */
     public static final WriterConfig config = ImmutableWriterConfig.builder()
             .addAllReportingCommodityWhitelist(
-                    ModelDefinitions.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST.stream()
+                    Constants.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST.stream()
                             .map(CommodityType::getNumber)
                             .collect(Collectors.toList()))
             .insertTimeoutSeconds(60)
             .lastSeenAdditionalFuzzMinutes(10)
             .lastSeenUpdateIntervalMinutes(20)
-            .unaggregatedCommodities(ModelDefinitions.UNAGGREGATED_KEYED_COMMODITY_TYPES)
+            .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
             .build();
 
     /**

@@ -3,6 +3,7 @@ package com.vmturbo.stitching;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -92,6 +93,15 @@ public abstract class StitchingMatchingMetaDataImpl<INTERNAL_SIGNATURE_TYPE, EXT
     @Override
     public boolean getKeepStandalone() {
         return mergedEntityMetadata.getKeepStandalone();
+    }
+
+    @Override
+    public Optional<MergedEntityMetadata.StitchingScope> getStitchingScope() {
+        if (mergedEntityMetadata.hasStitchingScope()) {
+            return Optional.of(mergedEntityMetadata.getStitchingScope());
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**

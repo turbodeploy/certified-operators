@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.group.policy.application;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -14,17 +15,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * Specifies how to apply a particular set {@link PlacementPolicy}.
@@ -33,8 +37,10 @@ import com.vmturbo.topology.processor.group.GroupResolver;
  * {@link PlacementPolicyApplication} implementation. The main reason to split the application from
  * the policy definition is to allow for optimizations when applying multiple policies of the same
  * type.
+ *
+ * @param <P> The type of policy being applied.
  */
-public abstract class PlacementPolicyApplication {
+public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
     /**
      * Small delta that we are adding to a segmentation commodity capacity, to ensure floating point
      * roundoff error does not accidentally reduce the commodity capacity below the intended value.
@@ -54,6 +60,7 @@ public abstract class PlacementPolicyApplication {
 
     protected final GroupResolver groupResolver;
     protected final TopologyGraph<TopologyEntity> topologyGraph;
+    protected final TopologyInvertedIndexFactory invertedIndexFactory;
 
     /**
      * Counters for commodities added during this poloicy application.
@@ -63,9 +70,11 @@ public abstract class PlacementPolicyApplication {
     private Map<CommodityDTO.CommodityType, MutableInt> addedCommodities = new HashMap<>();
 
     protected PlacementPolicyApplication(final GroupResolver groupResolver,
-                                         final TopologyGraph<TopologyEntity> topologyGraph) {
+                                         final TopologyGraph<TopologyEntity> topologyGraph,
+                                         final TopologyInvertedIndexFactory invertedIndexFactory) {
         this.groupResolver = groupResolver;
         this.topologyGraph = topologyGraph;
+        this.invertedIndexFactory = invertedIndexFactory;
     }
 
     /**
@@ -90,7 +99,22 @@ public abstract class PlacementPolicyApplication {
             })
             .collect(Collectors.toList());
 
-        final Map<PlacementPolicy, PolicyApplicationException> errors = applyInternal(policiesToApply);
+        final List<P> castPolicies = policiesToApply.stream()
+            .map(policy -> {
+                try {
+                    // The cast should be safe, because the PolicyApplicator groups the policies
+                    // by class before passing them to the applications. But we catch the
+                    // ClassCastException just in case.
+                    return (P)policy;
+                } catch (ClassCastException e) {
+                    // This should never happen.
+                    logger.error("Failed to cast policy of class {}", policy.getClass(), e);
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+        final Map<PlacementPolicy, PolicyApplicationException> errors = applyInternal(castPolicies);
 
         ImmutablePolicyApplicationResults.Builder resBldr = ImmutablePolicyApplicationResults.builder()
             .putAllErrors(errors);
@@ -122,8 +146,12 @@ public abstract class PlacementPolicyApplication {
 
     /**
      * Policy-variant-specific implementation.
+     *
+     * @param policies The policies to apply. Application sub-classes can implement bulk optimizations.
+     * @return Exceptions encountered when applying policies in the input list, arranged by policy.
+     *         Empty map if no exceptions.
      */
-    protected abstract Map<PlacementPolicy, PolicyApplicationException> applyInternal(@Nonnull final List<PlacementPolicy> policies);
+    protected abstract Map<PlacementPolicy, PolicyApplicationException> applyInternal(@Nonnull List<P> policies);
 
     /**
      * Segment the providers from the rest of the topology by having each of them sell a
@@ -197,22 +225,71 @@ public abstract class PlacementPolicyApplication {
 
     /**
      * Segment the entities of the same type as the providers that are not actually part of the providers
-     * group by having each of them sell a segmentation commodity specific to this policy.
+     * group by having each of them sell a segmentation commodity specific to this policy. Only
+     * providers that are valid for the set of consumers will sell the segmentation commodity.
+     * This is an optimization to avoid creating large amounts of commodities. For example, if
+     * the consumers are VMs that are constrained by a CLUSTER commodity, only hosts selling that
+     * CLUSTER commodity AND not part of the "blocked" provider set will receive the segmentation
+     * commodity.
      *
-     * @param providers The providers that belong to the segment.
+     * @param consumers The consumers that are going to be buying from the providers. This input
+     *                  is required for optimization - we only add the segmentation commodities
+     *                  to providers that these consumers can buy from.
+     * @param providers The providers that should NOT have the commodity.
      * @param providerEntityType The entity type of the providers.
+     * @param invertedIndex The {@link InvertedIndex} used to find other potential providers for
+     *                      the consumers. This index needs to be constructed outside this method
+     *                      so that multiple calls to the methods can use the same index.
      * @param segmentationCommodity The commodity for use in segmenting the providers.
      */
-    protected void addCommoditySoldToComplementaryProviders(@Nonnull final Set<Long> providers,
-                                                            final long providerEntityType,
-                                                            @Nonnull final CommoditySoldDTO segmentationCommodity) {
-        topologyGraph.entities()
-            .filter(entity -> entity.getEntityType() == providerEntityType)
-            .filter(vertex -> !providers.contains(vertex.getOid()))
+    protected void addCommoditySoldToComplementaryProviders(@Nonnull final Set<Long> consumers,
+                @Nonnull final Set<Long> providers,
+                final long providerEntityType,
+                @Nonnull final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex,
+                @Nonnull final CommoditySoldDTO segmentationCommodity) {
+        // The potential providers for the consumers are any potential providers that are
+        // NOT blocked by the policy. We use the inverted index to find providers
+        // that satisfy all other constraints (e.g. cluster, datacenter).
+        consumers.stream()
+            .map(this::getPolicyConsumerEntity)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .flatMap(e -> e.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream())
+            .flatMap(invertedIndex::getSatisfyingSellers)
+            // Filter out the providers blocked by the policy.
+            .filter(potentialProvider -> !providers.contains(potentialProvider.getOid()))
+            // Enforce the provider entity type.
+            .filter(potentialProvider -> potentialProvider.getEntityType() == providerEntityType)
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(provider -> {
                 recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
                 provider.addCommoditySoldList(segmentationCommodity);
+            });
+    }
+
+    @Nonnull
+    protected Optional<TopologyEntity> getPolicyConsumerEntity(final long oid) {
+        return topologyGraph.getEntity(oid)
+            .flatMap(entity -> {
+                // If the entity OID is a volume, the real consumer for policy purposes is the VM
+                // connected to the volume. This only works this way on-prem volumes.
+                // NOTE (roman, Aug 13 2020) - this needs to change when we move to the new Volume
+                // model for on-prem. Volumes will be consuming directly from storages, and VMs
+                // from volumes.
+                if (entity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE
+                       && entity.getEnvironmentType() != EnvironmentType.CLOUD) {
+                    // Consumer should be the VM connected to the volume.
+                    Optional<TopologyEntity> ret = entity.getInboundAssociatedEntities().stream().filter(e -> e.getEntityType()
+                            == EntityType.VIRTUAL_MACHINE_VALUE).findFirst();
+                    if (!ret.isPresent()) {
+                        // the volume is not used by any VM, which means it is a wasted volume.
+                        // Ignore it.
+                        logger.debug("Ignoring wasted volume {}", entity);
+                    }
+                    return ret;
+                } else {
+                    return Optional.of(entity);
+                }
             });
     }
 
@@ -231,30 +308,12 @@ public abstract class PlacementPolicyApplication {
                                       @Nonnull final CommodityBoughtDTO segmentationCommodity)
         throws PolicyApplicationException {
         for (Long consumerId : consumers) {
-            final Optional<TopologyEntity> optionalConsumer = topologyGraph.getEntity(consumerId);
-            if (optionalConsumer.isPresent()) {
-                final TopologyEntityDTO.Builder consumer;
-                final Optional<Long> volumeId;
-                if (optionalConsumer.get().getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
-                    // if it's volume, the real consumer should be the VM which uses this volume
-                    Optional<TopologyEntity> optVM = optionalConsumer.get()
-                        .getInboundAssociatedEntities()
-                        .stream()
-                        .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                        .findFirst();
-                    if (!optVM.isPresent()) {
-                        // the volume is not used by any VM, which means it is a wasted volume,
-                        // so we can't add segmentation commodity to related VM
-                        logger.debug("Skipping applying consumer segment for wasted volume: {}", consumerId);
-                        continue;
-                    }
-                    // consumer should be the VM which is connected to this volume
-                    consumer = optVM.get().getTopologyEntityDtoBuilder();
-                    volumeId = Optional.of(consumerId);
-                } else {
-                    consumer = optionalConsumer.get().getTopologyEntityDtoBuilder();
-                    volumeId = Optional.empty();
-                }
+            final Optional<Long> volumeId = topologyGraph.getEntity(consumerId)
+                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                .map(TopologyEntity::getOid);
+            Optional<TopologyEntityDTO.Builder> optConsumer = getPolicyConsumerEntity(consumerId).map(TopologyEntity::getTopologyEntityDtoBuilder);
+            if (optConsumer.isPresent()) {
+                final TopologyEntityDTO.Builder consumer = optConsumer.get();
 
                 // Separate commoditiesBoughtFromProvider into two category:
                 // Key is True: list of commodityBought group, whose provider entity type matches
@@ -262,10 +321,10 @@ public abstract class PlacementPolicyApplication {
                 // Key is False: list of commodityBought group, whose provider entity type doesn't
                 // match with given providerType (or volumeId doesn't match if consumer is VirtualVolume)
                 final Map<Boolean, List<CommoditiesBoughtFromProvider>> commodityBoughtsChangeMap =
-                    consumer.getCommoditiesBoughtFromProvidersList().stream()
-                        .collect(Collectors.partitioningBy(commodityBoughtGroup ->
-                            shouldAddSegmentToCommodityBought(commodityBoughtGroup, topologyGraph,
-                                providerType, volumeId)));
+                        consumer.getCommoditiesBoughtFromProvidersList().stream()
+                                .collect(Collectors.partitioningBy(commodityBoughtGroup ->
+                                        shouldAddSegmentToCommodityBought(commodityBoughtGroup, topologyGraph,
+                                                providerType, volumeId)));
 
                 // All Commodity Bought list which should be added segmentation commodity
                 final List<CommoditiesBoughtFromProvider> commodityBoughtsToAddSegment = commodityBoughtsChangeMap.get(true);
@@ -276,13 +335,13 @@ public abstract class PlacementPolicyApplication {
                 // not buying ST at all, If create a policy to Force VM1 and VM2 to buy ST1,
                 // it should throw exception, because VM2 doesn't buy any Storage type.
                 if (commodityBoughtsToAddSegment.isEmpty()) {
-                    throw new PolicyApplicationException("Unable to apply consumer segment when no " +
-                        "provider type " + providerType);
+                    throw new PolicyApplicationException("Unable to apply consumer segment when no "
+                        + "provider type " + providerType);
                 }
                 // For each bundle of commodities bought for the entity type that matches the
                 // provider type and volumeId, add the segmentation commodity.
                 addCommodityBoughtForProviders(segmentationCommodity, consumer,
-                    commodityBoughtsToAddSegment, commodityBoughtsToNotAddSegment);
+                        commodityBoughtsToAddSegment, commodityBoughtsToNotAddSegment);
             }
         }
     }

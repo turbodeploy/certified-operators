@@ -31,6 +31,7 @@ import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -217,7 +218,13 @@ public class MoveContext extends ChangeProviderContext {
     @Override
     protected boolean isCrossTargetMove() {
         if (crossTargetMove == null) {
-            final long probeId = targetStore.getTarget(getTargetId()).get().getProbeId();
+            Optional<Target> target = targetStore.getTarget(getTargetId());
+            if (!target.isPresent()) {
+                logger.warn("While checking for cross target move, couldn't find the target with ID: " + getTargetId());
+                return false;
+            }
+
+            final long probeId = target.get().getProbeId();
             final Optional<Entity> entity = getEntityStore().getEntity(getPrimaryEntityId());
             if (!entity.isPresent()) {
                 logger.warn("Cannot find the primary entity with ID " + getPrimaryEntityId());

@@ -12,6 +12,8 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -44,6 +46,7 @@ public class RemoteProbeStoreTest {
 
     private final ProbeInfo probeInfo = Probes.emptyProbe;
     private final KeyValueStore keyValueStore = Mockito.mock(KeyValueStore.class);
+    private final ActionMergeSpecsRepository actionMergeSpecsRepository = Mockito.mock(ActionMergeSpecsRepository.class);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -54,7 +57,7 @@ public class RemoteProbeStoreTest {
     @Before
     public void setup() {
         idProvider = Mockito.mock(IdentityProvider.class);
-        store = new RemoteProbeStore(keyValueStore, idProvider, stitchingOperationStore,  new ActionMergeSpecsRepository());
+        store = new RemoteProbeStore(keyValueStore, idProvider, stitchingOperationStore, actionMergeSpecsRepository);
     }
 
     @Test
@@ -237,7 +240,33 @@ public class RemoteProbeStoreTest {
 
         store.registerNewProbe(probe2, transport2);
         assertEquals(probe2, store.getProbe(probeId).get());
+    }
 
+    /**
+     * Test that the action merge repository is updated appropriately as probes are registered
+     * or restored through diags.
+     *
+     * @throws Exception if an exception occurs.
+     */
+    @Test
+    public void testActionMergeRepositoryUpdated() throws Exception {
+        final String tgt1 = "tgt1";
+        final String tgt2 = "tgt2";
+        final ProbeInfo probe1 = ProbeInfo.newBuilder(Probes.defaultProbe)
+            .addTargetIdentifierField(tgt1)
+            .build();
+        final ProbeInfo probe2 = ProbeInfo.newBuilder(Probes.defaultProbe)
+            .addTargetIdentifierField(tgt2)
+            .build();
+        when(idProvider.getProbeId(probe1)).thenReturn(1234L);
+        when(idProvider.getProbeId(probe2)).thenReturn(2345L);
+
+        store.registerNewProbe(probe1, transport);
+        verify(actionMergeSpecsRepository).setPoliciesForProbe(eq(1234L), eq(probe1));
+
+        store.overwriteProbeInfo(ImmutableMap.of(2345L, probe2));
+        verify(actionMergeSpecsRepository).clear();
+        verify(actionMergeSpecsRepository).setPoliciesForProbe(eq(2345L), eq(probe2));
     }
 
     /**

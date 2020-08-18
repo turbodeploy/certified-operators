@@ -1,0 +1,344 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": false,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "iteration": 1596572272749,
+  "links": [],
+  "panels": [
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$DB",
+      "decimals": 2,
+      "description": "Average Virtual Memory utilization for VM's",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "hiddenSeries": false,
+      "id": 2,
+      "legend": {
+        "alignAsTable": true,
+        "avg": true,
+        "current": false,
+        "max": false,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 2,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": "Previous Day",
+          "color": "rgba(232, 0, 6, 0.5)",
+          "dashes": true,
+          "fill": 0
+        },
+        {
+          "alias": "/Ending/",
+          "color": "#56A64B"
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "format": "time_series",
+          "group": [],
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'VMEM'\n       AND e.type = 'VIRTUAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ $Group ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END\n)\n\nSELECT CASE \n            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR') \n            ELSE date_trunc('HOUR', time) \n       END + INTERVAL '1 HOUR' as \"time\"\n      ,CASE \n            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'\n            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT\n       END as metric\n      ,avg(avg_util)\n  FROM data\n GROUP BY 1, 2\n ORDER BY 1",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "current"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "metric",
+          "timeColumn": "\"time\"",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "VM Avg VMem Utilization",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "decimals": null,
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "datasource": "$DB",
+      "decimals": 2,
+      "description": "Average Virtual CPU utilization for VM's",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "fill": 1,
+      "fillGradient": 0,
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "hiddenSeries": false,
+      "id": 4,
+      "legend": {
+        "alignAsTable": true,
+        "avg": true,
+        "current": false,
+        "max": false,
+        "min": false,
+        "rightSide": true,
+        "show": true,
+        "total": false,
+        "values": true
+      },
+      "lines": true,
+      "linewidth": 2,
+      "nullPointMode": "null",
+      "options": {
+        "dataLinks": []
+      },
+      "percentage": false,
+      "pointradius": 2,
+      "points": true,
+      "renderer": "flot",
+      "seriesOverrides": [
+        {
+          "alias": "Previous Day",
+          "color": "rgba(232, 0, 6, 0.5)",
+          "dashes": true,
+          "fill": 0
+        },
+        {
+          "alias": "/Ending/",
+          "color": "#56A64B"
+        }
+      ],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "format": "time_series",
+          "group": [],
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'VCPU'\n       AND e.type = 'VIRTUAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ $Group ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END\n)\n\n SELECT CASE \n            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR') \n            ELSE date_trunc('HOUR', time) \n       END + INTERVAL '1 HOUR' as \"time\"\n      ,CASE \n            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'\n            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT\n       END as metric\n      ,avg(avg_util)\n  FROM data\n GROUP BY 1, 2\n ORDER BY 1",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "current"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "metric",
+          "timeColumn": "\"time\"",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "VM Avg VCPU Utilization",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "decimals": null,
+          "format": "percentunit",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    }
+  ],
+  "schemaVersion": 25,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "hide": 2,
+        "includeAll": false,
+        "label": null,
+        "multi": false,
+        "name": "DB",
+        "options": [],
+        "query": "postgres",
+        "queryValue": "",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      },
+      {
+        "allValue": "'0'",
+        "datasource": "$DB",
+        "definition": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'GROUP' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
+        "hide": 0,
+        "includeAll": true,
+        "label": null,
+        "multi": false,
+        "name": "Group",
+        "options": [],
+        "query": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'GROUP' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      }
+    ]
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "",
+  "title": "VM Utilization Day over Day By Hour",
+  "uid": "vm_util_day_over_day_by_hour"
+}

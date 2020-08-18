@@ -116,6 +116,16 @@ public class SupplyChainFetcherFactory {
             ApiEntityType.VIRTUAL_VOLUME);
 
     /**
+     * Sometimes we need to expand aggregators to some of their aggregated entities.
+     * For example in global views of the application entities.
+     */
+    private static final Set<ApiEntityType> SCOPE_EXPANSION_TYPES_FOR_APPLICATIONS = ImmutableSet.of(
+        ApiEntityType.BUSINESS_APPLICATION,
+        ApiEntityType.SERVICE,
+        ApiEntityType.APPLICATION_COMPONENT,
+        ApiEntityType.BUSINESS_TRANSACTION);
+
+    /**
      * This maps aggregator entity types (such as region or datacenter), to
      * the set of types of the entities that we will get after their expansion.
      * For example, when we expand datacenters, we want to fetch all aggregated
@@ -299,6 +309,16 @@ public class SupplyChainFetcherFactory {
      */
     public Set<Long> expandServiceProviders(@Nonnull final Set<Long> serviceProviderOids) {
         return this.repositoryApi.expandServiceProvidersToRegions(serviceProviderOids);
+    }
+
+    /**
+     * Checks if there is an application type entity in the given set.
+     * @param relatedTypes set of entities that we want to check
+     * @return true if contains, false otherwise.
+     */
+    public boolean containsApplicationType(Set<ApiEntityType> relatedTypes) {
+        return relatedTypes.stream()
+            .anyMatch(SCOPE_EXPANSION_TYPES_FOR_APPLICATIONS::contains);
     }
 
     /**

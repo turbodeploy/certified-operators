@@ -30,6 +30,7 @@ import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
+import com.vmturbo.platform.sdk.common.MediationMessage.ActionApprovalResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.GetActionStateResponse;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
@@ -206,5 +207,18 @@ public class TopologyProcessorClientConfig {
         return baseKafkaConfig.kafkaConsumer()
                 .messageReceiver(TopologyProcessorClient.EXTERNAL_ACTION_UPDATES_TOPIC,
                         GetActionStateResponse::parseFrom);
+    }
+
+    /**
+     * Returns the Kafka receiver for ActionApprovalResponse messages sent when the probe completes
+     * sending the external approvals to an external system like ServiceNOW.
+     *
+     * @return the kafka receiver for ActionApprovalResponse external approvals sent.
+     */
+    @Nonnull
+    public IMessageReceiver<ActionApprovalResponse> createActionApprovalResponseReceiver() {
+        return baseKafkaConfig.kafkaConsumer()
+            .messageReceiver(TopologyProcessorClient.EXTERNAL_ACTION_APPROVAL_RESPONSE,
+                ActionApprovalResponse::parseFrom);
     }
 }

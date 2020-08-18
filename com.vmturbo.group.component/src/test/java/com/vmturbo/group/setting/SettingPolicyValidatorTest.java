@@ -1,19 +1,23 @@
 package com.vmturbo.group.setting;
 
+import static org.hamcrest.core.StringContains.containsString;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 
+import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.junit.Assert;
 import org.junit.Before;
@@ -25,6 +29,7 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -49,6 +54,8 @@ import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.group.schedule.ScheduleStore;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Tests for {@link DefaultSettingPolicyValidator}.
@@ -62,13 +69,24 @@ public class SettingPolicyValidatorTest {
 
     private static final int ENTITY_TYPE = 10;
 
+    private static final long SCHEDULE_OID = 12L;
+
     private static final String SPEC_NAME = "spec";
+    private static final long CURRENT_TIME = 1596646800000L;
+    private static final long FUTURE_TIME = 1596650400000L;
+    private static final long PAST_TIME = 1596643200000L;
 
     private final SettingSpecStore specStore = mock(SettingSpecStore.class);
+
+    private final ScheduleStore scheduleStore = mock(ScheduleStore.class);
 
     private IGroupStore groupStore;
 
     private DefaultSettingPolicyValidator validator;
+
+    private DSLContext context;
+
+    private Clock clock;
 
     /**
      * Expected exception.
@@ -78,8 +96,9 @@ public class SettingPolicyValidatorTest {
 
     @Before
     public void setup() throws Exception {
+        clock = mock(Clock.class);
         groupStore = mock(IGroupStore.class);
-        validator = new DefaultSettingPolicyValidator(specStore, groupStore);
+        validator = new DefaultSettingPolicyValidator(specStore, groupStore, scheduleStore, clock);
         when(groupStore.getGroupsById(Collections.singleton(GROUP_ID))).thenReturn(
                 Collections.singleton(Grouping.newBuilder()
                         .addExpectedTypes(MemberType.newBuilder().setEntity(ENTITY_TYPE))
@@ -90,11 +109,22 @@ public class SettingPolicyValidatorTest {
                         .setId(GROUP_ID)
                         .addExpectedTypes(MemberType.newBuilder().setEntity(ENTITY_TYPE))
                         .build()));
+        context = Mockito.mock(DSLContext.class);
+        when(clock.millis()).thenReturn(CURRENT_TIME);
+        when(scheduleStore.getSchedules(context, Collections.singleton(SCHEDULE_OID))).thenReturn(
+            Collections.singletonList(ScheduleProto.Schedule.newBuilder()
+                .setId(SCHEDULE_OID)
+                .setDisplayName("Test Schedule")
+                .setOneTime(ScheduleProto.Schedule.OneTime.getDefaultInstance())
+                .setStartTime(FUTURE_TIME)
+                .setEndTime(FUTURE_TIME + TimeUnit.HOURS.toMillis(1))
+                .build()
+            ));
     }
 
     @Test(expected = InvalidItemException.class)
     public void testSettingWithNoName() throws InvalidItemException {
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(Setting.newBuilder()
                         .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
                         .build())
@@ -104,7 +134,7 @@ public class SettingPolicyValidatorTest {
     @Test(expected = InvalidItemException.class)
     public void testSettingSpecNotFound() throws InvalidItemException {
         when(specStore.getSettingSpec(any())).thenReturn(Optional.empty());
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting().build())
                 .build(), Type.USER);
     }
@@ -115,7 +145,7 @@ public class SettingPolicyValidatorTest {
                 .setGlobalSettingSpec(GlobalSettingSpec.getDefaultInstance())
                 .setBooleanSettingValueType(BooleanSettingValueType.getDefaultInstance())
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting().build())
                 .build(), Type.USER);
     }
@@ -125,7 +155,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
                 .build()));
-        validator.validateSettingPolicy(SettingPolicyInfo.newBuilder()
+        validator.validateSettingPolicy(context, SettingPolicyInfo.newBuilder()
                 .setEntityType(10)
                 .build(), Type.DEFAULT);
     }
@@ -135,7 +165,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
                 .build()));
-        validator.validateSettingPolicy(SettingPolicyInfo.newBuilder()
+        validator.validateSettingPolicy(context, SettingPolicyInfo.newBuilder()
                 .setName("Policy")
                 .build(), Type.DEFAULT);
     }
@@ -145,7 +175,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
             .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
             .build()));
-        validator.validateSettingPolicy(SettingPolicyInfo.newBuilder()
+        validator.validateSettingPolicy(context, SettingPolicyInfo.newBuilder()
             .setName("Policy")
             .setEntityType(10)
             .setScope(Scope.newBuilder().addGroups(GROUP_ID))
@@ -160,43 +190,72 @@ public class SettingPolicyValidatorTest {
     @Test
     public void testValidActionModeAndExecutionScheduleSettingsCombination()
             throws InvalidItemException {
+        SettingPolicyInfo settingPolicyInfo = setupScheduledMovePolicy();
+        validator.validateSettingPolicy(context, settingPolicyInfo, Type.USER);
+    }
+
+    private SettingPolicyInfo setupScheduledMovePolicy() {
         final String moveExecutionScheduleSettingName =
             ActionSettingSpecs.getSubSettingFromActionModeSetting(
                 EntitySettingSpecs.Move, ActionSettingType.SCHEDULE);
         final String moveActionModeSettingName = EntitySettingSpecs.Move.getSettingName();
         final String settingPolicyName = "testSettingPolicy";
         when(specStore.getSettingSpec(eq(moveExecutionScheduleSettingName))).thenReturn(Optional.of(
-                SettingSpec.newBuilder()
-                        .setName(moveExecutionScheduleSettingName)
-                        .setEntitySettingSpec(EntitySettingSpec.getDefaultInstance())
-                        .setSortedSetOfOidSettingValueType(
-                                SortedSetOfOidSettingValueType.getDefaultInstance())
-                        .build()));
+            SettingSpec.newBuilder()
+                .setName(moveExecutionScheduleSettingName)
+                .setEntitySettingSpec(EntitySettingSpec.getDefaultInstance())
+                .setSortedSetOfOidSettingValueType(
+                    SortedSetOfOidSettingValueType.getDefaultInstance())
+                .build()));
         when(specStore.getSettingSpec(eq(moveActionModeSettingName))).thenReturn(Optional.of(
-                SettingSpec.newBuilder()
-                        .setName(moveActionModeSettingName)
-                        .setEntitySettingSpec(EntitySettingSpec.getDefaultInstance())
-                        .setEnumSettingValueType(EnumSettingValueType.newBuilder()
-                                .addAllEnumValues(Collections.singleton(ActionMode.MANUAL.name())))
-                        .build()));
+            SettingSpec.newBuilder()
+                .setName(moveActionModeSettingName)
+                .setEntitySettingSpec(EntitySettingSpec.getDefaultInstance())
+                .setEnumSettingValueType(EnumSettingValueType.newBuilder()
+                    .addAllEnumValues(Collections.singleton(ActionMode.MANUAL.name())))
+                .build()));
 
         final Setting actionModeSetting = Setting.newBuilder()
-                .setSettingSpecName(moveActionModeSettingName)
-                .setEnumSettingValue(
-                        EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()).build())
-                .build();
+            .setSettingSpecName(moveActionModeSettingName)
+            .setEnumSettingValue(
+                EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()).build())
+            .build();
         final Setting executionScheduleSetting = Setting.newBuilder()
-                .setSettingSpecName(moveExecutionScheduleSettingName)
-                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
-                        .addAllOids(Collections.singletonList(12L))
-                        .build())
-                .build();
-        final SettingPolicyInfo settingPolicyInfo = SettingPolicyInfo.newBuilder()
-                .setName(settingPolicyName)
-                .setEntityType(ENTITY_TYPE)
-                .addAllSettings(Arrays.asList(actionModeSetting, executionScheduleSetting))
-                .build();
-        validator.validateSettingPolicy(settingPolicyInfo, Type.USER);
+            .setSettingSpecName(moveExecutionScheduleSettingName)
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                .addAllOids(Collections.singletonList(SCHEDULE_OID))
+                .build())
+            .build();
+        return SettingPolicyInfo.newBuilder()
+            .setName(settingPolicyName)
+            .setEntityType(ENTITY_TYPE)
+            .addAllSettings(Arrays.asList(actionModeSetting, executionScheduleSetting))
+            .build();
+    }
+
+    /**
+     * Verifies that validation fails for a policy with an expired schedule.
+     */
+    @Test
+    public void testValidatePolicyWithExpiredSchedule() {
+        when(scheduleStore.getSchedules(context, Collections.singleton(SCHEDULE_OID))).thenReturn(
+            Collections.singletonList((ScheduleProto.Schedule.newBuilder()
+                .setId(SCHEDULE_OID)
+                .setDisplayName("Test Schedule")
+                .setOneTime(ScheduleProto.Schedule.OneTime.getDefaultInstance())
+                .setStartTime(PAST_TIME)
+                .setEndTime(PAST_TIME + TimeUnit.MINUTES.toMillis(30))
+                .build()
+            )));
+        SettingPolicyInfo settingPolicyInfo = setupScheduledMovePolicy();
+
+        try {
+            validator.validateSettingPolicy(context, settingPolicyInfo, Type.USER);
+        } catch (InvalidItemException e) {
+            Assert.assertThat(e.getMessage(), containsString("any future occurrences"));
+            return;
+        }
+        Assert.fail("Test should not reach here.");
     }
 
     /**
@@ -224,13 +283,14 @@ public class SettingPolicyValidatorTest {
                         .setSortedSetOfOidSettingValueType(
                                 SortedSetOfOidSettingValueType.getDefaultInstance())
                         .build()));
+
         final Setting executionScheduleSetting = Setting.newBuilder()
                 .setSettingSpecName(settingSpecName)
                 .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
                         .addAllOids(Collections.singletonList(12L))
                         .build())
                 .build();
-        validator.validateSettingPolicy(SettingPolicyInfo.newBuilder()
+        validator.validateSettingPolicy(context, SettingPolicyInfo.newBuilder()
                 .setName(settingPolicyName)
                 .setEntityType(ENTITY_TYPE)
                 .addAllSettings(Collections.singletonList(executionScheduleSetting))
@@ -242,7 +302,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
                                 .setValue(10))
@@ -257,7 +317,7 @@ public class SettingPolicyValidatorTest {
                     .setMin(1.0f)
                     .setMax(1.2f))
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
                                 .setValue(1.1f))
@@ -272,7 +332,7 @@ public class SettingPolicyValidatorTest {
                         .setMin(1.0f)
                         .setMax(1.2f))
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
                                 .setValue(0.9f))
@@ -287,7 +347,7 @@ public class SettingPolicyValidatorTest {
                         .setMin(1.0f)
                         .setMax(1.2f))
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
                                 .setValue(1.3f))
@@ -300,7 +360,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setStringSettingValue(StringSettingValue.newBuilder()
                                 .setValue("foo"))
@@ -314,7 +374,7 @@ public class SettingPolicyValidatorTest {
                 .setStringSettingValueType(StringSettingValueType.newBuilder()
                     .setValidationRegex("foo.*"))
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setStringSettingValue(StringSettingValue.newBuilder()
                                 .setValue("foo123"))
@@ -328,7 +388,7 @@ public class SettingPolicyValidatorTest {
                 .setStringSettingValueType(StringSettingValueType.newBuilder()
                         .setValidationRegex("foo.*"))
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setStringSettingValue(StringSettingValue.newBuilder()
                                 .setValue("boo123"))
@@ -342,7 +402,7 @@ public class SettingPolicyValidatorTest {
                 .setEnumSettingValueType(EnumSettingValueType.newBuilder()
                         .addEnumValues("1").addEnumValues("2"))
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setEnumSettingValue(EnumSettingValue.newBuilder()
                                 .setValue("x"))
@@ -356,7 +416,7 @@ public class SettingPolicyValidatorTest {
                 .setEnumSettingValueType(EnumSettingValueType.newBuilder()
                         .addEnumValues("1").addEnumValues("2"))
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setEnumSettingValue(EnumSettingValue.newBuilder()
                                 .setValue("2"))
@@ -369,7 +429,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
                         .build())
@@ -381,7 +441,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setBooleanSettingValueType(BooleanSettingValueType.getDefaultInstance())
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setEnumSettingValue(EnumSettingValue.getDefaultInstance())
                         .build())
@@ -393,7 +453,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
                         .build())
@@ -405,7 +465,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
             .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
             .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
             .addSettings(newSetting()
                 .clearSettingSpecName()
                 .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
@@ -418,7 +478,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
             .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
             .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
             .addSettings(newSetting()
                 .setSettingSpecName("  ")
                 .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
@@ -431,7 +491,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
             .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
             .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
             .addSettings(newSetting()
                 .clearSettingSpecName()
                 .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
@@ -445,7 +505,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting()
                         .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
                         .build())
@@ -466,7 +526,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
             .setSortedSetOfOidSettingValueType(SortedSetOfOidSettingValueType.getDefaultInstance())
             .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
             .addSettings(newSetting()
                 .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
                 .build())
@@ -479,7 +539,7 @@ public class SettingPolicyValidatorTest {
                 .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                 .build()));
         Mockito.when(groupStore.getGroups(Mockito.any())).thenReturn(Collections.emptyList());
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .setScope(Scope.newBuilder()
                         .addGroups(7L))
                 .build(), Type.USER);
@@ -495,7 +555,7 @@ public class SettingPolicyValidatorTest {
                         .setId(7L)
                         .addExpectedTypes(MemberType.newBuilder().setEntity(ENTITY_TYPE + 1))
                         .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .setScope(Scope.newBuilder()
                         .addGroups(7L))
                 .build(), Type.USER);
@@ -506,7 +566,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .build()));
         when(groupStore.getGroups(any())).thenThrow(DataAccessException.class);
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .setScope(Scope.newBuilder()
                         .addGroups(7L))
                 .build(), Type.USER);
@@ -521,7 +581,7 @@ public class SettingPolicyValidatorTest {
                                 .setEntityTypeSet(EntityTypeSet.newBuilder()
                                         .addEntityType(ENTITY_TYPE + 1))))
                 .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
                 .addSettings(newSetting().build())
                 .build(), Type.USER);
     }
@@ -540,7 +600,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
             .setSortedSetOfOidSettingValueType(SortedSetOfOidSettingValueType.getDefaultInstance())
             .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
             .addSettings(newSetting()
                 .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
                     .addAllOids(Arrays.asList(3L, 1L, 2L, 4L))).build())
@@ -561,7 +621,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
             .setSortedSetOfOidSettingValueType(SortedSetOfOidSettingValueType.getDefaultInstance())
             .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
             .addSettings(newSetting()
                 .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
                     .addAllOids(Arrays.asList(1L, 2L, 2L, 3L))).build())
@@ -574,7 +634,7 @@ public class SettingPolicyValidatorTest {
             .setEnumSettingValueType(EnumSettingValueType.newBuilder()
                 .addEnumValues("1").addEnumValues("2"))
             .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
             .addSettings(newSetting()
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                     .setValue("2"))
@@ -588,7 +648,7 @@ public class SettingPolicyValidatorTest {
             .setEnumSettingValueType(EnumSettingValueType.newBuilder()
                 .addEnumValues("1").addEnumValues("2"))
             .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
             .setTargetId(1234L)
             .addSettings(newSetting()
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
@@ -603,7 +663,7 @@ public class SettingPolicyValidatorTest {
             .setEnumSettingValueType(EnumSettingValueType.newBuilder()
                 .addEnumValues("1").addEnumValues("2"))
             .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
             .setTargetId(1234L)
             .addSettings(newSetting()
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
@@ -618,7 +678,7 @@ public class SettingPolicyValidatorTest {
             .setEnumSettingValueType(EnumSettingValueType.newBuilder()
                 .addEnumValues("1").addEnumValues("2"))
             .build()));
-        validator.validateSettingPolicy(newInfo()
+        validator.validateSettingPolicy(context, newInfo()
             .setTargetId(1234L)
             .addSettings(newSetting()
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
@@ -653,9 +713,10 @@ public class SettingPolicyValidatorTest {
      */
     @Test
     public void testDefaultPoliciesFromSpec() {
+        final ThinTargetCache thinTargetCache = Mockito.mock(ThinTargetCache.class);
         DefaultSettingPolicyValidator validator = new DefaultSettingPolicyValidator(
-                new EnumBasedSettingSpecStore(false, false),
-                mock(IGroupStore.class));
+                new EnumBasedSettingSpecStore(false, false, thinTargetCache),
+                mock(IGroupStore.class), scheduleStore, clock);
 
             List<InvalidItemException> exceptions = Lists.newArrayList();
         List<SettingSpec> settings = Arrays.stream(EntitySettingSpecs.values()).map(
@@ -664,7 +725,7 @@ public class SettingPolicyValidatorTest {
                 DefaultSettingPolicyCreator.defaultSettingPoliciesFromSpecs(settings).values();
         for (SettingPolicyInfo policy : policies) {
             try {
-                validator.validateSettingPolicy(policy, Type.DEFAULT);
+                validator.validateSettingPolicy(context, policy, Type.DEFAULT);
             } catch (InvalidItemException e) {
                 exceptions.add(e);
             }

@@ -572,23 +572,17 @@ public class HistorydbIO extends BasedbIO {
      */
     public void setCommodityValues(
         @Nonnull String propertySubtype,
-        @Nonnull final Optional<Double> used,
-        @Nonnull final Optional<Double> peak,
+        final double used,
+        final double peak,
         @Nonnull Record record,
         @Nonnull Table<?> table) {
 
+        double clipped = clipValue(used);
+        double clippedPeak = clipValue(peak);
         record.set(getStringField(table, PROPERTY_SUBTYPE), propertySubtype);
-
-        if (used.isPresent()) {
-            Double clipped = clipValue(used.get());
-            record.set(getDoubleField(table, AVG_VALUE), clipped);
-            record.set(getDoubleField(table, MIN_VALUE), clipped);
-        }
-
-        if (peak.isPresent()) {
-            Double clippedPeak = clipValue(peak.get());
-            record.set(getDoubleField(table, MAX_VALUE), clippedPeak);
-        }
+        record.set(getDoubleField(table, AVG_VALUE), clipped);
+        record.set(getDoubleField(table, MIN_VALUE), clipped);
+        record.set(getDoubleField(table, MAX_VALUE), Math.max(clipped, clippedPeak));
     }
 
     /**
@@ -665,14 +659,17 @@ public class HistorydbIO extends BasedbIO {
                     || isPaginationParamsSortByPI(paginationParams);
             final HistoryVariety historyVariety = usePriceDataBasedVariety ? HistoryVariety.PRICE_DATA : HistoryVariety.ENTITY_STATS;
 
-            final Query query = new AvailableTimestampsQuery(timeFrameOpt.orElse(TimeFrame.LATEST),
-                    historyVariety, 1, null, exclusiveUpperTimeBound).getQuery();
-            final List<Timestamp> snapshotTimeRecords
-                    = (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
-
-            if (!snapshotTimeRecords.isEmpty()) {
-                return Optional.of(snapshotTimeRecords.get(0));
+            Optional<Timestamp> timestamp = getMostRecentTimeStampForHistoryVariety(historyVariety,
+                exclusiveUpperTimeBound, timeFrameOpt);
+            // Price index data can take some time to be generated. If they do not exists yet,
+            // get the most recent ingested topology timestamp
+            if(!timestamp.isPresent() && historyVariety == HistoryVariety.PRICE_DATA) {
+                return getMostRecentTimeStampForHistoryVariety(HistoryVariety.ENTITY_STATS,
+                    exclusiveUpperTimeBound, timeFrameOpt);
             }
+            return timestamp;
+
+
 
         } catch (VmtDbException e) {
             logger.error("Failed to get database connection.", e);
@@ -680,6 +677,18 @@ public class HistorydbIO extends BasedbIO {
         return Optional.empty();
     }
 
+    private Optional<Timestamp> getMostRecentTimeStampForHistoryVariety(@Nonnull HistoryVariety historyVariety,
+                                                                        @Nonnull Timestamp exclusiveUpperTimeBound,
+                                                                        @Nonnull final Optional<TimeFrame> timeFrameOpt) throws VmtDbException {
+        final Query query = new AvailableTimestampsQuery(timeFrameOpt.orElse(TimeFrame.LATEST),
+            historyVariety, 1, null, exclusiveUpperTimeBound).getQuery();
+        final List<Timestamp> snapshotTimeRecords
+            = (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
+        if (!snapshotTimeRecords.isEmpty()) {
+            return Optional.of(snapshotTimeRecords.get(0));
+        }
+        return Optional.empty();
+    }
     /**
      * Whether a given list contains only price index or current price index request.
      *

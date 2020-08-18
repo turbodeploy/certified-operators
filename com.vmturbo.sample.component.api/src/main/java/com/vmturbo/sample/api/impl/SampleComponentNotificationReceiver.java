@@ -4,6 +4,8 @@ import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,7 +20,7 @@ import com.vmturbo.sample.api.SampleNotifications.SampleNotification;
  *
  * Other components that want to receive notifications from the sample component create an
  * instance for this class, providing the connection information to the sample component, and
- * register listeners using {@link SampleComponentNotificationReceiver#addListener(EchoListener)}.
+ * register listeners using {@link SampleComponentNotificationReceiver#addListener(Object)}}.
  */
 public class SampleComponentNotificationReceiver
         extends MulticastNotificationReceiver<SampleNotification, EchoListener> {
@@ -35,7 +37,8 @@ public class SampleComponentNotificationReceiver
     }
 
     @Override
-    protected void processMessage(@Nonnull final SampleNotification message)
+    protected void processMessage(@Nonnull final SampleNotification message,
+                                  @Nonnull final SpanContext tracingContext)
             throws ApiClientException {
         switch (message.getTypeCase()) {
             case ECHO_RESPONSE:

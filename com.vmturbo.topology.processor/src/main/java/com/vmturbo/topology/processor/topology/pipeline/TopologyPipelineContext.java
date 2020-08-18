@@ -5,8 +5,12 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
+import org.jetbrains.annotations.NotNull;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo.Builder;
+import com.vmturbo.components.api.FormattedString;
+import com.vmturbo.components.common.pipeline.PipelineContext;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
@@ -21,7 +25,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.Stitchi
  * <p>
  * The context is immutable, but objects inside it may be mutable.
  */
-public class TopologyPipelineContext {
+public class TopologyPipelineContext implements PipelineContext {
     private final GroupResolver groupResolver;
 
     private final TopologyInfo.Builder topologyInfoBuilder;
@@ -64,5 +68,12 @@ public class TopologyPipelineContext {
     @Nonnull
     public ConsistentScalingManager getConsistentScalingManager() {
         return consistentScalingManager;
+    }
+
+    @NotNull
+    @Override
+    public String getPipelineName() {
+        return FormattedString.format("Topology Pipeline (context : {}, id : {})",
+            topologyInfoBuilder.getTopologyContextId(), topologyInfoBuilder.getTopologyId());
     }
 }

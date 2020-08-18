@@ -17,6 +17,5 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]SQLDatabaseConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]flyway[/\\]PreValidationMigrationCallbackBase.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]FlywayMigratorTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]JooqQueryTrimmerTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]sql[/\\]utils[/\\]SQLDatabaseConfigTest.java" />
 </suppressions>

@@ -29,24 +29,11 @@ import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityTy
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.MEM;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.MEM_VALUE;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.APPLICATION;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_USER;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.COMPUTE_TIER;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATABASE;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATABASE_SERVER_TIER;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATABASE_TIER;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DESKTOP_POOL;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DISK_ARRAY;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.LOGICAL_POOL;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.REGION;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_CONTROLLER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_TIER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.WORKLOAD_CONTROLLER;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineFileType.CONFIGURATION;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineFileType.DISK;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineFileType.ISO;
@@ -57,7 +44,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -81,10 +67,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimap;
-import com.google.protobuf.Descriptors.FieldDescriptor;
-import com.google.protobuf.MessageOrBuilder;
 
-import org.hamcrest.Matcher;
 import org.javatuples.Quartet;
 import org.javatuples.Triplet;
 import org.jooq.DSLContext;
@@ -98,8 +81,6 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorDbConfig;
@@ -203,101 +184,6 @@ public class EntityMetricWriterTest {
             builder.unaggregatedCommodities(unaggregatedCommodities);
         }
         return builder.build();
-    }
-
-    /**
-     * Test that all types of entities appearing in a topology retain only intended fields in their
-     * type-specific info, when being persisted (to the "attrs" column of the entity table) in the
-     * database.
-     */
-    @Test
-    public void testTypeSpecificInfoStripping() {
-        checkStripping(APPLICATION, "ip_address");
-        checkStripping(BUSINESS_ACCOUNT, "account_id", "associated_target_id",
-                null, "riSupported");
-        checkExcludedType(BUSINESS_USER);
-        checkStripping(COMPUTE_TIER, "family", "num_coupons", "num_cores",
-                null, "burstableCPU", "dedicated_storage_network_state", "instance_disk_type",
-                "instance_disk_size_gb", "num_instance_disks", "quota_family",
-                "supported_customer_info");
-        checkStripping(DATABASE, "edition", "engine", "license_model", "deployment_type", "version");
-        checkStripping(DESKTOP_POOL, "assignment_type", "provision_type", "clone_type",
-                "template_reference_id",
-                null, "vm_with_snapshot");
-        checkStripping(DISK_ARRAY, "disk_type_info");
-        checkStripping(LOGICAL_POOL, "disk_type_info");
-        checkStripping(PHYSICAL_MACHINE, "cpu_model", "vendor", "model", "num_cpus", "timezone",
-                "num_cpu_sockets", "cpu_core_mhz", "diskGroup");
-        checkExcludedType(REGION);
-        checkStripping(STORAGE, "external_name", "storage_type", "is_local",
-                null, "ignore_wasted_files", "policy", "rawCapacity");
-        checkStripping(STORAGE_CONTROLLER, "disk_type_info");
-        checkStripping(VIRTUAL_MACHINE, "guest_os_info", "ip_addresses", "num_cpus",
-                "connected_networks", "license_model", "dynamic_memory",
-                null, "driverInfo", "locks", "tenancy", "architecture", "billingType",
-                "virtualizationType");
-        checkStripping(VIRTUAL_VOLUME,
-                null, "files");
-        checkExcludedType(WORKLOAD_CONTROLLER);
-        checkExcludedType(DATABASE_TIER);
-        checkExcludedType(DATABASE_SERVER_TIER);
-    }
-
-    private void checkStripping(
-            EntityType entityType, String... fields) {
-        TopologyEntityDTO entity = mkEntity(entityType);
-        final MessageOrBuilder stripped =
-                EntityMetricWriter.stripUnwantedFields(entity.getTypeSpecificInfo());
-        Matcher<Boolean> matcher = is(true);
-        Function<String, String> labeler = field -> String.format(
-                "Entity of type %s was missing expected field %s", entityType, field);
-        for (final String field : fields) {
-            if (field == null) {
-                matcher = is(false);
-                labeler = getter -> String.format(
-                        "Entity of type %s has unexpected field %s", entityType, getter);
-            } else {
-                FieldDescriptor desc = stripped.getDescriptorForType().findFieldByName(field);
-                if (desc != null) {
-                    boolean present = desc.isRepeated()
-                            ? stripped.getRepeatedFieldCount(desc) > 0
-                            : stripped.hasField(desc);
-                    assertThat(labeler.apply(field), present, matcher);
-                } else {
-                    throw new IllegalArgumentException(
-                            String.format("Unknown field %s for entity type %s",
-                                    field, entityType));
-                }
-            }
-        }
-    }
-
-    private void checkExcludedType(EntityType entityType) {
-        TopologyEntityDTO entity = mkEntity(entityType);
-        final MessageOrBuilder stripped =
-                EntityMetricWriter.stripUnwantedFields(entity.getTypeSpecificInfo());
-        assertThat(stripped, is(nullValue()));
-    }
-
-    /**
-     * Make sure that the type-specific-info attributes stripper in {@link EntityMetricWriter} covers
-     * all entity types for which there is a {@link TypeSpecificInfo} type defined in
-     * {@link TopologyEntityDTO}.
-     */
-    @Test
-    public void testAllTypeSpecificInfosTested() {
-        for (final TypeCase type : TypeCase.values()) {
-            if (type != TypeCase.TYPE_NOT_SET) {
-                EntityType entityType = EntityType.valueOf(type.name());
-                final TopologyEntityDTO entity = mkEntity(entityType);
-                assertThat(entity.getTypeSpecificInfo().getTypeCase(), is(type));
-                try {
-                    EntityMetricWriter.stripUnwantedFields(entity.getTypeSpecificInfo());
-                } catch (Exception e) {
-                    fail(String.format("Type-specific-info type %s not supported by field-stripper", type));
-                }
-            }
-        }
     }
 
     /**

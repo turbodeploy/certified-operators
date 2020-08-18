@@ -84,7 +84,7 @@ class CombinedStatsBuckets {
                 final StatGroup.Builder bldr = StatGroup.newBuilder();
                 bucketKey.state().ifPresent(bldr::setActionState);
                 bucketKey.category().ifPresent(bldr::setActionCategory);
-                bucketKey.explanation().ifPresent(bldr::setActionExplanation);
+                bucketKey.risk().ifPresent(bldr::setActionRelatedRisk);
                 bucketKey.type().ifPresent(bldr::setActionType);
                 bucketKey.costType().ifPresent(bldr::setCostType);
                 bucketKey.csp().ifPresent(bldr::setCsp);
@@ -165,7 +165,7 @@ class CombinedStatsBuckets {
         Set<ImmutableGroupByBucketKey> bucketKeys = new HashSet<>();
         bucketKeys.add(keyBuilder.build());
         bucketKeys = groupByReasonCommodities(bucketKeys, action);
-        bucketKeys = groupByActionExplanation(bucketKeys, action);
+        bucketKeys = groupByActionRelatedRisk(bucketKeys, action);
 
         return bucketKeys.stream().collect(Collectors.toSet());
     }
@@ -204,30 +204,30 @@ class CombinedStatsBuckets {
     }
 
     /**
-     * Group by reason commodities.
+     * Group by action related risk.
      * Create a new bucket key for each combination of a short action explanation and an existing bucket key.
      *
      * @param bucketKeys existing bucket keys
      * @param action the action to put into buckets
      * @return a set of bucket keys
      */
-    private Set<ImmutableGroupByBucketKey> groupByActionExplanation(
+    private Set<ImmutableGroupByBucketKey> groupByActionRelatedRisk(
             @Nonnull final Set<ImmutableGroupByBucketKey> bucketKeys,
             @Nonnull final Action action) {
-        if (!groupBy.contains(GroupBy.ACTION_EXPLANATION)) {
+        if (!groupBy.contains(GroupBy.ACTION_RELATED_RISK)) {
             return bucketKeys;
         }
 
-        final Set<String> explanations = ExplanationComposer.composeShortExplanation(action);
-        if (explanations.isEmpty()) {
+        final Set<String> relatedRisks = ExplanationComposer.composeRelatedRisks(action);
+        if (relatedRisks.isEmpty()) {
             return bucketKeys;
         }
 
         final Set<ImmutableGroupByBucketKey> newBucketKeys =
-            new HashSet<>(bucketKeys.size() * explanations.size());
+            new HashSet<>(bucketKeys.size() * relatedRisks.size());
         for (ImmutableGroupByBucketKey bucketKey : bucketKeys) {
-            for (String explanation : explanations) {
-                newBucketKeys.add(bucketKey.withExplanation(explanation));
+            for (String relatedRisk : relatedRisks) {
+                newBucketKeys.add(bucketKey.withRisk(relatedRisk));
             }
         }
 
@@ -256,11 +256,11 @@ class CombinedStatsBuckets {
         Optional<ActionCategory> category();
 
         /**
-         * The short-form explanation for this bucket.
+         * The action risk (short-form explanation) for this bucket.
          *
          * @return Value, or {@link Optional} if the requested group-by included the explanation.
          */
-        Optional<String> explanation();
+        Optional<String> risk();
 
         /**
          * The {@link ActionType} for this bucket.

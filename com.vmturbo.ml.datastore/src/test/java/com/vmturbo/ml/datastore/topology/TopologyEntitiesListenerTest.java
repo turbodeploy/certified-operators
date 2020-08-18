@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 
+import io.opentracing.SpanContext;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.ml.datastore.influx.*;
 import org.junit.Before;
@@ -58,6 +60,9 @@ public class TopologyEntitiesListenerTest {
         dtoTwo = TopologyDTO.Topology.DataSegment.newBuilder()
                                                  .setEntity(dtoTwoE)
                                                  .build();
+
+    private final SpanContext spanContext = mock(SpanContext.class);
+
     @SuppressWarnings("unchecked")
     private final RemoteIterator<TopologyDTO.Topology.DataSegment> iterator =
         (RemoteIterator<TopologyDTO.Topology.DataSegment>)mock(RemoteIterator.class);
@@ -78,7 +83,7 @@ public class TopologyEntitiesListenerTest {
         when(connectionFactory.createTopologyMetricsWriter(eq(whitelist), eq(metricJitter), eq(obfuscator)))
             .thenReturn(metricsWriter);
 
-        listener.onTopologyNotification(topologyInfo, iterator);
+        listener.onTopologyNotification(topologyInfo, iterator, spanContext);
         verify(metricsWriter).writeMetrics(eq(Collections.singletonList(dtoOneE)), eq(TIME),
             anyMap(), anyMap(), anyMap());
         verify(metricsWriter).writeMetrics(eq(Collections.singletonList(dtoTwoE)), eq(TIME),
@@ -90,7 +95,7 @@ public class TopologyEntitiesListenerTest {
         when(connectionFactory.createTopologyMetricsWriter(eq(whitelist), eq(metricJitter), eq(obfuscator)))
             .thenReturn(metricsWriter);
 
-        listener.onTopologyNotification(topologyInfo, iterator);
+        listener.onTopologyNotification(topologyInfo, iterator, spanContext);
         verify(metricsWriter).flush();
     }
 
@@ -101,12 +106,12 @@ public class TopologyEntitiesListenerTest {
         doThrow(InfluxUnavailableException.class)
             .when(connectionFactory)
             .createTopologyMetricsWriter(eq(whitelist), eq(metricJitter), eq(obfuscator));
-        listener.onTopologyNotification(topologyInfo, iterator);
+        listener.onTopologyNotification(topologyInfo, iterator, spanContext);
 
         // Then influx is available.
         when(connectionFactory.createTopologyMetricsWriter(eq(whitelist), eq(metricJitter), eq(obfuscator)))
             .thenReturn(metricsWriter);
-        listener.onTopologyNotification(topologyInfo, iterator);
+        listener.onTopologyNotification(topologyInfo, iterator, spanContext);
         verify(metricsWriter).writeMetrics(eq(Collections.singletonList(dtoOneE)), eq(TIME),
             anyMap(), anyMap(), anyMap());
         verify(metricsWriter).writeMetrics(eq(Collections.singletonList(dtoTwoE)), eq(TIME),

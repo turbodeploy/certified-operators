@@ -8,6 +8,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -104,6 +106,8 @@ public class PostStitchingOperationScopeFactoryTest {
         when(targetStore.getProbeTargets(eq(222L))).thenReturn(Collections.singletonList(target2));
         when(targetStore.getProbeTargets(eq(444L))).thenReturn(Collections.singletonList(target4));
         when(targetStore.getProbeTargets(eq(555L))).thenReturn(Collections.singletonList(target5));
+        when(targetStore.getParentTargetIds(4L))
+                .thenReturn(Collections.singleton(1L));
     }
 
     @Test
@@ -362,5 +366,21 @@ public class PostStitchingOperationScopeFactoryTest {
             .collect(Collectors.toList());
         Assert.assertEquals(2, entitiesInScope.size());
         assertThat(entitiesInScope, containsInAnyOrder(stor2.getOid(), stor3.getOid()));
+    }
+
+    /**
+     * Test that we only get VMs from the identified target's parent.
+     *
+     * @throws Exception if something goes wrong getting the scope's entities.
+     */
+    @Test
+    public void testParentTargetEntityTypeScope() throws Exception {
+        List<Long> vmsFromParent = scopeFactory.parentTargetEntityType(
+                EntityType.VIRTUAL_MACHINE, 4L)
+                .entities()
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toList());
+        assertEquals(1, vmsFromParent.size());
+        assertTrue(1L == vmsFromParent.iterator().next());
     }
 }

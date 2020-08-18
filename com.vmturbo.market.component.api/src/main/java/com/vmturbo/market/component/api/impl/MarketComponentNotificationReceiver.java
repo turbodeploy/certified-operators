@@ -14,6 +14,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
 
+import io.opentracing.SpanContext;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -26,7 +28,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.ChunkingReceiver;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -204,10 +205,11 @@ public class MarketComponentNotificationReceiver extends
     }
 
     @Override
-    protected void processMessage(@Nonnull final ActionPlan actions)
+    protected void processMessage(@Nonnull final ActionPlan actions,
+                                  @Nonnull final SpanContext tracingContext)
             throws ApiClientException, InterruptedException {
         for (final ActionsListener listener : actionsListenersSet) {
-            listener.onActionsReceived(actions);
+            listener.onActionsReceived(actions, tracingContext);
         }
     }
 
@@ -216,14 +218,18 @@ public class MarketComponentNotificationReceiver extends
      *
      * @param topology the chunk of ProjectedTopology to process
      * @param commitCommand a Runnable command to be processed when the whole stream has been processed
+     * @param tracingContext Distributed tracing context
      */
-    private void processProjectedTopology(@Nonnull final ProjectedTopology topology, @Nonnull Runnable commitCommand) {
+    private void processProjectedTopology(@Nonnull final ProjectedTopology topology,
+                                          @Nonnull Runnable commitCommand,
+                                          @Nonnull final SpanContext tracingContext) {
         final long topologyId = topology.getTopologyId();
         switch (topology.getSegmentCase()) {
             case START:
                 final Start start = topology.getStart();
                 projectedTopologyChunkReceiver.startTopologyBroadcast(topology.getTopologyId(),
-                        createProjectedTopologyChunkConsumers(topologyId, start.getSourceTopologyInfo()));
+                        createProjectedTopologyChunkConsumers(topologyId, start.getSourceTopologyInfo(),
+                            tracingContext));
                 break;
             case DATA:
                 projectedTopologyChunkReceiver.processData(topology.getTopologyId(),
@@ -245,9 +251,11 @@ public class MarketComponentNotificationReceiver extends
      *
      * @param projectedCostsSegment the chunk of {@link EntityCost} to process
      * @param commitCommand a Runnable command to be processed when the whole stream has been processed
+     * @param tracingContext Distributed tracing context.
      */
     private void processProjectedEntityCosts(@Nonnull final ProjectedEntityCosts projectedCostsSegment,
-                                             @Nonnull final Runnable commitCommand) {
+                                             @Nonnull final Runnable commitCommand,
+                                             @Nonnull final SpanContext tracingContext) {
         final long topologyId = projectedCostsSegment.getProjectedTopologyId();
         switch (projectedCostsSegment.getSegmentCase()) {
             case START:
@@ -278,10 +286,12 @@ public class MarketComponentNotificationReceiver extends
      * @param commitCommand
      *            a Runnable command to be processed when the whole stream has been
      *            processed
+     * @param tracingContext Distributed tracing context
      */
     private void processProjectedEntityRiCoverage(
                     @Nonnull final ProjectedEntityReservedInstanceCoverage projectedCoverageSegment,
-                    @Nonnull final Runnable commitCommand) {
+                    @Nonnull final Runnable commitCommand,
+                    @Nonnull final SpanContext tracingContext) {
         final long topologyId = projectedCoverageSegment.getProjectedTopologyId();
         switch (projectedCoverageSegment.getSegmentCase()) {
             case START:
@@ -312,8 +322,11 @@ public class MarketComponentNotificationReceiver extends
      *
      * @param topology the chunk of plan analysis topology to process
      * @param commitCommand a Runnable command to be processed when the whole stream has been processed
+     * @param tracingContext Distributed tracing context
      */
-    private void processPlanAnalysisTopology(@Nonnull final Topology topology, @Nonnull Runnable commitCommand) {
+    private void processPlanAnalysisTopology(@Nonnull final Topology topology,
+                                             @Nonnull Runnable commitCommand,
+                                             @Nonnull final SpanContext tracingContext) {
         getLogger().debug("Processing plan analysis topology {}, segment {}",
             topology::getTopologyId, topology::getSegmentCase);
         final long topologyId = topology.getTopologyId();
@@ -341,11 +354,11 @@ public class MarketComponentNotificationReceiver extends
     }
 
     private Collection<Consumer<RemoteIterator<ProjectedTopologyEntity>>> createProjectedTopologyChunkConsumers(
-            final long topologyId, final TopologyInfo topologyInfo) {
+            final long topologyId, final TopologyInfo topologyInfo, final SpanContext tracingContext) {
         return projectedTopologyListenersSet.stream().map(listener -> {
             final Consumer<RemoteIterator<ProjectedTopologyEntity>> consumer =
                     iterator -> listener.onProjectedTopologyReceived(
-                            topologyId, topologyInfo, iterator);
+                            topologyId, topologyInfo, iterator, tracingContext);
             return consumer;
         }).collect(Collectors.toList());
     }

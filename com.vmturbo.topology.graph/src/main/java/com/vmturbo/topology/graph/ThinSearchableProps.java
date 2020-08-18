@@ -14,6 +14,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 
 /**
  * An implementation of {@link SearchableProps} that copies the minimal required data,
@@ -25,6 +27,8 @@ public class ThinSearchableProps implements SearchableProps {
     private final TagIndex tagIndex;
 
     private final CommodityValueFetcher commodities;
+
+    private static final String UNKNOWN = "UNKNOWN";
 
     private ThinSearchableProps(@Nonnull final TagIndex tagIndex,
             @Nonnull final CommodityValueFetcher commodities) {
@@ -124,6 +128,8 @@ public class ThinSearchableProps implements SearchableProps {
                 return new ThinWorkloadControllerProps(tagIndex, commodities, info);
             case BUSINESS_ACCOUNT:
                 return new ThinBusinessAccountProps(tagIndex, commodities, info);
+            case DATABASE_SERVER:
+                return new ThinDatabaseServerProps(tagIndex, commodities, info);
             default:
                 return new ThinSearchableProps(tagIndex, commodities);
         }
@@ -339,6 +345,49 @@ public class ThinSearchableProps implements SearchableProps {
         @Override
         public String getAccountId() {
             return accountId;
+        }
+    }
+
+    /**
+     * Database server properties.
+     */
+    public static class ThinDatabaseServerProps extends ThinSearchableProps implements DatabaseServerProps {
+        private final DatabaseEngine databaseEngine;
+        private final DatabaseEdition databaseEdition;
+        private final String databaseVersion;
+
+
+        private ThinDatabaseServerProps(@Nonnull final TagIndex tagIndex,
+                                         @Nonnull final CommodityValueFetcher commodities,
+                                         @Nonnull final TypeSpecificInfo typeSpecificInfo) {
+            super(tagIndex, commodities);
+            final boolean hasDatabaseEngine = typeSpecificInfo.getDatabase().hasEngine();
+            final boolean hasDatabaseEdition = typeSpecificInfo.getDatabase().hasEdition();
+            final boolean hasDatabaseVersion = typeSpecificInfo.getDatabase().hasVersion();
+            databaseEngine = hasDatabaseEngine ? typeSpecificInfo.getDatabase().getEngine()
+                    : DatabaseEngine.UNKNOWN;
+            databaseEdition = hasDatabaseEdition ? typeSpecificInfo.getDatabase().getEdition()
+                    : DatabaseEdition.NONE;
+            databaseVersion = hasDatabaseVersion ? typeSpecificInfo.getDatabase().getVersion()
+                    : UNKNOWN;
+        }
+
+        @Nonnull
+        @Override
+        public DatabaseEngine getDatabaseEngine() {
+            return databaseEngine;
+        }
+
+        @Nonnull
+        @Override
+        public DatabaseEdition getDatabaseEdition() {
+            return databaseEdition;
+        }
+
+        @Nonnull
+        @Override
+        public String getDatabaseVersion() {
+            return databaseVersion;
         }
     }
 }

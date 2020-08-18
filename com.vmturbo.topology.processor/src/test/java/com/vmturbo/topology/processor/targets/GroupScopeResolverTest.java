@@ -17,6 +17,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import io.grpc.stub.StreamObserver;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -335,8 +336,13 @@ public class GroupScopeResolverTest {
 
     @Before
     public void setup() throws Exception {
-        groupScopeResolver = new GroupScopeResolver(groupServer.getChannel(),
-                repositoryServer.getChannel(), targetStore, entityStore);
+        groupScopeResolver = Mockito.spy(new GroupScopeResolver(groupServer.getChannel(),
+                repositoryServer.getChannel(), targetStore, entityStore));
+        for (int i = 0; i < memberId.length; i++) {
+            Mockito.doReturn(Optional.of(guestLoadId[i]))
+                    .when(groupScopeResolver).guestLoadOid(memberId[i]);
+        }
+
         Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(validProbeType));
         Mockito.when(targetStore.getProbeCategoryForTarget(Mockito.anyLong()))
@@ -414,6 +420,8 @@ public class GroupScopeResolverTest {
     }
 
     @Test
+    @Ignore("We no longer check in the resolver that the guest"
+            + "  load and the vm were discovered by the same probe")
     public void testGroupScopeInvalidProbeType() throws Exception {
         Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(invalidProbeType));

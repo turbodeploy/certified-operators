@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
+import com.vmturbo.action.orchestrator.workflow.WorkflowDiagnostics;
 import com.vmturbo.action.orchestrator.workflow.rpc.DiscoveredWorkflowRpcService;
 import com.vmturbo.action.orchestrator.workflow.rpc.WorkflowRpcService;
 import com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowIdentityStore;
@@ -76,6 +77,16 @@ public class WorkflowConfig {
     @Bean
     public WorkflowDTOREST.DiscoveredWorkflowServiceController discoveredWorkflowRpcServiceController() {
         return new WorkflowDTOREST.DiscoveredWorkflowServiceController(discoveredWorkflowRpcService());
+    }
+
+    /**
+     * Bean to handle diagnostics import/export for worfklows.
+     *
+     * @return the bean created
+     */
+    @Bean
+    public WorkflowDiagnostics workflowDiagnostics() {
+        return new WorkflowDiagnostics(workflowStore());
     }
 
 }

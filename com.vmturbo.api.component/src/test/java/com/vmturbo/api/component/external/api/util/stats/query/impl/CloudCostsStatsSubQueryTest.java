@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -37,6 +38,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
@@ -73,11 +75,14 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
@@ -117,7 +122,6 @@ public class CloudCostsStatsSubQueryTest {
     private static final long ACCOUNT_ID_2 = 2L;
     private static final String ACCOUNT_NAME_1 = "Development";
     private static final String ACCOUNT_NAME_2 = "Engineering";
-    private static final long BILLING_FAMILY_ID = 3L;
     private static final long CLOUD_SERVICE_ID_1 = 1L;
     private static final long CLOUD_SERVICE_ID_2 = 2L;
     private static final String CLOUD_SERVICE_NAME_1 = "CLOUD_SERVICE_1";
@@ -257,11 +261,11 @@ public class CloudCostsStatsSubQueryTest {
 
         // expected filters
         StatFilterApiDTO filter1 = new StatFilterApiDTO();
-        filter1.setType(CloudCostsStatsSubQuery.BUSINESS_UNIT);
+        filter1.setType(StringConstants.BUSINESS_UNIT);
         filter1.setValue(ACCOUNT_NAME_1);
 
         StatFilterApiDTO filter2 = new StatFilterApiDTO();
-        filter2.setType(CloudCostsStatsSubQuery.BUSINESS_UNIT);
+        filter2.setType(StringConstants.BUSINESS_UNIT);
         filter2.setValue(ACCOUNT_NAME_2);
 
         // build
@@ -273,7 +277,7 @@ public class CloudCostsStatsSubQueryTest {
         when(searchRequest.getMinimalEntities()).thenReturn(businessAccountDTOs.stream());
 
         StatApiInputDTO queryStat = new StatApiInputDTO();
-        queryStat.setGroupBy(Collections.singletonList(CloudCostsStatsSubQuery.BUSINESS_UNIT));
+        queryStat.setGroupBy(Collections.singletonList(StringConstants.BUSINESS_UNIT));
         final Set<StatApiInputDTO> requestedStats = Collections.singleton(queryStat);
 
         StatsQueryContext context = mock(StatsQueryContext.class);
@@ -331,11 +335,11 @@ public class CloudCostsStatsSubQueryTest {
 
         // expected filters
         StatFilterApiDTO filter1 = new StatFilterApiDTO();
-        filter1.setType(CloudCostsStatsSubQuery.CLOUD_SERVICE);
+        filter1.setType(StatsService.CLOUD_SERVICE);
         filter1.setValue(CLOUD_SERVICE_NAME_1);
 
         StatFilterApiDTO filter2 = new StatFilterApiDTO();
-        filter2.setType(CloudCostsStatsSubQuery.CLOUD_SERVICE);
+        filter2.setType(StatsService.CLOUD_SERVICE);
         filter2.setValue(CLOUD_SERVICE_NAME_2);
 
         // build
@@ -347,7 +351,7 @@ public class CloudCostsStatsSubQueryTest {
         when(searchRequest.getMinimalEntities()).thenReturn(cloudServiceDTOs.stream());
 
         StatApiInputDTO queryStat = new StatApiInputDTO();
-        queryStat.setGroupBy(Collections.singletonList(CloudCostsStatsSubQuery.CLOUD_SERVICE));
+        queryStat.setGroupBy(Collections.singletonList(StatsService.CLOUD_SERVICE));
         final Set<StatApiInputDTO> requestedStats = Collections.singleton(queryStat);
 
         StatsQueryContext context = mock(StatsQueryContext.class);
@@ -540,12 +544,12 @@ public class CloudCostsStatsSubQueryTest {
     public void testGetAggregateStatsGroupByCSP() {
         // expected filters
         StatFilterApiDTO filter = new StatFilterApiDTO();
-        filter.setType(CloudCostsStatsSubQuery.CSP);
+        filter.setType(StringConstants.CSP);
         filter.setValue(CSP_AZURE);
 
         // build
         StatApiInputDTO queryStat = new StatApiInputDTO();
-        queryStat.setGroupBy(Collections.singletonList(CloudCostsStatsSubQuery.CSP));
+        queryStat.setGroupBy(Collections.singletonList(StringConstants.CSP));
         final Set<StatApiInputDTO> requestedStats = Collections.singleton(queryStat);
 
         StatsQueryContext context = mock(StatsQueryContext.class);
@@ -605,27 +609,27 @@ public class CloudCostsStatsSubQueryTest {
     }
 
     private Set<StatApiInputDTO> createRequestStats() {
-        return Collections.singleton(createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+        return Collections.singleton(createRequestStat(StringConstants.COST_PRICE,
                 ApiEntityType.VIRTUAL_MACHINE.apiStr()));
     }
 
     private Set<StatApiInputDTO> createRequestStatsForCloudTab() {
-        return Sets.newHashSet(createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+        return Sets.newHashSet(createRequestStat(StringConstants.COST_PRICE,
                 ApiEntityType.VIRTUAL_MACHINE.apiStr()), createNumWorkloadsInputDto());
     }
 
     private Set<StatApiInputDTO> createRequestStatsForResourceGroup() {
         final StatApiInputDTO vmStat =
-                createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+                createRequestStat(StringConstants.COST_PRICE,
                         ApiEntityType.VIRTUAL_MACHINE.apiStr());
         final StatApiInputDTO dbServerStat =
-                createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+                createRequestStat(StringConstants.COST_PRICE,
                         ApiEntityType.DATABASE_SERVER.apiStr());
         final StatApiInputDTO dbStat =
-                createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+                createRequestStat(StringConstants.COST_PRICE,
                         ApiEntityType.DATABASE.apiStr());
         final StatApiInputDTO volumeStat =
-                createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+                createRequestStat(StringConstants.COST_PRICE,
                         ApiEntityType.VIRTUAL_VOLUME.apiStr());
         final StatApiInputDTO numWorkloads = createNumWorkloadsInputDto();
         return Sets.newHashSet(vmStat, dbStat, dbServerStat, volumeStat, numWorkloads);
@@ -988,7 +992,7 @@ public class CloudCostsStatsSubQueryTest {
         computeFilter.setType(CloudCostsStatsSubQuery.COST_COMPONENT);
         computeFilter.setValue(CostCategory.ON_DEMAND_COMPUTE.name());
         StatApiInputDTO vmCostStatApi = new StatApiInputDTO();
-        vmCostStatApi.setName(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY );
+        vmCostStatApi.setName(StringConstants.COST_PRICE);
         vmCostStatApi.setRelatedEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         vmCostStatApi.setFilters(Collections.singletonList(computeFilter));
         final Set<StatApiInputDTO> requestedStats = Collections.singleton(vmCostStatApi);
@@ -1152,5 +1156,212 @@ public class CloudCostsStatsSubQueryTest {
 
         final StatRecord nullRecord = StatRecord.newBuilder().build();
         Assert.assertNull(CloudCostsStatsSubQuery.getCostCategoryString(nullRecord));
+    }
+
+    /**
+     * Test the retrieval of volume stats grouped by attachment status.
+     */
+    @Test
+    public void testQueryVolumesByAttachment() throws OperationFailedException {
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        setupContextAndScopes(context, queryScope);
+
+        final long id1 = 1234L;
+        final TopologyEntityDTO volume1 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setOid(id1)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                    .setAttachmentState(AttachmentState.ATTACHED)))
+            .build();
+
+        final long id2 = 2345L;
+        final TopologyEntityDTO volume2 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setOid(id2)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                    .setAttachmentState(AttachmentState.ATTACHED)))
+            .build();
+
+        final long id3 = 3456L;
+        final TopologyEntityDTO volume3 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setOid(id3)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                    .setAttachmentState(AttachmentState.UNATTACHED)))
+            .build();
+
+        final Set<Long> volumeOids = ImmutableSet.of(id1, id2, id3);
+        when(queryScope.getExpandedOids()).thenReturn(volumeOids);
+        final MultiEntityRequest entitiesRequest =
+            ApiTestUtils.mockMultiFullEntityReq(ImmutableList.of(volume1, volume2, volume3));
+        when(repositoryApi.entitiesRequest(volumeOids)).thenReturn(entitiesRequest);
+
+        final Map<Long, Float> volumeCosts = ImmutableMap.of(id1, 10f, id2, 15f, id3, 20f);
+        setupVolumeCostResponse(volumeCosts);
+
+        final StatApiInputDTO numVolsByAttachment = new StatApiInputDTO();
+        numVolsByAttachment.setName(StorageStatsSubQuery.NUM_VOL);
+        numVolsByAttachment.setRelatedEntityType(ApiEntityType.VIRTUAL_VOLUME.apiStr());
+        numVolsByAttachment.setGroupBy(Collections.singletonList(StringConstants.ATTACHMENT));
+
+        final StatApiInputDTO volCostsByAttachment = new StatApiInputDTO();
+        volCostsByAttachment.setName(StringConstants.COST_PRICE);
+        volCostsByAttachment.setRelatedEntityType(ApiEntityType.VIRTUAL_VOLUME.apiStr());
+        volCostsByAttachment.setGroupBy(Collections.singletonList(StringConstants.ATTACHMENT));
+
+        final Set<StatApiInputDTO> requestedStats = ImmutableSet.of(numVolsByAttachment, volCostsByAttachment);
+
+        final List<StatSnapshotApiDTO> result = query.getAggregateStats(requestedStats, context);
+        Assert.assertEquals(1, result.size());
+        Assert.assertEquals(4, result.get(0).getStatistics().size());
+        for (final StatApiDTO stat : result.get(0).getStatistics()) {
+            Assert.assertEquals(1, stat.getFilters().size());
+            if (!stat.getFilters().get(0).getType().equals(StringConstants.ATTACHMENT)) {
+                Assert.fail("Incorrect filter type");
+            }
+            if (stat.getName().equals(StorageStatsSubQuery.NUM_VOL)) {
+                if (stat.getFilters().get(0).getValue().equals(StringConstants.ATTACHED)) {
+                    Assert.assertEquals(2, stat.getValues().getTotal(), .001);
+                } else if (stat.getFilters().get(0).getValue().equals(StringConstants.UNATTACHED)) {
+                    Assert.assertEquals(1, stat.getValues().getTotal(), .001);
+                } else {
+                    Assert.fail("Incorrect filter value");
+                }
+            } else if (stat.getName().equals(StringConstants.COST_PRICE)) {
+                if (stat.getFilters().get(0).getValue().equals(StringConstants.ATTACHED)) {
+                    Assert.assertEquals(25, stat.getValues().getTotal(), .001);
+                } else if (stat.getFilters().get(0).getValue().equals(StringConstants.UNATTACHED)) {
+                    Assert.assertEquals(20, stat.getValues().getTotal(), .001);
+                } else {
+                    Assert.fail("Incorrect filter value");
+                }
+            } else {
+                Assert.fail("Incorrect stat type");
+            }
+        }
+    }
+
+    /**
+     * Test the retrieval of volume stats grouped by storage tier.
+     */
+    @Test
+    public void testQueryVolumesByTier() throws OperationFailedException{
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        setupContextAndScopes(context, queryScope);
+
+        final long tierId1 = 9876L;
+        final String tierName1 = "tier-name-1";
+        final MinimalEntity tier1 = MinimalEntity.newBuilder().setDisplayName(tierName1).setOid(tierId1).build();
+        final long tierId2 = 8765L;
+        final String tierName2 = "tier-name-2";
+        final MinimalEntity tier2 = MinimalEntity.newBuilder().setDisplayName(tierName2).setOid(tierId2).build();
+
+        final SearchRequest tierSearch = ApiTestUtils.mockSearchMinReq(ImmutableList.of(tier1, tier2));
+        when(repositoryApi.newSearchRequest(any())).thenReturn(tierSearch);
+
+        final long volId1 = 1234L;
+        final TopologyEntityDTO volume1 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setOid(volId1)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(tierId1))
+            .build();
+
+        final long volId2 = 2345L;
+        final TopologyEntityDTO volume2 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setOid(volId2)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(tierId2))
+            .build();
+
+        final long volId3 = 3456L;
+        final TopologyEntityDTO volume3 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setOid(volId3)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(tierId1))
+            .build();
+        final Set<Long> volumeOids = ImmutableSet.of(volId1, volId2, volId3);
+        when(queryScope.getExpandedOids()).thenReturn(volumeOids);
+        final MultiEntityRequest entitiesRequest =
+            ApiTestUtils.mockMultiFullEntityReq(ImmutableList.of(volume1, volume2, volume3));
+        when(repositoryApi.entitiesRequest(volumeOids)).thenReturn(entitiesRequest);
+
+        final Map<Long, Float> volumeCosts = ImmutableMap.of(volId1, 10f, volId2, 15f, volId3, 20f);
+        setupVolumeCostResponse(volumeCosts);
+
+
+        final StatApiInputDTO numVolumesByTierInput = new StatApiInputDTO();
+        numVolumesByTierInput.setName(StorageStatsSubQuery.NUM_VOL);
+        numVolumesByTierInput.setRelatedEntityType(ApiEntityType.VIRTUAL_VOLUME.apiStr());
+        numVolumesByTierInput.setGroupBy(Collections.singletonList(ApiEntityType.STORAGE_TIER.apiStr()));
+        final StatApiInputDTO volumeCostByTierInput = new StatApiInputDTO();
+        volumeCostByTierInput.setName(StringConstants.COST_PRICE);
+        volumeCostByTierInput.setRelatedEntityType(ApiEntityType.VIRTUAL_VOLUME.apiStr());
+        volumeCostByTierInput.setGroupBy(Collections.singletonList(ApiEntityType.STORAGE_TIER.apiStr()));
+
+        final Set<StatApiInputDTO> requestedStats = ImmutableSet.of(numVolumesByTierInput, volumeCostByTierInput);
+
+        final List<StatSnapshotApiDTO> result = query.getAggregateStats(requestedStats, context);
+        Assert.assertEquals(1, result.size());
+        Assert.assertEquals(4, result.get(0).getStatistics().size());
+        for (final StatApiDTO stat : result.get(0).getStatistics()) {
+            Assert.assertEquals(1, stat.getFilters().size());
+            if (!stat.getFilters().get(0).getType().equals(ApiEntityType.STORAGE_TIER.apiStr())) {
+                Assert.fail("Incorrect filter type");
+            }
+            if (stat.getName().equals(StorageStatsSubQuery.NUM_VOL)) {
+                if (stat.getFilters().get(0).getValue().equals(tierName1)) {
+                    Assert.assertEquals(2, stat.getValues().getTotal(), .001);
+                } else if (stat.getFilters().get(0).getValue().equals(tierName2)) {
+                    Assert.assertEquals(1, stat.getValues().getTotal(), .001);
+                } else {
+                    Assert.fail("Incorrect filter value");
+                }
+            } else if (stat.getName().equals(StringConstants.COST_PRICE)) {
+                if (stat.getFilters().get(0).getValue().equals(tierName1)) {
+                    Assert.assertEquals(30, stat.getValues().getTotal(), .001);
+                } else if (stat.getFilters().get(0).getValue().equals(tierName2)) {
+                    Assert.assertEquals(15, stat.getValues().getTotal(), .001);
+                } else {
+                    Assert.fail("Incorrect filter value");
+                }
+            } else {
+                Assert.fail("Incorrect stat type");
+            }
+        }
+    }
+
+    private void setupContextAndScopes(StatsQueryContext context, StatsQueryScope queryScope) {
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+        when(context.getPlanInstance()).thenReturn(Optional.empty());
+        final ApiId inputScope = mock(ApiId.class);
+        when(inputScope.isCloud()).thenReturn(true);
+        when(inputScope.getScopeTypes()).thenReturn(Optional.empty());
+        when(inputScope.getCachedGroupInfo()).thenReturn(Optional.empty());
+        when(context.getInputScope()).thenReturn(inputScope);
+        when(context.getQueryScope()).thenReturn(queryScope);
+        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+    }
+
+    private void setupVolumeCostResponse(Map<Long, Float> volumeCosts) {
+        final CloudCostStatRecord.Builder recordBuilder = CloudCostStatRecord.newBuilder()
+            .setSnapshotDate(987L);
+        volumeCosts.forEach((volId, volCost) -> recordBuilder.addStatRecords(StatRecord.newBuilder()
+            .setAssociatedEntityId(volId)
+            .setAssociatedEntityType(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
+            .setValues(StatValue.newBuilder().setAvg(volCost).build())));
+        when(costServiceMole.getCloudCostStats(any()))
+            .thenReturn(Collections.singletonList(GetCloudCostStatsResponse.newBuilder()
+                .addCloudStatRecord(recordBuilder.build()).build()));
     }
 }

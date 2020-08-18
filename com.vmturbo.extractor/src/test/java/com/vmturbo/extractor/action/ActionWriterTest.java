@@ -28,7 +28,6 @@ import io.grpc.Status;
 
 import org.jooq.DSLContext;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -69,7 +68,6 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
-@Ignore
 public class ActionWriterTest {
 
     private static final long ACTION_WRITING_INTERVAL_MS = 10_000;
@@ -155,12 +153,13 @@ public class ActionWriterTest {
      */
     @Test
     public void testWriteActions() {
+        final long specOid = 999;
         Record actionSpecRecord = new Record(ActionModel.ActionSpec.TABLE);
-        actionSpecRecord.set(ActionModel.ActionSpec.SPEC_OID, 999L);
+        actionSpecRecord.set(ActionModel.ActionSpec.SPEC_OID, specOid);
 
         Record actionRecord = new Record(ActionMetric.TABLE);
         actionRecord.set(ActionMetric.STATE, ActionState.IN_PROGRESS);
-        actionRecord.set(ActionMetric.ACTION_SPEC_OID, 999L);
+        actionRecord.set(ActionMetric.ACTION_SPEC_OID, specOid);
         actionRecord.set(ActionMetric.ACTION_OID, 888L);
         actionRecord.set(ActionMetric.USER, "me");
 
@@ -170,6 +169,8 @@ public class ActionWriterTest {
         SnapshotManager snapshotManager = mock(SnapshotManager.class);
         long hash = 1728;
         when(snapshotManager.updateRecordHash(actionSpecRecord)).thenReturn(hash);
+        when(actionHashManager.getEntityHash(specOid)).thenReturn(hash);
+
         doAnswer(invocation -> {
             Record record = invocation.getArgumentAt(0, Record.class);
             record.set(ActionModel.ActionSpec.FIRST_SEEN, new Timestamp(clock.millis() - 100_000));
@@ -183,6 +184,10 @@ public class ActionWriterTest {
         assertThat(actionSpecUpsertCapture.get(0).asMap(), is(actionSpecRecord.asMap()));
         assertThat(actionSpecUpdateCapture, is(empty()));
         assertThat(actionInsertCapture.get(0).asMap(), is(actionRecord.asMap()));
+
+        // Verify the hash is being set.
+        assertThat(actionSpecUpsertCapture.get(0).get(ActionModel.ActionSpec.HASH), is(hash));
+        assertThat(actionInsertCapture.get(0).get(ActionMetric.ACTION_SPEC_HASH), is(hash));
 
         verify(snapshotManager).updateRecordHash(actionSpecRecord);
         verify(snapshotManager).setRecordTimes(actionSpecUpsertCapture.get(0));

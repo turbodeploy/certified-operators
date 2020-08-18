@@ -28,9 +28,19 @@ public enum ApiEntityType {
     APPLICATION_COMPONENT(StringConstants.APPLICATION_COMPONENT, EntityType.APPLICATION_COMPONENT),
     /** Service entity type. */
     SERVICE(StringConstants.SERVICE, EntityType.SERVICE),
-    /** Application entity type. */
+    /**
+     * Application entity type.
+     *
+     * @deprecated use {@link #APPLICATION_COMPONENT} instead.
+     */
+    @Deprecated
     APPLICATION(StringConstants.APPLICATION, EntityType.APPLICATION),
-    /** ApplicationServer entity type. */
+    /**
+     * ApplicationServer entity type.
+     *
+     * @deprecated use {@link #APPLICATION_COMPONENT} instead.
+     */
+    @Deprecated
     APPLICATION_SERVER(StringConstants.APPSRV, EntityType.APPLICATION_SERVER),
     /** AvailabilityZone entity type. */
     AVAILABILITY_ZONE(StringConstants.AVAILABILITY_ZONE_ENTITY, EntityType.AVAILABILITY_ZONE),
@@ -104,7 +114,12 @@ public enum ApiEntityType {
     UNKNOWN(StringConstants.UNKNOWN, EntityType.UNKNOWN),
     /** ViewPod entity type. */
     VIEW_POD(StringConstants.VIEW_POD, EntityType.VIEW_POD),
-    /** VirtualApplication entity type. */
+    /**
+     * VirtualApplication entity type.
+     *
+     * @deprecated use {@link #SERVICE} instead.
+     */
+    @Deprecated
     VIRTUAL_APPLICATION(StringConstants.VIRTUAL_APPLICATION, EntityType.VIRTUAL_APPLICATION),
     /** VirtualDataCenter entity type. */
     VIRTUAL_DATACENTER(StringConstants.VDC, EntityType.VIRTUAL_DATACENTER),

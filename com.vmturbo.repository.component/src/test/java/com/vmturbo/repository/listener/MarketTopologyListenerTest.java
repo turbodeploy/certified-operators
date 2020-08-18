@@ -13,9 +13,12 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.Sets;
+
+import io.opentracing.SpanContext;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
@@ -99,7 +102,7 @@ public class MarketTopologyListenerTest {
             .build();
 
         marketTopologyListener.onProjectedTopologyReceived(projectedTopologyId, originalTopoInfo,
-                entityIterator);
+                entityIterator, Mockito.mock(SpanContext.class));
 
         verify(topologyManager).newProjectedTopologyCreator(tid, originalTopoInfo);
         verify(topologyCreator).complete();
@@ -133,7 +136,8 @@ public class MarketTopologyListenerTest {
 
         marketTopologyListener.onProjectedTopologyReceived(projectedTopologyId,
                 originalTopoInfo,
-                entityIterator);
+                entityIterator,
+                Mockito.mock(SpanContext.class));
 
         // should not have any "write" interactions
         verify(topologyManager, never()).newProjectedTopologyCreator(tid, originalTopoInfo);

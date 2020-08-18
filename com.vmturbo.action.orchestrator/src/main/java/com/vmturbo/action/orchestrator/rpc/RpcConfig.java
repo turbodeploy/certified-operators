@@ -29,6 +29,10 @@ import com.vmturbo.common.protobuf.action.ActionsDebugREST.ActionsDebugServiceCo
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOREST.EntitySeverityServiceController;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
+/**
+ * Spring configuration that sets up action related protobuf service implementations as well as
+ * their HTTP rest end points.
+ */
 @Configuration
 @Import({ActionOrchestratorGlobalConfig.class,
     ActionStoreConfig.class,
@@ -78,6 +82,11 @@ public class RpcConfig {
     @Value("${maxAmountOfEntitiesPerGrpcMessage:5000}")
     private int maxAmountOfEntitiesPerGrpcMessage;
 
+    /**
+     * Returns the the object that implements protobuf ActionsService.
+     *
+     * @return the the object that implements protobuf ActionsService.
+     */
     @Bean
     public ActionsRpcService actionRpcService() {
         return new ActionsRpcService(
@@ -117,9 +126,16 @@ public class RpcConfig {
         return new ExternalActionApprovalManager(actionApprovalManager(),
                 actionStoreConfig.actionStorehouse(),
                 topologyProcessorClientConfig.createActionStateReceiver(),
+                topologyProcessorClientConfig.createActionApprovalResponseReceiver(),
                 topologyProcessorConfig.realtimeTopologyContextId(), actionStoreConfig.rejectedActionsStore());
     }
 
+    /**
+     * Returns the paginator using the environment properties actionPaginationDefaultLimit
+     * and actionPaginationMaxLimit.
+     *
+     * @return the default paginator.
+     */
     @Bean
     public ActionPaginatorFactory actionPaginatorFactory() {
         return new DefaultActionPaginatorFactory(
@@ -127,32 +143,59 @@ public class RpcConfig {
                 actionPaginationMaxLimit);
     }
 
+    /**
+     * Returns the the object that implements protobuf ActionsDebugService.
+     *
+     * @return the the object that implements protobuf ActionsDebugService.
+     */
     @Bean
     public Optional<ActionsDebugRpcService> actionsDebugRpcService() {
         // The ActionsDebugRpcService should only be instantiated if the system property
         // for the debug service has been set to true at startup time.
-        return grpcDebugServicesEnabled() ?
-            Optional.of(new ActionsDebugRpcService(actionStoreConfig.actionStorehouse())) :
-            Optional.empty();
+        return grpcDebugServicesEnabled()
+            ? Optional.of(new ActionsDebugRpcService(actionStoreConfig.actionStorehouse()))
+            : Optional.empty();
     }
 
+    /**
+     * Code generated rest endpoint for /ActionsService that uses ActionsRpcService
+     * as the implementation.
+     *
+     * @return code generated rest endpoint for /ActionsService.
+     */
     @Bean
     public ActionsServiceController actionsServiceController() {
         return new ActionsServiceController(actionRpcService());
     }
 
+    /**
+     * Returns the the object that implements protobuf EntitySeverityService.
+     *
+     * @return the the object that implements protobuf EntitySeverityService.
+     */
     @Bean
     public EntitySeverityRpcService entitySeverityRpcService() {
         return new EntitySeverityRpcService(actionStoreConfig.actionStorehouse(),
                 actionPaginationDefaultLimit, actionPaginationMaxLimit, maxAmountOfEntitiesPerGrpcMessage);
     }
 
+    /**
+     * Returns the the object that implements protobuf ActionConstraintsService.
+     *
+     * @return the the object that implements protobuf ActionConstraintsService.
+     */
     @Bean
     public ActionConstraintsRpcService actionConstraintsRpcService() {
         return new ActionConstraintsRpcService(actionExecutionConfig.actionConstraintStoreFactory());
     }
 
-    @Bean
+    /**
+     * Code generated rest endpoint for /ActionConstraintsService that uses
+     * ActionConstraintsRpcService as the implementation.
+     *
+     * @return code generated rest endpoint for /ActionConstraintsService.
+     */
+    @Bean //
     public ActionConstraintsServiceController actionConstraintsServiceController() {
         return new ActionConstraintsServiceController(actionConstraintsRpcService());
     }
@@ -168,19 +211,33 @@ public class RpcConfig {
     }
 
     /**
-     * Create the  {@link AtomicActionSpecsUploadServiceController}.
-     * @return the bean created
+     * Code generated rest endpoint for /AtomicActionSpecsUploadService that uses
+     * AtomicActionSpecsRpcService as the implementation.
+     *
+     * @return code generated rest endpoint for /AtomicActionSpecsUploadService.
      */
     @Bean
     public AtomicActionSpecsUploadServiceController actionMergeSpecsServiceController() {
         return new AtomicActionSpecsUploadServiceController(atomicActionSpecsRpcService());
     }
 
+    /**
+     * Code generated rest endpoint for /EntitySeverityService that uses EntitySeverityRpcService
+     * as the implementation.
+     *
+     * @return code generated rest endpoint for /EntitySeverityService.
+     */
     @Bean
     public EntitySeverityServiceController entitySeverityServiceController() {
         return new EntitySeverityServiceController(entitySeverityRpcService());
     }
 
+    /**
+     * Code generated rest endpoint for /ActionsDebugService that uses ActionsDebugRpcService
+     * as the implementation.
+     *
+     * @return code generated rest endpoint for /ActionsDebugService.
+     */
     @Bean
     public ActionsDebugServiceController actionsDebugServiceController() {
         return actionsDebugRpcService()

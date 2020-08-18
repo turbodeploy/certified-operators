@@ -66,7 +66,7 @@ public class SampleVoltronTest {
         final CompletableFuture<Void> actionsAvailable = new CompletableFuture<>();
         final IMessageReceiver<ActionOrchestratorNotification>
                 aoListener = container.getMessageReceiver(ActionOrchestratorNotificationReceiver.ACTIONS_TOPIC);
-        aoListener.addListener(((actionOrchestratorNotification, runnable) -> {
+        aoListener.addListener(((actionOrchestratorNotification, runnable, spanContext) -> {
             if (actionOrchestratorNotification.hasActionsUpdated()) {
                 actionsAvailable.complete(null);
             }

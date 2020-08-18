@@ -49,9 +49,10 @@ public class UserScopeUtils {
     // ScopedUserUtil.java.
     // Please sync changes to this list with identical const in ux-app user.form.component.ts
     public static final Set<String> SHARED_USER_ENTITY_TYPES = ImmutableSet.of(
-            ApiEntityType.APPLICATION.apiStr(),
-            ApiEntityType.APPLICATION_SERVER.apiStr(),
+            ApiEntityType.APPLICATION_COMPONENT.apiStr(),
             ApiEntityType.BUSINESS_APPLICATION.apiStr(),
+            ApiEntityType.BUSINESS_TRANSACTION.apiStr(),
+            ApiEntityType.SERVICE.apiStr(),
             ApiEntityType.VIRTUAL_MACHINE.apiStr(),
             ApiEntityType.DATABASE_SERVER.apiStr(),
             ApiEntityType.DATABASE.apiStr(),

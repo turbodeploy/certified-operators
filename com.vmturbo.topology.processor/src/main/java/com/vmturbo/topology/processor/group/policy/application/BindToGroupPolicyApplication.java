@@ -18,14 +18,16 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * Applies a collection of {@link BindToGroupPolicy}s. No bulk optimizations.
  */
-public class BindToGroupPolicyApplication extends PlacementPolicyApplication {
+public class BindToGroupPolicyApplication extends PlacementPolicyApplication<BindToGroupPolicy> {
     protected BindToGroupPolicyApplication(final GroupResolver groupResolver,
-                                           final TopologyGraph<TopologyEntity> topologyGraph) {
-        super(groupResolver, topologyGraph);
+            final TopologyGraph<TopologyEntity> topologyGraph,
+            final TopologyInvertedIndexFactory invertedIndexFactory) {
+        super(groupResolver, topologyGraph, invertedIndexFactory);
     }
 
     /**
@@ -33,12 +35,9 @@ public class BindToGroupPolicyApplication extends PlacementPolicyApplication {
      */
     @Override
     protected Map<PlacementPolicy, PolicyApplicationException> applyInternal(
-            @Nonnull final List<PlacementPolicy> policies) {
+            @Nonnull final List<BindToGroupPolicy> policies) {
         final Map<PlacementPolicy, PolicyApplicationException> errors = new HashMap<>();
-        policies.stream()
-            .filter(policy -> policy instanceof BindToGroupPolicy)
-            .map(policy -> (BindToGroupPolicy)policy)
-            .forEach(policy -> {
+        policies.forEach(policy -> {
                 try {
                     logger.debug("Applying bindToGroup policy.");
                     final Grouping providerGroup = policy.getProviderPolicyEntities().getGroup();

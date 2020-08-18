@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
@@ -389,6 +390,37 @@ public class ActionTest {
         assertEquals(moveAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(storageMoveAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
+    }
+
+    /**
+     * Tests that after changing action mode from {@link ActionMode#EXTERNAL_APPROVAL} external
+     * -related info should be deleted from action.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testRemovingExternalRelatedInformation() throws Exception {
+        final String externalActionName = "CHG0133111";
+        final String externalActionUrl = "dev68876.service-now.com/CHG0133111";
+        final Map<String, Setting> initialSettings =
+                ImmutableMap.<String, Setting>builder().put("move",
+                        makeSetting("move", ActionMode.EXTERNAL_APPROVAL)).build();
+        Mockito.when(entitySettingsCache.getSettingsForEntity(eq(11L))).thenReturn(initialSettings);
+        moveAction.refreshAction(entitySettingsCache);
+        moveAction.setExternalActionName(externalActionName);
+        moveAction.setExternalActionUrl(externalActionUrl);
+
+        Assert.assertEquals(moveAction.getMode(), ActionMode.EXTERNAL_APPROVAL);
+        Assert.assertTrue(moveAction.getExternalActionName().isPresent());
+        Assert.assertTrue(moveAction.getExternalActionUrl().isPresent());
+
+        final Map<String, Setting> newSettings = ImmutableMap.<String, Setting>builder().put("move",
+                makeSetting("move", ActionMode.MANUAL)).build();
+        Mockito.when(entitySettingsCache.getSettingsForEntity(eq(11L))).thenReturn(newSettings);
+        moveAction.refreshAction(entitySettingsCache);
+
+        Assert.assertFalse(moveAction.getExternalActionName().isPresent());
+        Assert.assertFalse(moveAction.getExternalActionUrl().isPresent());
     }
 
     /**

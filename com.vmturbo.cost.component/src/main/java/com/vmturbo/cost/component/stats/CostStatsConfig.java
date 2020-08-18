@@ -22,6 +22,20 @@ import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
+import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
+import static com.vmturbo.cost.component.db.Tables.ENTITY_COST_BY_HOUR;
+import static com.vmturbo.cost.component.db.Tables.ENTITY_COST_BY_DAY;
+import static com.vmturbo.cost.component.db.Tables.ENTITY_COST_BY_MONTH;
+import static com.vmturbo.cost.component.db.Tables.HIST_ENTITY_RESERVED_INSTANCE_MAPPING;
+import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_COVERAGE_BY_DAY;
+import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_COVERAGE_BY_HOUR;
+import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_COVERAGE_BY_MONTH;
+import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_COVERAGE_LATEST;
+import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_UTILIZATION_BY_MONTH;
+import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_UTILIZATION_BY_HOUR;
+import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_UTILIZATION_BY_DAY;
+import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_UTILIZATION_LATEST;
+
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.cost.component.CostDBConfig;
@@ -38,6 +52,10 @@ public class CostStatsConfig {
 
     @Value("${retention.numRetainedMinutes}")
     private int numRetainedMinutes;
+
+    private final long HIST_SE_RI_COV_ROLLING_WIN_DAYS_DEFAULT = 60;
+    @Value("${histEntityRiCoverageRecordsRollingWindowDays:60}")
+    private long histEntityRiCoverageRecordsRollingWindowDays;
 
     @Value("${reservedInstanceStatCleanup.minTimeBetweenCleanupsMinutes:60}")
     private int minTimeBetweenCleanupsMinutes;
@@ -92,7 +110,7 @@ public class CostStatsConfig {
         final List<CostStatTable> tablesToBeCleanedUp = Arrays.asList(coverageDayStatTable(), coverageLatestStatTable(),
                 coverageHourStatTable(), coverageMonthlyStatTable(), utilizationDayStatTable(), utilizationHourStatTable(),
                 utilizationLatestTable(), utilizationMonthlyStatTable(), entityCostTable(), entityCostDayTable(),
-                entityCostHourTable(), entityCostMonthlyTable());
+                entityCostHourTable(), entityCostMonthlyTable(), coverageHistoricalRiPerEntityTable());
         return new CostStatCleanupScheduler(costClock(), tablesToBeCleanedUp,
                 retentionPeriodFetcher(), cleanupExecutorService(), minTimeBetweenCleanupsMinutes,
                 TimeUnit.MINUTES, taskScheduler(), cleanupSchedulerPeriod);
@@ -108,99 +126,117 @@ public class CostStatsConfig {
     @Bean
     public CostStatMonthlyTable coverageMonthlyStatTable() {
         return new CostStatMonthlyTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder().statTableSnapshotTime(Tables.RESERVED_INSTANCE_COVERAGE_BY_MONTH.SNAPSHOT_TIME)
-                        .statTable(Tables.RESERVED_INSTANCE_COVERAGE_BY_MONTH).shortTableName("Coverage_monthly")
+                ImmutableTableInfo.builder().statTableSnapshotTime(RESERVED_INSTANCE_COVERAGE_BY_MONTH.SNAPSHOT_TIME)
+                        .statTable(RESERVED_INSTANCE_COVERAGE_BY_MONTH).shortTableName("Coverage_monthly")
                         .timeTruncateFn(time -> LocalDateTime.of(time.getYear(), time.getMonth(), 1, 0, 0)).build());
     }
 
     @Bean
     public CostStatHourTable coverageHourStatTable() {
         return new CostStatHourTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder().statTableSnapshotTime(Tables.RESERVED_INSTANCE_COVERAGE_BY_HOUR.SNAPSHOT_TIME)
-                        .statTable(Tables.RESERVED_INSTANCE_COVERAGE_BY_HOUR).shortTableName("Coverage_hourly")
+                ImmutableTableInfo.builder().statTableSnapshotTime(RESERVED_INSTANCE_COVERAGE_BY_HOUR.SNAPSHOT_TIME)
+                        .statTable(RESERVED_INSTANCE_COVERAGE_BY_HOUR).shortTableName("Coverage_hourly")
                         .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.HOURS)).build());
     }
 
     @Bean
     public CostStatDayTable coverageDayStatTable() {
         return new CostStatDayTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder().statTableSnapshotTime(Tables.RESERVED_INSTANCE_COVERAGE_BY_DAY.SNAPSHOT_TIME)
-                        .statTable(Tables.RESERVED_INSTANCE_COVERAGE_BY_DAY).shortTableName("Coverage_daily")
+                ImmutableTableInfo.builder().statTableSnapshotTime(RESERVED_INSTANCE_COVERAGE_BY_DAY.SNAPSHOT_TIME)
+                        .statTable(RESERVED_INSTANCE_COVERAGE_BY_DAY).shortTableName("Coverage_daily")
                         .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.DAYS)).build());
     }
 
     @Bean
     public CostStatLatestTable coverageLatestStatTable() {
         return new CostStatLatestTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder().statTableSnapshotTime(Tables.RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME)
-                        .statTable(Tables.RESERVED_INSTANCE_COVERAGE_LATEST).shortTableName("Coverage_latest")
+                ImmutableTableInfo.builder().statTableSnapshotTime(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME)
+                        .statTable(RESERVED_INSTANCE_COVERAGE_LATEST).shortTableName("Coverage_latest")
                         .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.MINUTES)).build());
     }
 
     @Bean
     public CostStatMonthlyTable utilizationMonthlyStatTable() {
         return new CostStatMonthlyTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder().statTableSnapshotTime(Tables.RESERVED_INSTANCE_UTILIZATION_BY_MONTH.SNAPSHOT_TIME)
-                        .statTable(Tables.RESERVED_INSTANCE_UTILIZATION_BY_MONTH).shortTableName("Utilization_Monthly")
+                ImmutableTableInfo.builder().statTableSnapshotTime(RESERVED_INSTANCE_UTILIZATION_BY_MONTH.SNAPSHOT_TIME)
+                        .statTable(RESERVED_INSTANCE_UTILIZATION_BY_MONTH).shortTableName("Utilization_Monthly")
                         .timeTruncateFn(time -> LocalDateTime.of(time.getYear(), time.getMonth(), 1, 0, 0)).build());
     }
 
     @Bean
     public CostStatHourTable utilizationHourStatTable() {
         return new CostStatHourTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder().statTableSnapshotTime(Tables.RESERVED_INSTANCE_UTILIZATION_BY_HOUR.SNAPSHOT_TIME)
-                        .statTable(Tables.RESERVED_INSTANCE_UTILIZATION_BY_HOUR).shortTableName("Utilization_hourly")
+                ImmutableTableInfo.builder().statTableSnapshotTime(RESERVED_INSTANCE_UTILIZATION_BY_HOUR.SNAPSHOT_TIME)
+                        .statTable(RESERVED_INSTANCE_UTILIZATION_BY_HOUR).shortTableName("Utilization_hourly")
                         .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.HOURS)).build());
     }
 
     @Bean
     public CostStatDayTable utilizationDayStatTable() {
         return new CostStatDayTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder().statTableSnapshotTime(Tables.RESERVED_INSTANCE_UTILIZATION_BY_DAY.SNAPSHOT_TIME)
-                        .statTable(Tables.RESERVED_INSTANCE_UTILIZATION_BY_DAY).shortTableName("Utilization_daily")
+                ImmutableTableInfo.builder().statTableSnapshotTime(RESERVED_INSTANCE_UTILIZATION_BY_DAY.SNAPSHOT_TIME)
+                        .statTable(RESERVED_INSTANCE_UTILIZATION_BY_DAY).shortTableName("Utilization_daily")
                         .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.DAYS)).build());
     }
 
     @Bean
     public CostStatLatestTable utilizationLatestTable() {
         return new CostStatLatestTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder().statTableSnapshotTime(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST.SNAPSHOT_TIME)
-                        .statTable(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST).shortTableName("Utilization_Latest")
+                ImmutableTableInfo.builder().statTableSnapshotTime(RESERVED_INSTANCE_UTILIZATION_LATEST.SNAPSHOT_TIME)
+                        .statTable(RESERVED_INSTANCE_UTILIZATION_LATEST).shortTableName("Utilization_Latest")
                         .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.MINUTES)).build());
     }
 
     @Bean
     public CostStatLatestTable entityCostTable() {
         return new CostStatLatestTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder().statTableSnapshotTime(Tables.ENTITY_COST.CREATED_TIME)
-                        .statTable(Tables.ENTITY_COST).shortTableName("entity_cost")
+                ImmutableTableInfo.builder().statTableSnapshotTime(ENTITY_COST.CREATED_TIME)
+                        .statTable(ENTITY_COST).shortTableName("entity_cost")
                         .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.MINUTES)).build());
     }
 
     @Bean
     public CostStatHourTable entityCostHourTable() {
         return new CostStatHourTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder().statTableSnapshotTime(Tables.ENTITY_COST_BY_HOUR.CREATED_TIME)
-                        .statTable(Tables.ENTITY_COST_BY_HOUR).shortTableName("entity_cost_by_hour")
+                ImmutableTableInfo.builder().statTableSnapshotTime(ENTITY_COST_BY_HOUR.CREATED_TIME)
+                        .statTable(ENTITY_COST_BY_HOUR).shortTableName("entity_cost_by_hour")
                         .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.HOURS)).build());
     }
 
     @Bean
     public CostStatDayTable entityCostDayTable() {
         return new CostStatDayTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder().statTableSnapshotTime(Tables.ENTITY_COST_BY_DAY.CREATED_TIME)
-                        .statTable(Tables.ENTITY_COST_BY_DAY).shortTableName("entity_cost_by_day")
+                ImmutableTableInfo.builder().statTableSnapshotTime(ENTITY_COST_BY_DAY.CREATED_TIME)
+                        .statTable(ENTITY_COST_BY_DAY).shortTableName("entity_cost_by_day")
                         .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.DAYS)).build());
     }
 
     @Bean
     public CostStatMonthlyTable entityCostMonthlyTable() {
         return new CostStatMonthlyTable(sqlDatabaseConfig.dsl(), costClock(),
-                ImmutableTableInfo.builder().statTableSnapshotTime(Tables.ENTITY_COST_BY_MONTH.CREATED_TIME)
-                        .statTable(Tables.ENTITY_COST_BY_MONTH).shortTableName("entity_cost_by_month")
+                ImmutableTableInfo.builder().statTableSnapshotTime(ENTITY_COST_BY_MONTH.CREATED_TIME)
+                        .statTable(ENTITY_COST_BY_MONTH).shortTableName("entity_cost_by_month")
                         .timeTruncateFn(time -> LocalDateTime.of(time.getYear(), time.getMonth(), 1, 0, 0)).build());
     }
 
+    @Bean
+    public CostStatDayTable coverageHistoricalRiPerEntityTable() {
+        return new CostStatDayTable(sqlDatabaseConfig.dsl(), costClock(),
+                ImmutableTableInfo.builder().statTableSnapshotTime(HIST_ENTITY_RESERVED_INSTANCE_MAPPING.SNAPSHOT_TIME)
+                        .statTable(HIST_ENTITY_RESERVED_INSTANCE_MAPPING).shortTableName("Coverage_histRI")
+                        .timeTruncateFn(time -> {
+                            if (histEntityRiCoverageRecordsRollingWindowDays == HIST_SE_RI_COV_ROLLING_WIN_DAYS_DEFAULT) {
+                                return LocalDateTime.of(time.getYear(), time.getMonth(), 1, 0, 0);
+                            } else {
+                                // If config param different from default...
+                                //
+                                // Default retention days for SE RI mapping records can be overridden by config parameter:
+                                // histEntityRiCoverageRecordsRollingWindowDays.
+                                return LocalDateTime.of(time.getYear(), time.getMonth(), time.getDayOfMonth(), 0, 0)
+                                        .minusDays(histEntityRiCoverageRecordsRollingWindowDays);
+                            }
+                        }).build());
+    }
 
     /**
      * Create a {@link TaskScheduler} to use in periodically

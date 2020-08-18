@@ -13,10 +13,14 @@ import java.util.Optional;
 
 import com.arangodb.ArangoDBException;
 import com.google.common.collect.Sets;
+
+import io.opentracing.SpanContext;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.runners.MockitoJUnitRunner;
 
@@ -101,7 +105,8 @@ public class MarketTopologyListenerExceptionTest {
         when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         marketTopologyListener.onProjectedTopologyReceived(projectedTopologyId,
                 originalInfo,
-                entityIterator);
+                entityIterator,
+                Mockito.mock(SpanContext.class));
 
         verifyMocks();
         verify(apiBackend).onProjectedTopologyFailure(
@@ -125,7 +130,8 @@ public class MarketTopologyListenerExceptionTest {
                         .setTopologyContextId(topologyContextId)
                         .setCreationTime(creationTime)
                         .build(),
-                entityIterator);
+                entityIterator,
+                Mockito.mock(SpanContext.class));
 
         verifyMocks();
         verify(apiBackend).onProjectedTopologyFailure(
@@ -150,7 +156,8 @@ public class MarketTopologyListenerExceptionTest {
                             .setTopologyContextId(topologyContextId)
                             .setCreationTime(creationTime)
                             .build(),
-                    entityIterator);
+                    entityIterator,
+                    Mockito.mock(SpanContext.class));
         } catch (IllegalStateException ise) {
             // expected
         }

@@ -416,6 +416,7 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
         checkForDuplicates(context, newPolicyProto.getId(), newPolicyProto.getPolicyInfo().getName());
 
         existingRecord.setName(newPolicyProto.getPolicyInfo().getName());
+        existingRecord.setDisplayName(newPolicyProto.getPolicyInfo().getDisplayName());
         existingRecord.setEnabled(newPolicyProto.getPolicyInfo().getEnabled());
         if (newPolicyProto.hasTargetId()) {
             existingRecord.setDiscoveredById(newPolicyProto.getTargetId());
@@ -491,6 +492,7 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
 
         // Overwrite the saved data with the column values, even though they should be the same.
         policyBuilder.getPolicyInfoBuilder().setName(policy.getName());
+        policyBuilder.getPolicyInfoBuilder().setDisplayName(policy.getDisplayName());
         policyBuilder.getPolicyInfoBuilder().setEnabled(policy.getEnabled());
 
         return policyBuilder.build();
@@ -587,7 +589,7 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
             final PolicyRecord policy = new PolicyRecord(policyProto.getId(),
                     policyProto.getPolicyInfo().getName(), policyProto.getPolicyInfo().getEnabled(),
                     policyProto.hasTargetId() ? policyProto.getTargetId() : null,
-                    policyProto.getPolicyInfo(), hash);
+                    policyProto.getPolicyInfo(), hash, policyProto.getPolicyInfo().getDisplayName());
             policyRecords.add(policy);
         }
         final int policyCount = context.batchInsert(policyRecords).execute().length;

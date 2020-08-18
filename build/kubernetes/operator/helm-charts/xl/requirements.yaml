@@ -131,7 +131,7 @@ dependencies:
     condition: prometheus-mysql-exporter.enabled
   - name: grafana
     repository: file://../base/grafana
-    version: 5.1.25
+    version: 5.1.27
     condition: grafana.enabled,reporting.enabled
   - name: kubeturbo
     repository: file://../base/kubeturbo
@@ -150,12 +150,6 @@ dependencies:
     version: 0.1.0
     condition: datacloud.enabled
 
-# Tracing dependencies
-  - name: jaeger-operator
-    repository: file://../base/jaeger-operator
-    version: 2.15.1
-    condition: jaeger-operator.enabled
-
 # Integration dependencies
   - name: intersight-integration
     repository: file://../services/intersight-integration
@@ -171,6 +165,14 @@ dependencies:
     repository: file://../probes/mediation-aix
     version: 0.1.0
     condition: aix.enabled
+  - name: mediation-acims
+    repository: file://../probes/mediation-acims
+    version: 0.1.0
+    condition: acims.enabled
+  - name: mediation-apic
+    repository: file://../probes/mediation-apic
+    version: 0.1.0
+    condition: apic.enabled
   - name: mediation-appdynamics
     repository: file://../probes/mediation-appdynamics
     version: 0.1.0
@@ -307,6 +309,10 @@ dependencies:
     repository: file://../probes/mediation-mysql
     version: 0.1.0
     condition: mysql.enabled
+  - name: mediation-tomcat
+    repository: file://../probes/mediation-tomcat
+    version: 0.1.0
+    condition: tomcat.enabled
   - name: mediation-oneview
     repository: file://../probes/mediation-oneview
     version: 0.1.0

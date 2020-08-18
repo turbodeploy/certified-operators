@@ -549,34 +549,45 @@ public abstract class MemoryVisitor<T> {
                     .collect(Collectors.groupingBy(MemorySubgraph::getDepth));
 
             final AtomicLong remainingLines = new AtomicLong(MAX_LOG_LINES);
-            depthGraphs.entrySet().stream()
-                .sorted(Comparator.comparingInt(Entry::getKey))
-                .forEach(entry -> {
-                    pw.printf(header);
-                    writeSubgraphs(entry.getValue(), pw, remainingLines, minimumLogSizeBytes, typeLen);
-                });
+            final Iterable<Entry<Integer, List<MemorySubgraph>>> entries = depthGraphs.entrySet().stream()
+                .sorted(Comparator.comparingInt(Entry::getKey))::iterator;
+            for (Entry<Integer, List<MemorySubgraph>> entry : entries) {
+                pw.printf(header);
+                final int linesLogged = writeSubgraphs(entry.getValue(), pw, remainingLines,
+                    minimumLogSizeBytes, typeLen);
+                if (linesLogged == 0) {
+                    // If there are no subgraphs large enough to be logged, none of the children will be large
+                    // enough either so we can break
+                    break;
+                }
+            }
 
             pw.close();
             return sw.toString();
         }
 
-        private void writeSubgraphs(@Nonnull final List<MemorySubgraph> subgraphsAtDepth,
-                                    @Nonnull final PrintWriter pw,
-                                    @Nonnull final AtomicLong remainingLines,
-                                    final long minimumLogSizeBytes, final int typeLen) {
-            subgraphsAtDepth.stream()
+        private int writeSubgraphs(@Nonnull final List<MemorySubgraph> subgraphsAtDepth,
+                                   @Nonnull final PrintWriter pw,
+                                   @Nonnull final AtomicLong remainingLines,
+                                   final long minimumLogSizeBytes, final int typeLen) {
+            final Iterable<MemorySubgraph> subgraphs = subgraphsAtDepth.stream()
                 .filter(sg -> sg.totalSize() >= minimumLogSizeBytes)
                 .sorted(Comparator.comparingLong(MemorySubgraph::totalSize).reversed())
-                .limit(remainingLines.get())
-                .forEach(subgraph -> {
-                    remainingLines.getAndDecrement();
-                    pw.printf(" %-3d %10s %12s %-" + typeLen + "s %s%n",
-                        subgraph.getDepth(),
-                        StringUtil.getHumanReadableSize(subgraph.totalSize()),
-                        String.format("%,d", subgraph.totalCount()),
-                        subgraph.subgraphRoot.getKlass().getName(),
-                        subgraph.subgraphRoot.pathDescriptor());
-                });
+                .limit(remainingLines.get())::iterator;
+
+            int linesLogged = 0;
+            for (MemorySubgraph subgraph : subgraphs) {
+                linesLogged++;
+                remainingLines.getAndDecrement();
+                pw.printf(" %-3d %10s %12s %-" + typeLen + "s %s%n",
+                    subgraph.getDepth(),
+                    StringUtil.getHumanReadableSize(subgraph.totalSize()),
+                    String.format("%,d", subgraph.totalCount()),
+                    subgraph.subgraphRoot.getKlass().getName(),
+                    subgraph.subgraphRoot.pathDescriptor());
+            }
+
+            return linesLogged;
         }
 
         /**

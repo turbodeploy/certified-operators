@@ -10,7 +10,6 @@ import static com.vmturbo.extractor.models.ModelDefinitions.NUM_ACTIONS;
 import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkEntity;
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkGroup;
-
 import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodityWithHistoricalUtilization;
 import static com.vmturbo.extractor.util.TopologyTestUtil.soldCommodityWithPercentile;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATACENTER;
@@ -39,7 +38,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
-import org.javatuples.Quartet;
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Test;
@@ -58,6 +56,10 @@ import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
+import com.vmturbo.extractor.search.EnumUtils.EntityStateUtils;
+import com.vmturbo.extractor.search.EnumUtils.EnvironmentTypeUtils;
+import com.vmturbo.extractor.search.EnumUtils.GroupTypeUtils;
+import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.util.ExtractorTestUtil;
 import com.vmturbo.extractor.util.TopologyTestUtil;
@@ -142,6 +144,14 @@ public class SearchEntityWriterTest {
                 doReturn(count).when(dataProvider).getActionCount(oid));
     }
 
+    /**
+     * Tests that we can propertly insert entities into the search_entities table.
+     *
+     * @throws SQLException                if there's a DB problem
+     * @throws UnsupportedDialectException if the DB endpoint is misconfigured
+     * @throws IOException                 for IO exceptions
+     * @throws InterruptedException        if interrupted
+     */
     @Test
     public void testInsertEntities() throws SQLException, UnsupportedDialectException, IOException, InterruptedException {
         final Consumer<TopologyEntityDTO> entityConsumer = writer.startTopology(
@@ -175,7 +185,7 @@ public class SearchEntityWriterTest {
             } else if (oid == pm.getOid()) {
                 // commodity
                 assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_USED.getJsonKeyName()), is(4000.0));
-                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_HISTORICAL_UTILIZATION.getJsonKeyName()), is(0.2));
+                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_HISTORICAL_UTILIZATION.getJsonKeyName()), is(1.0E-5));
                 // related entity
                 assertThat(attrs.get(SearchMetadataMapping.RELATED_DATA_CENTER.getJsonKeyName()),
                         is(Collections.singletonList(dc.getDisplayName())));
@@ -183,6 +193,13 @@ public class SearchEntityWriterTest {
         }
     }
 
+    /**
+     * Test that wec can insert group data into the search_entities table.
+     *
+     * @throws SQLException                if there's a DB problem
+     * @throws UnsupportedDialectException if the DB endpoint is misconfigured
+     * @throws InterruptedException        if interrupetd
+     */
     @Test
     public void testInsertGroups() throws SQLException, UnsupportedDialectException, InterruptedException {
         doReturn(Stream.of(g1)).when(dataProvider).getAllGroups();
@@ -197,7 +214,7 @@ public class SearchEntityWriterTest {
         assertThat(record.get(ENTITY_OID_AS_OID), is(g1.getId()));
         assertThat(record.get(ENTITY_NAME), is(g1.getDefinition().getDisplayName()));
         assertThat(record.get(ENTITY_TYPE_ENUM), is(
-                EnumUtils.groupTypeFromProtoToDb(g1.getDefinition().getType())));
+                GroupTypeUtils.protoToDb(g1.getDefinition().getType())));
         assertThat(record.get(NUM_ACTIONS), is(ACTION_COUNT_MAP.get(g1.getId())));
     }
 
@@ -205,11 +222,11 @@ public class SearchEntityWriterTest {
         assertThat(record.get(ENTITY_OID_AS_OID), is(entity.getOid()));
         assertThat(record.get(ENTITY_NAME), is(entity.getDisplayName()));
         assertThat(record.get(ENTITY_TYPE_ENUM), is(
-                EnumUtils.entityTypeFromProtoIntToDb(entity.getEntityType())));
+                SearchEntityTypeUtils.protoIntToDb(entity.getEntityType())));
         assertThat(record.get(ENVIRONMENT_TYPE_ENUM), is(
-                EnumUtils.environmentTypeFromProtoToDb(entity.getEnvironmentType())));
+                EnvironmentTypeUtils.protoToDb(entity.getEnvironmentType())));
         assertThat(record.get(ENTITY_STATE_ENUM), is(
-                EnumUtils.entityStateFromProtoToDb(entity.getEntityState())));
+                EntityStateUtils.protoToDb(entity.getEntityState())));
         // action
         assertThat(record.get(NUM_ACTIONS), is(ACTION_COUNT_MAP.get(entity.getOid())));
     }

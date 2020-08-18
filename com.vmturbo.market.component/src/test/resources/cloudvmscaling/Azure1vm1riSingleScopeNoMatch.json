@@ -68,7 +68,8 @@
           "template": 100001,
           "count": 1,
           "isf": false,
-          "shared": false
+          "shared": false,
+          "applicableBusinessAccounts" : [12]
         }
       ],
       "Matching": [

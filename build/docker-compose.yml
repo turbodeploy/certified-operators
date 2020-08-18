@@ -44,6 +44,7 @@ volumes:
   nginx-run: *localdriver
   nginx-home: *localdriver
   timescale-data: *localdriver
+  grafana-data: *localdriver
 
 services:
   rsyslog:
@@ -631,9 +632,25 @@ services:
   # Purely in-memory store.
   # Currently only used for integration type testing.
   grafana:
-    image: grafana/grafana:7.0.1
+    extends:
+      file: common-services.yml
+      service: common-service
+    image: turbonomic/grafana:${XL_VERSION}
     ports:
       - 3000:3000
+    depends_on:
+      - rsyslog
+    volumes:
+      - grafana-data:/var/lib/grafana
+    environment:
+      component_type: grafana
+      instance_id: grafana-1
+      GF_USERS_ALLOW_SIGN_UP: "true"
+      GF_USERS_DEFAULT_THEME: "light"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: "Editor"
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_SERVER_ROOT_URL: "https://%(domain)s/reports"
+      GF_SERVE_FROM_SUB_PATH: "true"
 
   integration-intersight:
     extends:
@@ -1524,6 +1541,28 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_MYSQL_MEM_LIMIT_MB}M
 
+  mediation-tomcat:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.tomcat.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_TOMCAT_PORT}"
+      - "${MEDIATION_TOMCAT_DEBUG_PORT}"
+    environment:
+      component_type: mediation-tomcat
+      instance_id: mediation-tomcat-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_TOMCAT_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_TOMCAT_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_TOMCAT_MEM_LIMIT_MB}M
+
   mediation-actionscript:
     extends:
       file: common-services.yml
@@ -1545,6 +1584,50 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_ACTIONSCRIPT_MEM_LIMIT_MB}M
+
+  mediation-acims:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.acims.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_ACIMS_PORT}"
+      - "${MEDIATION_ACIMS_DEBUG_PORT}"
+    environment:
+      component_type: mediation-acims
+      instance_id: mediation-acims-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ACIMS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_ACIMS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_ACIMS_MEM_LIMIT_MB}M
+
+  mediation-apic:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.apic.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_APIC_PORT}"
+      - "${MEDIATION_APIC_DEBUG_PORT}"
+    environment:
+      component_type: mediation-apic
+      instance_id: mediation-apic-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_APIC_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_APIC_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_APIC_MEM_LIMIT_MB}M
 
   mediation-wmi:
     extends:

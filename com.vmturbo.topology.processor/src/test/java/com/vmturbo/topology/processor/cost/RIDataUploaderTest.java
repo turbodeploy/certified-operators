@@ -191,9 +191,13 @@ public class RIDataUploaderTest {
                                 .oid(22)
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
-                                .build())
-                )
-        );
+                                .build()),
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.COMPUTE_TIER)
+                                        .setId("azure::VMPROFILE::Standard_B2ms"))
+                                .oid(23)
+                                .build())));
         Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.DATABASE_TIER)).thenAnswer(
                 invocationOnMock -> Stream.of(new TopologyStitchingEntity(StitchingEntityData.newBuilder(
                         EntityDTO.newBuilder()
@@ -210,9 +214,7 @@ public class RIDataUploaderTest {
                                 .oid(32)
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
-                                .build())
-                )
-        );
+                                .build())));
 
         Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.REGION)).thenAnswer(
                 invocationOnMock -> Stream.of(new TopologyStitchingEntity(StitchingEntityData.newBuilder(
@@ -230,9 +232,13 @@ public class RIDataUploaderTest {
                                 .oid(42)
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
-                                .build())
-                )
-        );
+                                .build()),
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.REGION)
+                                        .setId("azure::australiaeast::DC::australiaeast"))
+                                .oid(43)
+                                .build())));
         Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.AVAILABILITY_ZONE)).thenAnswer(
                 invocationOnMock -> Stream.of(new TopologyStitchingEntity(StitchingEntityData.newBuilder(
                         EntityDTO.newBuilder()
@@ -249,9 +255,7 @@ public class RIDataUploaderTest {
                                 .oid(52)
                                 .targetId(TARGET_ID_AWS_DISCOVERY_1)
                                 .lastUpdatedTime(now)
-                                .build())
-                )
-        );
+                                .build())));
 
         Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.RESERVED_INSTANCE)).thenAnswer(
                 invocationOnMock -> Stream.of(new TopologyStitchingEntity(StitchingEntityData.newBuilder(
@@ -449,10 +453,80 @@ public class RIDataUploaderTest {
                                 .oid(109)
                                 .targetId(TARGET_ID_AZURE_DISCOVERY_1)
                                 .lastUpdatedTime(now)
-                                .build())
-
-                )
-        );
+                                .build()),
+                        // Ignoring RI because the tier oid by related profile id was not found.
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.RESERVED_INSTANCE)
+                                        .setId("azure::96c54bd2-e4a2-4105-9a4b-c3ab28bdef1a::RESERVED_INSTAN5B351H")
+                                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
+                                                .setReservedInstanceId("c991a277-c5ec-48e6-9a70-c36a910ccd5h")
+                                                .setRegion("azure::australiaeast::DC::australiaeast")
+                                                .setRelatedProfileId("azure::VMPROFILE::Standard_B0ms")
+                                                .setStartTime(0)
+                                                .setDuration(3 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
+                                                .setOfferingClass(OfferingClass.CONVERTIBLE)
+                                                .setOfferingType(OfferingType.ALL_UPFRONT)
+                                                .setPlatform(Platform.SUSE)
+                                                .setNumberOfCoupons(0)
+                                                .setNumberOfCouponsUsed(0)
+                                                .setFixedCost(0)
+                                                .setUsageCost(0)
+                                                .setRecurringCost(0)
+                                                .setInstanceCount(0))).oid(110)
+                                .build()),
+                        // Ignoring RI because the region oid by id was not found.
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.RESERVED_INSTANCE)
+                                        .setId("azure::96c54bd2-e4a2-4105-9a4b-c3ab28bdef1a::RESERVED_INSTAN5B351Z")
+                                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
+                                                .setReservedInstanceId("c991a277-c5ec-48e6-9a70-c36a910ccd5z")
+                                                .setRegion("azure::australiaeast::DC::australiawest")
+                                                .setRelatedProfileId("azure::VMPROFILE::Standard_B2ms")
+                                                .setStartTime(0)
+                                                .setDuration(3 * DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
+                                                .setOfferingClass(OfferingClass.CONVERTIBLE)
+                                                .setOfferingType(OfferingType.ALL_UPFRONT)
+                                                .setPlatform(Platform.SUSE)
+                                                .setNumberOfCoupons(0)
+                                                .setNumberOfCouponsUsed(0)
+                                                .setFixedCost(0)
+                                                .setUsageCost(0)
+                                                .setRecurringCost(0)
+                                                .setInstanceCount(0))).oid(110)
+                                .build()),
+                        // Ignoring RI because the availability zone oid by id wast not found.
+                        new TopologyStitchingEntity(StitchingEntityData.newBuilder(
+                                EntityDTO.newBuilder()
+                                        .setEntityType(EntityType.RESERVED_INSTANCE)
+                                        .setId("aws::us-east-1::RI::18bc975d-54a6-4622-929e-2d9a232766ab")
+                                        .setDisplayName("RI display name")
+                                        .setReservedInstanceData(ReservedInstanceData.newBuilder()
+                                                .setReservedInstanceId("1ac0b0f5-ff53-4d64-aac5-c5cf674cce78")
+                                                .setStartTime(0)
+                                                .setNumberOfCoupons(10)
+                                                .setNumberOfCouponsUsed(1)
+                                                .setFixedCost(1)
+                                                .setUsageCost(2)
+                                                .setRecurringCost(3)
+                                                .setRegion("aws::ap-south-1::DC::ap-south-1")
+                                                .setInstanceCount(1)
+                                                .setOfferingClass(OfferingClass.STANDARD)
+                                                .setOfferingType(OfferingType.NO_UPFRONT)
+                                                .setDuration(DiscoveredCloudCostUploader.MILLIS_PER_YEAR)
+                                                .setInstanceTenancy(InstanceTenancy.DEFAULT)
+                                                .setAvailabilityZone("aws::ap-south-1::PM::ap-south-1g")
+                                                .setPlatform(Platform.LINUX)
+                                                .setPlatformFlexible(true)
+                                                .setRelatedProfileId("aws::VMPROFILE::t2.nano")
+                                                .setPurchasingAccountId("account-1")
+                                                .setReservationOrderId("orderID-1")
+                                                .setInstanceSizeFlexible(true)))
+                                .oid(111)
+                                .build())));
         Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.VIRTUAL_MACHINE)).thenAnswer(
                 invocationOnMock -> Stream.of(new TopologyStitchingEntity(StitchingEntityData.newBuilder(
                         EntityDTO.newBuilder()

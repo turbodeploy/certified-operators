@@ -22,6 +22,8 @@ import org.junit.Test;
 import com.google.common.base.Preconditions;
 
 import io.grpc.stub.StreamObserver;
+import io.opentracing.SpanContext;
+
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -266,7 +268,8 @@ public class MarketPerformanceTest {
         }
 
         @Override
-        public void onActionsReceived(@Nonnull final ActionPlan actionPlan) {
+        public void onActionsReceived(@Nonnull final ActionPlan actionPlan,
+                                      @Nonnull final SpanContext tracingContext) {
             actionPlanFuture.complete(actionPlan);
         }
     }

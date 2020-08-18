@@ -56,7 +56,7 @@ public class ApiQueryEngineTest {
     public void testFeatureFlagDisabled() throws Exception {
         //GIVEN
         ApiQueryEngine apiQueryEngine = new ApiQueryEngine(mockReadonlyDbEndpoint, false, 100, 100);
-        EntityQueryApiDTO request = EntityQueryTest.basicRequestForEntityType(EntityType.VIRTUAL_MACHINE);
+        EntityQueryApiDTO request = EntityQueryTest.basicRequestForEntityType(EntityType.VirtualMachine);
 
         //WHEN
         expectedException.expect(UnsupportedOperationException.class);
@@ -72,7 +72,7 @@ public class ApiQueryEngineTest {
     @Test
     public void testFeatureFlagEnabled() throws Exception {
         //GIVEN
-        EntityQueryApiDTO request = EntityQueryTest.basicRequestForEntityType(EntityType.VIRTUAL_MACHINE);
+        EntityQueryApiDTO request = EntityQueryTest.basicRequestForEntityType(EntityType.VirtualMachine);
 
         // Mock the database response
         final Field oidField = DSL.field("oid");

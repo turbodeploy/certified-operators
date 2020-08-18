@@ -385,6 +385,16 @@ public class SMAVirtualMachine {
         }
     }
 
+    /**
+     * Check if an RI may be applied to this VM.
+     *
+     * @param ri an RI
+     * @return true if an RI may be applied to this VM
+     */
+    public boolean mayBeCoveredByRI(SMAReservedInstance ri) {
+        return ri.isShared() || ri.getApplicableBusinessAccounts().contains(getBusinessAccountId());
+    }
+
      @Override
      public int hashCode() {
          return Objects.hash(oid, name, businessAccountId, zoneId);
