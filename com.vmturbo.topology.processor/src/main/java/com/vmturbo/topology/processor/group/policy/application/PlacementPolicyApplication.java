@@ -388,8 +388,8 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
             // not buying ST at all, If create a policy to Force VM1 and VM2 to buy ST1,
             // it should throw exception, because VM2 doesn't buy any Storage type.
             if (commodityBoughtsToAddSegment.isEmpty()) {
-                throw new PolicyApplicationException("Unable to apply consumer segment when no " +
-                    "provider type " + providerType);
+                throw new PolicyApplicationException("Unable to apply consumer segment when no "
+                        + "provider type " + providerType);
             }
             // For each bundle of commodities bought for the entity type that matches the
             // provider type and volumeId, add the segmentation commodity.

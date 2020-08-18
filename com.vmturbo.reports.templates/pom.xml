@@ -4,7 +4,7 @@
     <parent>
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>7.22.8-SNAPSHOT</version>
+        <version>7.22.100-MPC-SNAPSHOT</version>
         <relativePath>../build/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>

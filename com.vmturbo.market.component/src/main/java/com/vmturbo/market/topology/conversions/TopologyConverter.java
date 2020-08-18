@@ -526,15 +526,6 @@ public class TopologyConverter {
             consistentScalingHelperFactory, null);
     }
 
-    /**
-     * get the TopologyEntityDTO OID corresponding to the oid of a TemplateProvider.
-     * @param traderTOOID  oid of a TemplateProvider
-     * @return the OID of corresponding TopologyEntityDTO
-     */
-    public Long convertTraderTOToTopologyEntityDTO(Long traderTOOID) {
-        return cloudTc.getMarketTier(traderTOOID).getTier().getOid();
-    }
-
     public Map<Long, TopologyEntityDTO> getUnmodifiableEntityOidToDtoMap() {
         return unmodifiableEntityOidToDtoMap;
     }
