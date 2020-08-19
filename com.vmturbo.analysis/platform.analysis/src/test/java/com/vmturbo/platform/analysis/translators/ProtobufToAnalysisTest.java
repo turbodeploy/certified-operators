@@ -206,6 +206,11 @@ public class ProtobufToAnalysisTest {
             public double getEffectiveCapacity() {
                 return 0;
             }
+
+            @Override
+            public double getEffectiveStartCapacity() {
+                return 0;
+            }
         };
 
         ProtobufToAnalysis.populateCommoditySold(commSoldTOBuilder.build(), commoditySold, trader);

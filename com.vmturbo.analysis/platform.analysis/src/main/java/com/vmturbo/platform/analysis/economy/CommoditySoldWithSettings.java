@@ -11,7 +11,7 @@ import org.checkerframework.dataflow.qual.Pure;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 
-final class CommoditySoldWithSettings extends CommoditySold implements CommoditySoldSettings {
+public final class CommoditySoldWithSettings extends CommoditySold implements CommoditySoldSettings {
     // Fields for CommoditySoldSettings
     private boolean resizable_ = true;
     private boolean resold_ = false;
@@ -44,6 +44,12 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Pure
     public double getEffectiveCapacity(@ReadOnly CommoditySoldWithSettings this) {
         return getUtilizationUpperBound()*getCapacity();
+    }
+
+    @Override
+    @Pure
+    public double getEffectiveStartCapacity(@ReadOnly CommoditySoldWithSettings this) {
+        return getUtilizationUpperBound() * getStartCapacity();
     }
 
     // Methods for CommoditySoldSettings
