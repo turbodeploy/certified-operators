@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.lang.reflect.Field;
+import java.util.HashMap;
 import java.util.Map;
 
 import com.google.common.collect.BiMap;
@@ -69,7 +70,7 @@ public class TestCommon {
     private @NonNull Trader st1;
     private @NonNull Trader st2;
 
-    private @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids = HashBiMap.create();
+    private @NonNull Map<@NonNull Long, @NonNull Trader> traderOids = new HashMap<>();
 
     public TestCommon() throws IllegalArgumentException {
         try {
@@ -96,12 +97,19 @@ public class TestCommon {
         st2 = first.addTrader(TRADER_TYPE_STORAGE, TraderState.ACTIVE, STtoVM);
         app1 = first.addTrader(TRADER_TYPE_APP, TraderState.ACTIVE, new Basket(), VMtoApp);
 
-        traderOids.put(vm, TRADER_OID_1);
-        traderOids.put(pm1, TRADER_OID_2);
-        traderOids.put(pm2, TRADER_OID_3);
-        traderOids.put(st1, TRADER_OID_4);
-        traderOids.put(st2, TRADER_OID_5);
-        traderOids.put(app1, TRADER_OID_6);
+        vm.setOid(TRADER_OID_1);
+        pm1.setOid(TRADER_OID_2);
+        pm2.setOid(TRADER_OID_3);
+        st1.setOid(TRADER_OID_4);
+        st2.setOid(TRADER_OID_5);
+        app1.setOid(TRADER_OID_6);
+
+        traderOids.put(TRADER_OID_1, vm);
+        traderOids.put(TRADER_OID_2, pm1);
+        traderOids.put(TRADER_OID_3, pm2);
+        traderOids.put(TRADER_OID_4, st1);
+        traderOids.put(TRADER_OID_5, st2);
+        traderOids.put(TRADER_OID_6, app1);
 
         vm.setDebugInfoNeverUseInCode("VirtualMachine|" + TRADER_OID_1);
         pm1.setDebugInfoNeverUseInCode("PhysicalMachine|" + TRADER_OID_2);
@@ -114,11 +122,11 @@ public class TestCommon {
 
         firstTopology = new Topology();
         first.setTopology(firstTopology);
-        Field traderOidField = Topology.class.getDeclaredField("traderOids_");
+        Field traderOidField = Topology.class.getDeclaredField("tradersByOid_");
         traderOidField.setAccessible(true);
         traderOidField.set(firstTopology, traderOids);
         Field unmodifiableTraderOidField = Topology.class
-                                                   .getDeclaredField("unmodifiableTraderOids_");
+                                                   .getDeclaredField("unmodifiableTradersByOid_");
         unmodifiableTraderOidField.setAccessible(true);
         unmodifiableTraderOidField.set(firstTopology, traderOids);
     }

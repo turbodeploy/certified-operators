@@ -103,7 +103,7 @@ public class EdeIntegrationTest {
         Set<ShoppingList> shoppingListSet = new HashSet<>();
         shoppingListSet.add(shoppingListOfVm1);
         shoppingListSet.add(shoppingListOfVm2);
-        Map<Long, Set<Long>> providerList = engine.getProviderLists(shoppingListSet, first);
+        Map<Long, Set<Long>> providerList = engine.getProviderLists(shoppingListSet, first, -1);
         // pm3 can only fit shoppingListOfVm2
         assertEquals(2, providerList.get(1L).size());
         assertEquals(3, providerList.get(2L).size());

@@ -194,9 +194,13 @@ public final class Utility {
             // Scale the capacity of the commodities of the resizeThroughSupplier trader with the
             // capacity of the commodity sold by the supplier of the trader as the added amount.
             if (buyerCommoditySold != null && buyerCommoditySold.getSettings().isResizable()) {
+                CommoditySold sellerCommoditySold = seller.getCommoditySold(buyerCS);
+                // Utilization Upper Bound can change in suspension adjustUtilThreshold.
+                double origEffectiveCapacity = sellerCommoditySold.getSettings().getOrigUtilizationUpperBound()
+                        * sellerCommoditySold.getCapacity();
                 double newCapacity = buyerCommoditySold.getCapacity()
-                                + (up ? seller.getCommoditySold(buyerCS).getEffectiveCapacity()
-                                                : -seller.getCommoditySold(buyerCS).getEffectiveCapacity());
+                    + (up ? origEffectiveCapacity
+                            : -origEffectiveCapacity);
                 // TODO Needs to be improved for scenarios that can lead to the negative capacity:
                 // See OM-59512.
                 if (!up && newCapacity < 0) {
@@ -332,7 +336,8 @@ public final class Utility {
             int neededClones = (int) Math.ceil(((commSold.getQuantity()
                                 + (sellerIsSupplier ? 0 : sl.getQuantities()[sl.getBasket().indexOf(cs)])
                                     - commSold.getEffectiveCapacity())
-                        / provisionableProvider.getCommoditySold(cs).getEffectiveCapacity()));
+                        / (provisionableProvider.getCommoditySold(cs).getEffectiveCapacity()
+                            * commSold.getSettings().getUtilizationUpperBound())));
             if (logger.isDebugEnabled()) {
                 logger.debug("CommoditySpecification: {}" + "\nNeededClones: {}"
                     + "\nCommSold Quantity: {}" + "\nSellerIsSupplier: {}"

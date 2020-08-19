@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -476,7 +477,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         // available for placement
         newTrader.getSettings().setCanAcceptNewCustomers(modelSeller.getSettings()
                                                                          .canAcceptNewCustomers());
-
+        newTrader.getSettings().setContext(modelSeller.getSettings().getContext());
         Collection<Market> marketsToScan = basketSold.equals(modelSeller.getBasketSold()) ?
             getMarketsAsSeller(modelSeller) : markets_.values();
 
@@ -739,16 +740,32 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * </p>
      */
     public void clear() {
+        dropData();
+        forceStop = false;
+    }
+
+    /**
+     * Drops data used by the market to perform analysis.
+     * Does not clear information in the topology needed for action replay.
+     */
+    public void dropData() {
         markets_.clear();
         traders_.clear();
-        sellersInvertedIndex_.clear();
-        settings_.clear();
-        preferentialSls_.clear();
         commodityResizeDependency_.clear();
+        commodityProducesDependency_.clear();
         historyBasedResizeDependencySkipMap_.clear();
         rawMaterialMap_.clear();
         marketsForPlacement_.clear();
-        forceStop = false;
+        preferentialSls_.clear();
+        shopTogetherTraders_.clear();
+        balanceAccountMap.clear();
+        shoppingListToScalingGroup.clear();
+        scalingGroupToPeerInfo.clear();
+        scalingGroupToMembers.clear();
+        sellersInvertedIndex_.clear();
+        commsToAdjustOverhead_.clear();
+        placementEntities_.clear();
+        settings_.clear();
     }
 
     /**
@@ -1236,9 +1253,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             // it to each member's Context.
             for (ShoppingList sl : info.getPeers()) {
                 Long oid = sl.getSupplier() != null
-                                ? getTopology().getTraderOid(sl.getSupplier())
+                                ? sl.getSupplier().getOid()
                                 : null;
-                if (matched && oid != groupSupplierId) {
+                if (matched && !Objects.equals(oid, groupSupplierId)) {
                     matched = first;
                     groupSupplierId = oid;
                 }

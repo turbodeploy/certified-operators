@@ -486,11 +486,6 @@ public class Resizer {
                 () -> resizeCommodity.getHistoricalOrElseCurrentQuantity(),
                 () -> resizeCommodity.getMaxQuantity());
         }
-        /**
-         * Comment out this logic until we have more accurate values for resizing down that assure
-         * the performance that the applications and the vm needs, and go back to relying on
-         * maxUsed to prevent drastic resize down actions.
-         *
         final double historicalOrMaxQuantity;
         if (resizeCommodity.isHistoricalQuantitySet()) {
             historicalOrMaxQuantity = resizeCommodity.getHistoricalOrElseCurrentQuantity();
@@ -499,20 +494,19 @@ public class Resizer {
             // back to max quantity to ensure we do not resize outside of the customer's expectation.
             historicalOrMaxQuantity = resizeCommodity.getMaxQuantity();
         }
-        */
         double peakQuantity = resizeCommodity.getPeakQuantity();
-        double maxQuantity = resizeCommodity.getMaxQuantity();
+
         // don't permit downward resize if there's no usage data
-        if (resizeCommodity.getQuantity() == 0 && maxQuantity == 0 && peakQuantity == 0) {
+        if (resizeCommodity.getQuantity() == 0 && historicalOrMaxQuantity == 0 && peakQuantity == 0) {
             return 0.0;
         }
         double capacityLowerBound = resizeCommodity.getSettings().getCapacityLowerBound();
         // don't permit resize below historical max/peak or below capacity lower bound
-        double maxAmount = currentCapacity - Math.max(Math.max(maxQuantity, peakQuantity), capacityLowerBound);
+        double maxAmount = currentCapacity - Math.max(Math.max(historicalOrMaxQuantity, peakQuantity), capacityLowerBound);
         if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
             logger.info("The max amount we can resize down {}/{} is {}. This is derived from currentCapcity {}, max {}, peak {}, capcityLowerBound {}",
                 seller.getDebugInfoNeverUseInCode(), commSpec.getDebugInfoNeverUseInCode(),
-                maxAmount, currentCapacity, maxQuantity, peakQuantity, capacityLowerBound);
+                maxAmount, currentCapacity, historicalOrMaxQuantity, peakQuantity, capacityLowerBound);
         }
         if (maxAmount < 0) {
             return 0.0;
@@ -721,7 +715,7 @@ public class Resizer {
                 double changeInCapacity = newCapacity - commoditySold.getCapacity();
 
                 updateUsageOnBoughtAndSoldCommodities(commoditySold, commSoldBySupplier, shoppingList, boughtIndex,
-                                                        typeOfCommBought, newCapacity, changeInCapacity, reverse);
+                                                        typeOfCommBought, newCapacity, changeInCapacity, reverse, false);
 
                 if (commSoldBySupplier.getSettings().isResold()) {
                     resizeDependentCommoditiesOnReseller(commoditySold, economy, supplier, specOfSold,
@@ -756,7 +750,7 @@ public class Resizer {
             CommoditySold commSoldBySupplier = sl.getSupplier().getCommoditiesSold().get(soldIndex);
             updateUsageOnBoughtAndSoldCommodities(resizingCommodity, commSoldBySupplier, sl,
                     sl.getBasket().indexOfBaseType(commSpec.getBaseType()),
-                    typeOfCommBought, newCapacity, changeInCapacity, reverse);
+                    typeOfCommBought, newCapacity, changeInCapacity, reverse, true);
             if (commSoldBySupplier.getSettings().isResold()) {
                 resizeDependentCommoditiesOnReseller(resizingCommodity, economy, sl.getSupplier(), commSpec,
                         typeOfCommBought, newCapacity, changeInCapacity, reverse);
@@ -775,24 +769,35 @@ public class Resizer {
      * @param newCapacity is the new desiredCapacity.
      * @param changeInCapacity change in capacity.
      * @param reverse reverses updation when true
+     * @param isResold true if updating commodity on a reseller.
      */
     private static void updateUsageOnBoughtAndSoldCommodities(CommoditySold resizingCommodity,
                                                               CommoditySold commSoldBySupplier,
                                                               ShoppingList shoppingList, int boughtIndex,
                                                               CommodityResizeSpecification typeOfCommBought,
                                                               double newCapacity, double changeInCapacity,
-                                                              boolean reverse) {
+                                                              boolean reverse, boolean isResold) {
+
+        logger.trace("consumer : {}, boughtQnty : {}, newCap : {}, capChange : {}",
+                shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
+                shoppingList.getQuantity(boughtIndex), newCapacity, changeInCapacity);
         if (!reverse) {
             if (changeInCapacity < 0) {
                 // resize down
-                DoubleTernaryOperator decrementFunction = typeOfCommBought.getDecrementFunction();
                 double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
-                double decrementedQuantity = decrementFunction.applyAsDouble(
-                        oldQuantityBought, newCapacity, 0);
-                double newQuantityBought = commSoldBySupplier.getQuantity()
-                        - (oldQuantityBought - decrementedQuantity);
-                commSoldBySupplier.setQuantity(newQuantityBought);
-                shoppingList.getQuantities()[boughtIndex] = decrementedQuantity;
+                // If the commodity being updated is on a reseller, we just decrement the consumption by the changeInCapacity.
+                if (isResold) {
+                    double newQuantityBought = oldQuantityBought + changeInCapacity;
+                    shoppingList.getQuantities()[boughtIndex] = newQuantityBought;
+                    commSoldBySupplier.setQuantity(commSoldBySupplier.getQuantity() + changeInCapacity);
+                } else {
+                    DoubleTernaryOperator decrementFunction = typeOfCommBought.getDecrementFunction();
+                    double decrementedQuantity = decrementFunction.applyAsDouble(
+                            oldQuantityBought, newCapacity, 0);
+                    double newQuantityBought = commSoldBySupplier.getQuantity() - (oldQuantityBought - decrementedQuantity);
+                    commSoldBySupplier.setQuantity(newQuantityBought);
+                    shoppingList.getQuantities()[boughtIndex] = decrementedQuantity;
+                }
                 resizeImpact.putIfAbsent(resizingCommodity, new ResizeActionStateTracker());
                 resizeImpact.get(resizingCommodity).addEntry(commSoldBySupplier, oldQuantityBought);
             } else {

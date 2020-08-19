@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>analysis-parent</artifactId>
-        <version>3.22.100-TeamPaaS-SNAPSHOT</version>
+        <version>3.22.8-SNAPSHOT</version>
     </parent>
 
     <artifactId>platform.analysis.protobuf</artifactId>
@@ -50,6 +50,13 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <configuration>
+                    <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
+                </configuration>
             </plugin>
         </plugins>
     </build>

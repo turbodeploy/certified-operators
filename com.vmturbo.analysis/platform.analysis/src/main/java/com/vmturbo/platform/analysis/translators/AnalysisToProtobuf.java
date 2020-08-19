@@ -199,13 +199,11 @@ public final class AnalysisToProtobuf {
      * @param oid The OID used to refer to this {@link ShoppingList} across process boundaries.
      * @param economy The {@link Economy} containing <b>shopping list</b>.
      * @param shoppingList The {@link ShoppingList} to convert.
-     * @param traderToOidMap The trader to oid mapping which include both original traders and newly
      * provisioned traders
      * @return The resulting {@link ShoppingListTO}.
      */
     public static @NonNull ShoppingListTO shoppingListTO(long oid, @NonNull UnmodifiableEconomy economy,
-                    @NonNull ShoppingList shoppingList,
-                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap) {
+                    @NonNull ShoppingList shoppingList) {
         ShoppingListTO.Builder builder = ShoppingListTO.newBuilder()
             .setOid(oid)
             .setMovable(shoppingList.isMovable());
@@ -226,10 +224,10 @@ public final class AnalysisToProtobuf {
                 if (supplier != null && supplier != origSupplier && !supplier.getCliques().isEmpty()) {
                     newSupplier = supplier;
                     // Set the couponId to the CBTPs id
-                    builder.setCouponId(traderToOidMap.get(origSupplier));
+                    builder.setCouponId(origSupplier.getOid());
                 }
             }
-            builder.setSupplier(traderToOidMap.get(newSupplier));
+            builder.setSupplier(newSupplier.getOid());
         }
         Basket basketBought = shoppingList.getBasket();
         for (int i = 0; i < basketBought.size() ; ++i) {
@@ -279,19 +277,16 @@ public final class AnalysisToProtobuf {
      *
      * @param economy The {@link Economy} containing <b>trader</b>.
      * @param trader The {@link Trader} to convert.
-     * @param traderToOidMap The trader to oid mapping which includes both original traders and newly
-     * provisioned traders
      * @param shoppingListOid The ShoppingList to oid mapping which includes both original and newly
      * provisioned ShoppingLists
      * @param preferentialTraders traders in economy's preferential shopping list.
      * @return The resulting {@link TraderTO}.
      */
     public static @NonNull TraderTO traderTO(@NonNull UnmodifiableEconomy economy, @NonNull Trader trader,
-                                             @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap,
                                              @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
                                              @Nonnull Set<Trader> preferentialTraders) {
         TraderTO.Builder builder = TraderTO.newBuilder()
-            .setOid(traderToOidMap.get(trader))
+            .setOid(trader.getOid())
             .setType(trader.getType())
             .setState(traderStateTO(trader.getState()))
             .setDebugInfoNeverUseInCode(trader.getDebugInfoNeverUseInCode())
@@ -304,7 +299,13 @@ public final class AnalysisToProtobuf {
             .setUnplacedExplanation(trader.getUnplacedExplanation());
 
         if (trader.isClone()) {
-            builder.setCloneOf(traderToOidMap.get(((Economy)economy).getCloneOfTrader(trader)));
+            final Trader cloneOfTrader = ((Economy)economy).getCloneOfTrader(trader);
+            if (cloneOfTrader != null) {
+                builder.setCloneOf(cloneOfTrader.getOid());
+            } else {
+                logger.error("Trader {} is a clone but the cloneOfTrader is null",
+                    trader.getDebugInfoNeverUseInCode());
+            }
         }
 
         for (int i = 0 ; i < trader.getBasketSold().size() ; ++i) {
@@ -313,7 +314,7 @@ public final class AnalysisToProtobuf {
 
         for (@NonNull ShoppingList shoppingList : economy.getMarketsAsBuyer(trader).keySet()) {
             builder.addShoppingLists(shoppingListTO(shoppingListOid.get(shoppingList), economy,
-                            shoppingList, traderToOidMap));
+                            shoppingList));
         }
 
         return builder.build();
@@ -342,14 +343,12 @@ public final class AnalysisToProtobuf {
      * Converts an {@link Action} to an {@link ActionTO} given some additional context.
      *
      * @param input The {@link Action} to convert.
-     * @param traderOid A map for {@link Trader}s to their OIDs.
      * @param shoppingListOid A map for {@link ShoppingList}s to their OIDs.
      * @param topology The topology associates with traders received from legacy market.
      * It keeps a traderOid map which will be used to populate the oid for traders.
      * @return The resulting {@link ActionTO}.
      */
     public static @NonNull ActionTO actionTO(@NonNull Action input,
-                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOid,
                     @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
                     Topology topology) {
         ActionTO.Builder builder = ActionTO.newBuilder();
@@ -365,7 +364,7 @@ public final class AnalysisToProtobuf {
 
             MoveTO.Builder moveTO = MoveTO.newBuilder();
             moveTO.setShoppingListToMove(shoppingListOid.get(move.getTarget()));
-            moveTO.setCouponId(traderOid.get(newSupplier));
+            moveTO.setCouponId(newSupplier.getOid());
             if (move.getContext().isPresent()) {
                 moveTO.setMoveContext(move.getContext().get());
             }
@@ -384,7 +383,7 @@ public final class AnalysisToProtobuf {
                 moveTO.addAllCommodityContext(commodityContexts);
             }
             // the provision by demand action may not have been handled
-            if (traderOid.get(newSupplier) == null) {
+            if (!newSupplier.isOidSet()) {
                 topology.addProvisionedTrader(newSupplier);
                 logger.info("NPE newSupplier=" + newSupplier.getDebugInfoNeverUseInCode() +
                             " buyer=" + move.getActionTarget().getDebugInfoNeverUseInCode());
@@ -399,15 +398,15 @@ public final class AnalysisToProtobuf {
                         newSupplier = supplier;
                     }
                 }
-                moveTO.setDestination(traderOid.get(newSupplier));
+                moveTO.setDestination(newSupplier.getOid());
             } catch (Exception e) {
                 logger.error("Exception when replacing supplier: original supplier="
                              + origSupplier.getDebugInfoNeverUseInCode() +
                              " replaced supplier=" + newSupplier.getDebugInfoNeverUseInCode() +
                              " buyer=" + move.getActionTarget().getDebugInfoNeverUseInCode() +
-                             " oid of replaced supplier=" + traderOid.get(newSupplier));
+                             " oid of replaced supplier=" + newSupplier.getOid());
             }
-            moveTO = explainMoveAction(move.getSource(), newSupplier, traderOid, move, moveTO,
+            moveTO = explainMoveAction(move.getSource(), newSupplier, move, moveTO,
                                        topology.getEconomy());
             builder.setMove(moveTO);
 
@@ -418,7 +417,7 @@ public final class AnalysisToProtobuf {
             reconfigureTO.setShoppingListToReconfigure(
                             shoppingListOid.get(reconfigure.getTarget()));
             if (reconfigure.getSource() != null) {
-                reconfigureTO.setSource(traderOid.get(reconfigure.getSource()));
+                reconfigureTO.setSource(reconfigure.getSource().getOid());
                 for (CommoditySpecification c : reconfigure.getTarget().getBasket()) {
                     if (!reconfigure.getSource().getBasketSold().contains(c)) {
                         reconfigureTO.addCommodityToReconfigure(c.getType());
@@ -435,8 +434,8 @@ public final class AnalysisToProtobuf {
         } else if (input instanceof Activate) {
             Activate activate = (Activate)input;
             ActivateTO.Builder activateBuilder = ActivateTO.newBuilder()
-                    .setTraderToActivate(traderOid.get(activate.getTarget()))
-                    .setModelSeller(traderOid.get(activate.getModelSeller()))
+                    .setTraderToActivate(activate.getTarget().getOid())
+                    .setModelSeller(activate.getModelSeller().getOid())
                     .addAllTriggeringBasket(specificationTOs(activate.getTriggeringBasket()));
             if (activate.getReason() != null) {
                 activateBuilder.setMostExpensiveCommodity(activate.getReason().getBaseType());
@@ -445,15 +444,15 @@ public final class AnalysisToProtobuf {
         } else if (input instanceof Deactivate) {
             Deactivate deactivate = (Deactivate)input;
             builder.setDeactivate(DeactivateTO.newBuilder()
-                   .setTraderToDeactivate(traderOid.get(deactivate.getTarget()))
+                   .setTraderToDeactivate(deactivate.getTarget().getOid())
                    .addAllTriggeringBasket(specificationTOs(deactivate.getTriggeringBasket())));
         } else if (input instanceof ProvisionByDemand) {
             ProvisionByDemand provDemand = (ProvisionByDemand)input;
             ProvisionByDemandTO.Builder provDemandTO = ProvisionByDemandTO.newBuilder()
                             .setModelBuyer(shoppingListOid.get(provDemand.getModelBuyer()))
-                            .setModelSeller(traderOid.get(provDemand.getModelSeller()))
+                            .setModelSeller(provDemand.getModelSeller().getOid())
                             // the newly provisioned trader does not have OID, assign one for it
-                            // and add the oid into BiMap traderOids_
+                            // and into the traderOids.
                             .setProvisionedSeller(topology.addProvisionedTrader(
                                             provDemand.getProvisionedSeller()));
             // create shopping list OIDs for the provisioned shopping lists
@@ -504,9 +503,9 @@ public final class AnalysisToProtobuf {
         } else if (input instanceof ProvisionBySupply) {
             ProvisionBySupply provSupply = (ProvisionBySupply)input;
             ProvisionBySupplyTO.Builder provSupplyTO = ProvisionBySupplyTO.newBuilder()
-                            .setModelSeller(traderOid.get(provSupply.getModelSeller()))
+                            .setModelSeller(provSupply.getModelSeller().getOid())
                             // the newly provisioned trader does not have OID, assign one for it and add
-                            // the oid into BiMap traderOids_
+                            // the into traderOids_
                             .setProvisionedSeller(topology.addProvisionedTrader(
                                             provSupply.getProvisionedSeller()))
                             .setMostExpensiveCommodity(commoditySpecificationTO(
@@ -530,7 +529,7 @@ public final class AnalysisToProtobuf {
         } else if (input instanceof Resize) {
             Resize resize = (Resize)input;
             ResizeTO.Builder resizeBuilder = ResizeTO.newBuilder()
-                .setSellingTrader(traderOid.get(resize.getSellingTrader()))
+                .setSellingTrader(resize.getSellingTrader().getOid())
                 .setSpecification(commoditySpecificationTO(resize.getResizedCommoditySpec()))
                 .setOldCapacity((float)resize.getOldCapacity())
                 .setNewCapacity((float)resize.getNewCapacity())
@@ -550,10 +549,10 @@ public final class AnalysisToProtobuf {
             if (!resize.getResizeTriggerTraders().isEmpty()) {
                 resizeBuilder.addAllResizeTriggerTrader(resize.getResizeTriggerTraders().entrySet()
                     .stream()
-                    .filter(entry -> traderOid.get(entry.getKey()) != null)
+                    .filter(entry -> entry.getKey().isOidSet())
                     .map(entry -> {
                         ResizeTriggerTraderTO.Builder resizeTriggerTrader = ResizeTriggerTraderTO.newBuilder();
-                        resizeTriggerTrader.setTrader(traderOid.get(entry.getKey()));
+                        resizeTriggerTrader.setTrader(entry.getKey().getOid());
                         resizeTriggerTrader.addAllRelatedCommodities(entry.getValue());
                         return resizeTriggerTrader.build();
                     })
@@ -564,7 +563,7 @@ public final class AnalysisToProtobuf {
             CompoundMove compoundMove = (CompoundMove)input;
             CompoundMoveTO.Builder compoundMoveTO = CompoundMoveTO.newBuilder();
             for (Move m : compoundMove.getConstituentMoves()) {
-                compoundMoveTO.addMoves(AnalysisToProtobuf.actionTO(m, traderOid, shoppingListOid,
+                compoundMoveTO.addMoves(AnalysisToProtobuf.actionTO(m, shoppingListOid,
                                 topology).getMove());
             }
             builder.setCompoundMove(compoundMoveTO);
@@ -614,7 +613,6 @@ public final class AnalysisToProtobuf {
      * additional context.
      *
      * @param actions The list of {@link Action}s to convert.
-     * @param traderToOidMap A mapping of {@link Trader}s to their OIDs.
      * @param shoppingListOid A function mapping {@link ShoppingList}s to their OIDs.
      * @param timeToAnalyze_ns The amount of time it took to analyze the topology and produce the
      *        list of actions in nanoseconds.
@@ -624,10 +622,9 @@ public final class AnalysisToProtobuf {
      * @return The resulting {@link AnalysisResults} message.
      */
     public static @NonNull AnalysisResults analysisResults(@NonNull List<Action> actions,
-                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap,
                     @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
                     long timeToAnalyze_ns, Topology topology, PriceStatement startPriceStatement) {
-        return analysisResults(actions, traderToOidMap, shoppingListOid, timeToAnalyze_ns, topology,
+        return analysisResults(actions, shoppingListOid, timeToAnalyze_ns, topology,
                         startPriceStatement, true);
     }
     /**
@@ -635,7 +632,6 @@ public final class AnalysisToProtobuf {
      * additional context.
      *
      * @param actions The list of {@link Action}s to convert.
-     * @param traderToOidMap A mapping of {@link Trader}s to their OIDs.
      * @param shoppingListOid A function mapping {@link ShoppingList}s to their OIDs.
      * @param timeToAnalyze_ns The amount of time it took to analyze the topology and produce the
      *        list of actions in nanoseconds.
@@ -646,14 +642,13 @@ public final class AnalysisToProtobuf {
      * @return The resulting {@link AnalysisResults} message.
      */
     public static @NonNull AnalysisResults analysisResults(@NonNull List<Action> actions,
-                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap,
                     @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
                     long timeToAnalyze_ns, Topology topology, PriceStatement startPriceStatement,
                     boolean sendBack) {
         AnalysisResults.Builder builder = AnalysisResults.newBuilder();
         builder.setTopologyId(topology.getTopologyId());
         for (Action action : actions) {
-            ActionTO actionTO = actionTO(action, traderToOidMap, shoppingListOid, topology);
+            ActionTO actionTO = actionTO(action, shoppingListOid, topology);
             if (actionTO != null) {
                 builder.addActions(actionTO);
             }
@@ -675,7 +670,7 @@ public final class AnalysisToProtobuf {
             // for inactive traders we don't care much about price index, so setting it to 0
             // if the inactive trader is a clone created in M2, skip it
             if (trader.getState().isActive()) {
-                payloadBuilder.setOid(traderToOidMap.get(trader));
+                payloadBuilder.setOid(trader.getOid());
                 double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts
                                 .get(traderIndex).getPriceIndex() : 0;
                 payloadBuilder.setPriceindexCurrent(Double.isInfinite(startPriceIndex)
@@ -685,7 +680,7 @@ public final class AnalysisToProtobuf {
                 piBuilder.addPayload(payloadBuilder.build());
             } else {
                 if (!trader.isClone()) {
-                    payloadBuilder.setOid(traderToOidMap.get(trader));
+                    payloadBuilder.setOid(trader.getOid());
                     double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts
                                     .get(traderIndex).getPriceIndex() : 0;
                     payloadBuilder.setPriceindexCurrent(Double.isInfinite(startPriceIndex)
@@ -706,8 +701,8 @@ public final class AnalysisToProtobuf {
                 if (!trader.isClone() || trader.getState() != TraderState.INACTIVE) {
                     // in case of a cloned trader, if it is suspended(INACTIVE state), skip
                     // creating a traderTO for it
-                    traderTOList.add(AnalysisToProtobuf.traderTO(economy, trader, traderToOidMap,
-                                    shoppingListOid, preferentialTraders));
+                    traderTOList.add(AnalysisToProtobuf.traderTO(economy, trader,
+                        shoppingListOid, preferentialTraders));
                 }
             }
         }
@@ -771,14 +766,12 @@ public final class AnalysisToProtobuf {
      *
      * @param oldSupplier the original supplier for the consumer
      * @param newSupplier the destination supplier of the move
-     * @param traderOid A map for {@link Trader}s to their OIDs
      * @param move the move action to explain
      * @param moveTO the DTO for the move action to explain
      * @param economy that the actions re generated in
      * @return The resulting {@link MoveTO.Builder}.
      */
-    private static MoveTO.Builder explainMoveAction(Trader oldSupplier, Trader newSupplier,
-                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOid, Move move,
+    private static MoveTO.Builder explainMoveAction(Trader oldSupplier, Trader newSupplier, Move move,
                     MoveTO.Builder moveTO, UnmodifiableEconomy economy) {
         if (oldSupplier == null) {
             // when the source does not exist, move is actually initial placement.
@@ -787,13 +780,13 @@ public final class AnalysisToProtobuf {
         } else {
             // when the source exists, the move can be either a result of compliance,
             // cheaper quote or suspension.
-            moveTO.setSource(traderOid.get(oldSupplier));
+            moveTO.setSource(oldSupplier.getOid());
             // when old supplier is inactive, move is a result of supplier suspension.
             // TODO: we need to understand if old host is in failover state, could it still has
             // some consumers? If so, is it valid to consider move as a result of suspension?
             if (oldSupplier.getState() == TraderState.INACTIVE) {
                 moveTO.setMoveExplanation(MoveExplanation.newBuilder().setEvacuation(Evacuation
-                                .newBuilder().setSuspendedTrader(traderOid.get(oldSupplier)).build())
+                                .newBuilder().setSuspendedTrader(oldSupplier.getOid()).build())
                                 .build());
             } else {
                 // old supplier exists and its state is Active

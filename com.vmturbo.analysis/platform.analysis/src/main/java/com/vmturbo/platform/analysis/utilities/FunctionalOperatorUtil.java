@@ -118,7 +118,7 @@ public class FunctionalOperatorUtil {
         FunctionalOperator UPDATE_COUPON_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead)
                         -> {
             Context c = buyer.getBuyer().getSettings().getContext();
-            long oid = economy.getTopology().getTraderOid(seller);
+            long oid = seller.getOid();
             int couponCommBaseType = buyer.getBasket().get(boughtIndex).getBaseType();
 
             // Find the template matched with the buyer
@@ -182,7 +182,7 @@ public class FunctionalOperatorUtil {
                     int couponBoughtIndex = peer.getBasket().indexOfBaseType(couponCommBaseType);
                     // When moving out of a supplier, the buyer's supplier will be null. So we use
                     // peer shopping list's supplier here.
-                    Long supplierOid =  economy.getTopology().getTraderOid(peer.getSupplier());
+                    Long supplierOid = peer.getSupplier() == null ? null : peer.getSupplier().getOid();
                     Double couponsToRelinquish = totalCouponsToRelinquish.getOrDefault(supplierOid, new Double(0));
                     couponsBought = peer.getQuantity(couponBoughtIndex);
                     // the peers relinquish the excess
@@ -392,8 +392,8 @@ public class FunctionalOperatorUtil {
                                             TheMatrix.instance(topology.getTopologyId());
                             // Check if the matrix interface is present for this topology
                             if (interfaceOptional.isPresent()) {
-                                Long buyerOid = topology.getTraderOids().get(buyer.getBuyer());
-                                Long sellerOid = topology.getTraderOids().get(seller);
+                                long buyerOid = buyer.getBuyer().getOid();
+                                long sellerOid = seller.getOid();
                                 // Call Place method on interface to update matrix after placement
                                 interfaceOptional.get().place(buyerOid, sellerOid);
                             }

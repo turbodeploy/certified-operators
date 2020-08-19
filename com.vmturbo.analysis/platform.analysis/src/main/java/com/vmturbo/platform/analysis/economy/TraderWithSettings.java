@@ -334,4 +334,11 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     public void setContext(Context context) {
         this.context_ = context;
     }
+
+    @Override
+    public void clearShoppingAndMarketData() {
+        super.clearShoppingAndMarketData();
+        marketsAsBuyer_.clear();
+        marketsAsSeller_.clear();
+    }
 } // end TraderWithSettings class

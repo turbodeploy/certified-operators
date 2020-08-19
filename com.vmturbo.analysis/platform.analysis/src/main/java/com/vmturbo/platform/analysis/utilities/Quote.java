@@ -384,7 +384,7 @@ public abstract class Quote {
                         .setId(context.getBalanceAccount().getId()).build();
                 builder.setBalanceAccount(balanceAccount);
                 builder.addFamilyBasedCoverage(CoverageEntry.newBuilder()
-                    .setProviderId(economy.getTopology().getTraderOid(seller))
+                    .setProviderId(seller.getOid())
                     .setTotalRequestedCoupons(requestedCoupons)
                     .setTotalAllocatedCoupons(allocatedCoupons));
                 moveContext = builder.build();

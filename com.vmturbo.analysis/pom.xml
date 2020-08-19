@@ -5,24 +5,26 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>OpsManager</artifactId>
-        <version>7.22.100-TeamPaaS-SNAPSHOT</version>
-	<relativePath>../build/pom.xml</relativePath>
+        <version>7.22.8-SNAPSHOT</version>
+    <relativePath>../build/pom.xml</relativePath>
     </parent>
 
     <artifactId>analysis-parent</artifactId>
     <name>All Analysis Modules</name>
     <description>A parent pom to host common configuration and build all Analysis (Market 2) modules.</description>
-    <version>3.22.100-TeamPaaS-SNAPSHOT</version> <!-- Since its going to be the 2nd major version of the Market. -->
+    <version>3.22.8-SNAPSHOT</version> <!-- Since its going to be the 2nd major version of the Market. -->
     <packaging>pom</packaging>
 
     <properties>
+        <vmturbo.mt.branch.version>7.22.8-SNAPSHOT</vmturbo.mt.branch.version>
         <java.version>1.8</java.version>
+        <checkstyle.config.version>${vmturbo.mt.branch.version}</checkstyle.config.version>
     </properties>
 
     <modules>
         <module>platform.analysis</module>
         <module>platform.analysis.protobuf</module>
-	<module>platform.analysis.app</module>
+    <module>platform.analysis.app</module>
     </modules>
 
     <build>
@@ -31,7 +33,7 @@
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
-                    <version>0.7.7.201606060606</version>
+                    <version>0.8.5</version>
                     <executions>
                         <execution>
                             <id>jacoco-initialize</id>
@@ -58,12 +60,12 @@
             <id>vmturbo</id>
             <name>Internal Releases</name>
             <url>http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo</url>
-	    </repository>
+        </repository>
         <snapshotRepository>
             <id>snapshots</id>
             <name>Internal Snapshots</name>
             <url>http://build.vmturbo.com:8081/nexus/content/repositories/snapshots</url>
-	    </snapshotRepository>
+        </snapshotRepository>
     </distributionManagement>
 
 

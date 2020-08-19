@@ -63,26 +63,22 @@ public final class Ede {
      * list of providers that has enough capacity for all commodities.
      * @param shoppingLists the shopping list set of interest
      * @param economy The snapshot of the economy
+     * @param couponCommodityBaseType base type of coupon commodity so that it is not included in quote.
      * @return a map from a VM's OID associated with the shopping list to a set of
      * provider OIDs that the VM can fit into.
      */
     public @NonNull Map<Long, Set<Long>> getProviderLists(
-            Set<ShoppingList> shoppingLists, Economy economy) {
+            Set<ShoppingList> shoppingLists, Economy economy, int couponCommodityBaseType) {
         Map<Long, Set<Long>>  providerListMap = new HashMap<>();
         for (ShoppingList shoppingList : shoppingLists) {
             Set<Long> providerList = new HashSet<>();
             for (Trader trader : economy.getMarket(shoppingList)
                     .getActiveSellersAvailableForPlacement()) {
-                Trader tp = AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, trader);
-                // if  trader is a cbtp convert it to tp
-                if (tp != null) {
-                    trader = tp;
-                }
-                if (CostFunctionFactory.insufficientCommodityWithinSellerCapacityQuote(shoppingList, trader, -1).isFinite()) {
-                    providerList.add( economy.getTopology().getTraderOids().get(trader));
+                if (CostFunctionFactory.insufficientCommodityWithinSellerCapacityQuote(shoppingList, trader, couponCommodityBaseType).isFinite()) {
+                    providerList.add(trader.getOid());
                 }
             }
-            Long buyerID = economy.getTopology().getTraderOids().get(shoppingList.getBuyer());
+            Long buyerID = shoppingList.getBuyer().getOid();
             providerListMap.put(buyerID, providerList);
         }
         return providerListMap;

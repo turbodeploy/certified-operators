@@ -36,6 +36,7 @@ public abstract class Trader implements Serializable {
     // Fields
     private int economyIndex_;
     private int cloneOf_;
+    private long oid_ = Long.MIN_VALUE; // OID of the trader
     private final int type_; // this should never change once the object is created.
     private @NonNull TraderState state_;
     private @NonNull Basket basketSold_;
@@ -345,6 +346,59 @@ public abstract class Trader implements Serializable {
     }
 
     /**
+     * Returns the <em>oid</em> of {@code this} trader.
+     * <p>
+     *  The oid is the "Object ID" of the trader and matches the OID
+     *  of the corresponding entity in the topology used to generate
+     *  the economy.
+     * </p>
+     *
+     * <p>
+     *  This is an O(1) operation.
+     * </p>
+     * @return the Trader's OID.
+     */
+    @Pure
+    public long getOid(@ReadOnly Trader this) {
+        return oid_;
+    }
+
+    /**
+     * Sets the value of the <b>oid</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param oid the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getOid()
+     */
+    @Deterministic
+    @NonNull
+    public Trader setOid(long oid) {
+        checkArgument(oid_ == Long.MIN_VALUE, "oid_ already assigned value of " + oid_);
+        oid_ = oid;
+        return this;
+    }
+
+    /**
+     * Check whether the <b>oid</b> field has been set.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @return whether the Trader's OID has already been set.
+     * @see #getOid()
+     */
+    @Pure
+    public boolean isOidSet(@ReadOnly Trader this) {
+        return oid_ != Long.MIN_VALUE;
+    }
+
+    /**
      * Returns the type of the trader.
      *
      * <p>
@@ -531,5 +585,17 @@ public abstract class Trader implements Serializable {
      */
     public void setPlacementEntity(boolean isPlacementEntity) {
         this.isPlacementEntity_ = isPlacementEntity;
+    }
+
+    /**
+     * Clear information about this trader's customers, markets this trader
+     * participates in, clique memberships, etc.
+     * <p/>
+     * This is useful when retaining Traders for ActionReplay without transitively
+     * having to keep the whole old economy in-memory.
+     */
+    public void clearShoppingAndMarketData() {
+        cliques_.clear();
+        customers_.clear();
     }
 } // end interface Trader

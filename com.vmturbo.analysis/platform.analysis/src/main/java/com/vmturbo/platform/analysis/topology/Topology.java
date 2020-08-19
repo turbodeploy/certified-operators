@@ -46,7 +46,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 public final class Topology implements Serializable {
     // Fields
     private final @NonNull Economy economy_ = new Economy(); // The managed economy.
-    private final @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids_ = HashBiMap.create();
+    private final @NonNull Map<@NonNull Long, @NonNull Trader> tradersByOid_ = new HashMap<>();
     private long provisionedShoppingListIndex_ = 0;
     private final @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOids_ = HashBiMap.create();
     // A map from OIDs of traders we haven't seen yet to shopping lists that need to be
@@ -59,10 +59,10 @@ public final class Topology implements Serializable {
 
     // Cached data
 
-    // Cached unmodifiable view of the traderOids_ BiMap.
-    private final @NonNull BiMap<@NonNull Trader, @NonNull Long>
-        unmodifiableTraderOids_ = Maps.unmodifiableBiMap(traderOids_);
-    // Cached unmodifiable view of the traderOids_ BiMap.
+    // Cached unmodifiable view of the tradersByOid_ Map.
+    private final @NonNull Map<@NonNull Long, @NonNull Trader>
+        unmodifiableTradersByOid_ = Collections.unmodifiableMap(tradersByOid_);
+    // Cached unmodifiable view of the shoppingListOids_ BiMap.
     private final @NonNull BiMap<@NonNull ShoppingList, @NonNull Long>
         unmodifiableShoppingListOids_ = Maps.unmodifiableBiMap(shoppingListOids_);
     // Cached unmodifiable view of the danglingShoppingLists_ Map.
@@ -98,7 +98,8 @@ public final class Topology implements Serializable {
     public @NonNull Trader addTrader(long oid, int type, @NonNull TraderState state, @NonNull Basket basketSold,
                                      @NonNull Collection<@NonNull Long> cliques) {
         @NonNull Trader trader = economy_.addTrader(type, state, basketSold, cliques);
-        traderOids_.put(trader, oid);
+        trader.setOid(oid);
+        tradersByOid_.put(oid, trader);
 
         // Check if the topology already contains shopping lists that refer to this trader...
         List<@NonNull ShoppingList> shoppingLists = danglingShoppingLists_.get(oid);
@@ -169,7 +170,7 @@ public final class Topology implements Serializable {
         @NonNull ShoppingList shoppingList = addBasketBought(oid, buyer, basketBought);
 
         // Check whether the supplier has been added to the topology...
-        @NonNull Trader supplier = traderOids_.inverse().get(supplierOid);
+        @NonNull Trader supplier = tradersByOid_.get(supplierOid);
         if (supplier != null) {
             shoppingList.move(supplier);
         } else {
@@ -241,17 +242,21 @@ public final class Topology implements Serializable {
     }
 
     /**
-     * Returns an unmodifiable BiMap mapping {@link Trader}s to their OIDs.
+     * Returns an unmodifiable Map mapping OID to {@link Trader}.
+     *
+     * @return an unmodifiable Map mapping OID to {@link Trader}.
      */
-    public @ReadOnly @NonNull BiMap<@NonNull Trader, @NonNull Long> getTraderOids(@ReadOnly Topology this) {
-        return unmodifiableTraderOids_;
+    public @ReadOnly @NonNull Map<@NonNull Long, @NonNull Trader> getTradersByOid(@ReadOnly Topology this) {
+        return unmodifiableTradersByOid_;
     }
 
     /**
-     * Returns a modifiable BiMap mapping {@link Trader}s to their OIDs.
+     * Returns a modifiable Map mapping OID to corresponding {@link Trader}.
+     *
+     * @return a modifiable Map mapping OID to corresponding {@link Trader}.
      */
-    public @NonNull BiMap<@NonNull Trader, @NonNull Long> getModifiableTraderOids() {
-        return traderOids_;
+    public @NonNull Map<@NonNull Long, @NonNull Trader> getModifiableTraderOids() {
+        return tradersByOid_;
     }
 
     /**
@@ -303,7 +308,7 @@ public final class Topology implements Serializable {
      */
     public void clear() {
         economy_.clear();
-        traderOids_.clear();
+        tradersByOid_.clear();
         shoppingListOids_.clear();
         danglingShoppingLists_.clear();
         newShoppingListToBuyerMap_.clear();
@@ -318,18 +323,18 @@ public final class Topology implements Serializable {
         shoppingListOids_.put(provisionedShoppingList, provisionedShoppingListIndex_);
         // put oid of shopping list from newly provisioned trader and the oid of newly provisioned
         // trader to a map
-        newShoppingListToBuyerMap_.put(provisionedShoppingListIndex_, traderOids_
-                        .get(provisionedShoppingList.getBuyer()));
+        newShoppingListToBuyerMap_.put(provisionedShoppingListIndex_, provisionedShoppingList.getBuyer().getOid());
         return provisionedShoppingListIndex_;
     }
 
     /**
-     * Assign an OID for newly provisioned trader and update the traderOids_ map. Use the
+     * Assign an OID for newly provisioned trader and update the tradersByOid_ map. Use the
      * {@link IdentityGenerator} to give a globally unique OID.
      */
     public long addProvisionedTrader(@NonNull Trader provisionedTrader) {
         long newId = IdentityGenerator.next();
-        traderOids_.put(provisionedTrader, newId);
+        provisionedTrader.setOid(newId);
+        tradersByOid_.put(newId, provisionedTrader);
         return newId;
 
     }
@@ -362,9 +367,5 @@ public final class Topology implements Serializable {
 
     public boolean addCommsToAdjustOverhead(CommoditySpecification cs) {
         return economy_.getCommsToAdjustOverhead().add(cs);
-    }
-
-    public Long getTraderOid(Trader trader) {
-        return trader == null ? null : traderOids_.get(trader);
     }
 } // end Topology class
