@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.action;
 
 import java.time.Clock;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -17,8 +18,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -26,9 +29,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.ActionGroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter.ManagementUnits;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.TimeRange;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO;
 
 /**
  * Responsible for mapping an {@link ActionApiInputDTO} to the matching queries to use in XL.
@@ -39,13 +44,16 @@ class HistoricalQueryMapper {
 
     private final ActionSpecMapper actionSpecMapper;
     private final BuyRiScopeHandler buyRiScopeHandler;
+    private final GroupExpander groupExpander;
     private final Clock clock;
 
     HistoricalQueryMapper(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final BuyRiScopeHandler buyRiScopeHandler,
+                          @Nonnull GroupExpander groupExpander,
                           @Nonnull final Clock clock) {
         this.actionSpecMapper = actionSpecMapper;
         this.buyRiScopeHandler = buyRiScopeHandler;
+        this.groupExpander = groupExpander;
         this.clock = clock;
     }
 
@@ -69,7 +77,7 @@ class HistoricalQueryMapper {
             .build();
         final Optional<GroupBy> groupByOps = extractGroupByCriteria(query);
         final Map<ApiId, MgmtUnitSubgroupFilter> filtersByScope =
-            extractMgmtUnitSubgroupFilter(query);
+            extractMgmtUnitSubgroupFilter(query, groupByOps);
 
         return filtersByScope.entrySet().stream()
             .collect(Collectors.toMap(Entry::getKey, entry -> {
@@ -104,6 +112,8 @@ class HistoricalQueryMapper {
                     return Optional.of(GroupBy.ACTION_STATE);
                 case StringConstants.BUSINESS_UNIT:
                     return Optional.of(GroupBy.BUSINESS_ACCOUNT_ID);
+                case StringConstants.RESOURCE_GROUP:
+                    return Optional.of(GroupBy.RESOURCE_GROUP_ID);
                 default:
                     logger.error("Unhandled action stats group-by criteria: {}", groupBy);
                     return Optional.empty();
@@ -144,7 +154,7 @@ class HistoricalQueryMapper {
     }
 
     @Nonnull
-    Map<ApiId, MgmtUnitSubgroupFilter> extractMgmtUnitSubgroupFilter(@Nonnull final ActionStatsQuery query) {
+    Map<ApiId, MgmtUnitSubgroupFilter> extractMgmtUnitSubgroupFilter(@Nonnull final ActionStatsQuery query, Optional<GroupBy> groupByOps) {
         return query.scopes().stream()
             .distinct()
             .collect(Collectors.toMap(Function.identity(), scope -> {
@@ -169,6 +179,9 @@ class HistoricalQueryMapper {
                             .map(ApiEntityType::typeNumber)
                             .forEach(mgmtSubgroupFilterBldr::addEntityType);
                     }
+                } else if (needExpansion(scope, groupByOps)) {
+                    ManagementUnits mgunits = getExpandedMgmtUnits(scope, groupByOps);
+                    mgmtSubgroupFilterBldr.setMgmtUnits(mgunits);
                 } else {
                     mgmtSubgroupFilterBldr.setMgmtUnitId(scope.oid());
                 }
@@ -179,4 +192,42 @@ class HistoricalQueryMapper {
                 return mgmtSubgroupFilterBldr.build();
             }));
     }
+
+    private boolean needExpansion(@Nonnull final ApiId scope, Optional<GroupBy> groupByOps) {
+        if (scope.isEntity()) {
+            return scope.getClassName().equals(ApiEntityType.BUSINESS_ACCOUNT.apiStr())
+                && groupByOps.isPresent()
+                && groupByOps.get() == GroupBy.RESOURCE_GROUP_ID;
+        } else if (scope.isGroup()) {
+            Optional<UuidMapper.CachedGroupInfo> groupInfo = scope.getCachedGroupInfo();
+            return groupInfo.isPresent()
+                && groupInfo.get().getGroupType() == CommonDTO.GroupDTO.GroupType.REGULAR
+                && (Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT).equals(groupInfo.get().getEntityTypes())
+                || groupInfo.get().getNestedGroupTypes()
+                .stream().allMatch(el -> el.equals(CommonDTO.GroupDTO.GroupType.RESOURCE)));
+        }
+        return false;
+    }
+
+    private ManagementUnits getExpandedMgmtUnits(ApiId scope, Optional<GroupBy> groupByOps) {
+        ManagementUnits.Builder builder = ManagementUnits.newBuilder();
+        if (scope.isEntity()) {
+            // If we are in the scope of account but we are grouping by resource group,
+            // we should replace the scope with list of resource groups for that account
+            groupExpander.getResourceGroupsForAccounts(Collections.singleton(scope.oid()))
+                .forEach(grp -> builder.addMgmtUnitIds(grp.getId()));
+        } else {
+            if (Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT)
+                    .equals(scope.getCachedGroupInfo().get().getEntityTypes())
+                && groupByOps.isPresent()
+                && groupByOps.get() == GroupBy.RESOURCE_GROUP_ID) {
+                groupExpander.getResourceGroupsForAccounts(scope.getCachedGroupInfo().get().getEntityIds())
+                    .forEach(grp -> builder.addMgmtUnitIds(grp.getId()));
+            } else {
+                builder.addAllMgmtUnitIds(scope.getCachedGroupInfo().get().getEntityIds());
+            }
+        }
+        return builder.build();
+    }
+
 }

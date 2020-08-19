@@ -258,6 +258,10 @@ class ActionStatsMapper {
             groupByFilters.setBusinessAccountId(actionStat.getStatGroup().getBusinessAccountId());
         }
 
+        if (actionStat.getStatGroup().hasResourceGroupId()) {
+            groupByFilters.setResourceGroupId(actionStat.getStatGroup().getResourceGroupId());
+        }
+
         if (actionStat.getStatGroup().hasActionRelatedRisk()) {
             groupByFilters.setRelatedRisk(actionStat.getStatGroup().getActionRelatedRisk());
         }

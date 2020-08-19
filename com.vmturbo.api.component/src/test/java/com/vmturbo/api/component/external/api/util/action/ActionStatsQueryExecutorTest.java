@@ -89,7 +89,7 @@ public class ActionStatsQueryExecutorTest {
         final Map<ApiId, HistoricalActionStatsQuery> grpcQueries = ImmutableMap.of(apiId, grpcQuery);
 
         final ActionStats actionStats = ActionStats.newBuilder()
-            .setMgmtUnitId(1)
+            .addMgmtUnitIds(1L)
             .build();
 
         when(historicalQueryMapper.mapToHistoricalQueries(actionStatsQuery))

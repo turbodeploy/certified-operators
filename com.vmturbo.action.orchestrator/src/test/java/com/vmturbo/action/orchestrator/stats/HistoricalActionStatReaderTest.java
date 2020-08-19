@@ -119,7 +119,7 @@ public class HistoricalActionStatReaderTest {
             .build();
 
         when(mgmtUnitSubgroupStore.query(eq(muFilter), any())).thenReturn(Optional.of(ImmutableQueryResult.builder()
-            .mgmtUnit(1)
+            .mgmtUnit(Collections.singletonList(1L))
             .putAllMgmtUnitSubgroups(targetMgmtSubunit)
             .build()));
         when(actionGroupStore.query(agFilter)).thenReturn(Optional.of(matchedActionGroups));
@@ -153,7 +153,7 @@ public class HistoricalActionStatReaderTest {
 
         when(buckets.toActionStats()).thenReturn(Stream.of(actionStat));
 
-        assertThat(stats.getMgmtUnitId(), is(1L));
+        assertThat(stats.getMgmtUnitIdsList(), is(Collections.singletonList(1L)));
         assertThat(stats.getStatSnapshotsList(), contains(ActionStatSnapshot.newBuilder()
             .setTime(retStatTime.toInstant(ZoneOffset.UTC).toEpochMilli())
             .addStats(actionStat)
@@ -199,7 +199,7 @@ public class HistoricalActionStatReaderTest {
             .build();
 
         when(mgmtUnitSubgroupStore.query(eq(muFilter), any())).thenReturn(Optional.of(ImmutableQueryResult.builder()
-            .mgmtUnit(1)
+            .addMgmtUnit(1L)
             .putAllMgmtUnitSubgroups(targetMgmtSubunit)
             .build()));
         when(actionGroupStore.query(agFilter)).thenReturn(Optional.of(matchedActionGroups));
@@ -221,7 +221,7 @@ public class HistoricalActionStatReaderTest {
         verify(statsBucketsFactory).arrangeIntoBuckets(groupBy, 2, Collections.emptyMap(), targetMgmtSubunit);
         verify(buckets).toActionStats();
 
-        assertThat(stats.getMgmtUnitId(), is(1L));
+        assertThat(stats.getMgmtUnitIdsList(), is(Collections.singletonList(1L)));
         assertThat(stats.getStatSnapshotsList(), contains(ActionStatSnapshot.newBuilder()
             .setTime(retStatTime.toInstant(ZoneOffset.UTC).toEpochMilli())
             .build()));
@@ -388,12 +388,13 @@ public class HistoricalActionStatReaderTest {
                     .setActionState(ActionState.QUEUED)))));
     }
 
-    private MgmtUnitSubgroup makeBaSubgroup(final long baId, final int subgroupId) {
+    private MgmtUnitSubgroup makeSubgroup(final long baId, final int subgroupId,
+                                          ManagementUnitType managementUnitType) {
         return ImmutableMgmtUnitSubgroup.builder()
             .id(subgroupId)
             .key(ImmutableMgmtUnitSubgroupKey.builder()
                 .mgmtUnitId(baId)
-                .mgmtUnitType(ManagementUnitType.BUSINESS_ACCOUNT)
+                .mgmtUnitType(managementUnitType)
                 .environmentType(EnvironmentType.CLOUD)
                 .build())
             .build();
@@ -406,8 +407,8 @@ public class HistoricalActionStatReaderTest {
     public void testBucketsGroupByBusinessAccount() {
         final long ba1Id = 182;
         final long ba2Id = 282;
-        MgmtUnitSubgroup ba1Subgroup = makeBaSubgroup(ba1Id, 1);
-        MgmtUnitSubgroup ba2Subgroup = makeBaSubgroup(ba2Id, 2);
+        MgmtUnitSubgroup ba1Subgroup = makeSubgroup(ba1Id, 1, ManagementUnitType.BUSINESS_ACCOUNT);
+        MgmtUnitSubgroup ba2Subgroup = makeSubgroup(ba2Id, 2, ManagementUnitType.BUSINESS_ACCOUNT);
         final ActionGroup ag1 = mock(ActionGroup.class);
         final ActionGroup ag2 = mock(ActionGroup.class);
         final RolledUpActionGroupStat increasingStat = increasingGroupStat();
@@ -430,6 +431,40 @@ public class HistoricalActionStatReaderTest {
         assertThat(statsByBa.get(ba2Id), is(combinedIncreasingStats(1, ActionDTO.ActionStat.newBuilder()
             .setStatGroup(ActionDTO.ActionStat.StatGroup.newBuilder()
                 .setBusinessAccountId(ba2Id)))));
+    }
+
+    /**
+     * Test grouping by resource group.
+     */
+    @Test
+    public void testBucketsGroupByResourceGroup() {
+        final long rg1Id = 182;
+        final long rg2Id = 282;
+        MgmtUnitSubgroup rg1Subgroup = makeSubgroup(rg1Id, 1, ManagementUnitType.RESOURCE_GROUP);
+        MgmtUnitSubgroup rg2Subgroup = makeSubgroup(rg2Id, 2, ManagementUnitType.RESOURCE_GROUP);
+        final ActionGroup ag1 = mock(ActionGroup.class);
+        final ActionGroup ag2 = mock(ActionGroup.class);
+        final RolledUpActionGroupStat increasingStat = increasingGroupStat();
+        final Map<ActionGroup, Map<Integer, RolledUpActionGroupStat>> statsByGroup = ImmutableMap.of(
+            ag1, ImmutableMap.of(
+                rg1Subgroup.id(), increasingStat,
+                rg2Subgroup.id(), increasingStat),
+            ag2, ImmutableMap.of(
+                rg1Subgroup.id(), increasingStat
+            ));
+        final CombinedStatsBuckets buckets =
+            new DefaultBucketsFactory().arrangeIntoBuckets(GroupBy.RESOURCE_GROUP_ID, 1,
+                statsByGroup, ImmutableMap.of(rg1Subgroup.id(), rg1Subgroup, rg2Subgroup.id(), rg2Subgroup));
+        final Map<Long, ActionDTO.ActionStat> statsByRg = buckets.toActionStats()
+            .collect(Collectors.toMap(stat -> stat.getStatGroup().getResourceGroupId(),
+                Function.identity()));
+        assertThat(statsByRg.keySet(), containsInAnyOrder(rg1Id, rg2Id));
+        assertThat(statsByRg.get(rg1Id), is(combinedIncreasingStats(2, ActionDTO.ActionStat.newBuilder()
+            .setStatGroup(ActionDTO.ActionStat.StatGroup.newBuilder()
+                .setResourceGroupId(rg1Id)))));
+        assertThat(statsByRg.get(rg2Id), is(combinedIncreasingStats(1, ActionDTO.ActionStat.newBuilder()
+            .setStatGroup(ActionDTO.ActionStat.StatGroup.newBuilder()
+                .setResourceGroupId(rg2Id)))));
     }
 
     /**
