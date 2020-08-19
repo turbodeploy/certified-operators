@@ -53,6 +53,9 @@ message BuildProperties {
     // A dirty build is a red flag - unless someone manually built some in-progress work and
     // deployed it for preliminary testing.
     optional bool is_dirty = 5;
+
+    // The number of the build.
+    optional string build_number = 6;
 }
 
 message ComponentInfo {

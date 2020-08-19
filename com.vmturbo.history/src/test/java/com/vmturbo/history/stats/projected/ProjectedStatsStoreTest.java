@@ -21,14 +21,16 @@ import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
+import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -37,10 +39,10 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.stats.StatsTestUtils;
 import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore.EntityStatsCalculator;
@@ -48,6 +50,8 @@ import com.vmturbo.history.stats.projected.ProjectedStatsStore.StatSnapshotCalcu
 import com.vmturbo.history.stats.projected.TopologyCommoditiesSnapshot.TopologyCommoditiesSnapshotFactory;
 
 public class ProjectedStatsStoreTest {
+
+    private static final Logger logger = LogManager.getLogger();
 
     private TopologyCommoditiesSnapshotFactory snapshotFactory =
             mock(TopologyCommoditiesSnapshotFactory.class);
@@ -61,8 +65,10 @@ public class ProjectedStatsStoreTest {
     private EntityStatsCalculator entityStatsCalculator =
             mock(EntityStatsCalculator.class);
 
-    private ProjectedStatsStore store = new ProjectedStatsStore(
-            snapshotFactory, priceIndexSnapshotFactory, statSnapshotCalculator, entityStatsCalculator);
+    private Set<String> excludedCommodities = Collections.singleton("CLUSTERCommodity");
+
+    private ProjectedStatsStore store = new ProjectedStatsStore(snapshotFactory,
+            priceIndexSnapshotFactory, statSnapshotCalculator, entityStatsCalculator, excludedCommodities);
 
     @Captor
     private ArgumentCaptor<Collection<TopologyEntityDTO>> entitiesCaptor;
@@ -70,8 +76,6 @@ public class ProjectedStatsStoreTest {
     @SuppressWarnings("unchecked")
     private RemoteIterator<ProjectedTopologyEntity> emptyIterator =
             (RemoteIterator<ProjectedTopologyEntity>)mock(RemoteIterator.class);
-
-
 
     @Before
     public void setup() {
@@ -81,7 +85,7 @@ public class ProjectedStatsStoreTest {
 
     @Test
     public void testDefaultConstructor() {
-        new ProjectedStatsStore();
+        new ProjectedStatsStore(Collections.emptySet());
     }
 
     @Test

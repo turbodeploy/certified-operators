@@ -16,7 +16,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -37,23 +36,17 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.OneTime;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Perpetual;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.RecurrenceStart;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
-import com.vmturbo.group.common.ItemActionException.InvalidScheduleAssignmentException;
 import com.vmturbo.group.common.ItemDeleteException.ScheduleInUseDeleteException;
 import com.vmturbo.group.common.ItemNotFoundException.ScheduleNotFoundException;
-import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.db.tables.pojos.Schedule;
 import com.vmturbo.group.db.tables.records.ScheduleRecord;
 import com.vmturbo.group.identity.IdentityProvider;
-import com.vmturbo.group.setting.SettingStore;
 
 /**
  * This class implements persistence layer for schedules.
@@ -73,7 +66,6 @@ public class ScheduleStore implements DiagsRestorable {
     private final DSLContext dslContext;
     private final ScheduleValidator scheduleValidator;
     private final IdentityProvider identityProvider;
-    private final SettingStore settingStore;
 
     /**
      * Create new ScheduleStore.
@@ -81,16 +73,13 @@ public class ScheduleStore implements DiagsRestorable {
      * @param dslContext A context with which to interact with the underlying datastore
      * @param scheduleValidator Schedule validator
      * @param identityProvider The identity provider used to assign OIDs
-     * @param settingStore Settings store
      */
     public ScheduleStore(@Nonnull final DSLContext dslContext,
                          @Nonnull final ScheduleValidator scheduleValidator,
-                         @Nonnull final IdentityProvider identityProvider,
-                         @Nonnull final SettingStore settingStore) {
+                         @Nonnull final IdentityProvider identityProvider) {
         this.dslContext = Objects.requireNonNull(dslContext);
         this.scheduleValidator = Objects.requireNonNull(scheduleValidator);
         this.identityProvider = Objects.requireNonNull(identityProvider);
-        this.settingStore = Objects.requireNonNull(settingStore);
     }
 
     /**
@@ -157,7 +146,7 @@ public class ScheduleStore implements DiagsRestorable {
      * @return All schedules stored in the database
      */
     @Nonnull
-    public Stream<ScheduleProto.Schedule> getSchedules() {
+    public List<ScheduleProto.Schedule> getSchedules() {
         return getSchedules(Sets.newHashSet());
     }
 
@@ -170,20 +159,33 @@ public class ScheduleStore implements DiagsRestorable {
      * no ids have been provided
      */
     @Nonnull
-    public Stream<ScheduleProto.Schedule> getSchedules(@Nonnull final Set<Long> ids) {
-        return dslContext.transactionResult(configuration -> {
-            final DSLContext context = DSL.using(configuration);
-            Condition whereCondition = trueCondition();
-            if (!ids.isEmpty()) {
-                whereCondition = SCHEDULE.ID.in(ids);
-            }
-            return context.selectFrom(SCHEDULE)
-                .where(whereCondition)
-                .fetch()
-                .into(Schedule.class)
-                .stream()
-                .map(this::toScheduleMessage);
-        });
+    public List<ScheduleProto.Schedule> getSchedules(@Nonnull final Set<Long> ids) {
+        return dslContext.transactionResult(configuration -> getSchedules(DSL.using(configuration), ids));
+    }
+
+    /**
+     * Get schedules from the database.
+     *
+     * @param context the context to use.
+     * @param ids of schedules to fetch.
+     *
+     * @return Schedules for specified ids or all schedules stored in the database if
+     * no ids have been provided
+     */
+    @Nonnull
+    public List<ScheduleProto.Schedule> getSchedules(@Nonnull DSLContext context,
+           @Nonnull final Set<Long> ids) {
+        Condition whereCondition = trueCondition();
+        if (!ids.isEmpty()) {
+            whereCondition = SCHEDULE.ID.in(ids);
+        }
+        return context.selectFrom(SCHEDULE)
+            .where(whereCondition)
+            .fetch()
+            .into(Schedule.class)
+            .stream()
+            .map(this::toScheduleMessage)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -397,59 +399,6 @@ public class ScheduleStore implements DiagsRestorable {
             }
         }
 
-    }
-
-    /**
-     * Assign schedule to setting policy.
-     * Note that is currently used mostly for testing, the eventual workflow will include schedule
-     * being assigned to setting policy through an API call.
-     *
-     * @param settingPolicyId {@link com.vmturbo.group.db.tables.pojos.SettingPolicy} id to which
-     *          the schedule is being assigned
-     * @param scheduleId {@link Schedule} id which is assigned to to the SettingPolicy
-     * @throws SettingPolicyNotFoundException If setting policy does not exist in {@link SettingStore}
-     * @throws ScheduleNotFoundException If schedule does not exist in {@link ScheduleStore}
-     * @throws InvalidScheduleAssignmentException If scheduled cannot be assigned to the specified
-     *          {@link SettingPolicy}
-     */
-     public void assignScheduleToSettingPolicy(final long settingPolicyId, final long scheduleId)
-        throws SettingPolicyNotFoundException, ScheduleNotFoundException, InvalidScheduleAssignmentException {
-        try {
-            dslContext.transaction(configuration -> {
-                final DSLContext context = DSL.using(configuration);
-                // Verify both objects exists
-                final Optional<SettingPolicy> settingPolicy =
-                        settingStore.getSettingPolicy(context, settingPolicyId);
-                if (!settingPolicy.isPresent()) {
-                    throw new SettingPolicyNotFoundException(settingPolicyId);
-                } else {
-                    if (Type.DISCOVERED == settingPolicy.get().getSettingPolicyType()) {
-                        throw new InvalidScheduleAssignmentException(
-                                "Schedule cannot be assigned to discovered setting policy");
-                    }
-                }
-                if (!getSchedule(scheduleId).isPresent()) {
-                    throw new ScheduleNotFoundException(scheduleId);
-                }
-                final SettingPolicy updatedPolicy = SettingPolicy.newBuilder(settingPolicy.get())
-                        .setInfo(SettingPolicyInfo.newBuilder(settingPolicy.get().getInfo())
-                                .setScheduleId(scheduleId))
-                        .build();
-                settingStore.deleteSettingPolicies(context, Collections.singleton(settingPolicyId),
-                        Type.USER);
-                settingStore.createSettingPolicies(context, Collections.singleton(updatedPolicy));
-            });
-        } catch (DataAccessException e) {
-            if (e.getCause() instanceof SettingPolicyNotFoundException) {
-                throw (SettingPolicyNotFoundException)e.getCause();
-            } else if (e.getCause() instanceof ScheduleNotFoundException) {
-                throw (ScheduleNotFoundException)e.getCause();
-            } else if (e.getCause() instanceof InvalidScheduleAssignmentException) {
-                throw (InvalidScheduleAssignmentException)e.getCause();
-            } else {
-                throw e;
-            }
-        }
     }
 
     /**

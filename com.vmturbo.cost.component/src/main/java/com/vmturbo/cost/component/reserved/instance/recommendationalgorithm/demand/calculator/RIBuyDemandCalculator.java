@@ -125,12 +125,20 @@ public class RIBuyDemandCalculator {
             @Nonnull RIBuyRegionalContext regionalContext) {
 
         // uncovered demand will be in coupons, based on the associated demand context
+        logger.debug("Starting uncovered demand by cluster calculation for Region Name {} and region OID {}",
+                        regionalContext.region().getDisplayName(), regionalContext.regionOid());
         final Map<RIBuyDemandCluster, float[]> uncoveredDemandByCluster  =
                 computeUncoveredDemandByCluster(regionalContext);
+        logger.debug("Ending uncovered demand by cluster calculation for Region Name {} and region OID {}",
+                        regionalContext.region().getDisplayName(), regionalContext.regionOid());
 
         //used for the UI to graph demand by compute tier
+        logger.debug("Starting uncovered demand by compute Tier calculation for Region Name {} and region OID {}",
+                        regionalContext.region().getDisplayName(), regionalContext.regionOid());
         final Map<TopologyEntityDTO, float[]> uncoveredDemandByComputeTier =
                 getCouponDemandByTemplate(uncoveredDemandByCluster);
+        logger.debug("Ending uncovered demand by compute Tier calculation for Region Name {} and region OID {}",
+                        regionalContext.region().getDisplayName(), regionalContext.regionOid());
 
         //used for the RI buy algorithm
         final float[] normalizedAggregateDemand = normalizeAndCombineDemand(
@@ -157,12 +165,16 @@ public class RIBuyDemandCalculator {
     private Map<RIBuyDemandCluster, float[]> computeUncoveredDemandByCluster(
             @Nonnull RIBuyRegionalContext regionalContext) {
 
+        logger.debug("Starting demand collection from DB for Region Name {} and region OID {}",
+                        regionalContext.region().getDisplayName(), regionalContext.regionOid());
         final Map<RIBuyDemandCluster, float[]> demandFromDB =
                 regionalContext.demandClusters()
                         .stream()
                         .collect(Collectors.toMap(
                                 Function.identity(),
                                 demandContext -> demandProvider.getDemand(demandContext, demandDataType)));
+        logger.debug("Ending demand collection from DB for Region Name {} and region OID {}",
+                        regionalContext.region().getDisplayName(), regionalContext.regionOid());
 
         final Map<RIBuyDemandCluster, float[]> couponDemandByCluster =
                 convertDemandToCoupons(demandFromDB);
@@ -173,8 +185,11 @@ public class RIBuyDemandCalculator {
          */
         final boolean isAws = couponDemandByCluster.keySet().stream()
                 .anyMatch(c -> c.regionOrZoneOid() != regionalContext.region().getOid());
+        logger.debug("Starting applyReservedInstancesToCluster for Region Name {} and region OID {}",
+                        regionalContext.region().getDisplayName(), regionalContext.regionOid());
         applyReservedInstancesToCluster(regionalContext, couponDemandByCluster, isAws);
-
+        logger.debug("Ending applyReservedInstancesToCluster for Region Name {} and region OID {}",
+                        regionalContext.region().getDisplayName(), regionalContext.regionOid());
         return couponDemandByCluster;
     }
 

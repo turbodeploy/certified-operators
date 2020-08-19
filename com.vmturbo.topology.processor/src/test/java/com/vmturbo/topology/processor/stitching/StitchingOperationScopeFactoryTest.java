@@ -7,12 +7,14 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -95,6 +97,8 @@ public class StitchingOperationScopeFactoryTest {
         when(targetStore.getProbeTargets(eq(111L))).thenReturn(Arrays.asList(target1, target3));
         when(targetStore.getProbeTargets(eq(222L))).thenReturn(Collections.singletonList(target2));
         when(targetStore.getProbeTargets(eq(444L))).thenReturn(Collections.singletonList(target4));
+        when(targetStore.getParentTargetIds(4L))
+                .thenReturn(Collections.singleton(1L));
     }
 
     @Test
@@ -219,5 +223,21 @@ public class StitchingOperationScopeFactoryTest {
                 EntityType.STORAGE).entities()
                 .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()), is(empty()));
+    }
+
+    /**
+     * Test that we only get VMs from the identified target's parent.
+     *
+     * @throws Exception if something goes wrong getting the scope's entities.
+     */
+    @Test
+    public void testParentTargetEntityTypeScope() {
+        List<String> vmsFromParent = scopeFactory.parentTargetEntityType(
+                EntityType.VIRTUAL_MACHINE, 4L)
+                .entities()
+                .map(StitchingEntity::getLocalId)
+                .collect(Collectors.toList());
+        assertEquals(1, vmsFromParent.size());
+        assertEquals("1", vmsFromParent.iterator().next());
     }
 }

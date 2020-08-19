@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 
@@ -19,14 +20,13 @@ import it.unimi.dsi.fastutil.ints.Int2DoubleMap;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
@@ -43,8 +43,6 @@ import com.vmturbo.topology.graph.TopologyGraph;
  * for use during the ingestion.
  */
 public class DataProvider {
-
-    private static final Logger logger = LogManager.getLogger();
 
     // commodity values cached for use later in finish stage
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityUsed = new Long2ObjectArrayMap<>();
@@ -68,6 +66,39 @@ public class DataProvider {
     private Long2IntMap entityOrGroupToActionCount;
 
     private TopologyGraph<SupplyChainEntity> graph;
+
+    private final Long2ObjectMap<Boolean> virtualVolumeToEphemeral = new Long2ObjectOpenHashMap();
+    private final Long2ObjectMap<Boolean> virtualVolumeToEncrypted = new Long2ObjectOpenHashMap();
+
+    /**
+     * Scraps data from topologyEntityDTO.
+     * @param topologyEntityDTO entity
+     */
+    public void scrapeData(@Nonnull TopologyEntityDTO topologyEntityDTO) {
+        scrapeCommodities(topologyEntityDTO);
+        scrapeVirtualVolumes(topologyEntityDTO);
+    }
+
+    /**
+     * Scrape VirtualVolume information.
+     * @param topologyEntityDTO entity
+     */
+    public void scrapeVirtualVolumes(@Nonnull TopologyEntityDTO topologyEntityDTO) {
+        if (topologyEntityDTO.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE) {
+            return;
+        }
+        VirtualVolumeInfo virtualVolumeInfo = topologyEntityDTO.getTypeSpecificInfo().getVirtualVolume();
+        if (virtualVolumeInfo.hasIsEphemeral()) {
+            this.virtualVolumeToEphemeral.put(topologyEntityDTO.getOid(),
+                    (Boolean)virtualVolumeInfo.getIsEphemeral());
+        }
+
+        if (virtualVolumeInfo.hasEncryption()) {
+            this.virtualVolumeToEncrypted.put(
+                    topologyEntityDTO.getOid(),
+                    (Boolean)virtualVolumeInfo.getEncryption());
+        }
+    }
 
     /**
      * Scrape the commodities we are interested in for use by groups and related entities later.
@@ -100,6 +131,8 @@ public class DataProvider {
         entityToCommodityCapacity.put(topologyEntityDTO.getOid(), capacity);
         //entityToCommodityHistoricalUtilization.put(topologyEntityDTO.getOid(), historicalUtilization);
     }
+
+
 
     /**
      * Fetch data from other components.
@@ -231,13 +264,42 @@ public class DataProvider {
      * @return related entities count for the group
      */
     public int getGroupRelatedEntitiesCount(long groupId, Set<EntityType> relatedEntityTypes) {
-        return (int)groupData.getGroupToLeafEntityIds()
+        return (int)
+                getGroupRelatedEntities(groupId, relatedEntityTypes)
+                .count();
+    }
+
+    /**
+     * Get the related entities names of group considering EntityType.
+     *
+     * @param groupId group id
+     * @param relatedEntityTypes related types of the entity
+     * @return related entities count for the group
+     */
+    public List<String> getGroupRelatedEntitiesNames(long groupId, Set<EntityType> relatedEntityTypes) {
+        return
+                getGroupRelatedEntities(groupId, relatedEntityTypes)
+                .map(this::getDisplayName)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+
+    }
+
+    /**
+     * Get the related entities oids for groupOid considering EntityType.
+     *
+     * @param groupId group id
+     * @param relatedEntityTypes related types of the entity
+     * @return related entities count for the group
+     */
+    public Stream<Long> getGroupRelatedEntities(long groupId, Set<EntityType> relatedEntityTypes) {
+        return groupData.getGroupToLeafEntityIds()
                 .getOrDefault(groupId, Collections.emptyList())
                 .stream()
                 .flatMap(entityOid -> relatedEntityTypes.stream().flatMap(relatedEntityType ->
                         getRelatedEntitiesOfType(entityOid, relatedEntityType).stream()))
-                .distinct()
-                .count();
+                .distinct();
     }
 
     /**
@@ -365,5 +427,25 @@ public class DataProvider {
      */
     public Optional<String> getDisplayName(long entityOid) {
         return graph.getEntity(entityOid).map(SupplyChainEntity::getDisplayName);
+    }
+
+    /**
+     * Gets if VirtualVolume isEphemeral.
+     * @param virtualVolumeOid virtualVolume oid
+     * @return boolean is known, otherwise null
+     */
+    @Nullable
+    public Boolean virtualVolumeIsEphemeral(long virtualVolumeOid) {
+        return virtualVolumeToEphemeral.get(virtualVolumeOid);
+    }
+
+    /**
+     * Gets if VirtualVolume isEncrypted.
+     * @param virtualVolumeOid virtualVolume oid
+     * @return boolean is known, otherwise null
+     */
+    @Nullable
+    public Boolean virtualVolumeIsEncrypted(long virtualVolumeOid) {
+        return virtualVolumeToEncrypted.get(virtualVolumeOid);
     }
 }

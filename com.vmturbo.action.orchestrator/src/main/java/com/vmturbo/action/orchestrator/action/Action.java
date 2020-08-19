@@ -427,7 +427,7 @@ public class Action implements ActionView {
         synchronized (recommendationLock) {
             final ActionModeCalculator.ModeAndSchedule actionModeAndSchedule = actionModeCalculator
                 .calculateActionModeAndExecutionSchedule(this, entitiesSnapshot);
-            actionMode = actionModeAndSchedule.getMode();
+            setActionMode(actionModeAndSchedule.getMode());
             schedule = actionModeAndSchedule.getSchedule();
             workflowSettingsForState = actionModeCalculator.calculateWorkflowSettings(recommendation, entitiesSnapshot);
 
@@ -447,6 +447,19 @@ public class Action implements ActionView {
             // parameter specific to detached volumes is not needed as in plans.
             setDescription(ActionDescriptionBuilder.buildActionDescription(entitiesSnapshot,
                actionTranslation.getTranslationResultOrOriginal()));
+        }
+    }
+
+    /**
+     * Set action mode and associated properties if need it.
+     *
+     * @param calculatedActionMode action mode after its calculation
+     */
+    private void setActionMode(@Nonnull final ActionMode calculatedActionMode) {
+        actionMode = calculatedActionMode;
+        if (calculatedActionMode != ActionMode.EXTERNAL_APPROVAL) {
+            externalActionName = null;
+            externalActionUrl = null;
         }
     }
 

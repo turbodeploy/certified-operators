@@ -41,7 +41,8 @@ public class KafkaConfigurationService {
     private final Logger log = LogManager.getLogger();
 
     private static final int DEFAULT_TOPIC_PARTITION_COUNT = 1;
-    private static final short DEFAULT_TOPIC_REPLICATION_FACTOR = 1;
+    // we set this during runtime, but this is static so it can be more easily used during yaml parsing.
+    private static short defaultTopicReplicationFactor = 1;
 
     /**
      * the config service will retry configuration applications as long as "max retry time" hasn't
@@ -64,9 +65,11 @@ public class KafkaConfigurationService {
      * @param bootstrapServers one or more kafka broker addresses to connect to.
      * @param kafkaConfigMaxRetryTimeSecs the amount of time the config service can start a retry within
      * @param configRetryDelayMs the number of milliseconds to wait between retry attempts
+     * @param kafkaConfigDefaultReplicationFactor default topic replication factor to use when creating topics
      */
-    public KafkaConfigurationService(@Nonnull String bootstrapServers, int kafkaConfigMaxRetryTimeSecs, int configRetryDelayMs) {
-        this(bootstrapServers, kafkaConfigMaxRetryTimeSecs, configRetryDelayMs, "");
+    public KafkaConfigurationService(@Nonnull String bootstrapServers, int kafkaConfigMaxRetryTimeSecs, int configRetryDelayMs,
+                                     short kafkaConfigDefaultReplicationFactor) {
+        this(bootstrapServers, kafkaConfigMaxRetryTimeSecs, configRetryDelayMs, kafkaConfigDefaultReplicationFactor, "");
     }
 
     /**
@@ -75,11 +78,12 @@ public class KafkaConfigurationService {
      * @param bootstrapServers one or more kafka broker addresses to connect to.
      * @param kafkaConfigMaxRetryTimeSecs the amount of time the config service can start a retry within
      * @param configRetryDelayMs the number of milliseconds to wait between retry attempts
+     * @param kafkaConfigDefaultReplicationFactor default topic replication factor to use when creating topics
      * @param namespacePrefix namespace of this XL deployment
      */
     public KafkaConfigurationService(@Nonnull String bootstrapServers,
                                      int kafkaConfigMaxRetryTimeSecs, int configRetryDelayMs,
-                                     @Nonnull String namespacePrefix) {
+                                     short kafkaConfigDefaultReplicationFactor, @Nonnull String namespacePrefix) {
         this.namespacePrefix = Objects.requireNonNull(namespacePrefix);
 
         if (StringUtils.isEmpty(bootstrapServers)) {
@@ -92,9 +96,14 @@ public class KafkaConfigurationService {
             throw new IllegalArgumentException("Configuration retry delay cannot be less than zero.");
         }
 
-        kafkaBootstrapServers = bootstrapServers;
+        if (kafkaConfigDefaultReplicationFactor < 1) {
+            throw new IllegalArgumentException("default replication factor cannot be less than 1.");
+        }
+
+        this.kafkaBootstrapServers = bootstrapServers;
         this.kafkaConfigMaxRetryTimeSecs = kafkaConfigMaxRetryTimeSecs;
-        kafkaConfigRetryDelayMs = configRetryDelayMs;
+        this.kafkaConfigRetryDelayMs = configRetryDelayMs;
+        defaultTopicReplicationFactor = kafkaConfigDefaultReplicationFactor;
     }
 
     /**
@@ -271,7 +280,7 @@ public class KafkaConfigurationService {
      */
     static public class TopicConfiguration {
         private String topic;
-        private short replicationFactor = DEFAULT_TOPIC_REPLICATION_FACTOR;
+        private short replicationFactor = defaultTopicReplicationFactor;
         private short partitions = DEFAULT_TOPIC_PARTITION_COUNT;
         private Map<String, Object> properties;
 

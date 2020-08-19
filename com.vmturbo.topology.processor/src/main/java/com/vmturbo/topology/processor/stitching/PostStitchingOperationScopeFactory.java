@@ -161,6 +161,13 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 entityType, probeStore, targetStore);
     }
 
+    @Override
+    public StitchingScope<TopologyEntity> parentTargetEntityType(@Nonnull EntityType entityType,
+            long targetId) {
+        return new ParentTargetEntityTypeStitchingScope(topologyGraph, entityType, targetId,
+                targetStore);
+    }
+
     public TopologyGraph<TopologyEntity> getTopologyGraph() {
         return topologyGraph;
     }
@@ -641,6 +648,38 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 .filter(entity -> entity.getDiscoveryOrigin().get()
                                 .getDiscoveredTargetDataMap().keySet().stream()
                                 .anyMatch(targetIdsMissingDerivedTarget::contains));
+        }
+    }
+
+    /**
+     * A calculation scope for applying a calculation globally to entities of a specific
+     * {@link EntityType} that come from a parent target with a given target id.
+     */
+    private static class ParentTargetEntityTypeStitchingScope extends BaseStitchingScope {
+
+        private final EntityType entityType;
+
+        private final long targetId;
+
+        private final TargetStore targetStore;
+
+        ParentTargetEntityTypeStitchingScope(
+                @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
+                @Nonnull final EntityType entityType, long targetId,
+                @Nonnull final TargetStore targetStore) {
+            super(topologyGraph);
+            this.entityType = Objects.requireNonNull(entityType);
+            this.targetId = targetId;
+            this.targetStore = Objects.requireNonNull(targetStore);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<TopologyEntity> entities() {
+            final Set<Long> parentIds = targetStore.getParentTargetIds(targetId);
+            return getTopologyGraph().entitiesOfType(entityType)
+                    .filter(entity -> entity.getDiscoveringTargetIds()
+                            .anyMatch(parentIds::contains));
         }
     }
 }

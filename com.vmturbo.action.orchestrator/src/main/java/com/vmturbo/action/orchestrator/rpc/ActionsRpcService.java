@@ -36,6 +36,7 @@ import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionVie
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
+import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.query.live.FailedActionQueryException;
@@ -184,35 +185,60 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         String requestUserName = SecurityConstant.USER_ID_CTX_KEY.get();
         logger.debug("Getting action request from: " + requestUserName);
         if (!request.hasTopologyContextId()) {
-            responseObserver.onNext(acceptanceError("Missing required parameter TopologyContextId"));
-            responseObserver.onCompleted();
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Missing required "
+                + "parameter TopologyContextId").asException());
             return;
         }
         if (!request.hasActionId()) {
-            responseObserver.onNext(acceptanceError("Missing required parameter ActionId"));
-            responseObserver.onCompleted();
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Missing required "
+                + "parameter ActionId").asException());
             return;
         }
 
         final Optional<ActionStore> optionalStore = actionStorehouse.getStore(request.getTopologyContextId());
         if (!optionalStore.isPresent()) {
-            responseObserver.onNext(acceptanceError("Unknown topology context: " + request.getTopologyContextId()));
-            responseObserver.onCompleted();
+            responseObserver.onError(Status.NOT_FOUND.withDescription(
+                "Unknown topology context: " + request.getTopologyContextId()).asException());
             return;
         }
 
         final ActionStore store = optionalStore.get();
         final Optional<Action> actionOpt = store.getAction(request.getActionId());
         if (!actionOpt.isPresent()) {
-            responseObserver.onNext(acceptanceError("Action " + request.getActionId() + " doesn't exist."));
-            responseObserver.onCompleted();
+            responseObserver.onError(Status.NOT_FOUND.withDescription(
+                "Action " + request.getActionId() + " doesn't exist.").asException());
             return;
         }
+        final Action action = actionOpt.get();
+
+        // check if the action is manually scheduled and it does not have next occurrence and is
+        // not currently active
+        if (hasExpiredSchedule(action)) {
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Action " + request.getActionId()
+                + " has execution window " + action.getSchedule().get().getScheduleDisplayName()
+                + " which does not have a next occurrence. Therefore, the action cannot be "
+                + "accepted").asException());
+            return;
+        }
+
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
-        final AcceptActionResponse response = actionApprovalManager.attemptAndExecute(store,
-                userNameAndUuid, actionOpt.get());
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
+
+        final AcceptActionResponse response;
+        try {
+            response = actionApprovalManager.attemptAndExecute(store,
+                    userNameAndUuid, action);
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (ExecutionInitiationException e) {
+            responseObserver.onError(e.toStatus());
+        }
+    }
+
+    private boolean hasExpiredSchedule(@Nonnull Action action) {
+        return action.getSchedule().isPresent()
+            && action.getSchedule().get().getExecutionWindowActionMode() == ActionMode.MANUAL
+            && action.getSchedule().get().getScheduleStartTimestamp() == null
+            && !action.getSchedule().get().isActiveScheduleNow();
     }
 
     /**
@@ -778,10 +804,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 .setActionId(spec.getRecommendation().getId())
                 .setActionSpec(spec)
                 .build();
-    }
-
-    private static AcceptActionResponse acceptanceError(@Nonnull final String error) {
-        return AcceptActionResponse.newBuilder().setError(error).build();
     }
 
     /**

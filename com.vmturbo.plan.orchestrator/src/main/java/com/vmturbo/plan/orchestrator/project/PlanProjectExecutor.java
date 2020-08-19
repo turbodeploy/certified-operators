@@ -344,10 +344,8 @@ public class PlanProjectExecutor {
                 } catch (NoSuchObjectException | IllegalTemplateOperationException
                         | DuplicateTemplateException e) {
                     addScopeEntry = false;
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("Failed to update headroom template for cluster name {}, id {}: {}",
-                            cluster.getDefinition().getDisplayName(), cluster.getId(), e.getMessage());
-                    }
+                    logger.error("Failed to update headroom template for cluster name {}, id {}: {}",
+                        cluster.getDefinition().getDisplayName(), cluster.getId(), e.getMessage());
                 } catch (StatusRuntimeException e) {
                     logger.error("Failed to retrieve system load of cluster name {}, id {}: {}",
                         cluster.getDefinition().getDisplayName(), cluster.getId(), e.getMessage());
@@ -469,10 +467,10 @@ public class PlanProjectExecutor {
                             + "template to avg template.",
                             cluster.getDefinition().getDisplayName(), cluster.getId());
                         newClusterHeadroomTemplateId =
-                            Optional.of(templatesDao.createTemplate(avgTemplateInfo, targetId).getId());
+                            Optional.of(templatesDao.createOrEditTemplate(avgTemplateInfo, targetId).getId());
                     } else {
                         // Create or update AVG template even though current template is not AVG template.
-                        templatesDao.createTemplate(avgTemplateInfo, targetId);
+                        templatesDao.createOrEditTemplate(avgTemplateInfo, targetId);
                     }
                 }
             } else {
@@ -480,7 +478,7 @@ public class PlanProjectExecutor {
                 logger.info("Creating avg template for cluster {}, id {}",
                     cluster.getDefinition().getDisplayName(), cluster.getId());
                 newClusterHeadroomTemplateId =
-                    Optional.of(templatesDao.createTemplate(avgTemplateInfo, targetId).getId());
+                    Optional.of(templatesDao.createOrEditTemplate(avgTemplateInfo, targetId).getId());
             }
         } else {
             if (!headroomTemplate.isPresent()) {

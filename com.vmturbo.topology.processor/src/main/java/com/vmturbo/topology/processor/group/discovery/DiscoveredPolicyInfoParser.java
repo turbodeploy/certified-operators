@@ -207,8 +207,10 @@ public class DiscoveredPolicyInfoParser {
         final String constraintName = StringUtils.isEmpty(constraintInfo.getConstraintDisplayName())
                         ? buyers.getDisplayName()
                         : constraintInfo.getConstraintDisplayName();
+        final String name = String.format("%d/%s", targetId, constraintInfo.getConstraintId());
         return DiscoveredPolicyInfo.newBuilder()
-                .setPolicyName(constraintName)
+                .setPolicyName(name)
+                .setPolicyDisplayName(constraintName)
                 .setBuyersGroupStringId(GroupProtoUtil.createIdentifyingKey(buyers))
                 .setConstraintType(buyers.getConstraintInfo().getConstraintType().getNumber());
     }

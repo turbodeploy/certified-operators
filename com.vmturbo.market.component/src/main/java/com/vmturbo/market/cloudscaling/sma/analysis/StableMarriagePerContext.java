@@ -20,6 +20,7 @@ import com.google.common.base.Stopwatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.auth.api.Pair;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
@@ -208,27 +209,7 @@ public class StableMarriagePerContext {
          * just enough coupons to partially cover one more vm.
          */
         runIterations(freeRIs, remainingCoupons,
-                currentEngagements, virtualMachineGroupMap, statistics, false);
-        freeRIs.clear();
-
-        /* Recompute the preference list of each RI
-         * based on the remaining coupons. The list will change because some of the
-         * vms cannot be fully covered with the remaining coupons and hence might not be on
-         * the top of the list as before when it had more coupons and was able to cover fully.
-         */
-        for (SMAReservedInstance reservedInstance : reservedInstances) {
-            if (remainingCoupons.get(reservedInstance) > 0 &&
-                    reservedInstance.getDiscountableVMs().size() > 0) {
-                if (!freeRIs.contains(reservedInstance)) {
-                    freeRIs.add(reservedInstance);
-                }
-                reservedInstance.getCouponToBestVM().clear();
-                List<SMAVirtualMachine> vmList = new ArrayList(reservedInstance.getDiscountableVMs());
-                reservedInstance.getDiscountableVMs().clear();
-                sortAndUpdateVMList(vmList, remainingCoupons.get(reservedInstance), reservedInstance, virtualMachineGroupMap);
-            }
-        }
-        runIterations(freeRIs, remainingCoupons, currentEngagements, virtualMachineGroupMap, statistics, true);
+                currentEngagements, virtualMachineGroupMap, statistics);
 
         long timeInMilliseconds = stopWatch_iteration.elapsed(TimeUnit.MILLISECONDS);
         logger.debug("SMA iterations took {} ms.", timeInMilliseconds);
@@ -531,11 +512,7 @@ public class StableMarriagePerContext {
         Collections.sort(virtualMachineList, new RIPreference(riCoupons, ri, virtualMachineGroupMap));
         for (int i = 0; i < virtualMachineList.size(); i++) {
             SMAVirtualMachine vm = virtualMachineList.get(i);
-            int coupons = ri.getTemplate().getCoupons() * vm.getGroupSize();
-            if (ri.isIsf()) {
-                coupons = vm.getMinCostProviderPerFamily(ri.getTemplate().getFamily()).getCoupons() * vm.getGroupSize();
-            }
-            ri.addVMToCouponToBestVM(coupons, i, vm);
+            ri.addVMToCouponToBestVM(i, vm, false);
         }
     }
 
@@ -813,14 +790,13 @@ public class StableMarriagePerContext {
      *                               populated and acts as a return parameter.
      * @param virtualMachineGroupMap map from group name to virtual machines in that group
      * @param statistics             datastructure used to maintain statistics
-     * @param includePartialCoverage allow partial coverage on when this is true.
      */
 
     public static void runIterations(Deque<SMAReservedInstance> freeRIs,
                                      Map<SMAReservedInstance, Integer> remainingCoupons,
                                      Map<SMAVirtualMachine, SMAMatch> currentEngagements,
                                      Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
-                                     SMAStatistics statistics, boolean includePartialCoverage) {
+                                     SMAStatistics statistics) {
         while (!freeRIs.isEmpty()) {
             statistics.incrementIterations();
             SMAReservedInstance currentRI = freeRIs.poll();
@@ -844,10 +820,13 @@ public class StableMarriagePerContext {
             if (currentRICoupons > 0 && !currentRI.isCouponToBestVMEmpty()) {
                 logger.debug("SMA new RI={} remainingCoupons={}", currentRI.getName(),
                         currentRICoupons);
-                SMAVirtualMachine currentVM = currentRI.findBestVMIndexFromCouponToBestVM(currentRICoupons, includePartialCoverage, virtualMachineGroupMap);
+                Pair<SMAVirtualMachine, Integer> currentVMIndexPair = currentRI
+                        .findBestVMIndexFromCouponToBestVM(currentRICoupons, virtualMachineGroupMap);
+                SMAVirtualMachine currentVM = currentVMIndexPair.first;
                 if (currentVM == null) {
                     continue;
                 }
+                int  currentVMIndex = currentVMIndexPair.second;
                 int groupSize = currentVM.getGroupSize();
 
                 /*
@@ -915,11 +894,14 @@ public class StableMarriagePerContext {
                         int currentLeftOverCoupons = currentRICoupons - discountedCoupons;
                         remainingCoupons.put(currentRI, currentLeftOverCoupons);
                         remainingCoupons.put(oldRI, remainingCoupons.get(oldRI) + oldEngagementCoupons);
+                        oldRI.restoreSkippedVMs();
                         currentRI.setLastDiscountedVM(currentVM);
                         if (!freeRIs.contains(oldRI)) {
                             freeRIs.add(oldRI);
                         }
                     }
+                } else if (currentRICoupons < currentVMCouponRequest) {
+                    currentRI.addToSkippedVMsWIthIndex(currentVM, currentVMIndex);
                 }
 
             }

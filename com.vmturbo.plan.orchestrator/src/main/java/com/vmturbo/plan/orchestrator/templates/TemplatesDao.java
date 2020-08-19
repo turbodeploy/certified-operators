@@ -91,6 +91,17 @@ public interface TemplatesDao extends DiagsRestorable {
             throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException;
 
     /**
+     * Create a new template or update the existing one.
+     *
+     * @param templateInstance describe the contents of one template
+     * @param targetId the target id this template is associated with
+     * @return new created Template object
+     */
+    @Nonnull
+    Template createOrEditTemplate(@Nonnull TemplateInfo templateInstance,
+                                  @Nonnull Optional<Long> targetId);
+
+    /**
      * Delete the existing template which template's ID equal to parameter id.
      *
      * @param id of existing template

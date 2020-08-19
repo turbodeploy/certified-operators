@@ -24,6 +24,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -46,7 +47,11 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
+import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.api.chunking.OversizedElementException;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
+import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
+import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -92,6 +97,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
@@ -113,10 +119,7 @@ import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 import com.vmturbo.topology.processor.topology.pipeline.CachedTopology.CachedTopologyResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Status;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
@@ -145,6 +148,7 @@ public class Stages {
             this.cloudCostUploader = cloudCostUploader;
         }
 
+        @NotNull
         @Override
         public Status passthrough(final StitchingContext input) throws PipelineStageException {
             // upload the cloud-related cost data to the cost component
@@ -168,6 +172,7 @@ public class Stages {
             this.discoveredGroupUploader = discoveredGroupUploader;
         }
 
+        @NotNull
         @Nonnull
         @Override
         public Status passthrough(final Map<Long, TopologyEntity.Builder> input) {
@@ -193,6 +198,7 @@ public class Stages {
             this.discoveredWorkflowUploader = discoveredWorkflowUploader;
         }
 
+        @NotNull
         @Nonnull
         @Override
         public Status passthrough(final Map<Long, TopologyEntity.Builder> input) {
@@ -216,6 +222,7 @@ public class Stages {
             this.notifier = notifier;
         }
 
+        @NotNull
         @Override
         @Nonnull
         public Status passthrough(final Map<Long, TopologyEntity.Builder> topology)
@@ -257,9 +264,10 @@ public class Stages {
             this.journalFactory = Objects.requireNonNull(journalFactory);
         }
 
+        @NotNull
         @Nonnull
         @Override
-        public StageResult<StitchingContext> execute(@Nonnull final EntityStore entityStore) {
+        public StageResult<StitchingContext> execute(@NotNull @Nonnull final EntityStore entityStore) {
             final DataMetricTimer preparationTimer = STITCHING_PREPARATION_DURATION_SUMMARY.startTimer();
             final StitchingContext stitchingContext = entityStore.constructStitchingContext();
             preparationTimer.observe();
@@ -284,6 +292,7 @@ public class Stages {
                     .append(metrics.getTotalEmptyChangests())
                     .append(" empty changesets\n")
                     .toString();
+            entityStore.sendMetricsEntityAndTargetData(stitchingContext);
             return StageResult.withResult(context)
                 .andStatus(Status.success(status));
         }
@@ -308,6 +317,7 @@ public class Stages {
             this.discoveredGroupUploader = Objects.requireNonNull(groupUploader);
         }
 
+        @NotNull
         @Override
         public Status passthrough(StitchingContext input) throws PipelineStageException {
             final int fixedUpGroups = stitchingGroupFixer.fixupGroups(input.getStitchingGraph(),
@@ -335,6 +345,7 @@ public class Stages {
             this.discoveredGroupUploader = Objects.requireNonNull(discoveredGroupUploader);
         }
 
+        @NotNull
         @Nonnull
         @Override
         public Status passthrough(@Nonnull final StitchingContext stitchingContext) {
@@ -368,6 +379,7 @@ public class Stages {
             this.applicationCommodityKeyChanger = applicationCommodityKeyChanger;
         }
 
+        @NotNull
         @Override
         public Status passthrough(final TopologyGraph<TopologyEntity> topologyGraph) {
             final Map<ApplicationCommodityKeyChanger.KeyChangeOutcome, Integer> keysChangeCounts
@@ -390,6 +402,7 @@ public class Stages {
             this.discoveredClusterConstraintCache = discoveredClusterConstraintCache;
         }
 
+        @NotNull
         @Nonnull
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
@@ -421,6 +434,7 @@ public class Stages {
                     groupServiceClient, reservationService);
         }
 
+        @NotNull
         @Nonnull
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
@@ -442,6 +456,7 @@ public class Stages {
             this.actionConstraintsUploader = actionConstraintsUploader;
         }
 
+        @NotNull
         @Nonnull
         @Override
         public Status passthrough(@Nonnull final StitchingContext stitchingContext) {
@@ -462,6 +477,7 @@ public class Stages {
             this.actionMergeSpecsUploader = actionMergeSpecsUploader;
         }
 
+        @NotNull
         @Nonnull
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
@@ -480,9 +496,10 @@ public class Stages {
 
         }
 
+        @NotNull
         @Nonnull
         @Override
-        public StageResult<Map<Long, TopologyEntity.Builder>> execute(@Nonnull final StitchingContext stitchingContext) {
+        public StageResult<Map<Long, TopologyEntity.Builder>> execute(@NotNull @Nonnull final StitchingContext stitchingContext) {
             final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
             return StageResult.withResult(topology)
                 .andStatus(Status.success("Constructed topology of size " + topology.size() +
@@ -509,11 +526,12 @@ public class Stages {
             this.resultCache = Objects.requireNonNull(resultCache);
         }
 
+        @NotNull
         @Nonnull
         @Override
-        public StageResult<Map<Long, Builder>> execute(@Nonnull final StitchingContext stitchingContext) {
+        public StageResult<Map<Long, Builder>> execute(@NotNull @Nonnull final StitchingContext stitchingContext) {
             StageResult<Map<Long, Builder>> stageResult = super.execute(stitchingContext);
-            if (stageResult.status().getType() == Status.success().getType()) {
+            if (stageResult.getStatus().getType() == Status.success().getType()) {
                 resultCache.updateTopology(stageResult.getResult());
             }
             return stageResult;
@@ -539,9 +557,10 @@ public class Stages {
             this.resultCache = Objects.requireNonNull(resultCache);
         }
 
+        @NotNull
         @Nonnull
         @Override
-        public StageResult<Map<Long, Builder>> execute(@Nonnull final EntityStore entityStore) {
+        public StageResult<Map<Long, Builder>> execute(@NotNull @Nonnull final EntityStore entityStore) {
             final CachedTopologyResult result = resultCache.getTopology();
             return StageResult.withResult(result.getEntities())
                 .andStatus(Status.success(result.toString()));
@@ -562,9 +581,10 @@ public class Stages {
             this.repository = Objects.requireNonNull(repositoryClient);
         }
 
+        @NotNull
         @Nonnull
         @Override
-        public StageResult<Map<Long, TopologyEntity.Builder>> execute(@Nonnull final Long topologyId) {
+        public StageResult<Map<Long, TopologyEntity.Builder>> execute(@NotNull @Nonnull final Long topologyId) {
             // we need to gather the entire topology in order to perform editing below
             Iterable<RepositoryDTO.RetrieveTopologyResponse> dtos =
                 () -> repository.retrieveTopology(topologyId);
@@ -607,6 +627,7 @@ public class Stages {
             this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
         }
 
+        @NotNull
         @Override
         public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) throws PipelineStageException {
             // Topology editing should use a group resolver distinct from the rest of the pipeline.
@@ -639,6 +660,7 @@ public class Stages {
             this.reservationManager = Objects.requireNonNull(reservationManager);
         }
 
+        @NotNull
         @Override
         public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
             final int numAdded = reservationManager.applyReservation(input,
@@ -657,6 +679,7 @@ public class Stages {
             this.controllableManager = Objects.requireNonNull(controllableManager);
         }
 
+        @NotNull
         @Override
         public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
             final int controllableModified = controllableManager.applyControllable(input);
@@ -694,6 +717,7 @@ public class Stages {
             this.planScope = planScope;
         }
 
+        @NotNull
         @Override
         public Status passthrough(final TopologyGraph<TopologyEntity> input) throws PipelineStageException {
             // if no scope to apply, this function does nothing.
@@ -772,10 +796,24 @@ public class Stages {
      */
     public static class GraphCreationStage extends Stage<Map<Long, TopologyEntity.Builder>, TopologyGraph<TopologyEntity>> {
 
+        private GroupScopeResolver groupScopeResolver;
+
+        GraphCreationStage() {
+            this(null);
+        }
+
+        GraphCreationStage(@Nullable GroupScopeResolver groupScopeResolver) {
+            this.groupScopeResolver = groupScopeResolver;
+        }
+
+        @NotNull
         @Nonnull
         @Override
-        public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
+        public StageResult<TopologyGraph<TopologyEntity>> execute(@NotNull @Nonnull final Map<Long, TopologyEntity.Builder> input) {
             final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(input);
+            if (groupScopeResolver != null) {
+                groupScopeResolver.setTopologyGraph(graph);
+            }
             return StageResult.withResult(graph)
                 .andStatus(Status.success());
         }
@@ -800,6 +838,7 @@ public class Stages {
             this.scope = Objects.requireNonNull(scope);
         }
 
+        @NotNull
         @Override
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             commoditiesEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo(), scope);
@@ -829,6 +868,7 @@ public class Stages {
             constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
         }
 
+        @NotNull
         @Override
         public Status passthrough(TopologyGraph<TopologyEntity> input) throws PipelineStageException {
             boolean isPressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(getContext().getTopologyInfo());
@@ -864,6 +904,7 @@ public class Stages {
             this.environmentTypeInjector = Objects.requireNonNull(environmentTypeInjector);
         }
 
+        @NotNull
         @Nonnull
         @Override
         public Status passthrough(final TopologyGraph<TopologyEntity> input) {
@@ -921,10 +962,11 @@ public class Stages {
          * {@inheritDoc}
          */
         @Override
-        protected boolean required() {
+        public boolean required() {
             return true;
         }
 
+        @NotNull
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
             final PolicyApplicator.Results applicationResults =
@@ -934,24 +976,28 @@ public class Stages {
                 .setEmptyValue("No policies to apply.");
             final boolean errors = applicationResults.getErrors().size() > 0;
             if (errors) {
-                statusMsg.add(applicationResults.getErrors().size() +
-                    " policies encountered errors and failed to run!\n");
+                statusMsg.add(applicationResults.getErrors().size()
+                    + " policies encountered errors and failed to run!\n");
             }
             if (applicationResults.getInvalidPolicyCount() > 0) {
-                statusMsg.add(applicationResults.getInvalidPolicyCount() +
-                    " policies were invalid and got ignored!\n");
+                statusMsg.add(applicationResults.getInvalidPolicyCount()
+                    + " policies were invalid and got ignored!\n");
             }
             if (applicationResults.getAppliedCounts().size() > 0) {
-                statusMsg.add("(policy type) : (num applied)\n" +
-                    applicationResults.getAppliedCounts().entrySet().stream()
-                        .map(entry -> entry.getKey() + " : " + entry.getValue())
-                        .collect(Collectors.joining("\n")));
+                statusMsg.add("(policy type) : (num applied)");
+                applicationResults.getAppliedCounts().forEach((policyType, numApplied) -> {
+                    statusMsg.add(FormattedString.format("{} : {}", policyType, numApplied));
+                    applicationResults.getAddedCommodityCounts(policyType).forEach((commType, numAdded) -> {
+                        statusMsg.add(FormattedString.format("    Added {} {} commodities.", numAdded, commType));
+                    });
+                });
             }
-            if (applicationResults.getAddedCommodityCounts().size() > 0) {
-                statusMsg.add("(commodity type) : (num commodities added)\n" +
-                    applicationResults.getAddedCommodityCounts().entrySet().stream()
-                        .map(entry -> entry.getKey() + " : " + entry.getValue())
-                        .collect(Collectors.joining("\n")));
+
+            if (applicationResults.getTotalAddedCommodityCounts().size() > 0) {
+                statusMsg.add("(commodity type) : (num commodities added)");
+                applicationResults.getTotalAddedCommodityCounts().forEach((commType, numAddded) -> {
+                    statusMsg.add(FormattedString.format("{} : {}", commType, numAddded));
+                });
             }
 
             if (errors || applicationResults.getInvalidPolicyCount() > 0) {
@@ -970,7 +1016,7 @@ public class Stages {
             Stage<TopologyGraph<TopologyEntity>, GraphWithSettings> {
         @Nonnull
         @Override
-        public StageResult<GraphWithSettings> execute(@Nonnull final TopologyGraph<TopologyEntity> input) {
+        public StageResult<GraphWithSettings> execute(@NotNull @Nonnull final TopologyGraph<TopologyEntity> input) {
             return StageResult.withResult(new GraphWithSettings(input, Collections.emptyMap(), Collections.emptyMap()))
                     .andStatus(Status.success());
         }
@@ -1010,9 +1056,10 @@ public class Stages {
                     consistentScalingManager);
         }
 
+        @NotNull
         @Nonnull
         @Override
-        public StageResult<GraphWithSettings> execute(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
+        public StageResult<GraphWithSettings> execute(@NotNull @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
             final GraphWithSettings graphWithSettings = entitySettingsResolver.resolveSettings(
                 getContext().getGroupResolver(), topologyGraph,
                 settingOverrides, getContext().getTopologyInfo(), consistentScalingManager);
@@ -1034,6 +1081,7 @@ public class Stages {
             this.entitySettingsResolver = entitySettingsResolver;
         }
 
+        @NotNull
         @Override
         public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             // This method does a sync call to Group Component.
@@ -1044,7 +1092,7 @@ public class Stages {
         }
 
         @Override
-        protected boolean required() {
+        public boolean required() {
             // If settings upload fails, then the system won't be able to properly handle the
             // broadcast - and may recommend wrong actions.
             return true;
@@ -1064,6 +1112,7 @@ public class Stages {
             this.settingsApplicator = settingsApplicator;
         }
 
+        @NotNull
         @Override
         public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             settingsApplicator.applySettings(getContext().getTopologyInfo(), input);
@@ -1074,7 +1123,7 @@ public class Stages {
         }
 
         @Override
-        protected boolean required() {
+        public boolean required() {
             // If settings application fails, the broadcast topology will be unaffected by any
             // setting policies, and we will generate wrong actions.
             return true;
@@ -1099,6 +1148,7 @@ public class Stages {
             this.matrix = matrix;
         }
 
+        @NotNull
         @Override
         @Nonnull
         public Status passthrough(StitchingContext input) throws PipelineStageException {
@@ -1129,6 +1179,7 @@ public class Stages {
             this.matrix = matrix;
         }
 
+        @NotNull
         @Override
         @Nonnull
         public Status passthrough(GraphWithSettings input) throws PipelineStageException {
@@ -1156,6 +1207,7 @@ public class Stages {
             this.stitchingManager = stitchingManager;
         }
 
+        @NotNull
         @Override
         public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             // Set up the post-stitching journal.
@@ -1211,6 +1263,7 @@ public class Stages {
             this.isPlan = isPlan;
         }
 
+        @NotNull
         @Override
         public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             try {
@@ -1223,7 +1276,7 @@ public class Stages {
         }
 
         @Override
-        protected boolean required() {
+        public boolean required() {
             return true;
         }
     }
@@ -1240,6 +1293,7 @@ public class Stages {
             this.supplyChainValidator = supplyChainValidator;
         }
 
+        @NotNull
         @Override
         public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             final List<SupplyChainValidationFailure> validationErrors =
@@ -1258,7 +1312,7 @@ public class Stages {
         }
 
         @Override
-        protected boolean required() {
+        public boolean required() {
             return true;
         }
     }
@@ -1272,9 +1326,10 @@ public class Stages {
      * We shouldn't need this once plan-over-plan supports policies and settings.
      */
     public static class ExtractTopologyGraphStage extends Stage<GraphWithSettings, TopologyGraph<TopologyEntity>> {
+        @NotNull
         @Nonnull
         @Override
-        public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull final GraphWithSettings graphWithSettings)
+        public StageResult<TopologyGraph<TopologyEntity>> execute(@NotNull @Nonnull final GraphWithSettings graphWithSettings)
                 throws PipelineStageException, InterruptedException {
             return StageResult.withResult(graphWithSettings.getTopologyGraph())
                     .andStatus(Status.success());
@@ -1287,9 +1342,10 @@ public class Stages {
      */
     public static class TopSortStage extends Stage<TopologyGraph<TopologyEntity>, Stream<TopologyEntity>> {
 
+        @NotNull
         @Nonnull
         @Override
-        public StageResult<Stream<TopologyEntity>> execute(@Nonnull final TopologyGraph<TopologyEntity> graph)
+        public StageResult<Stream<TopologyEntity>> execute(@NotNull @Nonnull final TopologyGraph<TopologyEntity> graph)
                 throws PipelineStageException, InterruptedException {
             return StageResult.withResult(graph.topSort()).andStatus(Status.success());
         }
@@ -1322,9 +1378,10 @@ public class Stages {
             Preconditions.checkArgument(broadcastManagers.size() > 0);
         }
 
+        @NotNull
         @Nonnull
         @Override
-        public StageResult<TopologyBroadcastInfo> execute(@Nonnull final Stream<TopologyEntity> input)
+        public StageResult<TopologyBroadcastInfo> execute(@NotNull @Nonnull final Stream<TopologyEntity> input)
             throws PipelineStageException, InterruptedException {
 
             // Record TopologyInfo and Metrics to the journal if there is one.
@@ -1458,6 +1515,7 @@ public class Stages {
             this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
         }
 
+        @NotNull
         @Override
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             TopologyInfo topoInfo = getContext().getTopologyInfo();
@@ -1501,8 +1559,9 @@ public class Stages {
             this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
         }
 
+        @NotNull
         @Override
-        public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull final TopologyGraph<TopologyEntity> graph)
+        public StageResult<TopologyGraph<TopologyEntity>> execute(@NotNull @Nonnull final TopologyGraph<TopologyEntity> graph)
                 throws PipelineStageException, InterruptedException {
             if (planScope == null || planScope.getScopeEntriesList().isEmpty()) {
                 return StageResult.withResult(graph).andStatus(Status.success());
@@ -1562,6 +1621,7 @@ public class Stages {
             this.changes = Objects.requireNonNull(changes);
         }
 
+        @NotNull
         @Override
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             historicalEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo());
@@ -1584,6 +1644,7 @@ public class Stages {
             this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
         }
 
+        @NotNull
         @Override
         @Nonnull
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
@@ -1609,6 +1670,7 @@ public class Stages {
             this.requestAndLimitCommodityThresholdsInjector = Objects.requireNonNull(requestAndLimitCommodityThresholdsInjector);
         }
 
+        @NotNull
         @Override
         @Nonnull
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
@@ -1627,6 +1689,7 @@ public class Stages {
             this.probeActionCapabilitiesApplicatorEditor = editor;
         }
 
+        @NotNull
         @Override
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) {
             final EditorSummary editorSummary = probeActionCapabilitiesApplicatorEditor
@@ -1675,6 +1738,7 @@ public class Stages {
             this.scope = scope;
         }
 
+        @NotNull
         @Override
         public Status passthrough(@Nonnull GraphWithSettings graph) throws PipelineStageException {
             historyAggregator.applyCommodityEdits(graph, changes, topologyInfo, scope);

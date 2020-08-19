@@ -20,23 +20,26 @@ import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
+import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
+import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.stats.StatsTestUtils;
 import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -55,6 +58,8 @@ public class TopologyCommoditiesSnapshotTest {
     private BoughtCommoditiesInfo boughtCommoditiesInfo;
     private EntityCountInfo entityCountInfo;
     private ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot;
+
+    private static final Set<String> EXCLUDED_COMMODITY_NAMES = Collections.singleton("CLUSTERCommodity");
 
     @Before
     public void setup() {
@@ -87,13 +92,14 @@ public class TopologyCommoditiesSnapshotTest {
                         .setUsed(10)))
             .setProjectedPriceIndex(priceIndex)
             .build();
-        final Map<Long, Double> expectedPriceIndexMap = ImmutableMap.of(entity.getEntity().getOid(), priceIndex);
+        final Long2DoubleMap expectedPriceIndexMap = new Long2DoubleOpenHashMap();
+        expectedPriceIndexMap.put(entity.getEntity().getOid(), priceIndex);
 
         when(entities.nextChunk()).thenReturn(Collections.singletonList(entity));
         final PriceIndexSnapshotFactory priceIndexSnapshotFactory = mock(PriceIndexSnapshotFactory.class);
         when(priceIndexSnapshotFactory.createSnapshot(expectedPriceIndexMap)).thenReturn(mock(ProjectedPriceIndexSnapshot.class));
         final TopologyCommoditiesSnapshot snapshot =
-                TopologyCommoditiesSnapshot.newFactory().createSnapshot(entities, priceIndexSnapshotFactory);
+                TopologyCommoditiesSnapshot.newFactory(EXCLUDED_COMMODITY_NAMES).createSnapshot(entities, priceIndexSnapshotFactory);
 
         verify(priceIndexSnapshotFactory).createSnapshot(expectedPriceIndexMap);
 

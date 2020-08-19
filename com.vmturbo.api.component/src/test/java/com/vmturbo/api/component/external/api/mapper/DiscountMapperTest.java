@@ -35,8 +35,8 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 
 /**
  * Unit tests for the {@link DiscountMapper}.
@@ -49,6 +49,7 @@ public class DiscountMapperTest {
 
     private static final long ENTITY_OID = 1L;
     private static final String AWS = "AWS";
+    private static final String AWS_BILLING = "AWS Billing";
     private static final String ENGINEERING_AWS_AMAZON_COM = "engineering.aws.amazon.com";
     private static final String CHILDREN_BUSINESS_UNITS = "3";
     private static final String TEST_DSICOUNT = "testDsicount";
@@ -139,6 +140,29 @@ public class DiscountMapperTest {
         final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
         associatedEntity.setDiscoveredBy(new TargetApiDTO());
         associatedEntity.getDiscoveredBy().setType(AWS);
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
+        when(repositoryApi.entityRequest(ASSOCIATED_ACCOUNT_ID)).thenReturn(req);
+
+        BusinessUnitApiDTO businessUnitApiDTO = discountMapper.toBusinessUnitApiDTO(discount1);
+        assertEquals(BusinessUnitType.DISCOUNT, businessUnitApiDTO.getBusinessUnitType());
+        assertEquals(false, businessUnitApiDTO.isMaster());
+        assertEquals(CloudType.AWS, businessUnitApiDTO.getCloudType());
+        assertEquals(WORKLOAD, businessUnitApiDTO.getMemberType());
+        assertEquals(ASSOCIATED_ACCOUNT_ID, Long.parseLong(businessUnitApiDTO.getUuid()));
+        assertEquals(BUSINESS_ACCOUNT, businessUnitApiDTO.getClassName());
+        assertEquals(TEST_DSICOUNT, businessUnitApiDTO.getDisplayName());
+    }
+
+    /**
+     * Test straightforward discount to {@link BusinessUnitApiDTO} conversion.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testToBusinessUnitApiFromAWSBilling() throws Exception {
+        final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
+        associatedEntity.setDiscoveredBy(new TargetApiDTO());
+        associatedEntity.getDiscoveredBy().setType(AWS_BILLING);
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
         when(repositoryApi.entityRequest(ASSOCIATED_ACCOUNT_ID)).thenReturn(req);
 

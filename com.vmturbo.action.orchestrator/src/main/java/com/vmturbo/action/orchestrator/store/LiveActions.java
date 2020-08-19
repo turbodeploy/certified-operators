@@ -59,6 +59,7 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
@@ -67,8 +68,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.identity.OidSet;
-import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.proactivesupport.DataMetricGauge;
 
 /**
  * A wrapper object for actions in the {@link LiveActionStore}.
@@ -134,6 +138,17 @@ class LiveActions implements QueryableActionViews {
     private final UserSessionContext userSessionContext;
 
     private final InvolvedEntitiesExpander involvedEntitiesExpander;
+
+    /**
+     * Specifies action related descriptions.
+     */
+    private static final DataMetricGauge ACTION_COUNTS_GAUGE = DataMetricGauge.builder()
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "current_actions")
+            .withHelp("Number of actions in the action orchestrator live store.")
+            .withLabelNames("type", "entity_type", "environment", "category",
+                    "severity", "state")
+            .build()
+            .register();
 
     LiveActions(@Nonnull final ActionHistoryDao actionHistoryDao,
                 @Nonnull final AcceptedActionsDAO acceptedActionsStore,
@@ -325,15 +340,74 @@ class LiveActions implements QueryableActionViews {
 
             updateStateForRejectedActions(marketActions.values());
 
-            marketActions.values().stream()
-                .collect(Collectors.groupingBy(a ->
-                    a.getRecommendation().getInfo().getActionTypeCase(), Collectors.counting())
-                ).forEach((actionType, count) -> Metrics.ACTION_COUNTS_SUMMARY
-                .labels(actionType.name())
-                .observe((double) count));
+            // Reset the values in the Gauge.
+            ACTION_COUNTS_GAUGE.getLabeledMetrics().forEach((key, val) -> {
+                val.setData(0.0);
+            });
+            marketActions.values().forEach(this::updateActionMetricsDescriptor);
         } finally {
             actionsLock.writeLock().unlock();
         }
+    }
+
+    /**
+     * Generate a descriptor string for the action and push to the metrics end point.
+     *
+     * @param action the action view.
+     */
+    private void updateActionMetricsDescriptor(Action action) {
+        ActionInfo ai = action.getRecommendation().getInfo();
+        String actionType = ai.getActionTypeCase().name();
+        String actionSeverity  = action.getActionSeverity().name();
+        String actionCategory  = action.getActionCategory().name();
+        String actionState  = action.getState().name();
+        ActionEntity actionTarget = null;
+        String entityType = null;
+        String env = null;
+        switch (ai.getActionTypeCase()) {
+            case MOVE:
+                actionTarget = ai.getMove().getTarget();
+                break;
+            case RECONFIGURE:
+                actionTarget = ai.getReconfigure().getTarget();
+                break;
+            case PROVISION:
+                actionTarget = ai.getProvision().getEntityToClone();
+                break;
+            case RESIZE:
+                actionTarget = ai.getResize().getTarget();
+                break;
+            case ACTIVATE:
+                actionTarget = ai.getActivate().getTarget();
+                break;
+            case DEACTIVATE:
+                actionTarget = ai.getDeactivate().getTarget();
+                break;
+            case DELETE:
+                actionTarget = ai.getDelete().getTarget();
+                break;
+            case BUYRI:
+                actionTarget = ai.getBuyRi().getComputeTier();
+                break;
+            case SCALE:
+                actionTarget = ai.getScale().getTarget();
+                break;
+            case ALLOCATE:
+                actionTarget = ai.getAllocate().getTarget();
+                break;
+            case ATOMICRESIZE:
+                actionTarget = ai.getAtomicResize().getExecutionTarget();
+                break;
+            default:
+                env = EnvironmentType.UNKNOWN_ENV.name();
+                entityType = EntityType.UNKNOWN.name();
+        }
+        if (actionTarget != null) {
+            env = actionTarget.getEnvironmentType().name();
+            entityType = EntityType.forNumber(actionTarget.getType()).name();
+        }
+        ACTION_COUNTS_GAUGE.labels(actionType, entityType, env, actionCategory, actionSeverity,
+            actionState).increment();
     }
 
     private void updateStateForRejectedActions(@Nonnull final Collection<Action> marketActions) {
@@ -780,15 +854,6 @@ class LiveActions implements QueryableActionViews {
                 logger.error("Unsupported action", uae);
             }
         }
-    }
-
-    private static class Metrics {
-        private static final DataMetricSummary ACTION_COUNTS_SUMMARY = DataMetricSummary.builder()
-            .withName("ao_live_action_counts")
-            .withHelp("Number of actions in the action orchestrator live store.")
-            .withLabelNames("action_type")
-            .build()
-            .register();
     }
 
     /**

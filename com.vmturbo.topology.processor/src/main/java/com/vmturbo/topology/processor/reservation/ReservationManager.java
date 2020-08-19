@@ -33,10 +33,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Analys
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ReservationOrigin;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.common.utils.ReservationProtoUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.reservation.ReservationValidator.ValidationErrors;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -57,6 +59,15 @@ public class ReservationManager {
 
     static final String RESERVATION_KEY = "ReservationKey";
 
+    /**
+     * Track reservation counts every broadcast.
+     */
+    private static final DataMetricGauge RESERVATION_STATUS_GAUGE = DataMetricGauge.builder()
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "current_reservations")
+            .withHelp("Reservation per status each broadcast")
+            .withLabelNames("status")
+            .build()
+            .register();
 
     private final ReservationServiceBlockingStub reservationService;
 
@@ -84,6 +95,9 @@ public class ReservationManager {
         // taken care of by a previous reservation plan.
         final Map<Long, Reservation> reservedReservations = new HashMap<>();
 
+        RESERVATION_STATUS_GAUGE.getLabeledMetrics().forEach((key, val) -> {
+            val.setData(0.0);
+        });
         reservationService.getAllReservations(GetAllReservationsRequest.getDefaultInstance())
                 .forEachRemaining(reservation -> {
                     if (topologyType == TopologyType.REALTIME
@@ -92,6 +106,7 @@ public class ReservationManager {
                             reservedReservations.put(reservation.getId(), reservation);
                         }
                     }
+                    RESERVATION_STATUS_GAUGE.labels(reservation.getStatus().toString()).increment();
                 });
 
         // update the future, expired and invalid reservations.

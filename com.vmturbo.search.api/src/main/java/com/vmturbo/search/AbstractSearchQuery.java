@@ -510,7 +510,7 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
             final String columnAlias =
                     getColumnAlias(columnMetadata.getColumnName(), columnMetadata.getJsonKeyName());
             final Object value = getValueFromRecord(record, columnAlias);
-            return value.toString();
+            return value == null ? null : value.toString();
         }).collect(Collectors.toList());
     }
 

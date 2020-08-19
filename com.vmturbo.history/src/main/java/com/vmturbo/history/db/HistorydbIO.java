@@ -659,14 +659,17 @@ public class HistorydbIO extends BasedbIO {
                     || isPaginationParamsSortByPI(paginationParams);
             final HistoryVariety historyVariety = usePriceDataBasedVariety ? HistoryVariety.PRICE_DATA : HistoryVariety.ENTITY_STATS;
 
-            final Query query = new AvailableTimestampsQuery(timeFrameOpt.orElse(TimeFrame.LATEST),
-                    historyVariety, 1, null, exclusiveUpperTimeBound).getQuery();
-            final List<Timestamp> snapshotTimeRecords
-                    = (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
-
-            if (!snapshotTimeRecords.isEmpty()) {
-                return Optional.of(snapshotTimeRecords.get(0));
+            Optional<Timestamp> timestamp = getMostRecentTimeStampForHistoryVariety(historyVariety,
+                exclusiveUpperTimeBound, timeFrameOpt);
+            // Price index data can take some time to be generated. If they do not exists yet,
+            // get the most recent ingested topology timestamp
+            if(!timestamp.isPresent() && historyVariety == HistoryVariety.PRICE_DATA) {
+                return getMostRecentTimeStampForHistoryVariety(HistoryVariety.ENTITY_STATS,
+                    exclusiveUpperTimeBound, timeFrameOpt);
             }
+            return timestamp;
+
+
 
         } catch (VmtDbException e) {
             logger.error("Failed to get database connection.", e);
@@ -674,6 +677,18 @@ public class HistorydbIO extends BasedbIO {
         return Optional.empty();
     }
 
+    private Optional<Timestamp> getMostRecentTimeStampForHistoryVariety(@Nonnull HistoryVariety historyVariety,
+                                                                        @Nonnull Timestamp exclusiveUpperTimeBound,
+                                                                        @Nonnull final Optional<TimeFrame> timeFrameOpt) throws VmtDbException {
+        final Query query = new AvailableTimestampsQuery(timeFrameOpt.orElse(TimeFrame.LATEST),
+            historyVariety, 1, null, exclusiveUpperTimeBound).getQuery();
+        final List<Timestamp> snapshotTimeRecords
+            = (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
+        if (!snapshotTimeRecords.isEmpty()) {
+            return Optional.of(snapshotTimeRecords.get(0));
+        }
+        return Optional.empty();
+    }
     /**
      * Whether a given list contains only price index or current price index request.
      *

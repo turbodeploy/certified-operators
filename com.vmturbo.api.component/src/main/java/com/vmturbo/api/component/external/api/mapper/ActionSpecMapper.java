@@ -101,6 +101,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
@@ -137,6 +138,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
@@ -546,7 +548,8 @@ public class ActionSpecMapper {
                 addReconfigureInfo(actionApiDTO, info.getReconfigure(), context);
                 break;
             case PROVISION:
-                addProvisionInfo(actionApiDTO, info.getProvision(), context);
+                addProvisionInfo(actionApiDTO, info.getProvision(),
+                                recommendation.getExplanation(), context);
                 break;
             case RESIZE:
                 if (info.hasAtomicResize()) {
@@ -1316,6 +1319,7 @@ public class ActionSpecMapper {
 
     private void addProvisionInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                   @Nonnull final Provision provision,
+                                  @Nonnull final Explanation actionExplanation,
                                   @Nonnull final ActionSpecMappingContext context) {
         final ActionEntity currentEntity = provision.getEntityToClone();
         long currentEntityId = currentEntity.getId();
@@ -1349,6 +1353,10 @@ public class ActionSpecMapper {
             }
             actionApiDTO.setNewEntity(newEntity);
             actionApiDTO.setNewValue(newEntity.getUuid());
+        } else if (isVSANCause(actionExplanation)) {
+            // When providing a host because of vSAN storage needs we'd like to know how it
+            // will affect the said vSAN storage.
+            addVSANCausingProvisionInfo(actionApiDTO, context, currentEntityId);
         } else {
             // In realtime actions we don't provide a reference to the provisioned entities, because
             // they do not exist in the projected topology. This is because provisioning is not
@@ -1356,6 +1364,52 @@ public class ActionSpecMapper {
             // provisions when constructing the projected topology.
             actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
         }
+    }
+
+    /**
+     * Add info about vSAN storage whose needs have triggered host provision to actionApiDTO.
+     * @param actionApiDTO the resulting action description for API
+     * @param context is context
+     * @param currentEntityId current entity ID
+     */
+    private void addVSANCausingProvisionInfo(@Nonnull final ActionApiDTO actionApiDTO,
+                    @Nonnull final ActionSpecMappingContext context,
+                    final long currentEntityId)    {
+        Optional<ServiceEntityApiDTO> completeCurrentEntity = context.getEntity(currentEntityId);
+        if (completeCurrentEntity.isPresent())  {
+            for (BaseApiDTO consumer : completeCurrentEntity.get().getConsumers())  {
+                if (StringConstants.STORAGE.equals(consumer.getClassName()))    {
+                    final ServiceEntityApiDTO newEntity = new ServiceEntityApiDTO();
+                    newEntity.setUuid(consumer.getUuid());
+                    newEntity.setClassName(StringConstants.STORAGE);
+                    newEntity.setDisplayName(consumer.getDisplayName());
+                    actionApiDTO.setNewEntity(newEntity);
+                    actionApiDTO.setNewValue(newEntity.getUuid());
+                    return;
+                }
+            }
+        }
+        logger.error("Couldn't find Storage consumer that had become the cause of Provision. Cloned entity: {}",
+                        currentEntityId);
+        actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
+    }
+
+    /**
+     * Checks the action explanation to see whether vSAN storage needs are the cause.
+     * @param actionExplanation action explanation
+     * @return true if the host provision was caused by vSAN needs.
+     */
+    private boolean isVSANCause(@Nonnull final Explanation actionExplanation)    {
+        if (!(actionExplanation.hasProvision()
+                    && actionExplanation.getProvision().hasProvisionBySupplyExplanation()
+                    && actionExplanation.getProvision().getProvisionBySupplyExplanation()
+                        .hasMostExpensiveCommodityInfo()))  {
+            return false;
+        }
+        Explanation.ReasonCommodity reasonCommodity = actionExplanation.getProvision()
+                        .getProvisionBySupplyExplanation().getMostExpensiveCommodityInfo();
+        return reasonCommodity.hasCommodityType() && reasonCommodity.getCommodityType().hasType()
+                        && HCIUtils.isVSANRelatedCommodity(reasonCommodity.getCommodityType().getType());
     }
 
     // Top level merged resize action
@@ -1544,8 +1598,8 @@ public class ActionSpecMapper {
         final ReservedInstanceSpec riSpec = pair.second;
 
         try {
-            ReservedInstanceApiDTO riApiDTO = reservedInstanceMapper
-                    .mapToReservedInstanceApiDTO(ri, riSpec, context.getServiceEntityApiDTOs());
+            ReservedInstanceApiDTO riApiDTO = reservedInstanceMapper.mapToReservedInstanceApiDTO(ri,
+                    riSpec, context.getServiceEntityApiDTOs(), null, null);
             actionApiDTO.setReservedInstance(riApiDTO);
             actionApiDTO.setTarget(getServiceEntityDTO(context, buyRI.getRegion()));
             // For less brittle UI integration, we set the current entity to an empty object.

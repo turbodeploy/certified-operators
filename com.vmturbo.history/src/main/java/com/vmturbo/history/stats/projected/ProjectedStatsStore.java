@@ -54,24 +54,38 @@ public class ProjectedStatsStore {
 
     private final EntityStatsCalculator entityStatsCalculator;
 
+    private final Set<String> excludedCommodities;
+
     private final Object topologyCommoditiesLock = new Object();
 
-    public ProjectedStatsStore() {
-        this(TopologyCommoditiesSnapshot.newFactory(),
+    /**
+     * Create a new {@link ProjectedStatsStore}.
+     *
+     * @param excludedCommodities The list of commodities to exclude from the store. This should be
+     *                            the same list we use for "source" topology stat ingestion.
+     */
+    public ProjectedStatsStore(@Nonnull final Set<String> excludedCommodities) {
+        this(TopologyCommoditiesSnapshot.newFactory(excludedCommodities),
                 ProjectedPriceIndexSnapshot.newFactory(),
                 new StatSnapshotCalculator() {},
-                new EntityStatsCalculator() {});
+                new EntityStatsCalculator() {}, excludedCommodities);
     }
 
     @VisibleForTesting
     ProjectedStatsStore(@Nonnull final TopologyCommoditiesSnapshotFactory topoCommSnapshotFactory,
                         @Nonnull final PriceIndexSnapshotFactory priceIndexSnapshotFactory,
                         @Nonnull final StatSnapshotCalculator statSnapshotCalculator,
-                        @Nonnull final EntityStatsCalculator entityStatsCalculator) {
+                        @Nonnull final EntityStatsCalculator entityStatsCalculator,
+            @Nonnull final Set<String> excludedCommodities) {
         this.topoCommSnapshotFactory = Objects.requireNonNull(topoCommSnapshotFactory);
         this.priceIndexSnapshotFactory = Objects.requireNonNull(priceIndexSnapshotFactory);
         this.statSnapshotCalculator = Objects.requireNonNull(statSnapshotCalculator);
         this.entityStatsCalculator = Objects.requireNonNull(entityStatsCalculator);
+        this.excludedCommodities = excludedCommodities;
+    }
+
+    public Set<String> getExcludedCommodities() {
+        return excludedCommodities;
     }
 
     /**

@@ -76,6 +76,7 @@ public class PolicyStoreTest {
 
     private static final PolicyInfo POLICY_INFO = PolicyInfo.newBuilder()
             .setName("no watch tv")
+            .setDisplayName("no watch tv")
             .setEnabled(true)
             .setBindToGroup(BindToGroupPolicy.newBuilder()
                     .setConsumerGroupId(CONSUMER_GROUP_ID)
@@ -249,6 +250,7 @@ public class PolicyStoreTest {
         final PolicyRecord policyRecord = dbConfig.getDslContext().newRecord(Tables.POLICY);
         policyRecord.setEnabled(true);
         policyRecord.setName("foo");
+        policyRecord.setDisplayName("foo");
         policyRecord.setId(POLICY_ID);
         // Discovered group
         policyRecord.setDiscoveredById(TARGET_ID);

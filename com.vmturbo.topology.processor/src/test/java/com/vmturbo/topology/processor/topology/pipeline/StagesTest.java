@@ -44,6 +44,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
+import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
@@ -102,8 +104,6 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadActionConst
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 public class StagesTest {
@@ -425,7 +425,7 @@ public class StagesTest {
         final PolicyApplicator.Results results = mock(PolicyApplicator.Results.class);
         when(results.getErrors()).thenReturn(Collections.emptyMap());
         when(results.getAppliedCounts()).thenReturn(Collections.emptyMap());
-        when(results.getAddedCommodityCounts()).thenReturn(Collections.emptyMap());
+        when(results.getTotalAddedCommodityCounts()).thenReturn(Collections.emptyMap());
 
         when(policyManager.applyPolicies(eq(topologyGraph), eq(groupResolver), eq(Collections.emptyList()), any()))
             .thenReturn(results);

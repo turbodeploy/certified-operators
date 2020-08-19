@@ -185,7 +185,7 @@ public class SearchEntityWriterTest {
             } else if (oid == pm.getOid()) {
                 // commodity
                 assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_USED.getJsonKeyName()), is(4000.0));
-                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_HISTORICAL_UTILIZATION.getJsonKeyName()), is(0.2));
+                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_HISTORICAL_UTILIZATION.getJsonKeyName()), is(1.0E-5));
                 // related entity
                 assertThat(attrs.get(SearchMetadataMapping.RELATED_DATA_CENTER.getJsonKeyName()),
                         is(Collections.singletonList(dc.getDisplayName())));

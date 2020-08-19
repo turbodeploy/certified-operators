@@ -20,10 +20,13 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.utils.HistoryStatsUtils;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class BoughtCommoditiesInfoTest {
@@ -59,7 +62,7 @@ public class BoughtCommoditiesInfoTest {
     @Test
     public void testBoughtCommodityEmpty() {
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder().build(Mockito.mock(SoldCommoditiesInfo.class));
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet()).build(Mockito.mock(SoldCommoditiesInfo.class));
         assertFalse(info.getAccumulatedRecord(COMMODITY, Collections.emptySet(), Collections.emptySet()).isPresent());
     }
 
@@ -68,7 +71,7 @@ public class BoughtCommoditiesInfoTest {
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder()
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
                         .addEntity(VM_1)
                         .addEntity(VM_2)
                         .build(soldCommoditiesInfo);
@@ -100,7 +103,8 @@ public class BoughtCommoditiesInfoTest {
         final double providerCapacity = 5.0;
         when(soldCommoditiesInfo.getCapacity( eq(COMMODITY), eq(7L)))
                 .thenReturn(Optional.of(providerCapacity));
-        final BoughtCommoditiesInfo info = BoughtCommoditiesInfo.newBuilder()
+        final BoughtCommoditiesInfo info = BoughtCommoditiesInfo.newBuilder(
+                Collections.emptySet())
                 .addEntity(vm)
                 .build(soldCommoditiesInfo);
 
@@ -150,7 +154,8 @@ public class BoughtCommoditiesInfoTest {
         final double providerCapacity = 5.0;
         when(soldCommoditiesInfo.getCapacity(eq(COMMODITY), eq(7L)))
                 .thenReturn(Optional.of(providerCapacity));
-        final BoughtCommoditiesInfo info = BoughtCommoditiesInfo.newBuilder()
+        final BoughtCommoditiesInfo info = BoughtCommoditiesInfo.newBuilder(
+                Collections.emptySet())
                 .addEntity(vm)
                 .build(soldCommoditiesInfo);
 
@@ -210,7 +215,8 @@ public class BoughtCommoditiesInfoTest {
 
         when(soldCommoditiesInfo.getCapacity( eq(COMMODITY), eq(7L)))
                 .thenReturn(Optional.of(providerCapacity));
-        final BoughtCommoditiesInfo boughtTwiceSameProvider = BoughtCommoditiesInfo.newBuilder()
+        final BoughtCommoditiesInfo boughtTwiceSameProvider = BoughtCommoditiesInfo.newBuilder(
+                Collections.emptySet())
                 .addEntity(vmBuyingTwiceSameProvider)
                 .build(soldCommoditiesInfo);
 
@@ -247,7 +253,7 @@ public class BoughtCommoditiesInfoTest {
                 .thenReturn(Optional.of(providerCapacity));
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder()
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
                         .addEntity(VM_1)
                         .addEntity(VM_2)
                         .build(soldCommoditiesInfo);
@@ -280,7 +286,7 @@ public class BoughtCommoditiesInfoTest {
                 .thenReturn(Optional.of(providerCapacity));
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder()
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
                         .addEntity(VM_1)
                         .addEntity(VM_2)
                         .build(soldCommoditiesInfo);
@@ -322,7 +328,7 @@ public class BoughtCommoditiesInfoTest {
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
 
         final BoughtCommoditiesInfo info =
-            BoughtCommoditiesInfo.newBuilder()
+            BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
                 .addEntity(VM_NO_PROVIDER)
                 .addEntity(VM_1)
                 .build(soldCommoditiesInfo);
@@ -366,7 +372,7 @@ public class BoughtCommoditiesInfoTest {
             .thenReturn(Optional.of(providerCapacity));
 
         final BoughtCommoditiesInfo info =
-            BoughtCommoditiesInfo.newBuilder()
+            BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
                 .addEntity(VM_NO_PROVIDER)
                 .addEntity(VM_1)
                 .build(soldCommoditiesInfo);
@@ -397,12 +403,49 @@ public class BoughtCommoditiesInfoTest {
                 .thenReturn(Optional.empty());
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder()
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
                         .addEntity(VM_1)
                         .addEntity(VM_2)
                         .build(soldCommoditiesInfo);
 
         assertFalse(info.getAccumulatedRecord(COMMODITY, Collections.emptySet(), Collections.emptySet()).isPresent());
+    }
+
+    /**
+     * Test that excluded commodities do not make it into the {@link BoughtCommoditiesInfo}.
+     */
+    @Test
+    public void testBoughtCommodityExclusion() {
+        final int commType = CommodityDTO.CommodityType.CLUSTER_VALUE;
+        final String commodityName = HistoryStatsUtils.formatCommodityName(commType);
+
+        final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
+        Mockito.when(soldCommoditiesInfo.getCapacity(Mockito.anyString(), Mockito.anyLong()))
+                .thenReturn(Optional.empty());
+        final TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .setOid(1)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(7)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(CommodityType.newBuilder()
+                                    .setType(commType))
+                                .setUsed(2)
+                                .setPeak(3)))
+                .build();
+
+        final BoughtCommoditiesInfo noExclusionInfo =
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
+                        .addEntity(vm)
+                        .build(soldCommoditiesInfo);
+        assertThat(noExclusionInfo.getValue(vm.getOid(), commodityName), is(2.0));
+
+        final BoughtCommoditiesInfo info =
+                BoughtCommoditiesInfo.newBuilder(Collections.singleton(commodityName))
+                        .addEntity(vm)
+                        .build(soldCommoditiesInfo);
+        assertThat(info.getValue(vm.getOid(), commodityName), is(0.0));
+
     }
 
     @Test
@@ -412,7 +455,7 @@ public class BoughtCommoditiesInfoTest {
                 .thenReturn(Optional.empty());
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder()
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
                         .addEntity(VM_1)
                         .addEntity(VM_2)
                         .build(soldCommoditiesInfo);
@@ -443,7 +486,7 @@ public class BoughtCommoditiesInfoTest {
                 .build();
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder()
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
                         .addEntity(vm)
                         .build(soldCommoditiesInfo);
 
@@ -458,7 +501,7 @@ public class BoughtCommoditiesInfoTest {
                 .thenReturn(Optional.empty());
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder()
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
                         .addEntity(VM_1)
                         .build(soldCommoditiesInfo);
         assertThat(info.getValue(VM_1.getOid(), "random commodity"), is(0.0));
@@ -471,7 +514,7 @@ public class BoughtCommoditiesInfoTest {
                 .thenReturn(Optional.empty());
 
         final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder()
+                BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
                         .addEntity(VM_1)
                         .build(soldCommoditiesInfo);
         assertThat(info.getValue(1234L, COMMODITY), is(0.0));
@@ -520,7 +563,7 @@ public class BoughtCommoditiesInfoTest {
             .thenReturn(provider2Capacity);
 
         final BoughtCommoditiesInfo info =
-            BoughtCommoditiesInfo.newBuilder()
+            BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
                 .addEntity(vmProvider1)
                 .addEntity(vmProvider2)
                 .build(soldCommoditiesInfo);
@@ -591,7 +634,7 @@ public class BoughtCommoditiesInfoTest {
             .thenReturn(provider2Capacity);
 
         final BoughtCommoditiesInfo info =
-            BoughtCommoditiesInfo.newBuilder()
+            BoughtCommoditiesInfo.newBuilder(Collections.emptySet())
                 .addEntity(vmProvider1)
                 .addEntity(vmProvider2)
                 .build(soldCommoditiesInfo);

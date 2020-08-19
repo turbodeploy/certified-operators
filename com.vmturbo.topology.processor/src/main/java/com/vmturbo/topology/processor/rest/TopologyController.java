@@ -19,13 +19,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 
 /**
  * REST controller for topology processor management.
@@ -52,7 +52,7 @@ public class TopologyController {
      * sending them to subscribed listeners.
      *
      * @return The response entity containing the response.
-     * @throws TopologyPipelineException If there is an issue broadcasting the topology.
+     * @throws PipelineException If there is an issue broadcasting the topology.
      * @throws InterruptedException If the broadcast is interrupted.
      */
     @RequestMapping(value = "/send",
@@ -64,7 +64,7 @@ public class TopologyController {
             + "sending them to subscribed listeners."
     )
     public ResponseEntity<SendTopologyResponse> send()
-            throws TopologyPipelineException, InterruptedException {
+            throws PipelineException, InterruptedException {
         scheduler.resetBroadcastSchedule();
         final TopologyBroadcastInfo broadcastInfo = topologyHandler
             .broadcastLatestTopology(StitchingJournalFactory.emptyStitchingJournalFactory());

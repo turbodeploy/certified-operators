@@ -5,6 +5,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.jetbrains.annotations.NotNull;
+
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
+import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
+import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -12,10 +17,7 @@ import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Status;
 
 /**
  * This stage checks if there're UCS targets in entityStore, and if there're
@@ -34,8 +36,9 @@ public class DCMappingStage extends Stage<EntityStore, EntityStore> {
         this.discoveredGroupUploader = groupUploader;
     }
 
+    @NotNull
     @Override
-    public StageResult<EntityStore> execute(EntityStore input)
+    public StageResult<EntityStore> execute(@NotNull EntityStore input)
                     throws PipelineStageException, InterruptedException {
         if (!discoveredGroupUploader.isUCSTargetPresent())   {
             return StageResult.withResult(input)

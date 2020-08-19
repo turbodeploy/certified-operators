@@ -55,13 +55,15 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
      *
      * @param stitchingScopeFactory The factory to use to construct the {@link StitchingScope} for this
      *                                {@link StitchingOperation}.
+     * @param targetId the target id of the internal target we are trying to stitch.
      * @return The {@link StitchingScope} to use for this {@link StitchingOperation}.  Returning
      * Optional.empty indicates no scope is set and candidates for matching can come from all
      * external probe targets.
      */
     @Nonnull
     Optional<StitchingScope<StitchingEntity>> getScope(
-            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory);
+            @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+            long targetId);
 
     /**
      * The {@link EntityType} of the internal entities to be stitched.

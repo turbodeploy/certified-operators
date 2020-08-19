@@ -75,6 +75,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceStub;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
@@ -1001,9 +1002,23 @@ public class GroupMapper {
 
     @Nonnull
     public static String convertGroupTypeToApiType(@Nonnull GroupType type) {
-        return API_GROUP_TYPE_TO_GROUP_TYPE
-                        .inverse().getOrDefault(type,
-                                        type.name());
+        return API_GROUP_TYPE_TO_GROUP_TYPE.inverse().getOrDefault(type, type.name());
+    }
+
+    /**
+     * Create {@link BaseApiDTO} with uuid, display name, class name fields from {@link Grouping}.
+     *
+     * @param grouping the {@link Grouping}
+     * @return the {@link BaseApiDTO}
+     */
+    @Nonnull
+    public static BaseApiDTO toBaseApiDTO(@Nonnull final Grouping grouping) {
+        final BaseApiDTO baseApiDTO = new BaseApiDTO();
+        baseApiDTO.setUuid(String.valueOf(grouping.getId()));
+        final GroupDTO.GroupDefinition groupDefinition = grouping.getDefinition();
+        baseApiDTO.setDisplayName(groupDefinition.getDisplayName());
+        baseApiDTO.setClassName(GroupMapper.convertGroupTypeToApiType(groupDefinition.getType()));
+        return baseApiDTO;
     }
 
     /**

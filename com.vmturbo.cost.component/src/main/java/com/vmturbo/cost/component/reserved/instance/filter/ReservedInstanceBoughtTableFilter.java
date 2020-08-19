@@ -80,11 +80,11 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
         if (accountFilter.getAccountIdCount() > 0) {
             AccountFilterType filterType = accountFilter.getAccountFilterType();
             switch (filterType) {
-                case USED_AND_PURCHASED_BY:
                     case PURCHASED_BY:
-                    conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(
-                        accountFilter.getAccountIdList()));
+                        conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(
+                            accountFilter.getAccountIdList()));
                     break;
+
             }
         }
 
@@ -108,6 +108,7 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
 
         return conditions.toArray(new Condition[conditions.size()]);
     }
+
 
     protected abstract static class Builder<
             T extends ReservedInstanceBoughtTableFilter,

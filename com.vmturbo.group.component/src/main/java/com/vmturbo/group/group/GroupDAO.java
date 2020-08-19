@@ -87,6 +87,7 @@ import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.common.DuplicateNameException;
+import com.vmturbo.group.common.Truncator;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.GroupDiscoverTargets;
 import com.vmturbo.group.db.tables.pojos.GroupExpectedMembersEntities;
@@ -265,7 +266,9 @@ public class GroupDAO implements IGroupStore {
         final Grouping groupPojo = new Grouping();
         groupPojo.setGroupType(groupDefinition.getType());
         requireTrue(groupDefinition.hasDisplayName(), "Group display name not set");
-        groupPojo.setDisplayName(groupDefinition.getDisplayName());
+        final String groupDisplayName =
+            Truncator.truncateGroupDisplayName(groupDefinition.getDisplayName(), true);
+        groupPojo.setDisplayName(groupDisplayName);
         groupPojo.setIsHidden(groupDefinition.getIsHidden());
         if (groupDefinition.hasOwner()) {
             groupPojo.setOwnerId(groupDefinition.getOwner());
@@ -309,8 +312,10 @@ public class GroupDAO implements IGroupStore {
             long groupId) {
         final Collection<Query> result = new ArrayList<>();
         for (Entry<String, TagValuesDTO> entry : tags.getTagsMap().entrySet()) {
+            final String tagKey = Truncator.truncateTagKey(entry.getKey(), true);
             for (String tagValue : entry.getValue().getValuesList()) {
-                final GroupTags tag = new GroupTags(groupId, entry.getKey(), tagValue);
+                final String truncateTagValue = Truncator.truncateTagValue(tagValue, true);
+                final GroupTags tag = new GroupTags(groupId, tagKey, truncateTagValue);
                 result.add(
                     context.insertInto(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS)
                         .set(context.newRecord(com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS, tag))

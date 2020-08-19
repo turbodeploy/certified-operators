@@ -9,6 +9,8 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 
 /**
  * Additional properties that the system supports for searching.
@@ -230,6 +232,36 @@ public interface SearchableProps {
          */
         @Nonnull
         String getAccountId();
+    }
+
+    /**
+     * Searchable properties for database server.
+     */
+    interface DatabaseServerProps extends SearchableProps {
+
+        /**
+         * Database engine.
+         *
+         * @return engine name.
+         */
+        @Nonnull
+        DatabaseEngine getDatabaseEngine();
+
+        /**
+         * Database edition.
+         *
+         * @return DB edition.
+         */
+        @Nonnull
+        DatabaseEdition getDatabaseEdition();
+
+        /**
+         * Database version.
+         *
+         * @return version.
+         */
+        @Nonnull
+        String getDatabaseVersion();
     }
 
 }

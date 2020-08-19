@@ -5,6 +5,7 @@ option java_package = "com.vmturbo.common.protobuf.topology";
 
 import "common/EnvironmentTypeEnum.proto";
 import "plan/PlanProject.proto";
+import "plan/Scenario.proto";
 import "CloudCostDTO.proto";
 import "CommonDTO.proto";
 import "tag/Tag.proto";
@@ -1166,6 +1167,9 @@ message PlanTopologyInfo {
     // The sub-type of the plan initiated. For example, the plan_sub_type could be the specific
     // optimize cloud plan type (like OPTIMIZE_CLOUD__RIBUY_ONLY)
     optional string plan_sub_type = 3;
+
+    // Plan global setting
+    optional plan.PlanGlobalSetting plan_global_setting = 4;
 }
 
 enum EntityState {

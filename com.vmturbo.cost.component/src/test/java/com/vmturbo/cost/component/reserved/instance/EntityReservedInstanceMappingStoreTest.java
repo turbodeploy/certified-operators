@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.jooq.DSLContext;
+import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
@@ -176,4 +178,24 @@ public class EntityReservedInstanceMappingStoreTest {
         assertThat(actualRICoverageByEntity, equalTo(expectedRICoverageByEntity));
     }
 
+    /**
+     * Test for {@link EntityReservedInstanceMappingStore#getEntitiesCoveredByReservedInstances(Collection)}.
+     */
+    @Test
+    public void testGetEntitiesCoveredByReservedInstances() {
+        final List<EntityRICoverageUpload> entityCoverageLists = Arrays.asList(coverageOne,
+                coverageTwo, coverageThree);
+        entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl,
+                entityCoverageLists);
+        ImmutableMap.of(Collections.singleton(457L),
+                Collections.singletonMap(457L, ImmutableSet.of(123L, 124L)),
+                Collections.<Long>emptyList(),
+                ImmutableMap.of(456L, Collections.singleton(123L), 457L,
+                        ImmutableSet.of(123L, 124L), 458L, Collections.singleton(124L), 459L,
+                        Collections.singleton(125L))).forEach(
+                (reservedInstances, reservedInstanceToCoveredEntities) -> Assert.assertEquals(
+                        reservedInstanceToCoveredEntities,
+                        entityReservedInstanceMappingStore.getEntitiesCoveredByReservedInstances(
+                                reservedInstances)));
+    }
 }

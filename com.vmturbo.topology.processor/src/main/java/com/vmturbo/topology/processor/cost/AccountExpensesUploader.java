@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetAccountExpensesChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesRequest;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.proactivesupport.DataMetricGauge;
@@ -48,9 +49,9 @@ public class AccountExpensesUploader {
      * or if there is new cost data information.
      */
     public static final DataMetricGauge CLOUD_SPENT_BREAKDOWN_GAUGE = DataMetricGauge.builder()
-            .withName("turbonomic_cloud_spent_breakdown")
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "cloud_spend_ratio")
             .withHelp("Cloud Spent Ratio.")
-            .withLabelNames("cloud_type", "cloud_service")
+            .withLabelNames("type", "service")
             .build()
             .register();
 
@@ -58,9 +59,8 @@ public class AccountExpensesUploader {
      * Tracks the amount of Business Accounts.
      */
     public static final DataMetricGauge BUSINESS_ACCOUNTS_GAUGE = DataMetricGauge.builder()
-            .withName("turbonomic_business_accounts")
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "business_accounts")
             .withHelp("Business Account Quantity.")
-            .withLabelNames("business_accounts")
             .build()
             .register();
 
@@ -393,7 +393,7 @@ public class AccountExpensesUploader {
             });
         });
         pushCloudServiceSpentMetrics(cloudServiceSpentMap);
-        BUSINESS_ACCOUNTS_GAUGE.labels("Count").setData((double)(expensesByAccountOid.size()));
+        BUSINESS_ACCOUNTS_GAUGE.setData((double)(expensesByAccountOid.size()));
         return expensesByAccountOid;
     }
 
@@ -431,7 +431,9 @@ public class AccountExpensesUploader {
 
     // Expose the ratio spent per cloud service.
     private void pushCloudServiceSpentMetrics(Map<String, Double> cloudServiceSpentMap) {
-        CLOUD_SPENT_BREAKDOWN_GAUGE.getLabeledMetrics().clear();
+        CLOUD_SPENT_BREAKDOWN_GAUGE.getLabeledMetrics().forEach((key, val) -> {
+            val.setData(0.0);
+        });
         double totalAccountCloudServiceExpenses = cloudServiceSpentMap.values().stream().mapToDouble(v -> v).sum();
         if (totalAccountCloudServiceExpenses > 0.0) {
             cloudServiceSpentMap.forEach((serviceId, spent) -> {

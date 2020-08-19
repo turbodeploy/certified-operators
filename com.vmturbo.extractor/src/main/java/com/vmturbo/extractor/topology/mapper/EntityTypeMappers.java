@@ -4,6 +4,7 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Utility class to support mappings of entity type enums.
@@ -40,6 +41,7 @@ public class EntityTypeMappers {
                     .put(com.vmturbo.api.enums.EntityType.Region, EntityDTO.EntityType.REGION)
                     .put(com.vmturbo.api.enums.EntityType.PhysicalMachine, EntityDTO.EntityType.PHYSICAL_MACHINE)
                     .put(com.vmturbo.api.enums.EntityType.Service, EntityDTO.EntityType.SERVICE)
+                    .put(com.vmturbo.api.enums.EntityType.ServiceProvider, EntityType.SERVICE_PROVIDER)
                     .put(com.vmturbo.api.enums.EntityType.Storage, EntityDTO.EntityType.STORAGE)
                     .put(com.vmturbo.api.enums.EntityType.StorageController, EntityDTO.EntityType.STORAGE_CONTROLLER)
                     .put(com.vmturbo.api.enums.EntityType.StorageTier, EntityDTO.EntityType.STORAGE_TIER)

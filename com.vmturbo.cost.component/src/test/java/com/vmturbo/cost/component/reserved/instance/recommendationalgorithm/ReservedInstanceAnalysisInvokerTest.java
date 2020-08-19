@@ -170,6 +170,7 @@ public class ReservedInstanceAnalysisInvokerTest {
                 prTabStore,
                 1,
                 true,
+                false,
                 false);
 
         return invoker;

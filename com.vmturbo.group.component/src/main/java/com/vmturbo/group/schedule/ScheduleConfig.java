@@ -7,13 +7,12 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
-import com.vmturbo.group.setting.SettingConfig;
 
 /**
  * Spring configuration of Schedule backend.
  */
 @Configuration
-@Import({GroupComponentDBConfig.class,  IdentityProviderConfig.class, SettingConfig.class})
+@Import({GroupComponentDBConfig.class,  IdentityProviderConfig.class})
 public class ScheduleConfig {
     /** Database config. */
     @Autowired
@@ -22,10 +21,6 @@ public class ScheduleConfig {
     /** Identity provider config. */
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
-
-    /** Setting store. */
-    @Autowired
-    private SettingConfig settingConfig;
 
     /**
      * Schedule validator bean.
@@ -44,8 +39,7 @@ public class ScheduleConfig {
         return new ScheduleStore(
             databaseConfig.dsl(),
             scheduleValidator(),
-            identityProviderConfig.identityProvider(),
-            settingConfig.settingStore()
+            identityProviderConfig.identityProvider()
         );
     }
 

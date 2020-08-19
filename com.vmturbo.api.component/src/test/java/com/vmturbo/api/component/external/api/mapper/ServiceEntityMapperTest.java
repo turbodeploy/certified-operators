@@ -238,7 +238,7 @@ public class ServiceEntityMapperTest {
                 .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .build();
 
-        final ServiceEntityApiDTO dto = ServiceEntityMapper.toBasicEntity(minimalEntity);
+        final ServiceEntityApiDTO dto = ServiceEntityMapper.toBaseServiceEntityApiDTO(minimalEntity);
 
         MatcherAssert.assertThat(dto.getUuid(), Matchers.is("7"));
         MatcherAssert.assertThat(dto.getDisplayName(), Matchers.is("foo"));

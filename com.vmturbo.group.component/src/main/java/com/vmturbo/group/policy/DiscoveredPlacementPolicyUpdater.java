@@ -115,10 +115,11 @@ public class DiscoveredPlacementPolicyUpdater extends DiscoveredPolicyUpdater<Po
         if (!policyInfoOptional.isPresent()) {
             return Optional.empty();
         }
+        final PolicyInfo convertedPolicy = policyInfoOptional.get();
         final long effectiveOid;
         final boolean delete;
         final DiscoveredObjectVersionIdentity existingIdentity = existingPolicies.get(
-                policyInfo.getPolicyName());
+            convertedPolicy.getName());
         if (existingIdentity != null) {
             effectiveOid = existingIdentity.getOid();
             delete = true;
@@ -126,14 +127,12 @@ public class DiscoveredPlacementPolicyUpdater extends DiscoveredPolicyUpdater<Po
             effectiveOid = getIdentityProvider().next();
             delete = false;
         }
-        final Policy policy = policyInfoOptional
-                .map(info -> Policy
+        final Policy policy = Policy
                         .newBuilder()
                         .setId(effectiveOid)
                         .setTargetId(targetId)
-                        .setPolicyInfo(info)
-                        .build())
-                .orElse(null);
+                        .setPolicyInfo(convertedPolicy)
+                        .build();
         final byte[] hash = PlacementPolicyHash.hash(policy);
         if (existingIdentity != null && Arrays.equals(hash, existingIdentity.getHash())) {
             return Optional.of(new PolicyDecision<>(effectiveOid, false, null));

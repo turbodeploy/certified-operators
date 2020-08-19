@@ -1,22 +1,26 @@
 package com.vmturbo.history.stats.projected;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import com.google.protobuf.TextFormat;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-import com.google.protobuf.TextFormat;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -52,45 +56,45 @@ class BoughtCommoditiesInfo {
      * This data structure is flattening those separations, but the stats API doesn't currently support
      * commodity keys anyway.
      */
-    private final Map<String, Map<Long, Multimap<Long, CommodityBoughtDTO>>> boughtCommodities;
+    private final Map<String, Long2ObjectMap<Long2ObjectMap<List<BoughtCommodity>>>> boughtCommodities;
 
     /**
      * The {@link SoldCommoditiesInfo} for the topology. This is required to look up capacities.
-     * <p>
      */
     private final SoldCommoditiesInfo soldCommoditiesInfo;
 
     private BoughtCommoditiesInfo(@Nonnull final SoldCommoditiesInfo soldCommoditiesInfo,
-            @Nonnull final Map<String, Map<Long, Multimap<Long, CommodityBoughtDTO>>> boughtCommodities) {
+            @Nonnull final Map<String, Long2ObjectMap<Long2ObjectMap<List<BoughtCommodity>>>> boughtCommodities) {
         this.boughtCommodities = Collections.unmodifiableMap(boughtCommodities);
         this.soldCommoditiesInfo = soldCommoditiesInfo;
     }
 
     @Nonnull
-    static Builder newBuilder() {
-        return new Builder();
+    static Builder newBuilder(Set<String> excludedCommodityNames) {
+        return new Builder(excludedCommodityNames);
     }
 
     /**
      * Get the value of a particular commodity bought by a particular entity.
      *
-     * @param entity The ID of the entity. It's a {@link Long} instead of a base type to avoid
-     *               autoboxing.
+     * @param entity The ID of the entity.
      * @param commodityName The name of the commodity.
      * @return The average used amount of all commodities matching the name bought by the entity.
      *         This is the same formula we use to calculate "currentValue" for stat records.
      *         Returns 0 if the entity does not buy the commodity.
      */
-    double getValue(@Nonnull final Long entity,
+    double getValue(final long entity,
                     @Nonnull final String commodityName) {
-        final Map<Long, Multimap<Long, CommodityBoughtDTO>> boughtByEntityId =
+        final Long2ObjectMap<Long2ObjectMap<List<BoughtCommodity>>> boughtByEntityId =
                 boughtCommodities.get(commodityName);
         double value = 0;
         if (boughtByEntityId != null) {
-            final Multimap<Long, CommodityBoughtDTO> boughtByEntity = boughtByEntityId.get(entity);
+            final Long2ObjectMap<List<BoughtCommodity>> boughtByEntity = boughtByEntityId.get(entity);
             if (boughtByEntity != null) {
-                for (final CommodityBoughtDTO dto : boughtByEntity.values()) {
-                    value += dto.getUsed();
+                for (final List<BoughtCommodity> boughtCommodities : boughtByEntity.values()) {
+                    for (final BoughtCommodity boughtCommodity : boughtCommodities) {
+                        value += boughtCommodity.getUsed();
+                    }
                 }
                 value /= boughtByEntity.size();
             }
@@ -113,7 +117,7 @@ class BoughtCommoditiesInfo {
     Optional<StatRecord> getAccumulatedRecord(@Nonnull final String commodityName,
                                               @Nonnull final Set<Long> targetEntities,
                                               @Nonnull final Set<Long> providerOids) {
-        final Map<Long, Multimap<Long, CommodityBoughtDTO>> boughtByEntityId =
+        final Long2ObjectMap<Long2ObjectMap<List<BoughtCommodity>>> boughtByEntityId =
                 boughtCommodities.get(commodityName);
         final AccumulatedBoughtCommodity overallCommoditiesBought =
                 new AccumulatedBoughtCommodity(commodityName);
@@ -123,38 +127,36 @@ class BoughtCommoditiesInfo {
         } else if (targetEntities.isEmpty()) {
             // No entities = looping over all the entities.
             boughtByEntityId.forEach((entityId, boughtFromProviders) ->
-                boughtFromProviders.asMap().forEach((providerId, commoditiesBought) -> {
-                    if (providerOids.isEmpty() || providerOids.contains(providerId)) {
-                        Optional<Double> capacity = (providerId != null) ?
-                            soldCommoditiesInfo.getCapacity(commodityName, providerId) :
-                            Optional.empty();
-                        if (providerId == null || capacity.isPresent()) {
-                            commoditiesBought.forEach(commodityBought ->
-                                overallCommoditiesBought.recordBoughtCommodity(
-                                    commodityBought, providerId, capacity.orElse(0.0)));
-                        } else {
-                            logger.warn("Entity {} buying commodity {} from provider {}," +
-                                    " but provider is not selling it!", entityId, commodityName,
-                                providerId);
+                    boughtFromProviders.forEach((providerId, commoditiesBought) -> {
+                        if (providerOids.isEmpty() || providerOids.contains(providerId)) {
+                            Optional<Double> capacity = (providerId != TopologyCommoditiesSnapshot.NO_PROVIDER_ID)
+                                ? soldCommoditiesInfo.getCapacity(commodityName, providerId)
+                                : Optional.empty();
+                            if (providerId == TopologyCommoditiesSnapshot.NO_PROVIDER_ID || capacity.isPresent()) {
+                                commoditiesBought.forEach(commodityBought ->
+                                    overallCommoditiesBought.recordBoughtCommodity(
+                                        commodityBought, providerId, capacity.orElse(0.0)));
+                            } else {
+                                logger.warn("Entity {} buying commodity {} from provider {},"
+                                        + " but provider is not selling it!", entityId, commodityName,
+                                    providerId);
+                            }
                         }
-                    }
-                })
-            );
+                    }));
         } else {
             // A specific set of entities.
             targetEntities.forEach(entityId -> {
-                final Multimap<Long, CommodityBoughtDTO> entitiesProviders =
-                        boughtByEntityId.get(entityId);
+                final Long2ObjectMap<List<BoughtCommodity>> entitiesProviders = boughtByEntityId.get(entityId);
                 if (entitiesProviders == null) {
                     // it will happen, for example when API try to query VCpu commodity for VM entities.
                     logger.debug("Entity {} not buying {}...", entityId, commodityName);
                 } else {
-                    entitiesProviders.asMap().forEach((providerId, commoditiesBought) -> {
+                    entitiesProviders.forEach((providerId, commoditiesBought) -> {
                         if (providerOids.isEmpty() || providerOids.contains(providerId)) {
-                            final Optional<Double> capacity = (providerId != null) ?
-                                soldCommoditiesInfo.getCapacity(commodityName, providerId) :
-                                Optional.empty();
-                            if (providerId == null || capacity.isPresent()) {
+                            final Optional<Double> capacity = (providerId != TopologyCommoditiesSnapshot.NO_PROVIDER_ID)
+                                ? soldCommoditiesInfo.getCapacity(commodityName, providerId)
+                                : Optional.empty();
+                            if (providerId == TopologyCommoditiesSnapshot.NO_PROVIDER_ID || capacity.isPresent()) {
                                 commoditiesBought.forEach(commodityBought ->
                                     overallCommoditiesBought.recordBoughtCommodity(commodityBought,
                                         providerId, capacity.orElse(0.0)));
@@ -171,15 +173,57 @@ class BoughtCommoditiesInfo {
     }
 
     /**
+     * Utility class to capture the commodity information we need for projected stats. This
+     * saves a LOT of memory compared to keeping the full {@link CommodityBoughtDTO} around in
+     * large topologies.
+     */
+    static class BoughtCommodity {
+        private final double used;
+        private final double peak;
+        private final double usedPercentile;
+        private final boolean hasUsedPercentile;
+
+        BoughtCommodity(CommodityBoughtDTO commBought) {
+            this.used = commBought.getUsed();
+            this.peak = commBought.getPeak();
+            this.usedPercentile = commBought.getHistoricalUsed().getPercentile();
+            this.hasUsedPercentile = commBought.getHistoricalUsed().hasPercentile();
+        }
+
+        public double getUsed() {
+            return used;
+        }
+
+        public double getPeak() {
+            return peak;
+        }
+
+        public boolean hasPercentile() {
+            return hasUsedPercentile;
+        }
+
+        public double getPercentile() {
+            return usedPercentile;
+        }
+    }
+
+
+    /**
      * A builder to construct an immutable {@link BoughtCommoditiesInfo}.
      */
     static class Builder {
-        private final Map<String, Map<Long, Multimap<Long, CommodityBoughtDTO>>> boughtCommodities
+        private final Map<String, Long2ObjectMap<Long2ObjectMap<List<BoughtCommodity>>>> boughtCommodities
             = new HashMap<>();
         private final Map<Integer, MutableInt> duplicateCommoditiesBought
             = new HashMap();
 
-        private Builder() {}
+        private final Set<String> excludedCommodityNames;
+
+        private Builder(Set<String> excludedCommodityNames) {
+            this.excludedCommodityNames = excludedCommodityNames.stream()
+                .map(String::toLowerCase)
+                .collect(Collectors.toSet());
+        }
 
         /**
          * Record the commodities bought by the given entity in the {@link #boughtCommodities}.
@@ -199,8 +243,8 @@ class BoughtCommoditiesInfo {
             for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider : entity.getCommoditiesBoughtFromProvidersList()) {
 
                 // get provider id for this comm set
-                final Long providerId = commoditiesBoughtFromProvider.hasProviderId() ?
-                        commoditiesBoughtFromProvider.getProviderId() : null;
+                final long providerId = commoditiesBoughtFromProvider.hasProviderId()
+                    ? commoditiesBoughtFromProvider.getProviderId() : TopologyCommoditiesSnapshot.NO_PROVIDER_ID;
 
                 // set used to check if the entity is buying the same commodityType from same provider
                 Set<TopologyDTO.CommodityType> commTypesAlreadySeen = new HashSet<>();
@@ -218,23 +262,27 @@ class BoughtCommoditiesInfo {
                         // convert the commodity in a string format
                         final String commodityString = HistoryStatsUtils.formatCommodityName(
                                 commodityType.getType());
+                        // Enforce commodity exclusion.
+                        if (excludedCommodityNames.contains(commodityString.toLowerCase())) {
+                            continue;
+                        }
 
                         // get the map for that commodity type
-                        final Map<Long, Multimap<Long, CommodityBoughtDTO>> entityToCommBoughtMap =
-                                boughtCommodities.computeIfAbsent(commodityString, k -> new HashMap<>());
+                        final Long2ObjectMap<Long2ObjectMap<List<BoughtCommodity>>> entityToCommBoughtMap =
+                                boughtCommodities.computeIfAbsent(commodityString, k -> new Long2ObjectOpenHashMap<>());
 
                         // get the multimap for the current entity
-                        final Multimap<Long, CommodityBoughtDTO> providerToCommBoughtMultimap =
+                        final Long2ObjectMap<List<BoughtCommodity>> providerToCommBoughtMultimap =
                                 entityToCommBoughtMap.computeIfAbsent(entity.getOid(),
-                                        k -> ArrayListMultimap.create());
+                                        k -> new Long2ObjectOpenHashMap<>());
 
                         // for the same provider, we can have multiple commBought set, with same
                         // commodities, so in this multimap we are flattening them, and losing
                         // their separation in sets.
                         // right now this is ok, because we are not using that information after
                         // this point.
-                        providerToCommBoughtMultimap.put(providerId, commodityBoughtDTO);
-
+                        providerToCommBoughtMultimap.computeIfAbsent(providerId, k -> new ArrayList<>())
+                            .add(new BoughtCommodity(commodityBoughtDTO));
                     } else {
                         // in this case we are buying duplicate commodity from same provider
                         // in the same commodity set. we print a message and we don't save it
@@ -265,6 +313,13 @@ class BoughtCommoditiesInfo {
             duplicateCommoditiesBought.forEach((k,v) ->
                 logger.warn("Commodity was involved in {} duplicate buying relationships: " +
                     "type {}; log@DEBUG for details",  v, k));
+            boughtCommodities.values().forEach(outerMap -> {
+                ((Long2ObjectOpenHashMap)outerMap).trim();
+                outerMap.values().forEach(innerMap -> {
+                    ((Long2ObjectOpenHashMap)innerMap).trim();
+                    innerMap.values().forEach(l -> ((ArrayList)l).trimToSize());
+                });
+            });
             return new BoughtCommoditiesInfo(soldCommoditiesInfo, boughtCommodities);
         }
 

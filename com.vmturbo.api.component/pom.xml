@@ -7,7 +7,7 @@
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
-        <version>7.22.7-SNAPSHOT</version>
+        <version>7.22.8-SNAPSHOT</version>
     </parent>
 
     <artifactId>com.vmturbo.api.component</artifactId>
@@ -238,7 +238,11 @@
                                     <type>jar</type>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                     <includes>apidoc/**/*</includes>
-                                    <excludes>**/swagger.*</excludes>
+                                    <!-- remove unused files to reduce api container image layers
+                                     to below 40 -->
+                                    <excludes>**/swagger.*, apidoc/swagger-ui-standalone-preset.*,
+                                        apidoc/oauth2-redirect*, apidoc/index.html.gz
+                                    </excludes>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>

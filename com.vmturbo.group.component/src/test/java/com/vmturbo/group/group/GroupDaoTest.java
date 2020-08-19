@@ -18,6 +18,7 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 
+import org.apache.commons.lang3.StringUtils;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.junit.Assert;
@@ -159,6 +160,27 @@ public class GroupDaoTest {
                         .map(DiscoveredGroupId::getIdentity)
                         .map(DiscoveredObjectVersionIdentity::getOid)
                         .collect(Collectors.toSet()));
+    }
+
+    /**
+     * Tests the case where the name of the group is does not fit the db column.
+     *
+     * @throws StoreOperationException if something goes wrong.
+     */
+    @Test
+    public void testCreateGroupWithOversizeName() throws StoreOperationException {
+        String displayName = StringUtils.repeat("abc", 100);
+        final GroupDefinition groupDefinition = createGroupDefinition()
+            .toBuilder().setDisplayName(displayName).build();
+        final DiscoveredGroup group1 = new DiscoveredGroup(OID1, groupDefinition, "grp1",
+            Collections.singleton(100L),
+            Collections.singleton(MemberType.newBuilder().setEntity(1).build()), false);
+        groupStore.updateDiscoveredGroups(Collections.singleton(group1), Collections.emptyList(),
+            Collections.emptySet());
+
+        final GroupDTO.Grouping storeGroup = getGroupFromStore(OID1);
+        Assert.assertEquals(displayName.substring(0, 200),
+            storeGroup.getDefinition().getDisplayName().substring(0, 200));
     }
 
     /**
@@ -600,6 +622,50 @@ public class GroupDaoTest {
         Assert.assertEquals(1, actualAllTags.size());
         Assert.assertEquals(1, actualAllTags.entrySet().iterator().next().getValue()
                 .entrySet().iterator().next().getValue().size());
+    }
+
+    /**
+     * Test the cases that there are tag with oversized keys or values.
+     *
+     * @throws StoreOperationException if something goes wrong.
+     */
+    @Test
+    public void testOversizeTagValues() throws StoreOperationException {
+        final Origin origin = createUserOrigin();
+        final String tagKey1 = StringUtils.repeat("tag", 100);
+        final String tagValue1 = "tag1-1";
+        final String tagKey2 = "tag2Key";
+        final String tagValue2 = "tag1 ";
+        final String tagValue3 = StringUtils.repeat("val", 100);
+
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition())
+            .setTags(Tags.newBuilder()
+                .putTags(tagKey1, TagValuesDTO.newBuilder()
+                    .addAllValues(Collections.singletonList(tagValue1)).build())
+                .putTags(tagKey2, TagValuesDTO.newBuilder()
+                    .addAllValues(Arrays.asList(tagValue2, tagValue3)).build())).build();
+
+        groupStore.createGroup(OID2, origin, groupDefinition, EXPECTED_MEMBERS, true);
+        final Map<Long, Map<String, Set<String>>> allTags =
+            groupStore.getTags(Collections.emptyList());
+        Assert.assertEquals(1, allTags.size());
+        Map<String, Set<String>> tagMap = allTags.values().iterator().next();
+
+        Assert.assertEquals(2, tagMap.keySet().size());
+        Optional<String> oversizedTagKey = tagMap.keySet().stream()
+            .filter(str -> !tagKey2.equals(str))
+            .findAny();
+        Assert.assertTrue(oversizedTagKey.isPresent());
+        Assert.assertEquals(tagKey1.substring(0, 200), oversizedTagKey.get().substring(0, 200));
+        Assert.assertEquals(Collections.singleton(tagValue1),
+            tagMap.get(oversizedTagKey.get()));
+        Assert.assertEquals(2, tagMap.get(tagKey2).size());
+        Assert.assertTrue(tagMap.get(tagKey2).contains(tagValue2));
+        Optional<String> oversizedTagValue = tagMap.get(tagKey2).stream()
+            .filter(str -> !tagValue2.equals(str))
+            .findAny();
+        Assert.assertTrue(oversizedTagValue.isPresent());
+        Assert.assertEquals(tagValue3.substring(0, 200), oversizedTagValue.get().substring(0, 200));
     }
 
     /**

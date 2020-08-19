@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.RequiresDataInitialization;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineException;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -38,7 +39,6 @@ import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 
 /**
  * Maintains and runs scheduled events such as target discovery and topology broadcast.
@@ -829,7 +829,7 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
     private void executeTopologyBroadcast() {
         try {
             topologyHandler.broadcastLatestTopology(journalFactory);
-        } catch (RuntimeException | TopologyPipelineException e) {
+        } catch (RuntimeException | PipelineException e) {
             // Continue to execute future broadcasts if a generic runtime exception occurred.
             logger.error("Unexpected runtime exception when executing scheduled broadcast.", e);
         } catch (InterruptedException e) {

@@ -11,15 +11,17 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Optional;
 
+import com.google.common.collect.Sets;
+
+import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
+import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
+
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
-
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 
 public class ProjectedPriceIndexSnapshotTest {
 
@@ -35,9 +37,10 @@ public class ProjectedPriceIndexSnapshotTest {
 
     @Before
     public void setup() {
-        snapshot = ProjectedPriceIndexSnapshot.newFactory().createSnapshot(
-            ImmutableMap.of(SMALLER_ENTITY_OID, SMALLER_ENTITY_PRICE_INDEX,
-                BIGGER_ENTITY_OID, BIGGER_ENTITY_PRICE_INDEX));
+        Long2DoubleMap map = new Long2DoubleOpenHashMap();
+        map.put(SMALLER_ENTITY_OID, SMALLER_ENTITY_PRICE_INDEX);
+        map.put(BIGGER_ENTITY_OID, BIGGER_ENTITY_PRICE_INDEX);
+        snapshot = ProjectedPriceIndexSnapshot.newFactory().createSnapshot(map);
     }
 
     @Test

@@ -11,6 +11,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResi
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
 
 /**
@@ -22,6 +24,8 @@ import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
  */
 public class ThickSearchableProps implements SearchableProps {
     protected final TopologyEntityDTOOrBuilder entityOrBldr;
+
+    private static final String UNKNOWN = "UNKNOWN";
 
     private ThickSearchableProps(TopologyEntityDTOOrBuilder entityOrBldr) {
         this.entityOrBldr = entityOrBldr;
@@ -48,6 +52,8 @@ public class ThickSearchableProps implements SearchableProps {
                 return new ThickWorkloadControllerProps(entityOrBldr);
             case BUSINESS_ACCOUNT:
                 return new ThickBusinessAccountProps(entityOrBldr);
+            case DATABASE_SERVER:
+                return new ThickDatabaseServerProps(entityOrBldr);
             default:
                 return new ThickSearchableProps(entityOrBldr);
         }
@@ -250,6 +256,55 @@ public class ThickSearchableProps implements SearchableProps {
         @Nonnull
         public String getAccountId() {
             return entityOrBldr.getTypeSpecificInfo().getBusinessAccount().getAccountId();
+        }
+    }
+
+    /**
+     * Database server properties.
+     */
+    public static class ThickDatabaseServerProps extends ThickSearchableProps implements DatabaseServerProps {
+
+        private ThickDatabaseServerProps(TopologyEntityDTOOrBuilder entityOrBldr) {
+            super(entityOrBldr);
+        }
+
+        private boolean hasDatabaseEngine() {
+            return entityOrBldr.getTypeSpecificInfo().getDatabase().hasEngine();
+        }
+
+        private boolean hasDatabaseEdition() {
+            return entityOrBldr.getTypeSpecificInfo().getDatabase().hasEdition();
+        }
+
+        private boolean hasDatabaseVersion() {
+            return entityOrBldr.getTypeSpecificInfo().getDatabase().hasVersion();
+        }
+
+        @Override
+        @Nonnull
+        public DatabaseEngine getDatabaseEngine() {
+            if (hasDatabaseEngine()) {
+                return entityOrBldr.getTypeSpecificInfo().getDatabase().getEngine();
+            }
+            return DatabaseEngine.UNKNOWN;
+        }
+
+        @Override
+        @Nonnull
+        public DatabaseEdition getDatabaseEdition() {
+            if (hasDatabaseEdition()) {
+                return entityOrBldr.getTypeSpecificInfo().getDatabase().getEdition();
+            }
+            return DatabaseEdition.NONE;
+        }
+
+        @Override
+        @Nonnull
+        public String getDatabaseVersion() {
+            if (hasDatabaseVersion()) {
+                return entityOrBldr.getTypeSpecificInfo().getDatabase().getVersion();
+            }
+            return UNKNOWN;
         }
     }
 

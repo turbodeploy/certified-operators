@@ -93,14 +93,8 @@ rules:
   verbs:
   - '*'
 - apiGroups:
-  - apiextensions.k8s.io
+    - route.openshift.io
   resources:
-  - customresourcedefinitions
+    - routes
   verbs:
-  - '*'
-- apiGroups:
-  - jaegertracing.io
-  resources:
-  - jaegers
-  verbs:
-  - '*'
+    - '*'

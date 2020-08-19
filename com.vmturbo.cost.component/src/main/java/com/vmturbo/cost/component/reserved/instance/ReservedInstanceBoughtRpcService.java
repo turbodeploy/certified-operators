@@ -57,9 +57,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
-import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore.AccountRIMappingItem;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -187,9 +187,13 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                                         .addAllRiBoughtId(undiscoveredRiIds).build()).build());
 
         // Retrieve the total  used coupons from undiscovered accounts for each RI
-        final Map<Long, Double> undiscoveredAccountRIUsage = getUndiscoveredAccountUsageForRI(allBusinessAccounts.stream()
-                .map(dto -> dto.getOid()).collect(Collectors.toList()));
-
+        final Map<Long, Double> undiscoveredAccountRIUsage =
+                BusinessAccountHelper.getUndiscoveredAccountUsageForRI(
+                        allBusinessAccounts.stream()
+                        .map(dto -> dto.getOid()).collect(Collectors.toList()), accountRIMappingStore);
+        if (undiscoveredAccountRIUsage.isEmpty()) {
+            logger.warn("No RI usage for undiscovered accounts recorded.");
+        }
         // Update the capacities for each RI
         return stitchedRIs.stream()
                 .map(ReservedInstanceBought::toBuilder)
@@ -216,21 +220,6 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                 .collect(Collectors.toSet());
     }
 
-    private Map<Long, Double> getUndiscoveredAccountUsageForRI(final List<Long> baOids) {
-        final Map<Long, List<AccountRIMappingItem>> usedCouponInUndiscAccounts =
-                accountRIMappingStore.getAccountRICoverageMappings(baOids);
-        Map<Long, Double> undiscoveredAccountRIUsage =
-                usedCouponInUndiscAccounts.values().stream()
-                    .flatMap(List::stream)
-                    .collect(Collectors.toMap(AccountRIMappingItem::getReservedInstanceId,
-                                                AccountRIMappingItem::getUsedCoupons,
-                                                 (oldValue, newValue) -> oldValue + newValue));
-        if (undiscoveredAccountRIUsage.isEmpty()) {
-            logger.warn("No RI usage for undiscovered accounts recorded.");
-        }
-        return undiscoveredAccountRIUsage;
-    }
-
     private boolean isRIPurchasedByDiscoveredAccount(final ReservedInstanceBought ri,
                                                      final List<TopologyEntityDTO> allBusinessAccounts) {
         long riPurchasingAccount = ri.getReservedInstanceBoughtInfo().getBusinessAccountId();
@@ -239,7 +228,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                 &&  baDTO.getTypeSpecificInfo().hasBusinessAccount()
                 && baDTO.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId()
                 && riPurchasingAccount
-                        == baDTO.getTypeSpecificInfo().getBusinessAccount().getAssociatedTargetId())
+                        == baDTO.getOid())
                 .findFirst();
         return discoveredBA.isPresent();
     }

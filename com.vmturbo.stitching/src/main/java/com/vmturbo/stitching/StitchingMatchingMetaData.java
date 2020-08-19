@@ -1,10 +1,12 @@
 package com.vmturbo.stitching;
 
 import java.util.Collection;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
 
@@ -51,4 +53,12 @@ public interface StitchingMatchingMetaData<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIG
     Collection<CommodityBoughtMetadata> getCommoditiesBoughtToPatch();
     // whether or not to keep probe side entities that do not match
     boolean getKeepStandalone();
+
+    /**
+     * Get the stitching scope if it was specified.
+     *
+     * @return Optional of StitchingScope or Optional.empty if no scope was specified.
+     */
+    @Nonnull
+    Optional<MergedEntityMetadata.StitchingScope> getStitchingScope();
 }

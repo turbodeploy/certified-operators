@@ -309,12 +309,18 @@ public class TopologyConverter {
     }
 
     /**
-     * get the TopologyEntityDTO OID corresponding to the oid of a TemplateProvider.
+     * get the TopologyEntityDTO OID corresponding to the oid of a On-demand TemplateProvider.
+     * return empty if the traderTOOID is a CBTP.
      * @param traderTOOID  oid of a TemplateProvider
      * @return the OID of corresponding TopologyEntityDTO
      */
-    public Long convertTraderTOToTopologyEntityDTO(Long traderTOOID) {
-        return cloudTc.getMarketTier(traderTOOID).getTier().getOid();
+    public Optional<Long> getTopologyEntityOIDForOnDemandMarketTier(Long traderTOOID) {
+        MarketTier marketTier = cloudTc.getMarketTier(traderTOOID);
+        if (marketTier.hasRIDiscount()) {
+            return Optional.empty();
+        } else {
+            return Optional.of(marketTier.getTier().getOid());
+        }
     }
 
     private long shoppingListId = 1000L; // Arbitrary start value

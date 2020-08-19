@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.reserved.instance;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,6 +28,9 @@ import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRe
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoveredEntitiesResponse.EntitiesCoveredByReservedInstance;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
@@ -54,6 +58,8 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
 
     private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
 
+    private final AccountRIMappingStore accountRIMappingStore;
+
     private final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore;
 
     private final TimeFrameCalculator timeFrameCalculator;
@@ -72,6 +78,8 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
      *     The instance of ProjectedRICoverageStore
      * @param entityReservedInstanceMappingStore
      *     The instance of EntityReservedInstanceMappingStore
+     * @param accountRIMappingStore
+     *      The instance of AccountRIMappingStore
      * @param planProjectedRICoverageAndUtilStore
      *     The instance of PlanProjectedRICoverageAndUtilStore
      * @param timeFrameCalculator
@@ -83,6 +91,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             @Nonnull final ReservedInstanceCoverageStore reservedInstanceCoverageStore,
             @Nonnull final ProjectedRICoverageAndUtilStore projectedRICoverageStore,
             @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
+            @Nonnull final AccountRIMappingStore accountRIMappingStore,
             @Nonnull final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore,
             @Nonnull final TimeFrameCalculator timeFrameCalculator,
             final long realtimeTopologyContextId) {
@@ -91,6 +100,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
         this.projectedRICoverageStore = projectedRICoverageStore;
         this.entityReservedInstanceMappingStore =
                         Objects.requireNonNull(entityReservedInstanceMappingStore);
+        this.accountRIMappingStore = accountRIMappingStore;
         this.planProjectedRICoverageAndUtilStore = Objects.requireNonNull(planProjectedRICoverageAndUtilStore);
         this.timeFrameCalculator = timeFrameCalculator;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -349,6 +359,31 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                         Cost.GetProjectedEntityReservedInstanceCoverageResponse.newBuilder()
                                         .putAllCoverageByEntityId(retCoverage).build();
         responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getReservedInstanceCoveredEntities(
+            final GetReservedInstanceCoveredEntitiesRequest request,
+            final StreamObserver<GetReservedInstanceCoveredEntitiesResponse> responseObserver) {
+        final GetReservedInstanceCoveredEntitiesResponse.Builder response =
+                GetReservedInstanceCoveredEntitiesResponse.newBuilder();
+        final Map<Long, EntitiesCoveredByReservedInstance.Builder> riToCoveredEntities =
+                new HashMap<>();
+        entityReservedInstanceMappingStore.getEntitiesCoveredByReservedInstances(
+                request.getReservedInstanceIdList()).forEach(
+                (reservedInstanceId, coveredEntities) -> riToCoveredEntities.computeIfAbsent(
+                        reservedInstanceId, id -> EntitiesCoveredByReservedInstance.newBuilder())
+                        .addAllCoveredEntityId(coveredEntities));
+        accountRIMappingStore.getUndiscoveredAccountsCoveredByReservedInstances(
+                request.getReservedInstanceIdList()).forEach(
+                (reservedInstanceId, coveredUndiscoveredAccounts) -> riToCoveredEntities.computeIfAbsent(
+                        reservedInstanceId, id -> EntitiesCoveredByReservedInstance.newBuilder())
+                        .addAllCoveredUndiscoveredAccountId(coveredUndiscoveredAccounts));
+        riToCoveredEntities.forEach(
+                (reservedInstanceId, coveredEntities) -> response.putEntitiesCoveredByReservedInstances(
+                        reservedInstanceId, coveredEntities.build()));
+        responseObserver.onNext(response.build());
         responseObserver.onCompleted();
     }
 }

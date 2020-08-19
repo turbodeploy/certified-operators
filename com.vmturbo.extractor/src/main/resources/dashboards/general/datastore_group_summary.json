@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1595538278697,
+  "iteration": 1596572009638,
   "links": [],
   "panels": [
     {
@@ -740,14 +740,14 @@
       {
         "allValue": "'0'",
         "datasource": "$DB",
-        "definition": "SELECT name as __text, \n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND type = 'STORAGE_CLUSTER'\nOR (type = 'GROUP' \n   AND attrs -> 'expectedTypes' ? 'STORAGE')\n",
+        "definition": "SELECT name as __text, \n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND type = 'STORAGE_CLUSTER'\nOR (type = 'GROUP' \n   AND attrs -> 'member_types' ? 'STORAGE')\n",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": false,
         "name": "Group",
         "options": [],
-        "query": "SELECT name as __text, \n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND type = 'STORAGE_CLUSTER'\nOR (type = 'GROUP' \n   AND attrs -> 'expectedTypes' ? 'STORAGE')\n",
+        "query": "SELECT name as __text, \n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND type = 'STORAGE_CLUSTER'\nOR (type = 'GROUP' \n   AND attrs -> 'member_types' ? 'STORAGE')\n",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

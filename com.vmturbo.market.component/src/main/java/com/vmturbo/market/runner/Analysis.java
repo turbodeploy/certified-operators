@@ -75,6 +75,9 @@ import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.diagnostics.ActionLogger;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
@@ -85,9 +88,11 @@ import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.SMAConverter;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
@@ -435,8 +440,10 @@ public class Analysis {
                 }
                 processResultTime = RESULT_PROCESSING.startTimer();
                 if (!stopAnalysis) {
+                    List<CommoditySpecification> commsToAdjustOverheadInClone = createCommsToAdjustOverheadInClone();
+                    saveAnalysisDiags(traderTOs, commsToAdjustOverheadInClone);
                     final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
-                            topologyInfo, this);
+                            topologyInfo, commsToAdjustOverheadInClone);
                     if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
                         // whenever market receives entities from realtime broadcast, we update
                         // cachedEconomy and also pass the commodity type to specification map associated
@@ -465,7 +472,10 @@ public class Analysis {
                         for (Entry<Long, Set<Long>> entry : cloudVmOidToTraderTOs.entrySet()) {
                             Set<Long> providerOIDList = new HashSet<>();
                             for (Long traderTO : entry.getValue()) {
-                                providerOIDList.add(converter.convertTraderTOToTopologyEntityDTO(traderTO));
+                                Optional<Long> computeTierID = converter.getTopologyEntityOIDForOnDemandMarketTier(traderTO);
+                                if (computeTierID.isPresent()) {
+                                    providerOIDList.add(computeTierID.get());
+                                }
                             }
                             cloudVmOidToProvidersOIDsMap.put(entry.getKey(), providerOIDList);
                         }
@@ -658,6 +668,15 @@ public class Analysis {
         return true;
     }
 
+    private void saveAnalysisDiags(final Collection<TraderTO> traderTOs,
+                                   final List<CommoditySpecification> commSpecsToAdjustOverhead) {
+        AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
+        factory.newDiagsCollector(topologyInfo).ifPresent(diagsCollector -> {
+            diagsCollector.saveAnalysis(traderTOs, topologyInfo, config,
+                commSpecsToAdjustOverhead);
+        });
+    }
+
     /*
      * Write action to the log and if M2withSMAActions, write SMAOutput to the log.
      */
@@ -746,11 +765,20 @@ public class Analysis {
         return ProjectedTopologyEntity.newBuilder().setEntity(topologyEntityDTO).build();
     }
 
+    private List<CommoditySpecification> createCommsToAdjustOverheadInClone() {
+        return MarketAnalysisUtils.COMM_TYPES_TO_ALLOW_OVERHEAD.stream()
+            .map(type -> TopologyDTO.CommodityType.newBuilder().setType(type).build())
+            .map(this::getCommSpecForCommodity)
+            .map(cs -> new CommoditySpecification(cs.getType(), cs.getBaseType()))
+            .collect(Collectors.toList());
+    }
+
     /**
-     * Construct fake buying TopologyEntityDTOS to help form markets with sellers bundled by cluster/storage
-     * cluster.
-     * <p>
-     * This is to ensure each cluster/storage cluster will form a unique market regardless of
+     *
+     * <p>Construct fake buying TopologyEntityDTOS to help form markets with sellers bundled by cluster/storage
+     * cluster.</p>
+     *
+     * <p>This is to ensure each cluster/storage cluster will form a unique market regardless of
      * segmentation constraint which may divided the cluster/storage cluster.
      * </p>
      * @return a set of fake TopologyEntityDTOS with only cluster/storage cluster commodity in the

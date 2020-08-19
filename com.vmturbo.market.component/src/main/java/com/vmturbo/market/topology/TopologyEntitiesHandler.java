@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -152,12 +153,12 @@ public class TopologyEntitiesHandler {
      * Create an {@link Topology} from a set of {@link TraderTO}s
      * @param traderTOs A set of trader TOs.
      * @param topologyInfo Information about the topology, including parameters for the analysis.
-     * @param analysis containing reference for replay actions.
+     * @param commsToAdjustOverheadInClone commodities to adjust overhead in clones.
      * @return The newly created topology.
      */
-    public static Topology createTopology(Set<TraderTO> traderTOs,
+    public static Topology createTopology(Collection<TraderTO> traderTOs,
                                           @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
-                                          final Analysis analysis) {
+                                          final List<CommoditySpecification> commsToAdjustOverheadInClone) {
         try (TracingScope scope = Tracing.trace("create_market_traders")) {
             // Sort the traderTOs based on their oids so that the input into analysis is consistent every cycle
             logger.info("Received TOs from marketComponent. Starting sorting of traderTOs.");
@@ -190,7 +191,7 @@ public class TopologyEntitiesHandler {
             }
             populateProducesDependencyMap(topology);
             populateRawMaterialsMap(topology);
-            populateCommToAdjustOverheadInClone(topology, analysis);
+            commsToAdjustOverheadInClone.forEach(topology::addCommsToAdjustOverhead);
             return topology;
         }
     }
@@ -205,7 +206,7 @@ public class TopologyEntitiesHandler {
      * @param topology the corresponding topology
      * @return The list of actions for the TOs.
      */
-    public static AnalysisResults performAnalysis(Set<TraderTO> traderTOs,
+    public static AnalysisResults performAnalysis(Collection<TraderTO> traderTOs,
                                                   @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
                                                   final AnalysisConfig analysisConfig,
                                                   final Analysis analysis,
@@ -470,14 +471,6 @@ public class TopologyEntitiesHandler {
         for (Map.Entry<Integer, List<Triplet<Integer, Boolean, Boolean>>> entry : RawMaterialsMap.rawMaterialsMap.entrySet()) {
             topology.getModifiableRawCommodityMap().put(entry.getKey(), new RawMaterials(entry.getValue()));
         }
-    }
-
-    private static void populateCommToAdjustOverheadInClone(Topology topology, Analysis analysis) {
-        MarketAnalysisUtils.COMM_TYPES_TO_ALLOW_OVERHEAD.stream()
-                .map(type -> TopologyDTO.CommodityType.newBuilder().setType(type).build())
-                .map(analysis::getCommSpecForCommodity)
-                .map(cs -> new CommoditySpecification(cs.getType(), cs.getBaseType()))
-                .forEach(topology::addCommsToAdjustOverhead);
     }
 
     private static void setEconomySettings(@Nonnull EconomySettings economySettings,

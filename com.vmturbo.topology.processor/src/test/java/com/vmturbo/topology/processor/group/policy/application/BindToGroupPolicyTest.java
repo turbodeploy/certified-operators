@@ -44,6 +44,7 @@ import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicyApplication.PolicyApplicationResults;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * The tests use the following topology (no links are provided below 1,2 are hosts and 3,4 are VMs):
@@ -306,7 +307,7 @@ public class BindToGroupPolicyTest {
 
     private PolicyApplicationResults applyPolicy(@Nonnull final BindToGroupPolicy policy) {
         BindToGroupPolicyApplication application =
-            new BindToGroupPolicyApplication(groupResolver, topologyGraph);
+            new BindToGroupPolicyApplication(groupResolver, topologyGraph, new TopologyInvertedIndexFactory());
         return application.apply(Collections.singletonList(policy));
     }
 }

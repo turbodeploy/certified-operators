@@ -17,7 +17,7 @@ public class SMAMatch {
     /**
      * Template.
      */
-    private final SMATemplate template;
+    private SMATemplate template;
 
     private SMAReservedInstance reservedInstance;
 
@@ -67,6 +67,10 @@ public class SMAMatch {
     @Nonnull
     public SMATemplate getTemplate() {
         return template;
+    }
+
+    public void setTemplate(final SMATemplate template) {
+        this.template = template;
     }
 
     public void setVirtualMachine(final SMAVirtualMachine virtualMachine) {

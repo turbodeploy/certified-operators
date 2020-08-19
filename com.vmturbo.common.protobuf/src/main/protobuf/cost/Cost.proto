@@ -719,6 +719,8 @@ message GetReservedInstanceBoughtForAnalysisRequest {
 message GetReservedInstanceBoughtForScopeRequest {
     // If the topology is to be scoped, the OIDs specified here seed the scoping expansion.
     repeated int64 scope_seed_oids = 5;
+    optional AccountFilter.AccountFilterType account_filter_type = 6 [default = PURCHASED_BY];
+    optional bool include_undiscovered = 7 [default = true];
 }
 
 // This response contains a list reserved instance bought by topology.
@@ -1107,6 +1109,25 @@ message GetProjectedEntityReservedInstanceCoverageRequest {
     optional int64 topologyContextId = 2;
 }
 
+message GetReservedInstanceCoveredEntitiesRequest {
+    // The reserved instances for getting entities covered by them.
+    repeated int64 reserved_instance_id = 1;
+}
+
+message GetReservedInstanceCoveredEntitiesResponse {
+    // The reserved instances to covered entities mapping.
+    map<int64, EntitiesCoveredByReservedInstance> entities_covered_by_reserved_instances = 1;
+
+    // Entities covered by reserved instance.
+    message EntitiesCoveredByReservedInstance {
+        // The entities covered by reserved instance.
+        repeated int64 covered_entity_id = 1;
+
+        // The accounts covered by reserved instance.
+        repeated int64 covered_undiscovered_account_id = 2;
+    }
+}
+
 message GetProjectedEntityReservedInstanceCoverageResponse {
     // A map from entity ID to the reserved instance coverage for that entity.
     map<int64, EntityReservedInstanceCoverage> coverage_by_entity_id = 1;
@@ -1241,6 +1262,10 @@ service ReservedInstanceUtilizationCoverageService {
     // Get the projected reserved instance coverage stats.
     rpc GetProjectedEntityReservedInstanceCoverageStats(GetProjectedEntityReservedInstanceCoverageRequest)
     returns(GetProjectedEntityReservedInstanceCoverageResponse);
+
+    // Get the entities covered by reserved instances.
+    rpc GetReservedInstanceCoveredEntities (GetReservedInstanceCoveredEntitiesRequest) returns
+    (GetReservedInstanceCoveredEntitiesResponse);
 }
 
 // A service for buy reserved instance analysis.

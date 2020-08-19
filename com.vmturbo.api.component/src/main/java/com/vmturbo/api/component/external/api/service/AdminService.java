@@ -60,6 +60,7 @@ import com.vmturbo.common.protobuf.logging.Logging.GetLogLevelsResponse;
 import com.vmturbo.common.protobuf.logging.Logging.LogLevel;
 import com.vmturbo.common.protobuf.logging.Logging.SetLogLevelsRequest;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController.LogConfigurationServiceResponse;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.components.common.utils.BuildProperties;
@@ -67,12 +68,15 @@ import com.vmturbo.components.common.utils.LoggingUtils;
 import com.vmturbo.components.common.utils.Strings;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.proactivesupport.DataMetricGauge;
 
 /**
  * implement the services behind the "/admin" endpoint. This includes logging, proxy, diagnostics,
  * system status, version info, etc.
  */
 public class AdminService implements IAdminService {
+
+    private static final String PRODUCT = "Turbonomic Operations Manager";
 
     /**
      * XL only uses market 2.
@@ -161,7 +165,19 @@ public class AdminService implements IAdminService {
 
     private final boolean enableReporting;
 
+    private final boolean enableSearchApi;
+
     private final SettingsService settingsService;
+
+    /**
+     * Information about the deployment mode.
+     */
+    private static final DataMetricGauge DEPLOYMENT_MODE_GAUGE = DataMetricGauge.builder()
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "deployment_info")
+            .withHelp("Deployment mode of the instance")
+            .withLabelNames("product", "mode")
+            .build()
+            .register();
 
     AdminService(@Nonnull final ClusterService clusterService,
                  @Nonnull final KeyValueStore keyValueStore,
@@ -171,7 +187,8 @@ public class AdminService implements IAdminService {
                  @Nonnull final BuildProperties buildProperties,
                  @Nonnull final DeploymentMode deploymentMode,
                  @Nonnull final boolean enableReporting,
-                 @Nonnull final SettingsService settingsService) {
+                 @Nonnull final SettingsService settingsService,
+                 @Nonnull final boolean enableSearchApi) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.clusterMgrApi = Objects.requireNonNull(clusterMgrApi);
@@ -181,6 +198,9 @@ public class AdminService implements IAdminService {
         this.deploymentMode = deploymentMode;
         this.enableReporting = enableReporting;
         this.settingsService = settingsService;
+        this.enableSearchApi = enableSearchApi;
+
+        DEPLOYMENT_MODE_GAUGE.labels(PRODUCT, deploymentMode.toString()).setData(1.0);
     }
 
     @Override
@@ -502,6 +522,7 @@ public class AdminService implements IAdminService {
         ProductCapabilityDTO productCapabilityDTO = new ProductCapabilityDTO();
         productCapabilityDTO.setDeploymentMode(this.deploymentMode);
         productCapabilityDTO.setReportingEnabled(this.enableReporting);
+        productCapabilityDTO.setSearchApiEnabled(this.enableSearchApi);
         return productCapabilityDTO;
     }
 

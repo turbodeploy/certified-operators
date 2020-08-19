@@ -120,6 +120,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo.ControllerTypeCase;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
@@ -423,8 +424,16 @@ public class SearchService implements ISearchService {
             // Check if the scope is not global and the set of scope ids is empty.
             // This means there is an invalid scope.
             if (!isGlobalScope && scopeServiceEntityIds.isEmpty()) {
-                // throw an exception since the input is not valid
-                throw new IllegalArgumentException("Invalid scope specified. There are no entities related to the scope.");
+                // checking if the scope is valid
+                Stream<ApiPartialEntity> scopeEntities = repositoryApi.entitiesRequest(scopes.stream()
+                    .map(Long::parseLong).collect(Collectors.toSet()))
+                    .getEntities();
+                if (scopeEntities == null || scopeEntities.count() == 0) {
+                    throw new IllegalArgumentException("Invalid scope specified. There are no entities"
+                        + " related to the scope.");
+                }
+                // returning an empty response
+                return paginationRequest.allResultsResponse(Collections.emptyList());
             }
 
             // TODO (roman, June 17 2019: We should probably include the IDs in the query, unless
@@ -603,8 +612,16 @@ public class SearchService implements ISearchService {
             final Set<Long> expandedIds = groupsService.expandUuids(scopeList, entityTypes,
                     inputDTO.getEnvironmentType());
             if (expandedIds.isEmpty()) {
+                // checking if the scope is valid
+                Stream<ApiPartialEntity> scopeEntities = repositoryApi.entitiesRequest(scopeList.stream()
+                    .map(Long::parseLong).collect(Collectors.toSet()))
+                    .getEntities();
+                if (scopeEntities == null || scopeEntities.count() == 0) {
+                    throw new IllegalArgumentException("Invalid scope specified. There are no entities"
+                        + " related to the scope.");
+                }
                 // return empty response since there is no related entities in given scope
-                throw new IllegalArgumentException("Invalid scope specified. There are no entities related to the scope.");
+                return paginationRequest.allResultsResponse(Collections.emptyList());
             }
             // if scope is specified, result entities should be chosen from related entities in scope
             // note: environment type has already been filtered above in expandUuids

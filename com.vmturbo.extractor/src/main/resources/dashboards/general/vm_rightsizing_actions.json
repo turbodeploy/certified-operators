@@ -15,7 +15,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1596225568400,
+  "iteration": 1596576656708,
   "links": [],
   "panels": [
     {
@@ -89,7 +89,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH action_data AS (\n    SELECT DISTINCT\n           target_entity_id\n          ,savings\n          ,description\n    FROM action, action_spec\n    WHERE spec_oid = action_spec_oid\n      AND hash = action_spec_hash\n      AND type = 'RESIZE'\n      AND state = 'READY'\n      AND time between timestamptz $__timeTo() - interval '30 minute' and $__timeTo()\n      AND ($__timeFrom(), $__timeTo()) OVERLAPS (first_seen, last_seen) \n)\n\nSELECT e.name as \"VM Name\"\n      ,MAX(m.current) FILTER (WHERE m.type = 'VCPU')*1000000 as \"Peak VCPU\"\n      ,MAX(m.current) FILTER (WHERE m.type = 'VMEM') as \"Peak VMem\"\n      ,description as \"Action Details\"\n      ,btrim(regexp_matches(description, 'from ([0-9]{0,4}|[0-9]{0,4}.[0-9] GB)')::text, '{}\"')  as \"From\"\n      ,btrim(regexp_matches(description, 'to ([0-9]{0,4}|[0-9]{0,4}.[0-9] GB)')::text, '{}\"') as \"To\"\n  FROM entity as e, metric as m, action_data\n WHERE m.entity_oid = e.oid\n   AND m.entity_hash = e.hash\n   AND e.oid = action_data.target_entity_id\n   AND $__timeFilter(\"time\")\n   AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \n   AND CASE WHEN ARRAY[ $VMGroup ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $VMGroup ]::bigint[]) END\n GROUP BY e.oid, description, 1",
+          "rawSql": "WITH action_data AS (\n    SELECT DISTINCT\n           target_entity_id\n          ,savings\n          ,description\n    FROM action, action_spec\n    WHERE spec_oid = action_spec_oid\n      AND hash = action_spec_hash\n      AND type = 'RESIZE'\n      AND state = 'READY'\n      AND time between timestamptz $__timeTo() - interval '30 minute' and $__timeTo()\n      AND ($__timeFrom(), $__timeTo()) OVERLAPS (first_seen, last_seen) \n)\n\nSELECT e.name as \"VM Name\"\n      ,MAX(m.current) FILTER (WHERE m.type = 'VCPU')*1000000 as \"Peak VCPU\"\n      ,MAX(m.current) FILTER (WHERE m.type = 'VMEM') as \"Peak VMem\"\n      ,description as \"Action Details\"\n      ,btrim(regexp_matches(description, 'from ([0-9]{0,4}|[0-9]{0,4}.[0-9] GB)')::text, '{}\"')  as \"From\"\n      ,btrim(regexp_matches(description, 'to ([0-9]{0,4}|[0-9]{0,4}.[0-9] GB)')::text, '{}\"') as \"To\"\n  FROM entity as e, metric as m, action_data\n WHERE m.entity_oid = e.oid\n   AND m.entity_hash = e.hash\n   AND e.oid = action_data.target_entity_id\n   AND $__timeFilter(\"time\")\n   AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n   AND e.type = 'VIRTUAL_MACHINE'\n   AND CASE WHEN ARRAY[ $VMGroup ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $VMGroup ]::bigint[]) END\n GROUP BY e.oid, description, 1",
           "refId": "A",
           "select": [
             [
@@ -160,7 +160,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH group_data as (\n    SELECT DISTINCT on(e.oid) g.name as group_name\n        ,e.oid as vm_oid\n    FROM entity g\n    JOIN entity e on g.\"type\" = 'GROUP' \n    AND CASE WHEN ARRAY[ $VMGroup ] = ARRAY[ '0' ] THEN true ELSE (g.oid = $VMGroup) END\n    AND e.\"type\" = 'VIRTUAL_MACHINE'\n    AND g.attrs -> 'expectedTypes' ? 'VIRTUAL_MACHINE'\n    AND ($__timeFrom(),$__timeTo()) OVERLAPS (e.first_seen, e.last_seen)\n    AND ($__timeFrom(),$__timeTo()) OVERLAPS (g.first_seen, g.last_seen)\n    ),\n\nvm_peaks as (\n    SELECT e.oid\n          ,MAX(m.utilization) FILTER (WHERE m.type = 'VCPU') as peak_vcpu\n          ,MAX(m.utilization) FILTER (WHERE m.type = 'VMEM') as peak_vmem\n      FROM entity as e, metric as m\n     WHERE m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND $__timeFilter(\"time\")\n       AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \n       AND CASE WHEN ARRAY[ $VMGroup ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $VMGroup ]::bigint[]) END\n     GROUP BY e.oid\n)\n\nSELECT group_data.group_name as \"Group Name\"\n      ,AVG(peak_vcpu) as \"Avg Peak VCPU\"\n      ,AVG(peak_vmem) as \"Avg Peak VMem\"\n  FROM group_data, vm_peaks \n WHERE vm_peaks.oid = group_data.vm_oid\n GROUP BY group_data.group_name",
+          "rawSql": "WITH group_data as (\n    SELECT DISTINCT on(e.oid) g.name as group_name\n        ,e.oid as vm_oid\n    FROM entity g\n    JOIN entity e on g.\"type\" = 'GROUP' \n    AND CASE WHEN ARRAY[ $VMGroup ] = ARRAY[ '0' ] THEN true ELSE (g.oid = $VMGroup) END\n    AND e.\"type\" = 'VIRTUAL_MACHINE'\n    AND g.attrs -> 'member_types' ? 'VIRTUAL_MACHINE'\n    AND ($__timeFrom(),$__timeTo()) OVERLAPS (e.first_seen, e.last_seen)\n    AND ($__timeFrom(),$__timeTo()) OVERLAPS (g.first_seen, g.last_seen)\n    ),\n\nvm_peaks as (\n    SELECT e.oid\n          ,MAX(m.utilization) FILTER (WHERE m.type = 'VCPU') as peak_vcpu\n          ,MAX(m.utilization) FILTER (WHERE m.type = 'VMEM') as peak_vmem\n      FROM entity as e, metric as m\n     WHERE m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND $__timeFilter(\"time\")\n       AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \n       AND CASE WHEN ARRAY[ $VMGroup ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $VMGroup ]::bigint[]) END\n     GROUP BY e.oid\n)\n\nSELECT group_data.group_name as \"Group Name\"\n      ,AVG(peak_vcpu) as \"Avg Peak VCPU\"\n      ,AVG(peak_vmem) as \"Avg Peak VMem\"\n  FROM group_data, vm_peaks \n WHERE vm_peaks.oid = group_data.vm_oid\n GROUP BY group_data.group_name",
           "refId": "A",
           "select": [
             [
@@ -212,14 +212,14 @@
       {
         "allValue": "'0'",
         "datasource": "$DB",
-        "definition": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'GROUP' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'expectedTypes' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
+        "definition": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'GROUP' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": false,
         "name": "VMGroup",
         "options": [],
-        "query": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'GROUP' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'expectedTypes' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
+        "query": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'GROUP' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

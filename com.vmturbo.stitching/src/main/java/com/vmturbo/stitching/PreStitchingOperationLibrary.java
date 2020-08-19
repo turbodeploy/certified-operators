@@ -16,6 +16,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.prestitching.ADGroupsPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.ConnectedNetworkPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
+import com.vmturbo.stitching.prestitching.SharedAzureRegionPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedCloudEntityPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedEntityCustomProbePreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedEntityDefaultPreStitchingOperation;
@@ -81,6 +82,7 @@ public class PreStitchingOperationLibrary {
                         stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
                                 SDKProbeType.HYPERV.getProbeType(), EntityType.DATACENTER)),
                 new StorageVolumePreStitchingOperation(),
+                new SharedAzureRegionPreStitchingOperation(),
                 new SharedVirtualVolumePreStitchingOperation(),
                 new ConnectedNetworkPreStitchingOperation(),
                 new ADGroupsPreStitchingOperation(),
