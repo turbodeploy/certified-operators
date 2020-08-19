@@ -335,8 +335,10 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         final String value = setting.getEnumSettingValue().getValue();
         if (!type.getEnumValuesList().contains(value)) {
             return Collections.singleton(
-                    "Value " + value + " is not in the allowable list: " + StringUtils.join(
-                            type.getEnumValuesList(), ", "));
+                    "The value \'" + value + "\' provided for setting \'"
+                        + settingSpec.getDisplayName() + "\' is not one the "
+                        + "allowed values: "
+                        + StringUtils.join(type.getEnumValuesList(), ", "));
         }
         return Collections.emptySet();
     }
