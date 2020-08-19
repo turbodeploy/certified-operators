@@ -45,6 +45,10 @@ public class StatsUtils {
             Sets.immutableEnumSet(ApiEntityType.AVAILABILITY_ZONE, ApiEntityType.BUSINESS_ACCOUNT,
                     ApiEntityType.REGION, ApiEntityType.SERVICE_PROVIDER);
 
+    // stat filters used to filter commodity stats by provider.
+    public static final String PROVIDER_TYPE_STAT_FILTER = "providerType";
+    public static final String PROJECTED_PROVIDER_STAT_FILTER = "projectedProvider";
+
     /**
      * Convert the default commodity units into converted units with multiplier that we need to
      * to the current value.

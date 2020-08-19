@@ -506,7 +506,7 @@ public class StatsHistoryRpcServiceTest {
                 .build();
         StatSnapshot statSnapshot = StatSnapshot.newBuilder()
                 .build();
-        when(mockProjectedStatsStore.getStatSnapshotForEntities(entityOids, commodityNames))
+        when(mockProjectedStatsStore.getStatSnapshotForEntities(entityOids, commodityNames, Collections.emptySet()))
                 .thenReturn(Optional.of(statSnapshot));
 
         // act
@@ -538,7 +538,7 @@ public class StatsHistoryRpcServiceTest {
         final Map<Long, Set<Long>> entities = StatsTestUtils.createEntityGroupsMap(targetEntities);
 
         when(paginationParamsFactory.newPaginationParams(paginationParams)).thenReturn(entityStatsPaginationParams);
-        when(mockProjectedStatsStore.getEntityStats(entities, targetCommodities, entityStatsPaginationParams))
+        when(mockProjectedStatsStore.getEntityStats(entities, targetCommodities, Collections.emptySet(), entityStatsPaginationParams))
                 .thenReturn(expectedResponse);
 
         List<EntityGroup> entityGroups = entities.entrySet().stream()
@@ -560,7 +560,7 @@ public class StatsHistoryRpcServiceTest {
 
         assertThat(response, is(expectedResponse));
 
-        verify(mockProjectedStatsStore).getEntityStats(entities, targetCommodities,
+        verify(mockProjectedStatsStore).getEntityStats(entities, targetCommodities, Collections.emptySet(),
             entityStatsPaginationParams);
     }
 

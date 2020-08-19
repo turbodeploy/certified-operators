@@ -43,7 +43,8 @@ public class ConsistentScalingHelper {
      */
     private static final ImmutableSet<Integer> consistentScalingCommodities = ImmutableSet.of(
         CommodityDTO.CommodityType.CPU_VALUE, CommodityType.CPU_PROVISIONED_VALUE,
-        CommodityDTO.CommodityType.MEM_VALUE, CommodityType.MEM_PROVISIONED_VALUE
+        CommodityDTO.CommodityType.MEM_VALUE, CommodityType.MEM_PROVISIONED_VALUE,
+        CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE
     );
 
     private final SettingPolicyServiceBlockingStub settingPolicyService;

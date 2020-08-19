@@ -14,7 +14,6 @@ import static org.mockito.Mockito.when;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Before;
@@ -24,12 +23,15 @@ import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -167,5 +169,33 @@ public class ProjectedCommodityStatsSubQueryTest {
         final List<StatApiDTO> stats = resultSnapshot.getStatistics();
         assertThat(stats.size(), is(1));
         assertThat(stats, is(mappedSnapshot.getStatistics()));
+    }
+
+    /**
+     * Test that a projected provider filter is appropriately mapped into the request.
+     *
+     * @throws OperationFailedException never
+     */
+    @Test
+    public void testProviderOidsRequested() throws OperationFailedException {
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getExpandedOids()).thenReturn(Collections.singleton(100L));
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        when(context.getQueryScope()).thenReturn(queryScope);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+        when(statsMapper.toStatSnapshotApiDTO(any())).thenReturn(new StatSnapshotApiDTO());
+
+        final StatApiInputDTO input = new StatApiInputDTO();
+        final StatFilterApiDTO filter = new StatFilterApiDTO();
+        filter.setType(StatsUtils.PROJECTED_PROVIDER_STAT_FILTER);
+        filter.setValue("200");
+        input.setFilters(Collections.singletonList(filter));
+
+        query.getAggregateStats(Collections.singleton(input), context);
+        final ArgumentCaptor<ProjectedStatsRequest> reqCaptor =
+            ArgumentCaptor.forClass(ProjectedStatsRequest.class);
+        verify(backend).getProjectedStats(reqCaptor.capture());
+        assertEquals(1, reqCaptor.getValue().getProvidersCount());
+        assertEquals(200, reqCaptor.getValue().getProviders(0));
     }
 }

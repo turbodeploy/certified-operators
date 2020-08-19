@@ -205,6 +205,8 @@ public class EntitySettingsApplicator {
                 new ResizeTargetUtilizationCommodityBoughtApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationNetThroughput,
                         CommodityType.NET_THROUGHPUT),
+                new ResizeTargetUtilizationCommodityBoughtApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationIops, CommodityType.STORAGE_ACCESS),
                 new ResizeTargetUtilizationCommoditySoldApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationVcpu, CommodityType.VCPU),
                 new ResizeTargetUtilizationCommoditySoldApplicator(
