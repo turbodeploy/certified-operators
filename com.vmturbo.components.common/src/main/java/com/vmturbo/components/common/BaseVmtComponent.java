@@ -94,8 +94,6 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
 public abstract class BaseVmtComponent implements IVmtComponent,
         ApplicationListener<ContextRefreshedEvent> {
 
-    private static final String PRODUCT = "Turbonomic Operations Manager";
-
     /**
      * The environment key for the "type" (or category) for the current component.
      */
@@ -170,7 +168,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     private static final DataMetricGauge VERSION_GAUGE = DataMetricGauge.builder()
             .withName(StringConstants.METRICS_TURBO_PREFIX + "version_info")
             .withHelp("Version and build of the component")
-            .withLabelNames("product", "version", "build")
+            .withLabelNames("version", "build")
             .build()
             .register();
 
@@ -418,7 +416,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             }
         });
         BuildProperties buildProperties = BuildProperties.get();
-        VERSION_GAUGE.labels(PRODUCT, buildProperties.getVersion(), buildProperties.getBuildNumber()).setData(1.0);
+        VERSION_GAUGE.labels(buildProperties.getVersion(), buildProperties.getBuildNumber()).setData(1.0);
         svc.shutdown();
     }
 
