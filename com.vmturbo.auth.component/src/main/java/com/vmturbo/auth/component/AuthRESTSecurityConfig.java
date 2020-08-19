@@ -139,6 +139,10 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
             .authorizeRequests()
             .antMatchers(HttpMethod.POST,"/LogConfigurationService/setLogLevels")
             .permitAll()
+            .and()
+            .authorizeRequests()
+            .antMatchers(HttpMethod.POST, "/LicenseManagerService/getLicenses")
+            .permitAll()
             .anyRequest().authenticated().and()
             .addFilterBefore(new SpringAuthFilter(securityConfig.verifier()),
                              UsernamePasswordAuthenticationFilter.class);
