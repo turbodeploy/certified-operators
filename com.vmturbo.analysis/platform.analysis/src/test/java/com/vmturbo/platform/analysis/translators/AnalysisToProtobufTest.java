@@ -35,6 +35,8 @@ import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.CommoditySoldWithSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -444,6 +446,21 @@ public class AnalysisToProtobufTest {
         Set<Trader> prefTrader = Sets.newHashSet(vm1);
         TraderTO traderTO = AnalysisToProtobuf.traderTO(economy, pm, HashBiMap.create(), prefTrader);
         assertEquals(2, traderTO.getNumOfProduces());
+    }
+
+    @Test
+    public final void testCalculateQuote() {
+        CommoditySold commSold = new CommoditySoldWithSettings();
+        commSold.setStartCapacity(10);
+        commSold.setStartQuantity(5);
+        commSold.setStartPeakQuantity(5);
+
+        commSold.setCapacity(20);
+        commSold.setQuantity(10);
+        commSold.setPeakQuantity(14);
+
+        double quote = AnalysisToProtobuf.calculateQuote(commSold, 5, 8, null, null, null);
+        assertEquals(2.3, quote, 1e-7);
     }
 
 } // end AnalysisToProtobufTest class

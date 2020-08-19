@@ -272,6 +272,7 @@ public final class ProtobufToAnalysis {
         destination.setStartPeakQuantity(source.getQuantity() >
             source.getPeakQuantity() ? source.getQuantity() :
                 source.getPeakQuantity());
+        destination.setStartCapacity(source.getCapacity());
         destination.setThin(source.getThin());
 
         // Only populate the right size quantity if it has been sent

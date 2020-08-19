@@ -25,6 +25,7 @@ public abstract class CommoditySold implements Serializable {
     private double capacity_ = Double.MAX_VALUE;
     private double startQuantity_ = 0.0;
     private double startPeakQuantity_ = 0.0;
+    private double startCapacity_ = Double.MAX_VALUE;
     // The negative one value for historicalQuantity_ represents that it has not been populated
     private double historicalQuantity_ = -1D;
     private boolean thin_ = false;
@@ -135,6 +136,15 @@ public abstract class CommoditySold implements Serializable {
    }
 
     /**
+     *
+     * @return The start capacity.
+     */
+    @Pure
+    public double getStartCapacity(@ReadOnly CommoditySold this) {
+        return startCapacity_;
+    }
+
+    /**
      * Returns the <b>effective capacity</b> of {@code this} commodity.
      *
      * @return {@link #getSettings()}.{@link CommoditySoldSettings#getUtilizationUpperBound()
@@ -144,6 +154,17 @@ public abstract class CommoditySold implements Serializable {
      */
     @Pure
     public abstract double getEffectiveCapacity(@ReadOnly CommoditySold this);
+
+    /**
+     * Returns the <b>effective start capacity</b> of {@code this} commodity.
+     *
+     * @return {@link #getSettings()}.{@link CommoditySoldSettings#getUtilizationUpperBound()
+     *          getUtilizationUpperBound()}*{@link #getStartCapacity()}
+     *
+     * @see #getStartCapacity()
+     */
+    @Pure
+    public abstract double getEffectiveStartCapacity(@ReadOnly CommoditySold this);
 
     /**
      * Returns whether {@code this} commodity is <b>thin</b> provisioned.
@@ -261,6 +282,20 @@ public abstract class CommoditySold implements Serializable {
         startPeakQuantity_ = startPeakQuantity;
         return this;
     }
+
+    /**
+     * Sets the value of start capacity.
+     *
+     * @param startCapacity start capacity value.
+     * @return {@code this}
+     */
+    @Deterministic
+    public @NonNull CommoditySold setStartCapacity(double startCapacity) {
+        checkArgument(0 <= startCapacity, "capacity = %s", startCapacity);
+        startCapacity_ = startCapacity;
+        return this;
+    }
+
 
     /**
      * Sets the value for the historical quantity for the commodity.
