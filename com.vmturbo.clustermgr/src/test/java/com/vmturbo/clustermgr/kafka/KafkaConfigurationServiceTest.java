@@ -22,7 +22,7 @@ public class KafkaConfigurationServiceTest {
         return new KafkaConfigurationService("localhost:9093",
                 KafkaConfigurationServiceConfig.DEFAULT_CONFIG_MAX_RETRY_TIME_SECS,
                 KafkaConfigurationServiceConfig.DEFAULT_CONFIG_RETRY_DELAY_MS,
-                (short) 1);
+                (short) 1, null);
     }
 
     @Test
@@ -64,7 +64,7 @@ public class KafkaConfigurationServiceTest {
         String namespacePrefix = "namespace.";
         KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService("localhost:9093",
                 KafkaConfigurationServiceConfig.DEFAULT_CONFIG_MAX_RETRY_TIME_SECS,
-                KafkaConfigurationServiceConfig.DEFAULT_CONFIG_RETRY_DELAY_MS, (short) 1, namespacePrefix);
+                KafkaConfigurationServiceConfig.DEFAULT_CONFIG_RETRY_DELAY_MS, (short) 1, null, namespacePrefix);
 
         String testConfigFile = "src/test/resources/kafka-test-config.yml";
         KafkaConfiguration config = kafkaConfigurationService.readKafkaConfiguration(testConfigFile);
@@ -89,7 +89,7 @@ public class KafkaConfigurationServiceTest {
         // test bad URL's
         thrown.expect(IllegalArgumentException.class);
         thrown.expectMessage("bootstrapServers must have a value.");
-        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService("",1,1, (short) 1);
+        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService("",1,1, (short) 1, null);
     }
 
     @Test
@@ -97,7 +97,7 @@ public class KafkaConfigurationServiceTest {
         // test timeout less than zero
         thrown.expect(IllegalArgumentException.class);
         thrown.expectMessage("Configuration max retry time cannot be less than zero.");
-        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService("blah",-1,1, (short) 1);
+        KafkaConfigurationService kafkaConfigurationService = new KafkaConfigurationService("blah",-1,1, (short) 1, null);
     }
 
 }
