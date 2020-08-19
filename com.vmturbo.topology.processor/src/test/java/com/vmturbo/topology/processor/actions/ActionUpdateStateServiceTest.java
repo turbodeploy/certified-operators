@@ -4,11 +4,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Optional;
-import java.util.function.BiConsumer;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
+
+import io.opentracing.SpanContext;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -24,6 +25,7 @@ import org.mockito.MockitoAnnotations;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.TriConsumer;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
@@ -66,8 +68,10 @@ public class ActionUpdateStateServiceTest {
     private IOperationManager operationManager;
     @Mock
     private IMessageReceiver<ActionResponse> msgReceiver;
+    @Mock
+    private SpanContext spanContext;
     @Captor
-    private ArgumentCaptor<BiConsumer<ActionResponse, Runnable>> receiverCaptor;
+    private ArgumentCaptor<TriConsumer<ActionResponse, Runnable, SpanContext>> receiverCaptor;
     @Captor
     private ArgumentCaptor<OperationCallback<ActionErrorsResponse>> callbackCaptor;
     @Captor
@@ -85,7 +89,7 @@ public class ActionUpdateStateServiceTest {
         MockitoAnnotations.initMocks(this);
         this.scheduledService = new MockScheduledService();
         new ActionUpdateStateService(targetStore, operationManager, msgReceiver, scheduledService,
-                30, 2);
+                30, 2, 3);
         Mockito.verify(msgReceiver).addListener(receiverCaptor.capture());
         final TargetSpec targetSpec = TargetSpec.newBuilder().setProbeId(PROBE_ID).addAccountValue(
                 AccountValue.newBuilder().setKey("id").setStringValue("target").build()).build();
@@ -125,9 +129,9 @@ public class ActionUpdateStateServiceTest {
     @Test
     public void testSuccessFlow() throws Exception {
         final Runnable commit1 = Mockito.mock(Runnable.class);
-        receiverCaptor.getValue().accept(createActionResponse(ACTION1), commit1);
+        receiverCaptor.getValue().accept(createActionResponse(ACTION1), commit1, spanContext);
         final Runnable commit2 = Mockito.mock(Runnable.class);
-        receiverCaptor.getValue().accept(createActionResponse(ACTION2), commit2);
+        receiverCaptor.getValue().accept(createActionResponse(ACTION2), commit2, spanContext);
         Mockito.verifyZeroInteractions(commit1);
         Mockito.verifyZeroInteractions(commit2);
         Mockito.verifyZeroInteractions(operationManager);
@@ -150,6 +154,101 @@ public class ActionUpdateStateServiceTest {
     }
 
     /**
+     * Test following flow when the number of maximum elements is exceeded in queue contains
+     * state updates. When queue is full and we receive new updates we remove oldest elements
+     * from queue in order to add latest one.
+     * MaxElementsInQueue - 3, batchSize - 2.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testTheNumberOfMaximumElementsInQueueIsExceeded() throws Exception {
+        final Runnable commit1 = Mockito.mock(Runnable.class);
+        final Runnable commit2 = Mockito.mock(Runnable.class);
+        final Runnable commit3 = Mockito.mock(Runnable.class);
+        final Runnable commit4 = Mockito.mock(Runnable.class);
+
+        final ActionResponse actionResponse1 =
+                createActionResponse(ACTION1, 30, ActionResponseState.IN_PROGRESS);
+        final ActionResponse actionResponse2 =
+                createActionResponse(ACTION1, 50, ActionResponseState.IN_PROGRESS);
+        final ActionResponse actionResponse3 =
+                createActionResponse(ACTION1, 80, ActionResponseState.IN_PROGRESS);
+        final ActionResponse actionResponse4 =
+                createActionResponse(ACTION1, 100, ActionResponseState.SUCCEEDED);
+
+        receiverCaptor.getValue().accept(actionResponse1, commit1, spanContext);
+        receiverCaptor.getValue().accept(actionResponse2, commit2, spanContext);
+        receiverCaptor.getValue().accept(actionResponse3, commit3, spanContext);
+        receiverCaptor.getValue().accept(actionResponse4, commit4, spanContext);
+
+        Mockito.verifyZeroInteractions(commit1);
+        Mockito.verifyZeroInteractions(commit2);
+        Mockito.verifyZeroInteractions(commit3);
+        Mockito.verifyZeroInteractions(commit4);
+        Mockito.verifyZeroInteractions(operationManager);
+        scheduledService.executeScheduledTasks();
+        Mockito.verify(operationManager)
+                .updateExternalAction(Mockito.eq(TGT_ID), probeRequestCaptor.capture(),
+                        callbackCaptor.capture());
+        Assert.assertEquals(Sets.newHashSet(actionResponse2, actionResponse3),
+                new HashSet<>(probeRequestCaptor.getValue()));
+        callbackCaptor.getValue().onSuccess(ActionErrorsResponse.getDefaultInstance());
+        // sent only #2 and #3 state updates because #1 was removed from queue when it was full and
+        // we received #4 update
+        Mockito.verifyZeroInteractions(commit1);
+        Mockito.verify(commit2).run();
+        Mockito.verify(commit3).run();
+        Mockito.verifyZeroInteractions(commit4);
+        // Sending another chunk after previous is finished
+        scheduledService.executeScheduledTasks();
+        Mockito.verify(operationManager, Mockito.times(2)).updateExternalAction(Mockito.eq(TGT_ID),
+                probeRequestCaptor.capture(), callbackCaptor.capture());
+        Assert.assertEquals(Sets.newHashSet(actionResponse4),
+                new HashSet<>(probeRequestCaptor.getAllValues().get(2)));
+        callbackCaptor.getValue().onSuccess(ActionErrorsResponse.getDefaultInstance());
+        // send last remaining #4 state update
+        Mockito.verifyZeroInteractions(commit1);
+        Mockito.verifyZeroInteractions(commit2);
+        Mockito.verifyZeroInteractions(commit3);
+        Mockito.verify(commit4).run();
+    }
+
+    /**
+     * Tests sending intermediate state updates.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testSendingIntermediateStateUpdates() throws Exception {
+        final Runnable commit1 = Mockito.mock(Runnable.class);
+        final Runnable commit2 = Mockito.mock(Runnable.class);
+
+        final ActionResponse actionResponse1 =
+                createActionResponse(ACTION1, 80, ActionResponseState.IN_PROGRESS);
+        final ActionResponse actionResponse2 =
+                createActionResponse(ACTION1, 100, ActionResponseState.SUCCEEDED);
+
+        receiverCaptor.getValue().accept(actionResponse1, commit1, spanContext);
+        receiverCaptor.getValue().accept(actionResponse2, commit2, spanContext);
+
+        Mockito.verifyZeroInteractions(commit1);
+        Mockito.verifyZeroInteractions(commit2);
+        Mockito.verifyZeroInteractions(operationManager);
+        scheduledService.executeScheduledTasks();
+        Mockito.verifyZeroInteractions(commit1);
+        Mockito.verifyZeroInteractions(commit2);
+        Mockito.verify(operationManager)
+                .updateExternalAction(Mockito.eq(TGT_ID), probeRequestCaptor.capture(),
+                        callbackCaptor.capture());
+        Assert.assertEquals(Sets.newHashSet(actionResponse1, actionResponse2),
+                new HashSet<>(probeRequestCaptor.getValue()));
+        callbackCaptor.getValue().onSuccess(ActionErrorsResponse.getDefaultInstance());
+        Mockito.verify(commit1).run();
+        Mockito.verify(commit2).run();
+    }
+
+    /**
      * Tests failure while sending values to remove container. Action updates are expected to
      * still be resent within a next execution
      *
@@ -158,7 +257,7 @@ public class ActionUpdateStateServiceTest {
     @Test
     public void testFailureSendingUpdates() throws Exception {
         final Runnable commit1 = Mockito.mock(Runnable.class);
-        receiverCaptor.getValue().accept(createActionResponse(ACTION1), commit1);
+        receiverCaptor.getValue().accept(createActionResponse(ACTION1), commit1, spanContext);
         Mockito.verifyZeroInteractions(operationManager);
         scheduledService.executeScheduledTasks();
         Mockito.verify(operationManager).updateExternalAction(Mockito.eq(TGT_ID),
@@ -169,7 +268,7 @@ public class ActionUpdateStateServiceTest {
         Mockito.verifyZeroInteractions(commit1);
 
         final Runnable commit2 = Mockito.mock(Runnable.class);
-        receiverCaptor.getValue().accept(createActionResponse(ACTION2), commit2);
+        receiverCaptor.getValue().accept(createActionResponse(ACTION2), commit2, spanContext);
         scheduledService.executeScheduledTasks();
         Mockito.verify(operationManager, Mockito.times(2)).updateExternalAction(Mockito.eq(TGT_ID),
                 probeRequestCaptor.capture(), callbackCaptor.capture());
@@ -195,14 +294,14 @@ public class ActionUpdateStateServiceTest {
     @Test
     public void testSdkOperationAlreadyRunning() throws Exception {
         final Runnable commit1 = Mockito.mock(Runnable.class);
-        receiverCaptor.getValue().accept(createActionResponse(ACTION1), commit1);
+        receiverCaptor.getValue().accept(createActionResponse(ACTION1), commit1, spanContext);
         scheduledService.executeScheduledTasks();
         Mockito.verify(operationManager).updateExternalAction(Mockito.eq(TGT_ID),
                 probeRequestCaptor.capture(), callbackCaptor.capture());
         Assert.assertEquals(Sets.newHashSet(createActionResponse(ACTION1)),
                 new HashSet<>(probeRequestCaptor.getValue()));
         final Runnable commit2 = Mockito.mock(Runnable.class);
-        receiverCaptor.getValue().accept(createActionResponse(ACTION2), commit2);
+        receiverCaptor.getValue().accept(createActionResponse(ACTION2), commit2, spanContext);
         scheduledService.executeScheduledTasks();
         callbackCaptor.getValue().onSuccess(ActionErrorsResponse.newBuilder().build());
         Mockito.verify(commit1).run();
@@ -216,7 +315,7 @@ public class ActionUpdateStateServiceTest {
     @Test
     public void testNoApprovalTarget() {
         final Runnable commit1 = Mockito.mock(Runnable.class);
-        receiverCaptor.getValue().accept(createActionResponse(ACTION1), commit1);
+        receiverCaptor.getValue().accept(createActionResponse(ACTION1), commit1, spanContext);
         Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
         scheduledService.executeScheduledTasks();
         Mockito.verifyZeroInteractions(operationManager);
@@ -231,7 +330,7 @@ public class ActionUpdateStateServiceTest {
     @Test
     public void testFailureSendingRequestToProbe() throws Exception {
         final Runnable commit1 = Mockito.mock(Runnable.class);
-        receiverCaptor.getValue().accept(createActionResponse(ACTION1), commit1);
+        receiverCaptor.getValue().accept(createActionResponse(ACTION1), commit1, spanContext);
         Mockito.doThrow(new CommunicationException("Avada Kedavra"))
                 .when(operationManager)
                 .updateExternalAction(Mockito.eq(TGT_ID), Mockito.any(), Mockito.any());
@@ -251,11 +350,11 @@ public class ActionUpdateStateServiceTest {
     @Test
     public void testBatchChunking() throws Exception {
         final Runnable commit1 = Mockito.mock(Runnable.class);
-        receiverCaptor.getValue().accept(createActionResponse(ACTION1), commit1);
+        receiverCaptor.getValue().accept(createActionResponse(ACTION1), commit1, spanContext);
         final Runnable commit2 = Mockito.mock(Runnable.class);
-        receiverCaptor.getValue().accept(createActionResponse(ACTION2), commit2);
+        receiverCaptor.getValue().accept(createActionResponse(ACTION2), commit2, spanContext);
         final Runnable commit3 = Mockito.mock(Runnable.class);
-        receiverCaptor.getValue().accept(createActionResponse(ACTION3), commit3);
+        receiverCaptor.getValue().accept(createActionResponse(ACTION3), commit3, spanContext);
         scheduledService.executeScheduledTasks();
         Mockito.verify(operationManager).updateExternalAction(Mockito.eq(TGT_ID),
                 probeRequestCaptor.capture(), callbackCaptor.capture());
@@ -284,12 +383,22 @@ public class ActionUpdateStateServiceTest {
         expectedException.expect(IllegalArgumentException.class);
         expectedException.expectMessage("updateBatchSize");
         new ActionUpdateStateService(targetStore, operationManager, msgReceiver, scheduledService,
-                10, -1);
+                10, -1, 2);
     }
 
     @Nonnull
-    private ActionResponse createActionResponse(long oid) {
-        return ActionResponse.newBuilder().setActionOid(oid).setProgress(20).setResponseDescription(
-                "some progress").setActionResponseState(ActionResponseState.IN_PROGRESS).build();
+    private static ActionResponse createActionResponse(long oid) {
+        return createActionResponse(oid, 20, ActionResponseState.IN_PROGRESS);
+    }
+
+    @Nonnull
+    private static ActionResponse createActionResponse(long oid, int progressValue,
+            @Nonnull ActionResponseState actionState) {
+        return ActionResponse.newBuilder()
+                .setActionOid(oid)
+                .setProgress(progressValue)
+                .setResponseDescription("state description")
+                .setActionResponseState(actionState)
+                .build();
     }
 }

@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.history.timeslot;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 
@@ -24,7 +25,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -39,7 +39,7 @@ import com.vmturbo.topology.processor.history.HistoryCalculationException;
 @PrepareForTest({StatsHistoryServiceBlockingStub.class})
 public class TimeSlotLoadingTaskTest {
     private static final TimeslotHistoricalEditorConfig CONFIG =
-                    new TimeslotHistoricalEditorConfig(1, 1, 1, 1, 1, 1, Clock.systemUTC(),
+                    new TimeslotHistoricalEditorConfig(1, 1, 777777L, 1, 1, 1, 1, Clock.systemUTC(),
                                     null);
     private static final long OID1 = 12;
     private static final long OID2 = 15;
@@ -68,7 +68,7 @@ public class TimeSlotLoadingTaskTest {
                 GetEntityStatsRequest request = invocation
                                 .getArgumentAt(0, GetEntityStatsRequest.class);
                 Assert.assertNotNull(request);
-                Assert.assertEquals(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS,
+                Assert.assertEquals(TimeUnit.HOURS.toMillis(1),
                                 request.getFilter().getRollupPeriod());
                 Assert.assertEquals(1, request.getFilter().getCommodityRequestsCount());
                 Assert.assertEquals(UICommodityType.fromType(CT.getType()),

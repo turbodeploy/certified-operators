@@ -44,13 +44,24 @@ public abstract class DbAdapter {
     }
 
     void init() throws UnsupportedDialectException, SQLException {
-        if (!componentCredentialsWork()) {
+        if (componentCredentialsFail()) {
             logger.debug("Setting up user {} for database {} / schema {}",
                     config.getDbUserName(), config.getDbDatabaseName(), config.getDbSchemaName());
-            setupComponentCredentials();
+            // try to provision things if we can. If it doesn't work, the method will throw
+            // an exception that should cause the retry loop to retry, in the hope tha it will
+            // eventually work, or some other component will do it (we could fail because we don't
+            // have provisioning authority configured)
+            performProvisioning();
         }
         if (!Strings.isNullOrEmpty(config.getDbMigrationLocations())) {
-            performMigrations();
+            if (config.getDbShouldProvisionDatabase() && config.getDbAccess().isWriteAccess()) {
+                // perform migrations if we have provisioning responsibilities
+                performMigrations();
+            } else {
+                // validate if we don't, so we'll fail initialization and retries until the
+                // responsible component completes migrations.
+                validateMigrations();
+            }
         }
     }
 
@@ -61,28 +72,55 @@ public abstract class DbAdapter {
     abstract DataSource getDataSource(String url, String user, String password)
             throws SQLException;
 
-    private boolean componentCredentialsWork() throws UnsupportedDialectException {
+    DataSource getRootDataSource() throws UnsupportedDialectException, SQLException {
+        return getDataSource(getUrl(config), config.getDbRootUserName(), config.getDbRootPassword());
+    }
+
+    private boolean componentCredentialsFail() throws UnsupportedDialectException {
         try (Connection conn = getNonRootConnection()) {
-            return true;
-        } catch (SQLException e) {
             return false;
+        } catch (SQLException e) {
+            return true;
         }
     }
 
-    private void setupComponentCredentials() throws UnsupportedDialectException, SQLException {
-        createSchema();
-        createNonRootUser();
-        performNonRootGrants(config.getDbAccess());
+    private void performProvisioning() throws UnsupportedDialectException, SQLException {
+        if (config.getDbShouldProvisionDatabase()) {
+            createSchema();
+            createReadersGroup();
+        }
+        if (config.getDbShouldProvisionUser()) {
+            createNonRootUser();
+            performNonRootGrants(config.getDbAccess());
+        }
+        // check whether things now work, and throw an exception if not
+        if (componentCredentialsFail()) {
+            throw new IllegalStateException("Credentialed access not yet available");
+        }
     }
 
     private void performMigrations() throws UnsupportedDialectException, SQLException {
-        new FlywayMigrator(Duration.ofMinutes(1),
-                Duration.ofSeconds(5),
-                config.getDbSchemaName(),
-                Optional.of(config.getDbMigrationLocations()).filter(s -> s.length() > 0),
-                getDataSource(),
-                config.getDbFlywayCallbacks()
-        ).migrate();
+        if (!config.getDbMigrationLocations().isEmpty()) {
+            new FlywayMigrator(Duration.ofMinutes(1),
+                    Duration.ofSeconds(5),
+                    config.getDbSchemaName(),
+                    Optional.of(config.getDbMigrationLocations()).filter(s -> s.length() > 0),
+                    getDataSource(),
+                    config.getDbFlywayCallbacks()
+            ).migrate();
+        }
+    }
+
+    private void validateMigrations() throws UnsupportedDialectException, SQLException {
+        if (!config.getDbMigrationLocations().isEmpty()) {
+            new FlywayMigrator(Duration.ofMinutes(1),
+                    Duration.ofSeconds(5),
+                    config.getDbSchemaName(),
+                    Optional.of(config.getDbMigrationLocations()).filter(s -> s.length() > 0),
+                    getRootDataSource(),
+                    config.getDbFlywayCallbacks()
+            ).validate();
+        }
     }
 
     protected abstract void createNonRootUser() throws SQLException, UnsupportedDialectException;
@@ -105,8 +143,10 @@ public abstract class DbAdapter {
 
     protected abstract void createSchema() throws SQLException, UnsupportedDialectException;
 
+    protected void createReadersGroup() throws UnsupportedDialectException, SQLException {}
+
     protected void execute(Connection conn, String sql) throws SQLException {
-        logger.debug("Executing SQL: {}", sql);
+        logger.info("Executing SQL: {}", sql);
         conn.createStatement().execute(sql);
     }
 
@@ -195,7 +235,7 @@ public abstract class DbAdapter {
         // do nothing by default
     }
 
-    // TODO Move all these test-only methods to sql-test-utils modulek
+    // TODO Move all these test-only methods to sql-test-utils module
     /**
      * Truncate all tables in the database configured for this endpoint.
      *
@@ -244,6 +284,14 @@ public abstract class DbAdapter {
             e.printStackTrace();
         }
     }
+
+    /**
+     * Drop the readers user which acts as a group.
+     *
+     * @throws UnsupportedDialectException if this endpoint is mis-configured
+     * @throws SQLException if there are DB problems
+     */
+    public void dropReadersGroupUser() throws UnsupportedDialectException, SQLException {}
 
     protected abstract void dropUserIfExists(Connection conn) throws SQLException;
 }

@@ -10,10 +10,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.matrix.component.external.MatrixInterface;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
@@ -32,6 +34,7 @@ import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.reservation.ReservationConfig;
+import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
@@ -142,6 +145,12 @@ public class TopologyConfig {
     @Autowired
     private OperationConfig operationConfig;
 
+    @Autowired
+    private PlanOrchestratorClientConfig planClientConfig;
+
+    @Autowired
+    private TopologyProcessorRpcConfig topologyProcessorRpcConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -250,7 +259,10 @@ public class TopologyConfig {
                 actionsConfig.actionConstraintsUploader(),
                 actionsConfig.actionMergeSpecsUploader(),
                 requestCommodityThresholdsInjector(),
-                ephemeralEntityEditor()
+                ephemeralEntityEditor(),
+                ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel()),
+                topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),
+                targetConfig.groupScopeResolver()
         );
     }
 
@@ -285,7 +297,8 @@ public class TopologyConfig {
                 dmandOverriddenCommodityEditor(),
                 consistentScalingConfig.consistentScalingManager(),
                 requestCommodityThresholdsInjector(),
-                ephemeralEntityEditor()
+                ephemeralEntityEditor(),
+                topologyProcessorRpcConfig.groupResolverSearchFilterResolver()
         );
     }
 
@@ -303,7 +316,6 @@ public class TopologyConfig {
             entityConfig.entityStore(),
             apiConfig.topologyProcessorNotificationSender(),
             targetConfig.targetStore(),
-            useReservationPipeline,
             clockConfig.clock(),
             startupDiscoveryMaxDiscoveryWaitMinutes,
             TimeUnit.MINUTES);

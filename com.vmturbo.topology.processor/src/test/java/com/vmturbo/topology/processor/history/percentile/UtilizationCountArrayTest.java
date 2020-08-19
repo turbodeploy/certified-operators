@@ -1,7 +1,5 @@
 package com.vmturbo.topology.processor.history.percentile;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.function.Supplier;
 
 import org.hamcrest.CoreMatchers;
@@ -70,7 +68,7 @@ public class UtilizationCountArrayTest {
     public void testRankZero() throws HistoryCalculationException {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         for (int i = 0; i < 100; ++i) {
-            counts.addPoint(i, 100, "", true, timestamp);
+            counts.addPoint(i, 100, "", timestamp);
         }
         Assert.assertEquals(0, counts.getPercentile(0));
     }
@@ -118,10 +116,9 @@ public class UtilizationCountArrayTest {
         addCount(counts, 1, 5);
         addCount(counts, 2, 5);
         Assert.assertEquals(2, counts.getPercentile(80));
-        counts.addPoint(2, 100, "", false, timestamp);
+        counts.removePoint(2, 1, 100, timestamp, "");
         Assert.assertEquals(2, counts.getPercentile(80));
-        counts.addPoint(2, 100, "", false, timestamp);
-        counts.addPoint(2, 100, "", false, timestamp);
+        counts.removePoint(2, 2, 100, timestamp, "");
         Assert.assertEquals(1, counts.getPercentile(80));
     }
 
@@ -133,13 +130,13 @@ public class UtilizationCountArrayTest {
     @Test
     public void testSubtractPointsChangeCapacity() throws HistoryCalculationException {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
-        counts.addPoint(10, 200, "", true, timestamp);
-        counts.addPoint(20, 100, "", true, timestamp);
+        counts.addPoint(10, 200, "", timestamp);
+        counts.addPoint(20, 100, "", timestamp);
         // now after rescaling we should have a point at 10 and a point at 20
         Assert.assertEquals(10, counts.getPercentile(50));
         Assert.assertEquals(20, counts.getPercentile(100));
         // removing 1st point
-        counts.addPoint(10, 200, "", false, timestamp);
+        counts.removePoint(5, 1, 200, timestamp, "");
         // now only one point at 20 should remain
         Assert.assertEquals(0, counts.getPercentile(80));
         Assert.assertEquals(20, counts.getPercentile(100));
@@ -157,7 +154,7 @@ public class UtilizationCountArrayTest {
         addCount(counts, 20, 5);
         Assert.assertEquals(10, counts.getPercentile(40));
         Assert.assertEquals(20, counts.getPercentile(80));
-        counts.addPoint(10, 200, "", true, timestamp);
+        counts.addPoint(10, 200, "", timestamp);
         Assert.assertEquals(5, counts.getPercentile(40));
         Assert.assertEquals(10, counts.getPercentile(80));
     }
@@ -171,7 +168,7 @@ public class UtilizationCountArrayTest {
     public void testSerialize() throws HistoryCalculationException {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         float capacity = 72631;
-        counts.addPoint(2, capacity, "", true, timestamp);
+        counts.addPoint(2, capacity, "", timestamp);
         PercentileRecord.Builder builder = counts.serialize(REF);
         Assert.assertNotNull(builder);
         PercentileRecord record = builder.setPeriod(30).build();
@@ -264,48 +261,31 @@ public class UtilizationCountArrayTest {
     }
 
     /**
-     * Test for {@link UtilizationCountArray#copyCountsFrom(UtilizationCountArray)}
-     * When the lengths of the counts arrays do match.
+     * Test isMinHistoryDataAvailable.
      *
-     * @throws HistoryCalculationException when the lengths of the counts arrays do not match
+     * @throws HistoryCalculationException when failed
      */
     @Test
-    public void testCopyCountsFromArrayLengthsMath() throws HistoryCalculationException {
-        final PercentileBuckets buckets = new PercentileBuckets("0,1,5,99,100");
+    public void testIsMinHistoryDataAvailable() throws HistoryCalculationException {
+        // UThu Jul 16 2020 04:00:00
+        long startTime = 1594872000000L;
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
+        counts.addPoint(10, 10, "", startTime);
 
-        final UtilizationCountArray utilizationCountArray1 = new UtilizationCountArray(buckets);
-        final UtilizationCountArray utilizationCountArray2 = new UtilizationCountArray(buckets);
-        final List<Integer> utilization2 = Arrays.asList(1, 2, 3, 4, 5);
-        utilizationCountArray2.deserialize(PercentileRecord.newBuilder()
-                .setEntityOid(REF.getEntityOid())
-                .setCommodityType(REF.getCommodityType().getType())
-                .setKey(REF.getCommodityType().getKey())
-                .setCapacity(1000F)
-                .addAllUtilization(utilization2)
-                .setPeriod(30)
-                .build(), "");
+        // UTC Wed Jul 17 2020 00:00:00
+        long newStartTime = 1594944000000L;
+        PercentileRecord.Builder builder1 = PercentileRecord.newBuilder().setEntityOid(12)
+            .setCommodityType(53).setCapacity(10).setPeriod(30).setStartTimestamp(newStartTime);
+        addCount(builder1, 5, 10);
+        counts.deserialize(builder1.build(), "");
 
-        utilizationCountArray1.copyCountsFrom(utilizationCountArray2);
-        Assert.assertEquals(utilization2,
-                utilizationCountArray1.serialize(REF).getUtilizationList());
-    }
+        // UTC Fri Jul 17 2020 15:00:00
+        long currentTimestamp1 = 1594998000000L;
+        Assert.assertTrue(counts.isMinHistoryDataAvailable(currentTimestamp1, "", 1));
 
-    /**
-     * Test for {@link UtilizationCountArray#copyCountsFrom(UtilizationCountArray)}
-     * When the lengths of the counts arrays do not match.
-     *
-     * @throws HistoryCalculationException when the lengths of the counts arrays do not match
-     */
-    @Test
-    public void testCopyCountsFromArrayLengthsNotMath() throws HistoryCalculationException {
-        final UtilizationCountArray utilizationCountArray1 =
-                new UtilizationCountArray(new PercentileBuckets("0,1,5,99,100"));
-        final UtilizationCountArray utilizationCountArray2 =
-                new UtilizationCountArray(new PercentileBuckets("0,1,5,95,99,100"));
-        expectedException.expect(HistoryCalculationException.class);
-        expectedException.expectMessage(
-                "The internal 5 and external 6 the lengths of the counts arrays do not match");
-        utilizationCountArray1.copyCountsFrom(utilizationCountArray2);
+        // UTC Fri Jul 17 2020 03:00:00
+        long currentTimestamp2 = 1594954800000L;
+        Assert.assertFalse(counts.isMinHistoryDataAvailable(currentTimestamp2, "", 1));
     }
 
     /**
@@ -328,13 +308,14 @@ public class UtilizationCountArrayTest {
         final UtilizationCountArray utilizationCountArray = new UtilizationCountArray(new PercentileBuckets());
         checkToString(utilizationCountArray::toDebugString, UtilizationCountArray.EMPTY);
         checkToString(utilizationCountArray::toString, UtilizationCountArray.EMPTY);
-        utilizationCountArray.addPoint(35, 100, null, true, timestamp);
-        utilizationCountArray.addPoint(40, 100, null, true, timestamp);
-        utilizationCountArray.addPoint(40, 100, null, true, timestamp);
-        utilizationCountArray.addPoint(40, 100, null, true, timestamp);
+        utilizationCountArray.addPoint(35, 100, null, timestamp);
+        utilizationCountArray.addPoint(40, 100, null, timestamp);
+        utilizationCountArray.addPoint(40, 100, null, timestamp);
+        utilizationCountArray.addPoint(40, 100, null, timestamp);
         checkToString(utilizationCountArray::toString, "{capacity=100.0}");
         checkToString(utilizationCountArray::toDebugString,
-                        "{capacity=100.0; counts=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}");
+                        "{capacity=[{\"timestamp\": " + timestamp + ", \"newCapacity\": "
+                            + "\"100.0\"}]; counts=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}");
         utilizationCountArray.clear();
         checkToString(utilizationCountArray::toString, UtilizationCountArray.EMPTY);
         checkToString(utilizationCountArray::toDebugString, UtilizationCountArray.EMPTY);
@@ -367,10 +348,9 @@ public class UtilizationCountArrayTest {
                                         expectedFieldsToString)));
     }
 
-    private void addCount(UtilizationCountArray counts, int count, int quantity)
-                    throws HistoryCalculationException {
+    private void addCount(UtilizationCountArray counts, int count, int quantity) {
         for (int i = 0; i < quantity; ++i) {
-            counts.addPoint(count, 100, "", true, timestamp);
+            counts.addPoint(count, 100, "", timestamp);
         }
     }
 

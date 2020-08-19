@@ -6,12 +6,13 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
+
+import io.opentracing.SpanContext;
 
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
@@ -33,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.TriConsumer;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionErrorDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
@@ -82,8 +84,10 @@ public class ActionApprovalServiceTest {
     private IMessageSender<GetActionStateResponse> actionStateSender;
     @Mock
     private IMessageSender<ActionApprovalResponse> approvalResponseSender;
+    @Mock
+    private SpanContext spanContext;
     @Captor
-    private ArgumentCaptor<BiConsumer<ActionApprovalRequests, Runnable>> receiverCaptor;
+    private ArgumentCaptor<TriConsumer<ActionApprovalRequests, Runnable, SpanContext>> receiverCaptor;
     @Captor
     private ArgumentCaptor<OperationCallback<ActionApprovalResponse>> approvalCaptor;
     @Captor
@@ -94,7 +98,7 @@ public class ActionApprovalServiceTest {
     private MockScheduledService scheduledService;
     private TargetStore targetStore;
     private IOperationManager operationManager;
-    private BiConsumer<ActionApprovalRequests, Runnable> receiver;
+    private TriConsumer<ActionApprovalRequests, Runnable, SpanContext> receiver;
     private Runnable commitOperation;
     private IdentityProvider identityProvider;
     private ActionExecutionContextFactory contextFactory;
@@ -183,7 +187,7 @@ public class ActionApprovalServiceTest {
         final ActionApprovalRequests request = ActionApprovalRequests.newBuilder().addActions(
                 createAction(ACTION1)).addActions(createAction(ACTION2)).build();
 
-        receiver.accept(request, commitOperation);
+        receiver.accept(request, commitOperation, spanContext);
         Mockito.verify(commitOperation).run();
         Mockito.verify(operationManager).approveActions(Mockito.eq(TGT_ID),
                 Mockito.argThat(new ActionCollectionMatcher(ACTION1, ACTION2)),
@@ -229,12 +233,12 @@ public class ActionApprovalServiceTest {
         final ActionApprovalRequests request = ActionApprovalRequests.newBuilder().addActions(
                 createAction(ACTION1)).build();
 
-        receiver.accept(request, commitOperation);
+        receiver.accept(request, commitOperation, spanContext);
         Mockito.verify(commitOperation).run();
         Mockito.verify(operationManager).approveActions(Mockito.eq(TGT_ID),
                 Mockito.argThat(new ActionCollectionMatcher(ACTION1)), Mockito.any());
 
-        receiver.accept(request, commitOperation);
+        receiver.accept(request, commitOperation, spanContext);
         Mockito.verify(commitOperation, Mockito.times(2)).run();
         Mockito.verify(operationManager).approveActions(Mockito.eq(TGT_ID),
                 Mockito.argThat(new ActionCollectionMatcher(ACTION1)), Mockito.any());
@@ -249,7 +253,7 @@ public class ActionApprovalServiceTest {
     public void testSubsequentApprovals() throws Exception {
         final ActionApprovalRequests request = ActionApprovalRequests.newBuilder().addActions(
                 createAction(ACTION1)).build();
-        receiver.accept(request, commitOperation);
+        receiver.accept(request, commitOperation, spanContext);
         Mockito.verify(commitOperation).run();
         Mockito.verify(operationManager).approveActions(Mockito.eq(TGT_ID),
                 Mockito.argThat(new ActionCollectionMatcher(ACTION1)), approvalCaptor.capture());
@@ -259,7 +263,7 @@ public class ActionApprovalServiceTest {
 
         final ActionApprovalRequests request2 = ActionApprovalRequests.newBuilder().addActions(
                 createAction(ACTION1)).addActions(createAction(ACTION2)).build();
-        receiver.accept(request2, commitOperation);
+        receiver.accept(request2, commitOperation, spanContext);
         Mockito.verify(commitOperation, Mockito.times(2)).run();
         Mockito.verify(operationManager)
                 .approveActions(Mockito.eq(TGT_ID),
@@ -279,7 +283,7 @@ public class ActionApprovalServiceTest {
     public void testApprovalSuccessAfterFailure() throws Exception {
         final ActionApprovalRequests request = ActionApprovalRequests.newBuilder().addActions(
                 createAction(ACTION1)).build();
-        receiver.accept(request, commitOperation);
+        receiver.accept(request, commitOperation, spanContext);
         Mockito.verify(commitOperation).run();
         Mockito.verify(operationManager).approveActions(Mockito.eq(TGT_ID),
                 Mockito.argThat(new ActionCollectionMatcher(ACTION1)), approvalCaptor.capture());
@@ -289,7 +293,7 @@ public class ActionApprovalServiceTest {
 
         final ActionApprovalRequests request2 = ActionApprovalRequests.newBuilder().addActions(
                 createAction(ACTION1)).addActions(createAction(ACTION2)).build();
-        receiver.accept(request2, commitOperation);
+        receiver.accept(request2, commitOperation, spanContext);
         Mockito.verify(commitOperation, Mockito.times(2)).run();
         Mockito.verify(operationManager)
                 .approveActions(Mockito.eq(TGT_ID),
@@ -313,7 +317,7 @@ public class ActionApprovalServiceTest {
                 .when(operationManager)
                 .approveActions(Mockito.anyLong(), Mockito.any(), Mockito.any());
 
-        receiver.accept(request, commitOperation);
+        receiver.accept(request, commitOperation, spanContext);
         Mockito.verify(commitOperation).run();
         Mockito.verify(operationManager)
                 .approveActions(Mockito.eq(TGT_ID),
@@ -331,7 +335,7 @@ public class ActionApprovalServiceTest {
         final ActionApprovalRequests request = ActionApprovalRequests.newBuilder().addActions(
                 createAction(ACTION1)).build();
         Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
-        receiver.accept(request, commitOperation);
+        receiver.accept(request, commitOperation, spanContext);
         scheduledService.executeScheduledTasks();
         Mockito.verifyZeroInteractions(operationManager);
     }
@@ -345,7 +349,7 @@ public class ActionApprovalServiceTest {
     public void testNoApprovalTargetAfterApprovals() throws Exception {
         final ActionApprovalRequests request = ActionApprovalRequests.newBuilder().addActions(
                 createAction(ACTION1)).build();
-        receiver.accept(request, commitOperation);
+        receiver.accept(request, commitOperation, spanContext);
         Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
         scheduledService.executeScheduledTasks();
         Mockito.verify(operationManager, Mockito.never()).getExternalActionState(Mockito.anyLong(),
@@ -362,7 +366,7 @@ public class ActionApprovalServiceTest {
         final ActionApprovalRequests request = ActionApprovalRequests.newBuilder()
                 .addActions(createAction(ACTION1))
                 .build();
-        receiver.accept(request, commitOperation);
+        receiver.accept(request, commitOperation, spanContext);
         scheduledService.executeScheduledTasks();
         Mockito.verify(operationManager).getExternalActionState(Mockito.anyLong(),
                 Mockito.any(), getExternalStateCaptor.capture());
@@ -381,7 +385,7 @@ public class ActionApprovalServiceTest {
         final ActionApprovalRequests request = ActionApprovalRequests.newBuilder()
                 .addActions(createAction(ACTION1))
                 .build();
-        receiver.accept(request, commitOperation);
+        receiver.accept(request, commitOperation, spanContext);
         scheduledService.executeScheduledTasks();
         Mockito.verify(operationManager)
                 .getExternalActionState(Mockito.anyLong(), Mockito.any(),
@@ -402,7 +406,7 @@ public class ActionApprovalServiceTest {
         final ActionApprovalRequests request = ActionApprovalRequests.newBuilder()
                 .addActions(createAction(ACTION1))
                 .build();
-        receiver.accept(request, commitOperation);
+        receiver.accept(request, commitOperation, spanContext);
         Mockito.doThrow(new CommunicationException("Avada Kedavra"))
                 .doAnswer(invocation -> new GetActionState(PROBE_ID, TGT_ID, identityProvider))
                 .when(operationManager)
@@ -422,7 +426,7 @@ public class ActionApprovalServiceTest {
     @Test
     public void testNoActionsSent() {
         final ActionApprovalRequests request = ActionApprovalRequests.newBuilder().build();
-        receiver.accept(request, commitOperation);
+        receiver.accept(request, commitOperation, spanContext);
         scheduledService.executeScheduledTasks();
         Mockito.verifyZeroInteractions(operationManager);
     }

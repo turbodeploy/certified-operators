@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -44,22 +46,22 @@ public class TopologyReceiver {
             final ChunkingReceiver<TopologyDTO.Topology.DataSegment> chunkingReceiver =
                 new ChunkingReceiver<>(threadPool);
             messageReceiver.addListener(
-                (topology, commitCmd) -> this.onTopologyNotification(chunkingReceiver, topology,
-                                                                     commitCmd));
+                (topology, commitCmd, spanContext) -> this.onTopologyNotification(
+                    chunkingReceiver, topology, commitCmd, spanContext));
         }
     }
 
     private void onTopologyNotification(
         @Nonnull ChunkingReceiver<TopologyDTO.Topology.DataSegment> receiver,
         @Nonnull final Topology topology,
-        @Nonnull Runnable commitCommand) {
+        @Nonnull Runnable commitCommand,
+        @Nonnull final SpanContext tracingContext) {
         logger.trace("Received {} segment for topology broadcast {}", topology::getSegmentCase,
                      topology::getTopologyId);
         switch (topology.getSegmentCase()) {
             case START:
                 receiver.startTopologyBroadcast(topology.getTopologyId(),
-                                                createEntityConsumers(topology.getStart()
-                                                                              .getTopologyInfo()));
+                    createEntityConsumers(topology.getStart().getTopologyInfo(), tracingContext));
                 break;
             case DATA:
                 receiver.processData(topology.getTopologyId(),
@@ -77,11 +79,12 @@ public class TopologyReceiver {
     }
 
     private Collection<Consumer<RemoteIterator<TopologyDTO.Topology.DataSegment>>>
-    createEntityConsumers(@Nonnull final TopologyInfo topologyInfo) {
+    createEntityConsumers(@Nonnull final TopologyInfo topologyInfo,
+                          @Nonnull final SpanContext tracingContext) {
         logger.info("TopologyInfo : " + topologyInfo);
         return listeners.stream().map(listener -> {
             final Consumer<RemoteIterator<TopologyDTO.Topology.DataSegment>> consumer =
-                iterator -> listener.onTopologyNotification(topologyInfo, iterator);
+                iterator -> listener.onTopologyNotification(topologyInfo, iterator, tracingContext);
             return consumer;
         }).collect(Collectors.toList());
     }

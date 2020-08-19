@@ -85,7 +85,7 @@ public class KafkaSenderReceiverIT {
     public void init() throws Exception {
         kafkaConsumer =
                 new KafkaMessageConsumer(kafkaServer.getBootstrapServers(), "test-consumer-group");
-        kafkaProducer = new KafkaMessageProducer(kafkaServer.getBootstrapServers(), "", Integer.MAX_VALUE, Integer.MAX_VALUE);
+        kafkaProducer = new KafkaMessageProducer(kafkaServer.getBootstrapServers(), "", Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
         threadPool = Executors.newCachedThreadPool();
     }
 
@@ -121,7 +121,7 @@ public class KafkaSenderReceiverIT {
                 msg -> DynamicMessage.parseFrom(messageDescriptor, msg));
         final List<DynamicMessage> received =
                 Collections.synchronizedList(new ArrayList<>(messages.size()));
-        receiver.addListener((msg, cmd) -> {
+        receiver.addListener((msg, cmd, tracingContext) -> {
             received.add(msg);
             cmd.run();
         });
@@ -173,7 +173,7 @@ public class KafkaSenderReceiverIT {
                 msg -> DynamicMessage.parseFrom(messageDescriptor, msg));
         final List<DynamicMessage> received =
                 Collections.synchronizedList(new ArrayList<>(1));
-        receiver.addListener((msg, cmd) -> {
+        receiver.addListener((msg, cmd, tracingContext) -> {
             received.add(msg);
             cmd.run();
         });
@@ -202,7 +202,7 @@ public class KafkaSenderReceiverIT {
         final List<DynamicMessage> receivedMessage = new ArrayList<>();
         final CountDownLatch commitLatch = new CountDownLatch(1);
         final CountDownLatch receivedLatch = new CountDownLatch(2);
-        receiver.addListener((msg, commitCmd) -> {
+        receiver.addListener((msg, commitCmd, tracingContext) -> {
             receivedLatch.countDown();
             try {
                 commitLatch.await();
@@ -249,7 +249,7 @@ public class KafkaSenderReceiverIT {
                 msg -> DynamicMessage.parseFrom(messageDescriptor, msg));
         final List<DynamicMessage> received =
                 Collections.synchronizedList(new ArrayList<>(messages.size()));
-        receiver.addListener((msg, cmd) -> {
+        receiver.addListener((msg, cmd, tracingContext) -> {
             received.add(msg);
             cmd.run();
         });

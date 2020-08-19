@@ -159,7 +159,7 @@ public class ReservedInstanceUtilizationStoreTest {
         Mockito.when(priceTableStore.getMergedRiPriceTable()).thenReturn(riPriceTable);
         reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
         reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
-        reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
+        reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
                         new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore);
         entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
         reservedInstanceUtilizationStore = new ReservedInstanceUtilizationStore(dsl, reservedInstanceBoughtStore,

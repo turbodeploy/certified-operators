@@ -269,15 +269,12 @@ public class ReservedInstanceCoverageUpdateTest {
                 entityReservedInstanceMappingStore, reservedInstanceUtilizationStore,
                 reservedInstanceCoverageStore, reservedInstanceCoverageValidatorFactory,
                 supplementalRICoverageAnalysisFactory, costNotificationSender,
-                120, businessAccountPriceTableKeyStore);
+                120);
 
         when(reservedInstanceCoverageValidatorFactory.newValidator(any()))
                 .thenReturn(reservedInstanceCoverageValidator);
         when(supplementalRICoverageAnalysisFactory.createCoverageAnalysis(any(), anyList()))
                 .thenReturn(supplementalRICoverageAnalysis);
-
-        when(businessAccountPriceTableKeyStore.fetchAllPriceTableKeyOidsByBusinessAccount())
-                .thenReturn( ImmutableMap.of(125L, 1L));
     }
 
     @Test

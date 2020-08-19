@@ -346,8 +346,9 @@ public class ActionDescriptionBuilderTest {
      * @return {@link ActionInfo.Builder}
      */
     private ActionInfo.Builder makeVSanStorageAmountRequestInfo(float oldCapacity, float newCapacity) {
-        ActionInfo.Builder builder = makeResizeInfo(VSAN_STORAGE_ID, CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, oldCapacity, newCapacity);
-        builder.setResize(builder.getResize().toBuilder().setResizeTriggerTrader(ActionOrchestratorTestUtils.createActionEntity(VSAN_PM_ID)));
+        ActionInfo.Builder builder = makeResizeInfo(VSAN_STORAGE_ID,
+                        CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, oldCapacity, newCapacity);
+        builder.setResize(builder.getResize().toBuilder());
         return builder;
     }
 
@@ -917,11 +918,11 @@ public class ActionDescriptionBuilderTest {
             EntityType.PHYSICAL_MACHINE.getNumber(),
             VSAN_PM_DISPLAY_NAME)));
 
-    String description = ActionDescriptionBuilder.buildActionDescription(
-        entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageUp);
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                        entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageUp);
 
-    Assert.assertEquals(description,
-        "Resize up Storage Amount for Storage vsan_storage from 50.0 GB to 75.0 GB due to Physical Machine vsan_host Provision");
+        Assert.assertEquals("Resize up Storage Amount for Storage vsan_storage from 50.0 GB to 75.0 GB",
+                        description);
     }
 
     /**
@@ -939,11 +940,11 @@ public class ActionDescriptionBuilderTest {
             EntityType.PHYSICAL_MACHINE.getNumber(),
             VSAN_PM_DISPLAY_NAME)));
 
-    String description = ActionDescriptionBuilder.buildActionDescription(
-        entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageDown);
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                        entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageDown);
 
-    Assert.assertEquals(description,
-        "Resize down Storage Amount for Storage vsan_storage from 75.0 GB to 50.0 GB due to Physical Machine vsan_host Suspension");
+        Assert.assertEquals("Resize down Storage Amount for Storage vsan_storage from 75.0 GB to 50.0 GB",
+                        description);
     }
 
     @Test

@@ -242,7 +242,7 @@ public class GroupStitchingManagerTest {
         final Set<Long> hostIds = Sets.newHashSet(345L, 567L, 567L);
         final UploadedGroup groupApps =
                 GroupTestUtils.createUploadedGroup(GroupType.RESOURCE, GROUP_ID,
-                        ImmutableMap.of(EntityType.APPLICATION_VALUE, hostIds,
+                        ImmutableMap.of(EntityType.APPLICATION_COMPONENT_VALUE, hostIds,
                                 EntityType.VIRTUAL_MACHINE_VALUE, Collections.singleton(VM_ID_1)));
         groupStitchingContext.setTargetGroups(TARGET_1, PROBE_TYPE, Collections.singleton(group4));
         groupStitchingContext.setTargetGroups(TARGET_2, PROBE_TYPE,

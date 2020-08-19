@@ -1,6 +1,7 @@
 package com.vmturbo.market.cloudscaling.sma.entities;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -77,7 +78,7 @@ public class SMAVirtualMachine {
      */
     /*
      * List of groupProviders (templates) that this VM could move to.
-     * If the VM is in an ASG and not the leader, groupProviders is set to null
+     * If the VM is in an ASG and not the leader, groupProviders is empty
      */
     private List<SMATemplate> groupProviders;
 
@@ -131,12 +132,16 @@ public class SMAVirtualMachine {
         this.currentTemplate = currentTemplate;
         this.businessAccountId = businessAccountId;
         this.currentRICoverage = currentRICoverage;
-        this.groupProviders = Objects.requireNonNull(providers, "providers are null!");
-        this.providers = new ArrayList(providers);
         this.zoneId = zoneId;
         this.groupSize = 1;
         this.currentRI = currentRI;
         this.osType = osType;
+        setProviders(providers);
+
+    }
+
+    public boolean isEmptyProviderList() {
+        return (providers == null || providers.isEmpty());
     }
 
     /**
@@ -176,6 +181,14 @@ public class SMAVirtualMachine {
         naturalTemplate = minCostProvider.orElse(getCurrentTemplate());
     }
 
+    public void setMinCostProviderPerFamily(final HashMap<String, SMATemplate> minCostProviderPerFamily) {
+        this.minCostProviderPerFamily = minCostProviderPerFamily;
+    }
+
+    public HashMap<String, SMATemplate> getMinCostProviderPerFamily() {
+        return minCostProviderPerFamily;
+    }
+
     @Nonnull
     public long getOid() {
         return oid;
@@ -196,8 +209,15 @@ public class SMAVirtualMachine {
      * @param providers list of providers as SMATemplates.
      */
     public void setProviders(final List<SMATemplate> providers) {
-        this.providers = new ArrayList<>(providers);
-        this.groupProviders = providers;
+        this.providers = providers;
+        if (providers == null || providers.isEmpty()) {
+            if (this.getCurrentTemplate() != null) {
+                setGroupProviders(Arrays.asList(this.getCurrentTemplate()));
+            }
+        } else {
+            setGroupProviders(providers);
+        }
+
     }
 
     @Nonnull
@@ -256,6 +276,7 @@ public class SMAVirtualMachine {
 
     public void setGroupProviders(final List<SMATemplate> groupProviders) {
         this.groupProviders = groupProviders;
+        updateNaturalTemplateAndMinCostProviderPerFamily();
     }
 
     /*
@@ -339,7 +360,7 @@ public class SMAVirtualMachine {
          *
          */
 
-        if (!groupName.equals(SMAUtils.NO_GROUP_ID)
+        if ((getGroupSize() > 1)
                 && !virtualMachineGroupMap.get(this.getGroupName()).isZonalDiscountable()
                 && !ri.isRegionScoped()) {
             return false;
@@ -362,6 +383,16 @@ public class SMAVirtualMachine {
         public int compare(SMATemplate template1, SMATemplate template2) {
             return (template1.getOid() - template2.getOid() > 0) ? 1 : -1;
         }
+    }
+
+    /**
+     * Check if an RI may be applied to this VM.
+     *
+     * @param ri an RI
+     * @return true if an RI may be applied to this VM
+     */
+    public boolean mayBeCoveredByRI(SMAReservedInstance ri) {
+        return ri.isShared() || ri.getApplicableBusinessAccounts().contains(getBusinessAccountId());
     }
 
      @Override

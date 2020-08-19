@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.gson.reflect.TypeToken;
 
 import org.apache.logging.log4j.LogManager;
@@ -110,7 +111,29 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
     @Nonnull
     public Optional<PolicyDTO.Policy> get(final long id) {
         try {
-            return internalGet(dslContext, id);
+            List<PolicyDTO.Policy> policies = internalGet(dslContext, ImmutableSet.of(id));
+            if (!policies.isEmpty()) {
+                return Optional.of(policies.get(0));
+            } else {
+                return Optional.empty();
+            }
+        } catch (Exception e) {
+            POLICY_STORE_ERROR_COUNT.labels(GET_LABEL).increment();
+            throw e;
+        }
+    }
+
+    /**
+     * Get the {@link PolicyDTO.Policy} objects associated with IDs.
+     *
+     * @param ids The policy ids.
+     * @return An {@link Optional} containing the policy, or an empty optional if the
+     *         ID is not found.
+     */
+    @Nonnull
+    public List<PolicyDTO.Policy> getPolicies(final Collection<Long> ids) {
+        try {
+            return internalGet(dslContext, ids);
         } catch (Exception e) {
             POLICY_STORE_ERROR_COUNT.labels(GET_LABEL).increment();
             throw e;
@@ -332,15 +355,15 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
         return POLICIES_DUMP_FILE;
     }
 
-    private Optional<PolicyDTO.Policy> internalGet(@Nonnull final DSLContext context,
-                                                   final long id) {
+    private List<PolicyDTO.Policy> internalGet(@Nonnull final DSLContext context,
+                                                   final Collection<Long> ids) {
         return context.selectFrom(Tables.POLICY)
-                .where(Tables.POLICY.ID.eq(id))
+                .where(Tables.POLICY.ID.in(ids))
                 .fetch()
                 .into(Policy.class)
                 .stream()
-                .findFirst()
-                .map(this::toPolicyProto);
+                .map(this::toPolicyProto)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -393,6 +416,7 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
         checkForDuplicates(context, newPolicyProto.getId(), newPolicyProto.getPolicyInfo().getName());
 
         existingRecord.setName(newPolicyProto.getPolicyInfo().getName());
+        existingRecord.setDisplayName(newPolicyProto.getPolicyInfo().getDisplayName());
         existingRecord.setEnabled(newPolicyProto.getPolicyInfo().getEnabled());
         if (newPolicyProto.hasTargetId()) {
             existingRecord.setDiscoveredById(newPolicyProto.getTargetId());
@@ -468,6 +492,7 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
 
         // Overwrite the saved data with the column values, even though they should be the same.
         policyBuilder.getPolicyInfoBuilder().setName(policy.getName());
+        policyBuilder.getPolicyInfoBuilder().setDisplayName(policy.getDisplayName());
         policyBuilder.getPolicyInfoBuilder().setEnabled(policy.getEnabled());
 
         return policyBuilder.build();
@@ -564,7 +589,7 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
             final PolicyRecord policy = new PolicyRecord(policyProto.getId(),
                     policyProto.getPolicyInfo().getName(), policyProto.getPolicyInfo().getEnabled(),
                     policyProto.hasTargetId() ? policyProto.getTargetId() : null,
-                    policyProto.getPolicyInfo(), hash);
+                    policyProto.getPolicyInfo(), hash, policyProto.getPolicyInfo().getDisplayName());
             policyRecords.add(policy);
         }
         final int policyCount = context.batchInsert(policyRecords).execute().length;

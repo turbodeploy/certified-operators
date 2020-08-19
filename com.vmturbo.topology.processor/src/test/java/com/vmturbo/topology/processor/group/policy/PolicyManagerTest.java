@@ -1,13 +1,9 @@
 package com.vmturbo.topology.processor.group.policy;
 
-import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.neverDiscoveredTopologyEntity;
 import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -15,15 +11,10 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -42,32 +33,19 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo.Type;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.policy.PolicyManager.ReservationResults;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator.Results;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
-import com.vmturbo.topology.processor.topology.TopologyEditorException;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * Unit tests for {@link PolicyManager}.
@@ -86,9 +64,6 @@ public class PolicyManagerTest {
     private final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
 
     private final PolicyApplicator policyApplicator = mock(PolicyApplicator.class);
-
-    private final ReservationPolicyFactory reservationPolicyFactory =
-            mock(ReservationPolicyFactory.class);
 
     private final long id1 = 1L;
     private final long id2 = 2L;
@@ -133,7 +108,7 @@ public class PolicyManagerTest {
             .addAllId(Arrays.asList(id1, id2, id3, id4, id5)))
             .setReplaceGroupPropertyWithGroupMembershipFilter(true)
             .build())).thenReturn(Arrays.asList(group1, group2, group3, group4, group5));
-        when(policyServiceMole.getAllPolicies(any()))
+        when(policyServiceMole.getPolicies(any()))
             .thenReturn(Stream.of(policy12, policy34)
                 .map(policy -> PolicyResponse.newBuilder()
                     .setPolicy(policy)
@@ -146,18 +121,14 @@ public class PolicyManagerTest {
         final GroupServiceBlockingStub groupServiceStub =
             GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
-        final ReservationServiceBlockingStub reservationServiceStub =
-                ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
-
         // set up the GroupService to test
         policyManager = new com.vmturbo.topology.processor.group.policy.PolicyManager(
-            policyRpcService, groupServiceStub, new PolicyFactory(), reservationPolicyFactory,
-                reservationServiceStub, policyApplicator);
+            policyRpcService, groupServiceStub, new PolicyFactory(mock(TopologyInvertedIndexFactory.class)), policyApplicator);
     }
 
     @Test
     public void testNoPoliciesNoGroupRPC() {
-        when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.emptyList());
+        when(policyServiceMole.getPolicies(any())).thenReturn(Collections.emptyList());
         when(topologyGraph.entities()).thenReturn(Stream.empty());
         when(policyApplicator.applyPolicies(any(), eq(groupResolver), eq(topologyGraph)))
             .thenReturn(new Results());
@@ -173,7 +144,7 @@ public class PolicyManagerTest {
      */
     @Test
     public void testUserPolicyMissingGroup() {
-        when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.singletonList(PolicyResponse.newBuilder()
+        when(policyServiceMole.getPolicies(any())).thenReturn(Collections.singletonList(PolicyResponse.newBuilder()
             .setPolicy(policy12)
             .build()));
         // Do not configure the group service to return any of the groups.
@@ -195,7 +166,7 @@ public class PolicyManagerTest {
      */
     @Test(expected = IllegalStateException.class)
     public void testDiscoveredPolicyMissingGroupException() {
-        when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.singletonList(PolicyResponse.newBuilder()
+        when(policyServiceMole.getPolicies(any())).thenReturn(Collections.singletonList(PolicyResponse.newBuilder()
             .setPolicy(policy12.toBuilder()
                 .setTargetId(123)
                 .build())
@@ -206,87 +177,6 @@ public class PolicyManagerTest {
         policyManager.applyPolicies(topologyGraph, groupResolver, Collections.emptyList(), TopologyInfo.getDefaultInstance());
     }
 
-    /*
-     * Test that reservations that fail to apply get marked as invalid via RPC.
-     */
-    @Test
-    public void testMarkFailedReservationConstraints() {
-        final long reservationId = 44;
-        final ConstraintInfoCollection constraintInfoCollection =
-            ConstraintInfoCollection.newBuilder()
-                .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
-                    .setType(Type.DATA_CENTER)
-                    .setConstraintId(34))
-                .build();
-        final Reservation reservation = Reservation.newBuilder()
-            .setStatus(ReservationStatus.RESERVED)
-            .setId(reservationId)
-            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-                .addReservationTemplate(ReservationTemplate.newBuilder()
-                    .setTemplateId(77)
-                    .setCount(1)
-                    .addReservationInstance(ReservationInstance.newBuilder()
-                        .setEntityId(66L))))
-            .setConstraintInfoCollection(constraintInfoCollection)
-            .build();
-
-        doReturn(Lists.newArrayList(reservation)).when(reservationServiceMole)
-            .getAllReservations(GetAllReservationsRequest.newBuilder().build());
-
-        when(reservationPolicyFactory.generatePolicyForReservation(topologyGraph,
-            constraintInfoCollection.getReservationConstraintInfoList(),
-            reservation)).thenThrow(TopologyEditorException.notFoundEntityException(34L));
-        when(topologyGraph.entities()).thenReturn(Stream.empty());
-
-        final ReservationResults reservationResults =
-            policyManager.handleReservationConstraints(topologyGraph,
-                Collections.emptyList(), TopologyInfo.getDefaultInstance());
-        assertTrue(reservationResults.hasErrors());
-    }
-
-    @Test
-    public void testHandleReservationPolicyConstraints() {
-        final List<ScenarioChange> scenarioChanges = Lists.newArrayList(ScenarioChange.newBuilder()
-                .setPlanChanges(PlanChanges.newBuilder()
-                        .addInitialPlacementConstraints(ReservationConstraintInfo.newBuilder()
-                                .setConstraintId(33)
-                                .setType(ReservationConstraintInfo.Type.POLICY)))
-                .build());
-        Mockito.when(topologyGraph.entities())
-                .thenReturn(Stream.of(neverDiscoveredTopologyEntity(5L, EntityType.VIRTUAL_MACHINE).build()));
-        Mockito.when(reservationServiceMole.getAllReservations(
-                GetAllReservationsRequest.newBuilder().build()))
-                .thenReturn(Lists.newArrayList(Reservation.newBuilder()
-                        .setStatus(ReservationStatus.RESERVED)
-                        .setId(44)
-                        .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-                                .addReservationTemplate(ReservationTemplate.newBuilder()
-                                        .setTemplateId(77)
-                                        .setCount(1)
-                                        .addReservationInstance(ReservationInstance.newBuilder()
-                                                .setEntityId(66L))))
-                        .setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
-                                .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
-                                        .setType(ReservationConstraintInfo.Type.POLICY)
-                                        .setConstraintId(34)))
-                        .build()));
-        final ReservationResults reservationResults =
-            policyManager.handleReservationConstraints(topologyGraph, scenarioChanges, TopologyInfo.getDefaultInstance());
-        final Set<Long> reservationIds = reservationResults.getExtraConsumersForPolicy(34L);
-        assertEquals(Sets.newHashSet(66L), reservationIds);
-    }
-
-
-    private List<ScenarioChange> changes() {
-        return Lists.newArrayList(
-            ScenarioChange.newBuilder()
-            .setPlanChanges(PlanChanges.newBuilder()
-                .setPolicyChange(PolicyChange.newBuilder()
-                    .setPlanOnlyPolicy(planPolicy)
-                    .build())
-                .build())
-            .build());
-    }
 
     private static Policy bindToGroup(@Nonnull final long consumerId,
                                       @Nonnull final long providerId,

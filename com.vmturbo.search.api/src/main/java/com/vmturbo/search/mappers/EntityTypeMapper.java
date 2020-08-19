@@ -10,40 +10,44 @@ import com.google.common.collect.ImmutableBiMap;
 import com.vmturbo.extractor.schema.enums.EntityType;
 
 /**
- * Utility for mapping been ENUMs {@link com.vmturbo.api.enums.EntityType} and {@link EntityType}.
+ * Utility for mapping between ENUMs {@link com.vmturbo.api.enums.EntityType} and {@link EntityType}.
  */
 public class EntityTypeMapper {
 
     /**
      * Mappings between {@link EntityType} and {@link com.vmturbo.api.enums.EntityType}.
      */
-    private static final BiMap<EntityType, com.vmturbo.api.enums.EntityType> ENTITY_TYPE_MAPPINGS =
+    protected static final BiMap<EntityType, com.vmturbo.api.enums.EntityType> ENTITY_TYPE_MAPPINGS =
         new ImmutableBiMap.Builder()
-            .put( EntityType.APPLICATION_COMPONENT, com.vmturbo.api.enums.EntityType.APPLICATION_COMPONENT)
-            .put( EntityType.BUSINESS_TRANSACTION, com.vmturbo.api.enums.EntityType.BUSINESS_TRANSACTION)
-            .put( EntityType.BUSINESS_APPLICATION, com.vmturbo.api.enums.EntityType.BUSINESS_APPLICATION)
-            .put( EntityType.DATABASE_SERVER, com.vmturbo.api.enums.EntityType.DATABASE_SERVER)
-            .put( EntityType.SERVICE, com.vmturbo.api.enums.EntityType.SERVICE)
-            .put( EntityType.SWITCH, com.vmturbo.api.enums.EntityType.SWITCH)
-            .put( EntityType.STORAGE, com.vmturbo.api.enums.EntityType.STORAGE)
-            .put( EntityType.VIRTUAL_MACHINE, com.vmturbo.api.enums.EntityType.VIRTUAL_MACHINE)
-            .put( EntityType.DISK_ARRAY, com.vmturbo.api.enums.EntityType.DISKARRAY)
-            .put( EntityType.DATACENTER, com.vmturbo.api.enums.EntityType.DATACENTER)
-            .put( EntityType.PHYSICAL_MACHINE, com.vmturbo.api.enums.EntityType.PHYSICAL_MACHINE)
-            .put( EntityType.CHASSIS, com.vmturbo.api.enums.EntityType.CHASSIS)
-            .put( EntityType.BUSINESS_USER, com.vmturbo.api.enums.EntityType.BUSINESS_USER)
-            .put( EntityType.STORAGE_CONTROLLER, com.vmturbo.api.enums.EntityType.STORAGECONTROLLER)
-            .put( EntityType.IO_MODULE, com.vmturbo.api.enums.EntityType.IOMODULE)
-            .put( EntityType.BUSINESS_ACCOUNT, com.vmturbo.api.enums.EntityType.BUSINESS_ACCOUNT)
-            .put( EntityType.NETWORK, com.vmturbo.api.enums.EntityType.NETWORK)
-            .put( EntityType.APPLICATION, com.vmturbo.api.enums.EntityType.APPLICATION)
-            .put( EntityType.CONTAINER, com.vmturbo.api.enums.EntityType.CONTAINER)
-            .put( EntityType.CONTAINER_POD, com.vmturbo.api.enums.EntityType.CONTAINER_POD)
-            .put( EntityType.DATABASE, com.vmturbo.api.enums.EntityType.DATABASE)
-            .put( EntityType.REGION, com.vmturbo.api.enums.EntityType.REGION)
-            .put( EntityType.VIRTUAL_VOLUME, com.vmturbo.api.enums.EntityType.VIRTUAL_VOLUME)
-            .put( EntityType.VIEW_POD, com.vmturbo.api.enums.EntityType.VIEW_POD)
-            .put( EntityType.DESKTOP_POOL, com.vmturbo.api.enums.EntityType.DESKTOP_POOL)
+            .put( EntityType.APPLICATION, com.vmturbo.api.enums.EntityType.Application)
+            .put( EntityType.APPLICATION_COMPONENT, com.vmturbo.api.enums.EntityType.ApplicationComponent)
+            .put( EntityType.BUSINESS_ACCOUNT, com.vmturbo.api.enums.EntityType.BusinessAccount)
+            .put( EntityType.BUSINESS_APPLICATION, com.vmturbo.api.enums.EntityType.BusinessApplication)
+            .put( EntityType.BUSINESS_USER, com.vmturbo.api.enums.EntityType.BusinessUser)
+            .put( EntityType.BUSINESS_TRANSACTION, com.vmturbo.api.enums.EntityType.BusinessTransaction)
+            .put( EntityType.CHASSIS, com.vmturbo.api.enums.EntityType.Chassis)
+            .put( EntityType.CONTAINER, com.vmturbo.api.enums.EntityType.Container)
+            .put( EntityType.CONTAINER_POD, com.vmturbo.api.enums.EntityType.ContainerPod)
+            .put( EntityType.CONTAINER_SPEC, com.vmturbo.api.enums.EntityType.ContainerSpec)
+            .put( EntityType.DATABASE, com.vmturbo.api.enums.EntityType.Database)
+            .put( EntityType.DATABASE_SERVER, com.vmturbo.api.enums.EntityType.DatabaseServer)
+            .put( EntityType.DATACENTER, com.vmturbo.api.enums.EntityType.DataCenter)
+            .put( EntityType.DESKTOP_POOL, com.vmturbo.api.enums.EntityType.DesktopPool)
+            .put( EntityType.DISK_ARRAY, com.vmturbo.api.enums.EntityType.DiskArray)
+            .put( EntityType.IO_MODULE, com.vmturbo.api.enums.EntityType.IOModule)
+            .put( EntityType.NETWORK, com.vmturbo.api.enums.EntityType.Network)
+            .put( EntityType.NAMESPACE, com.vmturbo.api.enums.EntityType.Namespace)
+            .put( EntityType.PHYSICAL_MACHINE, com.vmturbo.api.enums.EntityType.PhysicalMachine)
+            .put( EntityType.REGION, com.vmturbo.api.enums.EntityType.Region)
+            .put( EntityType.SERVICE, com.vmturbo.api.enums.EntityType.Service)
+            .put( EntityType.STORAGE, com.vmturbo.api.enums.EntityType.Storage)
+            .put( EntityType.STORAGE_CONTROLLER, com.vmturbo.api.enums.EntityType.StorageController)
+            .put( EntityType.SWITCH, com.vmturbo.api.enums.EntityType.Switch)
+            .put( EntityType.VIEW_POD, com.vmturbo.api.enums.EntityType.ViewPod)
+            .put( EntityType.VIRTUAL_DATACENTER, com.vmturbo.api.enums.EntityType.VirtualDataCenter)
+            .put( EntityType.VIRTUAL_MACHINE, com.vmturbo.api.enums.EntityType.VirtualMachine)
+            .put( EntityType.VIRTUAL_VOLUME, com.vmturbo.api.enums.EntityType.VirtualVolume)
+            .put( EntityType.WORKLOAD_CONTROLLER, com.vmturbo.api.enums.EntityType.WorkloadController)
             .build();
 
     /**
@@ -59,7 +63,7 @@ public class EntityTypeMapper {
      * @return The associated {@link com.vmturbo.api.enums.EntityType}, or null
      */
     public static com.vmturbo.api.enums.EntityType fromSearchSchemaToApi(@Nullable final EntityType entityType) {
-        return ENTITY_TYPE_MAPPINGS.getOrDefault(entityType, com.vmturbo.api.enums.EntityType.UNKNOWN);
+        return ENTITY_TYPE_MAPPINGS.getOrDefault(entityType, com.vmturbo.api.enums.EntityType.Unknown);
     }
 
     /**

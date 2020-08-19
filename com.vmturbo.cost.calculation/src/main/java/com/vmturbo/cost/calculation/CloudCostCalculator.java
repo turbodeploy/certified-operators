@@ -228,7 +228,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
             final CostJournal<ENTITY_CLASS> builtJournal = journal.build();
             if (traxContext.on()) {
-                logger.info("Cost calculation stack for {} \"{}\" {}:\n{}",
+                logger.debug("Cost calculation stack for {} \"{}\" {}:\n{}",
                     () -> entityTypeName, () -> entityName, () -> entityId,
                     () -> builtJournal.getTotalHourlyCost().calculationStack());
             }

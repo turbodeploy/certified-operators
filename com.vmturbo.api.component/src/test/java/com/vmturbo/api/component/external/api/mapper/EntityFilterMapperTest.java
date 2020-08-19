@@ -53,7 +53,7 @@ public class EntityFilterMapperTest {
 
     private static final Long UDT_ID = 123L;
 
-    private static final String UDT_PROBE_TYPE = "User-Defined-Topology";
+    private static final String UDT_PROBE_TYPE = "User-defined entities";
 
     private static final String USER_DEFINED_ENTITY_SERVICE_FILTER_NAME =
             "serviceByUserDefinedEntity";
@@ -331,7 +331,7 @@ public class EntityFilterMapperTest {
     /**
      * register UDT Probe in {@link ThinTargetCache} for test requirements.
      */
-    private void registerUserDefinedTopologyProbe() {
+    private void registerUserDefinedEntitiesProbe() {
         Mockito.when(thinTargetCache.getAllTargets()).thenReturn(Lists.newArrayList(TARGET_INFO));
         Mockito.when(TARGET_INFO.probeInfo()).thenReturn(PROBE_INFO);
         Mockito.when(TARGET_INFO.oid()).thenReturn(UDT_ID);
@@ -357,7 +357,7 @@ public class EntityFilterMapperTest {
 
     @Test
     public void testByUserDefinedEntityEqual() {
-        registerUserDefinedTopologyProbe();
+        registerUserDefinedEntitiesProbe();
         GroupApiDTO inputDTO = groupApiDTO(AND, SERVICE_TYPE, filterDTO(EntityFilterMapper.EQUAL,
                 "True", USER_DEFINED_ENTITY_SERVICE_FILTER_NAME));
 
@@ -373,7 +373,7 @@ public class EntityFilterMapperTest {
 
     @Test
     public void testByUserDefinedEntityNotEqual() {
-        registerUserDefinedTopologyProbe();
+        registerUserDefinedEntitiesProbe();
         GroupApiDTO inputDTO = groupApiDTO(AND, SERVICE_TYPE, filterDTO(EntityFilterMapper.EQUAL,
                 "False", USER_DEFINED_ENTITY_SERVICE_FILTER_NAME));
 

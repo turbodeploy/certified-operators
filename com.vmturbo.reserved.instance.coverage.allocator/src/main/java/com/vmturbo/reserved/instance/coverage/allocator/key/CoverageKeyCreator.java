@@ -1,6 +1,7 @@
 package com.vmturbo.reserved.instance.coverage.allocator.key;
 
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -22,14 +23,14 @@ public interface CoverageKeyCreator {
     Optional<CoverageKey> createKeyForEntity(long entityOid);
 
     /**
-     * Attempts to create a {@link CoverageKey} from an RI. Key creation will fail
-     * if the topology is malformed (e.g. if topolgy does not contain the RI's region).
+     * Attempts to create a set {@link CoverageKey} from an RI. Key creation will fail
+     * if the topology is malformed (e.g. if topology does not contain the RI's region).
      *
      * @param riOid The oid of the RI
-     * @return An optional {@link CoverageKey}, if one was successfully created. {@link Optional#empty()},
-     *      * if key creation failed
+     * @return The set of keys that may be covered by the RI. Multiple keys will be returned if the
+     * RI is scoped to multiple accounts.
      */
-    Optional<CoverageKey> createKeyForReservedInstance(long riOid);
+    Set<CoverageKey> createKeysForReservedInstance(long riOid);
 
     /**
      * A factory for creating an instance of {@link CoverageKeyCreator}

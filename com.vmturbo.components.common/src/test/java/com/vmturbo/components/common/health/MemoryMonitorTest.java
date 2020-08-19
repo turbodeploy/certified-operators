@@ -1,5 +1,7 @@
 package com.vmturbo.components.common.health;
 
+import static org.junit.Assert.assertFalse;
+
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
@@ -8,6 +10,8 @@ import java.time.Duration;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
+
+import com.vmturbo.components.common.config.PropertiesConfigSource;
 
 /**
  * Tests for the Memory Monitor
@@ -21,8 +25,10 @@ public class MemoryMonitorTest {
     @Test
     public void testMemoryMonitor() {
         // create a test monitor that triggers when old gen used exceeds 25%.
-        double targetRatio = 0.50;
-        MemoryMonitor memoryMonitor = new MemoryMonitor(targetRatio);
+        final Double targetRatio = 0.50;
+        PropertiesConfigSource config = new PropertiesConfigSource();
+        config.setProperty(MemoryMonitor.PROP_MAX_HEALTHY_HEAP_USED_RATIO, targetRatio);
+        MemoryMonitor memoryMonitor = new MemoryMonitor(config);
 
         // verify initial check is healthy.
         HealthStatus status = memoryMonitor.getHealthStatus();
@@ -41,7 +47,7 @@ public class MemoryMonitorTest {
         System.gc();
         // verify that the next health status reports the problem
         status = memoryMonitor.getStatusStream().blockFirst();
-        Assert.assertFalse("We should now be over the threshold after allocating the large object.", status.isHealthy());
+        assertFalse("We should now be over the threshold after allocating the large object.", status.isHealthy());
 
         // release mongo and we should go back to normal
         mongo = null;
@@ -54,5 +60,4 @@ public class MemoryMonitorTest {
         status = memoryMonitor.getStatusStream().take(Duration.ofMillis(100)).last(memoryMonitor.getHealthStatus()).block();
         Assert.assertTrue("We should now be back under the threshold. " + status.getDetails(), status.isHealthy());
     }
-
 }

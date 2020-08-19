@@ -10,10 +10,7 @@
         ]
       },
       "Container": {
-        "connectedGroupId": "123434550"
-      },
-      "CONTAINERPOD": {
-        "connectedGroupId": ""
+        "connectedGroup": {"uuid":"123434550"}
       },
       "virtualmachine": {
         "dynamicConnectionCriteria": [

@@ -11,24 +11,24 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import it.unimi.dsi.fastutil.ints.Int2DoubleArrayMap;
 import it.unimi.dsi.fastutil.ints.Int2DoubleMap;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
-import com.vmturbo.extractor.schema.enums.EntitySeverity;
+import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.fetcher.ActionFetcher;
 import com.vmturbo.extractor.topology.fetcher.DataFetcher;
@@ -44,11 +44,20 @@ import com.vmturbo.topology.graph.TopologyGraph;
  */
 public class DataProvider {
 
-    private static final Logger logger = LogManager.getLogger();
-
     // commodity values cached for use later in finish stage
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityUsed = new Long2ObjectArrayMap<>();
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityCapacity = new Long2ObjectArrayMap<>();
+
+    /**
+     * Cache the historical utilization value (when present) for each entity, for use in calculating
+     * average group utilization (currently only applies to Clusters).
+     *
+     * <p>The historical utilization is a percentage; there are multiple ways it can be calculated.
+     * If the percentile-based calculation is available, that will be used to populate this value.
+     * Otherwise, if the older weighted-average calculation is available then that will be used.
+     * Entities with no historical utilization will be omitted.</p>
+     */
+    private final Long2ObjectMap<Int2DoubleMap> entityToCommodityHistoricalUtilization = new Long2ObjectArrayMap<>();
 
     private GroupData groupData;
 
@@ -57,6 +66,39 @@ public class DataProvider {
     private Long2IntMap entityOrGroupToActionCount;
 
     private TopologyGraph<SupplyChainEntity> graph;
+
+    private final Long2ObjectMap<Boolean> virtualVolumeToEphemeral = new Long2ObjectOpenHashMap();
+    private final Long2ObjectMap<Boolean> virtualVolumeToEncrypted = new Long2ObjectOpenHashMap();
+
+    /**
+     * Scraps data from topologyEntityDTO.
+     * @param topologyEntityDTO entity
+     */
+    public void scrapeData(@Nonnull TopologyEntityDTO topologyEntityDTO) {
+        scrapeCommodities(topologyEntityDTO);
+        scrapeVirtualVolumes(topologyEntityDTO);
+    }
+
+    /**
+     * Scrape VirtualVolume information.
+     * @param topologyEntityDTO entity
+     */
+    public void scrapeVirtualVolumes(@Nonnull TopologyEntityDTO topologyEntityDTO) {
+        if (topologyEntityDTO.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE) {
+            return;
+        }
+        VirtualVolumeInfo virtualVolumeInfo = topologyEntityDTO.getTypeSpecificInfo().getVirtualVolume();
+        if (virtualVolumeInfo.hasIsEphemeral()) {
+            this.virtualVolumeToEphemeral.put(topologyEntityDTO.getOid(),
+                    (Boolean)virtualVolumeInfo.getIsEphemeral());
+        }
+
+        if (virtualVolumeInfo.hasEncryption()) {
+            this.virtualVolumeToEncrypted.put(
+                    topologyEntityDTO.getOid(),
+                    (Boolean)virtualVolumeInfo.getEncryption());
+        }
+    }
 
     /**
      * Scrape the commodities we are interested in for use by groups and related entities later.
@@ -81,11 +123,16 @@ public class DataProvider {
             if (commodityTypes.contains(commodityType)) {
                 used.put(commodityType, used.get(commodityType) + commoditySoldDTO.getUsed());
                 capacity.put(commodityType, capacity.get(commodityType) + commoditySoldDTO.getCapacity());
+                //TODO: We can't follow the above pattern because we can't sum utilization, we have to average it
+                // We'll have to change this whole loop to allow us to address one commodity type at a time
             }
         });
         entityToCommodityUsed.put(topologyEntityDTO.getOid(), used);
         entityToCommodityCapacity.put(topologyEntityDTO.getOid(), capacity);
+        //entityToCommodityHistoricalUtilization.put(topologyEntityDTO.getOid(), historicalUtilization);
     }
+
+
 
     /**
      * Fetch data from other components.
@@ -155,6 +202,7 @@ public class DataProvider {
      * contains 2 hosts and 1 vm, it will return 2 if requested entityType is host.
      *
      * @param groupId group id
+     * @param entityType entity type
      * @return direct member count
      */
     public int getGroupDirectMembersCount(long groupId, EntityType entityType) {
@@ -216,13 +264,42 @@ public class DataProvider {
      * @return related entities count for the group
      */
     public int getGroupRelatedEntitiesCount(long groupId, Set<EntityType> relatedEntityTypes) {
-        return (int)groupData.getGroupToLeafEntityIds()
+        return (int)
+                getGroupRelatedEntities(groupId, relatedEntityTypes)
+                .count();
+    }
+
+    /**
+     * Get the related entities names of group considering EntityType.
+     *
+     * @param groupId group id
+     * @param relatedEntityTypes related types of the entity
+     * @return related entities count for the group
+     */
+    public List<String> getGroupRelatedEntitiesNames(long groupId, Set<EntityType> relatedEntityTypes) {
+        return
+                getGroupRelatedEntities(groupId, relatedEntityTypes)
+                .map(this::getDisplayName)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+
+    }
+
+    /**
+     * Get the related entities oids for groupOid considering EntityType.
+     *
+     * @param groupId group id
+     * @param relatedEntityTypes related types of the entity
+     * @return related entities count for the group
+     */
+    public Stream<Long> getGroupRelatedEntities(long groupId, Set<EntityType> relatedEntityTypes) {
+        return groupData.getGroupToLeafEntityIds()
                 .getOrDefault(groupId, Collections.emptyList())
                 .stream()
                 .flatMap(entityOid -> relatedEntityTypes.stream().flatMap(relatedEntityType ->
                         getRelatedEntitiesOfType(entityOid, relatedEntityType).stream()))
-                .distinct()
-                .count();
+                .distinct();
     }
 
     /**
@@ -280,11 +357,11 @@ public class DataProvider {
      * Get the severity for the given entity/group.
      *
      * @param oid id of the entity or group
-     * @return {@link EntitySeverity} enum generated by jooq
+     * @return {@link Severity} enum generated by jooq
      */
-    public EntitySeverity getSeverity(long oid) {
+    public Severity getSeverity(long oid) {
         // todo: fake value for now, fetch severity from AO, like we do in API SeverityPopulator
-        return EntitySeverity.MAJOR;
+        return Severity.MAJOR;
     }
 
     /**
@@ -340,5 +417,35 @@ public class DataProvider {
             return OptionalDouble.empty();
         }
         return OptionalDouble.of(used.getAsDouble() / capacity.getAsDouble());
+    }
+
+    /**
+     * Get display name for the given entity.
+     *
+     * @param entityOid id of the entity
+     * @return optional display name
+     */
+    public Optional<String> getDisplayName(long entityOid) {
+        return graph.getEntity(entityOid).map(SupplyChainEntity::getDisplayName);
+    }
+
+    /**
+     * Gets if VirtualVolume isEphemeral.
+     * @param virtualVolumeOid virtualVolume oid
+     * @return boolean is known, otherwise null
+     */
+    @Nullable
+    public Boolean virtualVolumeIsEphemeral(long virtualVolumeOid) {
+        return virtualVolumeToEphemeral.get(virtualVolumeOid);
+    }
+
+    /**
+     * Gets if VirtualVolume isEncrypted.
+     * @param virtualVolumeOid virtualVolume oid
+     * @return boolean is known, otherwise null
+     */
+    @Nullable
+    public Boolean virtualVolumeIsEncrypted(long virtualVolumeOid) {
+        return virtualVolumeToEncrypted.get(virtualVolumeOid);
     }
 }

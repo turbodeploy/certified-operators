@@ -26,6 +26,8 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     private Boolean local;
 
     // Do not generate delete wasted files actions for this Storage
+    // Deprecated since this flag is no longer used in TopologyEntityDTO.
+    @Deprecated
     private boolean ignoreWastedFiles;
 
     public List<String> getExternalNames() {
@@ -57,6 +59,7 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
      *
      * @return True if wasted files actions should be suppressed for this storage.
      */
+    @Deprecated
     public boolean getIgnoreWastedFiles() {
         return ignoreWastedFiles;
     }
@@ -67,6 +70,7 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
      *
      * @param ignoreWastedFiles flag indicating that we shouldn't generate wasted files actions.
      */
+    @Deprecated
     public void setIgnoreWastedFiles(final boolean ignoreWastedFiles) {
         this.ignoreWastedFiles = ignoreWastedFiles;
     }
@@ -85,7 +89,6 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         setExternalNames(storageInfo.getExternalNameList());
         setLocal(storageInfo.getIsLocal());
-        setIgnoreWastedFiles(storageInfo.getIgnoreWastedFiles());
         serviceEntityRepoDTO.setStorageInfoRepoDTO(this);
     }
 
@@ -101,7 +104,6 @@ public class StorageInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         if (getLocal() != null) {
             storageInfoBuilder.setIsLocal(getLocal());
         }
-        storageInfoBuilder.setIgnoreWastedFiles(getIgnoreWastedFiles());
         return TypeSpecificInfo.newBuilder()
                 .setStorage(storageInfoBuilder)
                 .build();

@@ -207,7 +207,7 @@ public class TopologyDataDefinitionRpcServiceTest {
     public void testUpdateTopologyDataDefinition() throws Exception {
         final TopologyDataDefinition updatedDef = TopologyDataDefinitionTestUtils
             .createManualTopologyDataDefinition(EntityType.SERVICE, NAME, GROUP_ID2,
-                    EntityType.APPLICATION);
+                    EntityType.APPLICATION_COMPONENT);
         final TopologyDataDefinitionEntry updatedDefEntry = TopologyDataDefinitionEntry.newBuilder()
             .setId(OID)
             .setDefinition(updatedDef)

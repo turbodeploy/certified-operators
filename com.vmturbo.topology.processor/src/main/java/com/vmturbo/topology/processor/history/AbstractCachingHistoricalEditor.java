@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.history;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -17,16 +19,22 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 
+import io.grpc.stub.AbstractStub;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 
@@ -45,10 +53,12 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
             HistoryLoadingTask extends IHistoryLoadingTask<Config, DbValue>,
             Config extends CachingHistoricalEditorConfig,
             DbValue,
-            Stub extends io.grpc.stub.AbstractStub<Stub>,
+            Stub extends AbstractStub<Stub>,
             CheckpointResult>
-        extends AbstractHistoricalEditor<Config, Stub> {
+        extends AbstractHistoricalEditor<Config, Stub> implements BinaryDiagsRestorable {
     private static final Logger logger = LogManager.getLogger();
+    private static final String EXPORTING_FILE_NAME_SUFFIX = "state";
+    private static final Pattern CAMEL_CASE_WORDS_SPLITTER = Pattern.compile("(?=\\p{Lu})");
 
     /**
      * Per-commodity field cached historical data.
@@ -63,6 +73,8 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
      * Creator for the cached per-commodity-field data entry.
      */
     protected final Supplier<HistoryData> historyDataCreator;
+
+    private final String diagnosticsFilename;
 
     /**
      * Construct the instance of a caching history editor.
@@ -79,6 +91,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
         super(config, statsHistoryClient);
         this.historyLoadingTaskCreator = historyLoadingTaskCreator;
         this.historyDataCreator = historyDataCreator;
+        this.diagnosticsFilename = createDiagnosticsFileName(getClass());
     }
 
     @Override
@@ -145,6 +158,66 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
         return historyLoadingTaskCreator.apply(getStatsHistoryClient(), range);
     }
 
+    @Override
+    public void collectDiags(@Nonnull OutputStream appender)
+                    throws DiagnosticsException, IOException {
+        if (!getConfig().isCacheExportingToDiagnostics()) {
+            logger.warn("Cache exporting is disabled for '{}'.", getClass().getSimpleName());
+            return;
+        }
+        exportState(appender);
+    }
+
+    @Override
+    public void restoreDiags(@Nonnull byte[] bytes) throws DiagnosticsException {
+        if (bytes.length <= 0) {
+            logger.debug("Cannot import cache for '{}' from empty file.",
+                            getClass().getSimpleName());
+            return;
+        }
+        restoreState(bytes);
+    }
+
+    /**
+     * Imports state from provided bytes.
+     *
+     * @param bytes that are going to be used to restore state.
+     * @throws DiagnosticsException when an exception occurs during state restoration.
+     */
+    protected abstract void restoreState(@Nonnull byte[] bytes) throws DiagnosticsException;
+
+    /**
+     * Creates diagnosticsFilename where to store diagnostic from specified type instance.
+     *
+     * @param type type which instance need to be stored in diagnostics.
+     * @return diagnosticsFilename where diagnostics will be stored.
+     */
+    @Nonnull
+    private static String createDiagnosticsFileName(@Nonnull Class<?> type) {
+        final String simpleName = type.getSimpleName();
+        final String[] words = CAMEL_CASE_WORDS_SPLITTER.split(simpleName);
+        final String result = Stream.concat(Stream.of(words), Stream.of(EXPORTING_FILE_NAME_SUFFIX))
+                        .collect(Collectors.joining("."));
+        return result;
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return diagnosticsFilename;
+    }
+
+
+    /**
+     * Exports state of the editor into provided {@link OutputStream} instance.
+     *
+     * @param appender stream where state need to be written to.
+     * @throws DiagnosticsException When an exception occurs during diagnostics
+     *                 collection.
+     * @throws IOException when error occurred writing to the output stream
+     */
+    protected abstract void exportState(@Nonnull OutputStream appender)
+                    throws DiagnosticsException, IOException;
 
     @Override
     @Nonnull

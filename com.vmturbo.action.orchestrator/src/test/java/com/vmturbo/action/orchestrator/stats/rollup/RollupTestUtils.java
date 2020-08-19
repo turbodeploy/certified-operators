@@ -21,6 +21,7 @@ import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotHourRecor
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.MgmtUnitSubgroupRecord;
+import com.vmturbo.action.orchestrator.db.tables.records.RelatedRiskForActionRecord;
 import com.vmturbo.action.orchestrator.stats.rollup.BaseActionStatTableReader.StatWithSnapshotCnt;
 
 public class RollupTestUtils {
@@ -72,12 +73,20 @@ public class RollupTestUtils {
     }
 
     public void insertActionGroup(final int actionGroupId) {
+        final RelatedRiskForActionRecord relatedRiskForActionRecord = new RelatedRiskForActionRecord();
+        relatedRiskForActionRecord.setId(1);
+        relatedRiskForActionRecord.setRiskDescription("Mem congestion");
+        dsl.insertInto(Tables.RELATED_RISK_FOR_ACTION)
+                .set(relatedRiskForActionRecord)
+                .onDuplicateKeyIgnore()
+                .execute();
         final ActionGroupRecord actionGroupRecord = new ActionGroupRecord();
         actionGroupRecord.setId(actionGroupId);
         actionGroupRecord.setActionType((short)actionGroupId);
         actionGroupRecord.setActionState((short)actionGroupId);
         actionGroupRecord.setActionMode((short)actionGroupId);
         actionGroupRecord.setActionCategory((short)actionGroupId);
+        actionGroupRecord.setActionRelatedRisk(1);
         dsl.insertInto(Tables.ACTION_GROUP)
                 .set(actionGroupRecord)
                 .onDuplicateKeyIgnore()

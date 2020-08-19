@@ -25,7 +25,7 @@ import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
-import com.vmturbo.cost.component.cca.CloudCommitmentEventDemandStatsConfig;
+import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.discount.DiscountConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
@@ -59,7 +59,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         CostDBConfig.class,
         SupplyChainServiceConfig.class,
         GroupClientConfig.class,
-        CloudCommitmentEventDemandStatsConfig.class})
+        CloudCommitmentAnalysisStoreConfig.class})
 public class TopologyListenerConfig {
     private static final Logger logger = LogManager.getLogger();
 
@@ -106,7 +106,7 @@ public class TopologyListenerConfig {
     private GroupClientConfig groupClientConfig;
 
     @Autowired
-    private CloudCommitmentEventDemandStatsConfig cloudCommitmentEventDemandStatsConfig;
+    private CloudCommitmentAnalysisStoreConfig cloudCommitmentAnalysisStoreConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -122,11 +122,12 @@ public class TopologyListenerConfig {
                         cloudTopologyFactory(), topologyCostCalculatorFactory(),
                         entityCostConfig.entityCostStore(),
                         reservedInstanceConfig.reservedInstanceCoverageUpload(),
+                        reservedInstanceConfig.accountRIMappingStore(),
                         costConfig.businessAccountHelper(),
                         costJournalRecorder(),
                         buyRIAnalysisConfig.reservedInstanceAnalysisInvoker(),
                         topologyProcessorListenerConfig.liveTopologyInfoTracker(),
-                        cloudCommitmentEventDemandStatsConfig.cloudCommitmentDemandWriter());
+                        cloudCommitmentAnalysisStoreConfig.cloudCommitmentDemandWriter());
 
         topologyProcessorListenerConfig.topologyProcessor()
                 .addLiveTopologyListener(entitiesListener);

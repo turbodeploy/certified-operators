@@ -28,6 +28,7 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse.TypeCase;
@@ -54,11 +55,12 @@ import com.vmturbo.components.api.test.GrpcTestServer;
  */
 public class EntitySeverityRpcServiceTest {
     private EntitySeverityServiceBlockingStub severityServiceClient;
-    private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
 
     private EntitySeverityCache severityCache;
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
+
+    private final ActionTopologyStore actionTopologyStore = Mockito.mock(ActionTopologyStore.class);
 
     private final long topologyContextId = 3;
 
@@ -67,9 +69,7 @@ public class EntitySeverityRpcServiceTest {
                     100, 500, 5000);
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(
-        entitySeverityRpcService,
-        repositoryServiceMole);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(entitySeverityRpcService);
 
     @Before
     public void setup() throws IOException {
@@ -77,7 +77,7 @@ public class EntitySeverityRpcServiceTest {
 
         severityServiceClient = EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
         severityCache = Mockito.spy(new EntitySeverityCache(
-            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            actionTopologyStore,
             true));
     }
 

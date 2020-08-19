@@ -13,9 +13,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterRole;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.stitching.IntersectionStitchingIndex;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingScope;
@@ -60,7 +58,8 @@ public class ElasticVDCStitchingOperation implements StitchingOperation<String, 
     @Nonnull
     @Override
     public Optional<StitchingScope<StitchingEntity>> getScope(
-            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+            long targetId) {
         // now we only stitch VCD with VC target
         return Optional.of(stitchingScopeFactory.probeScope(SDKProbeType.VCENTER.getProbeType()));
     }
@@ -223,23 +222,4 @@ public class ElasticVDCStitchingOperation implements StitchingOperation<String, 
         return VirtualDatacenterRole.PRODUCER.equals(stitchingEntity.getEntityBuilder()
             .getVirtualDatacenterData().getVdcTypeProps().getRole());
     }
-
-    /**
-     *  We are using replacesEntityId in Elastic VDC as the key, and the List of replacesEntityId as
-     *  value. The replacesEntityId is also the UUID of external VDC entity in VC. According to the
-     *  logic we can simply use {@link IntersectionStitchingIndex} to build stitching index.
-     *
-     *  external signature        internal signature
-     *  replacesEntityId -&gt; [replacesEntityId, replacesEntityId2]
-     *  replacesEntityId2 -&gt; [replacesEntityId, replacesEntityId2]
-     *
-     *  We find all the external VDC which UUID match the key in the stitching index, and create
-     *  matching pair for the matched internal Elastic VDC and external VDC.
-     */
-    @Nonnull
-    @Override
-    public StitchingIndex<String, String> createIndex(final int expectedSize) {
-        return new IntersectionStitchingIndex(expectedSize);
-    }
-
 }

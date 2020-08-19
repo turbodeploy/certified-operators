@@ -15,11 +15,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.text.StrSubstitutor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.stringtemplate.v4.ST;
-
 import com.arangodb.ArangoCursor;
 import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
@@ -30,14 +25,19 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.lang3.text.StrSubstitutor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.stringtemplate.v4.ST;
+
 import javaslang.collection.Seq;
 import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
-import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.OptScope;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -208,7 +208,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
     @Override
     public Try<SupplyChainSubgraph> executeSupplyChainCmd(final GraphCmd.GetSupplyChain supplyChainCmd) {
-        try (OptScope scope = Tracing.addOpToTrace("executeSupplyChainCmd")) {
+        try (OptScope scope = Tracing.childOfActiveSpan("executeSupplyChainCmd")) {
             final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
             final String providerQuery = getSupplyChainQuery(SupplyChainDirection.PROVIDER, supplyChainCmd);
             final String consumerQuery = getSupplyChainQuery(SupplyChainDirection.CONSUMER, supplyChainCmd);
@@ -278,7 +278,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
     @Override
     public Try<Collection<ServiceEntityRepoDTO>> executeSearchServiceEntityCmd(final GraphCmd.SearchServiceEntity searchServiceEntity) {
-        try (OptScope scope = Tracing.addOpToTrace("executeSearchServiceEntityCmd")) {
+        try (OptScope scope = Tracing.childOfActiveSpan("executeSearchServiceEntityCmd")) {
             final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
             final String searchQuery = searchServiceEntitytQuery(searchServiceEntity);
             final DataMetricTimer timer = SEARCH_QUERY_DURATION_SUMMARY.startTimer();
@@ -299,7 +299,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
     @Nonnull
     public Try<Collection<ServiceEntityRepoDTO>> executeServiceEntityMultiGetCmd(
             @Nonnull final ServiceEntityMultiGet serviceEntityMultiGet) {
-        try (final OptScope scope = Tracing.addOpToTrace("executeServiceEntityMultiGetCmd")) {
+        try (final OptScope scope = Tracing.childOfActiveSpan("executeServiceEntityMultiGetCmd")) {
             final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
             final StrSubstitutor querySubstitutor;
             final String searchQuery;
@@ -365,7 +365,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
             @Nonnull String databaseName,
             @Nonnull String vertexCollection,
             @Nonnull SearchTagsRequest request) throws ArangoDBException {
-        try (OptScope scope = Tracing.addOpToTrace("executeTagCommand")) {
+        try (OptScope scope = Tracing.childOfActiveSpan("executeTagCommand")) {
             final Collection<Long> entityOids = request.getEntitiesList();
             final EnvironmentTypeEnum.EnvironmentType environmentType =
                 request.hasEnvironmentType() ? request.getEnvironmentType() : null;

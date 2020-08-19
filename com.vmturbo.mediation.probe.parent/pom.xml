@@ -12,7 +12,7 @@
     <artifactId>xl-sdk-probe-parent</artifactId>
     <packaging>pom</packaging>
     <groupId>com.vmturbo</groupId>
-    <version>7.22.100-TeamPaaS-SNAPSHOT</version>
+    <version>7.22.8-SNAPSHOT</version>
 
     <properties>
         <swagger.component.name>GCP Conversion Mediation Component</swagger.component.name>
@@ -23,6 +23,9 @@
         <google.findbugs.version>2.0.3</google.findbugs.version>
         <log4j2.Version>2.6.2</log4j2.Version>
         <guava.version>28.2-jre</guava.version>
+        <jacocoVersion>0.8.2</jacocoVersion>
+        <mockito.version>1.10.19</mockito.version>
+        <powermock.version>1.6.6</powermock.version>
     </properties>
 
     <build>

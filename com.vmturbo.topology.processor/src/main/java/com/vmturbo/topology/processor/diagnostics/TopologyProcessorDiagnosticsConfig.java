@@ -1,7 +1,10 @@
 package com.vmturbo.topology.processor.diagnostics;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,12 +12,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
+import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.proactivesupport.DataCollectorFramework;
 import com.vmturbo.proactivesupport.bridge.TCPAggregatorBridge;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.cost.CloudCostConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
+import com.vmturbo.topology.processor.history.HistoryAggregationConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.ldcf.DataMetricTopology;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
@@ -29,7 +35,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
 @Configuration
 @Import({TargetConfig.class, SchedulerConfig.class, EntityConfig.class, GroupConfig.class,
     TemplateConfig.class, IdentityProviderConfig.class, ProbeConfig.class, CloudCostConfig.class,
-    TopologyConfig.class})
+    TopologyConfig.class, HistoryAggregationConfig.class})
 public class TopologyProcessorDiagnosticsConfig {
     /**
      * The urgent collection interval setting.
@@ -93,6 +99,9 @@ public class TopologyProcessorDiagnosticsConfig {
     @Autowired
     private TopologyConfig topologyConfig;
 
+    @Autowired
+    private HistoryAggregationConfig historyAggregationConfig;
+
     /**
      * The hardLock key.
      */
@@ -105,6 +114,11 @@ public class TopologyProcessorDiagnosticsConfig {
 
     @Bean
     public TopologyProcessorDiagnosticsHandler diagsHandler() {
+        final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts =
+                        historyAggregationConfig.statefulEditors().stream().collect(Collectors
+                                        .toMap(item -> item.getFileName()
+                                                                        + DiagsZipReader.BINARY_DIAGS_SUFFIX,
+                                                        Function.identity()));
         return new TopologyProcessorDiagnosticsHandler(targetConfig.targetStore(),
             targetConfig.persistentIdentityStore(),
             schedulerConfig.scheduler(),
@@ -115,7 +129,7 @@ public class TopologyProcessorDiagnosticsConfig {
             identityProviderConfig.identityProvider(),
             cloudCostConfig.discoveredCloudCostUploader(),
             cloudCostConfig.priceTableUploader(),
-            topologyConfig.pipelineExecutorService());
+            topologyConfig.pipelineExecutorService(), fixedFilenameBinaryDiagnosticParts);
     }
 
     @Bean

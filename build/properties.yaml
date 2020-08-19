@@ -5,10 +5,10 @@ defaultProperties:
         clustermgr_retry_delay_sec : 10
         kafkaServers : kafka1:9092
         deadlockCheckIntervalSecs: 900
-        maxHealthyUsedMemoryRatio: 0.95
         scheduledMetricsIntervalMs: 60000
         grpcPingIntervalSeconds: 300
         realtimeTopologyContextId: 777777
+        enableReporting: true
         # hostnames for each component type
         actionOrchestratorHost: action-orchestrator
         apiHost: api
@@ -37,6 +37,7 @@ defaultProperties:
         dbUsername: root
         sqlDialect: MARIADB
         mariadbHealthCheckIntervalSeconds: 60
+        histEntityRiCoverageRecordsRollingWindowDays: 60
         # Mediation Component Common
         serverAddress: ws://topology-processor:8080/remoteMediation
         silentRetryTime: 0
@@ -51,7 +52,7 @@ defaultProperties:
     extractor:
         dbHost: timescaledb
         dbPort: 5432
-        dbRootUserName: postgres
+        enableReporting: true
     action-orchestrator:
         identityGeneratorPrefix: 9
         actionPaginationDefaultLimit: 100
@@ -95,18 +96,6 @@ defaultProperties:
         externalApiFileSystemBase: file:/swagger/
         cpuInfoCacheLifetimeHours: 8
         sessionTimeoutSeconds: 1800
-        dbHost: 10.10.170.248
-        dbPort: 5432
-        dbDatabaseName: extractor
-        dbSchemaName: extractor
-        dbUserName: extractor
-        dbPassword: vmturbo
-        enableSearchApi: true
-        postgresHost: timescaledb
-        postgresPort: 5432
-        postgresUserName: extractor
-        dbMigrationLocation: " " #Prevents migration problem on startup with identical
-        #migration versions from extractor-schema and history
     auth:
         dbSchemaName: auth
         identityGeneratorPrefix: 7
@@ -146,7 +135,6 @@ defaultProperties:
         # Schedule for the Reserved Instance tables cleanup scheduler
         reservedInstanceStatCleanup.scheduler: 360000
         retention.updateRetentionIntervalSeconds: 10
-        projectedTopologyListenerTimeOut: 3600
     group:
         identityGeneratorPrefix: 4
         createDefaultSettingPolicyRetryIntervalSec: 30
@@ -329,6 +317,8 @@ defaultProperties:
         repositorySearchPaginationMaxLimit: 500
         repositoryEntityStatsPaginationDefaultLimit: 100
         repositoryEntityStatsPaginationMaxLimit: 300
+        repositoryEntityPaginationDefaultLimit: 20
+        repositoryEntityPaginationMaxLimit: 100
         # Note - OM-36437 - The price index sorting doesn't actually work right now,
         # but there is no other good universally applicable default commodity.
         repositoryEntityStatsPaginationDefaultSortCommodity: priceIndex
@@ -402,7 +392,7 @@ defaultProperties:
         #
         # Even if this parameter is turned to false the journal can be manually collected
         # using the /topology-processor/stitchingJournal REST endpoint.
-        stitchingJournalEnabled: true
+        stitchingJournalEnabled: false
         # Control parameters for tuning how frequently and how many entities we trace
         # through the stitching journal. Tracking more changes in the journal introduces
         # a greater performance hit but also provides greater debugging information.

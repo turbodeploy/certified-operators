@@ -1246,7 +1246,7 @@ public abstract class BasedbIO {
                                 : "time limit " + queryLimit_sec + " seconds", query);
                     }
                     try (DataMetricTimer timer = Metrics.QUERY_EXECUTE_DURATION.startTimer();
-                         OptScope scope = Tracing.addOpToTrace("query")) {
+                         OptScope scope = Tracing.childOfActiveSpan("query")) {
                         Tracing.log(query.getSQL());
                         if (query instanceof ResultQuery<?>) {
                             ResultQuery<? extends Record> resQuery = (ResultQuery<?>) query;

@@ -6,11 +6,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
@@ -22,6 +24,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.StitchingScopeType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
@@ -48,6 +51,8 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
                 StitchingOperation<InternalSignatureT, ExternalSignatureT> {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final String INTERNAL = "internal";
+    private static final String EXTERNAL = "external";
 
     // The data structure encapsulating the stitching behavior passed in from the supply chain of
     // the probe.
@@ -82,7 +87,18 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
     @Nonnull
     @Override
     public Optional<StitchingScope<StitchingEntity>> getScope(
-            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+            long targetId) {
+        // TODO add support for more scope types like GLOBAL and CATEGORY.  Eventually, all scopes
+        // could be defined in the metadata.
+        if (matchingInformation.getStitchingScope().isPresent()
+                && matchingInformation.getStitchingScope().get().getScopeType()
+                == StitchingScopeType.PARENT) {
+            logger.trace("Returning parent scope for stitching operation with target {}",
+                    targetId);
+            return Optional.of(stitchingScopeFactory
+                    .parentTargetEntityType(getExternalEntityType().get(), targetId));
+        }
         if (categoriesToStitchWith.isEmpty()) {
             return Optional.empty();
         }
@@ -140,11 +156,18 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
 
     @Override
     public Collection<InternalSignatureT> getInternalSignature(@Nonnull StitchingEntity entity) {
-        return getSignatures(entity, matchingInformation::getInternalMatchingData);
+        return getSignatures(entity, matchingInformation::getInternalMatchingData, INTERNAL);
+    }
+
+    @Override
+    public Collection<ExternalSignatureT> getExternalSignature(@Nonnull StitchingEntity entity) {
+        return getSignatures(entity, matchingInformation::getExternalMatchingData, EXTERNAL);
     }
 
     private static <S> Collection<S> getSignatures(@Nonnull StitchingEntity internalEntity,
-                    @Nonnull Supplier<Collection<MatchingPropertyOrField<S>>> matchingMetadataProvider) {
+                    @Nonnull Supplier<Collection<MatchingPropertyOrField<S>>> matchingMetadataProvider,
+                    @Nonnull String signatureType) {
+        final Stopwatch sw = Stopwatch.createStarted();
         final Collection<MatchingPropertyOrField<S>> matchingPropertyOrFields =
                         matchingMetadataProvider.get();
         final Collection<S> result = matchingPropertyOrFields.stream()
@@ -153,18 +176,26 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
                         .filter(values -> !values.isEmpty())
                         .flatMap(Collection::stream)
                         .collect(Collectors.toSet());
+        if (logger.isTraceEnabled()) {
+            logger.trace("Extracted '{}' '{}' signatures for '{}' entity using '{}' in '{}' ms",
+                            result, signatureType, internalEntity.getOid(),
+                            matchingPropertyOrFields, sw.stop().elapsed(TimeUnit.MILLISECONDS));
+        } else if (logger.isDebugEnabled()) {
+            if (result.size() > 1) {
+                logger.debug("'{}|{}' entity has '{}' '{}' signatures: '{}'",
+                                internalEntity.getOid(),
+                                internalEntity.getDisplayName(), result.size(),
+                                signatureType, result);
+            }
+        }
         return result;
-    }
-
-    @Override
-    public Collection<ExternalSignatureT> getExternalSignature(@Nonnull StitchingEntity entity) {
-        return getSignatures(entity, matchingInformation::getExternalMatchingData);
     }
 
     @Nonnull
     @Override
     public TopologicalChangelog stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
                                        @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
+        final StringBuilder errorMessageBuilder = new StringBuilder();
         stitchingPoints.forEach(stitchingPoint -> {
             // TODO confirm that this logic works in case where multiple proxy entities are discovered
             // by a probe and they are in a consumer/provider relationship with each other.
@@ -175,15 +206,18 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
 
             // log an error if more than one external entity matched a single internal entity
             if (stitchingPoint.getExternalMatches().size() > 1) {
-                logger.error("Internal Entity {} matched multiple External Entities: {}",
-                        internalEntity.getDisplayName(), stitchingPoint.getExternalMatches()
-                                .stream()
-                                .map(StitchingEntity::getDisplayName)
-                                .collect(Collectors.joining(", ")));
+                errorMessageBuilder.append(String.format(
+                                "Internal Entity %s matched multiple External Entities: %s%n",
+                                internalEntity.getDisplayName(),
+                                stitchingPoint.getExternalMatches().stream()
+                                                .map(StitchingEntity::getDisplayName)
+                                                .collect(Collectors.joining(", "))));
             }
             stitch(internalEntity, externalEntity, resultBuilder);
         });
-
+        if (errorMessageBuilder.length() > 0) {
+            logger.error(errorMessageBuilder.toString());
+        }
         return resultBuilder.build();
     }
 
@@ -228,7 +262,7 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
                     // provider and then delete it.  Merging adds the oid and target of the replaced
                     // entity to the entity we are keeping.
                     if (externalProvider.getEntityBuilder().getOrigin()
-                            .equals(EntityOrigin.REPLACEABLE)) {
+                                    == EntityOrigin.REPLACEABLE) {
                         resultBuilder.queueEntityMerger(MergeEntities
                                 .mergeEntity(externalProvider).onto(provider));
                     }
@@ -262,6 +296,14 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
         // merge sold commodities from proxy to real object and switch consumers that are consuming
         // from the proxy to consume from the real object
         resultBuilder.queueEntityMerger(mergeEntitiesDetails);
+    }
+
+    @Override
+    public String toString() {
+        return String.format(
+                        "%s [matchingInformation=%s, categoriesToStitchWith=%s, replacementEntityMap=%s]",
+                        getClass().getSimpleName(), this.matchingInformation,
+                        this.categoriesToStitchWith, this.replacementEntityMap);
     }
 
     /**
@@ -331,17 +373,7 @@ public class DataDrivenStitchingOperation<InternalSignatureT, ExternalSignatureT
         CommoditySoldMergeSpec(@Nonnull CommoditySoldMetadata commoditySoldMetadata) {
             this.ignoreIfPresent = commoditySoldMetadata.getIgnoreIfPresent();
             this.patchedFields = commoditySoldMetadata.getPatchedFieldsList().stream()
-                .map(entityField -> new DTOFieldSpec() {
-                    @Override
-                    public String getFieldName() {
-                        return entityField.getFieldName();
-                    }
-
-                    @Override
-                    public List<String> getMessagePath() {
-                        return entityField.getMessagePathList();
-                    }
-                }).collect(Collectors.toList());
+                .map(DTOFieldSpecImpl::new).collect(Collectors.toList());
         }
 
         boolean isIgnoreIfPresent() {

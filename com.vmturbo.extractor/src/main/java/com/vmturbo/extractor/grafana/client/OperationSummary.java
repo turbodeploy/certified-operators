@@ -83,4 +83,20 @@ public interface OperationSummary {
      * @param response The response.
      */
     default void recordDashboardUpsert(UpsertDashboardRequest request, JsonObject response) {}
+
+    /**
+     * A user already exists.
+     *
+     * @param username Username.
+     * @param userId The user ID.
+     */
+    default void recordUserUnchanged(String username, long userId) {}
+
+    /**
+     * A user was created successfully.
+     *
+     * @param username Username.
+     * @param userId The user ID.
+     */
+    default void recordUserCreate(String username, long userId) {}
 }

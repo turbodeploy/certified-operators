@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -72,6 +71,7 @@ import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -96,7 +96,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -185,6 +184,7 @@ public class ActionExecutionSecureRpcTest {
     private final SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
     private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
     private IdentityServiceImpl actionIdentityService;
+    private ActionTopologyStore actionTopologyStore = new ActionTopologyStore();
 
     // utility for creating / interacting with a debugging JWT context
     JwtContextUtil jwtContextUtil;
@@ -274,7 +274,7 @@ public class ActionExecutionSecureRpcTest {
 
         // mock action store
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                actionTopologyStore,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 actionsStatistician, actionTranslator, atomicActionFactory, clock,
                 userSessionContext, licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
@@ -317,7 +317,6 @@ public class ActionExecutionSecureRpcTest {
                 .getCompactRepresentation()))
             .acceptAction(acceptActionRequest);
 
-        assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
         assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
@@ -351,7 +350,6 @@ public class ActionExecutionSecureRpcTest {
         AcceptActionResponse response = actionOrchestratorServiceClientWithInterceptor
             .acceptAction(acceptActionRequest);
 
-        assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
         assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
@@ -411,7 +409,6 @@ public class ActionExecutionSecureRpcTest {
         AcceptActionResponse response = actionOrchestratorServiceClient
             .acceptAction(acceptActionRequest); // don't pass JWT token
 
-        assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
         assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
@@ -457,7 +454,7 @@ public class ActionExecutionSecureRpcTest {
                 .getCompactRepresentation()))
             .acceptAction(acceptActionRequest);
 
-        assertFalse(response.hasError());
+
         assertTrue(response.hasActionSpec());
         assertEquals(ACTION_ID_1, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
@@ -504,7 +501,6 @@ public class ActionExecutionSecureRpcTest {
 
         final AcceptActionResponse response1 =
                 actionOrchestratorServiceClient.acceptAction(acceptActionRequest1);
-        assertFalse(response1.hasError());
 
         final SingleActionRequest acceptActionRequest2 = SingleActionRequest.newBuilder()
                 .setActionId(ACTION_ID_2)
@@ -520,8 +516,6 @@ public class ActionExecutionSecureRpcTest {
         // this test.
         expectedException.expect(
                 GrpcRuntimeExceptionMatcher.hasCode(Code.UNKNOWN).anyDescription());
-        final AcceptActionResponse response2 =
-                actionOrchestratorServiceClient.acceptAction(acceptActionRequest2);
-        assertTrue(response2.hasError());
+        actionOrchestratorServiceClient.acceptAction(acceptActionRequest2);
     }
 }

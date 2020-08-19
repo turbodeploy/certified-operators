@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -59,18 +60,23 @@ public class GroupResolver {
      */
     private final Map<Long, ResolvedGroup> groupResolverCache;
 
+    private final GroupResolverSearchFilterResolver searchFilterResolver;
+
     /**
      * Create a new group resolver instance. Each instance will cache resolved groups.
      * The intention is for one resolver to be created per broadcast, and shared across broadcast.
      *
      * @param searchResolver The {@link SearchResolver} used to resolve dynamic groups.
      * @param groupServiceClient To access group service to resolve nested groups.
+     * @param searchFilterResolver To resolve the group property filters.
      */
     public GroupResolver(@Nonnull final SearchResolver<TopologyEntity> searchResolver,
-                         @Nullable final GroupServiceBlockingStub groupServiceClient) {
+                         @Nullable final GroupServiceBlockingStub groupServiceClient,
+                         @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver) {
         this.searchResolver = Objects.requireNonNull(searchResolver);
         this.groupServiceClient = groupServiceClient;
         this.groupResolverCache = new HashMap<>();
+        this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
     }
 
     /**
@@ -162,8 +168,13 @@ public class GroupResolver {
             case ENTITY_FILTERS:
                 for (EntityFilter entityFilter: group.getDefinition().getEntityFilters().getEntityFilterList()) {
                     try {
+                        List<SearchParameters> finalSearchParameters = entityFilter
+                                .getSearchParametersCollection().getSearchParametersList().stream()
+                                .map(searchFilterResolver::resolveExternalFilters)
+                                .collect(Collectors.toList());
                         final Set<Long> members = searchResolver.search(SearchQuery.newBuilder()
-                            .addAllSearchParameters(entityFilter.getSearchParametersCollection().getSearchParametersList())
+                            .addAllSearchParameters(finalSearchParameters)
+                            .setLogicalOperator(entityFilter.getLogicalOperator())
                             .build(), graph)
                             .map(TopologyEntity::getOid)
                             .collect(Collectors.toSet());

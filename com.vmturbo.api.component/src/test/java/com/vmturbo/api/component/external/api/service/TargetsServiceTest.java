@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -81,6 +82,7 @@ import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.utils.ParamStrings;
@@ -803,8 +805,8 @@ public class TargetsServiceTest {
                                                     Duration.ofMillis(100), Duration.ofMillis(50),
                                                     Duration.ofMillis(100), null,
                                                     apiComponentTargetListener, repositoryApi,
-                                                    actionSpecMapper, actionsRpcService, actionSearchUtil,
-                                                    REALTIME_CONTEXT_ID, apiWebsocketHandler);
+                                                    actionSpecMapper, actionSearchUtil,
+                                                    REALTIME_CONTEXT_ID, apiWebsocketHandler, true);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -831,8 +833,8 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null, apiComponentTargetListener,
-            repositoryApi, actionSpecMapper, actionsRpcService, actionSearchUtil, REALTIME_CONTEXT_ID,
-            apiWebsocketHandler);
+            repositoryApi, actionSpecMapper, actionSearchUtil, REALTIME_CONTEXT_ID,
+            apiWebsocketHandler, true);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -860,8 +862,8 @@ public class TargetsServiceTest {
                                                 Duration.ofMillis(100), Duration.ofMillis(50),
                                                 Duration.ofMillis(100), null,
                                                 apiComponentTargetListener, repositoryApi, actionSpecMapper,
-                                                actionsRpcService, actionSearchUtil, REALTIME_CONTEXT_ID,
-                                                apiWebsocketHandler);
+                                                actionSearchUtil, REALTIME_CONTEXT_ID,
+                                                apiWebsocketHandler, true);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -1213,6 +1215,40 @@ public class TargetsServiceTest {
             resp.getUuid());
     }
 
+    /**
+     * Verify target management public APIs are not allowed when `allowTargetManagement` is set to false.
+     *
+     * @throws Exception security exception.
+     */
+    @Test(expected = IllegalStateException.class)
+    public void testDisableTargetChangesInIntegrationMode() throws Exception {
+        final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
+        final TargetsService targetsService =
+                new TargetsService(topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
+                        Duration.ofMillis(50), Duration.ofMillis(100), null,
+                        apiComponentTargetListener, repositoryApi, actionSpecMapper,
+                        actionSearchUtil, REALTIME_CONTEXT_ID,
+                        apiWebsocketHandler, false);
+        // Get is allowed
+        targetsService.getTargets(EnvironmentType.HYBRID);
+        try {
+            // create is NOT allowed
+            targetsService.createTarget("", Collections.emptyList());
+            fail("should fail to manage target");
+        } catch (IllegalStateException e) {
+            // expected
+        }
+        try {
+            // Edit is is NOT allowed
+            targetsService.editTarget("111", Collections.emptyList());
+            fail("should fail to manage target");
+        } catch (IllegalStateException e) {
+            // expected
+        }
+        // Delete is NOT allowed
+        targetsService.deleteTarget("111");
+    }
+
     private TargetApiDTO postAndReturn(String query) throws Exception {
         final MvcResult result = mockMvc
                         .perform(MockMvcRequestBuilders.post("/targets/" + query).accept(
@@ -1309,7 +1345,7 @@ public class TargetsServiceTest {
         public TargetsService targetsService() {
             return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1),
                 Duration.ofSeconds(60), Duration.ofSeconds(1), null,
-                apiComponentTargetListener(), repositoryApi(), actionSpecMapper(), actionRpcService(),
+                apiComponentTargetListener(), repositoryApi(), actionSpecMapper(),
                 new ActionSearchUtil(actionRpcService(), actionSpecMapper(),
                                      Mockito.mock(PaginationMapper.class),
                                      Mockito.mock(SupplyChainFetcherFactory.class),
@@ -1317,7 +1353,7 @@ public class TargetsServiceTest {
                                      Mockito.mock(ServiceProviderExpander.class),
                                      REALTIME_CONTEXT_ID),
                 REALTIME_CONTEXT_ID,
-                new ApiWebsocketHandler());
+                new ApiWebsocketHandler(), true);
         }
 
         @Bean

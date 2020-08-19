@@ -16,10 +16,14 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.component.external.api.service.GroupsService;
+import com.vmturbo.api.dto.group.BaseGroupApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.topologydefinition.AutomatedEntityDefinitionData;
 import com.vmturbo.api.dto.topologydefinition.IEntityDefinitionData;
 import com.vmturbo.api.dto.topologydefinition.IManualConnectionsData;
@@ -29,6 +33,8 @@ import com.vmturbo.api.dto.topologydefinition.ManualGroupConnections;
 import com.vmturbo.api.dto.topologydefinition.ManualStaticConnections;
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
 import com.vmturbo.api.enums.EntityType;
+import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition;
@@ -57,20 +63,20 @@ public class TopologyDataDefinitionMapper {
 
     private static final BiMap<CommonDTO.EntityDTO.EntityType, EntityType> USER_DEFINED_ENTITY_TYPES_MAP =
             ImmutableBiMap.<CommonDTO.EntityDTO.EntityType, EntityType>builder()
-                .put(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION, EntityType.BUSINESS_APPLICATION)
-                .put(CommonDTO.EntityDTO.EntityType.BUSINESS_TRANSACTION, EntityType.BUSINESS_TRANSACTION)
-                .put(CommonDTO.EntityDTO.EntityType.SERVICE, EntityType.SERVICE)
+                .put(CommonDTO.EntityDTO.EntityType.BUSINESS_APPLICATION, EntityType.BusinessApplication)
+                .put(CommonDTO.EntityDTO.EntityType.BUSINESS_TRANSACTION, EntityType.BusinessTransaction)
+                .put(CommonDTO.EntityDTO.EntityType.SERVICE, EntityType.Service)
                 .build();
 
     private static final BiMap<CommonDTO.EntityDTO.EntityType, EntityType> CONNECTED_ENTITY_TYPES_MAP =
             ImmutableBiMap.<CommonDTO.EntityDTO.EntityType, EntityType>builder()
-                    .put(CommonDTO.EntityDTO.EntityType.APPLICATION_COMPONENT, EntityType.APPLICATION_COMPONENT)
-                    .put(CommonDTO.EntityDTO.EntityType.BUSINESS_TRANSACTION, EntityType.BUSINESS_TRANSACTION)
-                    .put(CommonDTO.EntityDTO.EntityType.CONTAINER, EntityType.CONTAINER)
-                    .put(CommonDTO.EntityDTO.EntityType.CONTAINER_POD, EntityType.CONTAINER_POD)
-                    .put(CommonDTO.EntityDTO.EntityType.DATABASE_SERVER, EntityType.DATABASE_SERVER)
-                    .put(CommonDTO.EntityDTO.EntityType.SERVICE, EntityType.SERVICE)
-                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_MACHINE)
+                    .put(CommonDTO.EntityDTO.EntityType.APPLICATION_COMPONENT, EntityType.ApplicationComponent)
+                    .put(CommonDTO.EntityDTO.EntityType.BUSINESS_TRANSACTION, EntityType.BusinessTransaction)
+                    .put(CommonDTO.EntityDTO.EntityType.CONTAINER, EntityType.Container)
+                    .put(CommonDTO.EntityDTO.EntityType.CONTAINER_POD, EntityType.ContainerPod)
+                    .put(CommonDTO.EntityDTO.EntityType.DATABASE_SERVER, EntityType.DatabaseServer)
+                    .put(CommonDTO.EntityDTO.EntityType.SERVICE, EntityType.Service)
+                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE, EntityType.VirtualMachine)
                     .build();
 
     /**
@@ -88,14 +94,19 @@ public class TopologyDataDefinitionMapper {
                     .build();
 
     private final EntityFilterMapper entityFilterMapper;
+    private final GroupsService groupsService;
 
     /**
      * Constructor.
      *
      * @param entityFilterMapper - a converted between API filters and search filters.
+     * @param groupsService      - a provider of group models.
      */
-    public TopologyDataDefinitionMapper(@Nonnull final EntityFilterMapper entityFilterMapper) {
+    @ParametersAreNonnullByDefault
+    public TopologyDataDefinitionMapper(final EntityFilterMapper entityFilterMapper,
+                                        final GroupsService groupsService) {
         this.entityFilterMapper = entityFilterMapper;
+        this.groupsService = groupsService;
     }
 
     /**
@@ -252,10 +263,10 @@ public class TopologyDataDefinitionMapper {
                     List<StaticMembersByType> members = criteria.getStaticAssociatedEntities().getMembersByTypeList();
                     if (members.size() > 1) {
                         processException(String.format("Incorrectly specified static connections list for type: %s",
-                                connectedEntityType.getDisplayName()));
+                                connectedEntityType.name()));
                     } else if (members.isEmpty()) {
                         processException(String.format("Static topology definition data is empty for type: %s",
-                                connectedEntityType.getDisplayName()));
+                                connectedEntityType.name()));
                     }
                     ((ManualStaticConnections)connections).setStaticConnections(members.get(0)
                             .getMembersList()
@@ -266,7 +277,20 @@ public class TopologyDataDefinitionMapper {
                 case ASSOCIATED_GROUP:
                     connections = new ManualGroupConnections();
                     if (criteria.getAssociatedGroup().hasId()) {
-                        ((ManualGroupConnections)connections).setConnectedGroupId(String.valueOf(criteria.getAssociatedGroup().getId()));
+                        final ManualGroupConnections groupConnection = (ManualGroupConnections)connections;
+                        final String groupId = String.valueOf(criteria.getAssociatedGroup().getId());
+                        try {
+                            final GroupApiDTO groupApiDto = groupsService.getGroupByUuid(groupId, false);
+                            if (groupApiDto != null) {
+                                BaseGroupApiDTO baseGroupApiDTO = new BaseGroupApiDTO();
+                                baseGroupApiDTO.setUuid(groupApiDto.getUuid());
+                                baseGroupApiDTO.setDisplayName(groupApiDto.getDisplayName());
+                                baseGroupApiDTO.setMembersCount(groupApiDto.getMembersCount());
+                                groupConnection.setConnectedGroup(baseGroupApiDTO);
+                            }
+                        } catch (UnknownObjectException | ConversionException | InterruptedException e) {
+                            logger.warn(e);
+                        }
                     }
                     break;
                 case DYNAMIC_CONNECTION_FILTERS:
@@ -364,7 +388,7 @@ public class TopologyDataDefinitionMapper {
                 .getOrDefault(definitionApiDTO.getEntityType(), UNKNOWN);
         if (entityType == UNKNOWN) {
             processException(String.format("Incorrect entity type: %s",
-                    definitionApiDTO.getEntityType().getDisplayName()));
+                    definitionApiDTO.getEntityType().name()));
         }
         CommonDTO.EntityDTO.EntityType connectedEntityType = CONNECTED_ENTITY_TYPES_MAP.inverse()
                 .getOrDefault(data.getEntityType(), UNKNOWN);
@@ -408,7 +432,7 @@ public class TopologyDataDefinitionMapper {
                 .getOrDefault(definitionApiDTO.getEntityType(), UNKNOWN);
         if (entityType == UNKNOWN) {
             processException(String.format("Incorrect entity type: %s",
-                    definitionApiDTO.getEntityType().getDisplayName()));
+                    definitionApiDTO.getEntityType().name()));
         }
 
         if (definitionApiDTO.getDisplayName() == null) {
@@ -464,15 +488,14 @@ public class TopologyDataDefinitionMapper {
      * @return criteria for group connections
      */
     private AssociatedEntitySelectionCriteria.Builder getGroupCriteria(@Nonnull final ManualGroupConnections groupConnections) {
-        GroupDTO.GroupID.Builder builder = GroupDTO.GroupID.newBuilder();
-
-        // Empty Group ID allowed too
-        if (!groupConnections.getConnectedGroupId().isEmpty()) {
-            builder.setId(Long.parseLong(groupConnections
-                    .getConnectedGroupId()));
+        AssociatedEntitySelectionCriteria.Builder criteriaBuilder = AssociatedEntitySelectionCriteria.newBuilder();
+        if (groupConnections.getConnectedGroup() != null
+                && !StringUtils.isBlank(groupConnections.getConnectedGroup().getUuid())) {
+            criteriaBuilder.setAssociatedGroup(GroupDTO.GroupID.newBuilder()
+                    .setId(Long.parseLong(groupConnections.getConnectedGroup().getUuid()))
+                    .build());
         }
-        return AssociatedEntitySelectionCriteria.newBuilder()
-                .setAssociatedGroup(builder.build());
+        return criteriaBuilder;
     }
 
     /**
@@ -509,7 +532,7 @@ public class TopologyDataDefinitionMapper {
                                                                          final EntityType entityType) {
         final List<SearchParameters> searchParameters = entityFilterMapper
                 .convertToSearchParameters(dynamicConnections.getDynamicConnectionCriteria(),
-                        entityType.getDisplayName(), null);
+                        entityType.name(), null);
         return AssociatedEntitySelectionCriteria.newBuilder()
                 .setDynamicConnectionFilters(DynamicConnectionFilters.newBuilder()
                         .addAllSearchParameters(searchParameters).build());

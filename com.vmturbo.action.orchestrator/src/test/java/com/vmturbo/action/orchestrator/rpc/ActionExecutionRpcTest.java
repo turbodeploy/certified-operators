@@ -3,8 +3,8 @@ package com.vmturbo.action.orchestrator.rpc;
 import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.passthroughTranslator;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -26,6 +26,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+
+import io.grpc.StatusRuntimeException;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
@@ -71,6 +73,7 @@ import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -89,7 +92,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
@@ -165,6 +167,7 @@ public class ActionExecutionRpcTest {
 
     private GrpcTestServer grpcServer;
     private ActionStore actionStoreSpy;
+    private ActionTopologyStore actionTopologyStore = new ActionTopologyStore();
 
     /**
      * Sets up the tests.
@@ -198,7 +201,7 @@ public class ActionExecutionRpcTest {
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                actionTopologyStore,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
@@ -242,7 +245,6 @@ public class ActionExecutionRpcTest {
         actionStorehouse.storeActions(plan);
         AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
 
-        assertFalse(response.hasError());
         assertTrue(response.hasActionSpec());
         assertEquals(ACTION_ID, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
@@ -290,7 +292,6 @@ public class ActionExecutionRpcTest {
         final AcceptActionResponse response =
                 actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
 
-        Assert.assertFalse(response.hasError());
         Assert.assertTrue(response.hasActionSpec());
         Assert.assertEquals(ACTION_ID, response.getActionSpec().getRecommendation().getId());
         final Action action = actionStoreSpy.getAction(ACTION_ID).get();
@@ -335,12 +336,16 @@ public class ActionExecutionRpcTest {
                 .setActionId(ACTION_ID)
                 .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                 .build();
-        final AcceptActionResponse response =
-                actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
 
-        Assert.assertTrue(response.hasError());
-        Assert.assertThat(response.getError(), CoreMatchers.containsString(
+        try {
+            actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
+        } catch (StatusRuntimeException ex) {
+            Assert.assertThat(ex.getMessage(), CoreMatchers.containsString(
                 "Failed to persist acceptance for action " + ACTION_ID));
+            return;
+        }
+        fail("The call should throw an exception");
+
     }
 
     /**
@@ -366,11 +371,14 @@ public class ActionExecutionRpcTest {
         actionStorehouse.storeActions(plan);
         actionStorehouse.getStore(TOPOLOGY_CONTEXT_ID).get().overwriteActions(ImmutableMap.of(
             ActionPlanType.MARKET, Collections.emptyList())); // Clear the action from the store
-        AcceptActionResponse response = actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
 
-        assertTrue(response.hasError());
-        assertEquals("Action " + ACTION_ID + " doesn't exist.", response.getError());
-        assertFalse(response.hasActionSpec());
+        try {
+            actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
+        } catch (StatusRuntimeException ex) {
+            assertEquals("NOT_FOUND: Action " + ACTION_ID + " doesn't exist.", ex.getMessage());
+            return;
+        }
+        fail("The call should throw an exception");
     }
 
     @Test
@@ -380,11 +388,14 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
 
-        AcceptActionResponse response = actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
-
-        assertTrue(response.hasError());
-        assertEquals("Unknown topology context: " + TOPOLOGY_CONTEXT_ID, response.getError());
-        assertFalse(response.hasActionSpec());
+        try {
+            actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
+        } catch (StatusRuntimeException ex) {
+            assertEquals("NOT_FOUND: Unknown topology context: " + TOPOLOGY_CONTEXT_ID,
+                ex.getMessage());
+            return;
+        }
+        fail("The call should throw an exception");
     }
 
     @Test
@@ -403,7 +414,7 @@ public class ActionExecutionRpcTest {
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
 
         EntitySeverityCache severityCacheMock = mock(EntitySeverityCache.class);
-        doReturn(severityCacheMock).when(actionStoreSpy).getEntitySeverityCache();
+        doReturn(Optional.of(severityCacheMock)).when(actionStoreSpy).getEntitySeverityCache();
 
         actionStorehouse.storeActions(plan);
         actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
@@ -438,11 +449,14 @@ public class ActionExecutionRpcTest {
             .when(actionSpy).receive(Mockito.any(AcceptanceEvent.class));
         actionStore.overwriteActions(ImmutableMap.of(ActionPlanType.MARKET, Collections.singletonList(actionSpy)));
 
-        AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
-
-        assertTrue(response.hasError());
-        assertFalse(response.hasActionSpec());
-        assertEquals("Unauthorized to accept action in mode " + actionSpy.getMode(), response.getError());
+        try {
+            actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
+        } catch (StatusRuntimeException ex) {
+            assertEquals("PERMISSION_DENIED: Unauthorized to accept action in mode "
+                + actionSpy.getMode(), ex.getMessage());
+            return;
+        }
+        fail("The call should throw an exception");
     }
 
     @Test
@@ -465,10 +479,14 @@ public class ActionExecutionRpcTest {
                 .supportingLevel(SupportLevel.UNSUPPORTED)
                 .build());
 
-        AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionContext);
-
-        assertTrue(response.hasError());
-        Assert.assertThat(response.getError(), CoreMatchers.containsString("Action cannot be executed by any target"));
+        try {
+            actionOrchestratorServiceClient.acceptAction(acceptActionContext);
+        } catch (StatusRuntimeException ex) {
+            Assert.assertThat(ex.getMessage(), CoreMatchers.containsString("Action cannot be executed by "
+                + "any target"));
+            return;
+        }
+        fail("The call should throw an exception");
     }
 
     @Test
@@ -497,9 +515,14 @@ public class ActionExecutionRpcTest {
         doThrow(new ExecutionStartException("ERROR!"))
             .when(actionExecutor).execute(eq(targetId), eq(recommendation), eq(EMPTY_WORKFLOW_OPTIONAL));
 
-        AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionContext);
 
-        assertThat(response.getError(), CoreMatchers.containsString("ERROR!"));
+        try {
+            actionOrchestratorServiceClient.acceptAction(acceptActionContext);
+        } catch (StatusRuntimeException ex) {
+            assertThat(ex.getMessage(), CoreMatchers.containsString("ERROR!"));
+            return;
+        }
+        fail("The call should throw an exception");
     }
 
     @Test
@@ -544,7 +567,7 @@ public class ActionExecutionRpcTest {
             grpcServer.getChannel());
         IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                actionTopologyStore,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
@@ -558,9 +581,16 @@ public class ActionExecutionRpcTest {
                 .supportingLevel(SupportLevel.SUPPORTED)
                 .targetId(targetId)
                 .build());
-        AcceptActionResponse response = actionOrchestratorServiceClient.acceptAction(acceptActionContext);
-        assertThat(response.getError(), CoreMatchers.containsString("Unauthorized to accept action in mode RECOMMEND"));
-        grpcServer.close();
+
+        try {
+            actionOrchestratorServiceClient.acceptAction(acceptActionContext);
+        } catch (StatusRuntimeException ex) {
+            assertThat(ex.getMessage(), CoreMatchers.containsString("Unauthorized to accept action in mode "
+                + "RECOMMEND"));
+            grpcServer.close();
+            return;
+        }
+        fail("The call should throw an exception");
     }
 
     private static ActionPlan actionPlan(ActionDTO.Action recommendation) {

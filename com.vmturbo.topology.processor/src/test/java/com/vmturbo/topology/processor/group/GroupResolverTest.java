@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -84,7 +85,11 @@ public class GroupResolverTest {
      */
     @Before
     public void setup() {
-        groupResolver = new GroupResolver(searchResolver, GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
+        GroupResolverSearchFilterResolver searchFilterResolver = mock(GroupResolverSearchFilterResolver.class);
+        when(searchFilterResolver.resolveExternalFilters(any()))
+                .thenAnswer(invocation -> invocation.getArguments()[0]);
+        groupResolver = new GroupResolver(searchResolver,
+                GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()), searchFilterResolver);
     }
 
     /**
@@ -271,14 +276,16 @@ public class GroupResolverTest {
             .build());
 
         when(searchResolver.search(SearchQuery.newBuilder()
-                .addSearchParameters(grandchildParams)
+            .setLogicalOperator(LogicalOperator.AND)
+            .addSearchParameters(grandchildParams)
                 .build(), topologyGraph))
             .thenReturn(Stream.of(topologyEntity(vmId, EntityType.VIRTUAL_MACHINE).build()));
 
         assertThat(groupResolver.resolve(parentGroup, topologyGraph).getAllEntities(), containsInAnyOrder(vmId));
 
         verify(searchResolver).search(SearchQuery.newBuilder()
-                .addSearchParameters(grandchildParams)
+            .setLogicalOperator(LogicalOperator.AND)
+            .addSearchParameters(grandchildParams)
                 .build(), topologyGraph);
 
         // Check that resolving the grandchild group directly does not trigger a search - it should
@@ -381,6 +388,7 @@ public class GroupResolverTest {
                         .setId(1234L).build();
 
         when(searchResolver.search(SearchQuery.newBuilder()
+                .setLogicalOperator(LogicalOperator.AND)
                 .addSearchParameters(searchParams)
                 .build(), topologyGraph))
             .thenReturn(Stream.of(topologyEntity(1L, EntityType.PHYSICAL_MACHINE).build(),
@@ -419,7 +427,8 @@ public class GroupResolverTest {
                         .build();
 
         when(searchResolver.search(SearchQuery.newBuilder()
-                .addSearchParameters(params1)
+            .setLogicalOperator(LogicalOperator.AND)
+            .addSearchParameters(params1)
                 .build(), topologyGraph))
             .thenReturn(Stream.of(topologyEntity(1L, EntityType.VIRTUAL_MACHINE).build()));
 

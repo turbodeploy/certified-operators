@@ -14,11 +14,9 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionCategoryExtractor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionDescriptionBuilder.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionEvent.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionModeCalculator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionPaginator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionStateMachine.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionTranslation.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionView.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ExecutableStep.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ExplanationComposer.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]PrerequisiteDescriptionComposer.java" />
@@ -48,7 +46,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]rpc[/\\]ActionsDebugRpcService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]rpc[/\\]ActionsRpcService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]rpc[/\\]EntitySeverityRpcService.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]rpc[/\\]RpcConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]state[/\\]machine[/\\]StateMachine.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]state[/\\]machine[/\\]StateMachineEvent.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]state[/\\]machine[/\\]Transition.java" />
@@ -101,7 +98,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]store[/\\]query[/\\]QueryFilter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]store[/\\]query[/\\]QueryableActionViews.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]translation[/\\]ActionTranslationConfig.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]translation[/\\]ActionTranslator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]translation[/\\]batch[/\\]translator[/\\]VCpuResizeBatchTranslator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]workflow[/\\]config[/\\]WorkflowConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]workflow[/\\]rpc[/\\]DiscoveredWorkflowRpcService.java" />
@@ -114,7 +110,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]ActionOrchestratorTestUtils.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionCategoryExtractorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionDescriptionBuilderTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionModeCalculatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionPaginatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionStateMachineTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]action[/\\]ActionTest.java" />

@@ -18,12 +18,15 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang.StringUtils;
+
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
@@ -49,7 +52,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
     /**
      * The errors encountered by this entity during any part of stitching.
      */
-    private StitchingErrors stitchingErrors = new StitchingErrors();
+    private final StitchingErrors stitchingErrors = new StitchingErrors();
 
     /**
      * A list of {@link StitchingMergeInformation} for entities that were that were merged onto this entity.
@@ -95,6 +98,16 @@ public class TopologyStitchingEntity implements StitchingEntity {
         this.mergeInformation = null;
         removeIfUnstitched = !entityBuilder.getKeepStandalone()
             && EntityOrigin.PROXY == entityBuilder.getOrigin();
+    }
+
+    @Nonnull
+    @Override
+    public Collection<String> getPropertyValues(@Nonnull String name) {
+        return entityBuilder.getEntityPropertiesList().stream()
+                        .filter(p -> Objects.equals(p.getName(), name))
+                        .map(EntityProperty::getValue)
+                        .filter(StringUtils::isNotBlank)
+                        .collect(Collectors.toSet());
     }
 
     @Nonnull

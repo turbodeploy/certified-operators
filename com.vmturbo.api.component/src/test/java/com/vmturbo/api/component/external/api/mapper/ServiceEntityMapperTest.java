@@ -161,7 +161,7 @@ public class ServiceEntityMapperTest {
                         .putTags(tagKey, TagValuesDTO.newBuilder().addValues(tagValue).build()))
                 .addConsumers(RelatedEntity.newBuilder()
                         .setOid(consumerOid)
-                        .setEntityType(EntityType.APPLICATION_VALUE)
+                        .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                         .setDisplayName(consumerDisplayName))
                 .addProviders(RelatedEntity.newBuilder()
                         .setDisplayName(providerDisplayName1)
@@ -205,7 +205,7 @@ public class ServiceEntityMapperTest {
         Assert.assertEquals(1, serviceEntityApiDTO.getConsumers().size());
         Assert.assertEquals(String.valueOf(consumerOid),
                 serviceEntityApiDTO.getConsumers().get(0).getUuid());
-        Assert.assertEquals(ApiEntityType.APPLICATION.apiStr(),
+        Assert.assertEquals(ApiEntityType.APPLICATION_COMPONENT.apiStr(),
                 serviceEntityApiDTO.getConsumers().get(0).getClassName());
         Assert.assertEquals(consumerDisplayName,
                 serviceEntityApiDTO.getConsumers().get(0).getDisplayName());
@@ -238,7 +238,7 @@ public class ServiceEntityMapperTest {
                 .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .build();
 
-        final ServiceEntityApiDTO dto = ServiceEntityMapper.toBasicEntity(minimalEntity);
+        final ServiceEntityApiDTO dto = ServiceEntityMapper.toBaseServiceEntityApiDTO(minimalEntity);
 
         MatcherAssert.assertThat(dto.getUuid(), Matchers.is("7"));
         MatcherAssert.assertThat(dto.getDisplayName(), Matchers.is("foo"));

@@ -17,6 +17,7 @@ import com.vmturbo.mediation.conversion.onprem.AddVirtualVolumeDiscoveryConverte
 import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
 public class AddVirtualVolumeDiscoveryConverterTest {
@@ -53,6 +54,7 @@ public class AddVirtualVolumeDiscoveryConverterTest {
                 .collect(Collectors.toList());
         assertEquals(1, wastedVolumes.size());
         assertEquals(1, wastedVolumes.get(0).getVirtualVolumeData().getFileCount());
+        assertEquals(AttachmentState.UNATTACHED, wastedVolumes.get(0).getVirtualVolumeData().getAttachmentState());
         assertEquals(wastedFilePath,
             wastedVolumes.get(0).getVirtualVolumeData().getFile(0).getPath());
         assertEquals(1, wastedVolumes.get(0).getLayeredOverList().size());
@@ -77,6 +79,7 @@ public class AddVirtualVolumeDiscoveryConverterTest {
         assertTrue(wastedVolume.getId()
                 .endsWith(AddVirtualVolumeDiscoveryConverter.WASTED_VOLUMES_SUFFIX));
         assertEquals(3, wastedVolume.getVirtualVolumeData().getFileCount());
+        assertEquals(AttachmentState.UNATTACHED, wastedVolume.getVirtualVolumeData().getAttachmentState());
         assertEquals(1, wastedVolume.getLayeredOverList().size());
         assertEquals(wastedVolume.getLayeredOver(0), entitiesByType.get(EntityType.STORAGE).get(0).getId());
         assertEquals(1, wastedVolume.getVirtualVolumeData().getFileList().get(0).getLinkedPathsCount());
@@ -99,6 +102,7 @@ public class AddVirtualVolumeDiscoveryConverterTest {
         assertFalse(virtualVolume.getId()
                 .endsWith(AddVirtualVolumeDiscoveryConverter.WASTED_VOLUMES_SUFFIX));
         assertEquals(2, virtualVolume.getVirtualVolumeData().getFileCount());
+        assertEquals(AttachmentState.ATTACHED, virtualVolume.getVirtualVolumeData().getAttachmentState());
         EntityDTO virtualMachine = entitiesByType.get(EntityType.VIRTUAL_MACHINE).get(0);
         assertEquals(1, virtualMachine.getLayeredOverList().size());
         assertEquals(virtualMachine.getLayeredOver(0), virtualVolume.getId());
@@ -122,6 +126,7 @@ public class AddVirtualVolumeDiscoveryConverterTest {
         assertEquals(1, entitiesByType.get(EntityType.STORAGE).size());
         // check that there are 0 wasted files in the volume
         EntityDTO wastedVolume = entitiesByType.get(EntityType.VIRTUAL_VOLUME).get(0);
+        assertEquals(AttachmentState.UNATTACHED, wastedVolume.getVirtualVolumeData().getAttachmentState());
         assertTrue(wastedVolume.getId()
             .endsWith(AddVirtualVolumeDiscoveryConverter.WASTED_VOLUMES_SUFFIX));
         assertEquals(0, wastedVolume.getVirtualVolumeData().getFileCount());

@@ -20,43 +20,53 @@ public class ReservationProtoUtil {
     }
 
     /**
-     * Clear the ReservationInstance of all the reservationTemplates in the collection.
+     * Clear the ReservationInstance of the reservation.
      *
-     * @param reservationTemplateCollection the reservationTemplates collection of interest
-     * @return the reservationTemplates collection  with the ReservationInstances cleared.
+     * @param reservation      the reservation of interest.
+     * @param clearProvider    clare providerInfo if true
+     * @param clearFailureInfo clear the failure info if true
+     * @return reservation with  ReservationInstance  cleared appropriately.
      */
-    public static ReservationTemplateCollection clearProviderFromReservationInstance(
-            ReservationTemplateCollection reservationTemplateCollection) {
+    public static Reservation clearReservationInstance(
+            Reservation reservation,
+            boolean clearProvider,
+            boolean clearFailureInfo) {
         ReservationTemplateCollection.Builder updatedReservationTemplateCollection =
                 ReservationTemplateCollection.newBuilder();
 
         for (ReservationTemplate reservationTemplate
-                : reservationTemplateCollection.getReservationTemplateList()) {
+                : reservation.getReservationTemplateCollection().getReservationTemplateList()) {
             ReservationTemplate.Builder updatedReservationTemplate = reservationTemplate.toBuilder().clearReservationInstance();
             for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
-                ReservationInstance.Builder updatedReservationInstance = reservationInstance.toBuilder().clearPlacementInfo();
-                for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
-                    updatedReservationInstance.addPlacementInfo(placementInfo.toBuilder().clearProviderId());
+                ReservationInstance.Builder updatedReservationInstance = reservationInstance.toBuilder();
+                if (clearProvider) {
+                    updatedReservationInstance.clearPlacementInfo();
+                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                        updatedReservationInstance.addPlacementInfo(placementInfo.toBuilder().clearProviderId());
+                    }
+                }
+                if (clearFailureInfo) {
+                    updatedReservationInstance.clearFailureInfo();
                 }
                 updatedReservationTemplate.addReservationInstance(updatedReservationInstance);
             }
             updatedReservationTemplateCollection
                     .addReservationTemplate(updatedReservationTemplate.build());
         }
-        return updatedReservationTemplateCollection.build();
+        return reservation.toBuilder()
+                .setReservationTemplateCollection(updatedReservationTemplateCollection).build();
     }
 
     /**
      * change the status of reservation to invalid and clear the ReservationInstance.
+     *
      * @param reservation the reservation of interest.
      * @return updated reservation.
      */
     public static Reservation invalidateReservation(Reservation reservation) {
-        return reservation.toBuilder()
-                .setStatus(ReservationStatus.INVALID)
-                .setReservationTemplateCollection(
-                        clearProviderFromReservationInstance(
-                                reservation.getReservationTemplateCollection()))
+        Reservation updatedReservation = clearReservationInstance(reservation,
+                true, true);
+        return updatedReservation.toBuilder().setStatus(ReservationStatus.INVALID)
                 .build();
     }
 }

@@ -19,6 +19,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
 
     private static final DatabaseEdition TEST_DATABASE_EDITION = DatabaseEdition.ENTERPRISE;
+    private static final String RAW_DATABASE_EDITION = "Enterprise Edition";
     private static final DatabaseEngine TEST_DATABASE_ENGINE = DatabaseEngine.MARIADB;
     private static final DeploymentType TEST_DEPLOYMENT_TYPE = DeploymentType.MULTI_AZ;
     private static final LicenseModel TEST_LICENSE_MODEL = LicenseModel.BRING_YOUR_OWN_LICENSE;
@@ -38,6 +39,7 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
             TypeSpecificInfo.newBuilder()
                 .setDatabase(DatabaseInfo.newBuilder()
                     .setEdition(TEST_DATABASE_EDITION)
+                    .setRawEdition(RAW_DATABASE_EDITION)
                     .setEngine(TEST_DATABASE_ENGINE)
                     .setVersion(TEST_DATABASE_VERSION)
                     .setDeploymentType(TEST_DEPLOYMENT_TYPE)
@@ -54,7 +56,7 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
         // assert
         assertTrue(result instanceof DBEntityAspectApiDTO);
         DBEntityAspectApiDTO dbAspect = (DBEntityAspectApiDTO) result;
-        assertEquals(TEST_DATABASE_EDITION.name(), dbAspect.getDbEdition());
+        assertEquals(RAW_DATABASE_EDITION, dbAspect.getDbEdition());
         assertEquals(TEST_DATABASE_ENGINE.name(), dbAspect.getDbEngine());
         assertEquals(TEST_DATABASE_VERSION, dbAspect.getDbVersion());
         assertEquals(TEST_LICENSE_MODEL.name(), dbAspect.getLicenseModel());

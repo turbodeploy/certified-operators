@@ -14,6 +14,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
@@ -132,11 +134,13 @@ public class EntityFieldMergersTest {
     public void testAttributeFieldMerger() {
         final EntityFieldMerger<Object> consumerPolicyMerger = EntityFieldMergers.getAttributeFieldMerger(
                 new DTOFieldSpec() {
+                    @Nonnull
                     @Override
                     public String getFieldName() {
                         return "controllable";
                     }
 
+                    @Nonnull
                     @Override
                     public List<String> getMessagePath() {
                         return ImmutableList.of("consumerPolicy");
@@ -146,11 +150,13 @@ public class EntityFieldMergersTest {
 
         final EntityFieldMerger<Object> profileIdMerger = EntityFieldMergers.getAttributeFieldMerger(
                 new DTOFieldSpec() {
+                    @Nonnull
                     @Override
                     public String getFieldName() {
                         return "profileId";
                     }
 
+                    @Nonnull
                     @Override
                     public List<String> getMessagePath() {
                         return new ArrayList<>();
@@ -185,11 +191,13 @@ public class EntityFieldMergersTest {
 
         final EntityFieldMerger<Object> displayNameMerger = EntityFieldMergers.getAttributeFieldMerger(
                 new DTOFieldSpec() {
+                    @Nonnull
                     @Override
                     public String getFieldName() {
                         return "displayName";
                     }
 
+                    @Nonnull
                     @Override
                     public List<String> getMessagePath() {
                         return Collections.emptyList();
@@ -198,11 +206,13 @@ public class EntityFieldMergersTest {
 
         final EntityFieldMerger<Object> consistsOfMerger = EntityFieldMergers.getAttributeFieldMerger(
                 new DTOFieldSpec() {
+                    @Nonnull
                     @Override
                     public String getFieldName() {
                         return "consistsOf";
                     }
 
+                    @Nonnull
                     @Override
                     public List<String> getMessagePath() {
                         return Collections.emptyList();

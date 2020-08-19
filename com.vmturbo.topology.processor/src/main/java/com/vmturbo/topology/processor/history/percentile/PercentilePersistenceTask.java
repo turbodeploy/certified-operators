@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.history.percentile;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,12 +30,14 @@ import com.vmturbo.common.protobuf.stats.Stats.SetPercentileCountsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
+import com.vmturbo.commons.utils.ThrowingFunction;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.history.AbstractStatsLoadingTask;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
+import com.vmturbo.topology.processor.history.InvalidHistoryDataException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
 
@@ -97,34 +101,61 @@ public class PercentilePersistenceTask extends
                                 .setStartTimestamp(startTimestamp)
                                 .setChunkSize((int)(config.getBlobReadWriteChunkSizeKb() * Units.KBYTE))
                                 .build(), observer);
-        // parse the data
-        Map<EntityCommodityFieldReference, PercentileRecord> result = new HashMap<>();
-        try {
-            ByteArrayOutputStream baos = observer.getResult();
-            if (observer.getError() != null) {
-                throw new HistoryCalculationException("Failed to load percentile data for " + startTimestamp,
-                                                      observer.getError());
-            }
-            PercentileCounts counts = PercentileCounts.parseFrom(baos.toByteArray());
-            for (PercentileRecord record : counts.getPercentileRecordsList()) {
-                CommodityType.Builder commTypeBuilder = CommodityType.newBuilder()
-                                .setType(record.getCommodityType());
-                if (record.hasKey()) {
-                    commTypeBuilder.setKey(record.getKey());
-                }
-                Long provider = record.hasProviderOid() ? record.getProviderOid() : null;
-                EntityCommodityFieldReference fieldRef =
-                       new EntityCommodityFieldReference(record.getEntityOid(),
-                                                         commTypeBuilder.build(),
-                                                         provider,
-                                                         CommodityField.USED);
-                result.put(fieldRef, record);
-            }
-        } catch (InvalidProtocolBufferException e) {
-            throw new HistoryCalculationException("Failed to deserialize percentile blob for " + startTimestamp);
+        final ByteArrayOutputStream baos = observer.getResult();
+        if (observer.getError() != null) {
+            throw new HistoryCalculationException("Failed to load percentile data for " + startTimestamp,
+                            observer.getError());
         }
-        logger.debug("Loaded {} percentile commodity entries for timestamp {}", result.size(),
-                     startTimestamp);
+        try (ByteArrayInputStream source = new ByteArrayInputStream(baos.toByteArray())) {
+            final Map<EntityCommodityFieldReference, PercentileRecord> result =
+                            parse(startTimestamp, source, PercentileCounts::parseFrom);
+            logger.trace("Loaded {} percentile commodity entries for timestamp {}", result.size(),
+                            startTimestamp);
+            return result;
+        } catch (InvalidProtocolBufferException e) {
+            throw new InvalidHistoryDataException("Failed to deserialize percentile blob for "
+                            + startTimestamp, e);
+        } catch (IOException e) {
+            throw new HistoryCalculationException(
+                            "Failed to read percentile blob for " + startTimestamp, e);
+        }
+    }
+
+    /**
+     * Parses raw bytes to create mapping from field reference to {@link PercentileRecord}
+     * instance.
+     *
+     * @param startTimestamp timestamp for which source loaded
+     * @param source data that have been loaded
+     * @param parser method that need to be used to create {@link PercentileCounts}
+     *                 instance from {@link InputStream}.
+     * @return mapping from field reference to appropriate percentile record instance.
+     * @throws IOException in case of error while parsing percentile records.
+     */
+    @Nonnull
+    protected static Map<EntityCommodityFieldReference, PercentileRecord> parse(long startTimestamp,
+                    @Nonnull InputStream source,
+                    @Nonnull ThrowingFunction<InputStream, PercentileCounts, IOException> parser)
+                    throws IOException {
+        // parse the source
+        final Map<EntityCommodityFieldReference, PercentileRecord> result = new HashMap<>();
+        final PercentileCounts counts = parser.apply(source);
+        if (counts == null) {
+            throw new InvalidProtocolBufferException(String.format("Cannot parse '%s' for '%s' timestamp",
+                            PercentileCounts.class.getSimpleName(), startTimestamp));
+        }
+        for (PercentileRecord record : counts.getPercentileRecordsList()) {
+            final CommodityType.Builder commTypeBuilder =
+                            CommodityType.newBuilder().setType(record.getCommodityType());
+            if (record.hasKey()) {
+                commTypeBuilder.setKey(record.getKey());
+            }
+            final Long provider = record.hasProviderOid() ? record.getProviderOid() : null;
+            final EntityCommodityFieldReference fieldRef =
+                            new EntityCommodityFieldReference(record.getEntityOid(),
+                                            commTypeBuilder.build(), provider, CommodityField.USED);
+            result.put(fieldRef, record);
+        }
         return result;
     }
 

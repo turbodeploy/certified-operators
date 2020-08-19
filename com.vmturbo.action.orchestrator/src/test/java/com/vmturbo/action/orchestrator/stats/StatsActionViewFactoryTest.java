@@ -51,7 +51,7 @@ public class StatsActionViewFactoryTest {
         when(actionView.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
 
         // Act
-        final StatsActionView snapshot = factory.newStatsActionView(actionView);
+        final StatsActionView snapshot = factory.newStatsActionView(actionView).findAny().get();
 
         // Assert
         assertThat(snapshot.involvedEntities(), contains(targetEntity));

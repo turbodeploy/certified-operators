@@ -111,7 +111,7 @@ public interface OidSet extends OidFilter, Iterable<Long> {
     public static class EmptyOidSet implements OidSet {
         @Override
         public OfLong iterator() {
-            return LongStream.of(null).iterator();
+            return LongStream.empty().iterator();
         }
 
         @Override

@@ -122,6 +122,10 @@ public class HistoricalEditor {
             // Commodities that do not exhibit volatility
             .add(CommonDTO.CommodityDTO.CommodityType.VCPU_REQUEST_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.VMEM_REQUEST_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.VMEM_LIMIT_QUOTA_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.VCPU_REQUEST_QUOTA_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.VMEM_REQUEST_QUOTA_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE)
@@ -507,22 +511,22 @@ public class HistoricalEditor {
                         populateHistoricalCommodityInfo(histSoldInfo, commodityType, used, peak,
                             histSoldInfo.getSourceId(), histSoldInfo.getMatched(), true);
                             historicalInfo.replace(topoEntity.getOid(), histSeInfo);
-                        }
-                        topoCommSold.getHistoricalUsedBuilder().setHistUtilization(used);
-                        topoCommSold.getHistoricalPeakBuilder().setHistUtilization(peak);
-                        break;
                     }
+                    topoCommSold.getHistoricalUsedBuilder().setHistUtilization(used);
+                    topoCommSold.getHistoricalPeakBuilder().setHistUtilization(peak);
+                    break;
                 }
-                if (!commSoldFound) {
-                    int type = commodityType.getType();
-                    // don't repeat log messages within a cycle
-                    if (!commodityTypesAlreadyLoggedAsMissingHistory.contains(type)) {
-                        logger.error("A sold commodity with type {} is missing in HistoricalServiceEntityInfo", type);
-                        commodityTypesAlreadyLoggedAsMissingHistory.add(type);
-                    }
+            }
+            if (!commSoldFound) {
+                int type = commodityType.getType();
+                // don't repeat log messages within a cycle
+                if (!commodityTypesAlreadyLoggedAsMissingHistory.contains(type)) {
+                    logger.error("A sold commodity with type {} is missing in HistoricalServiceEntityInfo", type);
+                    commodityTypesAlreadyLoggedAsMissingHistory.add(type);
                 }
             }
         }
+    }
 
     /*
      * This method calculates the used and peak values for all the bought commodities

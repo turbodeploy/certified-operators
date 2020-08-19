@@ -15,9 +15,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.IntersectionStitchingIndex;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingScope;
@@ -44,7 +42,8 @@ public abstract class FabricStitchingOperation implements StitchingOperation<Str
     @Nonnull
     @Override
     public Optional<StitchingScope<StitchingEntity>> getScope(
-            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+            long targetId) {
         return Optional.empty();
     }
 
@@ -118,11 +117,4 @@ public abstract class FabricStitchingOperation implements StitchingOperation<Str
      */
     protected abstract void stitch(@Nonnull final StitchingPoint stitchingPoint,
                         @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder);
-
-    @Nonnull
-    @Override
-    public StitchingIndex<String, String> createIndex(final int expectedSize) {
-        return new IntersectionStitchingIndex(expectedSize);
-    }
-
 }

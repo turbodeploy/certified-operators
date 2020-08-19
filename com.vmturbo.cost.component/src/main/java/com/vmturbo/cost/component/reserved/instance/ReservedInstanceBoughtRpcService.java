@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -52,11 +53,13 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.Reserv
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -86,6 +89,8 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
     private final BuyReservedInstanceServiceBlockingStub buyRIServiceClient;
 
+    private final AccountRIMappingStore accountRIMappingStore;
+
     public ReservedInstanceBoughtRpcService(
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
             @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
@@ -95,7 +100,8 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             final long realTimeTopologyContextId,
             @Nonnull final PriceTableStore priceTableStore,
             @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
-            @Nonnull final BuyReservedInstanceServiceBlockingStub buyRIServiceClient) {
+            @Nonnull final BuyReservedInstanceServiceBlockingStub buyRIServiceClient,
+            @Nonnull final AccountRIMappingStore accountRIMappingStore) {
         this.reservedInstanceBoughtStore =
                 Objects.requireNonNull(reservedInstanceBoughtStore);
         this.entityReservedInstanceMappingStore =
@@ -107,6 +113,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.reservedInstanceSpecStore = Objects.requireNonNull(reservedInstanceSpecStore);
         this.buyRIServiceClient = Objects.requireNonNull(buyRIServiceClient);
+        this.accountRIMappingStore = Objects.requireNonNull(accountRIMappingStore);
     }
 
 
@@ -144,15 +151,88 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                     Stream.concat(buyRIs.stream(), unstitchedReservedInstances.stream())
                             .collect(Collectors.toList()));
         }
-
+        final Set<ReservedInstanceBought> stitchedRIs =
+                createStitchedRIBoughtInstances(unstitchedReservedInstances);
+        final Set<ReservedInstanceBought> updatedRis = adjustAvailableCouponsForPartialCloudEnv(stitchedRIs);
         final GetReservedInstanceBoughtForAnalysisResponse response =
                 GetReservedInstanceBoughtForAnalysisResponse.newBuilder()
-                        .addAllReservedInstanceBought(
-                                createStitchedRIBoughtInstances(unstitchedReservedInstances))
+                        .addAllReservedInstanceBought(updatedRis)
                         .build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
+
+    /**
+     * If an RI is undicoverd, cap the available number of coupons to the number of coupons
+     * used by discovered accounts.
+     * @param stitchedRIs Set of RIs
+     * @return Set of Ris with the undiscovered RIs updated with
+     * the capacity capped to used coupons
+     */
+    private Set<ReservedInstanceBought> adjustAvailableCouponsForPartialCloudEnv(
+            final Set<ReservedInstanceBought> stitchedRIs) {
+        List<TopologyDTO.TopologyEntityDTO> allBusinessAccounts =
+                repositoryClient.getAllBusinessAccounts(realtimeTopologyContextId);
+        List<ReservedInstanceBought> riFromUndiscoveredAccounts = stitchedRIs.stream()
+                .filter(ri -> !isRIPurchasedByDiscoveredAccount(ri, allBusinessAccounts))
+                .collect(Collectors.toList());
+        List<Long> undiscoveredRiIds = riFromUndiscoveredAccounts.stream()
+                .map(ri -> ri.getId())
+                .collect(Collectors.toList());
+        // Retrieve the total  used coupons from discovered workloads for each RI
+        final Map<Long, Double> discRiToUsedCouponMap = entityReservedInstanceMappingStore
+                .getReservedInstanceUsedCouponsMapByFilter(
+                        EntityReservedInstanceMappingFilter.newBuilder().riBoughtFilter(
+                                Cost.ReservedInstanceBoughtFilter.newBuilder()
+                                        .addAllRiBoughtId(undiscoveredRiIds).build()).build());
+
+        // Retrieve the total  used coupons from undiscovered accounts for each RI
+        final Map<Long, Double> undiscoveredAccountRIUsage =
+                BusinessAccountHelper.getUndiscoveredAccountUsageForRI(
+                        allBusinessAccounts.stream()
+                        .map(dto -> dto.getOid()).collect(Collectors.toList()), accountRIMappingStore);
+        if (undiscoveredAccountRIUsage.isEmpty()) {
+            logger.warn("No RI usage for undiscovered accounts recorded.");
+        }
+        // Update the capacities for each RI
+        return stitchedRIs.stream()
+                .map(ReservedInstanceBought::toBuilder)
+                .peek(riBuilder -> {
+                    if (undiscoveredRiIds.contains(riBuilder.getId())) {
+                        riBuilder.getReservedInstanceBoughtInfoBuilder()
+                                .getReservedInstanceBoughtCouponsBuilder()
+                                .setNumberOfCouponsUsed(
+                                        discRiToUsedCouponMap.getOrDefault(riBuilder.getId(),
+                                                0d))
+                                .setNumberOfCoupons(discRiToUsedCouponMap.getOrDefault(riBuilder.getId(),
+                                        0d).intValue());
+                    } else {
+                        int capacity = riBuilder.getReservedInstanceBoughtInfoBuilder()
+                                .getReservedInstanceBoughtCouponsBuilder()
+                                .getNumberOfCoupons();
+                        riBuilder.getReservedInstanceBoughtInfoBuilder()
+                                .getReservedInstanceBoughtCouponsBuilder()
+                                .setNumberOfCoupons(capacity - undiscoveredAccountRIUsage.getOrDefault(riBuilder.getId(),
+                                        0d).intValue());
+                    }
+                })
+                .map(ReservedInstanceBought.Builder::build)
+                .collect(Collectors.toSet());
+    }
+
+    private boolean isRIPurchasedByDiscoveredAccount(final ReservedInstanceBought ri,
+                                                     final List<TopologyEntityDTO> allBusinessAccounts) {
+        long riPurchasingAccount = ri.getReservedInstanceBoughtInfo().getBusinessAccountId();
+        Optional<TopologyEntityDTO> discoveredBA = allBusinessAccounts.stream()
+                .filter(baDTO -> baDTO.hasTypeSpecificInfo()
+                &&  baDTO.getTypeSpecificInfo().hasBusinessAccount()
+                && baDTO.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId()
+                && riPurchasingAccount
+                        == baDTO.getTypeSpecificInfo().getBusinessAccount().getAssociatedTargetId())
+                .findFirst();
+        return discoveredBA.isPresent();
+    }
+
 
     @Override
     public void getReservedInstanceBoughtForScope(GetReservedInstanceBoughtForScopeRequest request,

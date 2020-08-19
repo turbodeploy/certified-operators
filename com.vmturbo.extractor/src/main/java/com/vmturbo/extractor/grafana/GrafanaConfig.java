@@ -8,16 +8,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.client.GrafanaClientConfig;
-import com.vmturbo.extractor.schema.ExtractorDbConfig;
+import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
 
 /**
  * Configures the Grafana initialization logic.
  */
 @Configuration
-@Import({ExtractorDbConfig.class})
+@Import({ExtractorDbBaseConfig.class})
 public class GrafanaConfig {
 
     @Value("${grafanaHost:grafana}")
@@ -38,6 +39,16 @@ public class GrafanaConfig {
     @Value("${grafanaTimescaleDatasourceName:Turbo Timescale}")
     private String datasourceName;
 
+    @Value("${grafanaViewerUsername:report-viewer}")
+    private String grafanaViewerUsername;
+
+    @Value("${grafanaViewerDisplayName:Report Viewer}")
+    private String grafanaViewerDisplayName;
+
+    @Value("${grafanaViewerPassword:}")
+    private String grafanaViewerPassword;
+
+
     /**
      * This is the path to the dashboard folders.
      * TODO (roman, Jun 10 2019): Allow injecting additional dashboard paths.
@@ -57,7 +68,10 @@ public class GrafanaConfig {
     public Grafanon grafanon() {
         GrafanonConfig config = new GrafanonConfig(() -> extractorDbConfig.grafanaQueryEndpoint().getConfig())
                 .setTimescaleDisplayName(datasourceName)
-                .setErrorSleepInterval(grafanaErrorSleepIntervalSec, TimeUnit.SECONDS);
+                .setErrorSleepInterval(grafanaErrorSleepIntervalSec, TimeUnit.SECONDS)
+            .setViewerDisplayName(grafanaViewerDisplayName)
+            .setViewerUsername(grafanaViewerUsername)
+            .setViewerPassword(grafanaViewerPassword);
         return new Grafanon(config, dashboardsOnDisk(), grafanaClient());
     }
 

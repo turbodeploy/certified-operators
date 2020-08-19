@@ -332,12 +332,12 @@ public class TopologyConverterToMarketTest {
         TraderTO traderVmOff = convertToMarketTO(Sets.newHashSet(vmOff), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.IDLE, traderVmOff.getState());
 
-        TopologyEntityDTO appOn = entity(EntityType.APPLICATION_VALUE, 10, EntityState.POWERED_ON,
+        TopologyEntityDTO appOn = entity(EntityType.APPLICATION_COMPONENT_VALUE, 10, EntityState.POWERED_ON,
                 Collections.emptyList(), Collections.emptyList());
         TraderTO traderAppOn = convertToMarketTO(Sets.newHashSet(appOn), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.ACTIVE, traderAppOn.getState());
 
-        TopologyEntityDTO appOff = entity(EntityType.APPLICATION_VALUE, 10,
+        TopologyEntityDTO appOff = entity(EntityType.APPLICATION_COMPONENT_VALUE, 10,
                 EntityState.POWERED_OFF, Collections.emptyList(), Collections.emptyList());
         TraderTO traderAppOff = convertToMarketTO(Sets.newHashSet(appOff), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.INACTIVE, traderAppOff.getState());
@@ -1354,7 +1354,7 @@ public class TopologyConverterToMarketTest {
                 converter.getResizedCapacity(any(), any(), any()))
                 .thenCallRealMethod();
         Whitebox.setInternalState(converter, "cloudTc", cloudTopologyConverter);
-        Whitebox.setInternalState(converter, "cert", Mockito.mock(CloudEntityResizeTracker.class));
+        Whitebox.setInternalState(converter, "commoditiesResizeTracker", Mockito.mock(CommoditiesResizeTracker.class));
         final MarketTier marketTier = mock(MarketTier.class);
         Mockito.when(marketTier.getTier()).thenReturn(computeTier);
         Mockito.when(cloudTopologyConverter.getMarketTier(PROVIDER_ID)).thenReturn(marketTier);
@@ -1409,7 +1409,7 @@ public class TopologyConverterToMarketTest {
                     .setCommodityType(vmem)
                     .build())
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setScalable(false)
+                    .setScalable(false).setProviderId(10L)
                     .addCommodityBought(CommodityBoughtDTO.newBuilder()
                         .setCommodityType(mem)
                     ).setMovable(true))

@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
@@ -29,6 +30,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionStorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
@@ -428,4 +430,26 @@ public final class TopologyDTOUtil {
         }
     }
 
+    /**
+     * Get volume provider. For on prem case, the result contains storage connected to the
+     * volume. For cloud case, the result contains storage tier selling commodities to
+     * the volume.
+     *
+     * @param volume Virtual volume.
+     * @return optional OID of volume providers (Storage or Storage Tier).
+     */
+    public static Optional<Long> getVolumeProvider(@Nonnull final TopologyEntityDTO volume) {
+        if (volume.getEnvironmentType() == EnvironmentType.CLOUD) {
+            // Get storage tier selling commodities to the volume (cloud case)
+            return volume.getCommoditiesBoughtFromProvidersList().stream()
+                    .filter(commBought -> commBought.getProviderEntityType()
+                            == EntityType.STORAGE_TIER_VALUE)
+                    .map(CommoditiesBoughtFromProvider::getProviderId)
+                    .findFirst();
+        } else {
+            // Get storage connected to the volume (on prem case)
+            return TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
+                    EntityType.STORAGE.getNumber()).findFirst();
+        }
+    }
 }

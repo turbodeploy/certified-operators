@@ -24,8 +24,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.extractor.models.ModelDefinitions;
-import com.vmturbo.extractor.schema.ExtractorDbConfig;
+import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.models.Constants;
 import com.vmturbo.extractor.search.SearchEntityWriter;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -50,7 +50,7 @@ public class TopologyListenerConfig {
     private TopologyProcessorClientConfig tpConfig;
 
     @Autowired
-    private ExtractorDbConfig extractorDbConfig;
+    private ExtractorDbConfig dbConfig;
 
     @Autowired
     private GroupClientConfig groupClientConfig;
@@ -96,6 +96,12 @@ public class TopologyListenerConfig {
     private boolean enableSearchApi;
 
     /**
+     * Configuration used to enable/disable reporting data ingestion. Disabled by default.
+     */
+    @Value("${enableReporting:false}")
+    private boolean enableReporting;
+
+    /**
      * Create an instance of our topology listener.
      *
      * @return listener instance
@@ -125,6 +131,7 @@ public class TopologyListenerConfig {
                 .lastSeenAdditionalFuzzMinutes(lastSeenAdditionalFuzzMinutes)
                 .insertTimeoutSeconds(insertTimeoutSeconds)
                 .addAllReportingCommodityWhitelist(getReportingCommodityWhitelist())
+                .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
                 .build();
     }
 
@@ -137,7 +144,7 @@ public class TopologyListenerConfig {
     private Set<Integer> getReportingCommodityWhitelist() {
         // use default whitelist as a basis
         final Set<CommodityType> reportingCommodityTypes = Sets.newHashSet(
-                ModelDefinitions.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST);
+                Constants.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST);
         // add new commodities to whitelist if provided
         if (reportingCommodityWhitelistAdded != null) {
             reportingCommodityTypes.addAll(Arrays.stream(reportingCommodityWhitelistAdded)
@@ -194,17 +201,19 @@ public class TopologyListenerConfig {
      */
     @Bean
     public List<Supplier<ITopologyWriter>> writerFactories() {
-        final DbEndpoint dbEndpoint = extractorDbConfig.ingesterEndpoint();
+        final DbEndpoint dbEndpoint = dbConfig.ingesterEndpoint();
         ImmutableList.Builder<Supplier<ITopologyWriter>> builder = ImmutableList.builder();
         if (enableSearchApi) {
             builder.add(() -> new SearchEntityWriter(dbEndpoint, pool()));
         }
-        builder.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(), pool()));
+        if (enableReporting) {
+            builder.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(), pool()));
+        }
         return builder.build();
     }
 
     /**
-     * Entity hash manager to track entity hash evoluation across topology broadcasts.
+     * Entity hash manager to track entity hash evolution across topology broadcasts.
      *
      * @return the hash manager
      */

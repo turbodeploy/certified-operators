@@ -187,7 +187,7 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore 
     @Nonnull
     @Override
     public String getFileName() {
-        return getClass().getSimpleName();
+        return "workflow-identities";
     }
 
     /**

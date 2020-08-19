@@ -10,13 +10,13 @@ import javax.annotation.Nonnull;
 
 import io.grpc.StatusRuntimeException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongList;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -36,6 +36,13 @@ public class GroupFetcher extends DataFetcher<GroupData> {
 
     private final GroupServiceBlockingStub groupService;
 
+    /**
+     * Create a new instance.
+     *
+     * @param groupService group service endpiont
+     * @param timer        timer
+     * @param consumer     fn to handle fetched group data
+     */
     public GroupFetcher(@Nonnull GroupServiceBlockingStub groupService,
             @Nonnull MultiStageTimer timer,
             @Nonnull Consumer<GroupData> consumer) {
@@ -152,6 +159,9 @@ public class GroupFetcher extends DataFetcher<GroupData> {
         }
     }
 
+    /**
+     * Class to represent group data obtained from group service.
+     */
     public static class GroupData {
         Long2ObjectMap<List<Grouping>> leafEntityToGroups;
         Long2ObjectMap<List<Long>> groupToLeafEntityIds;

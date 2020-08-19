@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
+import java.util.Collection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -318,18 +319,14 @@ public class CostDTOCreator {
         }
 
         // Set CBTP scope to billing family (for shared RI) or account (for single scoped RI)
-        final long scopeId;
+        final Collection<Long> scope;
         if (reservedInstanceKey.getShared()) {
-            scopeId = reservedInstanceKey.getAccountScopeId();
+            scope = reservedInstanceKey.getAccountScopeId();
         } else if (!applicableBusinessAccounts.isEmpty()) {
-            // For single scoped RI applicable accounts set must contain a single element
-            if (applicableBusinessAccounts.size() > 1) {
-                logger.error("More than one applicable account for " + reservedInstanceKey);
-            }
-            scopeId = applicableBusinessAccounts.iterator().next();
+            scope = applicableBusinessAccounts;
         } else {
             logger.error("Empty applicable accounts list for " + reservedInstanceKey);
-            scopeId = reservedInstanceKey.getAccountScopeId();
+            scope = reservedInstanceKey.getAccountScopeId();
         }
 
         return CostDTO.newBuilder()
@@ -338,7 +335,7 @@ public class CostDTOCreator {
                         .addAllCostTupleList(costTupleList)
                         .setDiscountPercentage(1)
                         .setLicenseCommodityBaseType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
-                        .setScopeId(scopeId))
+                        .addAllScopeIds(scope))
                 .build();
     }
 

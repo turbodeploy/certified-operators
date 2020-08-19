@@ -23,6 +23,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.StitchingScopeType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.TemplateType;
 import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
@@ -138,6 +139,7 @@ public class VimStorageBrowsingConversionProbe extends VimStorageBrowsingProbe {
         return new MergedEntityMetadataBuilder()
                 .internalMatchingProperty(SupplyChainConstants.STORAGE_ID)
                 .externalMatchingField(SupplyChainConstants.ID, Collections.emptyList())
+                .stitchingScope(StitchingScopeType.PARENT)
                 .build();
     }
 
@@ -153,6 +155,7 @@ public class VimStorageBrowsingConversionProbe extends VimStorageBrowsingProbe {
         return new MergedEntityMetadataBuilder()
                 .internalMatchingProperty(SupplyChainConstants.INTERNAL_NAME_TGT_ID)
                 .externalMatchingProperty(SupplyChainConstants.INTERNAL_NAME_TGT_ID)
+                .stitchingScope(StitchingScopeType.PARENT)
                 .build();
     }
 
@@ -168,6 +171,7 @@ public class VimStorageBrowsingConversionProbe extends VimStorageBrowsingProbe {
                 .internalMatchingField(SupplyChainConstants.ID, Collections.emptyList())
                 .externalMatchingField(SupplyChainConstants.ID, Collections.emptyList())
                 .mergedField("virtual_volume_data", Collections.emptyList())
+                .stitchingScope(StitchingScopeType.PARENT)
                 .build();
     }
 }

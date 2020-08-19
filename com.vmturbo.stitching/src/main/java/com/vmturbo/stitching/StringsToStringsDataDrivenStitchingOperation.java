@@ -27,10 +27,4 @@ public class StringsToStringsDataDrivenStitchingOperation
                     @Nonnull final Set<ProbeCategory> stitchingScope) {
         super(matchingMetaData, stitchingScope);
     }
-
-    @Nonnull
-    @Override
-    public StitchingIndex<String, String> createIndex(final int expectedSize) {
-        return new IntersectionStitchingIndex(expectedSize);
-    }
 }

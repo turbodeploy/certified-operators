@@ -15,9 +15,9 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.PostgreSQLHealthMonitor;
+import com.vmturbo.extractor.action.ActionConfig;
 import com.vmturbo.extractor.diags.ExtractorDiagnosticsConfig;
 import com.vmturbo.extractor.grafana.GrafanaConfig;
-import com.vmturbo.extractor.schema.ExtractorDbConfig;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -27,6 +27,7 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  */
 @Configuration("theComponent")
 @Import({TopologyListenerConfig.class,
+        ActionConfig.class,
         ExtractorDbConfig.class,
         GrafanaConfig.class,
         ExtractorDiagnosticsConfig.class})
@@ -52,6 +53,7 @@ public class ExtractorComponent extends BaseVmtComponent {
      */
     @Value("${reportingMetricTableRetentionMonths:#{null}}")
     private Integer reportingMetricTableRetentionMonths;
+
 
     private void setupHealthMonitor() throws InterruptedException {
         logger.info("Adding PostgreSQL health checks to the component health monitor.");

@@ -1,9 +1,11 @@
 package com.vmturbo.action.orchestrator.approval;
 
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -13,11 +15,15 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionSchedule;
+import com.vmturbo.action.orchestrator.exception.ExecutionInitiationException;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -27,7 +33,6 @@ import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
@@ -87,7 +92,7 @@ public class ActionApprovalManagerTest {
 
         when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(actionTargetInfo);
 
-        when(actionStore.getEntitySeverityCache()).thenReturn(entitySeverityCache);
+        when(actionStore.getEntitySeverityCache()).thenReturn(Optional.of(entitySeverityCache));
 
         when(actionTranslator.translateToSpec(any())).thenReturn(ActionSpec.newBuilder()
             .buildPartial());
@@ -102,9 +107,11 @@ public class ActionApprovalManagerTest {
 
     /**
      * An external action should be accepted an start executing.
+     *
+     * @throws ExecutionInitiationException if something goes wrong.
      */
     @Test
-    public void testAcceptExternalApproval() {
+    public void testAcceptExternalApproval() throws ExecutionInitiationException {
         Action action = new MockedAction(
             ActionDTO.Action.newBuilder()
                 .setId(ACTION_ID)
@@ -120,9 +127,11 @@ public class ActionApprovalManagerTest {
 
     /**
      * Test failed acceptance for action not in {@link ActionState#READY} state.
+     *
+     * @throws ExecutionInitiationException if something goes wrong.
      */
     @Test
-    public void testFailedAcceptExternalApproval() {
+    public void testFailedAcceptExternalApproval() throws ExecutionInitiationException {
         final Action action =
                 new MockedAction(ActionDTO.Action.newBuilder().setId(ACTION_ID).buildPartial(),
                         ACTION_PLAN_ID, ACTION_RECOMMENDATION_OID);
@@ -131,12 +140,48 @@ public class ActionApprovalManagerTest {
         when(actionStore.getAction(ACTION_ID)).thenReturn(Optional.of(action));
         actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
         Assert.assertEquals(ActionState.IN_PROGRESS, action.getState());
-        final AcceptActionResponse acceptActionResponse =
-                actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
-        Assert.assertTrue(acceptActionResponse.hasError());
-        Assert.assertThat(acceptActionResponse.getError(), Matchers.containsString(
+
+        try {
+            actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
+        } catch (ExecutionInitiationException ex) {
+            Assert.assertThat(ex.getMessage(), Matchers.containsString(
                 "Only action with READY state can be accepted. Action " + ACTION_ID + " has "
-                        + ActionState.IN_PROGRESS + " state."));
+                    + ActionState.IN_PROGRESS + " state."));
+            return;
+        }
+        fail("The call show have thrown an exception");
+
+    }
+
+    /**
+     * Test postpone action execution for accepted action when execution window is not
+     * active.
+     *
+     * @throws ExecutionInitiationException if something goes wrong.
+     */
+    @Test
+    public void testPostponeExecutionForExternalApprovedAction() throws ExecutionInitiationException {
+        final ActionSchedule actionSchedule = Mockito.spy(
+                new ActionSchedule(1L, 2L, "America/Chicago", 12L, "testSchedule",
+                        ActionMode.MANUAL, "admin"));
+        // isActiveSchedule() return status of action schedule updated during previous
+        // broadcast, so it is not related to real time and can be different from isActiveScheduleNow()
+        Mockito.when(actionSchedule.isActiveSchedule()).thenReturn(true);
+        Mockito.when(actionSchedule.isActiveScheduleNow()).thenReturn(false);
+
+        final Action action = Mockito.spy(
+                new MockedAction(ActionDTO.Action.newBuilder().setId(ACTION_ID).buildPartial(),
+                        ACTION_PLAN_ID, ACTION_RECOMMENDATION_OID));
+        Mockito.when(action.getSchedule()).thenReturn(Optional.of(actionSchedule));
+        Mockito.when(action.getAssociatedSettingsPolicies())
+                .thenReturn(Collections.singletonList(224L));
+        action.getActionTranslation()
+                .setTranslationSuccess(ActionDTO.Action.newBuilder().buildPartial());
+        when(actionStore.getAction(ACTION_ID)).thenReturn(Optional.of(action));
+
+        actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
+        Mockito.verify(action, Mockito.never()).receive(Mockito.eq(new QueuedEvent()));
+        Assert.assertEquals(ActionState.ACCEPTED, action.getState());
     }
 
     /**

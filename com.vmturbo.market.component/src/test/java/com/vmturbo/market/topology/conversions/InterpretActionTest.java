@@ -26,7 +26,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 
 import org.hamcrest.collection.IsIterableContainingInAnyOrder;
 import org.junit.Before;
@@ -345,7 +344,7 @@ public class InterpretActionTest {
             TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/topology-with-timeslots.json");
 
         final long shoppingListId = 5L;
-        final ShoppingListInfo slInfo = new ShoppingListInfo(shoppingListId, businessUser.getOid(), null,
+        final ShoppingListInfo slInfo = new ShoppingListInfo(shoppingListId, businessUser.getOid(), 666L,
             null, null, null, Arrays.asList());
         final Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(shoppingListId, slInfo);
         final Map<Long, TopologyEntityDTO> originalTopology = ImmutableMap.of(businessUser.getOid(),
@@ -366,8 +365,8 @@ public class InterpretActionTest {
 
         final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
             slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
-            new CloudEntityResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
-            CommodityIndex.newFactory().newIndex());
+            new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
+            CommodityIndex.newFactory()::newIndex);
 
         final long moveSrcId = businessUser.getCommoditiesBoughtFromProvidersList().get(0)
             .getProviderId();
@@ -412,6 +411,74 @@ public class InterpretActionTest {
         assertTrue(reasonCommodity.hasTimeSlot());
         assertEquals(slot, reasonCommodity.getTimeSlot().getSlot());
         assertEquals(totalSlotNumber, reasonCommodity.getTimeSlot().getTotalSlotNumber());
+    }
+
+    /**
+     * Test compliance action generation due to segment congestion.
+     *
+     * @throws Exception Any unexpected exception
+     */
+    @Test
+    public void testInterpretMoveActionDueToSegmentCongestion() throws Exception {
+        final TopologyDTO.TopologyEntityDTO entityDto =
+                TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
+
+        final long shoppingListId = 5L;
+        final ShoppingListInfo slInfo = new ShoppingListInfo(shoppingListId, entityDto.getOid(), null,
+                null, null, Arrays.asList());
+        final Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(shoppingListId, slInfo);
+        final Map<Long, TopologyEntityDTO> originalTopology = ImmutableMap.of(entityDto.getOid(),
+                entityDto);
+        final int congestedCommodityMarketId = 50;
+        final int slot = 1;
+
+        final CommodityType congestedCommodityType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+                .setKey("abc")
+                .build();
+        final CommodityConverter mockCommodityConverter = mock(CommodityConverter.class);
+        when(mockCommodityConverter.commodityIdToCommodityTypeAndSlot(eq(congestedCommodityMarketId)))
+                .thenReturn((new Pair(congestedCommodityType, Optional.of(slot))));
+        CloudTopologyConverter mockCloudTc = mock(CloudTopologyConverter.class);
+        TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
+        Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
+
+        final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
+                slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
+                new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
+                CommodityIndex.newFactory()::newIndex);
+
+        final long moveSrcId = entityDto.getCommoditiesBoughtFromProvidersList().get(0)
+                .getProviderId();
+
+        final Map<Long, ProjectedTopologyEntity> projectedTopology = ImmutableMap.of(
+                entityDto.getOid(), entity(entityDto),
+                moveSrcId, entity(entityDto));
+
+        final ActionTO actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)
+                .setMove(MoveTO.newBuilder()
+                        .setShoppingListToMove(shoppingListId)
+                        .setSource(moveSrcId)
+                        .setDestination(entityDto.getOid())
+                        .setMoveExplanation(MoveExplanation.newBuilder()
+                                .setCongestion(Congestion.newBuilder()
+                                        .addCongestedCommodities(congestedCommodityMarketId))
+                                .build())
+                        .build())
+                .build();
+
+        final Optional<Action> actionOptional = interpreter.interpretAction(actionTO, projectedTopology,
+                null, projectedCosts,
+                mockTopologyCostCalculator);
+
+        assertTrue(actionOptional.isPresent());
+        final Action action = actionOptional.get();
+        assertTrue(action.hasExplanation());
+        assertTrue(action.getExplanation().hasMove());
+        assertEquals(1, action.getExplanation().getMove().getChangeProviderExplanationCount());
+        final ChangeProviderExplanation changeProviderExplanation =
+                action.getExplanation().getMove().getChangeProviderExplanationList().get(0);
+        assertTrue(changeProviderExplanation.hasCompliance());
     }
 
     @Test
@@ -823,8 +890,8 @@ public class InterpretActionTest {
         when(mockedCommodityConverter.commodityIdToCommodityType(15)).thenReturn(mockedCommType);
         ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
-                new CloudEntityResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
-                CommodityIndex.newFactory().newIndex());
+                new CommoditiesResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
+                CommodityIndex.newFactory()::newIndex);
         // Assuming that 1 is the oid of trader created for m1.large x region and 2 is the oid
         // created for m1.medium x region
         ActionTO actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)

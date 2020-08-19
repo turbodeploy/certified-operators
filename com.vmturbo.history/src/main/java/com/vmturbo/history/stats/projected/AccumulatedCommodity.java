@@ -5,18 +5,16 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.stats.HistoryUtilizationType;
+import com.vmturbo.history.stats.projected.BoughtCommoditiesInfo.BoughtCommodity;
+import com.vmturbo.history.stats.projected.SoldCommoditiesInfo.SoldCommodity;
 
 /**
  * Accumulated information about a single type of commodity over a set of entities.
@@ -116,20 +114,17 @@ abstract class AccumulatedCommodity {
          * input. And provider id could be null when commodity bought without any provider id such as
          * unplaced entities.
          *
-         * @param commodityBoughtDTO The DTO describing the bought commodity.
+         * @param boughtCommodity The {@link BoughtCommodity} describing the bought commodity.
          * @param providerId The ID of the provider selling this commodity.
          * @param capacity The provider's capacity of this commodity.
          */
-        void recordBoughtCommodity(@Nonnull final CommodityBoughtDTO commodityBoughtDTO,
-                                   @Nullable final Long providerId,
+        void recordBoughtCommodity(@Nonnull final BoughtCommodity boughtCommodity,
+                                   final long providerId,
                                    final double capacity) {
-            recordUsed(commodityBoughtDTO.getUsed(), commodityBoughtDTO.getPeak());
+            recordUsed(boughtCommodity.getUsed(), boughtCommodity.getPeak());
             recordCapacity(capacity);
-            if (commodityBoughtDTO.hasHistoricalUsed() && Double.compare(capacity, 0) > 0) {
-                final HistoricalValues historicalUsed = commodityBoughtDTO.getHistoricalUsed();
-                if (historicalUsed.hasPercentile()) {
-                    recordPercentile(historicalUsed.getPercentile(), capacity);
-                }
+            if (boughtCommodity.hasPercentile() && Double.compare(capacity, 0) > 0) {
+                recordPercentile(boughtCommodity.getPercentile(), capacity);
             }
             this.providers.add(providerId);
         }
@@ -141,7 +136,7 @@ abstract class AccumulatedCommodity {
             builder.setRelation(RelationType.COMMODITIESBOUGHT.getLiteral());
 
             // For now, only set the provider UUID if there is exactly one provider and it is not null.
-            if (providers.size() == 1 && providers.iterator().next() != null) {
+            if (providers.size() == 1 && providers.iterator().next() != TopologyCommoditiesSnapshot.NO_PROVIDER_ID) {
                 builder.setProviderUuid(Long.toString(providers.iterator().next()));
             }
 
@@ -163,17 +158,14 @@ abstract class AccumulatedCommodity {
          * matter for the purposes of accumulation, and it's up to the caller to ensure there are
          * no undesireable repeats in the input.
          *
-         * @param commoditySoldDTO The DTO describing the sold commodity.
+         * @param soldCommodity The {@link SoldCommodity} describing the sold commodity.
          */
-        void recordSoldCommodity(@Nonnull final CommoditySoldDTO commoditySoldDTO) {
-            recordUsed(commoditySoldDTO.getUsed(), commoditySoldDTO.getPeak());
-            final double capacity = commoditySoldDTO.getCapacity();
+        void recordSoldCommodity(@Nonnull final SoldCommodity soldCommodity) {
+            recordUsed(soldCommodity.getUsed(), soldCommodity.getPeak());
+            final double capacity = soldCommodity.getCapacity();
             recordCapacity(capacity);
-            if (commoditySoldDTO.hasHistoricalUsed()) {
-                final HistoricalValues historicalUsed = commoditySoldDTO.getHistoricalUsed();
-                if (historicalUsed.hasPercentile()) {
-                    recordPercentile(historicalUsed.getPercentile(), capacity);
-                }
+            if (soldCommodity.hasPercentile()) {
+                recordPercentile(soldCommodity.getPercentile(), capacity);
             }
         }
 

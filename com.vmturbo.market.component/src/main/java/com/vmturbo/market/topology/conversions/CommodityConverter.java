@@ -80,6 +80,15 @@ public class CommodityConverter {
     }
 
     /**
+     * Returns the {@link CommodityTypeAllocator} associated with a {@link CommodityConverter}.
+     *
+     * @return CommodityTypeAllocator
+     */
+    public CommodityTypeAllocator getCommTypeAllocator() {
+        return commodityTypeAllocator;
+    }
+
+    /**
      * Creates a collection of {@link CommoditySoldTO} from the commodities sold by the
      * TopologyEntityDTO.
      *

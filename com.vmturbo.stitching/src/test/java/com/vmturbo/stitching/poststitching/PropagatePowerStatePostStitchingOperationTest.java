@@ -34,12 +34,14 @@ public class PropagatePowerStatePostStitchingOperationTest {
     private static final long appOid1 = 21L;
     private static final long appOid2 = 22L;
     private static final long appOid3 = 23L;
+    private static final long svcOid = 24L;
 
     private static TopologyEntity vmEntity1;
     private static TopologyEntity vmEntity2;
     private static TopologyEntity appEntity1;
     private static TopologyEntity appEntity2;
     private static TopologyEntity appEntity3;
+    private static TopologyEntity svcEntity1;
 
     @Before
     public void setup() {
@@ -47,14 +49,14 @@ public class PropagatePowerStatePostStitchingOperationTest {
             TopologyEntityDTO.newBuilder()
                 .setOid(appOid1)
                 .setDisplayName("RealApp")
-                .setEntityType(EntityType.APPLICATION_VALUE)
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .setEntityState(EntityState.POWERED_ON));
 
         final TopologyEntity.Builder app2 = TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()
                 .setOid(appOid2)
                 .setDisplayName("GuestLoad[vm1]")
-                .setEntityType(EntityType.APPLICATION_VALUE)
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .setEntityState(EntityState.POWERED_OFF)
                 .putEntityPropertyMap(
                     GuestLoadAppPostStitchingOperation.APPLICATION_TYPE_PATH,
@@ -64,11 +66,18 @@ public class PropagatePowerStatePostStitchingOperationTest {
             TopologyEntityDTO.newBuilder()
                 .setOid(appOid3)
                 .setDisplayName("GuestLoad[vm2]")
-                .setEntityType(EntityType.APPLICATION_VALUE)
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
                 .setEntityState(EntityState.POWERED_ON)
                 .putEntityPropertyMap(
                     GuestLoadAppPostStitchingOperation.APPLICATION_TYPE_PATH,
                     SupplyChainConstants.GUEST_LOAD));
+
+        final TopologyEntity.Builder svc = TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setOid(svcOid)
+                        .setDisplayName("Service[vm1]")
+                        .setEntityType(EntityType.SERVICE_VALUE)
+                        .setEntityState(EntityState.POWERED_ON));
 
         final TopologyEntity.Builder vm1 = TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()
@@ -82,11 +91,13 @@ public class PropagatePowerStatePostStitchingOperationTest {
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setEntityState(EntityState.POWERED_ON));
 
-        // vm1 is powered off, which hosts two apps:
+        // vm1 is powered off, which hosts two apps and one service:
         // 1. app1 (powered on): real app discovered from acm target
         // 2. app2 (powered off): guestload app discovered from vc target, with same state as vm
+        // 3. svc (powered on)
         vm1.addConsumer(app1);
         vm1.addConsumer(app2);
+        vm1.addConsumer(svc);
         // vm2 is powered on, which hosts one app:
         // 1. app2 (powered on): guestload app discovered from vc target
         vm2.addConsumer(app3);
@@ -94,6 +105,7 @@ public class PropagatePowerStatePostStitchingOperationTest {
         appEntity1 = app1.build();
         appEntity2 = app2.build();
         appEntity3 = app3.build();
+        svcEntity1 = svc.build();
         vmEntity1 = vm1.build();
         vmEntity2 = vm2.build();
     }
@@ -104,6 +116,7 @@ public class PropagatePowerStatePostStitchingOperationTest {
         assertEquals(EntityState.POWERED_ON, appEntity1.getEntityState());
         assertEquals(EntityState.POWERED_OFF, appEntity2.getEntityState());
         assertEquals(EntityState.POWERED_ON, appEntity3.getEntityState());
+        assertEquals(EntityState.POWERED_ON, svcEntity1.getEntityState());
         assertEquals(EntityState.POWERED_OFF, vmEntity1.getEntityState());
         assertEquals(EntityState.POWERED_ON, vmEntity2.getEntityState());
 
@@ -119,8 +132,9 @@ public class PropagatePowerStatePostStitchingOperationTest {
         // verify that app1 is set to unknown, app2 is still powered off, since it's GuestLoad
         // and app3 is not changed, also vm1 and vm2 are not changed
         assertEquals(EntityState.UNKNOWN, appEntity1.getEntityState());
-        assertEquals(EntityState.POWERED_OFF, appEntity2.getEntityState());
+        assertEquals(EntityState.UNKNOWN, appEntity2.getEntityState());
         assertEquals(EntityState.POWERED_ON, appEntity3.getEntityState());
+        assertEquals(EntityState.POWERED_ON, svcEntity1.getEntityState());
         assertEquals(EntityState.POWERED_OFF, vmEntity1.getEntityState());
         assertEquals(EntityState.POWERED_ON, vmEntity2.getEntityState());
     }
@@ -139,5 +153,90 @@ public class PropagatePowerStatePostStitchingOperationTest {
         assertEquals(EntityState.POWERED_ON, appEntity1.getEntityState());
         assertEquals(EntityState.POWERED_OFF, appEntity2.getEntityState());
         assertEquals(EntityState.MAINTENANCE, vmEntity1.getEntityState());
+    }
+
+    /**
+     * Test that propagation happens from VMs in UNKNOWN state.
+     */
+    @Test
+    public void testPropagateUnknownState() {
+        // apply operation
+        final UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
+        // if vm state is unknown, it should propagate
+        vmEntity1.getTopologyEntityDtoBuilder().setEntityState(EntityState.UNKNOWN);
+        propagatePowerStateOp.performOperation(Stream.of(vmEntity1), settingsCollection, resultBuilder);
+        // check that no changes applied
+        assertEquals(1, resultBuilder.getChanges().size());
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+
+        // after operation, verify that app1 and app2 states are changed
+        assertEquals(EntityState.UNKNOWN, appEntity1.getEntityState());
+        assertEquals(EntityState.UNKNOWN, appEntity2.getEntityState());
+        assertEquals(EntityState.UNKNOWN, vmEntity1.getEntityState());
+    }
+
+    /**
+     * Test that consumer propagation is recursive.
+     */
+    @Test
+    public void testRecursivePropagation() {
+        // VM <-- ContainerPod <-- Container <-- AppComponent <-- Service
+        final UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
+
+        final TopologyEntity.Builder serviceBuilder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(1000L)
+                .setDisplayName("Service")
+                .setEntityType(EntityType.SERVICE_VALUE)
+                .setEntityState(EntityState.POWERED_ON));
+
+        final TopologyEntity.Builder appBuilder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(1001L)
+                .setDisplayName("RealApp")
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
+                .setEntityState(EntityState.POWERED_ON));
+
+        final TopologyEntity.Builder containerBuilder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(1002L)
+                .setDisplayName("Container")
+                .setEntityType(EntityType.CONTAINER_VALUE)
+                .setEntityState(EntityState.POWERED_ON));
+
+        final TopologyEntity.Builder containerPodBuilder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(1003L)
+                .setDisplayName("ContainerPod")
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .setEntityState(EntityState.POWERED_ON));
+
+        final TopologyEntity.Builder vmBuilder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(1004L)
+                .setDisplayName("VirtualMachine")
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEntityState(EntityState.UNKNOWN));
+
+        appBuilder.addConsumer(serviceBuilder);
+        containerBuilder.addConsumer(appBuilder);
+        containerPodBuilder.addConsumer(containerBuilder);
+        vmBuilder.addConsumer(containerPodBuilder);
+
+        final TopologyEntity service = serviceBuilder.build();
+        final TopologyEntity app = appBuilder.build();
+        final TopologyEntity container = containerBuilder.build();
+        final TopologyEntity containerPod = containerPodBuilder.build();
+        final TopologyEntity vm = vmBuilder.build();
+
+        propagatePowerStateOp.performOperation(Stream.of(vm), settingsCollection, resultBuilder);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
+
+        // All consumers except the service should have UNKNOWN power state.
+        assertEquals(EntityState.POWERED_ON, service.getEntityState());
+        assertEquals(EntityState.UNKNOWN, app.getEntityState());
+        assertEquals(EntityState.UNKNOWN, container.getEntityState());
+        assertEquals(EntityState.UNKNOWN, containerPod.getEntityState());
+        assertEquals(EntityState.UNKNOWN, vm.getEntityState());
     }
 }

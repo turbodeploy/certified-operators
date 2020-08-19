@@ -7,7 +7,7 @@ spec:
   # Global settings
   global:
     repository: turbonomic
-    tag: 7.22.5-SNAPSHOT
+    tag: 7.22.8-SNAPSHOT
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
     externalTimescaleDBIP: 10.0.2.15
@@ -80,6 +80,10 @@ spec:
   istio:
     enabled: false
   mssql:
+    enabled: false
+  mysql:
+    enabled: false
+  tomcat:
     enabled: false
   netapp:
     enabled: false
@@ -284,6 +288,14 @@ spec:
       limits:
         memory: 512Mi
   mediation-mssql:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-mysql:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-tomcat:
     resources:
       limits:
         memory: 512Mi

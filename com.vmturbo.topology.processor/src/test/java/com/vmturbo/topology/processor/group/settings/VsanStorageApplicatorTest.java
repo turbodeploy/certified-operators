@@ -267,7 +267,7 @@ public class VsanStorageApplicatorTest {
         }
 
         public void checkStorageAmount(double expectedUsed, double expectedCapacity)    {
-            CommoditySoldDTO.Builder storageAmount = SettingApplicator
+            CommoditySoldDTO.Builder storageAmount = BaseSettingApplicator
                             .getCommoditySoldBuilders(storage, CommodityType.STORAGE_AMOUNT)
                             .iterator().next();
             Assert.assertEquals(expectedUsed, storageAmount.getUsed() / 1024, .01);
@@ -275,7 +275,7 @@ public class VsanStorageApplicatorTest {
         }
 
         public void checkIOPS(int hciHostCapacityReservation)   {
-            CommoditySoldDTO.Builder storageAccess = SettingApplicator
+            CommoditySoldDTO.Builder storageAccess = BaseSettingApplicator
                             .getCommoditySoldBuilders(storage, CommodityType.STORAGE_ACCESS)
                             .iterator().next();
             int referenceIOPSCapacity = (numberOfHosts - hciHostCapacityReservation)

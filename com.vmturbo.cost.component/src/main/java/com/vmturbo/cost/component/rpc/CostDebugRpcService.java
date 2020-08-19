@@ -1,17 +1,39 @@
 package com.vmturbo.cost.component.rpc;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableMap;
+
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.cloud.commitment.analysis.CloudCommitmentAnalysisManager;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.ClassifiedDemandScope;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisInfo;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.ReservedInstancePurchaseProfile;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification.ClassifiedDemandSelection;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.DemandSegment;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandType;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.CostDebug;
 import com.vmturbo.common.protobuf.cost.CostDebug.DisableCostRecordingRequest;
@@ -22,13 +44,25 @@ import com.vmturbo.common.protobuf.cost.CostDebug.GetBuyRIImpactCsvRequest;
 import com.vmturbo.common.protobuf.cost.CostDebug.GetBuyRIImpactCsvResponse;
 import com.vmturbo.common.protobuf.cost.CostDebug.GetRecordedCostsRequest;
 import com.vmturbo.common.protobuf.cost.CostDebug.RecordedCost;
+import com.vmturbo.common.protobuf.cost.CostDebug.StartFullAllocatedRIBuyRequest;
+import com.vmturbo.common.protobuf.cost.CostDebug.StartFullAllocatedRIBuyResponse;
 import com.vmturbo.common.protobuf.cost.CostDebug.TriggerBuyRIAlgorithmRequest;
 import com.vmturbo.common.protobuf.cost.CostDebug.TriggerBuyRIAlgorithmResponse;
 import com.vmturbo.common.protobuf.cost.CostDebugServiceGrpc.CostDebugServiceImplBase;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.component.reserved.instance.BuyRIImpactReportGenerator;
 import com.vmturbo.cost.component.reserved.instance.EntityReservedInstanceMappingStore;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 import com.vmturbo.cost.component.topology.CostJournalRecorder;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
 /**
  * See cost/CostDebug.proto
@@ -45,14 +79,72 @@ public class CostDebugRpcService extends CostDebugServiceImplBase {
 
     private final BuyRIImpactReportGenerator buyRIImpactReportGenerator;
 
+    private final CloudCommitmentAnalysisManager ccaManager;
+
+    private final RepositoryServiceBlockingStub repositoryClient;
+
     public CostDebugRpcService(@Nonnull final CostJournalRecorder costJournalRecording,
-                    @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
-                    @Nonnull final ReservedInstanceAnalysisInvoker invoker,
-                               @Nonnull BuyRIImpactReportGenerator buyRIImpactReportGenerator) {
+                               @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
+                               @Nonnull final ReservedInstanceAnalysisInvoker invoker,
+                               @Nonnull BuyRIImpactReportGenerator buyRIImpactReportGenerator,
+                               @Nonnull CloudCommitmentAnalysisManager ccaManager,
+                               @Nonnull RepositoryServiceBlockingStub repositoryClient) {
         this.costJournalRecording = costJournalRecording;
         this.entityReservedInstanceMappingStore = entityReservedInstanceMappingStore;
         this.invoker = invoker;
         this.buyRIImpactReportGenerator = Objects.requireNonNull(buyRIImpactReportGenerator);
+        this.ccaManager = Objects.requireNonNull(ccaManager);
+        this.repositoryClient = Objects.requireNonNull(repositoryClient);
+    }
+
+    @Override
+    public void startFullAllocatedRIBuyAnalysis(final StartFullAllocatedRIBuyRequest request, final StreamObserver<StartFullAllocatedRIBuyResponse> responseObserver) {
+        try {
+            final CloudCommitmentAnalysisConfig analysisConfig = CloudCommitmentAnalysisConfig.newBuilder()
+                    .setAnalysisTag("Test Analysis")
+                    .setDemandSelection(HistoricalDemandSelection.newBuilder()
+                            .setCloudTierType(CloudTierType.COMPUTE_TIER)
+                            .addDemandSegment(DemandSegment.newBuilder()
+                                    .setScope(DemandScope.newBuilder())
+                                    .setDemandType(HistoricalDemandType.ALLOCATION)
+                                    .build())
+                            .setLookBackStartTime(Instant.now().minus(30, ChronoUnit.DAYS).toEpochMilli())
+                            .setLogDetailedSummary(true))
+                    .setDemandClassification(DemandClassification.newBuilder()
+                            .setDemandSelection(ClassifiedDemandSelection.newBuilder()
+                                    .addScope(ClassifiedDemandScope.newBuilder()
+                                            .setScope(DemandScope.newBuilder())
+                                            .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED)))
+                            .setLogDetailedSummary(true))
+                    .setCloudCommitmentInventory(CloudCommitmentInventory.newBuilder())
+                    .setPurchaseProfile(CommitmentPurchaseProfile.newBuilder()
+                            .addScope(ClassifiedDemandScope.newBuilder()
+                                    .setScope(DemandScope.newBuilder())
+                                    .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED))
+                            .setRecommendationSettings(RecommendationSettings.newBuilder())
+                            .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder()
+                                    .putAllRiTypeByRegionOid(
+                                            retrieveAllRegionsFromRepository()
+                                                    .collect(ImmutableMap.toImmutableMap(
+                                                            TopologyEntityDTO::getOid,
+                                                            (t) -> ReservedInstanceType.newBuilder()
+                                                                    .setOfferingClass(OfferingClass.CONVERTIBLE)
+                                                                    .setPaymentOption(PaymentOption.ALL_UPFRONT)
+                                                                    .setTermYears(1)
+                                                                    .build()))))
+                            .build())
+                    .build();
+
+            final CloudCommitmentAnalysisInfo analysisInfo = ccaManager.startAnalysis(analysisConfig);
+
+            responseObserver.onNext(StartFullAllocatedRIBuyResponse.newBuilder()
+                    .setCloudCommitmentAnalysisInfo(analysisInfo)
+                    .build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            logger.error("Error during CCA:", e);
+            throw e;
+        }
     }
 
     @Override
@@ -141,5 +233,17 @@ public class CostDebugRpcService extends CostDebugServiceImplBase {
                 .setCsvString(buyRIImpactReportGenerator.generateCsvReportAsString(request))
                 .build());
         responseObserver.onCompleted();
+    }
+
+    private Stream<TopologyEntityDTO> retrieveAllRegionsFromRepository() {
+        final RetrieveTopologyEntitiesRequest.Builder retrieveTopologyRequest =
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                        .setReturnType(Type.FULL)
+                        .setTopologyType(TopologyType.SOURCE)
+                        .addEntityType(EntityType.REGION_VALUE);
+
+        return RepositoryDTOUtil.topologyEntityStream(
+                repositoryClient.retrieveTopologyEntities(retrieveTopologyRequest.build()))
+                    .map(PartialEntity::getFullEntity);
     }
 }

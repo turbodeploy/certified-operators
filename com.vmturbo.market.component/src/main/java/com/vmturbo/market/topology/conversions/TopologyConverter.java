@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,6 +24,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashBiMap;
@@ -221,17 +223,21 @@ public class TopologyConverter {
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
-        this.commodityIndex = commodityIndexFactory.newIndex();
+        // Lazy initialize commodityIndex through Suppliers#memoize. This ensures that all calls to
+        // commmodityIndex#get after the first just return the lazy-initialized commodityIndex.
+        this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
+
         this.marketMode = MarketMode.M2Only;
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
             oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.actionInterpreter = new ActionInterpreter(commodityConverter,
+        // Lazy initialize actionInterpreter. It needs to be lazy-initialized because it refers
+        // to the lazy-initialized commodity index.
+        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(commodityConverter,
             shoppingListOidToInfos,
             cloudTc,
             unmodifiableEntityOidToDtoMap,
-            oidToProjectedTraderTOMap,
-            cert,
-            projectedRICoverageCalculator, tierExcluder, commodityIndex);
+            oidToProjectedTraderTOMap, commoditiesResizeTracker,
+            projectedRICoverageCalculator, tierExcluder, commodityIndex));
     }
 
     /**
@@ -306,27 +312,31 @@ public class TopologyConverter {
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
-        this.commodityIndex = commodityIndexFactory.newIndex();
+        this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
             oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
-                cloudTc,
-                unmodifiableEntityOidToDtoMap,
-                oidToProjectedTraderTOMap,
-                cert,
-                projectedRICoverageCalculator, tierExcluder, commodityIndex);
+        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(commodityConverter,
+            shoppingListOidToInfos,
+            cloudTc,
+            unmodifiableEntityOidToDtoMap,
+            oidToProjectedTraderTOMap, commoditiesResizeTracker,
+            projectedRICoverageCalculator, tierExcluder, commodityIndex));
     }
 
     /**
-     * get the TopologyEntityDTO OID corresponding to the oid of a TemplateProvider.
+     * get the TopologyEntityDTO OID corresponding to the oid of a On-demand TemplateProvider.
+     * return empty if the traderTOOID is a CBTP.
      * @param traderTOOID  oid of a TemplateProvider
      * @return the OID of corresponding TopologyEntityDTO
      */
-    public Long convertTraderTOToTopologyEntityDTO(Long traderTOOID) {
-        return cloudTc.getMarketTier(traderTOOID).getTier().getOid();
+    public Optional<Long> getTopologyEntityOIDForOnDemandMarketTier(Long traderTOOID) {
+        MarketTier marketTier = cloudTc.getMarketTier(traderTOOID);
+        if (marketTier.hasRIDiscount()) {
+            return Optional.empty();
+        } else {
+            return Optional.of(marketTier.getTier().getOid());
+        }
     }
-
-
 
     private long shoppingListId = 1000L; // Arbitrary start value
 
@@ -384,7 +394,7 @@ public class TopologyConverter {
 
     private final TopologyInfo topologyInfo;
 
-    private final CloudEntityResizeTracker cert = new CloudEntityResizeTracker();
+    private final CommoditiesResizeTracker commoditiesResizeTracker = new CommoditiesResizeTracker();
 
     private float quoteFactor = MarketAnalysisUtils.QUOTE_FACTOR;
     private float liveMarketMoveCostFactor = MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR;
@@ -395,7 +405,7 @@ public class TopologyConverter {
 
     private final CommodityConverter commodityConverter;
 
-    private final ActionInterpreter actionInterpreter;
+    private final Supplier<ActionInterpreter> actionInterpreter;
 
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
@@ -407,8 +417,11 @@ public class TopologyConverter {
     /**
      * Index that keeps scaling factors applied during conversion TO market entities, to allow
      * quick lookups to reverse scaling when converting FROM market entities.
+     * <p/>
+     * Lazily initialized to reduce memory usage in the component until we actually need to
+     * use the CommodityIndex when we convert back from market.
      */
-    private CommodityIndex commodityIndex;
+    private Supplier<CommodityIndex> commodityIndex;
 
     private final TierExcluder tierExcluder;
 
@@ -440,19 +453,19 @@ public class TopologyConverter {
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap,
                 businessAccounts, marketPriceTable, null, tierExcluder, cloudTopology);
-        this.commodityIndex = commodityIndexFactory.newIndex();
+        this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
+
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
             oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
-                cloudTc,
+        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(commodityConverter,
+            shoppingListOidToInfos,
+            cloudTc,
             unmodifiableEntityOidToDtoMap,
-            oidToProjectedTraderTOMap,
-            cert,
-            projectedRICoverageCalculator, tierExcluder, commodityIndex);
+            oidToProjectedTraderTOMap, commoditiesResizeTracker,
+            projectedRICoverageCalculator, tierExcluder, commodityIndex));
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
     }
-
 
     /**
      * Constructor with includeGuaranteedBuyer parameter.
@@ -485,6 +498,10 @@ public class TopologyConverter {
 
     public ProjectedRICoverageCalculator getProjectedRICoverageCalculator() {
         return projectedRICoverageCalculator;
+    }
+
+    public CommodityIndex getCommodityIndex() {
+        return commodityIndex.get();
     }
 
     // Read only version
@@ -606,7 +623,6 @@ public class TopologyConverter {
                     .filter(comm -> CommodityConverter.isBicliqueCommodity(comm.getCommodityType()))
                     .forEach(comm -> edge(dto, comm));
                 oidToUuidMap.put(dto.getOid(), String.valueOf(dto.getOid()));
-                commodityIndex.addEntity(dto);
                 populateCommodityConsumesTable(dto);
             }
             // Create market tier traderTO builders
@@ -712,7 +728,7 @@ public class TopologyConverter {
                 priceIndexMessage.getPayloadList().stream()
                     .collect(Collectors.toMap(PriceIndexMessagePayload::getOid, Function.identity()));
             Map<Long, EconomyDTOs.TraderTO> projTraders =
-                    projectedTraders.stream().collect(Collectors.toMap(t -> t.getOid(), Function.identity()));
+                    projectedTraders.stream().collect(Collectors.toMap(TraderTO::getOid, Function.identity()));
             logger.info("Converting {} projectedTraders to topologyEntityDTOs", projectedTraders.size());
             projectedTraders.forEach(t -> oidToProjectedTraderTOMap.put(t.getOid(), t));
             projectedRICoverageCalculator.relinquishCoupons(projectedTraders);
@@ -837,7 +853,7 @@ public class TopologyConverter {
                                      @Nonnull CloudTopology<TopologyEntityDTO> originalCloudTopology,
                                      @Nonnull Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts,
                                      @Nonnull TopologyCostCalculator topologyCostCalculator) {
-        return actionInterpreter.interpretAction(actionTO, projectedTopology, originalCloudTopology,
+        return actionInterpreter.get().interpretAction(actionTO, projectedTopology, originalCloudTopology,
             projectedCosts, topologyCostCalculator);
     }
 
@@ -1008,8 +1024,9 @@ public class TopologyConverter {
                     // then do not include it in the projected topology.
                     continue;
                 } else {
+                    //If the traderTO has cloneOf, it is a provisioned SE.
                     commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), sl.getOid(),
-                        commBought, reservedCapacityAnalysis, originalEntity, timeSlotsByCommType).ifPresent(commList::add);
+                        commBought, reservedCapacityAnalysis, originalEntity, timeSlotsByCommType, traderTO.hasCloneOf()).ifPresent(commList::add);
                 }
             }
             // the shopping list might not exist in shoppingListOidToInfos, because it might be
@@ -1671,9 +1688,9 @@ public class TopologyConverter {
 
         // TODO: Need to add check for Cloud migration here. This will apply to Cloud Migration too.
         if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD) {
-            final float[][] onPremResiedCapacity = getOnPremResizedCapacity(histUsed, histPeak,
+            final float[][] onPremResizedCapacity = getOnPremResizedCapacity(histUsed, histPeak,
                     commBought, providerOid, topologyDTO);
-            return new float[][]{onPremResiedCapacity[0], onPremResiedCapacity[1]};
+            return new float[][]{onPremResizedCapacity[0], onPremResizedCapacity[1]};
         }
         final Integer drivingCommSoldType =
                 TopologyConversionConstants.commDependancyMapForCloudResize.get(
@@ -1686,11 +1703,10 @@ public class TopologyConverter {
                             .filter(c -> c.getCommodityType().getType() == drivingCommSoldType)
                             .collect(Collectors.toList());
             if (!drivingCommmoditySoldList.isEmpty()) {
-                return drivingSoldCommodityBasedCapacity(drivingCommmoditySoldList, topologyDTO);
+                return drivingSoldCommodityBasedCapacity(drivingCommmoditySoldList, topologyDTO, providerOid);
             }
-        }
-        if (providerOid != null &&
-                TopologyConversionConstants.BOUGHT_COMMODITIES_RESIZED.contains(
+        } else if (providerOid != null &&
+                TopologyConversionConstants.CLOUD_BOUGHT_COMMODITIES_RESIZED.contains(
                         commBought.getCommodityType().getType())) {
             final MarketTier marketTier = cloudTc.getMarketTier(providerOid);
             if (marketTier != null) {
@@ -1707,13 +1723,12 @@ public class TopologyConverter {
                     // and resize-down demand calculations. We do not want to consider the
                     // historical max or the peaks to avoid a one-time historic max value to cause
                     // resize decisions.
-                    final float[] resizedQuantity =
-                            calculateResizedQuantity(histUsed[0], histUsed[0],
-                                    (float)commBought.getUsed(), histPeak[0],
-                                    (float)commoditySoldDTO.get().getCapacity(),
-                                    (float)commBought.getResizeTargetUtilization(), false);
-                    cert.logCommodityResize(topologyDTO.getOid(), commBought.getCommodityType(),
-                            resizedQuantity[0] - commoditySoldDTO.get().getCapacity());
+                    final float[] resizedQuantity = calculateResizedQuantity(histUsed[0], histUsed[0],
+                            (float)commBought.getUsed(), histPeak[0],
+                            (float)commoditySoldDTO.get().getCapacity(),
+                            (float)commBought.getResizeTargetUtilization(), false);
+                    commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commBought.getCommodityType(),
+                               resizedQuantity[0] - commoditySoldDTO.get().getCapacity() > 0);
                     logger.debug("Using a peak used of {} for commodity type {} for entity {}.",
                             resizedQuantity[1], commBought.getCommodityType().getType(),
                             topologyDTO.getDisplayName());
@@ -1730,7 +1745,7 @@ public class TopologyConverter {
     }
 
     private float[][] drivingSoldCommodityBasedCapacity(final List<CommoditySoldDTO> drivingCommmoditySoldList,
-                                                        final TopologyEntityDTO topologyDTO) {
+                                                        final TopologyEntityDTO topologyDTO, long providerOid) {
         final CommoditySoldDTO commoditySoldDTO = drivingCommmoditySoldList.get(0);
         float histUsage = (float)commoditySoldDTO.getUsed();
         if (commoditySoldDTO.hasHistoricalUsed()) {
@@ -1757,8 +1772,8 @@ public class TopologyConverter {
                         (float)commoditySoldDTO.getCapacity(),
                         (float)commoditySoldDTO.getResizeTargetUtilization(),
                         true);
-        cert.logCommodityResize(topologyDTO.getOid(), commoditySoldDTO.getCommodityType(),
-                resizedQuantity[0] - commoditySoldDTO.getCapacity());
+        commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commoditySoldDTO.getCommodityType(),
+                    resizedQuantity[0] - commoditySoldDTO.getCapacity() > 0);
         logger.debug(
                 "Using a peak used of {} for driving commodity type {} for entity {}.",
                 resizedQuantity[1], commoditySoldDTO.getCommodityType().getType(),
@@ -1816,38 +1831,49 @@ public class TopologyConverter {
                                               @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
         // An example use case for the condition below is the
         // VDI use case where we need to apply the target Util on the percentile.
-        if (commBought.hasHistoricalUsed()
-                && commBought.getHistoricalUsed().hasPercentile()) {
-            final TopologyEntityDTO providerTopologyEntity = entityOidToDto.get(providerOid);
-            if (providerTopologyEntity == null) {
-                logger.warn("Could not find provider for entity {} with id {}." +
-                                " Using percentile used and peak without " +
-                                "applying the target utilization", topologyDTO.getDisplayName(),
-                        providerOid);
 
-                return new float[][]{used, peak};
+        final TopologyEntityDTO providerTopologyEntity = entityOidToDto.get(providerOid);
+        if (providerTopologyEntity == null) {
+            logger.warn("Could not find provider for entity {} with id {}." +
+                            " Using percentile used and peak without " +
+                            "applying the target utilization", topologyDTO.getDisplayName(),
+                    providerOid);
+            return new float[][]{used, peak};
+        }
+        float histUsed = used[0];
+        float histPeak = peak[0];
+        // Find the corresponding sold commodity. For example, in the VDI use case,
+        // this would be the image commodity sold by the desktop pool.
+        final List<TopologyDTO.CommoditySoldDTO> commoditiesSoldByProvider =
+                providerTopologyEntity.getCommoditySoldListList()
+                        .stream()
+                        .filter(c -> c.getCommodityType().getType()
+                                == commBought.getCommodityType().getType())
+                        .collect(Collectors.toList());
+        if (commoditiesSoldByProvider.size() != 1 || commoditiesSoldByProvider.get(0) == null) {
+            logger.warn("Could not find corresponding sold commodity from provider {} for" +
+                            "type {},  for entity {}. Using percentile used and peak without" +
+                            "applying the target utilization", providerTopologyEntity.getDisplayName(),
+                    commBought.getCommodityType().getType(), topologyDTO.getDisplayName());
+            return new float[][]{new float[]{histUsed}, new float[]{histPeak}};
+        } else {
+            float targetUtil = (float)commBought.getResizeTargetUtilization();
+            double capacity = commoditiesSoldByProvider.get(0).getCapacity();
+            histUsed = (float)(histUsed / targetUtil);
+            histPeak = (float)(histPeak / targetUtil);
+            //If commBought has percentile, the histUsed is in percentage
+            if (commBought.hasHistoricalUsed() && commBought.getHistoricalUsed().hasPercentile()) {
+                histPeak *= capacity;
+                histUsed *= capacity;
             }
-            float histUsed = used[0];
-            float histPeak = peak[0];
-            // Find the corresponding sold commodity. For example, in the VDI use case,
-            // this would be the image commodity sold by the desktop pool.
-            final List<TopologyDTO.CommoditySoldDTO> commoditiesSoldByProvider =
-                    providerTopologyEntity.getCommoditySoldListList()
-                            .stream()
-                            .filter(c -> c.getCommodityType().getType()
-                                    == commBought.getCommodityType().getType())
-                            .collect(Collectors.toList());
-            if (commoditiesSoldByProvider.size() != 1 || commoditiesSoldByProvider.get(0) == null) {
-                logger.warn("Could not find corresponding sold commodity from provider {} for" +
-                                "type {},  for entity {}. Using percentile used and peak without" +
-                                "applying the target utilization", providerTopologyEntity.getDisplayName(),
-                        commBought.getCommodityType().getType(), topologyDTO.getDisplayName());
-            } else {
-                float targetUtil = (float)commBought.getResizeTargetUtilization();
-                double capacity = commoditiesSoldByProvider.get(0).getCapacity();
-                histUsed = (float)(histUsed / targetUtil * capacity);
-                histPeak = (float)(histPeak / targetUtil * capacity);
+            logger.debug("New capacity for entity {} 's commodity {}: {}, providerId: {}, targetUtil:{}, old capacity: {}",
+                    topologyDTO.getDisplayName(), commBought.getCommodityType().getType(),
+                    histUsed, providerTopologyEntity.getDisplayName(), targetUtil, capacity);
+            if (TopologyConversionConstants.ONPREM_BOUGHT_COMMODITIES_TO_TRACK.contains(commBought.getCommodityType().getType())) {
+                    commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commBought.getCommodityType(), histUsed > capacity);
             }
+        }
+        if (commBought.hasHistoricalUsed() && commBought.getHistoricalUsed().hasPercentile()) {
             return new float[][]{new float[]{histUsed}, new float[]{histPeak}};
         }
         return new float[][]{used, peak};
@@ -1920,6 +1946,7 @@ public class TopologyConverter {
      * @param reservedCapacityAnalysis the reserved capacity information
      * @param originalEntity the original entity DTO
      * @param timeSlotsByCommType Timeslot values arranged by {@link CommodityBoughtTO}
+     * @param isProvisioned Whether this trader is a provisioned trader which doesn't have shoppinglist.
      * @return {@link TopologyDTO.CommoditySoldDTO} that the trader sells
      */
     @Nonnull
@@ -1928,7 +1955,8 @@ public class TopologyConverter {
             @Nonnull final CommodityBoughtTO commBoughtTO,
             @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
             final TopologyEntityDTO originalEntity,
-            @Nonnull Map<CommodityType, List<Double>> timeSlotsByCommType) {
+            @Nonnull Map<CommodityType, List<Double>> timeSlotsByCommType,
+            boolean isProvisioned) {
 
 
         float peak = commBoughtTO.getPeakQuantity();
@@ -1948,7 +1976,7 @@ public class TopologyConverter {
         return commodityConverter.marketToTopologyCommodity(commBoughtTO.getSpecification())
                 .map(commType -> {
                     Optional<CommodityBoughtDTO> boughtDTObyTraderFromProjectedSellerInRealTopology =
-                            commodityIndex.getCommBought(traderOid, supplierOid, commType, volumeId);
+                        getCommodityIndex().getCommBought(traderOid, supplierOid, commType, volumeId);
                     float currentUsage = getOriginalUsedValue(commBoughtTO, traderOid,
                             supplierOid, commType, volumeId, originalEntity);
                     final Builder builder = CommodityBoughtDTO.newBuilder();
@@ -1976,17 +2004,21 @@ public class TopologyConverter {
                             we should calculate projected percentile value and use it
                        }
                      */
-                    final Double projectedPercentile =
+                    //A provisioned trader doesn't have shopping list info and boughtCommodities
+                    //so don't populate projected percentile for it.
+                    if (!isProvisioned) {
+                        final Double projectedPercentile =
                                     boughtDTObyTraderFromProjectedSellerInRealTopology
                                                     .map(CommodityBoughtDTO::getHistoricalUsed)
+                                                    .filter(HistoricalValues::hasPercentile)
                                                     .map(HistoricalValues::getPercentile)
                                                     .orElse(getProjectedPercentileValue(supplierOid,
                                                                                         shoppingListInfo,
                                                                                         commType));
-                    if (projectedPercentile != null) {
-                        builder.setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(projectedPercentile).build());
+                        if (projectedPercentile != null) {
+                            builder.setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(projectedPercentile).build());
+                        }
                     }
-
 
                     // Set timeslot values if applies
                     if (timeSlotsByCommType.containsKey(commType)) {
@@ -2041,26 +2073,27 @@ public class TopologyConverter {
         }
 
         CommodityBoughtDTO boughtDTO = commodityBoughtDTOs.get(0);
-        if (boughtDTO == null || boughtDTO.getHistoricalUsed() == null) {
+        if (boughtDTO == null || boughtDTO.getHistoricalUsed() == null || !boughtDTO.getHistoricalUsed().hasPercentile()) {
             return null;
         }
 
         final double originalPercentile = boughtDTO.getHistoricalUsed().getPercentile();
-        final Optional<Double> oldCapacity = commodityIndex.getCommSold(
-                        shoppingListInfo.getSellerId(),
-                        commType).map(CommoditySoldDTO::getCapacity);
+        final Optional<Double> oldCapacity = getCommodityIndex().getCommSold(
+            shoppingListInfo.getSellerId(),
+            commType).map(CommoditySoldDTO::getCapacity);
         final Optional<Double> newCapacity =
-                        commodityIndex.getCommSold(supplierOid, commType)
+            getCommodityIndex().getCommSold(supplierOid, commType)
                                         .map(CommoditySoldDTO::getCapacity)
                                         .filter(capacity -> capacity != 0);
         if (oldCapacity.isPresent() && newCapacity.isPresent()) {
             return originalPercentile * oldCapacity.get() / newCapacity.get();
         }
 
-        logger.warn("Projected percentile approximation can't be calculated. Original percentile = {}, oldCapacity = {}, newCapacity = {}",
+        logger.warn("Projected percentile approximation can't be calculated. Original percentile = {}, oldCapacity = {}, newCapacity = {}, boughtDTO = {}",
                     originalPercentile,
                     oldCapacity,
-                    newCapacity);
+                    newCapacity,
+                    boughtDTO);
         return null;
     }
 
@@ -2082,7 +2115,7 @@ public class TopologyConverter {
         // If this is a cloud entity, find the original bought commodity from supplier.
         if (cloudTc.isMarketTier(supplierOid)) {
             if (cloudTc.getMarketTier(supplierOid).getTier() != null &&
-                    TopologyConversionConstants.BOUGHT_COMMODITIES_RESIZED
+                    TopologyConversionConstants.CLOUD_BOUGHT_COMMODITIES_RESIZED
                             .contains(commType.getType())) {
                 //  Retrieve old bought commodity,given the old provider id
                 //  and original entity
@@ -2098,9 +2131,9 @@ public class TopologyConverter {
                 */
                 if (providerDTO.size() == 1) {
                     Optional<CommodityBoughtDTO> originalCommodityBoughtDTO =
-                            commodityIndex.getCommBought(traderOid,
-                                    providerDTO.stream().findFirst().get().getOid(),
-                                    commType, volumeId);
+                        getCommodityIndex().getCommBought(traderOid,
+                            providerDTO.stream().findFirst().get().getOid(),
+                            commType, volumeId);
                     if (originalCommodityBoughtDTO.isPresent()) {
                         currentUsage = (float)originalCommodityBoughtDTO.get().getUsed();
                     }
@@ -3118,9 +3151,9 @@ public class TopologyConverter {
                 (primaryTierSize > 0) ? cloudTc.getPrimaryMarketTier(projectedTraderTO) : null;
         // find original sold commodity of same type from original entity
         Optional<CommoditySoldDTO> originalCommoditySold =
-                commodityIndex.getCommSold(traderOid, commType);
+            getCommodityIndex().getCommSold(traderOid, commType);
         if (!originalCommoditySold.isPresent() && projectedTraderTO.getCloneOf() != 0) {
-            originalCommoditySold = commodityIndex.getCommSold(projectedTraderTO.getCloneOf(), commType);
+            originalCommoditySold = getCommodityIndex().getCommSold(projectedTraderTO.getCloneOf(), commType);
         }
         CommoditySoldTO adjustedCommSoldTO = commSoldTO.toBuilder()
                 .setQuantity((float)reverseScaleComm(commSoldTO.getQuantity(),
@@ -3322,8 +3355,7 @@ public class TopologyConverter {
         }).map(sf -> valueToReverseScale / sf).orElse(valueToReverseScale);
     }
 
-    @VisibleForTesting
-    CommodityConverter getCommodityConverter() {
+    public CommodityConverter getCommodityConverter() {
         return commodityConverter;
     }
 
@@ -3422,5 +3454,19 @@ public class TopologyConverter {
             }
         }
         return stream;
+    }
+
+    /**
+     * Create the commodity index from the input TopologyDTO's.
+     *
+     * @param commodityIndexFactory Factory to use to create the commodity index.
+     * @return the commodity index created from the input TopologyDTO's.
+     */
+    private CommodityIndex createCommodityIndex(final CommodityIndexFactory commodityIndexFactory) {
+        final CommodityIndex index = commodityIndexFactory.newIndex();
+        for (TopologyDTO.TopologyEntityDTO dto : entityOidToDto.values()) {
+            index.addEntity(dto);
+        }
+        return index;
     }
 }

@@ -14,9 +14,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterData;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.stitching.IntersectionStitchingIndex;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingScope;
@@ -36,7 +34,8 @@ public class DesktopPoolMasterImageStitchingOperation implements StitchingOperat
     @Nonnull
     @Override
     public Optional<StitchingScope<StitchingEntity>>
-    getScope(@Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+    getScope(@Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+            long targetId) {
         return Optional.of(
                 stitchingScopeFactory.probeEntityTypeScope(SDKProbeType.VCENTER.getProbeType(),
                         EntityType.VIRTUAL_MACHINE));
@@ -111,10 +110,5 @@ public class DesktopPoolMasterImageStitchingOperation implements StitchingOperat
         dpPoolDataBuilder.setMasterImage(String.valueOf(vmEntity.getOid())).build();
         vdcDataBuilder.setDesktopPoolData(dpPoolDataBuilder.build());
         dpBuilder.setVirtualDatacenterData(vdcDataBuilder.build()).build();
-    }
-
-    @Override
-    public StitchingIndex<String, String> createIndex(final int expectedSize) {
-        return new IntersectionStitchingIndex(expectedSize);
     }
 }

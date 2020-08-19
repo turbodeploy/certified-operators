@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceCostServiceGrpc;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCostStore;
 import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceCostFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
 
@@ -25,7 +26,7 @@ import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostF
 public class ReservedInstanceCostRpcService extends
                 ReservedInstanceCostServiceGrpc.ReservedInstanceCostServiceImplBase {
 
-    private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
+    private final ReservedInstanceCostStore reservedInstanceCostStore;
     private final BuyReservedInstanceStore buyReservedInstanceStore;
     private final Clock clock;
     private static final int PROJECTED_STATS_TIME_IN_FUTURE_HOURS = 1;
@@ -33,13 +34,13 @@ public class ReservedInstanceCostRpcService extends
     /**
      * Constructor for ReservedInstanceCostRpcService.
      *
-     * @param reservedInstanceBoughtStore object of type ReservedInstanceBoughtStore.
+     * @param reservedInstanceCostStore object of type ReservedInstanceCostStore.
      * @param buyReservedInstanceStore object of type BuyReservedInstanceStore.
      * @param clock object of type Clock.
      */
-    public ReservedInstanceCostRpcService(@Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
+    public ReservedInstanceCostRpcService(@Nonnull final ReservedInstanceCostStore reservedInstanceCostStore,
                     @Nonnull final BuyReservedInstanceStore buyReservedInstanceStore, @Nonnull final Clock clock) {
-        this.reservedInstanceBoughtStore = reservedInstanceBoughtStore;
+        this.reservedInstanceCostStore = reservedInstanceCostStore;
         this.buyReservedInstanceStore = buyReservedInstanceStore;
         this.clock = clock;
     }
@@ -62,7 +63,7 @@ public class ReservedInstanceCostRpcService extends
         if (request.getTimeWindow().hasQueryLatest() && request.getTimeWindow().getQueryLatest()) {
             // if query_latest = true -> return current inventory costs
             long currentSnapshotTime = clock.instant().toEpochMilli();
-            riCostStats = reservedInstanceBoughtStore.queryReservedInstanceBoughtCostStats(reservedInstanceCostFilter);
+            riCostStats = reservedInstanceCostStore.queryReservedInstanceBoughtCostStats(reservedInstanceCostFilter);
             final List<Cost.ReservedInstanceCostStat> currentReservedInstanceCostStats =
                             updateSnapshotTime(riCostStats, currentSnapshotTime);
             responseBuilder.addAllStats(currentReservedInstanceCostStats);
@@ -73,7 +74,7 @@ public class ReservedInstanceCostRpcService extends
                             .plus(PROJECTED_STATS_TIME_IN_FUTURE_HOURS, ChronoUnit.HOURS).toEpochMilli();
             // check if current data has already been queried.
             if (CollectionUtils.isEmpty(riCostStats)) {
-                riCostStats = reservedInstanceBoughtStore.queryReservedInstanceBoughtCostStats(reservedInstanceCostFilter);
+                riCostStats = reservedInstanceCostStore.queryReservedInstanceBoughtCostStats(reservedInstanceCostFilter);
             }
             // if current data has already been queried, use that as part of projection data.
             List<Cost.ReservedInstanceCostStat> projectedRICostBuilders = riCostStats;

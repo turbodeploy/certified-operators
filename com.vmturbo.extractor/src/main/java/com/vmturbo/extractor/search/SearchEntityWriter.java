@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
@@ -28,11 +29,24 @@ import org.jooq.DSLContext;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
+import com.vmturbo.extractor.patchers.CommoditiesPatcher;
+import com.vmturbo.extractor.patchers.GroupAggregatedCommoditiesPatcher;
+import com.vmturbo.extractor.patchers.GroupMemberFieldPatcher;
+import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsNotOnGroupingPatcher;
+import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
+import com.vmturbo.extractor.patchers.GroupRelatedActionsPatcher;
+import com.vmturbo.extractor.patchers.GroupRelatedEntitiesPatcher;
+import com.vmturbo.extractor.patchers.PrimitiveFieldsNotOnTEDPatcher;
+import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
+import com.vmturbo.extractor.patchers.RelatedActionsPatcher;
+import com.vmturbo.extractor.patchers.RelatedEntitiesPatcher;
+import com.vmturbo.extractor.patchers.RelatedGroupsPatcher;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.TopologyWriterBase;
 import com.vmturbo.extractor.topology.WriterConfig;
@@ -43,13 +57,19 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
  * Writer that extracts entity/group data from a topology and fetch all necessary aspects of the an
- * entity/group from other components, then persists them to the database for use by search/sort/filter.
+ * entity/group from other components, then persists them to the database for use by
+ * search/sort/filter.
  */
 public class SearchEntityWriter extends TopologyWriterBase {
 
     private static final Logger logger = LogManager.getLogger();
 
     private static final ObjectMapper mapper = new ObjectMapper();
+
+    static {
+        // we want key order to be retained in attrs conversions, to prevent unneeded hash changes
+        mapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+    }
 
     /**
      * List of patchers for entity fields which are on {@link TopologyEntityDTO}.
@@ -91,6 +111,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
                     new GroupRelatedActionsPatcher(),
                     new GroupPrimitiveFieldsNotOnGroupingPatcher(),
                     new GroupMemberFieldPatcher(),
+                    new GroupRelatedEntitiesPatcher(),
                     new GroupAggregatedCommoditiesPatcher()
             );
 
@@ -121,6 +142,12 @@ public class SearchEntityWriter extends TopologyWriterBase {
         if (!SearchMetadataUtils.hasMetadata(entity.getEntityType())) {
             // this is legitimate, since not all entities are ingested
             logger.trace("Skipping entity {} of type {} due to lack of metadata definition",
+                    entity.getOid(), EntityType.forNumber(entity.getEntityType()));
+            return;
+        }
+
+        if (GuestLoadFilters.isGuestLoad(entity)) {
+            logger.trace("Skipping entity {} of type {} because GuestLoad",
                     entity.getOid(), EntityType.forNumber(entity.getEntityType()));
             return;
         }
@@ -158,14 +185,10 @@ public class SearchEntityWriter extends TopologyWriterBase {
                 // add all other info which are not available on TopologyEntityDTO (TED)
                 ENTITY_PATCHERS_FOR_FIELDS_NOT_ON_TED.forEach(patcher ->
                         patcher.patch(recordInfo, dataProvider));
+                recordInfo.finalizeAttrs();
                 // insert into db
                 try (Record r = entitiesReplacer.open(recordInfo.record)) {
-                    // if jsonb column is not empty, add it to the record
-                    if (!recordInfo.attrs.isEmpty()) {
-                        r.set(ATTRS, new JsonString(mapper.writeValueAsString(recordInfo.attrs)));
-                    }
-                } catch (JsonProcessingException e) {
-                    logger.error("Failed to record jsonb attributes for entity {}", recordInfo.oid, e);
+                    // exiting try causes record to be written
                 }
             });
             counter.addAndGet(partialRecordInfos.size());
@@ -214,7 +237,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
      * Wrapper class containing the partial entity (or group) record, incomplete jsonb column
      * attributes and other entity (or group) information needed for ingestion.
      */
-    protected static class PartialRecordInfo {
+    public static class PartialRecordInfo {
         /** oid of the entity (or group) for this record. */
         final long oid;
         /** type of the entity for this record if this is an entity record. */
@@ -229,12 +252,12 @@ public class SearchEntityWriter extends TopologyWriterBase {
         /**
          * Constructor for creating a wrapper object for entity record.
          *
-         * @param oid id of the entity this record is referring to
+         * @param oid        id of the entity this record is referring to
          * @param entityType type of the entity for this record
-         * @param record the partial record for an entity to be sent to database
-         * @param attrs attrs for the jsonb column in this record
+         * @param record     the partial record for an entity to be sent to database
+         * @param attrs      attrs for the jsonb column in this record
          */
-        PartialRecordInfo(long oid, int entityType, Record record, Map<String, Object> attrs) {
+        public PartialRecordInfo(long oid, int entityType, Record record, Map<String, Object> attrs) {
             this.oid = oid;
             this.entityType = entityType;
             this.record = record;
@@ -257,6 +280,50 @@ public class SearchEntityWriter extends TopologyWriterBase {
             this.attrs = attrs;
             this.entityType = -1;
         }
+
+        /**
+         * Format attrs data, if any, as JSON and store in record.
+         */
+        public void finalizeAttrs() {
+            // if jsonb column is not empty, add it to the record
+            if (!attrs.isEmpty()) {
+                try {
+                    record.set(ATTRS, new JsonString(mapper.writeValueAsString(attrs)));
+                } catch (JsonProcessingException e) {
+                    logger.error("Failed to record jsonb attributes for entity {}", oid, e);
+                }
+            }
+        }
+
+        public long getOid() {
+            return oid;
+        }
+
+        public int getEntityType() {
+            return entityType;
+        }
+
+        public GroupType getGroupType() {
+            return groupType;
+        }
+
+        public Record getRecord() {
+            return record;
+        }
+
+        public Map<String, Object> getAttrs() {
+            return attrs;
+        }
+
+        /**
+         * Set the given key in the attrs map to the given value.
+         *
+         * @param key   attrs key name
+         * @param value value for key
+         */
+        public void putAttrs(final String key, final Object value) {
+            attrs.put(key, value);
+        }
     }
 
     /**
@@ -266,11 +333,11 @@ public class SearchEntityWriter extends TopologyWriterBase {
      * @param <D> type of the source which provides the data for patching
      */
     @FunctionalInterface
-    protected interface EntityRecordPatcher<D> {
+    public interface EntityRecordPatcher<D> {
         /**
          * Patch data from source to the entity record, before sending it to DB.
          *
-         * @param recordInfo contains partial record and all helpful info for patching
+         * @param recordInfo   contains partial record and all helpful info for patching
          * @param dataProvider the object which provides the required data
          */
         void patch(PartialRecordInfo recordInfo, D dataProvider);

@@ -1,15 +1,8 @@
 package com.vmturbo.sql.utils;
 
-import javax.annotation.Nonnull;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.Configuration;
 import org.jooq.ExecuteContext;
-import org.jooq.conf.Settings;
-import org.jooq.conf.SettingsTools;
-import org.jooq.impl.DSL;
-import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultExecuteListener;
 
 import com.vmturbo.components.api.tracing.Tracing;
@@ -26,31 +19,31 @@ public class JooqTracingInterceptor extends DefaultExecuteListener {
     private OptScope scope = null;
 
     /**
-     * A configuration to use to properly format the SQL queries for the tracing log.
+     * Create a new JooqTracingInterceptor. Do NOT use with the {@code DefaultExecuteListenerProvider}
+     * because this will result in one TracingInterceptor per DSLContext where we actually want
+     * one TracingInterceptor per {@link ExecuteContext}.
      */
-    private final Configuration formattingConfiguration;
-
-    public JooqTracingInterceptor(@Nonnull final Configuration configuration) {
-        this.formattingConfiguration = configuration.derive(
-            SettingsTools.clone(configuration.settings()).withRenderFormatted(true));
+    public JooqTracingInterceptor() {
     }
 
     @Override
     public void executeStart(ExecuteContext ctx) {
+        super.executeStart(ctx);
         if (scope != null) {
-            // This shouldn't happen, because the various callbacks in the listener should
-            // be called serially for each query execution.
-            logger.warn("Unexpected - scope is not null when execution is started.");
+            // This shouldn't happen, because we should create a  new TracingInterceptor
+            // for every ExecuteContext.
+            logger.error("Unexpected - scope is not null when execution is started.");
         } else {
-            scope = Tracing.addOpToTrace("jooq_query");
-            if (ctx.query() != null) {
-                Tracing.log(() -> DSL.using(formattingConfiguration).renderInlined(ctx.query()));
+            scope = Tracing.childOfActiveSpan(() -> typeName(ctx));
+            if (ctx.sql() != null) {
+                Tracing.log(ctx::sql);
             }
         }
     }
 
     @Override
     public void exception(ExecuteContext ctx) {
+        super.exception(ctx);
         Tracing.log(() -> {
             if (ctx.sqlException() != null) {
                 return "SQL Error: " + ctx.sqlException().getMessage();
@@ -64,9 +57,14 @@ public class JooqTracingInterceptor extends DefaultExecuteListener {
 
     @Override
     public void executeEnd(ExecuteContext ctx) {
+        super.executeEnd(ctx);
         if (scope != null) {
             scope.close();
             scope = null;
         }
+    }
+
+    private String typeName(ExecuteContext ctx) {
+        return "jooq_" + ctx.type().name().toLowerCase();
     }
 }

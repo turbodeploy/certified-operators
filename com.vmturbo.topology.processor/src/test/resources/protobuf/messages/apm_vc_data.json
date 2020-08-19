@@ -37,7 +37,7 @@
     }
   },
   {
-    "entityType": "APPLICATION",
+    "entityType": "APPLICATION_COMPONENT",
     "id": "1d9527c8fe25850b9beb1b2a2851190bbb4180b7",
     "displayName": "guestload-app-1",
     "commoditiesBought": [

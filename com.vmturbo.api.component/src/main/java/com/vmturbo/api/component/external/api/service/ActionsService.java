@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -51,6 +50,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest;
@@ -58,7 +58,6 @@ import com.vmturbo.api.pagination.EntityActionPaginationRequest.EntityActionPagi
 import com.vmturbo.api.serviceinterfaces.IActionsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.UrlsHelp;
-import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
@@ -180,21 +179,30 @@ public class ActionsService implements IActionsService {
             // accept the action
             try {
                 log.info("Accepting action with id: {}", uuid);
-                AcceptActionResponse response = actionOrchestratorRpc
-                        .acceptAction(actionRequest(uuid));
-                if (response.hasError()) {
-                    log.error("Error {}", response.getError());
-                    throw new UnknownObjectException(response.getError());
-                }
-                return !response.hasError();
-            } catch (RuntimeException e) {
+                actionOrchestratorRpc.acceptAction(actionRequest(uuid));
+                return true;
+            } catch (StatusRuntimeException e) {
                 log.error("Execute action error: {}", e.getMessage(), e);
-                throw new OperationFailedException("Execute action " + uuid + " attempt failed");
+                throw convertToApiException(e);
             }
         } else {
             // reject the action
             log.info("Rejecting action with id: {}", uuid);
             throw new NotImplementedException("!!!!!! Reject Action not implemented");
+        }
+    }
+
+    private static Exception convertToApiException(StatusRuntimeException e) {
+        switch (e.getStatus().getCode()) {
+            case NOT_FOUND:
+                return new UnknownObjectException(e.getMessage());
+            case INVALID_ARGUMENT:
+                return new InvalidOperationException(e.getMessage());
+            case PERMISSION_DENIED:
+                return new UnauthorizedObjectException(e.getMessage());
+            case INTERNAL:
+            default:
+                return new OperationFailedException(e.getMessage());
         }
     }
 

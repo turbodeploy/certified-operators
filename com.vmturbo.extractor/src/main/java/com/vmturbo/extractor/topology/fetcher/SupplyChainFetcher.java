@@ -23,16 +23,23 @@ import com.vmturbo.topology.graph.supplychain.TraversalRulesLibrary;
 /**
  * Calculate supply chain for each entity based on the constructed graph. It returns supply chain
  * data which is a mapping from entity id to a mapping of related entity ids grouped by related
- * entity type, like:
- *   Map&lt;entity oid, Map&lt;related entity type, Set&lt;related entity oids&gt;&gt;&gt;
+ * entity type, like: Map&lt;entity oid, Map&lt;related entity type, Set&lt;related entity
+ * oids&gt;&gt;&gt;
  */
 public class SupplyChainFetcher extends DataFetcher<Map<Long, Map<Integer, Set<Long>>>> {
 
     private final TopologyGraph<SupplyChainEntity> graph;
 
+    /**
+     * Create a new instance.
+     *
+     * @param graph    topology graph
+     * @param timer    timer
+     * @param consumer fn to handle computed supply chain data
+     */
     public SupplyChainFetcher(@Nonnull TopologyGraph<SupplyChainEntity> graph,
-                              @Nonnull MultiStageTimer timer,
-                              @Nonnull Consumer<Map<Long, Map<Integer, Set<Long>>>> consumer) {
+            @Nonnull MultiStageTimer timer,
+            @Nonnull Consumer<Map<Long, Map<Integer, Set<Long>>>> consumer) {
         super(timer, consumer);
         this.graph = graph;
     }

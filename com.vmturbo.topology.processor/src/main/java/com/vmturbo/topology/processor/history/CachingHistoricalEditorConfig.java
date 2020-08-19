@@ -12,6 +12,11 @@ import com.vmturbo.topology.processor.KVConfig;
  */
 public class CachingHistoricalEditorConfig extends HistoricalEditorConfig {
     /**
+     * The property name in the topology processor key value store whose value represents boolean
+     * flag. In case flag is set to true then percentile cache will be added to diagnostics.
+     */
+    public static final String STORE_CACHE_TO_DIAGNOSTICS_PROPERTY = "storeCacheToDiagnostics";
+    /**
      * The property name in the topology processor key value store whose value
      * represents the OID of the entity for which percentile counts are logged.
      */
@@ -19,6 +24,7 @@ public class CachingHistoricalEditorConfig extends HistoricalEditorConfig {
 
     private final int loadingChunkSize;
     private final int calculationChunkSize;
+    private final long realtimeTopologyContextId;
     private final Clock clock;
     private final KVConfig kvConfig;
 
@@ -28,16 +34,19 @@ public class CachingHistoricalEditorConfig extends HistoricalEditorConfig {
      * @param loadingChunkSize how to partition commodities for loading from db
      * @param calculationChunkSize how to partition commodities for aggregating
      *                 values
+     * @param realtimeTopologyContextId identifier of the realtime topology.
      * @param clock provides information about current time
      * @param kvConfig the config to access the topology processor key value store.
      */
-    public CachingHistoricalEditorConfig(int loadingChunkSize, int calculationChunkSize,
-                    @Nonnull Clock clock, KVConfig kvConfig) {
+    protected CachingHistoricalEditorConfig(int loadingChunkSize, int calculationChunkSize,
+                    long realtimeTopologyContextId, @Nonnull Clock clock, KVConfig kvConfig) {
         this.loadingChunkSize = loadingChunkSize;
         this.calculationChunkSize = calculationChunkSize;
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.clock = clock;
         this.kvConfig = kvConfig;
     }
+
 
     /**
      * The configured OID whose percentile counts needs to be logged when debug enabled.
@@ -45,10 +54,37 @@ public class CachingHistoricalEditorConfig extends HistoricalEditorConfig {
      * @return the configured OID.
      */
     public Optional<String> getOidToBeTracedInLog() {
-        return Optional.ofNullable(kvConfig)
-                        .map(KVConfig::keyValueStore)
-                        .map(store -> store.get(OID_FOR_PERCENTILE_COUNTS_LOG_PROPERTY))
-                        .orElse(Optional.empty());
+        return getConsulValue(OID_FOR_PERCENTILE_COUNTS_LOG_PROPERTY);
+    }
+
+    /**
+     * Returns identifier of the realtime topology.
+     *
+     * @return identifier of the realtime topology.
+     */
+    public long getRealtimeTopologyContextId() {
+        return realtimeTopologyContextId;
+    }
+
+    /**
+     * Returns {@code true} in case cache needs to be stored in diagnostic file, otherwise returns
+     * {@code false}.
+     *
+     * @return {@code true} in case cache needs to be stored in diagnostic file, otherwise
+     *                 returns {@code false}.
+     */
+    public boolean isCacheExportingToDiagnostics() {
+        // TODO Alexander Vasin this property needs to be moved to yaml file, when properties reload
+        //  implementation will be completed, i.e. when
+        //  https://vmturbo.atlassian.net/browse/PLAT-218 will be closed
+        return getConsulValue(STORE_CACHE_TO_DIAGNOSTICS_PROPERTY)
+                        .map(Boolean.TRUE.toString()::equals).orElse(false);
+    }
+
+    @Nonnull
+    private Optional<String> getConsulValue(@Nonnull String propertyName) {
+        return Optional.ofNullable(kvConfig).map(KVConfig::keyValueStore)
+                        .flatMap(store -> store.get(propertyName));
     }
 
     /**

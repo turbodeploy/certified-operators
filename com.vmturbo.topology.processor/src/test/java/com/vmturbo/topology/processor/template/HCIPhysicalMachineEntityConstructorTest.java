@@ -37,7 +37,6 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServic
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -150,19 +149,6 @@ public class HCIPhysicalMachineEntityConstructorTest {
         // Check vSAN info
         Assert.assertEquals(StorageType.VSAN,
                 newStorage.getTypeSpecificInfo().getStorage().getStorageType());
-
-        // Check the Storage bought commodities
-
-        newHosts.forEach(newHost -> {
-            List<CommoditiesBoughtFromProvider> boughts = newStorage
-                    .getCommoditiesBoughtFromProvidersList().stream()
-                    .filter(b -> b.getProviderId() == newHost.getOid())
-                    .collect(Collectors.toList());
-            Assert.assertEquals(1, boughts.size());
-            boughts.get(0).getCommodityBoughtList().forEach(comm -> {
-                Assert.assertTrue(printCommBought(comm), comm.getUsed() > 0);
-            });
-        });
 
         // Check if the provider storages are marked for replacement
         for (TopologyEntity.Builder host : hosts) {

@@ -123,12 +123,6 @@ public class PlanActionStore implements ActionStore {
     private final long realtimeTopologyContextId;
 
     /**
-     * The severity cache to be used for looking up severities for entities associated with actions
-     * in this action store.
-     */
-    private final EntitySeverityCache severityCache;
-
-    /**
      * All immutable (plan) actions are considered visible (from outside the Action Orchestrator's perspective).
      *
      * <p>Non-visible actions can still be valuable for debugging
@@ -161,8 +155,6 @@ public class PlanActionStore implements ActionStore {
      * @param actionFactory The factory for creating actions that live in this store.
      * @param dsl The interface for interacting with persistent storage layer where actions will be persisted.
      * @param topologyContextId the topology context id
-     * @param supplyChainService used for constructing the EntitySeverityCache.
-     * @param repositoryService used for constructing the EntitySeverityCache.
      * @param actionTranslator the action translator class
      * @param realtimeTopologyContextId real time topology id
      * @param actionTargetSelector For calculating target specific action pre-requisites
@@ -170,8 +162,6 @@ public class PlanActionStore implements ActionStore {
     public PlanActionStore(@Nonnull final IActionFactory actionFactory,
                            @Nonnull final DSLContext dsl,
                            final long topologyContextId,
-                           @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
-                           @Nonnull final RepositoryServiceBlockingStub repositoryService,
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                            @Nonnull final ActionTranslator actionTranslator,
                            final long realtimeTopologyContextId,
@@ -182,7 +172,6 @@ public class PlanActionStore implements ActionStore {
         this.actionPlanIdByActionPlanType = Maps.newHashMap();
         this.recommendationTimeByActionPlanId = Maps.newHashMap();
         this.topologyContextId = topologyContextId;
-        this.severityCache = new EntitySeverityCache(repositoryService, false);
         this.entitySettingsCache = entitySettingsCache;
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -357,8 +346,8 @@ public class PlanActionStore implements ActionStore {
 
     @Override
     @Nonnull
-    public EntitySeverityCache getEntitySeverityCache() {
-        return severityCache;
+    public Optional<EntitySeverityCache> getEntitySeverityCache() {
+        return Optional.empty();
     }
 
     @Override
@@ -686,7 +675,6 @@ public class PlanActionStore implements ActionStore {
                             .computeIfAbsent(actionPlan.getTopologyContextId(),
                                 k -> new PlanActionStore(actionFactory, dsl,
                                     actionPlan.getTopologyContextId(),
-                                    supplyChainService, repositoryService,
                                     entitySettingsCache, actionTranslator,
                                     realtimeTopologyContextId, actionTargetSelector,
                                     licenseCheckClient));

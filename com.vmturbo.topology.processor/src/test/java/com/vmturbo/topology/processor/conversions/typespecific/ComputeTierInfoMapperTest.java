@@ -49,6 +49,7 @@ public class ComputeTierInfoMapperTest {
                         .setNumInstanceDisks(NUM_INSTANCE_DISKS)
                         .setInstanceDiskType(INSTANCE_DISK_TYPE)
                         .setInstanceDiskSizeGb(INSTANCE_DISK_SIZE)
+                        .setBurstableCPU(false)
                         .build())
                 .build();
         final ComputeTierInfoMapper testBuilder = new ComputeTierInfoMapper();

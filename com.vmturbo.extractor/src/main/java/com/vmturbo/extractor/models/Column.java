@@ -1,11 +1,14 @@
 package com.vmturbo.extractor.models;
 
 import java.sql.Timestamp;
+import java.util.Objects;
 
-import com.vmturbo.extractor.schema.enums.EntitySeverity;
+import org.jooq.Field;
+
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.enums.Severity;
 
 /**
  * Class to represent columns in database tables.
@@ -28,8 +31,34 @@ public class Column<T> {
         this.colType = colType;
     }
 
+    /**
+     * Constructor to create a new column.
+     *
+     * @param jooqField jooq field for the column
+     * @param colType ColType value for rendering
+     */
+    Column(Field<?> jooqField, ColType colType) {
+        this.name = jooqField.getName();
+        this.colType = colType;
+    }
+
     public String getName() {
         return name;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, colType);
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (other instanceof Column) {
+            Column otherCol = (Column)other;
+            return otherCol.name.equals(name) && otherCol.colType.equals(colType);
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -98,6 +127,16 @@ public class Column<T> {
     }
 
     /**
+     * Create a new long column.
+     *
+     * @param field The jOOQ field for the column.
+     * @return new column
+     */
+    public static Column<Long> longColumn(final Field<Long> field) {
+        return new Column<>(field, ColType.LONG);
+    }
+
+    /**
      * Create a new double column.
      *
      * @param name column name
@@ -126,6 +165,16 @@ public class Column<T> {
      */
     public static Column<String> stringColumn(final String name) {
         return new Column<>(name, ColType.STRING);
+    }
+
+    /**
+     * Create a new String column.
+     *
+     * @param field column jooq field.
+     * @return new column
+     */
+    public static Column<String> stringColumn(final Field<String> field) {
+        return new Column<>(field, ColType.STRING);
     }
 
     /**
@@ -199,6 +248,16 @@ public class Column<T> {
     }
 
     /**
+     * Create a {@link Timestamp} column.
+     *
+     * @param field jOOQ name
+     * @return new column
+     */
+    public static Column<Timestamp> timestampColumn(final Field<?> field) {
+        return new Column<>(field, ColType.TIMESTAMP);
+    }
+
+    /**
      * Create a new JSON column.
      *
      * @param name column name
@@ -251,13 +310,13 @@ public class Column<T> {
     }
 
     /**
-     * Create a new entity_severity column builder with standard functions.
+     * Create a new severity column builder with standard functions.
      *
      * @param name column name
      * @return new builder
      */
-    public static Column<EntitySeverity> entitySeverityColumn(final String name) {
-        return new Column<>(name, ColType.ENTITY_SEVERITY);
+    public static Column<Severity> severityColumn(final String name) {
+        return new Column<>(name, ColType.SEVERITY);
     }
 
     /**

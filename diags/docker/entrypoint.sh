@@ -99,15 +99,15 @@ if [[ -z ${JAVA_OPTS} ]]; then
                   -Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true -XX:-OmitStackTraceInFastThrow
                   -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0"
      else
-         JAVA_BASE_OPTS="-verbose:sizes -Xtune:virtualized -XX:+UseContainerSupport -Xms16m
+         JAVA_BASE_OPTS="-verbose:sizes -Xtune:virtualized -XX:+ExitOnOutOfMemoryError
                   -Xaggressive -XX:+ClassRelationshipVerifier -Xcompressedrefs -XX:+CompactStrings
-                  -Xdump:tool:events=systhrow,filter=java/lang/OutOfMemoryError,exec=/terminate.sh
                   -XX:-HeapDumpOnOutOfMemoryError -Xdump:what -Xdump:heap:none  -Xdump:java:file=/STDOUT/
                   -XshowSettings -Djavax.xml.bind.JAXBContextFactory=com.sun.xml.bind.v2.ContextFactory
                   -Djavax.xml.ws.spi.Provider=com.sun.xml.ws.spi.ProviderImpl
                   -Djavax.xml.soap.SAAJMetaFactory=com.sun.xml.messaging.saaj.soap.SAAJMetaFactoryImpl
                   -Djava.security.egd=file:/dev/./urandom -Djava.net.preferIPv4Stack=true
-                  -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0"
+                  -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0
+                  -Djava.security.properties=/etc/crypto-policies/back-ends/java.config"
      fi
   fi
   JAVA_OPTS=$JAVA_BASE_OPTS
@@ -115,16 +115,14 @@ if [[ -z ${JAVA_OPTS} ]]; then
   shopt -s extglob
   # set max ram percentage, if needed
   if [[ -z ${JAVA_MAX_RAM_PCT} ]]; then
-    if [[ ${JVM_TYPE} == "HotSpot" ]]; then
-        # for HotSpot, determine the max ram % setting based on available memory
-        find_memory_limit
-        if [[ $MEM_LIMIT -lt 1073741824 ]]; then
-          # use 45% if memory limit < 1gb
-          JAVA_OPTS="$JAVA_OPTS -XX:MaxRAMPercentage=45.0"
-        else
-          # use 75% otherwise
-          JAVA_OPTS="$JAVA_OPTS -XX:MaxRAMPercentage=75.0 "
-        fi
+    # determine the max ram % setting based on available memory
+    find_memory_limit
+    if [[ $MEM_LIMIT -lt 1073741824 ]]; then
+      # use 45% if memory limit < 1gb
+      JAVA_OPTS="$JAVA_OPTS -XX:MaxRAMPercentage=45.0"
+    else
+      # use 75% otherwise
+      JAVA_OPTS="$JAVA_OPTS -XX:MaxRAMPercentage=75.0 "
     fi
   else
     # there's an environment-specific max ram PCT we should use

@@ -11,8 +11,10 @@ import javax.annotation.Nonnull;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.immutables.value.Value;
 
+import com.vmturbo.common.protobuf.ImmutablePaginatedResults;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
+import com.vmturbo.common.protobuf.PaginationProtoUtil.PaginatedResults;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
@@ -42,31 +44,10 @@ public class LiveTopologyPaginator {
         this.maxPaginationLimit = maxPaginationLimit;
     }
 
-    public void validatePaginationParams(@Nonnull final PaginationParameters paginationParameters) {
-        if (!StringUtils.isEmpty(paginationParameters.getCursor())) {
-            try {
-                final long cursor = Long.parseLong(paginationParameters.getCursor());
-                if (cursor < 0) {
-                    throw new IllegalArgumentException("Illegal cursor: " +
-                        cursor + ". Must be be a positive integer");
-                }
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Cursor " + paginationParameters.getCursor() +
-                    " is invalid. Should be a number.");
-            }
-        }
-
-        if (paginationParameters.getLimit() < 0) {
-            throw new IllegalArgumentException("Illegal pagination limit: " +
-                paginationParameters.getLimit() + ". Must be be a positive integer");
-        }
-
-    }
-
     @Nonnull
-    public PaginatedResults paginate(@Nonnull final Stream<RepoGraphEntity> fullResults,
-                                     @Nonnull final PaginationParameters paginationParameters) {
-        validatePaginationParams(paginationParameters);
+    PaginatedResults<RepoGraphEntity> paginate(@Nonnull final Stream<RepoGraphEntity> fullResults,
+                                               @Nonnull final PaginationParameters paginationParameters) {
+        PaginationProtoUtil.validatePaginationParams(paginationParameters);
         // Right now we only need to paginate by name.
         //
         // Pagination by utilization (price index) is implemented by:
@@ -130,20 +111,9 @@ public class LiveTopologyPaginator {
             respBuilder.setNextCursor(nextCursor);
         }
 
-        return ImmutablePaginatedResults.builder()
+        return ImmutablePaginatedResults.<RepoGraphEntity>builder()
             .nextPageEntities(results)
             .paginationResponse(respBuilder.build())
             .build();
-    }
-
-    /**
-     * The results after pagination is applied.
-     */
-    @Value.Immutable
-    public interface PaginatedResults {
-
-        List<RepoGraphEntity> nextPageEntities();
-
-        PaginationResponse paginationResponse();
     }
 }

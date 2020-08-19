@@ -199,11 +199,11 @@ public class IdentifyingPropertyExtractorTest {
     }
 
     @Test
-    public void testExtractEntityDescriptionWithApplicationProperty() throws Exception {
+    public void testExtractEntityDescriptionWithApplicationComponentProperty() throws Exception {
         EntityDTO dto = application("app-1")
             .appType("GuestLoad")
             .build();
-        EntityIdentityMetadata metadata = entityMetadata(EntityType.APPLICATION)
+        EntityIdentityMetadata metadata = entityMetadata(EntityType.APPLICATION_COMPONENT)
             .nonVolatileProp("applicationData/type")
             .build();
 

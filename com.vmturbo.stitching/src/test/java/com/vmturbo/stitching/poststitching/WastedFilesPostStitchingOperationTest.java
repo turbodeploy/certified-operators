@@ -12,15 +12,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.Sets;
+
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.Sets;
-
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
@@ -289,53 +287,5 @@ public class WastedFilesPostStitchingOperationTest {
             .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
             .map(VirtualVolumeFileDescriptor::getPath)
             .collect(Collectors.toSet()));
-    }
-
-    /**
-     * Create a scenario where a storage is marked as ignoreWastedFiles==true.  Test that
-     * the wasted files volume associated with that storage is skipped by the
-     * {@link WastedFilesPostStitchingOperation}.
-     */
-    @Test
-    public void testStorageWithIgnoreWastedFilesTrue() {
-        // storage marked ignoreWastedFiles == true
-        final TopologyEntity.Builder storage = makeEntityBuilder(1L, EntityType.STORAGE);
-        storage.getEntityBuilder()
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                .setStorage(StorageInfo.newBuilder().setIgnoreWastedFiles(true))
-                .build());
-        final TopologyEntity.Builder wastedFilesVolume =
-            makeEntityBuilder(2L, EntityType.VIRTUAL_VOLUME);
-        final TopologyEntity.Builder vmVolume =
-            makeEntityBuilder(3L, EntityType.VIRTUAL_VOLUME);
-        final TopologyEntity.Builder vm =
-            makeEntityBuilder(4L, EntityType.VIRTUAL_MACHINE);
-        // wasted files volume and vm volume have the same files on them
-        PostStitchingTestUtilities.addFilesToVirtualVolume(wastedFilesVolume, vm1Files);
-        PostStitchingTestUtilities.addFilesToVirtualVolume(vmVolume, vm1Files);
-        connect(vm, vmVolume);
-        connect(vmVolume, storage);
-        connect(wastedFilesVolume, storage);
-        // setup getEntitySetting to return empty filters
-        StringSettingValue filterNothing = StringSettingValue.newBuilder().setValue("").build();
-        Setting fileFilterNothing =
-            Setting.newBuilder().setStringSettingValue(filterNothing).build();
-        Setting directoryFilterNothing =
-            Setting.newBuilder().setStringSettingValue(filterNothing).build();
-        Mockito.when(settingsCollection.getEntitySetting(storage.getOid(),
-            EntitySettingSpecs.IgnoreDirectories))
-            .thenReturn(Optional.of(directoryFilterNothing));
-        Mockito.when(settingsCollection.getEntitySetting(storage.getOid(),
-            EntitySettingSpecs.IgnoreFiles)).thenReturn(Optional.of(fileFilterNothing));
-        TopologyEntity storageEntity = storage.build();
-        TopologyEntity wastedStorageVolume = wastedFilesVolume.build();
-        vm.build();
-        vmVolume.build();
-        UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
-        wastedFilesPostOp.performOperation(
-            Stream.of(storageEntity), settingsCollection, resultBuilder);
-        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-        assertEquals(vm1Files[0], wastedFilesVolume.getEntityBuilder()
-            .getTypeSpecificInfo().getVirtualVolume().getFiles(0).getPath());
     }
 }

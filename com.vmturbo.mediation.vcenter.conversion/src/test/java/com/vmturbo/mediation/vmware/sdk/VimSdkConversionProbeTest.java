@@ -20,33 +20,20 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
 public class VimSdkConversionProbeTest {
 
-    private VimAccountWithStorageBrowsingFlag vimAccount =
-        Mockito.mock(VimAccountWithStorageBrowsingFlag.class);
+    private VimAccount vimAccount =
+        Mockito.mock(VimAccount.class);
 
     private static final Path VCENTER_FILE_PATH = ResourcePath.getTestResource(
             VimSdkConversionProbeTest.class, "data/vCenter_vsphere_dc20.eng.vmturbo.com-FULL.txt");
 
-    @Test
-    public void testStorageBrowsingDisabled() throws Exception {
-        testVCenter(false);
-    }
-
-    @Test
-    public void testStorageBrowsingEnabled() throws Exception {
-        testVCenter(true);
-    }
-
     /**
-     * Test that we discover what we expect in the discovery test file and that derived target is
-     * present if storage browsing flag is true and absent if it is false.
-     *
-     * @param isStorageBrowsingEnabled indicates whether or not storage browsing is enabled.
+     * Tests than conversion probe correctly returns original DTO plus creates virtual volumes.
      * @throws Exception
      */
-    private void testVCenter(boolean isStorageBrowsingEnabled) throws Exception {
+    @Test
+    public void testVirtualVolumeCreation() throws Exception {
         DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(VCENTER_FILE_PATH.toString());
         VimSdkConversionProbe probe = Mockito.spy(new VimSdkConversionProbe());
-        Mockito.doReturn(isStorageBrowsingEnabled).when(vimAccount).isStorageBrowsingEnabled();
         Mockito.doReturn(oldResponse).when(probe).getRawDiscoveryResponse(vimAccount);
         DiscoveryResponse newResponse = probe.discoverTarget(vimAccount);
 
@@ -67,21 +54,16 @@ public class VimSdkConversionProbeTest {
         assertEquals(6, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
 
         // ensure other fields are consistent with original discovery response
-        verifyOtherFieldsNotModified(oldResponse, newResponse, isStorageBrowsingEnabled);
+        verifyOtherFieldsNotModified(oldResponse, newResponse);
     }
 
     private void verifyOtherFieldsNotModified(@Nonnull DiscoveryResponse oldResponse,
-            @Nonnull DiscoveryResponse newResponse, boolean isStorageBrowsingEnabled) {
+            @Nonnull DiscoveryResponse newResponse) {
         assertEquals(oldResponse.getDiscoveredGroupList(), newResponse.getDiscoveredGroupList());
         assertEquals(oldResponse.getEntityProfileList(), newResponse.getEntityProfileList());
         assertEquals(oldResponse.getDeploymentProfileList(), newResponse.getDeploymentProfileList());
         assertEquals(oldResponse.getNotificationList(), newResponse.getNotificationList());
         assertEquals(oldResponse.getMetadataDTOList(), newResponse.getMetadataDTOList());
-        if (isStorageBrowsingEnabled) {
-            assertEquals(oldResponse.getDerivedTargetList(), newResponse.getDerivedTargetList());
-        } else {
-            assertEquals(0, newResponse.getDerivedTargetCount());
-        }
         assertEquals(oldResponse.getNonMarketEntityDTOList(), newResponse.getNonMarketEntityDTOList());
         assertEquals(oldResponse.getCostDTOList(), newResponse.getCostDTOList());
         assertEquals(oldResponse.getDiscoveryContext(), newResponse.getDiscoveryContext());

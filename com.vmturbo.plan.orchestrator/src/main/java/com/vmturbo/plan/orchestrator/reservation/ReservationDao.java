@@ -27,6 +27,16 @@ public interface ReservationDao extends DiagsRestorable {
      * Get one reservation which Reservation's ID is equal to parameter id.
      *
      * @param id id of reservation.
+     * @param apiCallBlock whether to block the api call until reservation is finished.
+     * @return Optional reservation, if not found, it will be Optional.empty().
+     */
+    @Nonnull
+    Optional<Reservation> getReservationById(@Nonnull long id, @Nonnull boolean apiCallBlock);
+
+    /**
+     * Get one reservation which Reservation's ID is equal to parameter id.
+     *
+     * @param id id of reservation.
      * @return Optional reservation, if not found, it will be Optional.empty().
      */
     @Nonnull

@@ -4,16 +4,21 @@ import static com.vmturbo.sql.utils.DbEndpointResolver.COMPONENT_TYPE_PROPERTY;
 import static com.vmturbo.sql.utils.DbEndpointResolver.DB_HOST_PROPERTY;
 import static com.vmturbo.sql.utils.DbEndpointResolver.DB_NAME_SUFFIX_PROPERTY;
 import static com.vmturbo.sql.utils.DbEndpointResolver.DB_PORT_PROPERTY;
-import static com.vmturbo.sql.utils.DbEndpointResolver.taggedPropertyName;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.base.Strings;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -82,32 +87,32 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 public class DbEndpointTestRule implements TestRule {
     private static final Logger logger = LogManager.getLogger();
 
-    private final List<DbEndpoint> endpoints;
+    private final Set<DbEndpoint> endpoints = new LinkedHashSet<>();
     private final Map<String, String> propertySettings;
+    private final String provisioningSuffix;
+
+    /**
+     * Create a new rule instance to manage the provided endpoints.
+     *
+     * @param componentName name of component, for object naming defaults (those defaults are
+     *                      normally set via the Spring-supplied component_type property)
+     */
+    public DbEndpointTestRule(String componentName) {
+        this(componentName, Collections.emptyMap());
+    }
 
     /**
      * Create a new rule instance to manage the provided endpoints.
      *
      * @param componentName    name of component, for object naming defaults (those defaults are
      *                         normally set via the Spring-supplied component_type property)
-     * @param propertySettings any property settings that should be used in configuring the
-     *                         endpoints; built-in defaults will be used for others
-     * @param endpoints        the endpoints to be managed by this rule instance
+     * @param propertySettings property settings to be used as if provided by external
+     *                         configuration
      */
-    public DbEndpointTestRule(
-            String componentName, Map<String, String> propertySettings, DbEndpoint... endpoints) {
+    public DbEndpointTestRule(String componentName, Map<String, String> propertySettings) {
         this.propertySettings = new HashMap<>(propertySettings);
         this.propertySettings.put(COMPONENT_TYPE_PROPERTY, componentName);
-        this.endpoints = Arrays.asList(endpoints);
-        final String provisioningSuffix = "_" + System.currentTimeMillis();
-        for (DbEndpoint endpoint : this.endpoints) {
-            try {
-                setOverridesForEndpoint(endpoint, provisioningSuffix);
-            } catch (UnsupportedDialectException e) {
-                logger.error("Failed to set properties for endpoint {}; testing is likely to fail",
-                        endpoint, e);
-            }
-        }
+        this.provisioningSuffix = "_" + System.currentTimeMillis();
     }
 
     private void setOverridesForEndpoint(final DbEndpoint endpoint, final String provisioningSuffix)
@@ -129,36 +134,20 @@ public class DbEndpointTestRule implements TestRule {
         propertySettings.putIfAbsent(taggedPropertyName(tag, DB_NAME_SUFFIX_PROPERTY), provisioningSuffix);
     }
 
-    protected void before(final Description description) throws
-            Throwable {
-        logger.info("Setting up temporary DB and/or truncating data for test " + description.getMethodName());
-        DbEndpointCompleter.get().setResolver(propertySettings::get, mockPasswordUtil(), false);
-        for (DbEndpoint endpoint : endpoints) {
-            if (!endpoint.isReady()) {
-                try {
-                    DbEndpointCompleter.get().completePendingEndpoint(endpoint);
-                } catch (Exception e) {
-                    logger.warn("Endpoint {} initialization failed; entering retry loop", endpoint, e);
-                }
-                endpoint.awaitCompletion(30, TimeUnit.SECONDS);
-            }
-            if (endpoint.getConfig().getDbAccess().isWriteAccess()) {
-                endpoint.getAdapter().truncateAllTables();
-            }
-        }
+    private void before() {
+        endpoints.clear();
     }
 
     private void afterClass() throws Throwable {
         logger.info("Finished tests, dropping temporary databases");
         for (final DbEndpoint endpoint : endpoints) {
             if (endpoint.isReady()) {
+                logger.info("Dropping database & user for {}", endpoint);
                 endpoint.getAdapter().dropDatabase();
                 endpoint.getAdapter().dropUser();
+                endpoint.getAdapter().dropReadersGroupUser();
             }
         }
-        // don't allow this rule's configurations to leak into other test classes involving
-        // the same endpoints
-        DbEndpoint.resetAll();
     }
 
     @Override
@@ -166,7 +155,7 @@ public class DbEndpointTestRule implements TestRule {
         if (description.isTest()) {
             return new Statement() {
                 public void evaluate() throws Throwable {
-                    before(description);
+                    before();
                     base.evaluate();
                 }
             };
@@ -186,10 +175,65 @@ public class DbEndpointTestRule implements TestRule {
         return base;
     }
 
+    /**
+     * Provide endpoints to be managed by this rule instance.
+     *
+     * <p>This is normally called from within a @Before method in a test class, since it often
+     * difficult to obtain endpoint instances statically. However, when that's possible, this can
+     * instead be done in a @BeforeClass method.</p>
+     *
+     * @param endpoints endpoints to be managed by this rule
+     * @throws InterruptedException        if we're interrupted
+     * @throws UnsupportedDialectException if an endpoint is defined with an unsupported dialect
+     * @throws SQLException                if there's a problem with provisioning
+     */
+    public void addEndpoints(final DbEndpoint... endpoints) throws InterruptedException, UnsupportedDialectException, SQLException {
+        List<DbEndpointCompleter> completers = new ArrayList<>();
+        for (DbEndpoint endpoint : endpoints) {
+            if (!endpoint.isReady()) {
+                try {
+                    setOverridesForEndpoint(endpoint, provisioningSuffix);
+                    completers.add(endpoint.getEndpointCompleter());
+                } catch (UnsupportedDialectException e) {
+                    logger.error("Failed to set properties for endpoint {}; testing is likely to fail",
+                            endpoint, e);
+                }
+            }
+        }
+
+        completers.forEach(endpointCompleter -> {
+            endpointCompleter.setResolver(propertySettings::get, mockPasswordUtil());
+            endpointCompleter.onServerStarted(null);
+        });
+
+        for (final DbEndpoint endpoint : endpoints) {
+            if (!endpoint.isReady()) {
+                try {
+                    logger.info("Completing endpoint {}", endpoint);
+                    endpoint.getEndpointCompleter().completePendingEndpoint(endpoint);
+                } catch (Exception e) {
+                    logger.warn("Endpoint {} initialization failed; entering retry loop", endpoint, e);
+                }
+                endpoint.awaitCompletion(30, TimeUnit.SECONDS);
+            } else {
+                if (endpoint.getConfig().getDbAccess().isWriteAccess()) {
+                    endpoint.getAdapter().truncateAllTables();
+                }
+            }
+            this.endpoints.add(endpoint);
+        }
+    }
+
+    private static String taggedPropertyName(String tag, String propertyName) {
+        return Strings.isNullOrEmpty(tag) ? propertyName
+                : tag + DbEndpointResolver.TAG_PREFIX_SEPARATOR + propertyName;
+    }
+
     private DBPasswordUtil mockPasswordUtil() {
         DBPasswordUtil dbPasswordUtil = mock(DBPasswordUtil.class);
         when(dbPasswordUtil.getSqlDbRootUsername(any())).thenAnswer(invocation -> DBPasswordUtil.obtainDefaultRootDbUser(invocation.getArgumentAt(0, String.class)));
         when(dbPasswordUtil.getSqlDbRootPassword()).thenReturn(DBPasswordUtil.obtainDefaultPW());
         return dbPasswordUtil;
     }
+
 }

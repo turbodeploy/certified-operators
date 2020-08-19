@@ -97,7 +97,7 @@ public abstract class BaseGraphRelatedTest {
      * @return setting instance
      */
     @Nonnull
-    protected static EntitySettings createEntitySetting(long entityOid,
+    public static EntitySettings createEntitySetting(long entityOid,
                                                         long value,
                                                         @Nonnull EntitySettingSpecs entitySettingSpecs) {
         return EntitySettings.newBuilder()

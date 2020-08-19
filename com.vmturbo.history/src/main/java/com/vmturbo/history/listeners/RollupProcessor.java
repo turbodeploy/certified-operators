@@ -5,9 +5,6 @@ import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_DAY
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
-import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_BY_DAY;
-import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_BY_HOUR;
-import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
 import static org.jooq.impl.DSL.exists;
 import static org.jooq.impl.DSL.inline;
@@ -37,8 +34,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
@@ -452,9 +447,10 @@ public class RollupProcessor {
                 // so we only run it when hourly rollups are invoked
                 return this == BY_HOUR;
             } else if (table == CLUSTER_STATS_LATEST) {
-                // cluster stats stored proc handles all three types individually
+                // cluster stats participates in all rollups
                 return true;
             } else {
+                // stats tables for entity types marked for rollup participate in all rollups
                 return EntityType.fromTable(table).map(EntityType::rollsUp).orElse(false);
             }
         }

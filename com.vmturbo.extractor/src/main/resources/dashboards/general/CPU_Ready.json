@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1593631540784,
+  "iteration": 1595278194454,
   "links": [],
   "panels": [
     {
@@ -278,7 +278,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  entity.name as \"Host\", \n  REGEXP_REPLACE(metric.type, 'Q([0-9]*)_VCPU', '\\1 vCPU') \"Queue Type\",\n  avg(metric.utilization) AS \"Avg CPU Ready\",\n  max(metric.utilization) AS \"Max CPU Ready\"\nFROM metric, entity\nWHERE\n  $__timeFilter(\"time\") AND\n  metric.type LIKE 'Q%_VCPU' AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  entity.type = 'PHYSICAL_MACHINE' AND \n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGroup by entity.oid, entity.name, 2\nORDER BY 3 desc",
+          "rawSql": "SELECT\n  entity.name as \"Host\", \n  REGEXP_REPLACE(metric.type::text, 'Q([0-9]*)_VCPU', '\\1 vCPU') \"Queue Type\",\n  avg(metric.utilization) AS \"Avg CPU Ready\",\n  max(metric.utilization) AS \"Max CPU Ready\"\nFROM metric, entity\nWHERE\n  $__timeFilter(\"time\") AND\n  metric.type::text LIKE 'Q%_VCPU' AND\n  metric.entity_oid = entity.oid AND\n  metric.entity_hash = entity.hash AND\n  entity.type = 'PHYSICAL_MACHINE' AND \n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) AND\n  CASE WHEN ARRAY[ [[Cluster]] ] = ARRAY[ '0' ] THEN true ELSE (entity.scope && ARRAY[ [[Cluster]] ]::bigint[]) END\nGroup by entity.oid, entity.name, 2\nORDER BY 3 desc",
           "refId": "A",
           "select": [
             [
@@ -466,14 +466,14 @@
       {
         "allValue": "'0'",
         "datasource": "$DB",
-        "definition": "select name as __text, oid as __value \nfrom entity \nwhere entity.type = 'COMPUTE_HOST_CLUSTER' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \ngroup by name, oid \norder by 1",
+        "definition": "select name as __text, oid as __value \nfrom entity \nwhere entity.type = 'COMPUTE_CLUSTER' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \ngroup by name, oid \norder by 1",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": true,
         "name": "Cluster",
         "options": [],
-        "query": "select name as __text, oid as __value \nfrom entity \nwhere entity.type = 'COMPUTE_HOST_CLUSTER' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \ngroup by name, oid \norder by 1",
+        "query": "select name as __text, oid as __value \nfrom entity \nwhere entity.type = 'COMPUTE_CLUSTER' \nand ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \ngroup by name, oid \norder by 1",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

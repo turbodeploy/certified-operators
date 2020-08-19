@@ -16,20 +16,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.assertj.core.util.Sets;
 import org.jooq.DSLContext;
 import org.jooq.TransactionalCallable;
 import org.jooq.TransactionalRunnable;
 import org.jooq.exception.DataAccessException;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -55,17 +52,14 @@ import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
-import com.vmturbo.group.common.ItemActionException.InvalidScheduleAssignmentException;
 import com.vmturbo.group.common.ItemDeleteException.ScheduleInUseDeleteException;
 import com.vmturbo.group.common.ItemNotFoundException.ScheduleNotFoundException;
-import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.TestGroupGenerator;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.FileBasedSettingsSpecStore;
-import com.vmturbo.group.setting.SettingPolicyFilter;
 import com.vmturbo.group.setting.SettingPolicyValidator;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
@@ -166,7 +160,7 @@ public class ScheduleStoreTest {
         settingSpecStore = new FileBasedSettingsSpecStore(SETTING_TEST_JSON_SETTING_SPEC_JSON);
         settingStore = new SettingStore(settingSpecStore, dslContextSpy, settingPolicyValidator,
                 settingsUpdatesSender);
-        scheduleStore = new ScheduleStore(dslContextSpy, scheduleValidator, identityProvider, settingStore);
+        scheduleStore = new ScheduleStore(dslContextSpy, scheduleValidator, identityProvider);
         groupStore = new GroupDAO(dslContextSpy);
     }
 
@@ -191,8 +185,7 @@ public class ScheduleStoreTest {
         scheduleStore.createSchedule(testScheduleWithLastDate);
         scheduleStore.createSchedule(testSchedule2);
 
-        Collection<Schedule> fetchedSchedules = scheduleStore.getSchedules()
-            .collect(Collectors.toList());
+        Collection<Schedule> fetchedSchedules = scheduleStore.getSchedules();
         assertEquals(2, fetchedSchedules.size());
     }
 
@@ -212,12 +205,11 @@ public class ScheduleStoreTest {
         assertTrue(schedule2.hasId());
         scheduleStore.createSchedule(testSchedule2);
 
-        Collection<Schedule> fetchedSchedules = scheduleStore.getSchedules()
-            .collect(Collectors.toList());
+        Collection<Schedule> fetchedSchedules = scheduleStore.getSchedules();
         assertEquals(3, fetchedSchedules.size());
 
        fetchedSchedules = scheduleStore.getSchedules(Sets.newLinkedHashSet(schedule1.getId(),
-           schedule2.getId())).collect(Collectors.toList());
+           schedule2.getId()));
         assertEquals(2, fetchedSchedules.size());
     }
 
@@ -433,25 +425,6 @@ public class ScheduleStoreTest {
     }
 
     /**
-     * Test delete schedule used by setting policy.
-     * @throws Exception If test throws any exceptions
-     */
-    @Test
-    public void testDeleteScheduleUsedBySettingPolicy() throws Exception {
-        settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(USER_POLICY));
-
-        Schedule schedule = scheduleStore.createSchedule(testScheduleWithLastDate);
-        assertTrue(schedule.hasId());
-
-        // Assign schedule to setting policy
-        scheduleStore.assignScheduleToSettingPolicy(USER_POLICY.getId(), schedule.getId());
-        // deletion should not be allowed
-        thrown.expect(ScheduleInUseDeleteException.class);
-        scheduleStore.deleteSchedule(schedule.getId());
-    }
-
-    /**
      * Test that we shouldn't delete schedule if it used as execution window in any setting
      * policies.
      *
@@ -547,117 +520,6 @@ public class ScheduleStoreTest {
         ids.add(schedule1.getId());
 
         scheduleStore.deleteSchedules(ids);
-    }
-
-    /**
-     * Test bulk delete with schedule used by setting policy.
-     * @throws Exception If test throws any exceptions
-     */
-    @Test
-    public void testScheduleBulkDeleteWithScheduleUsedByPolicy() throws Exception {
-        Set ids = Sets.newHashSet();
-        Schedule schedule1 = scheduleStore.createSchedule(testScheduleWithLastDate);
-        assertTrue(schedule1.hasId());
-        ids.add(schedule1.getId());
-        Schedule schedule2 = scheduleStore.createSchedule(testScheduleWithLastDate
-            .toBuilder().setDisplayName("Test Schedule 2").build());
-        assertTrue(schedule2.hasId());
-        ids.add(schedule2.getId());
-
-        settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(USER_POLICY));
-
-        scheduleStore.assignScheduleToSettingPolicy(USER_POLICY.getId(), schedule1.getId());
-
-        thrown.expect(ScheduleInUseDeleteException.class);
-        scheduleStore.deleteSchedules(ids);
-    }
-
-    /**
-     * Test assign invalid setting policy to schedule.
-     * @throws Exception If test throws any unexpected exceptions
-     */
-    @Test(expected = SettingPolicyNotFoundException.class)
-    public void testAssignInvalidSettingPolicyToSchedule() throws Exception {
-        Schedule schedule1 = scheduleStore.createSchedule(testScheduleWithLastDate);
-        scheduleStore.assignScheduleToSettingPolicy(0, schedule1.getId());
-    }
-
-    /**
-     * Test assign setting policy to invalid schedule.
-     *
-     * @throws Exception If test throws any unexpected exceptions
-     */
-    @Test(expected = ScheduleNotFoundException.class)
-    public void testAssignSettingPolicyToInvalidSchedule() throws Exception {
-        settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(USER_POLICY));
-        scheduleStore.assignScheduleToSettingPolicy(USER_POLICY.getId(), 0);
-    }
-
-    /** Test schedule cannot be assigned to discovered setting policy.
-     *
-     * @throws Exception If test throws any unexpected exceptions
-     */
-    @Test
-    public void testAssignScheduleToDiscoveredPolicy() throws Exception {
-        Schedule schedule = scheduleStore.createSchedule(testScheduleWithLastDate);
-        final SettingPolicy policy = SettingPolicy.newBuilder()
-                .setId(identityProvider.next())
-                .setInfo(INFO)
-                .setSettingPolicyType(Type.DISCOVERED)
-                .build();
-        settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy));
-        thrown.expect(InvalidScheduleAssignmentException.class);
-        scheduleStore.assignScheduleToSettingPolicy(policy.getId(), schedule.getId());
-    }
-
-    /**
-     * Test diags round trip.
-     *
-     * @throws Exception If test throws any unexpected exceptions
-     */
-    @Test
-    public void testDiags() throws Exception {
-        final Schedule schedule1 = scheduleStore.createSchedule(testScheduleWithLastDate);
-        final Schedule schedule2 = scheduleStore.createSchedule(testSchedulePerpetual);
-
-        final SettingPolicy policy2 = SettingPolicy.newBuilder()
-                .setId(identityProvider.next())
-                .setInfo(INFO.toBuilder().setName("test2").build())
-                .setSettingPolicyType(Type.USER)
-                .build();
-        final SettingPolicy policy3 = SettingPolicy.newBuilder()
-                .setId(identityProvider.next())
-                .setInfo(INFO.toBuilder().setName("test3").build())
-                .setSettingPolicyType(Type.USER)
-                .build();
-        settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Arrays.asList(USER_POLICY, policy2));
-        scheduleStore.assignScheduleToSettingPolicy(USER_POLICY.getId(), schedule1.getId());
-        scheduleStore.assignScheduleToSettingPolicy(policy2.getId(), schedule2.getId());
-
-        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
-        scheduleStore.collectDiags(appender);
-        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
-        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
-
-        final DiagnosticsAppender settingsAppender = Mockito.mock(DiagnosticsAppender.class);
-        settingStore.collectDiags(settingsAppender);
-        final ArgumentCaptor<String> settingDiags = ArgumentCaptor.forClass(String.class);
-        Mockito.verify(settingsAppender, Mockito.atLeastOnce()).appendString(settingDiags.capture());
-
-        Assert.assertNotEquals(Collections.emptyList(), diags.getAllValues());
-        assertEquals(2, scheduleStore.getSchedules().collect(Collectors.toList()).size());
-        settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(policy3));
-        scheduleStore.restoreDiags(diags.getAllValues());
-        settingStore.restoreDiags(settingDiags.getAllValues());
-        assertEquals(2,
-                settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build()).size());
-        assertEquals(2, scheduleStore.getSchedules().collect(Collectors.toList()).size());
-        assertTrue(scheduleStore.getSchedule(schedule1.getId()).isPresent());
-        assertTrue(scheduleStore.getSchedule(schedule2.getId()).isPresent());
     }
 
     /**

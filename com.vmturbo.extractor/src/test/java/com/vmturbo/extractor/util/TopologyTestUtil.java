@@ -1,5 +1,10 @@
 package com.vmturbo.extractor.util;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_TIER_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME;
+
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -7,9 +12,18 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
+import org.apache.commons.lang3.ObjectUtils;
+import org.javatuples.Quartet;
+import org.javatuples.Triplet;
+import org.mockito.Mockito;
+
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
@@ -22,11 +36,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.DiskTypeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.GeoDataInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -165,7 +182,7 @@ public class TopologyTestUtil {
                     throw new NoSuchElementException();
                 }
             }
-        });
+        }, Mockito.mock(SpanContext.class));
     }
 
     /**
@@ -372,7 +389,6 @@ public class TopologyTestUtil {
 
     private static StorageInfo fillStorage(StorageInfo.Builder builder) {
         return builder.addExternalName("foo")
-                .setIgnoreWastedFiles(true)
                 .setIsLocal(true)
                 .setPolicy(StoragePolicy.newBuilder()
                         .setFailuresToTolerate(10)
@@ -465,34 +481,103 @@ public class TopologyTestUtil {
                 .build();
     }
 
-    public static CommoditySoldDTO soldCommodity(CommodityDTO.CommodityType commodityType,
-            double used, double capacity) {
+    /**
+     * Create a list of {@link CommoditySoldDTO}s.
+     *
+     * <p>Values from which sold commodities are bulit come in the form of quartets (4-tuples)
+     * of commodity type, commodity key, used value, and capacity value, in that order.</p>
+     *
+     * @param commodities sold commodity parameters
+     * @return the new sold commodity structure list
+     */
+    public static List<CommoditySoldDTO> soldCommodities(
+            Quartet<CommodityDTO.CommodityType, String, Double, Double>... commodities) {
+        return Arrays.stream(commodities)
+                .map(t -> CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(t.getValue0().getNumber())
+                                .setKey(ObjectUtils.firstNonNull(t.getValue1(), ""))
+                                .build())
+                        .setUsed(t.getValue2())
+                        .setCapacity(t.getValue3())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Construct a sold commodity, including percentile historical utilization.
+     *
+     * @param commodityType the type of commodity to construct
+     * @param used the amount used
+     * @param capacity the capacity
+     * @param percentileUtilization the percentile historical utilization, as a percentage
+     * @return the constructed commodity sold
+     */
+    public static CommoditySoldDTO soldCommodityWithPercentile(CommodityDTO.CommodityType commodityType,
+                                                 double used, double capacity, double percentileUtilization) {
         return CommoditySoldDTO.newBuilder()
-                .setCommodityType(CommodityType.newBuilder().setType(commodityType.getNumber()))
-                .setUsed(used)
-                .setCapacity(capacity)
-                .build();
+            .setCommodityType(CommodityType.newBuilder().setType(commodityType.getNumber()))
+            .setUsed(used)
+            .setCapacity(capacity)
+            .setHistoricalUsed(HistoricalValues.newBuilder()
+                .setPercentile(percentileUtilization))
+            .build();
+    }
+
+    /**
+     * Construct a sold commodity, including weighted historical utilization.
+     *
+     * @param commodityType the type of commodity to construct
+     * @param used the amount used
+     * @param capacity the capacity
+     * @param historicalUtilization the historical utilization, as a percentage
+     * @return the constructed commodity sold
+     */
+    public static CommoditySoldDTO soldCommodityWithHistoricalUtilization(CommodityDTO.CommodityType commodityType,
+                                                 double used, double capacity, double historicalUtilization) {
+        return CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(commodityType.getNumber()))
+            .setUsed(used)
+            .setCapacity(capacity)
+            .setHistoricalUsed(HistoricalValues.newBuilder()
+                .setHistUtilization(historicalUtilization))
+            .build();
     }
 
     /**
      * Create a {@link CommoditiesBoughtFromProvider}.
      *
-     * @param commodityType type of the commodity
-     * @param used used value
-     * @param providerId provider id
+     * <p>Multiple commodities can be specified, each in the form of a a (type, key, used)
+     * triple</p>
+     *
+     * @param provider    provider entity
+     * @param commodities commodities consumed from teh provider
      * @return {@link CommoditiesBoughtFromProvider}
      */
-    public static CommoditiesBoughtFromProvider boughtCommodityFromProvider(
-            CommodityDTO.CommodityType commodityType, double used, long providerId) {
-        return CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(providerId)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+    public static CommoditiesBoughtFromProvider boughtCommoditiesFromProvider(
+            TopologyEntityDTO provider,
+            Triplet<CommodityDTO.CommodityType, String, Double>... commodities) {
+        final Builder builder = CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(provider.getOid())
+                .setProviderEntityType(provider.getEntityType());
+        Arrays.stream(commodities)
+                .map(comm -> CommodityBoughtDTO.newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
-                                .setType(commodityType.getNumber()))
-                        .setUsed(used))
-                .build();
+                                .setType(comm.getValue0().getNumber())
+                                .setKey(ObjectUtils.firstNonNull(comm.getValue1(), "")))
+                        .setUsed(comm.getValue2())
+                        .build())
+                .forEach(builder::addCommodityBought);
+        return builder.build();
     }
 
+    /**
+     * Create a static group of a given type and with a given list of member oids.
+     *
+     * @param groupType group type
+     * @param members   list of member oids
+     * @return the newly constructed group
+     */
     public static Grouping mkGroup(GroupType groupType, List<Long> members) {
         final long oid = nextId.getAndIncrement();
         return Grouping.newBuilder()
@@ -506,6 +591,73 @@ public class TopologyTestUtil {
                                         .setType(MemberType.newBuilder()
                                                 .setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
                                         .addAllMembers(members))))
+                .build();
+    }
+
+    /**
+     * Create an on-prem volume entity.
+     *
+     * @param files           files to be listed in the volume
+     * @param attachmentState attachment type for listed files
+     * @param storageId       id of connected storage entity
+     * @return the new virtual-volume entity
+     */
+    public static TopologyEntityDTO onPremVolume(List<VirtualVolumeFileDescriptor> files,
+            AttachmentState attachmentState, long storageId) {
+        return mkEntity(VIRTUAL_VOLUME).toBuilder()
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                                .setAttachmentState(attachmentState)
+                                .addAllFiles(files)))
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(storageId)
+                        .setConnectedEntityType(STORAGE.getNumber()))
+                .build();
+    }
+
+    /**
+     * Create a cloud volume entity.
+     *
+     * @param files           files to be listed in the volume
+     * @param attachmentState attachment type for listed files
+     * @param storageTierId   storage tier entity id
+     * @return the new virtual-volume entity
+     */
+    public static TopologyEntityDTO cloudVolume(List<VirtualVolumeFileDescriptor> files,
+            AttachmentState attachmentState, long storageTierId) {
+        return mkEntity(VIRTUAL_VOLUME).toBuilder()
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                                .setAttachmentState(attachmentState)
+                                .addAllFiles(files)))
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(storageTierId)
+                        .setProviderEntityType(STORAGE_TIER_VALUE)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setUsed(20)
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))))
+                .build();
+    }
+
+    /**
+     * Create a file entry for a virtual volume entity.
+     *
+     * @param fileName             filename
+     * @param fileType             file type
+     * @param fileSize             file size
+     * @param lastModificationTime last modification time
+     * @return new file descriptor
+     */
+    public static VirtualVolumeFileDescriptor file(String fileName, VirtualMachineFileType fileType,
+            long fileSize, long lastModificationTime) {
+        return VirtualVolumeFileDescriptor.newBuilder()
+                .setPath(fileName)
+                .setSizeKb(fileSize)
+                .setModificationTimeMs(lastModificationTime)
+                .setType(fileType)
                 .build();
     }
 }

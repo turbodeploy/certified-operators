@@ -630,7 +630,7 @@ public class TopologyFilterFactoryTest {
      */
     @Test
     public void testSearchFilterHotAddMemory() {
-        testHotFiltersForVms(SearchableProperties.HOT_ADD_MEMORY, 53,
+        testAllCaseHotFiltersForVms(SearchableProperties.HOT_ADD_MEMORY, 53,
                 HotResizeInfo.Builder::setHotAddSupported);
     }
 
@@ -639,7 +639,7 @@ public class TopologyFilterFactoryTest {
      */
     @Test
     public void testSearchFilterHotAddCPU() {
-        testHotFiltersForVms(SearchableProperties.HOT_ADD_CPU, 26,
+        testAllCaseHotFiltersForVms(SearchableProperties.HOT_ADD_CPU, 26,
                 HotResizeInfo.Builder::setHotAddSupported);
     }
 
@@ -648,25 +648,32 @@ public class TopologyFilterFactoryTest {
      */
     @Test
     public void testSearchFilterHotRemoveCPU() {
-        testHotFiltersForVms(SearchableProperties.HOT_REMOVE_CPU, 26,
+        testAllCaseHotFiltersForVms(SearchableProperties.HOT_REMOVE_CPU, 26,
                 HotResizeInfo.Builder::setHotRemoveSupported);
     }
 
-    private void testHotFiltersForVms(String filterName, int commodityTypeNumber,
+    private void testAllCaseHotFiltersForVms(String filterName, int commodityTypeNumber,
             BiFunction<Builder, Boolean, Builder> function) {
-        final SearchFilter searchFilter = SearchFilter.newBuilder()
-                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+        testHotFiltersForVms(filterName, commodityTypeNumber, function, true, true);
+        testHotFiltersForVms(filterName, commodityTypeNumber, function, true, false);
+        testHotFiltersForVms(filterName, commodityTypeNumber, function, false, true);
+        testHotFiltersForVms(filterName, commodityTypeNumber, function, false, false);
+    }
+
+    private void testHotFiltersForVms(String filterName, int commodityTypeNumber,
+            BiFunction<Builder, Boolean, Builder> function, boolean hotSupport,
+            boolean positiveMatch) {
+        final SearchFilter searchFilter = SearchFilter.newBuilder().setPropertyFilter(
+                Search.PropertyFilter.newBuilder()
                         .setPropertyName(filterName)
                         .setStringFilter(StringFilter.newBuilder()
-                                .addOptions("True")
-                                .setPositiveMatch(true)
-                                .setCaseSensitive(false)))
-                .build();
-        final TestGraphEntity vm1 =
-                createVm(commodityTypeNumber, function.apply(HotResizeInfo.newBuilder(), true), 1L);
-        final TestGraphEntity vm2 =
-                createVm(commodityTypeNumber, function.apply(HotResizeInfo.newBuilder(), false),
-                        2L);
+                                .addOptions(String.valueOf(hotSupport))
+                                .setPositiveMatch(positiveMatch)
+                                .setCaseSensitive(false))).build();
+        final TestGraphEntity vm1 = createVm(commodityTypeNumber,
+                function.apply(HotResizeInfo.newBuilder(), true), 1L);
+        final TestGraphEntity vm2 = createVm(commodityTypeNumber,
+                function.apply(HotResizeInfo.newBuilder(), false), 2L);
         final TestGraphEntity vm3 = TestGraphEntity.newBuilder(3L, ApiEntityType.VIRTUAL_MACHINE)
                 .addCommSold(CommoditySoldDTO.newBuilder()
                         .setCommodityType(
@@ -677,9 +684,9 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter =
                 (PropertyFilter<TestGraphEntity>)filter;
-        assertFalse(propertyFilter.test(vm3));
-        assertTrue(propertyFilter.test(vm1));
-        assertFalse(propertyFilter.test(vm2));
+        assertEquals(hotSupport != positiveMatch, propertyFilter.test(vm3));
+        assertEquals(hotSupport == positiveMatch, propertyFilter.test(vm1));
+        assertEquals(hotSupport != positiveMatch, propertyFilter.test(vm2));
     }
 
     private TestGraphEntity createVm(int commodityTypeNumber, Builder vmHotResizeInfo, long oid) {

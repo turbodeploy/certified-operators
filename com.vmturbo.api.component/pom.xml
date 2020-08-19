@@ -238,7 +238,11 @@
                                     <type>jar</type>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                     <includes>apidoc/**/*</includes>
-                                    <excludes>**/swagger.*</excludes>
+                                    <!-- remove unused files to reduce api container image layers
+                                     to below 40 -->
+                                    <excludes>**/swagger.*, apidoc/swagger-ui-standalone-preset.*,
+                                        apidoc/oauth2-redirect*, apidoc/index.html.gz
+                                    </excludes>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>
@@ -287,7 +291,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <argLine>-Duser.language=en -Duser.region=US ${argLine}</argLine>
+                    <argLine>-Duser.language=en -Duser.region=US ${jacoco.agent.argLine} -Dfile.encoding=UTF-8</argLine>
                 </configuration>
             </plugin>
             <plugin>

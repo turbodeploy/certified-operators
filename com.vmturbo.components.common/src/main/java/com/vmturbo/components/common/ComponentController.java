@@ -8,6 +8,8 @@ import javax.servlet.http.HttpServletResponse;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -31,6 +33,7 @@ import com.vmturbo.components.common.health.CompositeHealthMonitor;
 @RequestMapping(path = "/",
         produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
 public class ComponentController {
+    private static final Logger logger = LogManager.getLogger();
 
     public static final String HEALTH_PATH = "/health";
 

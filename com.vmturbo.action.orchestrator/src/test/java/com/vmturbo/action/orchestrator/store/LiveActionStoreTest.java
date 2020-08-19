@@ -19,6 +19,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -45,11 +46,14 @@ import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.mockito.internal.matchers.apachecommons.ReflectionEquals;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
@@ -68,6 +72,7 @@ import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
 import com.vmturbo.action.orchestrator.store.identity.IdentityDataStore;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.store.identity.InMemoryIdentityStore;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
@@ -86,7 +91,6 @@ import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.ResizeMergeSpec;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.ResizeMergeSpec.CommodityMergeData;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -202,6 +206,8 @@ public class LiveActionStoreTest {
     private final AcceptedActionsDAO acceptedActionsStore = mock(AcceptedActionsDAO.class);
     private final RejectedActionsDAO rejectedActionsStore = mock(RejectedActionsDAO.class);
 
+    private ActionTopologyStore actionTopologyStore = new ActionTopologyStore();
+
     final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
     final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
     private ActionEntity aggregateEntity1;
@@ -218,7 +224,8 @@ public class LiveActionStoreTest {
                 new IdentityServiceImpl(idDataStore, new ActionInfoModelCreator(),
                         Clock.systemUTC(), 1000);
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID,
-                RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()), targetSelector,
+                actionTopologyStore,
+                targetSelector,
                 probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
                 actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
@@ -398,7 +405,7 @@ public class LiveActionStoreTest {
         // methods in the original action, not in the spy.
         final ActionStore actionStore =
                 new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
-                        RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                        actionTopologyStore,
                         targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                         actionsStatistician, actionTranslator, atomicActionFactory, clock,
                         userSessionContext, licenseCheckClient, acceptedActionsStore,
@@ -436,6 +443,57 @@ public class LiveActionStoreTest {
 
         assertEquals(0, actionStore.size());
         assertEquals(ActionState.CLEARED, actionToClear.getState());
+    }
+
+    /**
+     * The goal of this test is to verify that actions that are generated with a READY state make it to the audit
+     * on generation step. If they don't have a workflow, they won't be sent to SNOW. However, before the bug prevented
+     * actions from being sent to SNOW since they were not being sent to even the `sendActionEvents()` method.
+     *
+     * @throws Exception If the action is not populated or sent to SNOW Audit.
+     */
+    @Test
+    public void testAuditActionSendReady() throws Exception {
+        final ActionAuditSender listener = Mockito.mock(ActionAuditSender.class);
+
+        final ActionStore actionStore =
+                new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
+                        actionTopologyStore,
+                        targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
+                        actionsStatistician, actionTranslator, atomicActionFactory, clock,
+                        userSessionContext, licenseCheckClient, acceptedActionsStore,
+                        rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
+                        listener, true);
+
+        ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
+
+        ActionPlan firstPlan = ActionPlan.newBuilder()
+                .setInfo(ActionPlanInfo.newBuilder()
+                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                                        .setTopologyId(topologyId))))
+                .setId(firstPlanId)
+                .addAction(firstMove)
+                .build();
+
+        ActionPlan secondPlan = ActionPlan.newBuilder()
+                .setInfo(ActionPlanInfo.newBuilder()
+                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                                        .setTopologyId(topologyId))))
+                .setId(secondPlanId)
+                .build();
+        final EntitiesAndSettingsSnapshot snapshot =
+                entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
+                        Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+
+        Mockito.doNothing().when(listener).sendActionEvents(actionsCaptor.capture());
+        actionStore.populateRecommendedActions(firstPlan);
+        final Collection<ActionView> actions = actionsCaptor.getValue();
+        Assert.assertEquals(ActionState.READY, ((Action)((ArrayList)actions).get(0)).getState());
     }
 
     @Test
@@ -867,6 +925,14 @@ public class LiveActionStoreTest {
 
     @Captor
     private ArgumentCaptor<Stream<Action>> translationCaptor;
+
+    /** Defining a Mockito rule to allow initializating the argument captors.
+     */
+    @Rule
+    public MockitoRule rule = MockitoJUnit.rule();
+
+    @Captor
+    private ArgumentCaptor<Collection<ActionView>> actionsCaptor;
 
     @Test
     public void testRetentionOfReRecommendedAction() throws Exception {

@@ -50,8 +50,6 @@ public class ReservationConfig {
     @Bean
     public ReservationManager reservationManager() {
         return new ReservationManager(ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel()),
-            templateConfig.templateConverterFactory(),
-            reservationValidator(),
-            targetConfig.targetStore());
+            reservationValidator());
     }
 }

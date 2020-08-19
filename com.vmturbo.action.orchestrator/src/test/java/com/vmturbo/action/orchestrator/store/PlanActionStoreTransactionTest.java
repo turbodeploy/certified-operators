@@ -122,7 +122,6 @@ public class PlanActionStoreTransactionTest {
     public void testRollbackWhenErrorDuringPopulateClean() {
         MockDataProvider mockProvider = providerFailingOn("DELETE");
         actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
-            null, null,
             entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector,
             licenseCheckClient);
 
@@ -140,7 +139,6 @@ public class PlanActionStoreTransactionTest {
     public void testRollbackWhenErrorDuringPopulateStore() {
         MockDataProvider mockProvider = providerFailingOn("INSERT");
         actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
-            null, null,
             entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector,
             licenseCheckClient);
 
@@ -155,7 +153,6 @@ public class PlanActionStoreTransactionTest {
     public void testRollbackWhenErrorDuringOverwrite() {
         MockDataProvider mockProvider = providerFailingOn("INSERT");
         actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
-            null, null,
             entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector,
             licenseCheckClient);
 
@@ -173,7 +170,6 @@ public class PlanActionStoreTransactionTest {
     public void testRollbackDuringClear() {
         MockDataProvider mockProvider = providerFailingOn("DELETE");
         actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
-            null, null,
             entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector,
             licenseCheckClient);
 

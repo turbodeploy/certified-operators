@@ -20,7 +20,9 @@ public class JooqExceptionTranslator extends DefaultExecuteListener {
         SQLDialect dialect = context.configuration().dialect();
         SQLExceptionTranslator translator
                 = new SQLErrorCodeSQLExceptionTranslator(dialect.name());
-        context.exception(translator
+        if (context.sqlException() != null) {
+            context.exception(translator
                 .translate("Access database using jOOQ", context.sql(), context.sqlException()));
+        }
     }
 }

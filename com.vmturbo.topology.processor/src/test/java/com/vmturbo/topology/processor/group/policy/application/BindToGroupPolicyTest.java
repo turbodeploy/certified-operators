@@ -29,7 +29,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ReservationOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -41,6 +44,7 @@ import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicyApplication.PolicyApplicationResults;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * The tests use the following topology (no links are provided below 1,2 are hosts and 3,4 are VMs):
@@ -90,6 +94,17 @@ public class BindToGroupPolicyTest {
                     .setBindToGroupAndLicense(bindToGroupAndLicense))
             .build();
 
+    final TopologyEntity.Builder reservationVM = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                    .setOid(5L)
+                    .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                    .setDisplayName("reservationVM")
+                    .setOrigin(Origin.newBuilder().setReservationOrigin(ReservationOrigin.newBuilder()
+                            .setReservationId(11111L)))
+                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(2L)
+                            .build()));
+
     private TopologyGraph<TopologyEntity> topologyGraph;
     private PolicyMatcher policyMatcher;
 
@@ -102,7 +117,7 @@ public class BindToGroupPolicyTest {
         topologyMap.put(2L, topologyEntity(2L, EntityType.PHYSICAL_MACHINE));
         topologyMap.put(3L, topologyEntity(3L, EntityType.STORAGE));
         topologyMap.put(4L, topologyEntity(4L, EntityType.VIRTUAL_MACHINE, 1));
-        topologyMap.put(5L, topologyEntity(5L, EntityType.VIRTUAL_MACHINE, 2));
+        topologyMap.put(5L, reservationVM);
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 1));
         topologyMap.put(7L, connectedTopologyEntity(7L, EntityType.STORAGE_TIER));
         topologyMap.put(8L, connectedTopologyEntity(8L, EntityType.COMPUTE_TIER));
@@ -216,12 +231,14 @@ public class BindToGroupPolicyTest {
         assertThat(topologyGraph.getEntity(3L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(4L).get(),
             policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
+        // reservation vm will not buy the segmentation commodity
         assertThat(topologyGraph.getEntity(5L).get(),
-            policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
+            not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
         assertThat(topologyGraph.getEntity(6L).get(),
                 policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
-        assertThat(results.addedCommodities().get(CommodityType.SEGMENTATION), is(6));
-        assertThat(resultsForLicense.addedCommodities().get(CommodityType.SEGMENTATION), is(6));
+        // reservation vm will not buy the segmentation commodity
+        assertThat(results.addedCommodities().get(CommodityType.SEGMENTATION), is(5));
+        assertThat(resultsForLicense.addedCommodities().get(CommodityType.SEGMENTATION), is(5));
     }
 
     /**
@@ -290,7 +307,7 @@ public class BindToGroupPolicyTest {
 
     private PolicyApplicationResults applyPolicy(@Nonnull final BindToGroupPolicy policy) {
         BindToGroupPolicyApplication application =
-            new BindToGroupPolicyApplication(groupResolver, topologyGraph);
+            new BindToGroupPolicyApplication(groupResolver, topologyGraph, new TopologyInvertedIndexFactory());
         return application.apply(Collections.singletonList(policy));
     }
 }

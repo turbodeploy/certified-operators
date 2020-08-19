@@ -15,8 +15,8 @@
   "description": "This report shows average hourly utilization measurements for Hosts compared day-over-day for the two consecutive days selected days. All machines in the selected group are included in the averages.",
   "editable": false,
   "gnetId": null,
-  "graphTooltip": 0,
-  "iteration": 1593458642045,
+  "graphTooltip": 1,
+  "iteration": 1596572121935,
   "links": [],
   "panels": [
     {
@@ -33,7 +33,7 @@
         },
         "overrides": []
       },
-      "fill": 0,
+      "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 9,
@@ -44,6 +44,7 @@
       "hiddenSeries": false,
       "id": 2,
       "legend": {
+        "alignAsTable": true,
         "avg": true,
         "current": false,
         "max": false,
@@ -54,16 +55,29 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
-      "seriesOverrides": [],
+      "seriesOverrides": [
+        {
+          "$$hashKey": "object:512",
+          "alias": "Previous Day",
+          "color": "rgba(232, 0, 6, 0.5)",
+          "dashes": true,
+          "fill": 0
+        },
+        {
+          "$$hashKey": "object:97",
+          "alias": "/Ending/",
+          "color": "#56A64B"
+        }
+      ],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -73,7 +87,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,avg(m.utilization) AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'MEM'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n     GROUP BY 1\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN date_trunc('hour', time + INTERVAL '24 HOUR') ELSE date_trunc('hour', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Selected Day\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') as \"Selected - 1 day\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'MEM'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ $Group ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END\n)\n\nSELECT CASE \n            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR') \n            ELSE date_trunc('HOUR', time) \n       END + INTERVAL '1 HOUR' as \"time\"\n      ,CASE \n            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'\n            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT\n       END as metric\n      ,avg(avg_util)\n  FROM data\n GROUP BY 1, 2\n ORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -154,7 +168,7 @@
         },
         "overrides": []
       },
-      "fill": 0,
+      "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 8,
@@ -165,6 +179,7 @@
       "hiddenSeries": false,
       "id": 4,
       "legend": {
+        "alignAsTable": true,
         "avg": true,
         "current": false,
         "max": false,
@@ -175,16 +190,29 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
-      "seriesOverrides": [],
+      "seriesOverrides": [
+        {
+          "$$hashKey": "object:4058",
+          "alias": "Previous Day",
+          "color": "rgba(232, 0, 6, 0.5)",
+          "dashes": true,
+          "fill": 0
+        },
+        {
+          "$$hashKey": "object:4105",
+          "alias": "/Ending/",
+          "color": "#56A64B"
+        }
+      ],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -194,7 +222,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'CPU'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN date_trunc('hour', time + INTERVAL '24 HOUR') ELSE date_trunc('hour', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Selected Day\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') as \"Selected - 1 day\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'CPU'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ $Group ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END\n)\n\nSELECT CASE \n            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR') \n            ELSE date_trunc('HOUR', time) \n       END + INTERVAL '1 HOUR' as \"time\"\n      ,CASE \n            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'\n            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT\n       END as metric\n      ,avg(avg_util)\n  FROM data\n GROUP BY 1, 2\n ORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -275,7 +303,7 @@
         },
         "overrides": []
       },
-      "fill": 0,
+      "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 8,
@@ -286,6 +314,7 @@
       "hiddenSeries": false,
       "id": 8,
       "legend": {
+        "alignAsTable": true,
         "avg": true,
         "current": false,
         "max": false,
@@ -296,16 +325,29 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
-      "seriesOverrides": [],
+      "seriesOverrides": [
+        {
+          "$$hashKey": "object:4198",
+          "alias": "Previous Day",
+          "color": "rgba(232, 0, 6, 0.5)",
+          "dashes": true,
+          "fill": 0
+        },
+        {
+          "$$hashKey": "object:4216",
+          "alias": "/Ending/",
+          "color": "#56A64B"
+        }
+      ],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -315,7 +357,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'BALLOONING'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN date_trunc('hour', time + INTERVAL '24 HOUR') ELSE date_trunc('hour', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Selected Day\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') as \"Selected - 1 day\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'BALLOONING'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ $Group ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END\n)\n\nSELECT CASE \n            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR') \n            ELSE date_trunc('HOUR', time) \n       END + INTERVAL '1 HOUR' as \"time\"\n      ,CASE \n            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'\n            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT\n       END as metric\n      ,avg(avg_util)\n  FROM data\n GROUP BY 1, 2\n ORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -396,7 +438,7 @@
         },
         "overrides": []
       },
-      "fill": 0,
+      "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 8,
@@ -407,6 +449,7 @@
       "hiddenSeries": false,
       "id": 6,
       "legend": {
+        "alignAsTable": true,
         "avg": true,
         "current": false,
         "max": false,
@@ -417,16 +460,29 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
-      "seriesOverrides": [],
+      "seriesOverrides": [
+        {
+          "$$hashKey": "object:4286",
+          "alias": "Previous Day",
+          "color": "rgba(232, 0, 6, 0.5)",
+          "dashes": true,
+          "fill": 0
+        },
+        {
+          "$$hashKey": "object:4304",
+          "alias": "/Ending/",
+          "color": "#56A64B"
+        }
+      ],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -436,7 +492,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'SWAPPING'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN date_trunc('hour', time + INTERVAL '24 HOUR') ELSE date_trunc('hour', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Selected Day\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') as \"Selected - 1 day\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'SWAPPING'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ $Group ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END\n)\n\nSELECT CASE \n            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR') \n            ELSE date_trunc('HOUR', time) \n       END + INTERVAL '1 HOUR' as \"time\"\n      ,CASE \n            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'\n            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT\n       END as metric\n      ,avg(avg_util)\n  FROM data\n GROUP BY 1, 2\n ORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -517,7 +573,7 @@
         },
         "overrides": []
       },
-      "fill": 0,
+      "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 8,
@@ -528,6 +584,7 @@
       "hiddenSeries": false,
       "id": 10,
       "legend": {
+        "alignAsTable": true,
         "avg": true,
         "current": false,
         "max": false,
@@ -538,16 +595,29 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
-      "seriesOverrides": [],
+      "seriesOverrides": [
+        {
+          "$$hashKey": "object:4376",
+          "alias": "Previous Day",
+          "color": "rgba(232, 0, 6, 0.5)",
+          "dashes": true,
+          "fill": 0
+        },
+        {
+          "$$hashKey": "object:4394",
+          "alias": "/Ending/",
+          "color": "#56A64B"
+        }
+      ],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -557,7 +627,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'IO_THROUGHPUT'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN date_trunc('hour', time + INTERVAL '24 HOUR') ELSE date_trunc('hour', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Selected Day\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') as \"Selected - 1 day\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'IO_THROUGHPUT'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ $Group ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END\n)\n\nSELECT CASE \n            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR') \n            ELSE date_trunc('HOUR', time) \n       END + INTERVAL '1 HOUR' as \"time\"\n      ,CASE \n            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'\n            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT\n       END as metric\n      ,avg(avg_util)\n  FROM data\n GROUP BY 1, 2\n ORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -638,7 +708,7 @@
         },
         "overrides": []
       },
-      "fill": 0,
+      "fill": 1,
       "fillGradient": 0,
       "gridPos": {
         "h": 8,
@@ -648,7 +718,9 @@
       },
       "hiddenSeries": false,
       "id": 12,
+      "interval": "",
       "legend": {
+        "alignAsTable": true,
         "avg": true,
         "current": false,
         "max": false,
@@ -659,16 +731,29 @@
         "values": true
       },
       "lines": true,
-      "linewidth": 3,
+      "linewidth": 2,
       "nullPointMode": "null",
       "options": {
         "dataLinks": []
       },
       "percentage": false,
       "pointradius": 2,
-      "points": false,
+      "points": true,
       "renderer": "flot",
-      "seriesOverrides": [],
+      "seriesOverrides": [
+        {
+          "$$hashKey": "object:4465",
+          "alias": "Previous Day",
+          "color": "rgba(232, 0, 6, 0.5)",
+          "dashes": true,
+          "fill": 0
+        },
+        {
+          "$$hashKey": "object:4489",
+          "alias": "/Ending/",
+          "color": "#56A64B"
+        }
+      ],
       "spaceLength": 10,
       "stack": false,
       "steppedLine": false,
@@ -678,7 +763,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'NET_THROUGHPUT'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND ($__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ [[Group]] ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ [[Group]] ]::bigint[]) END\n)\n\nSELECT CASE WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN date_trunc('hour', time + INTERVAL '24 HOUR') ELSE date_trunc('hour', time) END as \"time\"\n      ,avg(avg_util) FILTER (WHERE $__timeFilter(time)) as \"Selected Day\"\n      ,avg(avg_util) FILTER (WHERE time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') as \"Selected - 1 day\"\n  FROM data\n GROUP BY 1",
+          "rawSql": "WITH data as (\n   SELECT m.time\n          ,m.utilization AS avg_util\n      FROM entity e\n      JOIN metric m ON m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND m.type = 'NET_THROUGHPUT'\n       AND e.type = 'PHYSICAL_MACHINE'\n       AND m.time BETWEEN ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('HOUR', $__timeTo()::TIMESTAMPTZ)\n       AND ($__timeFrom()::TIMESTAMPTZ - interval '24 HOUR', $__timeTo()::TIMESTAMPTZ) OVERLAPS (first_seen, last_seen)\n       AND CASE WHEN ARRAY[ $Group ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $Group ]::bigint[]) END\n)\n\nSELECT CASE \n            WHEN time BETWEEN date_trunc('hour', $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR') AND date_trunc('hour', $__timeTo()::TIMESTAMPTZ - interval '24 HOUR') THEN date_trunc('HOUR', time + interval '24 HOUR') \n            ELSE date_trunc('HOUR', time) \n       END + INTERVAL '1 HOUR' as \"time\"\n      ,CASE \n            WHEN time BETWEEN $__timeFrom()::TIMESTAMPTZ - interval '24 HOUR' AND $__timeTo()::TIMESTAMPTZ - interval '24 HOUR' THEN 'Previous Day'\n            ELSE 'Ending ' || DATE($__timeTo()::TIMESTAMPTZ)::TEXT\n       END as metric\n      ,avg(avg_util)\n  FROM data\n GROUP BY 1, 2\n ORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -760,6 +845,7 @@
         "name": "DB",
         "options": [],
         "query": "postgres",
+        "queryValue": "",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -768,14 +854,14 @@
       {
         "allValue": "'0'",
         "datasource": "$DB",
-        "definition": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'REGULAR' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'expectedTypes' ? 'PHYSICAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
+        "definition": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'GROUP' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'member_types' ? 'PHYSICAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": false,
         "name": "Group",
         "options": [],
-        "query": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'REGULAR' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'expectedTypes' ? 'PHYSICAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
+        "query": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'GROUP' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'member_types' ? 'PHYSICAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,

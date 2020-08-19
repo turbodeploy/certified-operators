@@ -13,6 +13,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
+import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -52,14 +53,17 @@ public class ActionApprovalSender {
      * @throws InterruptedException if current thread has been interrupted
      */
     public void sendApprovalRequests(@Nonnull ActionStore store) throws InterruptedException {
-        if (!store.allowsExecution()) {
+        if (store.getStoreTypeName().equals(PlanActionStore.STORE_TYPE_NAME)) {
             return;
         }
+
         final ActionApprovalRequests.Builder builder = ActionApprovalRequests.newBuilder();
         for (Action action : store.getActions()
                 .values()) {
+            // It does not make sense to send any actions except of READY. All the other actions
+            // are already executing or failed or rejected (it's late to approve/reject them)
             if (action.getMode() == ActionMode.EXTERNAL_APPROVAL
-                    && action.getState() != ActionState.REJECTED) {
+                    && action.getState() == ActionState.READY) {
                 final Optional<ActionDTO.Action> recommendationOptional =
                         action.getActionTranslation()
                                 .getTranslatedRecommendation();
@@ -76,6 +80,7 @@ public class ActionApprovalSender {
                 }
             }
         }
+
         if (builder.getActionsCount() > 0) {
             try {
                 messageSender.sendMessage(builder.build());

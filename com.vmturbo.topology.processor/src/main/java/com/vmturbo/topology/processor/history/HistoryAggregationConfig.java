@@ -1,10 +1,14 @@
 package com.vmturbo.topology.processor.history;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -20,6 +24,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.commons.Units;
+import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.topology.processor.ClockConfig;
@@ -51,7 +56,7 @@ public class HistoryAggregationConfig {
     @Value("${historyAggregation.percentileEnabled:true}")
     private boolean percentileEnabled = true;
     @Value("${historyAggregation.percentileMaintenanceWindowHours}")
-    private int percentileMaintenanceWindowHours = PercentileHistoricalEditorConfig.defaultMaintenanceWindowHours;
+    private int percentileMaintenanceWindowHours = PercentileHistoricalEditorConfig.DEFAULT_MAINTENANCE_WINDOW_HOURS;
     @Value("${historyAggregation.percentileBuckets.VCPU:}")
     private String percentileBucketsVcpu;
     @Value("${historyAggregation.percentileBuckets.VMEM:}")
@@ -81,7 +86,10 @@ public class HistoryAggregationConfig {
     @Value("${historyAggregation.timeslotEnabled:true}")
     private boolean timeslotEnabled = true;
     @Value("${historyAggregation.timeslotMaintenanceWindowHours:23}")
-    private int timeslotMaintenanceWindowHours = TimeslotHistoricalEditorConfig.defaultMaintenanceWindowHours;
+    private int timeslotMaintenanceWindowHours = TimeslotHistoricalEditorConfig.DEFAULT_MAINTENANCE_WINDOW_HOURS;
+
+    @Value("${realtimeTopologyContextId:7777777}")
+    private long realtimeTopologyContextId;
 
     @Autowired
     private HistoryClientConfig historyClientConfig;
@@ -138,6 +146,7 @@ public class HistoryAggregationConfig {
     public TimeslotHistoricalEditorConfig timeslotEditorConfig() {
         return new TimeslotHistoricalEditorConfig(historyAggregationLoadingChunkSize,
                                                   historyAggregationCalculationChunkSize,
+                                                  realtimeTopologyContextId,
                                                   backgroundLoadingThreshold,
                                                   backgroundLoadingRetries,
                                                   backgroundLoadingTimeoutMin,
@@ -154,6 +163,7 @@ public class HistoryAggregationConfig {
     public PercentileHistoricalEditorConfig percentileEditorConfig() {
         return new PercentileHistoricalEditorConfig(historyAggregationCalculationChunkSize,
                         percentileMaintenanceWindowHours,
+                        realtimeTopologyContextId,
                 grpcStreamTimeoutSec,
                 blobReadWriteChunkSizeKb,
                 ImmutableMap.of(CommodityType.VCPU, percentileBucketsVcpu,
@@ -167,12 +177,26 @@ public class HistoryAggregationConfig {
     /**
      * Percentile commodities history editor.
      *
+     * @param <E> type of the editor that is going to be created.
      * @return percentile editor bean
      */
     @Bean
-    public IHistoricalEditor<?> percentileHistoryEditor() {
-        return new PercentileEditor(percentileEditorConfig(), nonBlockingHistoryClient(),
-                clockConfig.clock(), PercentilePersistenceTask::new);
+    public <E extends IHistoricalEditor<?> & BinaryDiagsRestorable> E percentileHistoryEditor() {
+        @SuppressWarnings("unchecked")
+        final E result = (E)new PercentileEditor(percentileEditorConfig(),
+                        nonBlockingHistoryClient(), clockConfig.clock(),
+                        PercentilePersistenceTask::new);
+        return result;
+    }
+
+    /**
+     * Collection of editors which state need to be written to and restored from diagnostics.
+     *
+     * @return collection of editors that able to save and restore theirs state.
+     */
+    @Nonnull
+    public Collection<BinaryDiagsRestorable> statefulEditors() {
+        return Collections.singleton(percentileHistoryEditor());
     }
 
     /**

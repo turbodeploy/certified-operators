@@ -7,6 +7,8 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,6 +20,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.AnalysisSummaryListener;
 
@@ -94,7 +98,8 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
     }
 
     @Override
-    public void onActionsReceived(@Nonnull final ActionPlan orderedActions) {
+    public void onActionsReceived(@Nonnull final ActionPlan orderedActions,
+                                  @Nonnull final SpanContext tracingContext) {
         if (logger.isDebugEnabled()) {
             orderedActions.getActionList().forEach(action -> logger.debug("Received action: " + action));
         }
@@ -111,7 +116,7 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
         }
 
         // Populate the store with the new recommendations and refresh the cache.
-        try {
+        try (TracingScope tracingScope = Tracing.trace("on_actions_received", tracingContext)) {
             // We don't store "transient" plan actions.
             // However, for transient plans we still want to send the actions update notification
             // so the plan lifecycle can continue as normal.

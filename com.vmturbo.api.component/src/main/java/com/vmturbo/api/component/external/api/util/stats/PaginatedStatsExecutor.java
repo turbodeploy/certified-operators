@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -84,7 +85,6 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
@@ -290,7 +290,7 @@ public class PaginatedStatsExecutor {
             // Use a small tolerance time window: [clockTimeNowTolerance, clockTimeNow]
             // Timestamps up to 1 min before 'now' are considered 'now'
             long clockTimeNowTolerance =
-                    clockTimeNow - TimeInMillisConstants.MINUTE_LENGTH_IN_MILLIS;
+                    clockTimeNow - TimeUnit.MINUTES.toMillis(1);
             if (period.getStartDate() == null) {        // in this case we have just endDate
                 long inputEndTime = DateTimeUtil.parseTime(period.getEndDate());
                 if (inputEndTime < clockTimeNowTolerance) {

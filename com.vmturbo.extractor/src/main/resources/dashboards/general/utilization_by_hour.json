@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1593543247629,
+  "iteration": 1596479923641,
   "links": [],
   "panels": [
     {
@@ -74,7 +74,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('hour', m.time) as \"time\",\n  avg(m.utilization) FILTER (WHERE m.type = 'VMEM') AS \"VMem\",\n  avg(m.utilization) FILTER (WHERE m.type = 'VCPU') AS \"VCPU\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid AND\n  m.entity_hash = e.hash AND\n  $__timeFilter(m.\"time\") AND\n  m.type IN ('VMEM', 'VCPU') AND\n  e.type = 'VIRTUAL_MACHINE'  AND\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT\n  date_trunc('hour', m.time) as \"time\",\n  avg(m.utilization) FILTER (WHERE m.type = 'VMEM') AS \"VMem\",\n  avg(m.utilization) FILTER (WHERE m.type = 'VCPU') AS \"VCPU\",\n  avg(m.utilization) FILTER (WHERE m.type = 'VSTORAGE') AS \"VStorage\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid AND\n  m.entity_hash = e.hash AND\n  $__timeFilter(m.\"time\") AND\n  e.type = 'VIRTUAL_MACHINE' AND\n  e.environment = 'ON_PREM' AND\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\nGROUP BY 1\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -203,7 +203,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date_trunc('hour', m.time) as \"time\",\n  avg(m.utilization) FILTER (WHERE m.type = 'MEM') AS \"Mem\",\n  avg(m.utilization) FILTER (WHERE m.type = 'CPU') AS \"CPU\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid AND\n  m.entity_hash = e.hash AND\n  $__timeFilter(m.\"time\") AND\n  m.type IN ('MEM', 'CPU') AND\n  e.type = 'PHYSICAL_MACHINE'  AND\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\nGROUP BY 1\nORDER BY 1",
+          "rawSql": "SELECT\n  date_trunc('hour', m.time) as \"time\",\n  avg(m.utilization) FILTER (WHERE m.type = 'MEM') AS \"Mem\",\n  avg(m.utilization) FILTER (WHERE m.type = 'CPU') AS \"CPU\",\n  avg(m.utilization) FILTER (WHERE m.type = 'BALLOONING') AS \"Ballooning\",\n  avg(m.utilization) FILTER (WHERE m.type = 'IO_THROUGHPUT') AS \"IOThroughput\",\n  avg(m.utilization) FILTER (WHERE m.type = 'NET_THROUGHPUT') AS \"NetThroughput\",\n  avg(m.utilization) FILTER (WHERE m.type = 'SWAPPING') AS \"Swapping\",\n  avg(m.utilization) FILTER (WHERE m.type = 'Q1_VCPU') AS \"Q1_VCPU\",\n  avg(m.utilization) FILTER (WHERE m.type = 'Q2_VCPU') AS \"Q2_VCPU\",\n  avg(m.utilization) FILTER (WHERE m.type = 'Q4_VCPU') AS \"Q4_VCPU\",\n  avg(m.utilization) FILTER (WHERE m.type = 'Q8_VCPU') AS \"Q8_VCPU\",\n  avg(m.utilization) FILTER (WHERE m.type = 'Q16_VCPU') AS \"Q16_VCPU\",\n  avg(m.utilization) FILTER (WHERE m.type = 'Q32_VCPU') AS \"Q32_VCPU\",\n  avg(m.utilization) FILTER (WHERE m.type = 'Q64_VCPU') AS \"Q64_VCPU\"\nFROM entity e\nJOIN metric m ON m.entity_oid = e.oid AND\n  m.entity_hash = e.hash AND\n  $__timeFilter(m.\"time\") AND\n  e.type = 'PHYSICAL_MACHINE'  AND\n  ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\nGROUP BY 1\nORDER BY 1",
           "refId": "A",
           "select": [
             [
@@ -285,6 +285,7 @@
         "name": "DB",
         "options": [],
         "query": "postgres",
+        "queryValue": "",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,

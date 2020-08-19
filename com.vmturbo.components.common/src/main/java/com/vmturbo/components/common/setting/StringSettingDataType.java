@@ -18,12 +18,12 @@ public class StringSettingDataType extends AbstractSettingDataType<String> {
     private final String regexp;
 
     /**
-     * COnstructs string data type.
+     * Constructs string data type.
      *
      * @param defaultValue default value
      * @param regexp regular expression for values to match.
      */
-    public StringSettingDataType(@Nonnull String defaultValue, @Nonnull String regexp) {
+    public StringSettingDataType(@Nullable String defaultValue, @Nonnull String regexp) {
         super(defaultValue);
         this.regexp = Validate.notBlank(regexp);
     }
@@ -40,11 +40,14 @@ public class StringSettingDataType extends AbstractSettingDataType<String> {
 
     @Override
     public void build(@Nonnull Builder builder) {
-        builder.setStringSettingValueType(StringSettingValueType.newBuilder()
-                .setDefault(getDefault())
+        final StringSettingValueType.Builder settingBuilder = StringSettingValueType.newBuilder()
                 .setValidationRegex(regexp)
-                .putAllEntityDefaults(getEntityDefaults())
-                .build());
+                .putAllEntityDefaults(getEntityDefaults());
+        final String defaultValue = getDefault();
+        if (defaultValue != null) {
+            settingBuilder.setDefault(defaultValue);
+        }
+        builder.setStringSettingValueType(settingBuilder.build());
     }
 
     @Override

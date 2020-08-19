@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.cca;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -36,18 +37,18 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocation;
+import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
-import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationStore;
+import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocationFilter;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocation;
+import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
+import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
+import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityComputeTierAllocationRecord;
@@ -64,7 +65,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * {@link Tables#ENTITY_CLOUD_SCOPE}. An assumption is made the {@link Tables#ENTITY_COMPUTE_TIER_ALLOCATION}
  * has a foreign key relationship with the {@link Tables#ENTITY_CLOUD_SCOPE} table.
  */
-public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implements ComputeTierAllocationStore, DiagsRestorable {
+public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implements ComputeTierAllocationStore {
 
     private static final ZoneId UTC_ZONE_ID = ZoneId.from(ZoneOffset.UTC);
 
@@ -171,7 +172,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                                    @Nonnull Collection<ComputeTierAllocationDatapoint> allocationDatapoints) {
 
 
-        try (DataMetricTimer persistenDurationTimer = TOTAL_PERSISTENCE_DURATION_SUMMARY_METRIC.startTimer()) {
+        try (DataMetricTimer persistenceDurationTimer = TOTAL_PERSISTENCE_DURATION_SUMMARY_METRIC.startTimer()) {
 
             // First, index the records by the entity OID - this is used later in checking for previously
             // recorded records for each entity.
@@ -207,10 +208,12 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                 insertAllocations(batchAllocations, newRecordTimestamp);
             });
 
-
             // Record the number of records extended and inserted.
             EXTENSION_COUNT_SUMMARY_METRIC.observe((double)extendedEntityRecords.size());
             NEW_ALLOCATION_COUNT_SUMMARY_METRIC.observe((double)newAllocationEntityOids.size());
+
+            logger.info("Finished persisting {} data points in {}", allocationDatapoints.size(),
+                    Duration.ofSeconds((long)persistenceDurationTimer.getTimeElapsedSecs()));
         }
 
     }
@@ -302,12 +305,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
 
         try {
 
-            dslContext.loadInto(Tables.ENTITY_CLOUD_SCOPE)
-                    .batchAll()
-                    .onDuplicateKeyUpdate()
-                    .loadRecords(cloudScopeRecords)
-                    .fields(Tables.ENTITY_CLOUD_SCOPE.fields())
-                    .execute();
+            insertCloudScopeRecords(cloudScopeRecords);
 
             Set<EntityComputeTierAllocationRecord> allocationRecords = allocationDatapoints.stream()
                     .map(allocation -> createAllocationRecord(allocation, recordTimestamp))
@@ -409,11 +407,11 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
             final ComputeTierAllocationDatapoint allocationDatapoint = allocationsByEntityOid.get(
                     allocationRecord.getEntityOid());
 
-            final ComputeTierAllocation currentAllocation = allocationDatapoint.cloudTierDemand();
+            final ComputeTierDemand computeTierDemand = allocationDatapoint.cloudTierDemand();
 
-            if (currentAllocation.osType().equals(OSType.forNumber(allocationRecord.getOsType())) &&
-                    currentAllocation.tenancy().equals(Tenancy.forNumber(allocationRecord.getTenancy())) &&
-                    currentAllocation.cloudTierOid() == allocationRecord.getAllocatedComputeTierOid()) {
+            if (computeTierDemand.osType().equals(OSType.forNumber(allocationRecord.getOsType())) &&
+                    computeTierDemand.tenancy().equals(Tenancy.forNumber(allocationRecord.getTenancy())) &&
+                    computeTierDemand.cloudTierOid() == allocationRecord.getAllocatedComputeTierOid()) {
 
                 allocationRecord.setEndTime(topologyCreationTime);
 
@@ -520,14 +518,16 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
         final EntityCloudScopeRecord entityCloudScopeRecord = record.into(EntityCloudScopeRecord.class);
 
         return ImmutableEntityComputeTierAllocation.builder()
-                .startTime(allocationRecord.getStartTime().toInstant(ZoneOffset.UTC))
-                .endTime(allocationRecord.getEndTime().toInstant(ZoneOffset.UTC))
+                .timeInterval(ImmutableTimeInterval.builder()
+                        .startTime(allocationRecord.getStartTime().toInstant(ZoneOffset.UTC))
+                        .endTime(allocationRecord.getEndTime().toInstant(ZoneOffset.UTC))
+                        .build())
                 .entityOid(allocationRecord.getEntityOid())
                 .accountOid(entityCloudScopeRecord.getAccountOid())
                 .regionOid(entityCloudScopeRecord.getRegionOid())
                 .availabilityZoneOid(Optional.ofNullable(entityCloudScopeRecord.getAvailabilityZoneOid()))
                 .serviceProviderOid(entityCloudScopeRecord.getServiceProviderOid())
-                .cloudTierDemand(ImmutableComputeTierAllocation.builder()
+                .cloudTierDemand(ImmutableComputeTierDemand.builder()
                         .cloudTierOid(allocationRecord.getAllocatedComputeTierOid())
                         .osType(OSType.forNumber(allocationRecord.getOsType()))
                         .tenancy(Tenancy.forNumber(allocationRecord.getTenancy()))

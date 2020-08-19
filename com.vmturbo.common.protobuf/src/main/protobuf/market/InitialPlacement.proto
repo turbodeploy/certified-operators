@@ -1,0 +1,68 @@
+syntax = "proto2";
+
+package market;
+
+option java_package = "com.vmturbo.common.protobuf.market";
+
+import "plan/ReservationDTO.proto";
+import "topology/TopologyDTO.proto";
+
+message FindInitialPlacementRequest {
+    repeated InitialPlacementBuyer initialPlacementBuyer = 1;
+}
+
+message InitialPlacementBuyer {
+    // The id of reservation entity.
+    optional int64 buyerId = 1;
+
+    // A list of shopping lists.
+    repeated InitialPlacementCommoditiesBoughtFromProvider initialPlacementCommoditiesBoughtFromProvider = 2;
+
+    message InitialPlacementCommoditiesBoughtFromProvider {
+
+        optional int64 commoditiesBoughtFromProviderId = 1;
+
+        // list of commodities bought group
+        optional .topology.TopologyEntityDTO.CommoditiesBoughtFromProvider commoditiesBoughtFromProvider = 2;
+    }
+    // The reservation id, a reservation may contain many reservation entities.
+    optional int64 reservationId = 3;
+}
+
+message InitialPlacementBuyerPlacementInfo {
+
+    optional int64 buyer_id = 1;
+
+    optional int64 commoditiesBoughtFromProviderId = 2;
+
+    oneof initial_placement_result {
+
+        InitialPlacementSuccess initial_placement_success = 3;
+        InitialPlacementFailure initial_placement_failure = 4;
+    }
+}
+
+message InitialPlacementSuccess {
+    required int64 provider_oid = 1;
+}
+
+message InitialPlacementFailure {
+    repeated .plan.InitialPlacementFailureInfo failure_info = 1;
+}
+
+message FindInitialPlacementResponse {
+    repeated InitialPlacementBuyerPlacementInfo initialPlacementBuyerPlacementInfo = 1;
+}
+
+message DeleteInitialPlacementBuyerRequest {
+    repeated int64 buyerId = 1;
+}
+
+message DeleteInitialPlacementBuyerResponse {
+    optional bool result = 1;
+}
+
+service InitialPlacementService {
+    rpc FindInitialPlacement (FindInitialPlacementRequest) returns (FindInitialPlacementResponse);
+    rpc DeleteInitialPlacementBuyer (DeleteInitialPlacementBuyerRequest) returns (DeleteInitialPlacementBuyerResponse);
+}

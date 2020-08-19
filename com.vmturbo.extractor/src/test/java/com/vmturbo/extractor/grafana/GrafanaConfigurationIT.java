@@ -2,7 +2,9 @@ package com.vmturbo.extractor.grafana;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -12,9 +14,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.SQLDialect;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.components.api.test.ResourcePath;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
@@ -22,6 +26,7 @@ import com.vmturbo.components.test.utilities.component.ServiceHealthCheck.BasicS
 import com.vmturbo.extractor.grafana.Grafanon.GrafanonConfig;
 import com.vmturbo.extractor.grafana.client.GrafanaClient;
 import com.vmturbo.extractor.grafana.client.GrafanaClientConfig;
+import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 import com.vmturbo.sql.utils.DbEndpointConfig;
 
 /**
@@ -53,10 +58,9 @@ public class GrafanaConfigurationIT {
     /**
      * Common code to run before the test. Initializes all the dependencies.
      *
-     * @throws Exception When there is an error.
      */
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         final GrafanaClientConfig clientConfig = new GrafanaClientConfig()
                 .setGrafanaHost("localhost")
                 // TODO - dynamic port so we don't crash if there is a local Grafana instance running.
@@ -66,19 +70,22 @@ public class GrafanaConfigurationIT {
         grafanaClient = new GrafanaClient(clientConfig);
 
         dashboardsOnDisk = new DashboardsOnDisk(
-            ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString());
+                ResourcePath.getTestResource(DashboardsOnDisk.class, "dashboards").toString());
 
-
-        DbEndpointConfig endpointConfig = new DbEndpointConfig("extractor");
-        endpointConfig.setDbDatabaseName("mydb");
-        endpointConfig.setDbUserName("me");
-        endpointConfig.setDbPassword("foo");
-        endpointConfig.setDbPort(300);
-        endpointConfig.setDialect(SQLDialect.POSTGRES);
+        final Map<String, String> m = Collections.emptyMap();
+        final DbEndpointCompleter endpointCompleter = new DbEndpointCompleter(m::get, mock(DBPasswordUtil.class));
+        final DbEndpointConfig endpointConfig =
+            endpointCompleter.newEndpointBuilder("extractor", SQLDialect.POSTGRES)
+                .withDbDatabaseName("mydb")
+                .withDbUserName("me")
+                .withDbPassword("foo")
+                .withDbPort(300)
+                .withDbEndpointEnabled(false)
+                .build().getConfig();
 
         GrafanonConfig config = new GrafanonConfig(() -> endpointConfig)
-            .setTimescaleDisplayName("Test Endpoint")
-            .setErrorSleepInterval(10, TimeUnit.SECONDS);
+                .setTimescaleDisplayName("Test Endpoint")
+                .setErrorSleepInterval(10, TimeUnit.SECONDS);
 
         grafanon = new Grafanon(config, dashboardsOnDisk, grafanaClient);
     }
@@ -89,6 +96,7 @@ public class GrafanaConfigurationIT {
      * @throws Exception If there is an error.
      */
     @Test
+    @Ignore
     public void testSaveAndLoadDashboards() throws Exception {
         final RefreshSummary refreshSummary = new RefreshSummary();
         grafanon.initialize();
@@ -96,9 +104,8 @@ public class GrafanaConfigurationIT {
         logger.info(refreshSummary);
 
         final Set<String> expectedUids = new HashSet<>();
-        dashboardsOnDisk.visit(folderData -> {
-            folderData.getDashboardsByUid().keySet().forEach(uid -> expectedUids.add(uid));
-        });
+        dashboardsOnDisk.visit(folderData ->
+                expectedUids.addAll(folderData.getDashboardsByUid().keySet()));
 
         Map<String, Long> dashboards = grafanaClient.dashboardIdsByUid();
         assertThat(dashboards.keySet(), is(expectedUids));

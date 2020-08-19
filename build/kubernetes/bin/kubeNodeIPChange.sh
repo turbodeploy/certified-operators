@@ -7,8 +7,8 @@ then
   exit
 fi
 
-oldIP=${1}
-newIP=${2}
+oldIP=$(grep "externalIP:" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml | awk '{print $2}')
+newIP=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print $2}' | awk -F/ '{print$1}')
 
 usage()
 {
@@ -16,9 +16,59 @@ usage()
   exit -1
 }
 
+pause()
+{
+    key=""
+    echo -n Hit any key to continue....
+    stty -icanon
+    key=`dd count=1 2>/dev/null`
+    stty icanon
+}
+
+ProgressBar()
+{
+# Process data
+  let _progress=(${1}*100/${2}*100)/100
+  let _done=(${_progress}*4)/10
+  let _left=40-$_done
+# Build progressbar string lengths
+  _fill=$(printf "%${_done}s")
+  _empty=$(printf "%${_left}s")
+
+# Build progressbar strings and print the ProgressBar line
+# Output example:
+# Progress : [########################################] 100%
+printf "\rProgress : [${_fill// /#}${_empty// /-}] ${_progress}%%"
+}
+
+# ProgressBar Variables (2 min)
+_start=1
+_end=120
+
 # Test variables are not empty.
 [ -z "${oldIP}" ] && usage
 [ -z "${newIP}" ] && usage
+
+echo "------------------------------------"
+# Show the ip address adjustment
+echo "Old IP Address: ${oldIP}"
+echo "New IP Address: ${newIP}"
+echo "------------------------------------"
+echo
+
+read -p "Is the server information correct? (y/n) " ANSWER
+shopt -s nocasematch
+
+if [[ ${ANSWER} == y ]]
+then
+  echo "**** LAST CHANCE **** "
+  echo "Use ^c to exit"
+  echo "********************* "
+  pause
+else
+  echo "The script will now exit, please enter the proper information."
+  exit 0
+fi
 
 # Adjust current hosts file
 sed -i "s/${oldIP}/${newIP}/g" /etc/hosts
@@ -96,7 +146,13 @@ do
   sleep 5
 done
 
-sleep 120
+# Show progress bar for the 2 min wait
+for number in $(seq ${_start} ${_end})
+do
+    sleep 1
+    ProgressBar ${number} ${_end}
+done
+printf '\nFinished! kubectl apply commands will follow\n'
 
 /usr/local/bin/kubectl apply -f /etc/kubernetes/calico-config.yml -n kube-system
 /usr/local/bin/kubectl apply -f /etc/kubernetes/calico-kube-controllers.yml -n kube-system

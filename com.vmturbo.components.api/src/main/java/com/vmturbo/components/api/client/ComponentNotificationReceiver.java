@@ -8,6 +8,8 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.AbstractMessage;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,9 +43,9 @@ public abstract class ComponentNotificationReceiver<RecvMsg extends AbstractMess
         this.executorService =
                 Objects.requireNonNull(executorService, "Thread pool should not be null");
         if (messageReceiver != null) {
-            messageReceiver.addListener((message, commitCmd) -> {
+            messageReceiver.addListener((message, commitCmd, tracingContext) -> {
                 try {
-                    processMessage(message);
+                    processMessage(message, tracingContext);
                     commitCmd.run();
                 } catch (ApiClientException | InterruptedException e) {
                     logger.error("Error occurred while processing message " +
@@ -57,8 +59,11 @@ public abstract class ComponentNotificationReceiver<RecvMsg extends AbstractMess
      * Process a message received from the server.
      *
      * @param message The received message.
+     * @param tracingContext The distributed tracing span context to propagate distributed traces from
+     *                       notification publishers to receivers.
      */
-    protected abstract void processMessage(@Nonnull final RecvMsg message)
+    protected abstract void processMessage(@Nonnull final RecvMsg message,
+                                           @Nonnull final SpanContext tracingContext)
             throws ApiClientException, InterruptedException;
 
     protected ExecutorService getExecutorService() {

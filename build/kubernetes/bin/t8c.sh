@@ -358,15 +358,12 @@ then
   echo "                   Operator Installation                              "
   echo "######################################################################"
   # See if the operator has an external ip
-  sed -i "s/tag:.*/tag: ${turboVersion}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
-  sed -i "s/tag:.*/tag: ${turboVersion}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-128gb.yaml
+  sed -i "s/tag:.*/tag: ${turboVersion}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
   grep -r "externalIP:" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
   result="$?"
   if [ $result -ne 0 ]; then
     sed -i "/tag:/a\
-\    externalIP: ${node}\n" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
-    sed -i "/tag:/a\
-\    externalIP: ${node}\n" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-128gb.yaml
+\    externalIP: ${node}\n" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
   fi
 
   # Set branding if not turbonomic
@@ -377,24 +374,6 @@ then
     echo "    image:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
     echo "      repository: ${deploymentBrand}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
     echo "      tag: ${turboVersion}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
-
-    # Adjust 32gb installs
-    echo "  api:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-32gb.yaml
-    echo "    image:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-32gb.yaml
-    echo "      repository: ${deploymentBrand}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-32gb.yaml
-    echo "      tag: ${turboVersion}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-32gb.yaml
-
-    # Adjust 64gb installs
-    echo "  api:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
-    echo "    image:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
-    echo "      repository: ${deploymentBrand}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
-    echo "      tag: ${turboVersion}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
-
-    # Adjust 128gb installs
-    sed -i "/api:/a\\
-    image: \\
-      repository: ${deploymentBrand} \\
-      tag: ${turboVersion}\ " /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-128gb.yaml
   fi
 
   # Enable services for gluster
@@ -416,19 +395,21 @@ then
     /opt/local/bin/configure_mariadb.sh
   fi
 
-#  todo: uncomment this block once XLR/search is ready
-#  # Setup timescaledb before bringing up XL components
-#  # Check to see if an external timescaledb is being used. If so, do not run timescaledb locally
-#  egrep "externalTimescaleDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
-#  externalTimescaleDB=$(echo $?)
-#  if [ X${externalTimescaleDB} = X0 ]
-#  then
-#    externalTimescaleDB=$(egrep "externalTimescaleDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml)
-#    echo "The TimescaleDB database is external from this server"
-#    echo "${externalTimescaleDB}"
-#  else
-#    /opt/local/bin/configure_timescaledb.sh
-#  fi
+  # Setup timescaledb before bringing up XL components
+  # ./configure_timescaledb.sh
+  # Check to see if an external timescaledb is being used. If so, do not run timescaledb locally
+  egrep "externalTimescaleDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+  externalTimescaleDB=$(echo $?)
+  if [ X${externalTimescaleDB} = X0 ]
+  then
+    externalTimescaleDB=$(egrep "externalTimescaleDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml)
+    echo "The TimescaleDB database is external from this server"
+    echo "${externalTimescaleDB}"
+  else
+    /opt/local/bin/configure_timescaledb.sh
+    # Create mount point for both pgsql and mariadb
+    /opt/local/bin/switch_dbs_mount_point.sh
+  fi
 
   # Create the operator
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/service_account.yaml -n turbonomic

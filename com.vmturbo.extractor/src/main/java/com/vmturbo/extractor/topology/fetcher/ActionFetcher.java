@@ -13,13 +13,13 @@ import com.google.common.collect.ImmutableSet;
 
 import io.grpc.StatusRuntimeException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import it.unimi.dsi.fastutil.longs.Long2IntArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -54,11 +54,20 @@ public class ActionFetcher extends DataFetcher<Long2IntMap> {
 
     private final long topologyContextId;
 
+    /**
+     * Create a new instance.
+     *
+     * @param actionService     action service endpoint
+     * @param groupData         group data
+     * @param timer             timer
+     * @param consumer          fn to handle fetched action data
+     * @param topologyContextId context id of topology
+     */
     public ActionFetcher(@Nonnull ActionsServiceBlockingStub actionService,
-                         @Nonnull GroupData groupData,
-                         @Nonnull MultiStageTimer timer,
-                         @Nonnull Consumer<Long2IntMap> consumer,
-                         long topologyContextId) {
+            @Nonnull GroupData groupData,
+            @Nonnull MultiStageTimer timer,
+            @Nonnull Consumer<Long2IntMap> consumer,
+            long topologyContextId) {
         super(timer, consumer);
         this.actionService = actionService;
         this.groupData = groupData;

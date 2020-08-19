@@ -16,13 +16,13 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1593624099445,
+  "iteration": 1596205010577,
   "links": [],
   "panels": [
     {
       "columns": [],
       "datasource": "$DB",
-      "description": "Virtual Machines that have been 0% vCPU utilization for the past 72 hours, and the storage used by those VMs. ",
+      "description": "Virtual Machines with 0% vCPU utilization for the selected time period and the storage used by those VMs. ",
       "fieldConfig": {
         "defaults": {
           "custom": {}
@@ -148,6 +148,7 @@
         "name": "DB",
         "options": [],
         "query": "postgres",
+        "queryValue": "",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,

@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -14,7 +15,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.history.BaseGraphRelatedTest;
@@ -70,11 +70,11 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         dbValue.add(Pair.create(0L, createStatRecord(capacity, used1)));
         dbValue.add(Pair.create(1L, createStatRecord(capacity, used2)));
         // in slot2
-        dbValue.add(Pair.create(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS * 12 + 1,
+        dbValue.add(Pair.create(TimeUnit.HOURS.toMillis(12) + 1,
                                 createStatRecord(capacity, used3)));
-        dbValue.add(Pair.create(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS * 12 + 100,
+        dbValue.add(Pair.create(TimeUnit.HOURS.toMillis(12) + 100,
                                 createStatRecord(capacity, used4)));
-        dbValue.add(Pair.create(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS * 36 + 34,
+        dbValue.add(Pair.create(TimeUnit.HOURS.toMillis(36) + 34,
                                 createStatRecord(capacity, used5)));
 
         TimeSlotCommodityData.recordsToSlots(dbValue, slots);
@@ -124,7 +124,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
 
         // advance time by an hour and add a point - previous hour should be accounted for
         final float expectedFirstHourAvg = (float)((used1 + used2) / 2);
-        Mockito.doReturn(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS + 1).when(clock).millis();
+        Mockito.doReturn(TimeUnit.HOURS.toMillis(1) + 1).when(clock).millis();
         Mockito.doReturn(used3).when(accessor).getRealTimeValue(FIELD);
         tcd.aggregate(FIELD, config, context);
         Assert.assertEquals(expectedFirstHourAvg, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
@@ -133,7 +133,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
 
         // advance time by 12 hours and add a point
         final float expectedFirstSlotAvg = (float)((expectedFirstHourAvg + used3) / 2);
-        Mockito.doReturn(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS * 12 + 1).when(clock).millis();
+        Mockito.doReturn(TimeUnit.HOURS.toMillis(12) + 1).when(clock).millis();
         Mockito.doReturn(used4).when(accessor).getRealTimeValue(FIELD);
         tcd.aggregate(FIELD, config, context);
         Assert.assertEquals(expectedFirstSlotAvg, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
@@ -141,7 +141,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         commSold.getHistoricalUsedBuilder().clear();
 
         // and another hour and a point
-        Mockito.doReturn(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS * 13 + 1).when(clock).millis();
+        Mockito.doReturn(TimeUnit.HOURS.toMillis(13) + 1).when(clock).millis();
         Mockito.doReturn(used5).when(accessor).getRealTimeValue(FIELD);
         tcd.aggregate(FIELD, config, context);
         Assert.assertEquals(expectedFirstSlotAvg, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);

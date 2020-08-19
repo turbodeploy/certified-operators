@@ -6,7 +6,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -16,6 +18,9 @@ import com.google.common.collect.Tables;
 
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.api.enums.EntityType;
+import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
+import com.vmturbo.extractor.search.EnumUtils.GroupTypeUtils;
+import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.search.metadata.SearchEntityMetadata;
 import com.vmturbo.search.metadata.SearchGroupMetadata;
@@ -44,8 +49,8 @@ public class SearchMetadataUtils {
     static {
         final Table<Integer, FieldType, List<SearchMetadataMapping>> table = HashBasedTable.create();
         for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
-            int entityType = EnumUtils.entityTypeFromApiToProto(
-                    searchEntityMetadata.getEntityType()).getNumber();
+            int entityType = SearchEntityTypeUtils.apiToProto(searchEntityMetadata.getEntityType())
+                    .getNumber();
             searchEntityMetadata.getMetadataMappingMap().forEach((fieldApiDTO, metadata) -> {
                 List<SearchMetadataMapping> metadataList =
                         table.get(entityType, fieldApiDTO.getFieldType());
@@ -67,11 +72,10 @@ public class SearchMetadataUtils {
 
     static {
         final Table<GroupType, FieldType, List<SearchMetadataMapping>> table = HashBasedTable.create();
-        for (SearchGroupMetadata searchEntityMetadata : SearchGroupMetadata.values()) {
-            GroupType groupType = EnumUtils.groupTypeFromApiToProto(
-                    searchEntityMetadata.getGroupType());
+        for (SearchGroupMetadata searchGroupMetadata : SearchGroupMetadata.values()) {
+            GroupType groupType = GroupTypeUtils.apiToProto(searchGroupMetadata.getGroupType());
 
-            searchEntityMetadata.getMetadataMappingMap().forEach((fieldApiDTO, metadata) -> {
+            searchGroupMetadata.getMetadataMappingMap().forEach((fieldApiDTO, metadata) -> {
                 List<SearchMetadataMapping> metadataList =
                         table.get(groupType, fieldApiDTO.getFieldType());
                 if (metadataList == null) {
@@ -98,10 +102,10 @@ public class SearchMetadataUtils {
         for (SearchGroupMetadata searchGroupMetadata : SearchGroupMetadata.values()) {
             searchGroupMetadata.getMetadataMappingMap().forEach((fieldApiDTO, metadata) -> {
                 if (fieldApiDTO.getFieldType() == FieldType.AGGREGATE_COMMODITY) {
-                    int entityType = EnumUtils.entityTypeFromApiToProto(
-                            metadata.getMemberType()).getNumber();
+                    int entityType = SearchEntityTypeUtils.apiToProto(metadata.getMemberType())
+                            .getNumber();
                     commodityTypesByEntityType.computeIfAbsent(entityType, k -> new HashSet<>())
-                            .add(EnumUtils.commodityTypeFromApiToProtoInt(metadata.getCommodityType()));
+                            .add(CommodityTypeUtils.apiToProto(metadata.getCommodityType()).getNumber());
                 }
             });
         }
@@ -112,10 +116,10 @@ public class SearchMetadataUtils {
                 if (fieldApiDTO.getFieldType() == FieldType.COMMODITY
                         && metadata.getRelatedEntityTypes() != null) {
                     metadata.getRelatedEntityTypes().forEach(apiEntityType -> {
-                        int entityType = EnumUtils.entityTypeFromApiToProto(
-                                apiEntityType).getNumber();
+                        int entityType = SearchEntityTypeUtils.apiToProto(apiEntityType).getNumber();
                         commodityTypesByEntityType.computeIfAbsent(entityType, k -> new HashSet<>())
-                                .add(EnumUtils.commodityTypeFromApiToProtoInt(metadata.getCommodityType()));
+                                .add(CommodityTypeUtils.apiToProto(metadata.getCommodityType())
+                                        .getNumber());
                     });
                 }
             });
@@ -138,16 +142,14 @@ public class SearchMetadataUtils {
     }
 
     /**
-     * Check if there is metadata defined for the given entity type.
-     *
-     * @param entityType type of the entity
-     * @return true if metadata is defined for the entity, otherwise false
+     * primitive metadata fields common to all entity types, which may be applied to entity types
+     * that have no declared metadata.
      */
-    public static boolean hasMetadata(int entityType) {
-        Map<FieldType, List<SearchMetadataMapping>> metadata =
-                METADATA_BY_ENTITY_TYPE_AND_FIELD_TYPE.row(entityType);
-        return metadata != null && !metadata.isEmpty();
-    }
+    public static final List<SearchMetadataMapping> COMMON_PRIMITIVE_METADATA =
+            SearchEntityMetadata.Constants.ENTITY_COMMON_FIELDS.entrySet().stream()
+                    .filter(e -> e.getKey().getFieldType() == FieldType.PRIMITIVE)
+                    .map(Entry::getValue)
+                    .collect(Collectors.toList());
 
     /**
      * Get list of defined metadata for the given group type and field type.
@@ -161,6 +163,18 @@ public class SearchMetadataUtils {
         List<SearchMetadataMapping> metadataMappingList =
                 METADATA_BY_GROUP_TYPE_AND_FIELD_TYPE.get(groupType, fieldType);
         return metadataMappingList != null ? metadataMappingList : Collections.emptyList();
+    }
+
+    /**
+     * Check if there is metadata defined for the given entity type.
+     *
+     * @param entityType type of the entity
+     * @return true if metadata is defined for the entity, otherwise false
+     */
+    public static boolean hasMetadata(int entityType) {
+        Map<FieldType, List<SearchMetadataMapping>> metadata =
+                METADATA_BY_ENTITY_TYPE_AND_FIELD_TYPE.row(entityType);
+        return metadata != null && !metadata.isEmpty();
     }
 
     /**

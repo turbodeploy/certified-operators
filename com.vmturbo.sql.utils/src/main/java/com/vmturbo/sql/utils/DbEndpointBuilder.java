@@ -33,19 +33,25 @@ import com.vmturbo.sql.utils.DbEndpoint.DbEndpointCompleter;
 public class DbEndpointBuilder {
 
     private final DbEndpointConfig config;
+    private final DbEndpointCompleter endpointCompleter;
 
     /**
      * Internal constructor for a new endpoint instance.
      *
-     * <p>Client code should use {@link DbEndpoint#primaryDbEndpoint(SQLDialect)} or
-     * {@link DbEndpoint#secondaryDbEndpoint(String, SQLDialect)} to declare endpoints.</p>
+     * <p>Client code should use {@link SQLDatabaseConfig2#primaryDbEndpoint(SQLDialect)} or
+     * {@link SQLDatabaseConfig2#secondaryDbEndpoint(String, SQLDialect)} to declare endpoints.</p>
      *
      * @param tag     tag for secondary endpoint, or an empty string for primary
      * @param dialect server type, identified by {@link SQLDialect}
+     * @param endpointCompleter The {@link DbEndpointCompleter} that will complete the resulting
+     *                          endpoint when the server is ready.
      */
-    DbEndpointBuilder(@Nonnull final String tag, SQLDialect dialect) {
+    DbEndpointBuilder(@Nonnull final String tag,
+            final SQLDialect dialect,
+            @Nonnull final DbEndpointCompleter endpointCompleter) {
         config = new DbEndpointConfig(Objects.requireNonNull(tag, "Tag should be a string."));
         config.setDialect(dialect);
+        this.endpointCompleter = endpointCompleter;
     }
 
     /**
@@ -59,7 +65,7 @@ public class DbEndpointBuilder {
      * @return a {@link Supplier} that can be used to obtain the fully initialized endpoint
      */
     public DbEndpoint build() {
-        return DbEndpointCompleter.get().register(config);
+        return endpointCompleter.register(config);
     }
 
     /**
@@ -257,6 +263,61 @@ public class DbEndpointBuilder {
         return this;
     }
 
+    /**
+     * Specify that this endpoint is abstract, and will never be operationalized.
+     *
+     * @return this endpoint
+     */
+    public DbEndpointBuilder setAbstract() {
+        config.setDbAbstract();
+        return this;
+    }
+
+    /**
+     * Enable or disable both database and user provisioning for this endpoint.
+     *
+     * @param dbShouldProvision whether database and user provisioning should be done
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withDbShouldProvision(boolean dbShouldProvision) {
+        return withDbShouldProvisionDatabase(dbShouldProvision)
+                .withDbShouldProvisionUser(dbShouldProvision);
+    }
+
+    /**
+     * Enable or disable database provisioning for this endpoint.
+     *
+     * @param shouldProvisionDatabase whether database provisioning should be done
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withDbShouldProvisionDatabase(boolean shouldProvisionDatabase) {
+        config.setDbShouldProvisionDatabase(shouldProvisionDatabase);
+        return this;
+    }
+
+    /**
+     * Enable or disable user provisioning for this endpoint.
+     *
+     * @param shouldProvisionUser whether user provisioning should be done
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withDbShouldProvisionUser(boolean shouldProvisionUser) {
+        config.setDbShouldProvisionUser(shouldProvisionUser);
+        return this;
+    }
+
+    /**
+     * Set a provisioning suffix for this endpoint.
+     *
+     * <p>This is normally used in tests, and affects names of provisioned database objects.</p>
+     *
+     * @param dbProvisioningSuffix provisioning suffix
+     * @return this endpoint
+     */
+    public DbEndpointBuilder withDbProvisioningSuffix(String dbProvisioningSuffix) {
+        config.setDbProvisioningSuffix(dbProvisioningSuffix);
+        return this;
+    }
 
     /**
      * Specify that this endpoint should be configured like another used as a template..

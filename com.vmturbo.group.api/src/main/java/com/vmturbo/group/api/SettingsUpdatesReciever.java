@@ -8,6 +8,8 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -39,11 +41,13 @@ public class SettingsUpdatesReciever extends ComponentNotificationReceiver<Setti
     /**
      * Processes the broadcasted message and forwards it to the correct listener.
      * @param message The received message.
+     * @param tracingContext Distributed tracing context.
      * @throws ApiClientException ApiClientException.
      * @throws InterruptedException InterruptedException.
      */
     @Override
-    protected void processMessage(@Nonnull final SettingNotification message)
+    protected void processMessage(@Nonnull final SettingNotification message,
+                                  @Nonnull final SpanContext tracingContext)
             throws ApiClientException, InterruptedException {
         logger.debug("Settings have been updated. BroadCast a Settings Updated Notification");
         doWithListeners(listener -> listener.onSettingsUpdated(message), message);

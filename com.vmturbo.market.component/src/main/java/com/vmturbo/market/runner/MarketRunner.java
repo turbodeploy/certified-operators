@@ -14,6 +14,8 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -29,9 +31,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
@@ -68,16 +73,20 @@ public class MarketRunner {
             .build()
             .register();
 
+    private final InitialPlacementFinder initialPlacementFinder;
+
     public MarketRunner(@Nonnull final ExecutorService runnerThreadPool,
                         @Nonnull final MarketNotificationSender serverApi,
                         @Nonnull final AnalysisFactory analysisFactory,
                         @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService,
-                        final TopologyProcessingGate topologyProcessingGate) {
+                        final TopologyProcessingGate topologyProcessingGate,
+                        @Nonnull final InitialPlacementFinder initialPlacementFinder) {
         this.runnerThreadPool = Objects.requireNonNull(runnerThreadPool);
         this.serverApi = Objects.requireNonNull(serverApi);
         this.marketDebugRpcService = Objects.requireNonNull(marketDebugRpcService);
         this.analysisFactory = Objects.requireNonNull(analysisFactory);
         this.topologyProcessingGate = Objects.requireNonNull(topologyProcessingGate);
+        this.initialPlacementFinder = Objects.requireNonNull(initialPlacementFinder);
     }
 
     /**
@@ -85,6 +94,7 @@ public class MarketRunner {
      *
      * @param topologyInfo describes this topology, including contextId, id, etc
      * @param topologyDTOs the TopologyEntityDTOs in this topology
+     * @param tracingContext The distributed tracing context for the analysis.
      * @param includeVDC should VDC's be included in the analysis
      * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
      *                              by the market during analysis.
@@ -106,6 +116,7 @@ public class MarketRunner {
     @Nonnull
     public Analysis scheduleAnalysis(@Nonnull final TopologyDTO.TopologyInfo topologyInfo,
                                      @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
+                                     @Nonnull final SpanContext tracingContext,
                                      final boolean includeVDC,
                                      @Nonnull final Optional<Integer> maxPlacementsOverride,
                                      final boolean useQuoteCacheDuringSNM,
@@ -139,7 +150,8 @@ public class MarketRunner {
                         .setReplayProvisionsForRealTime(replayProvisionsForRealTime)
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                        .setDiscountedComputeCostFactor(discountedComputeCostFactor));
+                        .setDiscountedComputeCostFactor(discountedComputeCostFactor),
+                        initialPlacementFinder);
 
             if (!analysis.getTopologyInfo().hasPlanInfo()) {
                 Optional<Setting> disbaleAllActionsSetting = analysis.getConfig()
@@ -178,7 +190,12 @@ public class MarketRunner {
         analysis.queued();
         runnerThreadPool.execute(() -> {
             try (Ticket ticket = topologyProcessingGate.enter(topologyInfo, topologyDTOs)) {
-                runAnalysis(analysis);
+                try (TracingScope scope = Tracing.trace("analysis", tracingContext)
+                    .tag("context_id", topologyInfo.getTopologyContextId())
+                    .tag("topology_id", topologyId)
+                    .tag("topology_size", topologyDTOs.size())) {
+                    runAnalysis(analysis);
+                }
             } catch (InterruptedException e) {
                 logger.error("Analysis of topology {} interrupted while waiting to start.",
                     topologyInfo);

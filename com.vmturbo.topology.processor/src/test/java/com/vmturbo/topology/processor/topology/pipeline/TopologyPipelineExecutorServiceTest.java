@@ -7,7 +7,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,23 +32,21 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineException;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.PlanPipelineQueue;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.RealtimePipelineQueue;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.TopologyPipelineQueue;
@@ -106,7 +103,6 @@ public class TopologyPipelineExecutorServiceTest {
             mockEntityStore,
             mockNotificationSender,
             targetStore,
-            false,
             MAX_BLOCK_TIME, TimeUnit.MILLISECONDS);
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
@@ -289,72 +285,6 @@ public class TopologyPipelineExecutorServiceTest {
         assertThat(pipelineRunnableCaptor.getValue().runPipeline(), is(expectedBroadcastInfo));
     }
 
-    /**
-     * Test that the when useReservationPipeline is false, we run the regular plan pipeline for
-     * a reservation plan.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testRunReservationPipelineFlagFalse() throws Exception {
-        final TopologyInfo reservationTopoInfo = topologyInfo.toBuilder()
-                .setPlanInfo(PlanTopologyInfo.newBuilder()
-                    .setPlanProjectType(PlanProjectType.RESERVATION_PLAN))
-                .build();
-        final TopologyBroadcastInfo expectedBroadcastInfo = mock(TopologyBroadcastInfo.class);
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline = mock(TopologyPipeline.class);
-        when(pipeline.getTopologyInfo()).thenReturn(topologyInfo);
-        when(pipeline.run(mockEntityStore)).thenReturn(expectedBroadcastInfo);
-        when(mockPlanPipelineFactory.planOverLiveTopology(reservationTopoInfo, SCENARIO_CHANGES, PLAN_SCOPE, JOURNAL_FACTORY))
-            .thenReturn(pipeline);
-
-        // Run
-        pipelineExecutorService.queuePlanPipeline(
-            reservationTopoInfo, SCENARIO_CHANGES, PLAN_SCOPE, JOURNAL_FACTORY);
-
-        verify(mockPlanPipelineFactory).planOverLiveTopology(reservationTopoInfo, SCENARIO_CHANGES, PLAN_SCOPE, JOURNAL_FACTORY);
-        verify(mockPlanPipelineFactory, never()).reservationPipeline(reservationTopoInfo, SCENARIO_CHANGES, PLAN_SCOPE, JOURNAL_FACTORY);
-    }
-
-    /**
-     * Test that the when useReservationPipeline is true, we run the reservation pipeline for
-     * a reservation plan.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test
-    public void testRunReservationPipelineFlagTrue() throws Exception {
-        final TopologyInfo reservationTopoInfo = topologyInfo.toBuilder()
-            .setPlanInfo(PlanTopologyInfo.newBuilder()
-                .setPlanProjectType(PlanProjectType.RESERVATION_PLAN))
-            .build();
-        final TopologyBroadcastInfo expectedBroadcastInfo = mock(TopologyBroadcastInfo.class);
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline = mock(TopologyPipeline.class);
-        when(pipeline.getTopologyInfo()).thenReturn(topologyInfo);
-        when(pipeline.run(mockEntityStore)).thenReturn(expectedBroadcastInfo);
-        when(mockPlanPipelineFactory.reservationPipeline(reservationTopoInfo, SCENARIO_CHANGES, PLAN_SCOPE, JOURNAL_FACTORY))
-            .thenReturn(pipeline);
-
-        TopologyPipelineExecutorService executorServiceWithReservationPipeline =
-            new TopologyPipelineExecutorService(CONCURRENT_PLANS_ALLOWED,
-                mockPlanExecutorService,
-                mockRealtimeExecutorService,
-                mockPlanQueue,
-                mockRealtimeQueue,
-                mockLivePipelineFactory,
-                mockPlanPipelineFactory,
-                mockEntityStore,
-                mockNotificationSender,
-                targetStore,
-                // Set this to true.
-                true, MAX_BLOCK_TIME, TimeUnit.MILLISECONDS);
-        // Run
-        executorServiceWithReservationPipeline.queuePlanPipeline(
-            reservationTopoInfo, SCENARIO_CHANGES, PLAN_SCOPE, JOURNAL_FACTORY);
-
-        verify(mockPlanPipelineFactory).reservationPipeline(reservationTopoInfo, SCENARIO_CHANGES, PLAN_SCOPE, JOURNAL_FACTORY);
-        verify(mockPlanPipelineFactory, never()).planOverLiveTopology(reservationTopoInfo, SCENARIO_CHANGES, PLAN_SCOPE, JOURNAL_FACTORY);
-    }
 
     /**
      * Test running the "plan over plan" pipeline.
@@ -516,8 +446,8 @@ public class TopologyPipelineExecutorServiceTest {
      */
     @Test
     public void testPipelineRequestPipelineException() throws Exception {
-        final TopologyPipelineException exception =
-            new TopologyPipelineException("BOO", new IllegalStateException("Boa"));
+        final PipelineException exception =
+            new PipelineException("BOO", new IllegalStateException("Boa"));
 
         final TopologyPipelineRunnable pipelineRunnable = mock(TopologyPipelineRunnable.class);
         when(pipelineRunnable.runPipeline()).thenThrow(exception);
@@ -530,7 +460,7 @@ public class TopologyPipelineExecutorServiceTest {
         try {
             pipelineRequest.waitForBroadcast(1, TimeUnit.MILLISECONDS);
             Assert.fail("Expected exception.");
-        } catch (TopologyPipelineException e) {
+        } catch (PipelineException e) {
             assertThat(e, is(exception));
         }
     }
@@ -603,8 +533,8 @@ public class TopologyPipelineExecutorServiceTest {
      */
     @Test
     public void testPipelineFailSendSummary() throws Exception {
-        final TopologyPipelineException exception =
-            new TopologyPipelineException("Bad Pipe!", new Exception());
+        final PipelineException exception =
+            new PipelineException("Bad Pipe!", new Exception("exception"));
 
         final TopologyPipelineRequest request = new TopologyPipelineRequest(() -> {
                 throw exception;
@@ -618,7 +548,7 @@ public class TopologyPipelineExecutorServiceTest {
             // Wait for results - should return immediately.
             request.waitForBroadcast(1, TimeUnit.MILLISECONDS);
             Assert.fail("Expected pipeline exception.");
-        } catch (TopologyPipelineException e) {
+        } catch (PipelineException e) {
             assertThat(e, is(exception));
             final ArgumentCaptor<TopologySummary> summaryCapture =
                 ArgumentCaptor.forClass(TopologySummary.class);
@@ -626,7 +556,7 @@ public class TopologyPipelineExecutorServiceTest {
             TopologySummary broadcastSummary = summaryCapture.getValue();
             assertThat(broadcastSummary.getTopologyInfo(), is(topologyInfo));
             assertThat(broadcastSummary.getFailure().getErrorDescription(),
-                containsString(exception.getMessage()));
+                containsString(exception.getCause().getMessage()));
         }
     }
 
@@ -638,7 +568,7 @@ public class TopologyPipelineExecutorServiceTest {
      */
     @Test
     public void testPipelineWorkerInterruptedSendSummary() throws Exception {
-        final InterruptedException exception = new InterruptedException();
+        final InterruptedException exception = new InterruptedException("exception");
 
         final TopologyPipelineRequest request = new TopologyPipelineRequest(() -> {
             throw exception;
@@ -653,7 +583,7 @@ public class TopologyPipelineExecutorServiceTest {
         // Run
         try {
             request.waitForBroadcast(1, TimeUnit.MINUTES);
-        } catch (TopologyPipelineException e) {
+        } catch (PipelineException e) {
             if (e.getCause() instanceof InterruptedException) {
                 assertThat(e.getCause(), is(exception));
                 final ArgumentCaptor<TopologySummary> summaryCapture =
@@ -662,7 +592,7 @@ public class TopologyPipelineExecutorServiceTest {
                 TopologySummary broadcastSummary = summaryCapture.getValue();
                 assertThat(broadcastSummary.getTopologyInfo(), is(topologyInfo));
                 assertThat(broadcastSummary.getFailure().getErrorDescription(),
-                    containsString("interrupt"));
+                    containsString(exception.getMessage()));
             } else {
                 throw e;
             }

@@ -198,7 +198,7 @@ public class IdentityProviderImplTest {
                                 .addNonVolatileProperties(PropertyMetadata.newBuilder().setName("id")))
                 .addEntityMetadata(
                         EntityIdentityMetadata.newBuilder()
-                                .setEntityType(EntityType.APPLICATION)
+                                .setEntityType(EntityType.APPLICATION_COMPONENT)
                                 .addNonVolatileProperties(PropertyMetadata.newBuilder().setName("id")))
                 .build();
         long probeId = identityProvider.getProbeId(probeInfo);
@@ -208,7 +208,7 @@ public class IdentityProviderImplTest {
                 .setId(SAME_ID)
                 .build();
         EntityDTO appEntity = EntityDTO.newBuilder(vmEntity)
-            .setEntityType(EntityType.APPLICATION)
+            .setEntityType(EntityType.APPLICATION_COMPONENT)
             .setDisplayName(SAME_ID)
             .build();
         // act - compute the IDs for the VM and for the APP Entities

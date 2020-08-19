@@ -111,7 +111,7 @@ public class ExplanationComposer {
     private ExplanationComposer() {}
 
     /**
-     * Compose short explanations for an action. The short explanation does not contain commodity
+     * Compose risks (short explanations) for an action. The short explanation does not contain commodity
      * keys or entity names/ids, and does not require translation. The short explanation can be
      * used where we don't want entity-specific information in the explanation (e.g. as a group
      * criteria for action stats), or in other places where full details are not necessary.
@@ -121,7 +121,7 @@ public class ExplanationComposer {
      */
     @Nonnull
     @VisibleForTesting
-    public static Set<String> composeShortExplanation(@Nonnull ActionDTO.Action action) {
+    public static Set<String> composeRelatedRisks(@Nonnull ActionDTO.Action action) {
         return internalComposeExplanation(action, true, Collections.emptyMap());
     }
 
@@ -578,15 +578,22 @@ public class ExplanationComposer {
 
             String resizeExplanation;
 
-            final String commodityType = commodityDisplayName(resize.getCommodityType(), keepItShort)
+            CommodityType commType = resize.getCommodityType();
+            final String commodityType = commodityDisplayName(commType, keepItShort)
                     + (resize.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
 
-            final boolean isResizeDown = action.getInfo().getResize().getOldCapacity()
-                                            > action.getInfo().getResize().getNewCapacity();
+            String commString = commodityType;
+            if (commType.getType() == CommodityDTO.CommodityType.VCPU_VALUE
+                    || commType.getType() == CommodityDTO.CommodityType.VMEM_VALUE)    {
+                commString = commodityType + " Limit";
+            }
+
+            final boolean isResizeDown = resize.getOldCapacity() > resize.getNewCapacity();
+
             if (isResizeDown) {
-                resizeExplanation = UNDERUTILIZED_EXPLANATION + commodityType;
+                resizeExplanation = UNDERUTILIZED_EXPLANATION + commString;
             } else {
-                resizeExplanation = commodityType + CONGESTION_EXPLANATION;
+                resizeExplanation = commString + CONGESTION_EXPLANATION;
             }
 
             StringBuilder sb = new StringBuilder();

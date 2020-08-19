@@ -3,7 +3,6 @@ package com.vmturbo.history.stats.projected;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -15,13 +14,16 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
+import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
+
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 
 /**
@@ -35,6 +37,11 @@ import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceInde
 public
 class TopologyCommoditiesSnapshot {
 
+    /**
+     * 0 is not a valid id, so we use it to represent "no provider".
+     */
+    static final long NO_PROVIDER_ID = 0L;
+
     private final SoldCommoditiesInfo soldCommoditiesInfo;
     private final BoughtCommoditiesInfo boughtCommoditiesInfo;
     private final EntityCountInfo entityCountInfo;
@@ -44,9 +51,10 @@ class TopologyCommoditiesSnapshot {
     /**
      * Create a new default factory for instances of {@link TopologyCommoditiesSnapshot}.
      *
+     * @param excludedCommodities The names of commodities to exclude from the snapshot.
      * @return The factory to use to create instances.
      */
-    static TopologyCommoditiesSnapshotFactory newFactory() {
+    static TopologyCommoditiesSnapshotFactory newFactory(Set<String> excludedCommodities) {
         return new TopologyCommoditiesSnapshotFactory() {
             @Nonnull
             @Override
@@ -54,7 +62,7 @@ class TopologyCommoditiesSnapshot {
                         @Nonnull final RemoteIterator<ProjectedTopologyEntity> entities,
                         @Nonnull final PriceIndexSnapshotFactory priceIndexSnapshotFactory)
                     throws InterruptedException, TimeoutException, CommunicationException {
-                return new TopologyCommoditiesSnapshot(entities, priceIndexSnapshotFactory);
+                return new TopologyCommoditiesSnapshot(entities, excludedCommodities, priceIndexSnapshotFactory);
             }
         };
     }
@@ -73,9 +81,10 @@ class TopologyCommoditiesSnapshot {
     }
 
     private TopologyCommoditiesSnapshot(@Nonnull final RemoteIterator<ProjectedTopologyEntity> entities,
+                                        @Nonnull final Set<String> excludedCommodities,
                                         @Nonnull final PriceIndexSnapshotFactory priceIndexSnapshotFactory)
             throws InterruptedException, TimeoutException, CommunicationException {
-        Builder builder = new Builder();
+        Builder builder = new Builder(excludedCommodities);
         while (entities.hasNext()) {
             entities.nextChunk().forEach(builder::addProjectedEntity);
         }
@@ -196,14 +205,22 @@ class TopologyCommoditiesSnapshot {
      * Builder to construct a {@link TopologyCommoditiesSnapshot} entity-by-entity.
      */
     public static class Builder {
-        final SoldCommoditiesInfo.Builder soldCommoditiesBuilder =
-            SoldCommoditiesInfo.newBuilder();
-        final BoughtCommoditiesInfo.Builder boughtCommoditiesBuilder =
-            BoughtCommoditiesInfo.newBuilder();
+        final SoldCommoditiesInfo.Builder soldCommoditiesBuilder;
+        final BoughtCommoditiesInfo.Builder boughtCommoditiesBuilder;
         final EntityCountInfo.Builder entityCountBuilder = EntityCountInfo.newBuilder();
         long numEntities = 0;
 
-        final Map<Long, Double> projectedPriceIndexByEntity = new HashMap<>();
+        final Long2DoubleMap projectedPriceIndexByEntity = new Long2DoubleOpenHashMap();
+
+        /**
+         * Create a new snapshot {@link Builder}.
+         *
+         * @param excludedCommodityNames The commodities to exclude from the resulting snapshot.
+         */
+        public Builder(@Nonnull final Set<String> excludedCommodityNames) {
+            soldCommoditiesBuilder = SoldCommoditiesInfo.newBuilder(excludedCommodityNames);
+            boughtCommoditiesBuilder = BoughtCommoditiesInfo.newBuilder(excludedCommodityNames);
+        }
 
         /**
          * Incorporated an entity into the snapshot under construction.

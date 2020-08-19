@@ -4,7 +4,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -161,7 +160,7 @@ public class SettingStoreTest {
                         settingsUpdatesSender);
         groupStore = new GroupDAO(dbConfig.getDslContext());
         scheduleStore = new ScheduleStore(dbConfig.getDslContext(), scheduleValidator,
-            identityProviderSpy, settingStore);
+            identityProviderSpy);
     }
 
     /**
@@ -218,7 +217,7 @@ public class SettingStoreTest {
     @Test
     public void testCreateInvalidSetting() throws Exception {
         doThrow(new InvalidItemException("ERROR"))
-            .when(settingPolicyValidator).validateSettingPolicy(any(), any());
+            .when(settingPolicyValidator).validateSettingPolicy(any(), any(), any());
         expectedException.expect(StoreOperationException.class);
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
             Collections.singleton(userPolicy));
@@ -414,6 +413,19 @@ public class SettingStoreTest {
             settingStore.getSettingPolicy(dbConfig.getDslContext(), updatedSavedPolicy.getId());
         assertTrue(refetchedUpdatedSavedPolicy.isPresent());
         assertEquals(scheduleId2, refetchedUpdatedSavedPolicy.get().getInfo().getScheduleId());
+
+        updatedInfoWithSchedule = refetchedUpdatedSavedPolicy.get().getInfo().toBuilder()
+            .clearScheduleId().build();
+        updatedPolicy = policy.toBuilder().setInfo(updatedInfoWithSchedule).build();
+        updatedSavedPolicy = settingStore.updateSettingPolicy(savedPolicy.get().getId(),
+            updatedInfoWithSchedule).getFirst();
+        assertEquals(updatedPolicy, updatedSavedPolicy);
+        assertFalse(updatedSavedPolicy.getInfo().hasScheduleId());
+        refetchedUpdatedSavedPolicy =
+            settingStore.getSettingPolicy(dbConfig.getDslContext(), updatedSavedPolicy.getId());
+        assertTrue(refetchedUpdatedSavedPolicy.isPresent());
+        assertFalse(refetchedUpdatedSavedPolicy.get().getInfo().hasScheduleId());
+
     }
 
     /**
@@ -441,7 +453,7 @@ public class SettingStoreTest {
             Collections.singleton(userPolicy));
 
         doThrow(new InvalidItemException("")).when(settingPolicyValidator)
-                .validateSettingPolicy(eq(updatedInfo), any());
+                .validateSettingPolicy(any(), eq(updatedInfo), any());
 
         expectedException.expect(StoreOperationException.class);
         settingStore.updateSettingPolicy(userPolicy.getId(), updatedInfo);
@@ -732,76 +744,6 @@ public class SettingStoreTest {
 
         Collection<SettingSpec> retrievedSettingSpecs = settingSpecStore.getAllSettingSpecs();
         assertEquals(retrievedSettingSpecs.size(), 5);
-    }
-
-
-    /**
-     * Test get setting policies using schedule.
-     *
-     * @throws Exception If any exceptions thrown during test execution.
-     */
-    @Test
-    public void testGetSettingPoliciesUsingSchedule() throws Exception {
-        final Schedule schedule1 = createSchedule("Test schedule1");
-        final Schedule savedSchedule = scheduleStore.createSchedule(schedule1);
-        assertTrue(savedSchedule.hasId());
-
-        // No policies using this schedule yet
-        Collection<SettingPolicy> settingPolicies =
-            settingStore.getSettingPoliciesUsingSchedule(dbConfig.getDslContext(),
-                savedSchedule.getId());
-        assertTrue(settingPolicies.isEmpty());
-
-        final SettingPolicy policy1 = SettingPolicy.newBuilder()
-            .setId(identityProviderSpy.next())
-            .setInfo(info)
-            .setSettingPolicyType(Type.USER)
-            .build();
-        settingStore.createSettingPolicies(dbConfig.getDslContext(),
-            Collections.singleton(policy1));
-        // TODO
-        assertTrue(policy1.hasId());
-        scheduleStore.assignScheduleToSettingPolicy(policy1.getId(), savedSchedule.getId());
-
-        final SettingPolicyInfo info2 = info.toBuilder().setName("test2").build();
-        final SettingPolicy policy2 = SettingPolicy.newBuilder()
-            .setId(identityProviderSpy.next())
-            .setInfo(info2)
-            .setSettingPolicyType(Type.USER)
-            .build();
-        settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy2));
-
-        // TODO
-        assertTrue(policy2.hasId());
-        assertNotEquals(policy1.getId(), policy2.getId());
-        scheduleStore.assignScheduleToSettingPolicy(policy2.getId(), savedSchedule.getId());
-
-        // Now 2 policies should be using this schedule
-        settingPolicies = settingStore.getSettingPoliciesUsingSchedule(dbConfig.getDslContext(),
-            savedSchedule.getId());
-        assertEquals(2, settingPolicies.size());
-        settingPolicies.forEach(sPolicy -> assertTrue(sPolicy.getInfo().hasScheduleId()));
-
-        // Add 1 more policy without schedule
-        final SettingPolicyInfo info3 = info.toBuilder().setName("test3").build();
-        final SettingPolicy policy3 = SettingPolicy.newBuilder()
-            .setId(identityProviderSpy.next())
-            .setInfo(info3)
-            .setSettingPolicyType(Type.USER)
-            .build();
-        // TODO
-        settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy3));
-        assertTrue(policy3.hasId());
-
-        final Collection<SettingPolicy> allPolicies = settingStore.getSettingPolicies(dbConfig.getDslContext(),
-            SettingPolicyFilter.newBuilder().build());
-        assertEquals(3, allPolicies.size());
-
-        // Still 2 policies should be using this schedule
-        settingPolicies = settingStore.getSettingPoliciesUsingSchedule(dbConfig.getDslContext(),
-            savedSchedule.getId());
-        assertEquals(2, settingPolicies.size());
-        settingPolicies.forEach(sPolicy -> assertTrue(sPolicy.getInfo().hasScheduleId()));
     }
 
     private static final String NAME = "foo";

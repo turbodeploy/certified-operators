@@ -55,17 +55,11 @@ public class UpdateNaturalTemplatesTest {
         vms.add(new SMAVirtualMachine(10003L, "name:10003", SMAUtils.NO_GROUP_ID, businessAccount, large, Arrays.asList(new SMATemplate[]{medium, xlarge, large}), 0, zone, SMAUtils.BOGUS_RI, OSType.UNKNOWN_OS));
         vms.add(new SMAVirtualMachine(10004L, "name:10004", SMAUtils.NO_GROUP_ID, businessAccount, medium, Arrays.asList(new SMATemplate[]{xlarge}), 0, zone, SMAUtils.BOGUS_RI, OSType.UNKNOWN_OS));
         vms.add(new SMAVirtualMachine(10005L, "name:10005", SMAUtils.NO_GROUP_ID, businessAccount, medium, Arrays.asList(new SMATemplate[]{}), 0, zone, SMAUtils.BOGUS_RI, OSType.UNKNOWN_OS));
-        vms.get(0).updateNaturalTemplateAndMinCostProviderPerFamily();
         Assert.assertThat(vms.get(0).getNaturalTemplate(), sameInstance(small));
-        vms.get(1).updateNaturalTemplateAndMinCostProviderPerFamily();
         Assert.assertThat(vms.get(1).getNaturalTemplate(), sameInstance(small2));
-        vms.get(2).updateNaturalTemplateAndMinCostProviderPerFamily();
         Assert.assertThat(vms.get(2).getNaturalTemplate(), isOneOf(small, small2));
-        vms.get(3).updateNaturalTemplateAndMinCostProviderPerFamily();
         Assert.assertThat(vms.get(3).getNaturalTemplate(), sameInstance(medium));
-        vms.get(4).updateNaturalTemplateAndMinCostProviderPerFamily();
         Assert.assertThat(vms.get(4).getNaturalTemplate(), sameInstance(xlarge));
-        vms.get(5).updateNaturalTemplateAndMinCostProviderPerFamily();
         Assert.assertThat(vms.get(5).getNaturalTemplate(), sameInstance(medium));
     }
 }

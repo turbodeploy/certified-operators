@@ -8,7 +8,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -132,16 +131,6 @@ public class WastedFilesAnalysis {
         logger.info("{} Started", logPrefix);
         try {
             try (final DataMetricTimer scopingTimer = Metrics.WASTED_FILES_SUMMARY.startTimer()) {
-                // create a set of storage OIDs for which we want to ignore wasted files
-                final Set<Long> storagesToIgnoreWastedFiles = topologyDTOs.values().stream()
-                    .filter(topoEntity -> topoEntity.getEntityType() == EntityType.STORAGE_VALUE)
-                    .filter(topoEntity -> topoEntity.hasTypeSpecificInfo()
-                        && topoEntity.getTypeSpecificInfo().hasStorage())
-                    .filter(topoEntity -> topoEntity.getTypeSpecificInfo().getStorage()
-                        .getIgnoreWastedFiles())
-                    .map(TopologyEntityDTO::getOid)
-                    .collect(Collectors.toSet());
-
                 // create a map by OID of all virtual volumes that have file data and are connected to
                 // Storages or StorageTiers
                 final Map<Long, TopologyEntityDTO> wastedFilesMap = topologyDTOs.values().stream()
@@ -150,8 +139,6 @@ public class WastedFilesAnalysis {
                     .filter(topoEntity -> topoEntity.getTypeSpecificInfo().hasVirtualVolume())
                     .filter(topoEntity -> getStorageAmountCapacity(topoEntity) > 0
                         || topoEntity.getTypeSpecificInfo().getVirtualVolume().getFilesCount() > 0)
-                    .filter(topoEntity -> getVolumeProviders(topoEntity)
-                        .anyMatch(providerId -> !storagesToIgnoreWastedFiles.contains(providerId)))
                     // only include those which are "deletable" from setting
                     .filter(topoEntity -> topoEntity.hasAnalysisSettings() &&
                                           topoEntity.getAnalysisSettings().getDeletable())
@@ -186,32 +173,6 @@ public class WastedFilesAnalysis {
                         == CommodityType.STORAGE_AMOUNT.getNumber())
                 .map(CommoditySoldDTO::getCapacity)
                 .findAny().orElse(0D);
-    }
-
-    /**
-     * Get volume providers. For on prem case, the result contains storages connected to the
-     * volume. For cloud case, the result contains storage tiers selling commodities to
-     * the volume.
-     *
-     * @param volume Virtual volume.
-     * @return Stream of OIDs of volume providers (Storages or Storage Tiers).
-     */
-    private static Stream<Long> getVolumeProviders(@Nonnull final TopologyEntityDTO volume) {
-        // Get storages connected to the volume (on prem case)
-        final Stream<Long> connectedStorages = volume.getConnectedEntityListList().stream()
-                .filter(ConnectedEntity::hasConnectedEntityType)
-                .filter(connEntity -> connEntity.getConnectedEntityType()
-                        == EntityType.STORAGE_VALUE)
-                .map(ConnectedEntity::getConnectedEntityId);
-
-        // Get storage tiers selling commodities to the volume (cloud case)
-        final Stream<Long> consumedStorageTiers = volume.getCommoditiesBoughtFromProvidersList()
-                .stream()
-                .filter(commBought -> commBought.getProviderEntityType()
-                        == EntityType.STORAGE_TIER_VALUE)
-                .map(CommoditiesBoughtFromProvider::getProviderId);
-
-        return Streams.concat(connectedStorages, consumedStorageTiers);
     }
 
     /**
@@ -330,17 +291,14 @@ public class WastedFilesAnalysis {
             return Collections.emptyList();
         }
 
+        Optional<Long> optStorageOrStorageTierOid = TopologyDTOUtil.getVolumeProvider(volume);
+        if (!optStorageOrStorageTierOid.isPresent()) {
+            return Collections.emptyList();
+        }
+        final Long storageOrStorageTierOid = optStorageOrStorageTierOid.get();
+
         if (volume.getEnvironmentType() != EnvironmentType.ON_PREM) {
             // handle cloud case
-            final Long storageTierOid = volume.getCommoditiesBoughtFromProvidersList().stream()
-                    .filter(commBought -> commBought.getProviderEntityType()
-                            == EntityType.STORAGE_TIER.getNumber())
-                    .map(CommoditiesBoughtFromProvider::getProviderId)
-                    .findAny().orElse(null);
-            if (storageTierOid == null) {
-                return Collections.emptyList();
-            }
-
             Optional<CostJournal<TopologyDTO.TopologyEntityDTO>> costJournalOpt =
                 this.cloudCostCalculator.calculateCostForEntity(this.originalCloudTopology, volume);
 
@@ -352,7 +310,7 @@ public class WastedFilesAnalysis {
                 logger.debug("Unable to get cost for volume {}", volume.getDisplayName());
             }
             return Collections.singletonList(newActionFromVolume(
-                    volume.getOid(), EntityType.VIRTUAL_VOLUME, storageTierOid,
+                    volume.getOid(), EntityType.VIRTUAL_VOLUME, storageOrStorageTierOid,
                     EntityType.STORAGE_TIER, null, volume.getEnvironmentType())
                 .setExplanation(Explanation.newBuilder().setDelete(DeleteExplanation.newBuilder()
                     .setSizeKb((long)getStorageAmountCapacity(volume))))
@@ -360,18 +318,13 @@ public class WastedFilesAnalysis {
                 .build());
         } else {
             // handle ON_PREM
-            final Optional<Long> storageOid = TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
-                EntityType.STORAGE.getNumber()).findFirst();
-            if (!storageOid.isPresent()) {
-                return Collections.emptyList();
-            }
             // TODO add a setting to control the minimum file size.  For now, use 1MB
             return volume.getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
                 .filter(vvfd -> vvfd.getSizeKb() > Units.KBYTE)
                 .map(vvfd -> {
-                    storageToStorageAmountReleasedMap.merge(storageOid.get(),
+                    storageToStorageAmountReleasedMap.merge(storageOrStorageTierOid,
                         vvfd.getSizeKb(), (v1, v2) -> v1 + v2);
-                    return newActionFromFile(storageOid.get(), vvfd, volume.getEnvironmentType())
+                    return newActionFromFile(storageOrStorageTierOid, vvfd, volume.getEnvironmentType())
                         .build();
                 })
             .collect(Collectors.toList());

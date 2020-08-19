@@ -169,6 +169,8 @@ public class PricingRpcService extends PricingServiceImplBase {
                             updateRISpecsAndBuildRIPriceTable(probePriceData.riSpecPrices);
                     reservedInstanceBoughtStore.updateRIBoughtFromRIPriceList(ImmutableMap.copyOf(
                             riPriceTable.getRiPricesBySpecIdMap()));
+                    logger.info("Saving price table with price table key {} and checksum {}",
+                            priceTableKey, probePriceData.checksum);
                     tablesByProbeType.put(
                             priceTableKey,
                             new PriceTables(probePriceData.priceTable,

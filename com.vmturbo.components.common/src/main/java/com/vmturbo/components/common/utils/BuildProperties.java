@@ -41,6 +41,7 @@ public class BuildProperties {
     private static final String BRANCH = PREFIX + ".branch";
     private static final String DIRTY = PREFIX + ".dirty";
     private static final String VERSION = PREFIX + ".build.version";
+    private static final String BUILD_NUMBER = PREFIX + ".commit.time";
     private static final String BUILD_TIME = PREFIX + ".build.time";
     private static final String COMMIT_ID = PREFIX + ".commit.id";
     private static final String SHORT_COMMIT_ID = COMMIT_ID + ".abbrev";
@@ -51,6 +52,7 @@ public class BuildProperties {
      */
     private final String branch;
     private final String version;
+    private final String buildNumber;
     private final String buildTime;
     private final String commitId;
     private final String shortCommitId;
@@ -84,6 +86,7 @@ public class BuildProperties {
 
         branch = Optional.ofNullable(properties.getProperty(BRANCH)).orElse(UNKNOWN);
         version = Optional.ofNullable(properties.getProperty(VERSION)).orElse(UNKNOWN);
+        buildNumber = Optional.ofNullable(properties.getProperty(BUILD_NUMBER)).orElse(UNKNOWN);
         buildTime = Optional.ofNullable(properties.getProperty(BUILD_TIME)).orElse(UNKNOWN);
         commitId = Optional.ofNullable(properties.getProperty(COMMIT_ID)).orElse(UNKNOWN);
         shortCommitId = Optional.ofNullable(properties.getProperty(SHORT_COMMIT_ID)).orElse(UNKNOWN);
@@ -98,6 +101,11 @@ public class BuildProperties {
     @Nonnull
     public String getVersion() {
         return version;
+    }
+
+    @Nonnull
+    public String getBuildNumber() {
+        return buildNumber;
     }
 
     @Nonnull
@@ -129,6 +137,7 @@ public class BuildProperties {
         return ComponentStatus.BuildProperties.newBuilder()
             .setBranch(branch)
             .setVersion(version)
+            .setBuildNumber(buildNumber)
             .setBuildTime(buildTime)
             .setCommitId(shortCommitId)
             .setIsDirty(dirty)

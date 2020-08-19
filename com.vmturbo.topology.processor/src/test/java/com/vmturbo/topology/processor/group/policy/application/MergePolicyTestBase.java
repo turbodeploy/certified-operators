@@ -36,6 +36,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.policy.PolicyMatcher;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * Base test class for merge policy.
@@ -398,7 +399,7 @@ public class MergePolicyTestBase {
     }
 
     protected void applyPolicy(@Nonnull final MergePolicy mergePolicy) {
-        final MergePolicyApplication application = new MergePolicyApplication(groupResolver, topologyGraph);
+        final MergePolicyApplication application = new MergePolicyApplication(groupResolver, topologyGraph, new TopologyInvertedIndexFactory());
         application.apply(Collections.singletonList(mergePolicy));
     }
 }

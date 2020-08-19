@@ -292,9 +292,8 @@ public class GroupsServiceTest {
         Mockito.when(groupMapper.toGroupApiDto(Mockito.any(), Mockito.anyBoolean(), Mockito.any(),
                 Mockito.any())).thenAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            final List<GroupAndMembers> groups = (List<GroupAndMembers>)invocation.getArguments()[0];
+            final List<Grouping> groups = (List<Grouping>)invocation.getArguments()[0];
             final List<GroupApiDTO> result = groups.stream()
-                    .map(GroupAndMembers::group)
                     .map(Grouping::getId)
                     .map(mappedGroups::get)
                     .collect(Collectors.toList());
@@ -385,11 +384,6 @@ public class GroupsServiceTest {
         final GroupApiDTO apiGroup = new GroupApiDTO();
         apiGroup.setDisplayName("minion");
         final Grouping xlGroup = Grouping.newBuilder().setId(1).build();
-        final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
-            .group(xlGroup)
-            .members(Collections.singleton(1L))
-            .entities(Collections.singleton(1L))
-            .build();
         Mockito.when(groupMapper.groupsToGroupApiDto(Collections.singletonList(xlGroup), true))
                 .thenReturn(Collections.singletonMap(1L, apiGroup));
 
@@ -424,10 +418,10 @@ public class GroupsServiceTest {
     public void testGetClustersByClusterHeadroomGroupUuid() throws Exception {
         GroupApiDTO clusterApiDto = new GroupApiDTO();
         clusterApiDto.setUuid("mycluster");
-        GroupAndMembers clusterAndMembers = groupAndMembers(1L, GroupType.COMPUTE_HOST_CLUSTER, Collections.singleton(7L));
-        when(groupExpander.getGroupsWithMembers(any()))
-            .thenReturn(Collections.singletonList(clusterAndMembers));
-        when(groupMapper.toGroupApiDto(Collections.singletonList(clusterAndMembers), true, null,
+        Grouping cluster = group(1L, GroupType.COMPUTE_HOST_CLUSTER);
+        when(groupServiceSpy.getGroups(any()))
+            .thenReturn(Collections.singletonList(cluster));
+        when(groupMapper.toGroupApiDto(Collections.singletonList(group(1, GroupType.COMPUTE_HOST_CLUSTER)), true, null,
                 null)).thenReturn(new ObjectsPage<>(Collections.singletonList(clusterApiDto), 1, 1));
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.COMPUTE_HOST_CLUSTER),
             eq(LogicalOperator.AND),
@@ -444,7 +438,7 @@ public class GroupsServiceTest {
                 memberRequest).getRestResponse().getBody();
 
 
-        verify(groupExpander).getGroupsWithMembers(getGroupsRequestCaptor.capture());
+        verify(groupServiceSpy).getGroups(getGroupsRequestCaptor.capture());
 
         assertThat(clustersList, containsInAnyOrder(clusterApiDto));
 
@@ -462,10 +456,10 @@ public class GroupsServiceTest {
     public void testGetClustersByStorageClusterHeadroomGroupUuid() throws Exception {
         GroupApiDTO clusterApiDto = new GroupApiDTO();
         clusterApiDto.setUuid("mycluster");
-        GroupAndMembers clusterAndMembers = groupAndMembers(1L, GroupType.STORAGE_CLUSTER, Collections.singleton(7L));
-        when(groupExpander.getGroupsWithMembers(any()))
-            .thenReturn(Collections.singletonList(clusterAndMembers));
-        when(groupMapper.toGroupApiDto(Collections.singletonList(clusterAndMembers), true, null,
+        Grouping cluster = group(1L, GroupType.STORAGE_CLUSTER);
+        when(groupServiceSpy.getGroups(any()))
+            .thenReturn(Collections.singletonList(cluster));
+        when(groupMapper.toGroupApiDto(Collections.singletonList(group(1L, GroupType.STORAGE_CLUSTER)), true, null,
                 null)).thenReturn(
                 new ObjectsPage<>(Collections.singletonList(clusterApiDto), 1, 1));
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.STORAGE_CLUSTER),
@@ -481,7 +475,7 @@ public class GroupsServiceTest {
         List<BaseApiDTO> clustersList =
             groupsService.getMembersByGroupUuid(clusterHeadroomGroupUuid, memberRequest).getRestResponse().getBody();
 
-        verify(groupExpander).getGroupsWithMembers(getGroupsRequestCaptor.capture());
+        verify(groupServiceSpy).getGroups(getGroupsRequestCaptor.capture());
         assertThat(clustersList, containsInAnyOrder(clusterApiDto));
         final GetGroupsRequest request = getGroupsRequestCaptor.getValue();
         assertEquals(GroupType.STORAGE_CLUSTER, request.getGroupFilter().getGroupType());
@@ -614,6 +608,14 @@ public class GroupsServiceTest {
                 groupsService.getMembersByGroupUuid(Long.toString(groupId), request);
         Assert.assertEquals(Sets.newHashSet(member2Dto, member1Dto),
                 new HashSet<>(response.getRestResponse().getBody()));
+    }
+
+    private Grouping group(final long groupId,
+                                            GroupType groupType) {
+        return Grouping.newBuilder()
+            .setId(groupId)
+            .setDefinition(GroupDefinition.newBuilder().setType(groupType))
+            .build();
     }
 
     private GroupAndMembers groupAndMembers(final long groupId,
@@ -849,12 +851,6 @@ public class GroupsServiceTest {
                             .setType(GroupType.COMPUTE_HOST_CLUSTER))
             .build();
 
-        final GroupAndMembers clusterAndMembers = ImmutableGroupAndMembers.builder()
-            .group(cluster)
-            .members(Collections.emptyList())
-            .entities(Collections.emptyList())
-            .build();
-
         mappedGroups.put(2L, groupApiDtoMock);
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.COMPUTE_HOST_CLUSTER),
                 eq(LogicalOperator.AND),
@@ -866,8 +862,8 @@ public class GroupsServiceTest {
                         .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
                 .addScopes(1L)
                 .build();
-        when(groupExpander.getGroupsWithMembers(eq(groupsRequest))).thenReturn(
-                Collections.singletonList(clusterAndMembers));
+        when(groupServiceSpy.getGroups(eq(groupsRequest))).thenReturn(
+                Collections.singletonList(cluster));
 
         final ApiId entityApiId = mock(ApiId.class);
         when(entityApiId.isGroup()).thenReturn(false);
@@ -976,14 +972,8 @@ public class GroupsServiceTest {
             .setId(2L)
             .build();
 
-        final GroupAndMembers childRgGroupAndMembers = ImmutableGroupAndMembers.builder()
-            .group(childRG)
-            .members(Collections.emptyList())
-            .entities(Collections.emptyList())
-            .build();
-
-        when(groupExpander.getGroupsWithMembers(eq(groupsRequest))).thenReturn(
-                Collections.singletonList(childRgGroupAndMembers));
+        when(groupServiceSpy.getGroups(eq(groupsRequest))).thenReturn(
+                Collections.singletonList(childRG));
 
         final String rgName = "testRG";
 
@@ -993,7 +983,7 @@ public class GroupsServiceTest {
         groupApiDtoMock.setClassName(StringConstants.RESOURCE_GROUP);
         groupApiDtoMock.setSeverity(Severity.NORMAL.toString());
 
-        when(groupMapper.toGroupApiDto(Collections.singletonList(childRgGroupAndMembers), true,
+        when(groupMapper.toGroupApiDto(Collections.singletonList(childRG), true,
                 null, null)).thenReturn(
                 new ObjectsPage<>(Collections.singletonList(groupApiDtoMock), 1, 1));
 
@@ -1067,8 +1057,8 @@ public class GroupsServiceTest {
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
                 .setGroupType(GroupType.RESOURCE).build());
 
-        when(groupExpander.getGroupsWithMembers(eq(groupsRequest))).thenReturn(
-                Collections.singletonList(rgGroupAndMembers));
+        when(groupServiceSpy.getGroups(eq(groupsRequest))).thenReturn(
+            Collections.singletonList(rgGroup));
 
         final GroupApiDTO groupApiDtoMock = new GroupApiDTO();
         groupApiDtoMock.setUuid(String.valueOf(resourceGroupOid));
@@ -1076,7 +1066,7 @@ public class GroupsServiceTest {
         groupApiDtoMock.setClassName(StringConstants.RESOURCE_GROUP);
         groupApiDtoMock.setSeverity(Severity.NORMAL.toString());
 
-        when(groupMapper.toGroupApiDto(Collections.singletonList(rgGroupAndMembers), true, null,
+        when(groupMapper.toGroupApiDto(Collections.singletonList(rgGroup), true, null,
                 null)).thenReturn(
                 new ObjectsPage<>(Collections.singletonList(groupApiDtoMock), 1, 1));
 
@@ -1212,7 +1202,7 @@ public class GroupsServiceTest {
         when(multiEntityRequest.getFullEntities()).thenReturn(entities.stream());
         groupsService.getSettingPoliciesByGroupUuid(groupUuid);
         verify(settingPolicyServiceSpy).getEntitySettingPolicies(GetEntitySettingPoliciesRequest
-                .newBuilder().addAllEntityOidList(members).build());
+                .newBuilder().addAllEntityOidList(members).setIncludeInactive(true).build());
     }
 
     /**
@@ -1259,20 +1249,15 @@ public class GroupsServiceTest {
                         MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE).build())
                 .setDefinition(groupDefinitionRg)
                 .build();
-        final GroupAndMembers rgGroupAndMembers = ImmutableGroupAndMembers.builder()
-                .group(rg1)
-                .members(Arrays.asList(21L, 22L))
-                .entities(Arrays.asList(21L, 22L))
-                .build();
         final ResourceGroupApiDTO groupApiDTO = new ResourceGroupApiDTO();
         groupApiDTO.setUuid(String.valueOf(rgId));
         groupApiDTO.setClassName(StringConstants.RESOURCE_GROUP);
         groupApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
         groupApiDTO.setParentUuid(String.valueOf(accountId1));
         mappedGroups.put(rgId, groupApiDTO);
-        when(groupExpander.getGroupsWithMembers(GetGroupsRequest.newBuilder()
+        when(groupServiceSpy.getGroups(GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder().addPropertyFilters(propertyFilter).build())
-                .build())).thenReturn(Collections.singletonList(rgGroupAndMembers));
+                .build())).thenReturn(Collections.singletonList(rg1));
         when(groupFilterMapper.apiFilterToGroupFilter(any(), any(), any())).thenReturn(
                 GroupFilter.newBuilder().build());
         final List<GroupApiDTO> groupsByType = groupsService.getGroupsByType(GroupType.RESOURCE,
@@ -1349,8 +1334,6 @@ public class GroupsServiceTest {
                 new SearchPaginationRequest(null, null, true, null), null, null,
                 Lists.newArrayList(GroupsService.USER_GROUPS), false);
 
-        // verify that group filter is populated to origin USER
-        verify(groupExpander).getGroupsWithMembers(expectedRequest);
     }
 
     /**
@@ -1387,28 +1370,27 @@ public class GroupsServiceTest {
             eq(LogicalOperator.AND),
             eq(Collections.singletonList(nameFilter)))).thenReturn(groupFilterWithNameFilter);
 
-        final GroupAndMembers groupOfClusters = newGroup(11L, def ->
+        final Grouping groupOfClusters = newGroup(11L, def ->
                 def.setStaticGroupMembers(StaticMembers.newBuilder()
                     .addMembersByType(StaticMembersByType.newBuilder()
                         .setType(MemberType.newBuilder()
                             .setGroup(GroupType.COMPUTE_HOST_CLUSTER)))));
-        final GroupAndMembers groupOfVMs = newGroup(12L, def ->
+        final Grouping groupOfVMs = newGroup(12L, def ->
                 def.setStaticGroupMembers(StaticMembers.newBuilder()
                     .addMembersByType(StaticMembersByType.newBuilder()
                         .setType(MemberType.newBuilder()
                             .setEntity(EntityType.VIRTUAL_MACHINE_VALUE)))));
-        final GroupAndMembers clusterOfVMs = newGroup(13L, def ->
+        final Grouping clusterOfVMs = newGroup(13L, def ->
             def.setType(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
                 .setStaticGroupMembers(StaticMembers.newBuilder()
                     .addMembersByType(StaticMembersByType.newBuilder()
                         .setType(MemberType.newBuilder()
                             .setEntity(EntityType.VIRTUAL_MACHINE_VALUE)))));
 
-        when(groupExpander.getGroupsWithMembers(expectedRequest)).thenReturn(
-                Arrays.asList(groupOfClusters, groupOfVMs));
-        when(groupExpander.getGroupsWithMembers(allGroupsRequestWithNameFilter))
-                .thenReturn(Arrays.asList(groupOfClusters, groupOfVMs, clusterOfVMs));
-
+        when(groupServiceSpy.getGroups(expectedRequest)).thenReturn(
+            Arrays.asList(groupOfClusters, groupOfVMs));
+        when(groupServiceSpy.getGroups(allGroupsRequestWithNameFilter))
+            .thenReturn(Arrays.asList(groupOfClusters, groupOfVMs, clusterOfVMs));
         // search for group of clusters
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
                 Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
@@ -1417,7 +1399,7 @@ public class GroupsServiceTest {
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
                 .map(Long::valueOf)
-                .collect(Collectors.toList()), containsInAnyOrder(groupOfClusters.group().getId()));
+                .collect(Collectors.toList()), containsInAnyOrder(groupOfClusters.getId()));
 
         // search for group of VMs
         response = groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(),
@@ -1426,7 +1408,7 @@ public class GroupsServiceTest {
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
                 .map(Long::valueOf)
-                .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.group().getId()));
+                .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.getId()));
 
         // search for groups of all group types
         response = groupsService.getPaginatedGroupApiDTOs(Collections.singletonList(nameFilter),
@@ -1435,8 +1417,8 @@ public class GroupsServiceTest {
         assertThat(response.getRestResponse().getBody().stream()
             .map(BaseApiDTO::getUuid)
             .map(Long::valueOf)
-            .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.group().getId(),
-                groupOfClusters.group().getId(), clusterOfVMs.group().getId()));
+            .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.getId(),
+                groupOfClusters.getId(), clusterOfVMs.getId()));
     }
 
     /**
@@ -1448,13 +1430,13 @@ public class GroupsServiceTest {
     @Test
     public void testGetPaginatedGroupApiDTOsWithMultipleGroupTypes() throws Exception {
         //GIVEN
-        final GroupAndMembers groupOfVMs = newGroup(11L,
+        final Grouping groupOfVMs = newGroup(11L,
                 def -> def.setStaticGroupMembers(StaticMembers.newBuilder()
                     .addMembersByType(StaticMembersByType.newBuilder()
                         .setType(MemberType.newBuilder()
                             .setEntity(EntityType.VIRTUAL_MACHINE_VALUE)))));
 
-        final GroupAndMembers groupOfPMs = newGroup(12L,
+        final Grouping groupOfPMs = newGroup(12L,
                 def -> def.setStaticGroupMembers(StaticMembers.newBuilder()
                     .addMembersByType(StaticMembersByType.newBuilder()
                         .setType(MemberType.newBuilder()
@@ -1470,7 +1452,7 @@ public class GroupsServiceTest {
                         .setOriginFilter(OriginFilter.newBuilder()
                                 .addOrigin(Type.USER)))
                 .build();
-        when(groupExpander.getGroupsWithMembers(expectedRequest)).thenReturn(
+        when(groupServiceSpy.getGroups(expectedRequest)).thenReturn(
                 Arrays.asList(groupOfVMs, groupOfPMs));
 
         Set<String> groupEntityTypes = Sets.newHashSet("VirtualMachine", "PhysicalMachine");
@@ -1483,7 +1465,7 @@ public class GroupsServiceTest {
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
                 .map(Long::valueOf)
-                .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.group().getId(), groupOfPMs.group().getId()));
+                .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.getId(), groupOfPMs.getId()));
     }
 
     /**
@@ -1494,13 +1476,13 @@ public class GroupsServiceTest {
     @Test
     public void testGetPaginatedGroupApiDTOsWithDynamicGroup() throws Exception {
         //GIVEN
-        final GroupAndMembers groupOfVMs = newGroup(11L, def ->
+        final Grouping groupOfVMs = newGroup(11L, def ->
                 def.setEntityFilters(EntityFilters.newBuilder()
                     .addEntityFilter(EntityFilter.newBuilder()
                         .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))));
 
         // Non-matching group.
-        final GroupAndMembers groupOfPMs = newGroup(12L, def ->
+        final Grouping groupOfPMs = newGroup(12L, def ->
                 def.setStaticGroupMembers(StaticMembers.newBuilder()
                     .addMembersByType(StaticMembersByType.newBuilder()
                         .setType(MemberType.newBuilder()
@@ -1516,7 +1498,7 @@ public class GroupsServiceTest {
                         .setOriginFilter(OriginFilter.newBuilder()
                                 .addOrigin(Type.USER)))
                 .build();
-        when(groupExpander.getGroupsWithMembers(expectedRequest)).thenReturn(
+        when(groupServiceSpy.getGroups(expectedRequest)).thenReturn(
                 Arrays.asList(groupOfVMs, groupOfPMs));
 
         Set<String> groupEntityTypes = Collections.singleton(ApiEntityType.VIRTUAL_MACHINE.apiStr());
@@ -1529,7 +1511,7 @@ public class GroupsServiceTest {
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
                 .map(Long::valueOf)
-                .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.group().getId()));
+                .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.getId()));
     }
 
     /**
@@ -1540,19 +1522,19 @@ public class GroupsServiceTest {
     @Test
     public void testGetPaginatedGroupApiDTOsWithDynamicNestedGroup() throws Exception {
         //GIVEN
-        final GroupAndMembers groupOfClusters = newGroup(11L, def ->
+        final Grouping groupOfClusters = newGroup(11L, def ->
                 def.setGroupFilters(GroupFilters.newBuilder()
                         .addGroupFilter(GroupFilter.newBuilder()
                                 .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))));
 
         // Non-matching groups.
-        final GroupAndMembers groupOfPms = newGroup(12L, def ->
+        final Grouping groupOfPms = newGroup(12L, def ->
                 def.setStaticGroupMembers(StaticMembers.newBuilder()
                         .addMembersByType(StaticMembersByType.newBuilder()
                                 .setType(MemberType.newBuilder()
                                         .setEntity(EntityType.PHYSICAL_MACHINE_VALUE)))));
 
-        final GroupAndMembers groupOfRGs = newGroup(13L, def ->
+        final Grouping groupOfRGs = newGroup(13L, def ->
                 def.setGroupFilters(GroupFilters.newBuilder()
                         .addGroupFilter(GroupFilter.newBuilder()
                                 .setGroupType(GroupType.RESOURCE))));
@@ -1567,7 +1549,7 @@ public class GroupsServiceTest {
                         .setOriginFilter(OriginFilter.newBuilder()
                                 .addOrigin(Type.USER)))
                 .build();
-        when(groupExpander.getGroupsWithMembers(expectedRequest)).thenReturn(
+        when(groupServiceSpy.getGroups(expectedRequest)).thenReturn(
                 Arrays.asList(groupOfClusters, groupOfPms, groupOfRGs));
 
         Set<String> groupEntityTypes = Collections.singleton("Cluster");
@@ -1580,25 +1562,17 @@ public class GroupsServiceTest {
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
                 .map(Long::valueOf)
-                .collect(Collectors.toList()), containsInAnyOrder(groupOfClusters.group().getId()));
+                .collect(Collectors.toList()), containsInAnyOrder(groupOfClusters.getId()));
     }
 
-    private GroupAndMembers newGroup(final long id, Consumer<GroupDefinition.Builder> definitionCustomizer) {
-        final Grouping.Builder groupBldr = Grouping.newBuilder()
-                .setId(id);
-        definitionCustomizer.accept(groupBldr.getDefinitionBuilder());
-        final Grouping group = groupBldr.build();
-
-        final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
-                .group(group)
-                .members(Collections.emptyList())
-                .entities(Collections.emptyList())
-                .build();
-
+    private Grouping newGroup(final long id,
+                                      Consumer<GroupDefinition.Builder> definitionCustomizer) {
         GroupApiDTO groupApiDTO1 = new GroupApiDTO();
         groupApiDTO1.setUuid(String.valueOf(id));
         mappedGroups.put(id, groupApiDTO1);
-
-        return groupAndMembers;
+        final Grouping.Builder groupBldr = Grouping.newBuilder()
+            .setId(id);
+        definitionCustomizer.accept(groupBldr.getDefinitionBuilder());
+        return groupBldr.build();
     }
 }

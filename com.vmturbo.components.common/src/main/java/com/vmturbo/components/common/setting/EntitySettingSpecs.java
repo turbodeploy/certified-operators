@@ -38,10 +38,16 @@ public enum EntitySettingSpecs {
     /**
      * Move action automation mode.
      */
-    Move("move", "Move / Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
+    Move("move", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_VOLUME,
                     EntityType.CONTAINER_POD, EntityType.CONTAINER, EntityType.DISK_ARRAY,
                     EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+
+    /**
+     * Cloud compute scale action automation mode.
+     */
+    CloudComputeScale("cloudComputeScale", "Cloud Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
 
     /**
      * Move action automation mode for business user.
@@ -52,7 +58,7 @@ public enum EntitySettingSpecs {
     /**
      * Storage Move action automation mode.
      */
-    StorageMove("storageMove", "Storage Move / Storage Scale", Collections.emptyList(),
+    StorageMove("storageMove", "Storage Move", Collections.emptyList(),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             actionExecutionModeSetToRecommend(), true),
 
@@ -76,20 +82,20 @@ public enum EntitySettingSpecs {
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER,
                             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.DATABASE_SERVER, EntityType.DATABASE),
+                    EntityType.DATABASE_SERVER, EntityType.DATABASE, EntityType.WORKLOAD_CONTROLLER),
             actionExecutionModeSetToManual(), true),
 
     /**
      * Resize Up Heap automation mode.
      */
     ResizeUpHeap("resizeUpHeap", "Resize Up Heap", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
+            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToRecommend(), true),
 
     /**
      * Resize Down Heap automation mode.
      */
     ResizeDownHeap("resizeDownHeap", "Resize Down Heap", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
+            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToRecommend(), true),
 
     /**
      * Resize Up DBMem automation mode.
@@ -207,7 +213,10 @@ public enum EntitySettingSpecs {
         EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
             EntityType.CONTAINER_POD, EntityType.CONTAINER,
             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-            EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
+            EntityType.APPLICATION_COMPONENT),
+            actionExecutionModeSetToManualTypeSpecific(
+                    Collections.singletonMap(EntityType.APPLICATION_COMPONENT, ActionMode.RECOMMEND)),
+            true),
 
     /**
      * For some types of entities Suspend actions are disabled by default.
@@ -228,7 +237,10 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
                     EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER,
-                    EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToManual(), true),
+                    EntityType.APPLICATION_COMPONENT),
+            actionExecutionModeSetToManualTypeSpecific(
+                    Collections.singletonMap(EntityType.APPLICATION_COMPONENT, ActionMode.RECOMMEND)),
+            true),
 
     /**
      * For some types of entities Suspend actions are disabled by default.
@@ -415,7 +427,7 @@ public enum EntitySettingSpecs {
         "Min Observation Period",
         Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
         SettingTiebreaker.BIGGER, EnumSet.of(EntityType.CONTAINER_SPEC),
-        numeric(0.0f, 7.0f, 1.0f), true),
+        numeric(0.0f, 90.0f, 1.0f), true),
 
     /**
      * Aggressiveness for Databases.
@@ -433,7 +445,7 @@ public enum EntitySettingSpecs {
             "Min Observation Period",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            numeric(0.0f, 7.0f, 0.0f), true),
+            numeric(0.0f, 90.0f, 0.0f), true),
 
     /**
      * Max observation period for business user.
@@ -766,7 +778,8 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
                     EntityType.APPLICATION_COMPONENT,
-                    EntityType.DATABASE_SERVER, EntityType.DATABASE),
+                    EntityType.DATABASE_SERVER, EntityType.DATABASE,
+                    EntityType.WORKLOAD_CONTROLLER),
             string(), true),
 
     /**
@@ -779,7 +792,8 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
                     EntityType.APPLICATION_COMPONENT,
-                    EntityType.DATABASE_SERVER),
+                    EntityType.DATABASE_SERVER,
+                    EntityType.WORKLOAD_CONTROLLER),
             string(), true),
 
     /**
@@ -792,7 +806,8 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
                     EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
                     EntityType.APPLICATION_COMPONENT,
-                    EntityType.DATABASE_SERVER),
+                    EntityType.DATABASE_SERVER,
+                    EntityType.WORKLOAD_CONTROLLER),
         string(), true),
 
     /**
@@ -866,7 +881,10 @@ public enum EntitySettingSpecs {
 
     /**
      * Response Time SLO used by Application and Database.
+     * @deprecated since ResponseTimeSLO was added.
+     * This setting shouldn't be removed in case an old topology is loaded.
      */
+    @Deprecated
     ResponseTimeCapacity("responseTimeCapacity", "Response Time SLO [ms]",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
@@ -881,7 +899,10 @@ public enum EntitySettingSpecs {
      * of the ResponseTimeCapacity setting or to calculate it as the max of the commodity's capacity,
      * used value, and the ResponseTimeCapacity setting.
      * Used by Application and Database.
+     * @deprecated since ResponseTimeSLOEnabled was added.
+     * This setting shouldn't be removed in case an old topology is loaded.
      */
+    @Deprecated
     AutoSetResponseTimeCapacity("autoSetResponseTimeCapacity", "Disable Response Time SLO",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
@@ -893,7 +914,10 @@ public enum EntitySettingSpecs {
 
     /**
      * Transaction SLO used by Application and Database.
+     * @deprecated since TransactionSLO was added.
+     * This setting shouldn't be removed in case an old topology is loaded.
      */
+    @Deprecated
     TransactionsCapacity("transactionsCapacity", "Transaction SLO",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
@@ -908,13 +932,70 @@ public enum EntitySettingSpecs {
      * of the TransactionsCapacity setting or to calculate it as the max of the commodity's capacity,
      * used value, and the TransactionsCapacity setting.
      * Used by Application and Database.
+     * @deprecated since TransactionSLOEnabled was added.
+     * This setting shouldn't be removed in case an old topology is loaded.
      */
+    @Deprecated
     AutoSetTransactionsCapacity("autoSetTransactionsCapacity", "Disable Transaction SLO",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
                     EntityType.BUSINESS_TRANSACTION, EntityType.DATABASE_SERVER,
                     EntityType.APPLICATION_COMPONENT),
+            new BooleanSettingDataType(false),
+            true),
+
+    /**
+     * Response Time SLO for Business Applications, Business Transactions, Services, Application
+     * Components and Database Servers.
+     * This value will be set only if the ResponseTimeSLOEnabled setting is "true".
+     * The default value is 2 seconds, and the user can set it to anything between 1 millisecond
+     * and a 1000 years.
+     */
+    ResponseTimeSLO("responseTimeSLO", "Response Time SLO [ms]",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            SettingDTOUtil.entityTypesWithSLOSettings,
+            numeric(1.0f, 31536000000000.0f, 2000.0f),
+            true),
+
+    /**
+     * Indicates whether to use the ResponseTimeSLO setting value as the Response Time capacity for
+     * the entity.
+     * This setting is used for Business Applications, Business Transactions, Services, Application
+     * Components and Database Servers.
+     */
+    ResponseTimeSLOEnabled("responseTimeSLOEnabled", "Enable Response Time SLO",
+            Collections.emptyList(),
+            SettingTiebreaker.BIGGER,
+            SettingDTOUtil.entityTypesWithSLOSettings,
+            new BooleanSettingDataType(false),
+            true),
+
+    /**
+     * Transaction SLO for Business Applications, Business Transactions, Services, Application
+     * Components and Database Servers.
+     * This value will be set only if the TransactionSLOEnabled setting is "true".
+     * The default value is 10 (transactions per minute), and the user can set it to anything between
+     * 1 transaction and 31536000000000 transactions.
+     */
+    TransactionSLO("transactionSLO", "Transaction SLO",
+            Collections.emptyList(),
+            SettingTiebreaker.BIGGER,
+            SettingDTOUtil.entityTypesWithSLOSettings,
+            numeric(1.0f, 31536000000000.0f, 10.0f),
+            true),
+
+    /**
+     * Indicates whether to use the TransactionSLO setting value as the Transaction capacity for
+     * the entity.
+     * This setting is used for Business Applications, Business Transactions, Services, Application
+     * Components and Database Servers.
+     */
+    TransactionSLOEnabled("transactionSLOEnabled", "Enable Transaction SLO",
+            Collections.emptyList(),
+            SettingTiebreaker.BIGGER,
+            SettingDTOUtil.entityTypesWithSLOSettings,
             new BooleanSettingDataType(false),
             true),
 
@@ -935,6 +1016,16 @@ public enum EntitySettingSpecs {
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.APPLICATION_COMPONENT),
             numeric(90f, 99f, 97f), true),
+
+    /**
+     * DbCacheHitRate utilization threshold.
+     * This is not exposed to the user and has a fixed value. If we ever want to expose
+     * it then add it to settingManagers.json.
+     */
+    DbCacheHitRateUtilization("dbCacheHitRateUtilization", "DB Cache Hit Rate Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DATABASE_SERVER),
+            numeric(80f, 99f, 90f), true),
 
     /**
      * DBMem utilization threshold.
@@ -1198,6 +1289,7 @@ public enum EntitySettingSpecs {
                     EntitySettingSpecs.Move.name,
                     EntitySettingSpecs.BusinessUserMove.name,
                     EntitySettingSpecs.StorageMove.name,
+                    EntitySettingSpecs.CloudComputeScale.name,
                     EntitySettingSpecs.Provision.name,
                     EntitySettingSpecs.DisabledProvision.name,
                     EntitySettingSpecs.Reconfigure.name,
@@ -1220,11 +1312,6 @@ public enum EntitySettingSpecs {
             EntitySettingSpecs.ResizeDownDBMem.name,
             EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
                     EntitySettingSpecs.ShopTogether.name);
-
-    /**
-     * Default value for a String-type SettingDataStructure = empty String.
-     */
-    public static final String DEFAULT_STRING_VALUE = "";
 
     /**
      * Default regex for a String-type SettingDataStructure = matches anything.
@@ -1337,6 +1424,24 @@ public enum EntitySettingSpecs {
     }
 
     /**
+     * A shortcut to get the numeric default value.
+     *
+     * @return numeric default value
+     */
+    public double getNumericDefault() {
+        return settingSpec.getNumericSettingValueType().getDefault();
+    }
+
+    /**
+     * A shortcut to get the boolean default value.
+     *
+     * @return boolean default value
+     */
+    public boolean getBooleanDefault() {
+        return settingSpec.getBooleanSettingValueType().getDefault();
+    }
+
+    /**
      * Constructs Protobuf representation of setting specification.
      *
      * @return Protobuf representation
@@ -1415,6 +1520,12 @@ public enum EntitySettingSpecs {
     }
 
     @Nonnull
+    private static SettingDataStructure<?> actionExecutionModeSetToManualTypeSpecific(
+            @Nonnull Map<EntityType, ActionMode> entityDefaults) {
+        return new EnumSettingDataType<>(ActionMode.MANUAL, null, entityDefaults, ActionMode.class);
+    }
+
+    @Nonnull
     private static SettingDataStructure<?> actionExecutionModeSetToRecommend() {
         return new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.class);
     }
@@ -1437,7 +1548,7 @@ public enum EntitySettingSpecs {
 
     @Nonnull
     private static SettingDataStructure<?> string() {
-        return new StringSettingDataType(DEFAULT_STRING_VALUE, MATCH_ANYTHING_REGEX);
+        return new StringSettingDataType(null, MATCH_ANYTHING_REGEX);
     }
 
     @Nonnull
@@ -1447,7 +1558,7 @@ public enum EntitySettingSpecs {
 
     @Nonnull
     private static SettingDataStructure<?> sortedSetOfOid(@Nonnull final Type type) {
-        return new SortedSetOfOidSettingDataType(type, Collections.emptySet());
+        return new SortedSetOfOidSettingDataType(type, null);
     }
 
     @Nonnull

@@ -42,38 +42,12 @@ public class CachedTopology {
     /**
      * Return a deep copy of the cached topology.
      *
-     * @param pendingPlanType Information about the topology under construction. Certain topology
-     *                        types (e.g. reservation plan) may get different subsets of entities.
      * @return {@link CachedTopologyResult} for the most recently cached topology.
      */
-    public synchronized CachedTopologyResult getTopology(
-            @Nullable final PlanProjectType pendingPlanType) {
-        final Stream<TopologyEntity.Builder> entities;
-        final TIntIntMap removedCounts;
-        if (pendingPlanType == PlanProjectType.RESERVATION_PLAN) {
-            removedCounts = new TIntIntHashMap();
-            entities = cachedMap.values().stream()
-                .filter(entity -> {
-                    // All entities above vm in supply chain should be removed for reservation plan.
-                    // This helps run faster, because we don't need to snapshot all these entities,
-                    // which can be hundreds of thousands in large environment.
-                    if (entity.getEntityType() == EntityType.APPLICATION_SERVER.getValue() ||
-                            entity.getEntityType() == EntityType.DATABASE_SERVER.getValue() ||
-                            entity.getEntityType() == EntityType.BUSINESS_APPLICATION.getValue() ||
-                            entity.getEntityType() == EntityType.APPLICATION.getValue() ||
-                            entity.getEntityType() == EntityType.CONTAINER.getValue() ||
-                            entity.getEntityType() == EntityType.CONTAINER_POD.getValue() ||
-                            entity.getEntityType() == EntityType.VIRTUAL_VOLUME.getValue()) {
-                        removedCounts.adjustOrPutValue(entity.getEntityType(), 1, 1);
-                        return false;
-                    } else {
-                        return true;
-                    }
-                });
-        } else {
-            removedCounts = null;
-            entities = cachedMap.values().stream();
-        }
+
+    public synchronized CachedTopologyResult getTopology() {
+        final Stream<TopologyEntity.Builder> entities = cachedMap.values().stream();
+        final TIntIntMap removedCounts = null;
         return new CachedTopologyResult(removedCounts,
             entities.collect(Collectors.toMap(TopologyEntity.Builder::getOid, TopologyEntity.Builder::snapshot)));
     }

@@ -2,11 +2,6 @@ manual_entity_definition {
   entity_type: BUSINESS_APPLICATION
   entity_name: "BA_Combined"
   associated_entities {
-    associated_group {
-    }
-    connected_entity_type: CONTAINER_POD
-  }
-  associated_entities {
     static_associated_entities {
       members_by_type {
         type: {

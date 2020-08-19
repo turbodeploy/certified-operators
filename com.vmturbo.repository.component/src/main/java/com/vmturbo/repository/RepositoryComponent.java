@@ -4,7 +4,9 @@ import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.SortedMap;
+import java.util.function.Predicate;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -25,18 +27,22 @@ import javaslang.circuitbreaker.CircuitBreakerConfig;
 import javaslang.circuitbreaker.CircuitBreakerRegistry;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.EntityConstraintsServiceImplBase;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOREST.RepositoryServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoREST.SupplyChainServiceController;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
 import com.vmturbo.common.protobuf.search.SearchREST.SearchServiceController;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.components.common.BaseVmtComponent;
@@ -59,6 +65,8 @@ import com.vmturbo.repository.migration.RepositoryMigrationsLibrary;
 import com.vmturbo.repository.search.SearchHandler;
 import com.vmturbo.repository.service.ArangoRepositoryRpcService;
 import com.vmturbo.repository.service.ArangoSupplyChainRpcService;
+import com.vmturbo.repository.service.ConstraintsCalculator;
+import com.vmturbo.repository.service.EntityConstraintsRpcService;
 import com.vmturbo.repository.service.LiveTopologyPaginator;
 import com.vmturbo.repository.service.PartialEntityConverter;
 import com.vmturbo.repository.service.PlanStatsService;
@@ -66,6 +74,7 @@ import com.vmturbo.repository.service.SupplyChainStatistician;
 import com.vmturbo.repository.service.TopologyGraphRepositoryRpcService;
 import com.vmturbo.repository.service.TopologyGraphSearchRpcService;
 import com.vmturbo.repository.service.TopologyGraphSupplyChainRpcService;
+import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
@@ -123,26 +132,50 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Autowired
     private RepositoryDiagnosticsConfig repositoryDiagnosticsConfig;
 
-    @Value("${repositoryEntityStatsPaginationDefaultLimit}")
+    @Value("${repositoryEntityStatsPaginationDefaultLimit:100}")
     private int repositoryEntityStatsPaginationDefaultLimit;
 
-    @Value("${repositoryEntityStatsPaginationMaxLimit}")
+    @Value("${repositoryEntityStatsPaginationMaxLimit:10000}")
     private int repositoryEntityStatsPaginationMaxLimit;
 
-    @Value("${repositoryEntityStatsPaginationDefaultSortCommodity}")
+    @Value("${repositoryEntityStatsPaginationDefaultSortCommodity:priceIndex}")
     private String repositoryEntityStatsPaginationDefaultSortCommodity;
 
-    @Value("${repositorySearchPaginationDefaultLimit}")
+    @Value("${repositorySearchPaginationDefaultLimit:100}")
     private int repositorySearchPaginationDefaultLimit;
 
-    @Value("${repositorySearchPaginationMaxLimit}")
+    @Value("${repositorySearchPaginationMaxLimit:10000}")
     private int repositorySearchPaginationMaxLimit;
+
+    @Value("${repositoryEntityPaginationDefaultLimit:100}")
+    private int repositoryEntityPaginationDefaultLimit;
+
+    @Value("${repositoryEntityPaginationMaxLimit:10000}")
+    private int repositoryEntityPaginationMaxLimit;
 
     @Value("${repositoryMaxEntitiesPerChunk:5}")
     private int maxEntitiesPerChunk;
 
+    @Value("${arangodbHealthCheckIntervalSeconds:60}")
+    private int arangoHealthCheckIntervalSeconds;
+
+    // Disable it by default to support Lemur edition.
+    @Value("${enableArangodbHealthCheck:false}")
+    private boolean enableArangodbHealthCheck;
+
+    @Value("${showGuestLoad:false}")
+    private boolean showGuestLoad;
+
     @PostConstruct
     private void setup() {
+
+        if (enableArangodbHealthCheck) {
+            logger.info("Adding ArangoDB health check to the component health monitor.");
+            // add a health monitor for Arango
+            getHealthMonitor().addHealthCheck(new ArangoHealthMonitor(arangoHealthCheckIntervalSeconds,
+                    repositoryComponentConfig.arangoDatabaseFactory()::getArangoDriver,
+                    Optional.ofNullable(repositoryComponentConfig.getArangoDatabaseName())));
+        }
         getHealthMonitor().addHealthCheck(apiConfig.messageProducerHealthMonitor());
         // Temporarily force all Repository migrations to retry, in order to address some
         // observed issues with V_01_00_00__PURGE_ALL_LEGACY_PLANS not running successfully in
@@ -259,7 +292,10 @@ public class RepositoryComponent extends BaseVmtComponent {
             GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
-
+    @Bean
+    public EntitySeverityServiceBlockingStub entitySeverityService() {
+        return EntitySeverityServiceGrpc.newBlockingStub(actionOrchestratorClientConfig.actionOrchestratorChannel());
+    }
 
     @Bean
     public SupplyChainServiceController supplyChainServiceController()
@@ -286,7 +322,13 @@ public class RepositoryComponent extends BaseVmtComponent {
     public TopologyEntitiesListener topologyEntitiesListener() {
         return new TopologyEntitiesListener(repositoryComponentConfig.topologyManager(),
                                             repositoryComponentConfig.liveTopologyStore(),
-                                            apiConfig.repositoryNotificationSender());
+                                            apiConfig.repositoryNotificationSender(),
+                                            topologyEntitiesFilter());
+    }
+
+    @Bean
+    public Predicate<TopologyDTO.TopologyEntityDTO> topologyEntitiesFilter() {
+        return showGuestLoad ? e -> true : GuestLoadFilters::isNotGuestLoad;
     }
 
     @Bean
@@ -353,13 +395,29 @@ public class RepositoryComponent extends BaseVmtComponent {
         return new RepositoryMigrationsLibrary(repositoryComponentConfig.arangoDatabaseFactory());
     }
 
+    @Bean
+    public EntityConstraintsServiceImplBase entityConstraintRpcService() {
+        return new EntityConstraintsRpcService(
+            repositoryComponentConfig.liveTopologyStore(),
+            constraintsCalculator());
+    }
+
+    @Bean
+    public ConstraintsCalculator constraintsCalculator() {
+        return new ConstraintsCalculator(
+            entitySeverityService(),
+            repositoryEntityPaginationDefaultLimit,
+            repositoryEntityPaginationMaxLimit);
+    }
+
     @Nonnull
     @Override
     public List<BindableService> getGrpcServices() {
         try {
             return Arrays.asList(repositoryRpcService(),
                 searchRpcService(),
-                supplyChainRpcService());
+                supplyChainRpcService(),
+                entityConstraintRpcService());
         } catch (InterruptedException | CommunicationException | URISyntaxException e) {
             logger.error("Failed to start gRPC services due to exception.", e);
             return Collections.emptyList();

@@ -36,7 +36,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.setting.DailyObservationWindowsCount;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.stats.StatsAccumulator;
@@ -84,8 +83,8 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
 
     private static TimeslotHistoricalEditorConfig createConfig(int backgroundLoadThreshold,
                     Clock clock) {
-        return new TimeslotHistoricalEditorConfig(1, 1, backgroundLoadThreshold, 1, 1, 1, clock,
-                        null);
+        return new TimeslotHistoricalEditorConfig(1, 1, 777777L, backgroundLoadThreshold, 1, 1, 1,
+                        clock, null);
     }
 
     /**
@@ -288,13 +287,13 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
             data.init(fieldRef, null, config, firstBroadcastContext);
             editor.getCache().put(fieldRef, data);
         }
-        Mockito.doAnswer((invocation) -> TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS).when(clock)
+        Mockito.doAnswer((invocation) -> TimeUnit.HOURS.toMillis(1)).when(clock)
                         .millis();
         doCalculations(editor, firstBroadcastContext);
         final HistoryAggregationContext secondBroadcastContext = createContext(ImmutableMap
                         .of(ref1, Pair.create(10F, 100F), ref2, Pair.create(195F, 200F), ref3,
                                         Pair.create(95F, 100F))).getFirst();
-        Mockito.doAnswer((invocation) -> TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS * 3)
+        Mockito.doAnswer((invocation) -> TimeUnit.HOURS.toMillis(3))
                         .when(clock).millis();
         doCalculations(editor, secondBroadcastContext);
         Mockito.doAnswer((invocation) -> System.currentTimeMillis()).when(clock).millis();

@@ -53,10 +53,6 @@ public class TemplateConverterFactory {
             EntityType.HCI_PHYSICAL_MACHINE_VALUE, new PhysicalMachineEntityConstructor(),
             EntityType.STORAGE_VALUE, new StorageEntityConstructor());
 
-    // map used for creating reservation entities from template.
-    private final Map<Integer, ITopologyEntityConstructor> reservationTemplateConvertMap = ImmutableMap
-            .of(EntityType.VIRTUAL_MACHINE_VALUE, new VirtualMachineEntityConstructor(true));
-
     public TemplateConverterFactory(@Nonnull TemplateServiceBlockingStub templateService,
             @Nonnull final IdentityProvider identityProvider,
             @Nonnull SettingPolicyServiceBlockingStub settingPolicyService) {
@@ -100,7 +96,7 @@ public class TemplateConverterFactory {
             try {
                 long additionCount = templateAdditions.getOrDefault(template.getId(), 0L);
                 Collection<TopologyEntityDTO.Builder> additionTemplates = generateEntityByTemplateAddition(
-                        template, topology, additionCount, false);
+                        template, topology, additionCount);
                 result.addAll(additionTemplates);
 
                 Collection<Long> replacedEntityOids = templateToReplacedEntity
@@ -121,36 +117,7 @@ public class TemplateConverterFactory {
         return result.stream();
     }
 
-    /**
-     * Generate reservation entities from templates. For reservation entity, it
-     * only can add templates , there are no replace templates.
-     *
-     * @param templateAdditions map key is template id, value is the number of
-     *            template need to add.
-     * @param topology The topology map from OID -> TopologyEntity.Builder. When
-     *            performing a replace, entities related to the entity being
-     *            replaced may be updated to fix up relationships to point to
-     *            the new entity along with the old entity.
-     * @return set of {@link TopologyEntityDTO} which newly created.
-     * @throws TopologyEntityConstructorException error constructing topology
-     *             entities
-     */
-    @Nonnull
-    public Stream<TopologyEntityDTO.Builder> generateReservationEntityFromTemplates(
-            @Nonnull final Map<Long, Long> templateAdditions,
-            @Nonnull final Map<Long, TopologyEntity.Builder> topology)
-            throws TopologyEntityConstructorException {
-        Collection<Template> templates = getTemplatesByIds(templateAdditions.keySet());
-        List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 
-        for (Template template : templates) {
-            long additionCount = templateAdditions.getOrDefault(template.getId(), 0L);
-            result.addAll(
-                    generateEntityByTemplateAddition(template, topology, additionCount, true));
-        }
-
-        return result.stream();
-    }
 
     /**
      * Get templates from template rpc service by input a set of template ids.
@@ -182,13 +149,12 @@ public class TemplateConverterFactory {
     @Nonnull
     private Collection<TopologyEntityDTO.Builder> generateEntityByTemplateAddition(
             @Nonnull final Template template,
-            @Nonnull final Map<Long, TopologyEntity.Builder> topology, final long additionCount,
-            final boolean isReservation) throws TopologyEntityConstructorException {
+            @Nonnull final Map<Long, TopologyEntity.Builder> topology, final long additionCount) throws TopologyEntityConstructorException {
         List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 
         for (int i = 0; i < additionCount; i++) {
             result.add(generateTopologyEntityByType(template, topology, null,
-                    isReservation, TemplateActionType.CLONE, "(Clone " + i + ")"));
+                    TemplateActionType.CLONE, "(Clone " + i + ")"));
         }
 
         return result;
@@ -213,7 +179,7 @@ public class TemplateConverterFactory {
 
             for (TopologyEntity.Builder entity : entitiesToReplace) {
                 result.add(generateTopologyEntityByType(template, topology,
-                        entity.getEntityBuilder(), false, TemplateActionType.REPLACE, null));
+                        entity.getEntityBuilder(), TemplateActionType.REPLACE, null));
             }
 
             return result;
@@ -263,13 +229,12 @@ public class TemplateConverterFactory {
     @Nonnull
     private TopologyEntityDTO.Builder generateTopologyEntityByType(@Nonnull Template template,
             @Nonnull Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReservation,
+            @Nullable TopologyEntityDTO.Builder originalTopologyEntity,
             @Nonnull TemplateActionType actionType, @Nullable String nameSuffix)
             throws TopologyEntityConstructorException {
         final int templateEntityType = template.getTemplateInfo().getEntityType();
-        final Map<Integer, ITopologyEntityConstructor> converterMap = isReservation
-                ? reservationTemplateConvertMap
-                : templateConverterMap;
+        final Map<Integer, ITopologyEntityConstructor> converterMap =
+                templateConverterMap;
         if (!converterMap.containsKey(templateEntityType)) {
             throw new TopologyEntityConstructorException(
                     "Template type " + templateEntityType + "  is not supported.");

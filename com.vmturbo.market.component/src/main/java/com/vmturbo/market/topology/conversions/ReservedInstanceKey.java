@@ -1,6 +1,11 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.Objects;
+import java.util.Set;
+
+import com.google.common.collect.ImmutableSet;
+
+import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -22,7 +27,7 @@ public class ReservedInstanceKey {
     private final long riBoughtId;
     private final boolean instanceSizeFlexible;
     private final boolean platformFlexible;
-    private final long accountScopeId;
+    private final Set<Long> scopedAccounts;
     private final boolean shared;
 
     Tenancy getTenancy() {
@@ -41,8 +46,15 @@ public class ReservedInstanceKey {
         return family;
     }
 
-    long getAccountScopeId() {
-        return accountScopeId;
+    /**
+     * Get scoped accounts ids.
+     * If RI is shared it is only billing family ID
+     * If RI is scoped it is collection of account IDs
+     *
+     * @return scoped accounts ids
+     */
+    public Set<Long> getAccountScopeId() {
+        return scopedAccounts;
     }
 
     long getZoneId() {
@@ -82,16 +94,16 @@ public class ReservedInstanceKey {
         // owning account and the accountScopeId is set to the owning account's id.
         this.shared = riBoughtInfo.getReservedInstanceScopeInfo().getShared();
         if (shared) {
-            accountScopeId = billingFamilyId;
+            scopedAccounts = ImmutableSet.of(billingFamilyId);
         } else {
-            accountScopeId = accountId;
+            scopedAccounts = ImmutableSet.copyOf(riBoughtInfo.getReservedInstanceScopeInfo().getApplicableBusinessAccountIdList());
         }
     }
 
     @Override
     public int hashCode() {
         if (isInstanceSizeFlexible()) {
-            return Objects.hash(tenancy, os, regionId, family, zoneId, accountScopeId);
+            return Objects.hash(tenancy, os, regionId, family, zoneId, scopedAccounts);
         } else {
             return Objects.hash(riBoughtId);
         }
@@ -119,7 +131,7 @@ public class ReservedInstanceKey {
                     this.regionId == other.regionId &&
                     this.family.equals(other.family) &&
                     this.zoneId == other.zoneId &&
-                    this.accountScopeId == other.accountScopeId;
+                    Objects.equals(scopedAccounts, other.scopedAccounts);
         } else {
             return this.riBoughtId == other.riBoughtId;
         }
@@ -130,7 +142,7 @@ public class ReservedInstanceKey {
         return "ReservedInstanceKey{" + "tenancy=" + tenancy + ", os=" + os + ", regionId=" +
                 regionId + ", zoneId=" + zoneId + ", family='" + family + '\'' + ", riBoughtId=" +
                 riBoughtId + ", instanceSizeFlexible=" + instanceSizeFlexible +
-                ", accountScopeId=" + accountScopeId + ", shared=" + shared + '}';
+                ", accountScopeId=" + StringUtils.join(scopedAccounts, "|") + ", shared=" + shared + '}';
     }
 
     boolean isInstanceSizeFlexible() {

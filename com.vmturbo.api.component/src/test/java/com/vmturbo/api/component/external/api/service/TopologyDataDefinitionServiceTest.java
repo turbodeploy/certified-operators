@@ -25,6 +25,7 @@ import org.skyscreamer.jsonassert.JSONAssert;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.TopologyDataDefinitionMapper;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.topologydefinition.TopologyDataDefinitionApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -63,7 +64,8 @@ public class TopologyDataDefinitionServiceTest {
     private EntityFilterMapper filterMapper = new EntityFilterMapper(
             new GroupUseCaseParser("groupBuilderUsecases.json"),
             Mockito.mock(ThinTargetCache.class));
-    private TopologyDataDefinitionMapper mapper = new TopologyDataDefinitionMapper(filterMapper);
+    private GroupsService groupsService = Mockito.mock(GroupsService.class);
+    private TopologyDataDefinitionMapper mapper = new TopologyDataDefinitionMapper(filterMapper, groupsService);
 
     private TopologyDataDefinitionService service;
 
@@ -225,7 +227,10 @@ public class TopologyDataDefinitionServiceTest {
      * Get all definitions test.
      */
     @Test
-    public void getAllTopologyDefinitions() throws JsonProcessingException, JSONException {
+    public void getAllTopologyDefinitions() throws Exception {
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setUuid("123434550");
+        Mockito.when(groupsService.getGroupByUuid("123434550", false)).thenReturn(groupApiDTO);
         List<TopologyDataDefinitionApiDTO> dtos = service.getAllTopologyDefinitions();
         assertEquals(2, dtos.size());
         ObjectMapper objectMapper = new ObjectMapper();
@@ -240,10 +245,13 @@ public class TopologyDataDefinitionServiceTest {
     /**
      * Test getting topology definitions by id.
      *
-     * @throws UnknownObjectException if cannot find definition by id
+     * @throws Exception if cannot find definition by id
      */
     @Test
-    public void getTopologyDefinition() throws UnknownObjectException, JSONException {
+    public void getTopologyDefinition() throws Exception {
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setUuid("123434550");
+        Mockito.when(groupsService.getGroupByUuid("123434550", false)).thenReturn(groupApiDTO);
         TopologyDataDefinitionApiDTO dto = service.getTopologyDefinition("123");
         Gson g = new Gson();
         manualApiDTO.setUuid("123");

@@ -46,6 +46,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
+import com.vmturbo.api.component.external.api.util.ReportingUserCalculator;
 import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
@@ -73,13 +74,14 @@ public class UserServiceTest {
     private WidgetSetsService widgetSetsService = mock(WidgetSetsService.class);
     private final SessionInformation sessionInformation = mock(SessionInformation.class);
     private final SessionRegistry sessionRegistry = mock(SessionRegistry.class);
+    private final ReportingUserCalculator reportingUserCalculator = new ReportingUserCalculator(false, "foo");
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
     @InjectMocks
     private UsersService usersService = new UsersService("", 0, restTemplate, "", false,
-        groupsService, widgetSetsService);
+        groupsService, widgetSetsService, reportingUserCalculator);
     private static final String AUTH_REQUEST = UriComponentsBuilder.newInstance()
             .scheme("http")
             .host("")

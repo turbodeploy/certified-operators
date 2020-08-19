@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.ACCOUNT_OID;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_STORAGE_TIER_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.USER_DEFINED_ENTITY;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -39,6 +40,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -61,10 +63,8 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
-import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
-import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
@@ -108,8 +108,6 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -127,6 +125,7 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.search.UIBooleanFilter;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
@@ -147,7 +146,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.Att
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
@@ -165,8 +163,6 @@ public class SearchServiceTest {
     private GroupsService groupsService = mock(GroupsService.class);
     private TargetsService targetsService = mock(TargetsService.class);
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
-    private GroupMapper groupMapper;
-    private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
     private final GroupUseCaseParser groupUseCaseParser =
             new GroupUseCaseParser("groupBuilderUsecases.json");
     private final SupplyChainFetcherFactory supplyChainFetcherFactory = mock(SupplyChainFetcherFactory.class);
@@ -178,7 +174,6 @@ public class SearchServiceTest {
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
     private final EntityFilterMapper entityFilterMapper =
             new EntityFilterMapper(groupUseCaseParser, targetCache);
-    private final GroupFilterMapper groupFilterMapper = new GroupFilterMapper();
     private final EntityAspectMapper entityAspectMapper = mock(EntityAspectMapper.class);
     private final PriceIndexPopulator priceIndexPopulator = mock(PriceIndexPopulator.class);
 
@@ -206,7 +201,6 @@ public class SearchServiceTest {
     private final String probeType2 = SDKProbeType.AZURE.getProbeType();
 
     private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
-    private final CloudTypeMapper cloudTypeMapper = mock(CloudTypeMapper.class);
     private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
     @Before
@@ -220,18 +214,11 @@ public class SearchServiceTest {
                 EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final GroupServiceBlockingStub groupServiceBlockingStub =
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        final CostServiceStub costServiceStub =
-                CostServiceGrpc.newStub(grpcServer.getChannel());
         final SearchFilterResolver
                 searchFilterResolver = Mockito.mock(SearchFilterResolver.class);
         Mockito.when(searchFilterResolver.resolveExternalFilters(Mockito.any()))
                 .thenAnswer(invocation -> invocation.getArguments()[0]);
         when(userSessionContext.isUserScoped()).thenReturn(false);
-        groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander,
-                repositoryApi, entityFilterMapper, groupFilterMapper, severityPopulator,
-                businessAccountRetriever, costServiceStub, realTimeContextId, targetCache,
-                cloudTypeMapper);
-
         searchService = spy(new SearchService(
                 repositoryApi,
                 marketsService,
@@ -717,6 +704,61 @@ public class SearchServiceTest {
         assertEquals("1", results.get(0).getUuid());
     }
 
+    /**
+     * Sending a request that should not return any results, this should return an empty response
+     * and not throw an exception.
+     *
+     * @throws Exception should not get thrown
+     */
+    @Test
+    public void testGetMembersBasedOnFilterEmptyScope() throws Exception {
+        GroupApiDTO request = new GroupApiDTO();
+        request.setScope(Lists.newArrayList(String.valueOf(ENTITY_ID_1)));
+        request.setCriteriaList(Collections.emptyList());
+        final SearchPaginationRequest paginationRequest =
+            new SearchPaginationRequest("0", 10, true, SearchOrderBy.SEVERITY.name());
+        when(groupExpander.getGroup(eq(String.valueOf(ENTITY_ID_1)))).thenReturn(Optional.of(Grouping.newBuilder()
+            .setId(ENTITY_ID_1)
+            .setDefinition(GroupDefinition.getDefaultInstance())
+            .build()
+        ));
+        MultiEntityRequest mockReq = mock(MultiEntityRequest.class);
+        final Stream<ApiPartialEntity> stream = ImmutableList.of(ApiPartialEntity.newBuilder()
+            .setOid(ENTITY_ID_2).setEntityType(0).build()).stream();
+        when(mockReq.getEntities()).thenReturn(stream);
+        when(repositoryApi.entitiesRequest(any())).thenReturn(mockReq);
+        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest,
+            null);
+        List<BaseApiDTO> results = response.getRawResults();
+        assertEquals(0, results.size());
+    }
+
+    /**
+     * Sending a request that should not return any results, but throw an exception as the given
+     * uuid does is fake.
+     *
+     * @throws IllegalArgumentException should be thrown
+     * @throws Exception any other exception should not get thrown
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetMembersBasedOnFilterInvalidScope() throws Exception {
+        GroupApiDTO request = new GroupApiDTO();
+        request.setScope(Lists.newArrayList(String.valueOf(ENTITY_ID_1)));
+        request.setCriteriaList(Collections.emptyList());
+        final SearchPaginationRequest paginationRequest =
+            new SearchPaginationRequest("0", 10, true, SearchOrderBy.SEVERITY.name());
+        when(groupExpander.getGroup(eq(String.valueOf(ENTITY_ID_1)))).thenReturn(Optional.of(Grouping.newBuilder()
+            .setId(ENTITY_ID_1)
+            .setDefinition(GroupDefinition.getDefaultInstance())
+            .build()
+        ));
+        MultiEntityRequest mockReq = mock(MultiEntityRequest.class);
+        when(mockReq.getEntities()).thenReturn(new ArrayList<ApiPartialEntity>().stream());
+        when(repositoryApi.entitiesRequest(any())).thenReturn(mockReq);
+        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest,
+            null);
+    }
+
     @Test
     public void testGetMembersBasedOnFilterUtilization() throws Exception {
         GroupApiDTO request = new GroupApiDTO();
@@ -1072,6 +1114,23 @@ public class SearchServiceTest {
             .collect(Collectors.toList());
         final List<String> actual = result.stream().map(CriteriaOptionApiDTO::getValue)
             .collect(Collectors.toList());
+        assertEquals(expected, actual);
+    }
+
+    /**
+     * All "Boolean" filter options should be present in criteria.
+     *
+     * @throws Exception if something is catastrophically wrong.
+     */
+    @Test
+    public void testBooleanFilterOptions() throws Exception {
+        final List<CriteriaOptionApiDTO> result =
+                searchService.getCriteriaOptions(USER_DEFINED_ENTITY, null, null, null);
+        final List<String> expected = Arrays.stream(UIBooleanFilter.values())
+                .map(UIBooleanFilter::apiStr)
+                .collect(Collectors.toList());
+        final List<String> actual = result.stream().map(CriteriaOptionApiDTO::getValue)
+                .collect(Collectors.toList());
         assertEquals(expected, actual);
     }
 

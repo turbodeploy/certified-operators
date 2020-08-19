@@ -4,9 +4,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -19,6 +21,8 @@ import com.google.common.collect.ImmutableBiMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.utils.ProbeFeature;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Each action mode comes with 4 settings. To ensure we do not miss any and to prevent typos, we
@@ -44,14 +48,14 @@ public class ActionSettingSpecs {
      * 4 * size ofACTION_SETTING_SPECS.
      */
     @Nonnull
-    private static final Map<ActionSettingType, BiMap<EntitySettingSpecs, SettingSpec>> SETTING_SPECS;
+    private static final Map<ActionSettingType, BiMap<EntitySettingSpecs, Pair<SettingSpec, ProbeFeature>>> SETTING_SPECS;
 
     /**
-     * A map of each setting name to it's SettingSpec. There will be one key value in this map for
-     * each entry in SETTING_SPECS.
+     * A map of each setting name to pair of it's SettingSpec and associated probe feature.
+     * There will be one key value in this map for each entry in SETTING_SPECS.
      */
     @Nonnull
-    private static final Map<String, SettingSpec> SETTING_NAME_TO_SETTING_SPEC;
+    private static final Map<String, Pair<SettingSpec, ProbeFeature>> SETTING_NAME_TO_SETTING_SPEC;
 
     static {
         ACTION_SETTING_SPECS = Arrays.stream(EntitySettingSpecs.values())
@@ -65,12 +69,14 @@ public class ActionSettingSpecs {
                     actionSpec -> actionSpec.actionModeSettingSpec.getSettingName(),
                     Function.identity()));
 
-        final Map<ActionSettingType, BiMap<EntitySettingSpecs, SettingSpec>> settingSpecs =
+        final Map<ActionSettingType, BiMap<EntitySettingSpecs, Pair<SettingSpec, ProbeFeature>>> settingSpecs =
                 new EnumMap<>(ActionSettingType.class);
         for (ActionSettingSpecs actionSettings: ACTION_SETTING_SPECS.values()) {
             final EntitySettingSpecs baseSettingName = actionSettings.actionModeSettingSpec;
-            for (Entry<ActionSettingType, SettingSpec> entry: actionSettings.createSettingSpecs().entrySet()) {
-                settingSpecs.computeIfAbsent(entry.getKey(), keu -> EnumHashBiMap.create(EntitySettingSpecs.class))
+            for (Entry<ActionSettingType, Pair<SettingSpec, ProbeFeature>> entry : actionSettings.createSettingSpecs()
+                    .entrySet()) {
+                settingSpecs.computeIfAbsent(entry.getKey(),
+                        keu -> EnumHashBiMap.create(EntitySettingSpecs.class))
                         .put(baseSettingName, entry.getValue());
             }
         }
@@ -81,7 +87,8 @@ public class ActionSettingSpecs {
                 .stream()
                 .map(BiMap::values)
                 .flatMap(Collection::stream)
-                .collect(Collectors.toMap(SettingSpec::getName, Function.identity()));
+                .collect(Collectors.toMap(k -> k.getFirst().getName(),
+                        v -> Pair.create(v.getFirst(), v.getSecond())));
     }
 
     @Nonnull
@@ -99,7 +106,64 @@ public class ActionSettingSpecs {
                 .stream()
                 .map(BiMap::values)
                 .flatMap(Collection::stream)
+                .map(Pair::getFirst)
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Get map of all setting spec name to associated probe feature.
+     *
+     * @return map of all setting spec name to associated probe feature.
+     */
+    public static Map<String, ProbeFeature> getSettingSpecToProbeFeatureMap() {
+        final Map<String, ProbeFeature> specNameToProbeFeatureMap = new HashMap<>();
+        SETTING_SPECS.values()
+                .stream()
+                .map(BiMap::values)
+                .flatMap(Collection::stream)
+                .forEach(el -> specNameToProbeFeatureMap.put(el.getFirst().getName(),
+                        el.getSecond()));
+        return specNameToProbeFeatureMap;
+    }
+
+    /**
+     * Get all the action workflow settings as {@link SettingSpec} objects.
+     *
+     * @return all all the action workflow settings as {@link SettingSpec} objects.
+     */
+    @Nonnull
+    public static Set<SettingSpec> getActionWorkflowSettingSpecs() {
+        final Set<SettingSpec> actionWorkflowSettings = SETTING_SPECS.entrySet()
+                .stream()
+                .filter(entry -> (entry.getKey() == ActionSettingType.EXTERNAL_APPROVAL
+                        || entry.getKey() == ActionSettingType.ON_GEN
+                        || entry.getKey() == ActionSettingType.AFTER_EXEC))
+                .map(entry -> entry.getValue().values())
+                .flatMap(Collection::stream)
+                .map(Pair::getFirst)
+                .collect(Collectors.toSet());
+        // hardcoded other action workflow settings from EntitySettingSpecs
+        actionWorkflowSettings.addAll(
+                Arrays.asList(EntitySettingSpecs.ActivateActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PreActivateActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PostActivateActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.MoveActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.MoveActionWorkflowWithNativeAsDefault.getSettingSpec(),
+                        EntitySettingSpecs.PreMoveActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PostMoveActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.ProvisionActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PreProvisionActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PostProvisionActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.ResizeActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PreResizeActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PostResizeActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.SuspendActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PreSuspendActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PostSuspendActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.DeleteActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PreDeleteActionWorkflow.getSettingSpec(),
+                        EntitySettingSpecs.PostDeleteActionWorkflow.getSettingSpec()));
+        return actionWorkflowSettings;
     }
 
     /**
@@ -111,7 +175,7 @@ public class ActionSettingSpecs {
     @Nullable
     public static SettingSpec getSettingSpec(@Nonnull String settingName) {
         Objects.requireNonNull(settingName);
-        return SETTING_NAME_TO_SETTING_SPEC.get(settingName);
+        return SETTING_NAME_TO_SETTING_SPEC.get(settingName).getFirst();
     }
 
     /**
@@ -145,13 +209,11 @@ public class ActionSettingSpecs {
      */
     public static boolean isExecutionScheduleSetting(@Nonnull String settingName) {
         Objects.requireNonNull(settingName);
-        final BiMap<EntitySettingSpecs, SettingSpec> executionSettings = SETTING_SPECS.get(
+        final BiMap<EntitySettingSpecs, Pair<SettingSpec, ProbeFeature>> executionSettings = SETTING_SPECS.get(
                 ActionSettingType.SCHEDULE);
-        return executionSettings
-                .values()
+        return executionSettings.values()
                 .stream()
-                .anyMatch(
-                    spec -> spec.getName().equals(settingName));
+                .anyMatch(spec -> spec.getFirst().getName().equals(settingName));
     }
 
     /**
@@ -165,11 +227,12 @@ public class ActionSettingSpecs {
     public static String getActionModeSettingFromExecutionScheduleSetting(
             @Nonnull String executionSetting) {
         Objects.requireNonNull(executionSetting);
-        final SettingSpec scheduleSettingSpec = SETTING_NAME_TO_SETTING_SPEC.get(executionSetting);
+        final Pair<SettingSpec, ProbeFeature> scheduleSettingSpec =
+                SETTING_NAME_TO_SETTING_SPEC.get(executionSetting);
         if (scheduleSettingSpec == null) {
             return null;
         }
-        final BiMap<EntitySettingSpecs, SettingSpec> executionSettings = SETTING_SPECS.get(
+        final BiMap<EntitySettingSpecs, Pair<SettingSpec, ProbeFeature>> executionSettings = SETTING_SPECS.get(
                 ActionSettingType.SCHEDULE);
         return executionSettings.inverse().get(scheduleSettingSpec).getSettingName();
     }
@@ -209,13 +272,13 @@ public class ActionSettingSpecs {
             @Nonnull ActionSettingType subSettingType) {
         Objects.requireNonNull(entitySettingSpecs);
         Objects.requireNonNull(subSettingType);
-        final BiMap<EntitySettingSpecs, SettingSpec> bimap = SETTING_SPECS.get(subSettingType);
+        final BiMap<EntitySettingSpecs, Pair<SettingSpec, ProbeFeature>> bimap = SETTING_SPECS.get(subSettingType);
         Objects.requireNonNull(bimap);
-        final SettingSpec schedSpec = bimap.get(entitySettingSpecs);
+        final Pair<SettingSpec, ProbeFeature> schedSpec = bimap.get(entitySettingSpecs);
         if (schedSpec == null) {
             return null;
         }
-        return schedSpec.getName();
+        return schedSpec.getFirst().getName();
     }
 
     /**
@@ -252,9 +315,9 @@ public class ActionSettingSpecs {
     }
 
     @Nonnull
-    private BiMap<ActionSettingType, SettingSpec> createSettingSpecs() {
-        final ImmutableBiMap.Builder<ActionSettingType, SettingSpec> settingSpecs =
-                ImmutableBiMap.builder();
+    private BiMap<ActionSettingType, Pair<SettingSpec, ProbeFeature>> createSettingSpecs() {
+        final ImmutableBiMap.Builder<ActionSettingType, Pair<SettingSpec, ProbeFeature>>
+                settingSpecs = ImmutableBiMap.builder();
         for (ActionSettingType actionSettingType : ActionSettingType.values()) {
             settingSpecs.put(actionSettingType,
                     actionSettingType.createEntitySpec(actionModeSettingSpec));

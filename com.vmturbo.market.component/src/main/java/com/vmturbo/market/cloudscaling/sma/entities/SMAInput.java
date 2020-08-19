@@ -21,13 +21,12 @@ import javax.annotation.Nullable;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Table;
 
-import org.apache.commons.math3.util.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.immutables.value.internal.$guava$.annotations.$VisibleForTesting;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 
@@ -39,7 +38,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -59,6 +57,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VM
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * The input to the Stable marriage algorithm.
@@ -437,8 +436,9 @@ public class SMAInput {
             Set<Long> providerOids = providersList.get(oid);
             final List<SMATemplate> providers = new ArrayList<>();
             if (providerOids == null) {
+                logger.debug("updateVMs: no providers for VM ID={} name={}", oid, name);
+            } else if (providerOids.isEmpty()) {
                 logger.warn("updateVMs: no providers for VM ID={} name={}", oid, name);
-                providers.add(vm.getCurrentTemplate());
             } else {
                 for (long providerId : providerOids) {
                     SMATemplate template = computeTierOidToContextToTemplate.get(providerId, context);
@@ -451,12 +451,11 @@ public class SMAInput {
                 }
             }
             vm.setProviders(providers);
-            vm.updateNaturalTemplateAndMinCostProviderPerFamily();
 
             Pair<SMAReservedInstance, Float> currentRICoverage = computeVmCoverage(oid, cloudCostData, riBoughtOidToRI);
-            logger.debug("updateVMs: ID={} name={} RI={} currentRICoverage={}", () -> oid,
-                () -> name, () -> currentRICoverage.getFirst(), () -> currentRICoverage.getSecond());
             if (currentRICoverage != null) {
+                logger.debug("updateVMs: ID={} name={} RI={} currentRICoverage={}", () -> oid,
+                        () -> name, () -> currentRICoverage.getFirst(), () -> currentRICoverage.getSecond());
                 vm.setCurrentRI(currentRICoverage.getFirst());
                 vm.setCurrentRICoverage(currentRICoverage.getSecond());
             }
@@ -800,7 +799,6 @@ public class SMAInput {
         String name = riBoughtInfo.getProbeReservedInstanceId();  // getDisplayName();
         long zoneId = riBoughtInfo.getAvailabilityZoneId();
         zoneId = (zoneId == 0 ? SMAUtils.NO_ZONE : zoneId);
-        float count = riBoughtInfo.getNumBought();
         ReservedInstanceBoughtCost boughtCost = riBoughtInfo.getReservedInstanceBoughtCost();
         boolean shared = riBoughtInfo.getReservedInstanceScopeInfo().getShared();
 
@@ -854,11 +852,20 @@ public class SMAInput {
         long riKeyId = reservedInstanceKeyIDGenerator.lookUpRIKey(reservedInstanceKey, riBoughtId);
 
         String templateName = template.getName();
+
+        Set<Long> scopedAccountsIds = shared ? Collections.emptySet() : ImmutableSet.copyOf(
+                riBoughtInfo.getReservedInstanceScopeInfo().getApplicableBusinessAccountIdList());
+
+        // adjust count of RI to reflect partial RI
+        final float count = (float)riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons()
+                / template.getCoupons();
+
         // Unfortunately, the probe returns ISF=true for metal templates.
         SMAReservedInstance ri = new SMAReservedInstance(riBoughtId,
             riKeyId,
             name,
             businessAccountId,
+            scopedAccountsIds,
             template,
             zoneId,
             count,
@@ -1036,7 +1043,6 @@ public class SMAInput {
         /**
      * Compute the current RI Coverage and the SMA specific RI Key ID.
      * @param riCoverage RI coverage information: RI ID -> # coupons covered
-     * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
      * @return ReservedInstanceCoverage
      */
     @Nullable

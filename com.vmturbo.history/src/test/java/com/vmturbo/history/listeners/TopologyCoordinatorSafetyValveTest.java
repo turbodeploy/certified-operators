@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
+import io.opentracing.SpanContext;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
 import org.mockito.stubbing.Answer;
@@ -155,7 +157,7 @@ public class TopologyCoordinatorSafetyValveTest {
         // which it will do by reading all the chunks. We've rigged our topology to be empty
         // (hasNext always returns false), so a single call to hasNext is proof that the listener
         // did, in fact, time out, and that it then proactively drained the topology.
-        topologyCoordinator.onTopologyNotification(info, topology);
+        topologyCoordinator.onTopologyNotification(info, topology, mock(SpanContext.class));
         verify(topology, times(1)).hasNext();
     }
 
@@ -223,7 +225,7 @@ public class TopologyCoordinatorSafetyValveTest {
         RemoteIterator<Topology.DataSegment> topology = mock(RemoteIterator.class);
         when(topology.hasNext()).thenReturn(false);
         // this won't return until the topology has been processed
-        topologyCoordinator.onTopologyNotification(info, topology);
+        topologyCoordinator.onTopologyNotification(info, topology, mock(SpanContext.class));
         assertThat(procStatusSpy.getIngestion(Live, info).getState(), is(Processed));
         // we won't send a projected topology, which should prevent the snapshot from ever being
         // fully resolved, and after a few seconds we should see hourly rollups kicked off

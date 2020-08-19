@@ -1,7 +1,6 @@
 package com.vmturbo.stitching.poststitching;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 
 import java.util.Collections;
@@ -15,6 +14,7 @@ import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
+import com.vmturbo.stitching.utilities.WastedFiles;
 
 /**
  * Test ProtectSharedStorageWastedFilesPostStitchingOperation.
@@ -89,20 +89,20 @@ public class ProtectSharedStorageWastedFilesPostStitchingOperationTest {
     }
 
     /**
-     * Check that the {@link ProtectSharedStorageWastedFilesPostStitchingOperation} marks the
-     * storage as ignoreWastedFiles == true.
+     * Check that the {@link ProtectSharedStorageWastedFilesPostStitchingOperation} clears the
+     * files on wasted volume.
      */
    @Test
    public void testProtectSharedStorageWastedFilesPostStitchingOperation() {
        UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
-       // before operation, ignoreWastedFiles == false
-       assertFalse(sharedStorageEntity.getTopologyEntityDtoBuilder()
-           .getTypeSpecificInfo().getStorage().getIgnoreWastedFiles());
+       // before operation, wasted volume files are not empty
+       assertEquals(3, WastedFiles.getWastedFilesVirtualVolume(sharedStorageEntity).get()
+               .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
        protectWastedFilesPostOp.performOperation(
            Stream.of(sharedStorageEntity), settingsCollection, resultBuilder);
        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
-       // after the operation storage is marked as ignoreWastedFiles == true
-       assertTrue(sharedStorageEntity.getTopologyEntityDtoBuilder()
-           .getTypeSpecificInfo().getStorage().getIgnoreWastedFiles());
+       // after the operation, wasted volume files are cleared
+       assertEquals(0, WastedFiles.getWastedFilesVirtualVolume(sharedStorageEntity).get()
+               .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
    }
 }

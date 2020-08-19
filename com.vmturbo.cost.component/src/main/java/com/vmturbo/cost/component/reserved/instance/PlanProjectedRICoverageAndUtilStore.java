@@ -41,11 +41,9 @@ import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanRese
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
@@ -54,14 +52,12 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
 import com.vmturbo.cost.component.db.Tables;
-import com.vmturbo.cost.component.db.tables.PlanProjectedReservedInstanceCoverage;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.PlanProjectedEntityReservedInstanceMappingFilter;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.repository.api.RepositoryListener;
 
 public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, MultiStoreDiagnosable {
@@ -72,29 +68,23 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
 
     private static final String REGION_ID = "region_id";
 
+    private static final double PERMISSIBLE_EXCESS_OF_COUPON_USED_OVER_CAPACITY = 0.00001;
+
     private final DSLContext context;
 
     private final RepositoryServiceBlockingStub repositoryServiceBlockingStub;
 
     private final PlanReservedInstanceServiceBlockingStub planReservedInstanceService;
 
-    private final RepositoryClient repositoryClient;
-
     private final ReservedInstanceSpecStore reservedInstanceSpecStore;
-
-    private final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub;
 
     private final int chunkSize;
 
     private final Object newLock = new Object();
 
-    private final int projectedTopologyTimeOut;
+    private final Map<Long, Boolean> projectedTopologyAvailable = new HashMap<>();
 
-    private final Map<Long, Boolean> projectedTopologyAvailable = new HashMap<Long, Boolean>();
-
-    private final Map<Long, Param> cachedRICoverage = new HashMap<Long, Param>();
-
-    private final long realtimeTopologyContextId;
+    private final Map<Long, Param> cachedRICoverage = new HashMap<>();
 
     private final PlanProjectedReservedInstanceCoverageDiagsHelper planProjectedReservedInstanceCoverageDiagsHelper;
 
@@ -124,23 +114,15 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
     }
 
     public PlanProjectedRICoverageAndUtilStore(@Nonnull final DSLContext context,
-                                    int projectedTopologyTimeOut,
                                     @Nonnull final RepositoryServiceBlockingStub repositoryServiceBlockingStub,
-                                    @Nonnull final RepositoryClient repositoryClient,
                                     @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
                                     @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
-                                    @Nonnull SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
-                                    final int chunkSize,
-                                    final long realtimeTopologyContextId) {
+                                    final int chunkSize) {
         this.context = context;
-        this.projectedTopologyTimeOut = projectedTopologyTimeOut;
         this.repositoryServiceBlockingStub = Objects.requireNonNull(repositoryServiceBlockingStub);
-        this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.planReservedInstanceService = planReservedInstanceService;
         this.reservedInstanceSpecStore = reservedInstanceSpecStore;
-        this.supplyChainServiceBlockingStub = supplyChainServiceBlockingStub;
         this.chunkSize = chunkSize;
-        this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.planProjectedReservedInstanceCoverageDiagsHelper = new PlanProjectedReservedInstanceCoverageDiagsHelper(context);
         this.planProjectedReservedInstanceUtilizationDiagsHelper = new PlanProjectedReservedInstanceUtilizationDiagsHelper(context);
         this.planProjectedRIToEntityMappingDiagsHelper = new PlanProjectedRIToEntityMappingDiagsHelper(context);
@@ -190,17 +172,18 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
     /**
      * Construct entity RI coverage records and insert into projected_reserved_instance_coverage table.
      *
-     * @param projectedTopologyId
-     * @param topoInfo
-     * @param entityRICoverage
+     * @param projectedTopologyId the projected topology id
+     * @param topoInfo the {@link TopologyInfo}
+     * @param entityRICoverage the {@link EntityReservedInstanceCoverage}s
      */
-    private void insertRecordsToTable(long projectedTopologyId, @Nonnull TopologyInfo topoInfo,
-                                       @Nonnull List<EntityReservedInstanceCoverage> entityRICoverage) {
+    private void insertRecordsToTable(final long projectedTopologyId,
+            @Nonnull final TopologyInfo topoInfo,
+            @Nonnull final List<EntityReservedInstanceCoverage> entityRICoverage) {
         // get plan projected topology entity DTO from repository.
-        long topologyContextId = topoInfo.getTopologyContextId();
+        final long topologyContextId = topoInfo.getTopologyContextId();
         Map<Long, TopologyEntityDTO> entityMap = RepositoryDTOUtil.topologyEntityStream(repositoryServiceBlockingStub
             .retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                .setTopologyContextId(topoInfo.getTopologyContextId())
+                .setTopologyContextId(topologyContextId)
                 .setTopologyId(projectedTopologyId)
                 .setReturnType(Type.FULL)
                 .setTopologyType(TopologyType.PROJECTED)
@@ -208,94 +191,89 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
                 .build()))
             .map(PartialEntity::getFullEntity)
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        Set<TopologyEntityDTO> allRegion = entityMap.values().stream()
+        final Set<TopologyEntityDTO> regions = entityMap.values().stream()
                 .filter(v -> v.getEntityType() == EntityType.REGION_VALUE)
                 .collect(Collectors.toSet());
-        Set<TopologyEntityDTO> allBa = entityMap.values()
-                        .stream().filter( v -> v.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
-                        .collect(Collectors.toSet());
-        List<PlanProjectedReservedInstanceCoverageRecord> coverageRcd = new ArrayList<>();
+        final Set<TopologyEntityDTO> businessAccounts = entityMap.values().stream()
+                .filter(v -> v.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
+                .collect(Collectors.toSet());
+
         // Get aggregated RI coverage for each entity.
-        Map<Long, Double> aggregatedEntityRICoverages = getAggregatedEntityRICoverage(entityRICoverage);
-        for (Map.Entry<Long, Double> aggregatedEntityRICoverage : aggregatedEntityRICoverages.entrySet()) {
-            long entityId = aggregatedEntityRICoverage.getKey();
-            TopologyEntityDTO entity = entityMap.get(entityId);
+        final List<PlanProjectedReservedInstanceCoverageRecord> coverageRcd = new ArrayList<>();
+        getAggregatedEntityRICoverage(entityRICoverage).forEach((entityId, usedCoupons) -> {
+            final TopologyEntityDTO entity = entityMap.get(entityId);
             if (entity == null || entity.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
-                logger.error("Updating projected RI coverage for an entity {} which is not found in "
-                        + "topology with topologyContextId {}.", entityId, topologyContextId);
-                continue;
+                logger.error("Updating projected RI coverage for an entity {} which is not found in topology with topologyContextId {}.", entityId, topologyContextId);
+                return;
             }
 
-            if (entity.getTypeSpecificInfo().getVirtualMachine()
-                    .getBillingType() == CommonDTO.EntityDTO.VirtualMachineData.VMBillingType.BIDDING) {
-                logger.trace("Entity {} is Billing Type: BIDDING. Skipping it... ", entity.getOid());
-                continue;
+            if (entity.getTypeSpecificInfo().getVirtualMachine().getBillingType()
+                    == VMBillingType.BIDDING) {
+                logger.trace("Entity {} is Billing Type: BIDDING. Skipping it... ",
+                        entity.getOid());
+                return;
             }
 
-            long baOid;
-            long zoneOid;
-            long regionOid;
+            final Optional<Long> zoneOid;
+            final Optional<Long> regionOid;
 
             // find az connected with entity
-            List<ConnectedEntity> az = entity.getConnectedEntityListList().stream()
+            final List<ConnectedEntity> az = entity.getConnectedEntityListList().stream()
                     .filter(c -> c.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
                     .collect(Collectors.toList());
             if (az.size() == 1) {
                 // get the region from the zone
-                zoneOid = az.get(0).getConnectedEntityId();
-                regionOid =
-                        getConnectedEntityofType(allRegion, EntityType.AVAILABILITY_ZONE_VALUE, zoneOid).stream()
-                                .map(e -> e.getOid())
-                                .findFirst().orElse(0l);
+                zoneOid = Optional.of(az.get(0).getConnectedEntityId());
+                regionOid = getConnectedEntityofType(regions, EntityType.AVAILABILITY_ZONE_VALUE,
+                        zoneOid.get()).stream().map(TopologyEntityDTO::getOid).findFirst();
             } else {
                 // get the region directly from the entity
                 regionOid = entity.getConnectedEntityListList().stream()
                         .filter(c -> c.getConnectedEntityType() == EntityType.REGION_VALUE)
-                        .map(c -> c.getConnectedEntityId())
-                        .findFirst().orElse(0l);
+                        .map(ConnectedEntity::getConnectedEntityId).findFirst();
                 // set the zone with a default value, like we do in real-time
-                zoneOid = 0l;
+                zoneOid = Optional.empty();
             }
-            if (regionOid == 0l) {
-                logger.warn("Entity {} connected to wrong number of region!", entity.getOid());
-                continue;
+            if (!regionOid.isPresent()) {
+                logger.warn("Could not find region for entity {}.", entity.getOid());
+                return;
             }
 
             // find ba connected with entity
-            baOid = getConnectedEntityofType(allBa, EntityType.VIRTUAL_MACHINE_VALUE, entity.getOid()).stream()
-                    .map(e -> e.getOid())
-                    .findFirst().orElse(0l);
-            if (baOid == 0l) {
-                logger.warn("Entity {} connected to wrong number of business account!", entity.getOid());
-                continue;
+            final Optional<Long> businessAccount = getConnectedEntityofType(businessAccounts,
+                    EntityType.VIRTUAL_MACHINE_VALUE, entity.getOid()).stream()
+                    .map(TopologyEntityDTO::getOid).findFirst();
+            if (!businessAccount.isPresent()) {
+                logger.warn("Could not find business account for entity {}.", entity.getOid());
+                return;
             }
 
             // find compute tier consumed by entity
             final Optional<Integer> optionalCouponCapacity = entityRICoverage.stream().filter(s -> s.getEntityId() == entityId)
-                    .map(a -> a.getEntityCouponCapacity()).findFirst();
+                    .map(EntityReservedInstanceCoverage::getEntityCouponCapacity).findFirst();
             // The aggregated RI coverage of the entity
-            final Double usedCoupons = aggregatedEntityRICoverage.getValue();
-            if (optionalCouponCapacity.isPresent()) {
-                Double totalCoupons = Double.valueOf(optionalCouponCapacity.get());
-                if (usedCoupons > totalCoupons) {
-                    // Used coupons should be less than or equals total coupons.
-                    logger.error("Used coupons are greater than total coupons for " +
-                                    "entityId {}, topologyContextId {}, region id {}, az id {}" +
-                                    ", ba id {}, total coupon {}, used coupon {}.",
-                            entityId, topologyContextId, regionOid, zoneOid,
-                            baOid, totalCoupons, usedCoupons);
+            optionalCouponCapacity.ifPresent(totalCoupons -> {
+                if (usedCoupons - totalCoupons > PERMISSIBLE_EXCESS_OF_COUPON_USED_OVER_CAPACITY) {
+                    logger.error(
+                            "Used coupons are greater than total coupons for entityId {}, topologyContextId {}, region id {}, az id {} , ba id {}, total coupon {}, used coupon {}.",
+                            entityId, topologyContextId, regionOid, zoneOid, businessAccount,
+                            totalCoupons, usedCoupons);
                 } else {
-                    // Used coupons are less than or equals total coupons.
-                    coverageRcd.add(context.newRecord(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
-                            new PlanProjectedReservedInstanceCoverageRecord(
-                                    entityId, topologyContextId, regionOid, zoneOid, baOid, totalCoupons, usedCoupons)));
-                    logger.debug("Projected reserved instance coverage record with entityId {}, topologyContextId {}, "
-                                    + "region id {}, az id {}, ba id {}, total coupon {}, used coupon {}.",
-                            entityId, topologyContextId, regionOid, zoneOid, baOid, totalCoupons, usedCoupons);
+                    coverageRcd.add(
+                            context.newRecord(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
+                                    new PlanProjectedReservedInstanceCoverageRecord(entityId,
+                                            topologyContextId, regionOid.get(), zoneOid.orElse(0L),
+                                            businessAccount.get(), (double)totalCoupons,
+                                            usedCoupons)));
+                    logger.debug(
+                            "Projected reserved instance coverage record with entityId {}, topologyContextId {}, region id {}, az id {}, ba id {}, total coupon {}, used coupon {}.",
+                            entityId, topologyContextId, regionOid, zoneOid, businessAccount,
+                            totalCoupons, usedCoupons);
                 }
-            }
-        }
-        Lists.partition(coverageRcd, chunkSize).forEach(entityChunk -> context.batchInsert(coverageRcd).execute());
+            });
+        });
+        Lists.partition(coverageRcd, chunkSize).forEach(
+                entityChunk -> context.batchInsert(coverageRcd).execute());
     }
 
     /**
@@ -319,34 +297,6 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
             v == null ? totalCouponsUsed : totalCouponsUsed + v);
         }
         return aggregatedEntityRICoverages;
-    }
-
-    /**
-     * A helper method to get the compute tiers consumes by a given entity.
-     *
-     * @param entity the given entity
-     * @param entityMap a map of TopologyEntityDTOs
-     * @return a list of {@link TopologyEntityDTO}
-     */
-    private List<TopologyEntityDTO> getEntityConsumedComputeTiers(TopologyEntityDTO entity,
-                                                                  Map<Long, TopologyEntityDTO> entityMap) {
-        return entity.getCommoditiesBoughtFromProvidersList().stream()
-                .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-                .filter(commBought -> commBought.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
-                .map(CommoditiesBoughtFromProvider::getProviderId)
-                .distinct()
-                .map(providerId -> {
-                    final Optional<TopologyEntityDTO> providerEntity = entityMap.get(providerId) == null ?
-                                    Optional.empty() : Optional.of(entityMap.get(providerId));
-                    if (!providerEntity.isPresent()) {
-                        logger.warn("Unable to find compute tier {} for entity {} in topology.",
-                                providerId, entity.getOid());
-                    }
-                   return providerEntity;
-                })
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList());
     }
 
     /**
@@ -536,15 +486,13 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
         final Map<Long, Map<Long, Double>> entityToRiToCoveredCoupons =
             getPlanProjectedReservedInstanceUsedCouponsMapWithFilter(filter);
 
-        Map<Long, EntityReservedInstanceCoverage> entityToRiCoverage = entityToRiToCoveredCoupons.entrySet().stream()
+        return entityToRiToCoveredCoupons.entrySet().stream()
             .map(entityEntry -> EntityReservedInstanceCoverage.newBuilder()
                 .setEntityId(entityEntry.getKey())
                 .setEntityCouponCapacity(entityToTotalCoupons.getOrDefault(entityEntry.getKey(), 0D).intValue())
                 .putAllCouponsCoveredByRi(entityEntry.getValue())
                 .build())
             .collect(Collectors.toMap(EntityReservedInstanceCoverage::getEntityId, Function.identity()));
-
-        return entityToRiCoverage;
     }
 
     /**

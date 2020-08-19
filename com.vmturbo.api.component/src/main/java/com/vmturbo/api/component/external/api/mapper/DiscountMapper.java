@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -12,6 +13,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -44,6 +46,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
  * Mapping between Cost domain DTO {@link Discount} and API DTOs
@@ -61,7 +64,13 @@ public class DiscountMapper {
 
     private final RepositoryApi repositoryApi;
 
-    private final Set<String> SUPPORTED_CLOUD_TYPE = ImmutableSet.of("AWS", "AZURE");
+    /**
+     * Map of source of target type from where the business account originates indexed by probe type.
+     */
+    private static final Map<String, CloudType> SUPPORTED_CLOUD_TYPE = ImmutableMap.of(
+            SDKProbeType.AWS.getProbeType(), CloudType.AWS,
+            SDKProbeType.AWS_BILLING.getProbeType(), CloudType.AWS,
+            SDKProbeType.AZURE.getProbeType(), CloudType.AZURE);
 
     // EntityDiscountDTO predicate to filter those only have price adjustment
     private static final Predicate<EntityDiscountDTO> ENTITY_DISCOUNT_DTO_PREDICATE = dto ->
@@ -106,7 +115,8 @@ public class DiscountMapper {
         final String targetType = getTargetType(discount.getAssociatedAccountId())
                 .orElse(new TargetApiDTO())
                 .getType();
-        businessUnitApiDTO.setCloudType(SUPPORTED_CLOUD_TYPE.contains(targetType) ? CloudType.valueOf(targetType) : CloudType.UNKNOWN);
+        businessUnitApiDTO.setCloudType(SUPPORTED_CLOUD_TYPE.containsKey(targetType) ?
+                CloudType.valueOf(SUPPORTED_CLOUD_TYPE.get(targetType).name()) : CloudType.UNKNOWN);
         businessUnitApiDTO.setChildrenBusinessUnits(ImmutableSet.of(String.valueOf(discount.getAssociatedAccountId())));
 
         // TODO provide Cost for this business account

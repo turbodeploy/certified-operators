@@ -404,13 +404,12 @@ public class ActionDTOUtil {
                 final List<ActionEntity> atomicResizeEntities = new ArrayList<>();
                 atomicResizeEntities.add(getPrimaryEntity(action));
                 for (ResizeInfo resize : action.getInfo().getAtomicResize().getResizesList()) {
-                    atomicResizeEntities.addAll(resize.getSourceEntitiesList());
                     if (resize.hasTarget()) {
                         atomicResizeEntities.add(resize.getTarget());
                     }
                 }
                 return atomicResizeEntities;
-                case RESIZE:
+            case RESIZE:
             case ACTIVATE:
             case DEACTIVATE:
             case PROVISION:

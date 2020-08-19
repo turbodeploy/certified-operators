@@ -15,7 +15,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityField;
+import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.stitching.DTOFieldSpecImpl;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
@@ -23,7 +26,9 @@ import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
+import com.vmturbo.stitching.utilities.EntityFieldMergers;
 import com.vmturbo.stitching.utilities.MergeEntities;
+import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
 import com.vmturbo.topology.graph.OwnershipGraph;
 
 /**
@@ -48,7 +53,8 @@ public class AwsBillingBusinessAccountStitchingOperation implements StitchingOpe
     @Nonnull
     @Override
     public Optional<StitchingScope<StitchingEntity>> getScope(
-            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+            long targetId) {
         return Optional.of(stitchingScopeFactory.probeEntityTypeScope(
             SDKProbeType.AWS.getProbeType(), EntityType.BUSINESS_ACCOUNT));
     }
@@ -136,8 +142,17 @@ public class AwsBillingBusinessAccountStitchingOperation implements StitchingOpe
         // We do this AFTER we update all the relationships, so that all relationship changes
         // take effect between any of the merges.
         billingToAwsMap.forEach((billingAccount, awsAccount) -> {
-            resultBuilder.queueEntityMerger(MergeEntities.mergeEntity(billingAccount)
-                .onto(awsAccount));
+            final MergeEntitiesDetails mergeEntitiesDetails = MergeEntities.mergeEntity(billingAccount)
+                    .onto(awsAccount);
+            String displayName = awsAccount.getEntityBuilder().getDisplayName();
+            if (displayName != null && displayName.isEmpty()) {
+                EntityField entityField = EntityField.newBuilder()
+                        .setFieldName(SupplyChainConstants.DISPLAY_NAME).build();
+                mergeEntitiesDetails.addFieldMerger(
+                        EntityFieldMergers.getAttributeFieldMerger(
+                                new DTOFieldSpecImpl(entityField)));
+            }
+            resultBuilder.queueEntityMerger(mergeEntitiesDetails);
         });
 
         return resultBuilder.build();

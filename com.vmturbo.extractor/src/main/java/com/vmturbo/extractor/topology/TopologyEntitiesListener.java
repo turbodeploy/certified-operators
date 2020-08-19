@@ -16,6 +16,8 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,6 +31,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.RemoteIteratorDrain;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
@@ -95,11 +99,12 @@ public class TopologyEntitiesListener implements EntitiesListener {
      */
     @Override
     public void onTopologyNotification(@Nonnull final TopologyInfo topologyInfo,
-            @Nonnull final RemoteIterator<DataSegment> entityIterator) {
+            @Nonnull final RemoteIterator<DataSegment> entityIterator,
+            @Nonnull final SpanContext tracingContext) {
         String label = TopologyDTOUtil.getSourceTopologyLabel(topologyInfo);
         if (busy.compareAndSet(false, true)) {
             logger.info("Received topology {}", TopologyDTOUtil.getSourceTopologyLabel(topologyInfo));
-            try {
+            try (TracingScope scope = Tracing.trace("extractor_run_topology", tracingContext)) {
                 new TopologyRunner(topologyInfo, entityIterator).runTopology();
             } catch (SQLException | UnsupportedDialectException e) {
                 logger.error("Failed to process topology", e);
@@ -220,8 +225,8 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     TopologyEntityDTO topologyEntityDTO = dataSegment.getEntity();
                     // add entity to graph
                     graphBuilder.addEntity(SupplyChainEntity.newBuilder(topologyEntityDTO));
-                    // cache interested commodities for use later
-                    dataProvider.scrapeCommodities(topologyEntityDTO);
+                    // cache pertaining entity data for later use
+                    dataProvider.scrapeData(topologyEntityDTO);
                 }
             }
         }

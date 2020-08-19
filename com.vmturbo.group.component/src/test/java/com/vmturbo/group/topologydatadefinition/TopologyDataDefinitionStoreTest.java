@@ -158,7 +158,7 @@ public class TopologyDataDefinitionStoreTest {
         final TopologyDataDefinition manualWithEntityFilters =
                 TopologyDataDefinitionTestUtils.createManualTopologyDataDefinition(
                 EntityType.BUSINESS_APPLICATION, "manualTopoDataDef3",
-                EntityType.APPLICATION);
+                EntityType.APPLICATION_COMPONENT);
         long topoDefWithStaticEntitiesOid =
                 topologyDataDefinitionStore.createTopologyDataDefinition(manualWithStaticEntities)
                         .getId();
@@ -214,7 +214,7 @@ public class TopologyDataDefinitionStoreTest {
         final long newGroupId = 2;
         final TopologyDataDefinition updatedManualDef =
             TopologyDataDefinitionTestUtils.createManualTopologyDataDefinition(EntityType.SERVICE,
-            MANUAL_ENTITY_NAME, newGroupId, EntityType.APPLICATION);
+            MANUAL_ENTITY_NAME, newGroupId, EntityType.APPLICATION_COMPONENT);
         final Optional<TopologyDataDefinition> optUpdatedDef =
             topologyDataDefinitionStore.updateTopologyDataDefinition(manualTopoDataDefEntry.getId(),
                 updatedManualDef);

@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Sets;
 
 import org.hamcrest.Matchers;
+import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,8 +45,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.schedule.ScheduleStore;
 import com.vmturbo.group.service.MockTransactionProvider;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Tests creation of default setting policies.
@@ -53,12 +57,14 @@ public class DefaultSettingPolicyCreatorTest {
 
     private ISettingPolicyStore settingStore;
     private SettingSpecStore settingSpecStore;
+    private ScheduleStore scheduleStore;
     private DefaultSettingPolicyCreator settingPolicyCreator;
     private static final BooleanSettingValueType TRUE =
             BooleanSettingValueType.newBuilder().setDefault(true).build();
     private static final String SPEC_NAME = "specNameFoo";
     private SettingSpec defaultSetting;
     private MockTransactionProvider transactionProvider;
+    private DSLContext context;
 
     /**
      * Initialises the tests.
@@ -68,11 +74,13 @@ public class DefaultSettingPolicyCreatorTest {
         transactionProvider = new MockTransactionProvider();
         settingStore = transactionProvider.getSettingPolicyStore();
         settingSpecStore = Mockito.mock(SettingSpecStore.class);
+        scheduleStore = Mockito.mock(ScheduleStore.class);
         defaultSetting = SettingSpec.newBuilder()
                 .setName(SPEC_NAME)
                 .setBooleanSettingValueType(TRUE)
                 .setEntitySettingSpec(entitySettingSpec(11))
                 .build();
+        context = Mockito.mock(DSLContext.class);
     }
 
     /**
@@ -152,15 +160,16 @@ public class DefaultSettingPolicyCreatorTest {
     @Test
     public void testDefSettingFromSpecList() throws Exception {
         final SettingSpec spec = SettingSpec.newBuilder(defaultSetting)
-            .setSortedSetOfOidSettingValueType(
-                SortedSetOfOidSettingValueType.newBuilder()
-                    .setType(SortedSetOfOidSettingValueType.Type.ENTITY))
-            .build();
+                .setSortedSetOfOidSettingValueType(SortedSetOfOidSettingValueType.newBuilder()
+                        .setType(SortedSetOfOidSettingValueType.Type.ENTITY)
+                        .addAllDefault(Collections.singletonList(1L)))
+                .build();
         final SettingPolicyInfo info = getPolicyInfo(spec);
         Assert.assertEquals(1, info.getSettingsCount());
         final Setting setting = info.getSettings(0);
         Assert.assertEquals(spec.getName(), setting.getSettingSpecName());
-        Assert.assertTrue(setting.getSortedSetOfOidSettingValue().getOidsList().isEmpty());
+        Assert.assertEquals(Sets.newHashSet(1L),
+                Sets.newHashSet(setting.getSortedSetOfOidSettingValue().getOidsList()));
     }
 
     /**
@@ -277,8 +286,9 @@ public class DefaultSettingPolicyCreatorTest {
         when(settingSpecStore.getSettingSpec(spec1.getName())).thenReturn(Optional.of(spec1));
         when(settingSpecStore.getSettingSpec(spec2.getName())).thenReturn(Optional.of(spec2));
         DefaultSettingPolicyValidator validator =
-                new DefaultSettingPolicyValidator(settingSpecStore, groupStore);
-        validator.validateSettingPolicy(info, Type.DEFAULT);
+                new DefaultSettingPolicyValidator(settingSpecStore, groupStore, scheduleStore,
+                Clock.systemDefaultZone());
+        validator.validateSettingPolicy(context, info, Type.DEFAULT);
     }
 
     /**
@@ -396,9 +406,10 @@ public class DefaultSettingPolicyCreatorTest {
         SettingSpecStore settingSpecStore = Mockito.mock(SettingSpecStore.class);
         when(settingSpecStore.getSettingSpec(spec1.getName())).thenReturn(Optional.of(spec1));
         DefaultSettingPolicyValidator validator =
-                new DefaultSettingPolicyValidator(settingSpecStore, groupStore);
-        validator.validateSettingPolicy(info1, Type.DEFAULT);
-        validator.validateSettingPolicy(info2, Type.DEFAULT);
+                new DefaultSettingPolicyValidator(settingSpecStore, groupStore, scheduleStore,
+                    Clock.systemDefaultZone());
+        validator.validateSettingPolicy(context, info1, Type.DEFAULT);
+        validator.validateSettingPolicy(context, info2, Type.DEFAULT);
     }
 
     /**
@@ -451,9 +462,10 @@ public class DefaultSettingPolicyCreatorTest {
      */
     @Test
     public void testDoesNotCreateUnnecessaryPolicies() throws Exception {
+        final ThinTargetCache thinTargetCache = Mockito.mock(ThinTargetCache.class);
         final Map<Integer, SettingPolicyInfo> defaultsMap =
             DefaultSettingPolicyCreator.defaultSettingPoliciesFromSpecs(
-                new EnumBasedSettingSpecStore(false, false).getAllSettingSpecs());
+                new EnumBasedSettingSpecStore(false, false, thinTargetCache).getAllSettingSpecs());
 
         assertThat(defaultsMap.size(), is(lessThan(EntityType.values().length)));
         assertThat(defaultsMap.keySet(), not(contains(EntityType.UNKNOWN.getValue())));
@@ -555,6 +567,27 @@ public class DefaultSettingPolicyCreatorTest {
                 .stream()
                 .map(Setting::getSettingSpecName)
                 .collect(Collectors.toSet()));
+    }
+
+    /**
+     * Test that we don't create settings without default values.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testSkipCreatingSettingsWithoutDefaultValue() throws Exception {
+        final SettingSpec settingSpec = SettingSpec.newBuilder()
+                .setName(SPEC_NAME)
+                .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
+                .setSortedSetOfOidSettingValueType(
+                        SortedSetOfOidSettingValueType.getDefaultInstance())
+                .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
+                .setBooleanSettingValueType(BooleanSettingValueType.getDefaultInstance())
+                .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
+                .setEntitySettingSpec(entitySettingSpec(11))
+                .build();
+        final SettingPolicyInfo policyInfo1 = getPolicyInfo(settingSpec);
+        Assert.assertEquals(0, policyInfo1.getSettingsCount());
     }
 
     private Collection<SettingPolicyInfo> getPolicyInfo(int expectedCount, SettingSpec... specs)

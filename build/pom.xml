@@ -58,6 +58,7 @@
         <jaeger.version>1.2.0</jaeger.version>
         <opentracing.concurrent.version>0.4.0</opentracing.concurrent.version>
         <opentracing.grpc.version>0.2.1</opentracing.grpc.version>
+        <opentracing.kafka.version>0.1.13</opentracing.kafka.version>
         <!-- END Versions for the various opentracing libraries -->
 
         <slf4j.version>1.7.25</slf4j.version>
@@ -149,7 +150,7 @@
         <docker.registry>docker.io</docker.registry>
         <docker.image.prefix>turbonomic</docker.image.prefix>
 
-        <immutables.version>2.7.3</immutables.version>
+        <immutables.version>2.8.8</immutables.version>
         <roaringbitmap.version>0.8.13</roaringbitmap.version>
         <!-- java slang -->
         <javaslang.version>2.0.5</javaslang.version>
@@ -379,6 +380,8 @@
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
                 <module>../com.vmturbo.mediation.aix.component</module>
+                <module>../com.vmturbo.mediation.acims.component</module>
+                <module>../com.vmturbo.mediation.apic.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
@@ -399,6 +402,8 @@
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.custom.data.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
+                <module>../com.vmturbo.mediation.database.mysql.component</module>
+                <module>../com.vmturbo.mediation.tomcat.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
@@ -462,6 +467,13 @@
             <id>nginx</id>
             <modules>
                 <module>../nginx</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>grafana</id>
+            <modules>
+                <module>../grafana</module>
             </modules>
         </profile>
 
@@ -713,6 +725,20 @@
         </profile>
 
         <profile>
+            <id>mediation-mysql</id>
+            <modules>
+                <module>../com.vmturbo.mediation.database.mysql.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-tomcat</id>
+            <modules>
+                <module>../com.vmturbo.mediation.tomcat.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-wmi</id>
             <modules>
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
@@ -844,6 +870,20 @@
             <modules>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-acims</id>
+            <modules>
+                <module>../com.vmturbo.mediation.acims.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-apic</id>
+            <modules>
+                <module>../com.vmturbo.mediation.apic.component</module>
             </modules>
         </profile>
 
@@ -1074,6 +1114,7 @@
                 <module>../kafka</module>
                 <module>../zookeeper</module>
                 <module>../nginx</module>
+                <module>../grafana</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
                 <module>../com.vmturbo.licensing</module>
@@ -1153,6 +1194,8 @@
                 <module>../com.vmturbo.mediation.aix.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
                 <module>../com.vmturbo.mediation.actionscript.component</module>
+                <module>../com.vmturbo.mediation.acims.component</module>
+                <module>../com.vmturbo.mediation.apic.component</module>
                 <module>../com.vmturbo.mediation.apm.snmp.component</module>
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
@@ -1172,6 +1215,8 @@
                 <module>../com.vmturbo.mediation.udt</module>
                 <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
+                <module>../com.vmturbo.mediation.database.mysql.component</module>
+                <module>../com.vmturbo.mediation.tomcat.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
                 <module>../com.vmturbo.mediation.gcp.component</module>
@@ -1237,6 +1282,7 @@
                 <module>../kafka</module>
                 <module>../zookeeper</module>
                 <module>../nginx</module>
+                <module>../grafana</module>
                 <module>../diags</module>
             </modules>
         </profile>
@@ -1338,9 +1384,14 @@
                     <version>${jacocoVersion}</version>
                     <executions>
                         <execution>
+                            <id>jacoco-initialize</id>
+                            <phase>initialize</phase>
                             <goals>
                                 <goal>prepare-agent</goal>
                             </goals>
+                            <configuration>
+                                <propertyName>jacoco.agent.argLine</propertyName>
+                            </configuration>
                         </execution>
                         <execution>
                             <id>report</id>
@@ -1629,7 +1680,7 @@
                         </excludes>
                         <trimStackTrace>false</trimStackTrace>
                         <!-- Required to deal properly with non-ASCII characters across platforms. -->
-                        <argLine>-Dfile.encoding=UTF-8</argLine>
+                        <argLine>${jacoco.agent.argLine} -Dfile.encoding=UTF-8</argLine>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -2780,6 +2831,11 @@
                 <groupId>io.opentracing.contrib</groupId>
                 <artifactId>opentracing-grpc</artifactId>
                 <version>${opentracing.grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.opentracing.contrib</groupId>
+                <artifactId>opentracing-kafka-client</artifactId>
+                <version>${opentracing.kafka.version}</version>
             </dependency>
 
             <dependency>

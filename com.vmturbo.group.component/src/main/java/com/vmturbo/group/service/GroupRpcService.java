@@ -82,6 +82,7 @@ import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchSe
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.group.common.Truncator;
 import com.vmturbo.group.group.DiscoveredGroupHash;
 import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore;
@@ -113,6 +114,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                     .build()
                     .register();
 
+    private long realtimeTopologyContextId = 777777;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -287,10 +289,11 @@ public class GroupRpcService extends GroupServiceImplBase {
             @Nonnull List<Long> scopes, @Nonnull IGroupStore groupStore) throws StoreOperationException {
         // if the user is scoped, set up a filter to restrict the results based on their scope.
         // if the request contains scopes limit, set up a filter to restrict the results based on it.
-        // if the request is for "all" groups: we will filter results and only return accessible ones.
+        // if the request is for "all" groups and the user is scoped: we will filter results and
+        // only return accessible ones.
         // If the request was for a specific set of groups: we will use a filter that will throw an
         // access exception if any groups are deemed "out of scope".
-        if (!userSessionContext.isUserScoped() && scopes.isEmpty()) {
+        if (!userSessionContext.isUserScoped() && isMarketScoped(scopes)) {
             return true;
         }
 
@@ -347,6 +350,10 @@ public class GroupRpcService extends GroupServiceImplBase {
             responseObserver.onNext(DeleteGroupResponse.newBuilder().setDeleted(true).build());
             responseObserver.onCompleted();
         }
+    }
+
+    private boolean isMarketScoped(@Nonnull List<Long> scopes) {
+        return scopes.isEmpty() || (scopes.size() == 1 && scopes.get(0).equals(realtimeTopologyContextId));
     }
 
     private GetMembersResponse makeMembersResponse(final long groupId, Set<Long> members) {
@@ -407,7 +414,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             final Set<Long> existingRealGroups = groupStore.getExistingGroupIds(realGroupIds);
             if (!realGroupIds.equals(existingRealGroups)) {
                 realGroupIds.removeAll(existingRealGroups);
-                final String errMsg = "Cannot find a groups with ids " + realGroupIds;
+                final String errMsg = "Cannot find groups with ids " + realGroupIds;
                 logger.error(errMsg);
                 responseObserver.onError(
                         Status.NOT_FOUND.withDescription(errMsg).asRuntimeException());
@@ -1163,7 +1170,9 @@ public class GroupRpcService extends GroupServiceImplBase {
             @Nonnull StitchingGroup src) {
         final GroupDefinition groupDefinition = src.buildGroupDefinition();
         final Set<MemberType> expectedMembers = findGroupExpectedTypes(groupStore, groupDefinition);
-        return new DiscoveredGroup(src.getOid(), groupDefinition, src.getSourceId(),
+        final String truncatedSourceIdentifier =
+            Truncator.truncateGroupSourceIdentifier(src.getSourceId(), true);
+        return new DiscoveredGroup(src.getOid(), groupDefinition, truncatedSourceIdentifier,
                 src.getTargetIds(), expectedMembers,
                 determineMemberReverseLookupSupported(groupDefinition));
     }

@@ -75,6 +75,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceStub;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
@@ -470,15 +471,14 @@ public class GroupMapper {
     @Nonnull
     public Map<Long, GroupApiDTO> groupsToGroupApiDto(@Nonnull final Collection<Grouping> groups,
             boolean populateSeverity) throws ConversionException, InterruptedException {
-        final List<GroupAndMembers> groupsAndMembers =
-                groups.stream().map(groupExpander::getMembersForGroup).collect(Collectors.toList());
         final List<GroupApiDTO> apiGroups;
         try {
-            apiGroups = toGroupApiDto(groupsAndMembers, populateSeverity, null, null).getObjects();
+            apiGroups =
+                toGroupApiDto(new ArrayList<>(groups), populateSeverity, null, null).getObjects();
         } catch (InvalidOperationException e) {
-            throw new ConversionException("Failed to convert groups " +
-                    groups.stream().map(Grouping::getId).collect(Collectors.toList()) + ": " +
-                    e.getLocalizedMessage(), e);
+            throw new ConversionException("Failed to convert groups "
+                + groups.stream().map(Grouping::getId).collect(Collectors.toList()) + ": "
+                + e.getLocalizedMessage(), e);
         }
 
         final Map<Long, GroupApiDTO> result = new LinkedHashMap<>(groups.size());
@@ -502,7 +502,7 @@ public class GroupMapper {
     /**
      * Converts groups and members to API objects.
      *
-     * @param groupsAndMembers source groups to convert
+     * @param groups source groups to convert
      * @param populateSeverity whether to calculate and set severity values.
      * @param paginationRequest pagination request, if any
      * @param requestedEnvironment requested environment type, if any
@@ -513,7 +513,7 @@ public class GroupMapper {
      * @throws InvalidOperationException if pagination request is invalid
      */
     @Nonnull
-    public ObjectsPage<GroupApiDTO> toGroupApiDto(@Nonnull List<GroupAndMembers> groupsAndMembers,
+    public ObjectsPage<GroupApiDTO> toGroupApiDto(@Nonnull List<Grouping> groups,
             boolean populateSeverity, @Nullable SearchPaginationRequest paginationRequest,
             @Nullable EnvironmentType requestedEnvironment)
             throws ConversionException, InterruptedException, InvalidOperationException {
@@ -522,7 +522,7 @@ public class GroupMapper {
         final GroupConversionContext context;
         try {
             final AbstractPaginator paginator =
-                    paginatorSupplier.createPaginator(groupsAndMembers, paginationRequest,
+                    paginatorSupplier.createPaginator(groups, paginationRequest,
                             requestedEnvironment);
             if (paginator.isEmptyResult()) {
                 return ObjectsPage.createEmptyPage();
@@ -531,9 +531,9 @@ public class GroupMapper {
             context = paginator.createContext();
         } catch (ExecutionException | TimeoutException e) {
             throw new ConversionException("Failed to convert groups " +
-                    groupsAndMembers.stream().map(GroupAndMembers::group).map(Grouping::getId), e);
+                groups.stream().map(Grouping::getId), e);
         }
-        final List<GroupApiDTO> result = new ArrayList<>(groupsAndMembers.size());
+        final List<GroupApiDTO> result = new ArrayList<>(groups.size());
         for (GroupAndMembers group : groupsPage.getObjects()) {
             try {
                 result.add(toGroupApiDto(group, context, populateSeverity));
@@ -568,8 +568,8 @@ public class GroupMapper {
      */
     @Nonnull
     private GroupApiDTO toGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers,
-            @Nonnull GroupConversionContext conversionContext, boolean populateSeverity)
-            throws ConversionException, InterruptedException {
+                                      @Nonnull GroupConversionContext conversionContext, boolean populateSeverity)
+        throws ConversionException, InterruptedException {
 
         final EntityEnvironment envCloudType =
                 conversionContext.getEntityEnvironment(groupAndMembers.group().getId());
@@ -591,8 +591,8 @@ public class GroupMapper {
         // only populate severity if required and if the group is not empty, since it's expensive
         if (populateSeverity && !groupAndMembers.entities().isEmpty()) {
             outputDTO.setSeverity(conversionContext.getSeverityMap()
-                    .calculateSeverity(groupAndMembers.entities())
-                    .name());
+                .calculateSeverity(groupAndMembers.entities())
+                .name());
         }
         outputDTO.setCloudType(envCloudType.getCloudType());
         return outputDTO;
@@ -1002,9 +1002,23 @@ public class GroupMapper {
 
     @Nonnull
     public static String convertGroupTypeToApiType(@Nonnull GroupType type) {
-        return API_GROUP_TYPE_TO_GROUP_TYPE
-                        .inverse().getOrDefault(type,
-                                        type.name());
+        return API_GROUP_TYPE_TO_GROUP_TYPE.inverse().getOrDefault(type, type.name());
+    }
+
+    /**
+     * Create {@link BaseApiDTO} with uuid, display name, class name fields from {@link Grouping}.
+     *
+     * @param grouping the {@link Grouping}
+     * @return the {@link BaseApiDTO}
+     */
+    @Nonnull
+    public static BaseApiDTO toBaseApiDTO(@Nonnull final Grouping grouping) {
+        final BaseApiDTO baseApiDTO = new BaseApiDTO();
+        baseApiDTO.setUuid(String.valueOf(grouping.getId()));
+        final GroupDTO.GroupDefinition groupDefinition = grouping.getDefinition();
+        baseApiDTO.setDisplayName(groupDefinition.getDisplayName());
+        baseApiDTO.setClassName(GroupMapper.convertGroupTypeToApiType(groupDefinition.getType()));
+        return baseApiDTO;
     }
 
     /**
@@ -1371,33 +1385,71 @@ public class GroupMapper {
 
     @Nonnull
     private ObjectsPage<GroupAndMembers> applyPagination(@Nonnull List<GroupAndMembers> groups,
-            @Nonnull Comparator<GroupAndMembers> comparator,
-            @Nullable SearchPaginationRequest paginationRequest,
-            @Nullable Predicate<GroupAndMembers> groupFilter) throws InvalidOperationException {
+                                                         @Nonnull Comparator<GroupAndMembers> comparator,
+                                                         @Nullable SearchPaginationRequest paginationRequest,
+                                                         @Nullable Predicate<Grouping> groupFilter) throws InvalidOperationException {
         if (paginationRequest == null && groupFilter == null) {
             return new ObjectsPage<>(groups, groups.size(), groups.size());
         }
         final int skipCount = paginationRequest == null ? 0 : getSkipCount(paginationRequest);
         final int limit = paginationRequest == null ? groups.size() : paginationRequest.getLimit();
         final List<GroupAndMembers> filteredGroups;
+
         if (groupFilter != null) {
-            filteredGroups = groups.stream().filter(groupFilter).collect(Collectors.toList());
+            filteredGroups = groups.stream()
+                .filter(groupAndMembers -> groupFilter.test(groupAndMembers.group()))
+                .collect(Collectors.toList());
         } else {
             filteredGroups = groups;
         }
         final List<GroupAndMembers> groupsPage;
         if (paginationRequest != null) {
             final Comparator<GroupAndMembers> effectiveComparator =
-                    paginationRequest.isAscending() ? comparator : Collections.reverseOrder(comparator);
+                paginationRequest.isAscending() ? comparator : Collections.reverseOrder(comparator);
             final List<GroupAndMembers> sortedGroups = new ArrayList<>(filteredGroups);
             sortedGroups.sort(effectiveComparator);
             groupsPage = sortedGroups.subList(getSkipCount(paginationRequest),
-                    Math.min(limit + skipCount, sortedGroups.size()));
+                Math.min(limit + skipCount, sortedGroups.size()));
         } else {
             groupsPage = filteredGroups;
         }
         final int nextCursor = Math.min(filteredGroups.size(), skipCount + limit);
         return new ObjectsPage<>(groupsPage, filteredGroups.size(), nextCursor);
+    }
+
+    @Nonnull
+    private ObjectsPage<GroupAndMembers> applyPaginationWithoutMembers(@Nonnull List<Grouping> groups,
+                                                         @Nonnull Comparator<Grouping> comparator,
+                                                         @Nullable SearchPaginationRequest paginationRequest,
+                                                         @Nullable Predicate<Grouping> groupFilter) throws InvalidOperationException {
+        // This is an expensive operation, we should try to pass pagination parameters as much as
+        // possible
+        if (paginationRequest == null && groupFilter == null) {
+            List<GroupAndMembers> groupAndMembers = groupExpander.getMembersForGroups(groups);
+            return new ObjectsPage<>(groupAndMembers, groups.size(), groups.size());
+        }
+        final int skipCount = paginationRequest == null ? 0 : getSkipCount(paginationRequest);
+        final int limit = paginationRequest == null ? groups.size() : paginationRequest.getLimit();
+        final List<Grouping> filteredGroups;
+        if (groupFilter != null) {
+            filteredGroups = groups.stream().filter(groupFilter).collect(Collectors.toList());
+        } else {
+            filteredGroups = groups;
+        }
+        final List<Grouping> paginatedGroups;
+        if (paginationRequest != null) {
+            final Comparator<Grouping> effectiveComparator =
+                paginationRequest.isAscending() ? comparator : Collections.reverseOrder(comparator);
+            final List<Grouping> sortedGroups = new ArrayList<>(filteredGroups);
+            sortedGroups.sort(effectiveComparator);
+            paginatedGroups = sortedGroups.subList(getSkipCount(paginationRequest),
+                Math.min(limit + skipCount, sortedGroups.size()));
+        } else {
+            paginatedGroups = filteredGroups;
+        }
+        final int nextCursor = Math.min(filteredGroups.size(), skipCount + limit);
+        List<GroupAndMembers> groupAndMembers = groupExpander.getMembersForGroups(paginatedGroups);
+        return new ObjectsPage<>(groupAndMembers, filteredGroups.size(), nextCursor);
     }
 
     @Nonnull
@@ -1430,15 +1482,14 @@ public class GroupMapper {
         private final EntityEnvironment globalEnvironment;
         private final Future<Map<Long, EntityEnvironment>> groupEnvironments;
         private final EnvironmentType requestedEnvironmentType;
-        private final Set<Long> allMembers;
+        private Set<Long> allMembers = null;
+        private final List<Grouping> groups;
+        private List<GroupAndMembers> groupAndMembers = null;
         private final boolean emptyResult;
 
-        protected AbstractPaginator(@Nonnull List<GroupAndMembers> groups,
+        protected AbstractPaginator(@Nonnull List<Grouping> groups,
                 @Nullable EnvironmentType requestedEnvironmentType) {
-            allMembers = Collections.unmodifiableSet(groups.stream()
-                    .map(GroupAndMembers::entities)
-                    .flatMap(Collection::stream)
-                    .collect(Collectors.toSet()));
+            this.groups = groups;
             globalEnvironment = getApplianceEnvironment();
             if ((requestedEnvironmentType == null) ||
                     (requestedEnvironmentType == EnvironmentType.HYBRID)) {
@@ -1456,14 +1507,16 @@ public class GroupMapper {
                 this.groupEnvironments = null;
             } else {
                 // We still need to filter by environment type
+                groupAndMembers = groupExpander.getMembersForGroups(groups);
+                allMembers = getMembersFromGroups(groupAndMembers);
                 this.emptyResult = false;
-                this.groupEnvironments = getGroupsEnvironment(groups, allMembers);
+                this.groupEnvironments = getGroupsEnvironment(groupAndMembers, allMembers);
                 this.requestedEnvironmentType = requestedEnvironmentType;
             }
         }
 
         @Nullable
-        protected final Predicate<GroupAndMembers> getFilter()
+        protected final Predicate<Grouping> getFilter()
                 throws ExecutionException, InterruptedException, TimeoutException {
             if (requestedEnvironmentType == null) {
                 return null;
@@ -1471,7 +1524,7 @@ public class GroupMapper {
             final Map<Long, EntityEnvironment> groupsEnvironment =
                     groupEnvironments.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
             return group -> groupEnvironmentMatchesRequested(
-                    groupsEnvironment.get(group.group().getId()).getEnvironmentType(),
+                    groupsEnvironment.get(group.getId()).getEnvironmentType(),
                     requestedEnvironmentType);
         }
 
@@ -1491,7 +1544,18 @@ public class GroupMapper {
         }
 
         public Set<Long> getAllMembers() {
+            if (allMembers == null) {
+                getGroupAndMembers();
+            }
             return allMembers;
+        }
+
+        public List<GroupAndMembers> getGroupAndMembers() {
+            if (groupAndMembers == null) {
+                groupAndMembers = groupExpander.getMembersForGroups(groups);
+                allMembers = getMembersFromGroups(groupAndMembers);
+            }
+            return groupAndMembers;
         }
 
         @Nonnull
@@ -1593,6 +1657,15 @@ public class GroupMapper {
         }
 
         @Nonnull
+        private Set<Long> getMembersFromGroups(List<GroupAndMembers> groupAndMembers) {
+            return Collections.unmodifiableSet(groupAndMembers
+                .stream()
+                .map(GroupAndMembers::entities)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet()));
+        }
+
+        @Nonnull
         protected Future<Map<Long, Float>> getCosts(
                 @Nonnull Collection<GroupAndMembers> groupsAndMembers,
                 @Nonnull Set<Long> members) {
@@ -1628,15 +1701,24 @@ public class GroupMapper {
          * @throws TimeoutException if any of async tasks timed out
          * @throws InvalidOperationException if pagination requet is invalid
          */
-        PaginatorName(@Nonnull List<GroupAndMembers> groups,
+        PaginatorName(@Nonnull List<Grouping> groups,
                 @Nullable SearchPaginationRequest paginationRequest,
                 @Nullable EnvironmentType requestedEnvironmentType)
                 throws InterruptedException, ExecutionException, TimeoutException,
                 InvalidOperationException {
             super(groups, requestedEnvironmentType);
-            final Comparator<GroupAndMembers> comparator =
-                    Comparator.comparing(group -> group.group().getDefinition().getDisplayName());
-            this.groupsPage = applyPagination(groups, comparator, paginationRequest, getFilter());
+            // This is much faster, we should try to use the pagination without members as much
+            // as possible
+            if (requestedEnvironmentType == null) {
+                this.groupsPage = applyPaginationWithoutMembers(groups,
+                    Comparator.comparing(group -> group.getDefinition().getDisplayName()), paginationRequest, getFilter());
+            } else {
+                List<GroupAndMembers> groupAndMembers = getGroupAndMembers();
+                this.groupsPage = applyPagination(groupAndMembers,
+                    Comparator.comparing(group -> group.group().getDefinition().getDisplayName()),
+                    paginationRequest, getFilter());
+            }
+
         }
 
         @Nonnull
@@ -1665,7 +1747,7 @@ public class GroupMapper {
          * @throws TimeoutException if any of async tasks timed out
          * @throws InvalidOperationException if pagination requet is invalid
          */
-        PaginatorSeverity(@Nonnull List<GroupAndMembers> groups,
+        PaginatorSeverity(@Nonnull List<Grouping> groups,
                 @Nullable SearchPaginationRequest paginationRequest,
                 @Nullable EnvironmentType requestedEnvironmentType)
                 throws InterruptedException, ExecutionException, TimeoutException,
@@ -1680,9 +1762,9 @@ public class GroupMapper {
                 logger.error("Failed to get severities from Action Orchestrator. Defaulting to NORMAL.", e);
                 severityMap = SeverityMapImpl.empty();
             }
-
-            final Map<Long, Integer> groupsSeverities = new HashMap<>(groups.size());
-            for (GroupAndMembers group: groups) {
+            List<GroupAndMembers> groupAndMembers = getGroupAndMembers();
+            final Map<Long, Integer> groupsSeverities = new HashMap<>(groupAndMembers.size());
+            for (GroupAndMembers group: groupAndMembers) {
                 final int severity;
                 if (group.members().isEmpty()) {
                     severity = -1;
@@ -1693,7 +1775,7 @@ public class GroupMapper {
             }
             final Comparator<GroupAndMembers> comparator =
                     Comparator.comparing(group -> groupsSeverities.get(group.group().getId()));
-            this.groupsPage = applyPagination(groups, comparator, paginationRequest, getFilter());
+            this.groupsPage = applyPagination(groupAndMembers, comparator, paginationRequest, getFilter());
         }
 
         @Nonnull
@@ -1729,18 +1811,19 @@ public class GroupMapper {
          * @throws TimeoutException if any of async tasks timed out
          * @throws InvalidOperationException if pagination requet is invalid
          */
-        PaginatorCost(@Nonnull List<GroupAndMembers> groups,
+        PaginatorCost(@Nonnull List<Grouping> groups,
                 @Nullable SearchPaginationRequest paginationRequest,
                 @Nullable EnvironmentType requestedEnvironmentType)
                 throws InvalidOperationException, InterruptedException, ExecutionException,
                 TimeoutException {
             super(groups, requestedEnvironmentType);
-            this.groupCostsFuture = fetchGroupCosts(groups, getAllMembers());
+            List<GroupAndMembers> groupAndMembers = getGroupAndMembers();
+            this.groupCostsFuture = fetchGroupCosts(groupAndMembers, getAllMembers());
             final Map<Long, Float> groupCosts =
                     groupCostsFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
             final Comparator<GroupAndMembers> comparator = Comparator.comparing(
                     group -> groupCosts.getOrDefault(group.group().getId(), 0F));
-            groupsPage = applyPagination(groups, comparator, paginationRequest, getFilter());
+            groupsPage = applyPagination(groupAndMembers, comparator, paginationRequest, getFilter());
         }
 
         @Nonnull
@@ -1763,7 +1846,7 @@ public class GroupMapper {
      */
     private interface PaginatorSupplier {
         @Nonnull
-        AbstractPaginator createPaginator(@Nonnull List<GroupAndMembers> groups,
+        AbstractPaginator createPaginator(@Nonnull List<Grouping> groups,
                 @Nullable SearchPaginationRequest paginationRequest,
                 @Nullable EnvironmentType environmentType)
                 throws InvalidOperationException, InterruptedException, ExecutionException,

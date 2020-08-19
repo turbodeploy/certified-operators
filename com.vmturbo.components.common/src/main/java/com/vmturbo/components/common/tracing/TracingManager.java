@@ -5,6 +5,8 @@ import static com.vmturbo.components.common.BaseVmtComponent.PROP_INSTANCE_ID;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.primitives.Doubles;
+
 import io.jaegertracing.Configuration;
 import io.jaegertracing.Configuration.ReporterConfiguration;
 import io.jaegertracing.Configuration.SamplerConfiguration;
@@ -32,23 +34,35 @@ import com.vmturbo.components.common.utils.EnvironmentUtils;
  * {@link TracingManager#refreshTracingConfiguration(TracingConfiguration)}), the
  * {@link TracingManager} is responsible for creating the appropriate
  * {@link Tracer} and calling {@link DelegatingTracer#updateDelegate(Tracer)}.
+ * <p/>
+ * Disable the AlwaysOnTracer via ALWAYS_ON_TRACER_ENABLED environment flag.
  */
 public class TracingManager {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final String DEFAULT_JAEGER_ENDPOINT = "http://jaeger-collector:14268";
+    private static final String DEFAULT_JAEGER_ENDPOINT = EnvironmentUtils
+        .getOptionalEnvProperty("JAEGER_ENDPOINT")
+        .orElse("http://jaeger-collector:14268");
+
+    private static final boolean ALWAYS_ON_TRACER_ENABLED = isAlwaysOnTracerEnabled();
 
     private static final TracingConfiguration DEFAULT_CONFIG = TracingConfiguration.newBuilder()
         .setJaegerEndpoint(DEFAULT_JAEGER_ENDPOINT)
         // We start off with no sampling.
-        .setSamplingRate(0)
+        .setProbabilisticSamplingRate(0)
+        .setLogSpans(false)
         .build();
 
     /**
      * The delegating tracer that contains the currently active {@link Tracer} implementation.
      */
     private final DelegatingTracer delegatingTracer;
+
+    /**
+     * The delegating tracer that contains the currently active always-on {@link Tracer} implementation.
+     */
+    private final DelegatingTracer alwaysOnTracer;
 
     private final String serviceName;
 
@@ -59,12 +73,13 @@ public class TracingManager {
 
     private TracingManager() {
         this.delegatingTracer = new DelegatingTracer();
+        this.alwaysOnTracer = new DelegatingTracer();
         // The GlobalTracer can only be set once, so we set it to the delegating tracer.
         GlobalTracer.registerIfAbsent(this.delegatingTracer);
 
         // We should always have this available in the environment.
         this.serviceName = EnvironmentUtils.getOptionalEnvProperty(PROP_INSTANCE_ID)
-            .orElse("foo");
+            .orElse("turbo");
 
         refreshTracingConfiguration(DEFAULT_CONFIG);
     }
@@ -85,6 +100,19 @@ public class TracingManager {
     }
 
     /**
+     * {@see Tracing#trace(String, Tracer)}.
+     * <p/>
+     * Note that if the AlwaysOnTracer is disabled via the ALWAYS_ON_TRACER_ENABLED environment flag,
+     * the tracer returned will have the same configuration as the global tracer.
+     *
+     * @return A tracer configured to always sample every new trace.
+     */
+    @Nonnull
+    public static Tracer alwaysOnTracer() {
+        return get().alwaysOnTracer;
+    }
+
+    /**
      * Update the tracing configuration in this component to reflect the input
      * {@link TracingConfiguration}.
      *
@@ -96,10 +124,20 @@ public class TracingManager {
     public synchronized TracingConfiguration refreshTracingConfiguration(@Nonnull final TracingConfiguration newConfig) {
         final TracingConfiguration.Builder updatedConfigBldr = lastTracingConfig.toBuilder()
             .mergeFrom(newConfig);
-        if (updatedConfigBldr.getSamplingRate() > 1) {
-            updatedConfigBldr.setSamplingRate(1);
-        } else if (updatedConfigBldr.getSamplingRate() < 0) {
-            updatedConfigBldr.setSamplingRate(0);
+        if (updatedConfigBldr.hasRateLimitedSamplesPerSecond()) {
+            if (updatedConfigBldr.getRateLimitedSamplesPerSecond() < 0) {
+                logger.warn("Illegal rate limiting sampling rate {}, setting to 0.",
+                    updatedConfigBldr.getRateLimitedSamplesPerSecond());
+                updatedConfigBldr.setRateLimitedSamplesPerSecond(0);
+            }
+        } else if (updatedConfigBldr.hasProbabilisticSamplingRate()) {
+            final double probSamplingRate = updatedConfigBldr.getProbabilisticSamplingRate();
+            if (probSamplingRate > 1 || probSamplingRate < 0) {
+                updatedConfigBldr.setProbabilisticSamplingRate(
+                    Doubles.constrainToRange(probSamplingRate, 0, 1));
+                logger.warn("Illegal probabilistic sampling rate {}, setting to {}.",
+                    probSamplingRate, updatedConfigBldr.getProbabilisticSamplingRate());
+            }
         }
 
         final TracingConfiguration updatedConfig = updatedConfigBldr.build();
@@ -108,7 +146,17 @@ public class TracingManager {
             logger.info("Refreshing tracing manager with configuration: {}", newConfig);
             final Tracer newTracer = newJaegerTracer(updatedConfig);
             delegatingTracer.updateDelegate(newTracer);
-            logger.info("Successfully refreshed tracing configuration.");
+            logger.info("Successfully refreshed global tracing configuration.");
+
+            if (ALWAYS_ON_TRACER_ENABLED) {
+                final Tracer newAlwaysOnTracer = newAlwaysOnTracer(updatedConfig);
+                alwaysOnTracer.updateDelegate(newAlwaysOnTracer);
+                logger.info("Successfully refreshed always-on tracing configuration.");
+            } else {
+                // If ALWAYS_ON_TRACER is not enabled, delegate to the regular global tracer.
+                logger.info("AlwaysOnTracer disabled. Setting AlwaysOnTracer to match global tracer.");
+                alwaysOnTracer.updateDelegate(newTracer);
+            }
 
             lastTracingConfig = updatedConfig;
         }
@@ -124,11 +172,37 @@ public class TracingManager {
 
         final ReporterConfiguration reporterConfig = ReporterConfiguration.fromEnv()
             // Log the reported spans. This just logs that a span with a certain ID was reported.
-            .withLogSpans(true)
+            .withLogSpans(tracingConfiguration.getLogSpans())
             .withSender(senderConfiguration);
 
         final Configuration jaegerConfig = new Configuration(serviceName)
             .withSampler(samplerConfiguration)
+            .withReporter(reporterConfig);
+
+        return jaegerConfig.getTracer();
+    }
+
+    /**
+     * Create a new tracer with a constant sampling rate so that all trace requests result in
+     * traces being sampled.
+     *
+     * @param tracingConfiguration The tracing configuration to use. The sampling part of the configuration
+     *                             is ignored and it's forced to use a constant sampling rate so that
+     *                             all traces result in actually creating trace spans.
+     * @return A new Tracer that is always sampling.
+     */
+    @Nonnull
+    private Tracer newAlwaysOnTracer(@Nonnull final TracingConfiguration tracingConfiguration) {
+        final SenderConfiguration senderConfiguration =
+            senderConfiguration(tracingConfiguration.getJaegerEndpoint());
+
+        final ReporterConfiguration reporterConfig = ReporterConfiguration.fromEnv()
+            // Don't log spans for always-on tracer because they can get a bit spammy.
+            .withLogSpans(false)
+            .withSender(senderConfiguration);
+
+        final Configuration jaegerConfig = new Configuration(serviceName)
+            .withSampler(SamplerConfiguration.fromEnv().withType("const").withParam(1.0))
             .withReporter(reporterConfig);
 
         return jaegerConfig.getTracer();
@@ -142,8 +216,35 @@ public class TracingManager {
 
     @Nonnull
     private SamplerConfiguration extractSamplerConfig(@Nonnull final TracingConfiguration tracingConfiguration) {
-        return SamplerConfiguration.fromEnv()
-            .withType("probabilistic")
-            .withParam(tracingConfiguration.getSamplingRate());
+        final SamplerConfiguration samplerConfig = SamplerConfiguration.fromEnv();
+        if (tracingConfiguration.hasRateLimitedSamplesPerSecond()) {
+            samplerConfig
+                .withType("ratelimiting")
+                .withParam(tracingConfiguration.getRateLimitedSamplesPerSecond());
+        } else {
+            samplerConfig
+                .withType("probabilistic")
+                .withParam(tracingConfiguration.getProbabilisticSamplingRate());
+        }
+
+        return samplerConfig;
+    }
+
+    /**
+     * Check if the environment flag to control whether the always on tracer is enabled has been set
+     * and return its value. If no value is set, return a default.
+     *
+     * @return Value of the ALWAYS_ON_TRACER_ENABLED flag.
+     */
+    private static boolean isAlwaysOnTracerEnabled() {
+        try {
+            return EnvironmentUtils
+                .getOptionalEnvProperty("ALWAYS_ON_TRACER_ENABLED")
+                .map(Boolean::parseBoolean)
+                .orElse(true);
+        } catch (Exception e) {
+            logger.error("Unable to check ALWAYS_ON_TRACER_ENABLED. Defaulting to false ", e);
+            return false;
+        }
     }
 }

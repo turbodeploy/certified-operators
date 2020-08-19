@@ -24,6 +24,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
@@ -196,6 +197,7 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                 .map(c -> commodityConverter.createCommonCommoditySoldTOList(c, computeTier
                 ))
                 .flatMap(List::stream)
+                .map(comm -> comm.toBuilder().setCapacity(Float.MAX_VALUE).build())
                 .collect(Collectors.toList());
     }
 
@@ -225,8 +227,9 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
      */
     private boolean shouldSellLicense(RiDiscountedMarketTier ri, CommoditySoldDTO commodityDto) {
         final ReservedInstanceAggregate riAggregate = ri.getRiAggregate();
-        return riAggregate.isPlatformFlexible() || riAggregate.getRiKey().getOs().name()
-                .equalsIgnoreCase(commodityDto.getCommodityType().getKey());
+        return riAggregate.isPlatformFlexible() ||
+                // need to convert from the license access comm key, which will be OsType to OSType
+                MarketPriceTable.OS_TYPE_MAP.get(commodityDto.getCommodityType().getKey()) == riAggregate.getRiKey().getOs();
     }
 
     /**

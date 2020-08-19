@@ -8,6 +8,8 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.influxdb.InfluxDB;
@@ -79,7 +81,8 @@ public class ActionMetricsListener implements com.vmturbo.action.orchestrator.ap
     }
 
     @Override
-    public void onActionsReceived(@Nonnull final ActionDTO.ActionPlan actionPlan) {
+    public void onActionsReceived(@Nonnull final ActionDTO.ActionPlan actionPlan,
+                                  @Nonnull final SpanContext tracingContext) {
         final Map<String, Long> actionsStatistics = new HashMap<>();
         if (ActionDTOUtil.getActionPlanType(actionPlan.getInfo()) != ActionPlanType.MARKET) {
             // We only care about actions.

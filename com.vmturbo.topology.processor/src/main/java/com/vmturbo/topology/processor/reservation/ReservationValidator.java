@@ -61,6 +61,9 @@ public class ReservationValidator {
                     case POLICY:
                         visitor.onPolicyConstraint(rId, constraintId);
                         break;
+                    case STORAGE_CLUSTER:
+                        visitor.onClusterConstraint(rId, constraintId);
+                        break;
                     default:
                         // Nothing.
                 }
@@ -123,7 +126,7 @@ public class ReservationValidator {
         final Set<Long> presentPolicies;
         if (!requiredPolicies.isEmpty()) {
             presentPolicies = new HashSet<>();
-            policyService.getAllPolicies(PolicyRequest.getDefaultInstance())
+            policyService.getPolicies(PolicyRequest.getDefaultInstance())
                 .forEachRemaining(resp -> {
                     if (resp.hasPolicy()) {
                         presentPolicies.add(resp.getPolicy().getId());
