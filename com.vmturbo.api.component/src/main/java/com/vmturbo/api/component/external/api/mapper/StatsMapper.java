@@ -995,6 +995,12 @@ public class StatsMapper {
         if (statValue.hasTotal()) {
             resultBuilder.setTotal(statValue.getTotal() * 8);
         }
+        if (statValue.hasTotalMax()) {
+            resultBuilder.setTotalMax(statValue.getTotalMax() * 8);
+        }
+        if (statValue.hasTotalMin()) {
+            resultBuilder.setTotalMin(statValue.getTotalMin() * 8);
+        }
         return resultBuilder.build();
     }
 
