@@ -19,17 +19,22 @@ import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.RangeTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.CapacityLimitation;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.PriceData;
+import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.RangeBasedResourceDependency;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 /**
  * Unit tests for cost calculate in CostFunctionFactory.
@@ -181,7 +186,7 @@ public class CostFunctionFactoryTest {
         buyerVm.getSettings().setContext(new com.vmturbo.platform.analysis.economy.Context(
                 regionId11, 0, account1));
         CommodityQuote quote1 = CostFunctionFactory.calculateStorageTierCost(priceDataMap,
-                commCapacity, shoppingList, storageTier);
+                commCapacity, new ArrayList<RangeBasedResourceDependency>(), shoppingList, storageTier);
         assertNotNull(quote1);
         assertTrue(quote1.getContext().isPresent());
         Context context1 = quote1.getContext().get();
@@ -193,10 +198,63 @@ public class CostFunctionFactoryTest {
         buyerVm.getSettings().setContext(new com.vmturbo.platform.analysis.economy.Context(
                 regionId12, 0, account1));
         CommodityQuote quote2 = CostFunctionFactory.calculateStorageTierCost(priceDataMap,
-                commCapacity, shoppingList, storageTier);
+                commCapacity, new ArrayList<RangeBasedResourceDependency>(), shoppingList, storageTier);
         assertNotNull(quote2);
         assertFalse(quote2.getContext().isPresent());
         assertEquals(Double.POSITIVE_INFINITY, quote2.getQuoteValue(), 0d);
 
+    }
+
+    /**
+     * Test case for cost calculation with range dependency.
+     */
+    @Test
+    public void testCostCalculationWithRangeDependency() {
+        final long accountId1 = 101;
+        final long regionId11 = 211;
+        BalanceAccount account1 = new BalanceAccount(100, 10000, accountId1, 0);
+        List<CommoditySpecification> stCommList = Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS);
+        Trader vm = TestUtils.createVM(economy);
+        vm.getSettings().setContext(new com.vmturbo.platform.analysis.economy.Context(
+                regionId11, 0, account1));
+        storageTier = TestUtils.createTrader(economy, TestUtils.ST_TYPE, Arrays.asList(0L),
+                stCommList, new double[] {10000, 10000}, true, false);
+
+        CostFunction storageCostFunction = CostFunctionFactory.createCostFunction(
+                CostDTO.newBuilder().setStorageTierCost(StorageTierCostDTO.newBuilder()
+                        .addStorageResourceRangeDependency(StorageResourceRangeDependency.newBuilder()
+                                .setBaseResourceType(TestUtils.stAmtTO).setDependentResourceType(TestUtils.iopsTO)
+                                .addRangeTuple(RangeTuple.newBuilder().setBaseMaxCapacity(100).setDependentMaxCapacity(200))
+                                .addRangeTuple(RangeTuple.newBuilder().setBaseMaxCapacity(200).setDependentMaxCapacity(400)))
+                        .addStorageResourceCost(StorageResourceCost.newBuilder()
+                                .setResourceType(TestUtils.stAmtTO)
+                                .addStorageTierPriceData(StorageTierPriceData.newBuilder()
+                                        .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(accountId1)
+                                                .setRegionId(regionId11).setPrice(30.0).build())
+                                        .setIsAccumulativeCost(false).setIsUnitPrice(false)
+                                        .setUpperBound(100))
+                                .addStorageTierPriceData(StorageTierPriceData.newBuilder()
+                                        .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(accountId1)
+                                                .setRegionId(regionId11).setPrice(40.0).build())
+                                        .setIsAccumulativeCost(false).setIsUnitPrice(false)
+                                        .setUpperBound(200))).build()).build());
+
+        // IOPS exceeds maximum capacity supported by the tier. Expects infinite quote.
+        stSL = TestUtils.createAndPlaceShoppingList(economy, stCommList, vm,
+                new double[] {150, 500}, new double[] {150, 500}, storageTier);
+        MutableQuote quote1 = storageCostFunction.calculateCost(stSL, storageTier, true, economy);
+        assertEquals(Double.POSITIVE_INFINITY, quote1.getQuoteValue(), 0.000);
+
+        // IOPS = 300 (200-400 range), storage amount is 80GB(0-100 range). Increase storage amount to 200. Cost is based on 200GB.
+        stSL = TestUtils.createAndPlaceShoppingList(economy, stCommList, vm,
+                new double[] {80, 300}, new double[] {80, 300}, storageTier);
+        MutableQuote quote2 = storageCostFunction.calculateCost(stSL, storageTier, true, economy);
+        assertEquals(40, quote2.getQuoteValue(), 0.000);
+
+        // IOPS = 150(0-100 range), storage amount is 150GB (in 100-200 range). Cost is based on 200GB.
+        stSL = TestUtils.createAndPlaceShoppingList(economy, stCommList, vm,
+                new double[] {150, 150}, new double[] {150, 150}, storageTier);
+        MutableQuote quote3 = storageCostFunction.calculateCost(stSL, storageTier, true, economy);
+        assertEquals(40, quote3.getQuoteValue(), 0.000);
     }
 }

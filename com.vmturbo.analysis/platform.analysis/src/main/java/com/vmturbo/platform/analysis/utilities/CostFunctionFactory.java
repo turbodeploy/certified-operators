@@ -7,8 +7,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -43,9 +45,12 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.RangeTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
@@ -940,6 +945,10 @@ public class CostFunctionFactory {
         List<DependentResourcePair> dependencyList =
                         translateStorageResourceDependency(costDTO.getStorageResourceRatioDependencyList());
 
+        // Get a list of range dependencies.
+        final List<RangeBasedResourceDependency> rangeDependencyList
+                = translateStorageResourceRangeDependency(costDTO.getStorageResourceRangeDependencyList());
+
         CostFunction costFunction = new CostFunction() {
             @Override
             public MutableQuote calculateCost(ShoppingList buyer, Trader seller,
@@ -954,11 +963,18 @@ public class CostFunctionFactory {
                 }
 
                 final MutableQuote dependentCommodityQuote =
-                    getDependentResourcePairQuote(buyer, seller, dependencyList, commCapacity);
+                        getDependentResourcePairQuote(buyer, seller, dependencyList, commCapacity);
                 if (dependentCommodityQuote.isInfinite()) {
                     return dependentCommodityQuote;
                 }
-                return calculateStorageTierCost(priceDataMap, commCapacity, buyer, seller);
+                // Return infinite quote if commodity value exceeds dependent max for consumer
+                // in range dependency list.
+                final MutableQuote exceedDependentCapacityQuote = exceedDependentCapacity(buyer,
+                        rangeDependencyList, seller);
+                if (exceedDependentCapacityQuote.isInfinite()) {
+                    return exceedDependentCapacityQuote;
+                }
+                return calculateStorageTierCost(priceDataMap, commCapacity, rangeDependencyList, buyer, seller);
             }
         };
 
@@ -1006,7 +1022,7 @@ public class CostFunctionFactory {
         for (StorageResourceCost resource : resourceCostList) {
             if (!priceDataMap.containsKey(resource.getResourceType())) {
                 Map<Long, List<CostFunctionFactory.PriceData>> priceDataPerBusinessAccount = new HashMap<>();
-                for (CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData priceData : resource.getStorageTierPriceDataList()) {
+                for (StorageTierPriceData priceData : resource.getStorageTierPriceDataList()) {
                     for (CostDTO.CostTuple costTuple : priceData.getCostTupleListList()) {
                         long businessAccountId = costTuple.getBusinessAccountId();
                         CostFunctionFactory.PriceData price = new PriceData(priceData.getUpperBound(),
@@ -1042,6 +1058,7 @@ public class CostFunctionFactory {
      *
      * @param priceDataMap the map containing commodity and its pricing information on a seller.
      * @param commCapacity the information of a commodity and its minimum and maximum capacity
+     * @param rangeDependencyList range dependency list
      * @param sl the shopping list requests resources
      * @param seller the seller
      *
@@ -1049,6 +1066,7 @@ public class CostFunctionFactory {
      */
     public static CommodityQuote calculateStorageTierCost(@Nonnull Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap,
                                                           @Nonnull Map<CommoditySpecification, CapacityLimitation> commCapacity,
+                                                          @Nonnull List<RangeBasedResourceDependency> rangeDependencyList,
                                                           @Nonnull ShoppingList sl, Trader seller) {
         // TODO: refactor the PriceData to improve performance for region and business account lookup
         Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
@@ -1059,7 +1077,7 @@ public class CostFunctionFactory {
         final long balanceAccountId = balanceAccount.getId();
 
         Pair<Double, Long> costAccountPair = getTotalCost(regionId, balanceAccountId, priceId,
-                priceDataMap, commCapacity, sl);
+                priceDataMap, rangeDependencyList, commCapacity, sl);
         Double cost = costAccountPair.first;
         Long chosenAccountId = costAccountPair.second;
         // If no pricing was found for commodities in basket, then return infinite quote for seller.
@@ -1079,6 +1097,7 @@ public class CostFunctionFactory {
      * @param accountId Business account id.
      * @param priceId Pricing id for account.
      * @param priceDataMap Map containing all cost data.
+     * @param rangeDependencyList Range dependency list.
      * @param commCapacity Capacity map to check how much min amount to get cost for.
      * @param shoppingList Shopping list with basket and quantities.
      * @return Pair with first value as the total cost for region, and second value as the chosen
@@ -1089,6 +1108,7 @@ public class CostFunctionFactory {
     private static Pair<Double, Long> getTotalCost(
             long regionId, long accountId, @Nullable Long priceId,
             @Nonnull final Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap,
+            @Nonnull final List<RangeBasedResourceDependency> rangeDependencyList,
             @Nonnull final Map<CommoditySpecification, CapacityLimitation> commCapacity,
             @Nonnull final ShoppingList shoppingList) {
         // Cost if we didn't get any valid commodity pricing, will be max, so that we don't
@@ -1108,7 +1128,7 @@ public class CostFunctionFactory {
                 continue;
             }
             // calculate cost based on amount that is adjusted due to minimum capacity constraint
-            double requestedAmount = shoppingList.getQuantities()[i];
+            double requestedAmount = getRequestedAmount(shoppingList, i, rangeDependencyList);
             if (commCapacity.containsKey(shoppingList.getBasket().get(i))) {
                 requestedAmount = Math.max(requestedAmount,
                         commCapacity.get(shoppingList.getBasket().get(i)).getMinCapacity());
@@ -1189,5 +1209,223 @@ public class CostFunctionFactory {
             previousUpperBound = currentUpperBound;
         }
         return cost;
+    }
+
+    /**
+     * Return an infinite quote if a commodity exceeds the maximum value allowed in a rangeDependencyList.
+     *
+     * @param shoppingList shopping list
+     * @param rangeDependencyList range dependency list
+     * @param seller seller
+     * @return a quote; infinite quote if a commodity exceeds maximum allowed value.
+     */
+    private static MutableQuote exceedDependentCapacity(ShoppingList shoppingList,
+            @Nonnull List<RangeBasedResourceDependency> rangeDependencyList, Trader seller) {
+        final CommodityQuote quote = new CommodityQuote(seller);
+        for (RangeBasedResourceDependency dependency : rangeDependencyList) {
+            final CommoditySpecification baseType = dependency.getBaseCommodity(); // e.g. storage amount
+            // Map dependent commodity type to a treeMap that maps dependent quantity to base quantity
+            Map<CommoditySpecification, TreeMap<Double, Double>> dependentCommToMap =
+                    dependency.getDependentCapacity2LeastBaseCapacityPairs();
+            for (Entry<CommoditySpecification, TreeMap<Double, Double>> dependPairs : dependentCommToMap.entrySet()) {
+                final CommoditySpecification dependentType = dependPairs.getKey(); // e.g. storage access
+                final int dependentIndex = shoppingList.getBasket().indexOf(dependentType);
+                if (dependentIndex == -1) {
+                    // e.g. the map is for io-throughput. we don't have io-throughput commodity.
+                    continue;
+                }
+                final double dependentQuantity = shoppingList.getQuantity(dependentIndex);
+                TreeMap<Double, Double> dependentQuantityToBaseQuantityMap = dependPairs.getValue();
+                Double dependentCapacity = dependentQuantityToBaseQuantityMap.lastKey();
+                if (dependentCapacity != null && dependentQuantity > dependentCapacity) {
+                    final int baseCommIndex = shoppingList.getBasket().indexOf(baseType);
+                    double baseCommQuantity = 0;
+                    if (baseCommIndex != -1) {
+                        baseCommQuantity = shoppingList.getQuantity(baseCommIndex);
+                    }
+                    return new InfiniteRangeBasedResourceDependencyQuote(baseType,
+                            dependentType, dependentCapacity, baseCommQuantity, dependentQuantity);
+                }
+            }
+        }
+        return quote;
+    }
+
+    /**
+     * Get the requested amount, adjust it based on the rangeDependencyList if needed.
+     *
+     * @param shoppingList shopping list
+     * @param commodityIndex the index of the commodity on the shopping list
+     * @param rangeDependencyList the range dependency list
+     * @return the requested amount of the commodity
+     */
+    private static double getRequestedAmount(@Nonnull final ShoppingList shoppingList,
+            int commodityIndex,
+            @Nonnull List<RangeBasedResourceDependency> rangeDependencyList) {
+        double baseCommQuantity = shoppingList.getQuantity(commodityIndex);
+        for (RangeBasedResourceDependency dependency : rangeDependencyList) {
+            final CommoditySpecification baseType = dependency.getBaseCommodity();
+            if (baseType != null && !baseType.equals(shoppingList.getBasket().get(commodityIndex))) {
+                continue;
+            }
+
+            // Map dependent commodity type to a treeMap that maps dependent quantity to base quantity
+            // (e.g. storage access -> storage amount)
+            Map<CommoditySpecification, TreeMap<Double, Double>> dependentCommToMap =
+                    dependency.getDependentCapacity2LeastBaseCapacityPairs();
+
+            for (Entry<CommoditySpecification, TreeMap<Double, Double>> dependPairs : dependentCommToMap.entrySet()) {
+                final CommoditySpecification dependentType = dependPairs.getKey();
+                final int dependentIndex = shoppingList.getBasket().indexOf(dependentType);
+                if (dependentIndex == -1) {
+                    // e.g. the map is for io-throughput. we don't have io-throughput commodity.
+                    continue;
+                }
+                final Double dependentQuantity = shoppingList.getQuantity(dependentIndex);
+                TreeMap<Double, Double> dependentQuantityToBaseQuantityMap = dependPairs.getValue();
+                Entry<Double, Double> reverseMapEntry = dependentQuantityToBaseQuantityMap.ceilingEntry(dependentQuantity);
+                if (reverseMapEntry != null) {
+                    final Double newBaseCommQuantity = reverseMapEntry.getValue();
+                    // Increase the requested amount if the base commodity quantity that corresponds
+                    // to the dependent quantity (e.g. IOPS) is larger than the original requested
+                    // quantity.
+                    if (newBaseCommQuantity != null && newBaseCommQuantity > baseCommQuantity) {
+                        baseCommQuantity = newBaseCommQuantity;
+                    }
+                }
+            }
+        }
+        return baseCommQuantity;
+    }
+
+    /**
+     * A utility method to extract base and dependent commodities and their range constraint.
+     *
+     * @param dependencyDTOs the DTO represents the base and dependent commodity range relation.
+     * @return a list of {@link RangeBasedResourceDependency}
+     */
+    @Nonnull
+    public static List<RangeBasedResourceDependency>
+    translateStorageResourceRangeDependency(List<StorageResourceRangeDependency> dependencyDTOs) {
+        Map<CommoditySpecification, List<StorageResourceRangeDependency>> dtosPerBaseType =
+                dependencyDTOs.stream().collect(Collectors.groupingBy(dto -> ProtobufToAnalysis.commoditySpecification(dto.getBaseResourceType())));
+        final List<RangeBasedResourceDependency> dependencyList = new ArrayList<>();
+        dtosPerBaseType.forEach((baseType, dependencyDTOList) -> {
+            Map<CommoditySpecification, List<RangeTuple>> tuplesPerDependentType = dependencyDTOList.stream()
+                    .collect(Collectors.toMap(d -> ProtobufToAnalysis.commoditySpecification(d.getDependentResourceType()),
+                            StorageResourceRangeDependency::getRangeTupleList,
+                            (l1, l2) -> {
+                                List<RangeTuple> res = new ArrayList<>();
+                                res.addAll(l1);
+                                res.addAll(l2);
+                                return res;
+                            }));
+            dependencyList.add(new RangeBasedResourceDependency(baseType, tuplesPerDependentType));
+        });
+        return dependencyList;
+    }
+
+    /**
+     * A class to represent the capacity range dependency for one or more commodities on base commodity.
+     */
+    static class RangeBasedResourceDependency {
+        private CommoditySpecification baseCommodity_;
+        // Mapping from dependent commodity type to a treeMap, where treeMap records to achieve each dependent capacity,
+        // the minimal quantity of base commodity.
+        private final Map<CommoditySpecification, TreeMap<Double, Double>> dependentCapacity2LeastBaseCapacityPairs_ = new HashMap<>();
+
+        /**
+         * Initialize RangeBasedResourceDependency object representing commodity capacity range constraints.
+         *
+         * @param baseCommodity base commodity type.
+         * @param tuplesPerDependentType mapping from dependent commodity type to dependent commodity tuples.
+         */
+        RangeBasedResourceDependency(CommoditySpecification baseCommodity,
+                                            Map<CommoditySpecification, List<RangeTuple>> tuplesPerDependentType) {
+            baseCommodity_ = baseCommodity;
+            initializeRangePairs(tuplesPerDependentType);
+        }
+
+        private void initializeRangePairs(@Nonnull Map<CommoditySpecification, List<RangeTuple>> tuplesPerDependentType) {
+            tuplesPerDependentType.forEach((dependentType, tuplesList) -> {
+                for (RangeTuple tuple : tuplesList) {
+                    final double baseCap = tuple.getBaseMaxCapacity();
+                    final double dependentCap = tuple.getDependentMaxCapacity();
+                    TreeMap<Double, Double> dependPairs =
+                            dependentCapacity2LeastBaseCapacityPairs_.computeIfAbsent(dependentType, h -> new TreeMap<>());
+                    Double tmpVal = dependPairs.get(dependentCap);
+                    if (tmpVal == null || tmpVal > baseCap) {
+                        dependPairs.put(dependentCap, baseCap);
+                    }
+                }
+            });
+        }
+
+        /**
+         * Returns the base commodity in the dependency pair.
+         *
+         * @return base commodity.
+         */
+        public CommoditySpecification getBaseCommodity() {
+            return baseCommodity_;
+        }
+
+        /**
+         * Returns a map that maps dependent commodity type to a treeMap that maps dependent quantity to base quantity.
+         *
+         * @return a map that maps dependent commodity type to a treeMap that maps dependent quantity to base quantity.
+         */
+        public Map<CommoditySpecification, TreeMap<Double, Double>> getDependentCapacity2LeastBaseCapacityPairs() {
+            return dependentCapacity2LeastBaseCapacityPairs_;
+        }
+    }
+
+    /**
+     * Create a new {@link InfiniteRangeBasedResourceDependencyQuote} which describes an infinite {@link Quote}
+     * due to a range based dependent resource requirement that cannot be met.
+     */
+    public static class InfiniteRangeBasedResourceDependencyQuote extends MutableQuote {
+        private final CommoditySpecification baseCommodityType;
+        private final CommoditySpecification dependentCommodityType;
+        private final double dependentCommodityCapacity;
+        private final double baseCommodityQuantity;
+        private final double dependentCommodityQuantity;
+
+        /**
+         * Create a new {@link InfiniteRangeBasedResourceDependencyQuote}.
+         *
+         * @param baseCommodityType base commodity type.
+         * @param dependentCommodityType dependent commodity type.
+         * @param dependentCommodityCapacity The capacity of the dependent commodity in the dependent pair.
+         * @param baseCommodityQuantity The quantity of the base commodity in the pair.
+         * @param dependentCommodityQuantity The quantity of the dependent commodity in the pair.
+         */
+        public InfiniteRangeBasedResourceDependencyQuote(@Nonnull final CommoditySpecification baseCommodityType,
+                @Nonnull final CommoditySpecification dependentCommodityType,
+                double dependentCommodityCapacity,
+                double baseCommodityQuantity,
+                double dependentCommodityQuantity) {
+            super(null, Double.POSITIVE_INFINITY);
+
+            this.baseCommodityType = Objects.requireNonNull(baseCommodityType);
+            this.dependentCommodityType = Objects.requireNonNull(dependentCommodityType);
+            this.dependentCommodityCapacity = dependentCommodityCapacity;
+            this.baseCommodityQuantity = baseCommodityQuantity;
+            this.dependentCommodityQuantity = dependentCommodityQuantity;
+        }
+
+        @Override
+        public int getRank() {
+            return (int)(Math.abs(dependentCommodityQuantity
+                    - dependentCommodityCapacity) / dependentCommodityQuantity) * MAX_RANK;
+        }
+
+        @Override
+        public String getExplanation(@Nonnull final ShoppingList shoppingList) {
+            return "Dependent commodity " + dependentCommodityType.getDebugInfoNeverUseInCode() + " ("
+                    + dependentCommodityQuantity + ") exceeds ranged capacity (" + dependentCommodityCapacity
+                    + "), with base commodity " + baseCommodityType.getDebugInfoNeverUseInCode()
+                    + " (" + baseCommodityQuantity + ").";
+        }
     }
 }
