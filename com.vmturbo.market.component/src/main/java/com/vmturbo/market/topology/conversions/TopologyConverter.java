@@ -1505,12 +1505,9 @@ public class TopologyConverter {
                                 CommoditySoldDTO.Builder commSoldBuilder = CommoditySoldDTO.newBuilder()
                                         .setCommodityType(comm.getCommodityType());
                                 if (comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
-                                    // Storage amount unit was converted to GB when creating traderTO.
-                                    // Convert the unit back to MB when creating the projected value.
-                                    // Cost and API expects storage to be in MB.
-                                    commSoldBuilder.setCapacity(comm.getUsed() * Units.KIBI);
+                                    setStorageAmountSoldCapacityForVolume(comm, commSoldBuilder, commBoughtGrouping);
                                 } else if (comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE) {
-                                    setStorageAccessSoldValueForVolume(commSoldBuilder, commBoughtGrouping);
+                                    setStorageAmountSoldCapacityForVolume(commSoldBuilder, commBoughtGrouping);
                                 } else {
                                     commSoldBuilder.setCapacity(comm.getUsed());
                                 }
@@ -1527,7 +1524,7 @@ public class TopologyConverter {
                             // GP2 and Azure Managed Premium.
                             CommoditySoldDTO.Builder commSoldBuilder = CommoditySoldDTO.newBuilder()
                                     .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE));
-                            setStorageAccessSoldValueForVolume(commSoldBuilder, commBoughtGrouping);
+                            setStorageAmountSoldCapacityForVolume(commSoldBuilder, commBoughtGrouping);
                             volume.addCommoditySoldList(commSoldBuilder);
                         }
                     }
@@ -1548,12 +1545,31 @@ public class TopologyConverter {
      * @param commSoldBuilder the storage access sold commodity to be added to a volume
      * @param commBoughtGrouping the storage commodity list of a VM.
      */
-    private void setStorageAccessSoldValueForVolume(CommoditySoldDTO.Builder commSoldBuilder,
-                                                    CommoditiesBoughtFromProvider commBoughtGrouping) {
+    private void setStorageAmountSoldCapacityForVolume(CommoditySoldDTO.Builder commSoldBuilder,
+                                                       CommoditiesBoughtFromProvider commBoughtGrouping) {
         long providerId = commBoughtGrouping.getProviderId();
         TopologyEntityDTO tier = unmodifiableEntityOidToDtoMap.get(providerId);
         if (tier != null && cloudStorageTierIOPSCalculator != null) {
             cloudStorageTierIOPSCalculator.getIopsCapacity(commBoughtGrouping.getCommodityBoughtList(), tier)
+                    .ifPresent(commSoldBuilder::setCapacity);
+        }
+    }
+
+    /**
+     * Set the storage amount sold value for volume in MB.
+     *
+     * @param storageAmountBoughtDto storage amount bought commodity of the VM
+     * @param commSoldBuilder storage amount sold commodity build of the volume
+     * @param commBoughtGrouping the storage commodity list of the VM
+     */
+    private void setStorageAmountSoldCapacityForVolume(CommodityBoughtDTO storageAmountBoughtDto,
+                                                       CommoditySoldDTO.Builder commSoldBuilder,
+                                                       CommoditiesBoughtFromProvider commBoughtGrouping) {
+        long providerId = commBoughtGrouping.getProviderId();
+        TopologyEntityDTO tier = unmodifiableEntityOidToDtoMap.get(providerId);
+        if (tier != null && cloudStorageTierIOPSCalculator != null) {
+            cloudStorageTierIOPSCalculator.getStorageAmountCapacityMB(storageAmountBoughtDto,
+                    commBoughtGrouping.getCommodityBoughtList(), tier)
                     .ifPresent(commSoldBuilder::setCapacity);
         }
     }

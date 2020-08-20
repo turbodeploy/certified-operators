@@ -35,7 +35,7 @@ public class CloudStorageMigrationHelper {
     private static final int MARKET_IOPS_AMOUNT_MIN_CAPACITY_GP2 = 100;
 
     /**
-     * List of all storage tiers.
+     * List of storage tiers that use a ratio to constraint storage amount and IOPS.
      */
     private enum StorageTier {
         GP2,
@@ -43,11 +43,6 @@ public class CloudStorageMigrationHelper {
         SC1,
         ST1,
         STANDARD,
-        MANAGED_PREMIUM,
-        MANAGED_STANDARD,
-        MANAGED_STANDARD_SSD,
-        UNMANAGED_PREMIUM,
-        UNMANAGED_STANDARD,
         MANAGED_ULTRA_SSD
     }
 
@@ -65,45 +60,14 @@ public class CloudStorageMigrationHelper {
 
     private static final int STANDARD_IOPS_AMOUNT_MAX_CAPACITY = 200;
 
-    /*
-     * Azure Min/Max IOPS per storage tier taken from:
-     * https://docs.microsoft.com/en-us/azure/virtual-machines/windows/disks-types
-     */
+    // Max storage capacity for AWS GP2 in GB
+    private static final int GP2_STORAGE_AMOUNT_MAX_CAPACITY = 16384;
 
-    /** Minimum amount of IOPS that any Managed Standard storage size supports. */
-    private static final int MANAGED_STANDARD_IOPS_AMOUNT_MIN_CAPACITY = 500;
-    /** Maximum amount of IOPS that any Managed Standard storage size supports. */
-    private static final int MANAGED_STANDARD_IOPS_AMOUNT_MAX_CAPACITY = 2000;
-    /** Estimated ratio of IOPS per GiB of capacity for Managed Standard storage. */
-    private static final int MANAGED_STANDARD_IOPS_RATIO = 1;
+    // Max storage capacity for Azure Managed Premium in GB
+    private static final int MANAGED_PREMIUM_STORAGE_AMOUNT_MAX_CAPACITY = 32767;
 
-    /** Minimum amount of IOPS that any Unmanaged Standard storage size supports. */
-    private static final int UNMANAGED_STANDARD_IOPS_AMOUNT_MIN_CAPACITY = 500;
-    /** Maximum amount of IOPS that any Unmanaged Standard storage size supports. */
-    private static final int UNMANAGED_STANDARD_IOPS_AMOUNT_MAX_CAPACITY = 2000;
-    /** Estimated ratio of IOPS per GiB of capacity for Unmanaged Standard storage. */
-    private static final int UNMANAGED_STANDARD_IOPS_RATIO = 1;
-
-    /** Minimum amount of IOPS that any Managed Standard SSD storage size supports. */
-    private static final int MANAGED_STANDARD_SSD_IOPS_AMOUNT_MIN_CAPACITY = 120;
-    /** Maximum amount of IOPS that any Managed Standard SSD storage size supports. */
-    private static final int MANAGED_STANDARD_SSD_IOPS_AMOUNT_MAX_CAPACITY = 6000;
-    /** Estimated ratio of IOPS per GiB of capacity for Managed Standard SSD storage. */
-    private static final int MANAGED_STANDARD_SSD_IOPS_RATIO = 2;
-
-    /** Minimum amount of IOPS that any Managed Premium storage size supports. */
-    private static final int MANAGED_PREMIUM_IOPS_AMOUNT_MIN_CAPACITY = 120;
-    /** Maximum amount of IOPS that any Managed Premium storage size supports. */
-    private static final int MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY = 20000;
-    /** Estimated ratio of IOPS per GiB of capacity for Managed Premium storage. */
-    private static final int MANAGED_PREMIUM_IOPS_RATIO = 4;
-
-    /** Minimum amount of IOPS that any Unmanaged Premium storage size supports. */
-    private static final int UNMANAGED_PREMIUM_IOPS_AMOUNT_MIN_CAPACITY = 120;
-    /** Maximum amount of IOPS that any Unmanaged Premium storage size supports. */
-    private static final int UNMANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY = 20000;
-    /** Estimated ratio of IOPS per GiB of capacity for Unmanaged Premium storage. */
-    private static final int UNMANAGED_PREMIUM_IOPS_RATIO = 4;
+    // Maximum amount of IOPS that any Managed Premium storage size supports.
+    static final int MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY = 20000;
 
     /** The smallest number of IOPS that can be provisioned on an Azure Ultra SSD disk. */
     private static final int MANAGED_ULTRA_SSD_IOPS_AMOUNT_MIN_CAPACITY = 100;
@@ -111,20 +75,13 @@ public class CloudStorageMigrationHelper {
     private static final int MANAGED_ULTRA_SSD_IOPS_AMOUNT_MAX_CAPACITY = 160000;
     /** The largest number of IOPS that can be provisioned per GB on an Azure Ultra SSD disk. */
     private static final int MANAGED_ULTRA_SSD_IOPS_RATIO = 300;
-    /**
-     * The smallest number of IOPS that can be provisioned per GB on an Azure Ultra SSD disk,
-     * (but not less than the hard minimum of MANAGED_ULTRA_SSD_IOPS_AMOUNT_MIN_CAPACITY).
-     */
-    private static final int MANAGED_ULTRA_SSD_IOPS_MIN_RATIO = 2;
-    /** The smallest number of MBps throughput that can be provisioned on an Azure Ultra SSD disk. */
-    private static final int MANAGED_ULTRA_SSD_MBPS_AMOUNT_MIN_CAPACITY = 1;
 
     private CloudStorageMigrationHelper() {
         // This class should not be instantiated.
     }
 
     /**
-     * Get the historical max IOPS. If it is not available, fallback to use peak value.
+     * Create commodity bought for IOPS.
      *
      * @param commodityBoughtDTO the storage access commodity DTO
      * @param histMaxIOPS the maximum StorageAccess bought value of the last 30 days
@@ -191,41 +148,6 @@ public class CloudStorageMigrationHelper {
                 maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier, 1);
                 maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
                         STANDARD_IOPS_AMOUNT_MAX_CAPACITY);
-            } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.MANAGED_PREMIUM.name())) {
-                maxRatio = Math.max(maxRatio, MANAGED_PREMIUM_IOPS_RATIO);
-                maxCapacity = Math.max(maxCapacity, MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY);
-                maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier,
-                        MANAGED_PREMIUM_IOPS_RATIO);
-                maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
-                        MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY);
-            } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.MANAGED_STANDARD.name())) {
-                maxRatio = Math.max(maxRatio, MANAGED_STANDARD_IOPS_RATIO);
-                maxCapacity = Math.max(maxCapacity, MANAGED_STANDARD_IOPS_AMOUNT_MAX_CAPACITY);
-                maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier,
-                        MANAGED_STANDARD_IOPS_RATIO);
-                maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
-                        MANAGED_STANDARD_IOPS_AMOUNT_MAX_CAPACITY);
-            } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.MANAGED_STANDARD_SSD.name())) {
-                maxRatio = Math.max(maxRatio, MANAGED_STANDARD_SSD_IOPS_RATIO);
-                maxCapacity = Math.max(maxCapacity, MANAGED_STANDARD_SSD_IOPS_AMOUNT_MAX_CAPACITY);
-                maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier,
-                        MANAGED_STANDARD_SSD_IOPS_RATIO);
-                maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
-                        MANAGED_STANDARD_SSD_IOPS_AMOUNT_MAX_CAPACITY);
-            } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.UNMANAGED_PREMIUM.name())) {
-                maxRatio = Math.max(maxRatio, UNMANAGED_PREMIUM_IOPS_RATIO);
-                maxCapacity = Math.max(maxCapacity, UNMANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY);
-                maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier,
-                        UNMANAGED_PREMIUM_IOPS_RATIO);
-                maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
-                        UNMANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY);
-            } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.UNMANAGED_STANDARD.name())) {
-                maxRatio = Math.max(maxRatio, UNMANAGED_STANDARD_IOPS_RATIO);
-                maxCapacity = Math.max(maxCapacity, UNMANAGED_STANDARD_IOPS_AMOUNT_MAX_CAPACITY);
-                maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier,
-                        UNMANAGED_STANDARD_IOPS_RATIO);
-                maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
-                        UNMANAGED_STANDARD_IOPS_AMOUNT_MAX_CAPACITY);
             } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.MANAGED_ULTRA_SSD.name())) {
                 maxRatio = Math.max(maxRatio, MANAGED_ULTRA_SSD_IOPS_RATIO);
                 maxCapacity = Math.max(maxCapacity, MANAGED_ULTRA_SSD_IOPS_AMOUNT_MAX_CAPACITY);
@@ -253,20 +175,26 @@ public class CloudStorageMigrationHelper {
 
     /**
      * Assign storage provisioned "used" value to storage amount bought.
+     * This method is used for List&Shift only.
      *
      * @param storageAmountCommodity storage amount commodity
      * @param commBoughtGroupingForSL commodity bought list
-     * @return udpated storage amount commodity
+     * @param isDestinationAws boolean that indicates if destination is AWS
+     * @return storage amount commodity, value in MB
      */
     static CommodityBoughtDTO updateStorageAmountCommodityBought(
             @Nonnull final CommodityBoughtDTO storageAmountCommodity,
-            @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL) {
+            @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL,
+            boolean isDestinationAws) {
         float diskSizeInMB = getStorageProvisionedAmount(commBoughtGroupingForSL);
-        Optional<CommodityBoughtDTO> iopsCommodityBoughtOpt =
-                commBoughtGroupingForSL.getCommodityBoughtList().stream()
-                        .filter(s -> s.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE)
-                        .findAny();
-        if (diskSizeInMB > 0 && iopsCommodityBoughtOpt.isPresent()) {
+
+        // Cap storage amount to the maximum supported storage amount value to guarantee a placement
+        if (isDestinationAws && diskSizeInMB > GP2_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI) {
+            diskSizeInMB = (float)(GP2_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI);
+        } else if (!isDestinationAws && diskSizeInMB > MANAGED_PREMIUM_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI) {
+            diskSizeInMB = (float)(MANAGED_PREMIUM_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI);
+        }
+        if (diskSizeInMB > 0) {
             return storageAmountCommodity.toBuilder()
                     .setUsed(diskSizeInMB)
                     .setPeak(diskSizeInMB)
@@ -277,7 +205,7 @@ public class CloudStorageMigrationHelper {
 
     /**
      * Use storage provision used value as storage amount.
-     * Convert storage amount unit to GiB.
+     * Storage amount unit is MB.
      * Adjust the storage amount commodity based on IOPS.
      * This method is used by MPC Optimize plan.
      *

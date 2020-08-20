@@ -129,6 +129,8 @@ public class CloudMigrationPlanHelper {
             "UNMANAGED_PREMIUM"
     );
 
+    private static final String CSP_AWS_DISPLAY_NAME = "AWS";
+
     /**
      * Which commodities don't apply to cloud. During cloud migration, if an on-prem VM is buying
      * any of these commodities, we skip these from the topologyEntity for that VM, so that we
@@ -308,7 +310,8 @@ public class CloudMigrationPlanHelper {
 
             // Remove non-applicable commodities first here, before other stages add some bought
             // commodities like segmentation.
-            prepareBoughtCommodities(builder, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess, true);
+            prepareBoughtCommodities(builder, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess,
+                    isDestinationAws(context, graph), true);
 
             // Add coupon commodity to allow existing RIs to be utilized
             addCouponCommodity(entity);
@@ -316,6 +319,29 @@ public class CloudMigrationPlanHelper {
             // Add license access commodities for VMs being migrated.
             updateLicenseAccessCommodities(entity, licenseCommodityKeyByOS);
         }
+    }
+
+    /**
+     * Check if the migration destination is AWS.
+     *
+     * @param context pipeline context
+     * @param inputGraph input graph
+     * @return true if destination is AWS
+     */
+    private boolean isDestinationAws(@Nonnull final TopologyPipelineContext context,
+                                       @Nonnull final TopologyGraph<TopologyEntity> inputGraph) {
+        Set<Long> destinations = context.getDestinationEntities();
+        if (!destinations.isEmpty()) {
+            Long destinationOid = destinations.iterator().next();
+            Optional<TopologyEntity> destinationOptional = inputGraph.getEntity(destinationOid);
+            if (destinationOptional.isPresent()) {
+                Optional<TopologyEntity> ownerOptional = destinationOptional.get().getOwner();
+                if (ownerOptional.isPresent() && ownerOptional.get().getDisplayName().equals(CSP_AWS_DISPLAY_NAME)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -547,7 +573,7 @@ public class CloudMigrationPlanHelper {
 
                     // Need to set movable/scalable true for provider commBought.
                     prepareBoughtCommodities(providerDtoBuilder, topologyInfo,
-                            sourceToProducerToMaxStorageAccess, false);
+                            sourceToProducerToMaxStorageAccess, false, false);
                     prepareSoldCommodities(providerDtoBuilder);
                 });
     }
@@ -593,6 +619,7 @@ public class CloudMigrationPlanHelper {
      * @param topologyInfo Info about plan topology.
      * @param sourceToProducerToMaxStorageAccess a structure mapping entities to max historical
      * StorageAccess bought
+     * @param isDestinationAws boolean that indicates if destination is AWS
      * @param isConsumer true if updating commBought of the consumer (i.e. VM) false if updating the
      *                   provider of the VM.
      */
@@ -600,6 +627,7 @@ public class CloudMigrationPlanHelper {
     void prepareBoughtCommodities(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
                                   @Nonnull final TopologyInfo topologyInfo,
                                   @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
+                                  boolean isDestinationAws,
                                   boolean isConsumer) {
         List<CommoditiesBoughtFromProvider> newCommoditiesByProvider = new ArrayList<>();
         // Go over grouping of comm bought along with their providers.
@@ -608,7 +636,7 @@ public class CloudMigrationPlanHelper {
 
             // We need to skip some on-prem specific commodities bought to allow cloud migration.
             List<CommodityBoughtDTO> commoditiesToInclude = getUpdatedCommBought(
-                    commBoughtGrouping, topologyInfo, dtoBuilder.getOid(), sourceToProducerToMaxStorageAccess, isConsumer);
+                    commBoughtGrouping, topologyInfo, dtoBuilder.getOid(), sourceToProducerToMaxStorageAccess, isDestinationAws, isConsumer);
             if (commoditiesToInclude.size() == 0) {
                 // Don't keep this group if there are no valid bought commodities from it.
                 continue;
@@ -642,6 +670,7 @@ public class CloudMigrationPlanHelper {
      * @param entityOid entity OID
      * @param sourceToProducerToMaxStorageAccess a structure mapping entities to max historical
      * StorageAccess bought
+     * @param isDestinationAws boolean that indicates if destination is AWS
      * @param isConsumer true if updating commBought of the consumer (i.e. VM) false if updating the
      *                   provider of the VM.
      * @return Updated list of only applicable CommBoughtDTOs.
@@ -652,6 +681,7 @@ public class CloudMigrationPlanHelper {
             @Nonnull final TopologyInfo topologyInfo,
             final long entityOid,
             @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
+            boolean isDestinationAws,
             boolean isConsumer) {
         List<CommodityBoughtDTO> commoditiesToInclude = new ArrayList<>();
         for (CommodityBoughtDTO dtoBought : commBoughtGrouping.getCommodityBoughtList()) {
@@ -672,25 +702,26 @@ public class CloudMigrationPlanHelper {
                         .setActive(false)
                         .build();
                 commoditiesToInclude.add(dtoBoughtUpdated);
-            } else if (commodityType == CommodityType.STORAGE_ACCESS) {
-                if (isConsumer) {
-                    final double historicalMaxIOP = getHistoricalMaxIOPSValue(commBoughtGrouping, entityOid,
-                            sourceToProducerToMaxStorageAccess);
-                    final CommodityBoughtDTO.Builder commodityBoughtDTO =
-                            CloudStorageMigrationHelper.getHistoricalMaxIOPS(dtoBought, historicalMaxIOP);
-                    if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
-                        // Disable Storage Access commodity for Lift and Shift plan so it can always
-                        // fit in GP2 or Azure Managed Premium.
-                        commodityBoughtDTO.setActive(false);
+            } else if (isConsumer && commodityType == CommodityType.STORAGE_ACCESS) {
+                double historicalMaxIOP = getHistoricalMaxIOPSValue(commBoughtGrouping, entityOid,
+                        sourceToProducerToMaxStorageAccess);
+                if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo) && !isDestinationAws) {
+                    // Lift and Shift for Azure: cap the IOPS value to max of managed premium if it exceeds the max value
+                    // We can't disable the IOPS commodity like AWS because we need it to adjust the storage amount value.
+                    if (historicalMaxIOP > CloudStorageMigrationHelper.MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY) {
+                        historicalMaxIOP = CloudStorageMigrationHelper.MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY;
                     }
-                    commoditiesToInclude.add(commodityBoughtDTO.build());
-                } else if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
-                    CommodityBoughtDTO dtoBoughtUpdated = CommodityBoughtDTO
-                            .newBuilder(dtoBought)
-                            .setActive(false)
-                            .build();
-                    commoditiesToInclude.add(dtoBoughtUpdated);
                 }
+                final CommodityBoughtDTO.Builder commodityBoughtDTO =
+                        CloudStorageMigrationHelper.getHistoricalMaxIOPS(dtoBought, historicalMaxIOP);
+
+                if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo) && isDestinationAws) {
+                    // Lift and shift plan for AWS
+                    // Disable Storage Access commodity for Lift and Shift plan so it can always
+                    // fit in GP2.
+                    commodityBoughtDTO.setActive(false);
+                }
+                commoditiesToInclude.add(commodityBoughtDTO.build());
             } else if (isConsumer && commodityType == CommodityType.STORAGE_AMOUNT) {
                 if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
                     // Assign storage provisioned used value for storage amount.
@@ -703,7 +734,7 @@ public class CloudMigrationPlanHelper {
                 } else {
                     // Assign storage provisioned used value for storage amount
                     commoditiesToInclude.add(CloudStorageMigrationHelper
-                            .updateStorageAmountCommodityBought(dtoBought, commBoughtGrouping));
+                            .updateStorageAmountCommodityBought(dtoBought, commBoughtGrouping, isDestinationAws));
                 }
             } else {
                 commoditiesToInclude.add(dtoBought);

@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.RangeTuple;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -41,7 +42,10 @@ public class CloudStorageTierIOPSCalculator {
     );
 
     // storage tier name -> disk size -> IOPS capacity
-    private static Map<String, TreeMap<Double, Double>> azureIopsCapacityMap = new HashMap<>();
+    private static Map<String, TreeMap<Double, Double>> azureDiskSizeToIopsCapacityMap = new HashMap<>();
+
+    // storage tier name -> IOPS capacity -> disk size
+    private static Map<String, TreeMap<Double, Double>> azureIopsToDiskSizeMap = new HashMap<>();
 
     /**
      * Constructor.
@@ -69,15 +73,54 @@ public class CloudStorageTierIOPSCalculator {
             }
             List<RangeTuple> rangeTuples = iopsSoldComm.getRangeDependency().getRangeTupleList();
             TreeMap<Double, Double> iopsTable = new TreeMap<>();
+            TreeMap<Double, Double> iopsToDiskSizeTable = new TreeMap<>();
             for (RangeTuple tuple : rangeTuples) {
                 double diskSize = tuple.getBaseMaxAmountForConsumer();
                 double iopsCapacity = tuple.getDependentMaxAmountForConsumer();
+                Double existingDiskSize = iopsToDiskSizeTable.get(iopsCapacity);
                 iopsTable.put(diskSize, iopsCapacity);
+                if (existingDiskSize == null || existingDiskSize > diskSize) {
+                    iopsToDiskSizeTable.put(iopsCapacity, diskSize);
+                }
             }
-            azureIopsCapacityMap.put(tier.getDisplayName(), iopsTable);
+            azureDiskSizeToIopsCapacityMap.put(tier.getDisplayName(), iopsTable);
+            azureIopsToDiskSizeMap.put(tier.getDisplayName(), iopsToDiskSizeTable);
         }
     }
 
+    /**
+     * Get storage amount capacity in MB.
+     *
+     * @param storageAmountBoughtByBuyer storage amount commodity bought by buyer
+     * @param commList commodity bought list of buyer
+     * @param tier storage tier
+     * @return storage amount value in MB.
+     */
+    Optional<Double> getStorageAmountCapacityMB(@Nonnull CommodityBoughtDTO storageAmountBoughtByBuyer,
+                                                @Nonnull final List<TopologyDTO.CommodityBoughtDTO> commList,
+                                                @Nonnull final TopologyEntityDTO tier) {
+        if (tier.getEntityType() != EntityType.STORAGE_TIER_VALUE) {
+            return Optional.empty();
+        }
+        final String tierName = tier.getDisplayName();
+        Double storageAmount;
+        switch (tierName) {
+            case "MANAGED_STANDARD":
+                // Same as Managed Premium
+            case "MANAGED_STANDARD_SSD":
+                // Same as Managed Premium
+            case "MANAGED_PREMIUM":
+                // return value is MB.
+                storageAmount = getAzureStorageAmount(storageAmountBoughtByBuyer, commList, tier) * Units.KIBI;
+                break;
+            default:
+                // Storage amount unit was converted to GB when creating traderTO.
+                // Convert the unit back to MB when creating the projected value.
+                // Cost and API expects storage to be in MB.
+                storageAmount = storageAmountBoughtByBuyer.getUsed() * Units.KIBI;
+        }
+        return Optional.of(storageAmount);
+    }
 
     /**
      * Determine the IOPS capacity value given the tier and the commodity bought list of a VM.
@@ -218,25 +261,95 @@ public class CloudStorageTierIOPSCalculator {
         return iops;
     }
 
+    /**
+     * Get the storage amount for an Azure tier.
+     * This method is trying to get the storage amount in case it may be adjusted within analysis,
+     * we are going to merge this method with Azure storage analysis once committed.
+     *
+     * @param storageAmountBoughtByBuyer storage amount commodity
+     * @param commList List of storage commodities bought
+     * @param tier storage tier
+     * @return storage amount
+     */
+    @Nonnull
+    private Double getAzureStorageAmount(@Nonnull CommodityBoughtDTO storageAmountBoughtByBuyer,
+                                         @Nonnull final List<TopologyDTO.CommodityBoughtDTO> commList,
+                                         @Nonnull final TopologyEntityDTO tier) {
+        final CommodityBoughtDTO storageAccessComm = commList.stream()
+                .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
+                .findFirst()
+                .orElse(null);
+        Double storageAmount = storageAmountBoughtByBuyer.getUsed();
+        if (storageAccessComm != null) {
+            // Assign the maximum storage in the range of storage amounts where volumes have the same cost.
+            TreeMap<Double, Double> diskSizeTOIopsCapacityMap = azureDiskSizeToIopsCapacityMap.get(tier.getDisplayName());
+            if (diskSizeTOIopsCapacityMap == null) {
+                logger.warn("Azure disk size to IOPS capacity map is missing for tier {}.", tier.getDisplayName());
+            } else {
+                Double maxStorageAmountInRange = diskSizeTOIopsCapacityMap.ceilingKey(storageAmount);
+                storageAmount = maxStorageAmountInRange != null ? maxStorageAmountInRange : storageAmount;
+
+                // Increase the storage to match IOPS requirement if required.
+                final double originalIOPS = storageAccessComm.getUsed();
+                TreeMap<Double, Double> iopsToDiskSizeTable = azureIopsToDiskSizeMap.get(tier.getDisplayName());
+                if (iopsToDiskSizeTable == null) {
+                    logger.warn("Azure IOPS to disk size capacity map is missing for tier {}.", tier.getDisplayName());
+                } else {
+                    Entry<Double, Double> tableEntry = iopsToDiskSizeTable.ceilingEntry(originalIOPS);
+                    if (tableEntry != null && tableEntry.getValue() > storageAmount) {
+                        storageAmount = tableEntry.getValue();
+                    }
+                }
+            }
+        }
+        return storageAmount;
+    }
+
+    /**
+     * Get Azure IOPS value.
+     *
+     * @param commList list of commodities bought
+     * @param tier destination storage tier
+     * @return IOPS value
+     */
     private Double getAzureIops(@Nonnull final List<TopologyDTO.CommodityBoughtDTO> commList,
                                 @Nonnull final TopologyEntityDTO tier) {
+        final CommodityBoughtDTO storageAccessComm = commList.stream()
+                .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
+                .findFirst()
+                .orElse(null);
         final CommodityBoughtDTO storageAmountComm = commList.stream()
                 .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE)
                 .findFirst()
                 .orElse(null);
         Double iops = null;
-        if (storageAmountComm != null) {
-            final double diskSizeInGB = storageAmountComm.getUsed();
-            TreeMap<Double, Double> iopsTable = azureIopsCapacityMap.get(tier.getDisplayName());
-            if (iopsTable == null) {
-                logger.warn("Azure IOPS capacity map is missing for tier {}.", tier.getDisplayName());
+        if (storageAccessComm != null && storageAmountComm != null) {
+            final double originalIOPS = storageAccessComm.getUsed();
+            final double originalStorageAmount = storageAmountComm.getUsed();
+            TreeMap<Double, Double> iopsToDiskSizeTable = azureIopsToDiskSizeMap.get(tier.getDisplayName());
+            if (iopsToDiskSizeTable == null) {
+                logger.warn("Azure IOPS to disk size capacity map is missing for tier {}.", tier.getDisplayName());
             } else {
-                Entry<Double, Double> iopsTableEntry = iopsTable.ceilingEntry(diskSizeInGB);
-
-                if (iopsTableEntry != null) {
-                    iops = iopsTableEntry.getValue();
-                } else {
-                    iops = iopsTable.get(iopsTable.lastKey());
+                // Get the maximum disk size that corresponds to the original IOPS
+                Entry<Double, Double> iopsToDiskSizeEntry = iopsToDiskSizeTable.ceilingEntry(originalIOPS);
+                if (iopsToDiskSizeEntry != null) {
+                    Double diskSizeForIops = iopsToDiskSizeEntry.getValue();
+                    Double maxIopsInRange = iopsToDiskSizeEntry.getKey();
+                    if (originalStorageAmount > diskSizeForIops) {
+                        // If original disk size is larger than that inferred from the original IOPS,
+                        // look up the IOPS using the original disk size.
+                        TreeMap<Double, Double> diskSizeToIopsCapacityMap = azureDiskSizeToIopsCapacityMap.get(tier.getDisplayName());
+                        if (diskSizeToIopsCapacityMap == null) {
+                            logger.warn("Azure disk size to IOPS capacity map is missing for tier {}.", tier.getDisplayName());
+                        } else {
+                            Entry<Double, Double> diskSizeToIopsEntry = diskSizeToIopsCapacityMap.ceilingEntry(originalStorageAmount);
+                            if (diskSizeToIopsEntry != null) {
+                                iops = diskSizeToIopsEntry.getValue();
+                            }
+                        }
+                    } else {
+                        iops = maxIopsInRange;
+                    }
                 }
             }
         }

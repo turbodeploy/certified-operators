@@ -134,7 +134,8 @@ public class StorageIOPSTest {
      */
     @Test
     public void testManagedPremium() throws Exception {
-        testIOPS(managedPremium, 200d, null, 1100d);
+        testIOPS(managedPremium, 127d, 400d, 500d);
+        testIOPS(managedPremium, 127d, 600d, 1100d);
     }
 
     /**
@@ -144,7 +145,8 @@ public class StorageIOPSTest {
      */
     @Test
     public void testManagedStandard() throws Exception {
-        testIOPS(managedStandard, 5000d, null, 1300d);
+        testIOPS(managedStandard, 200d, 400d, 500d);
+        testIOPS(managedStandard, 200d, 600d, 1300d);
     }
 
     /**
@@ -154,7 +156,8 @@ public class StorageIOPSTest {
      */
     @Test
     public void testManagedStandardSSD() throws Exception {
-        testIOPS(managedStandardSSD, 5000d, null, 2000d);
+        testIOPS(managedStandardSSD, 20d, 110d, 120d);
+        testIOPS(managedStandardSSD, 200d, 110d, 500d);
     }
 
     /**
@@ -169,7 +172,6 @@ public class StorageIOPSTest {
         testIOPS(managedUltraSSD, 1000d, 400000d, 160000d);
         testIOPS(managedUltraSSD, 1000d, 1000d, 2000d);
     }
-
 
     private void testIOPS(TopologyEntityDTO tier, Double storageAmountUsedInGB,
                                       Double storageAccessUsed, Double expectedIOPSCapacity) {
