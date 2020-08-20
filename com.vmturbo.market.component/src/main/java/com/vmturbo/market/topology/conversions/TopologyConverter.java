@@ -1026,7 +1026,8 @@ public class TopologyConverter {
                 } else {
                     //If the traderTO has cloneOf, it is a provisioned SE.
                     commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), sl.getOid(),
-                        commBought, reservedCapacityAnalysis, originalEntity, timeSlotsByCommType, traderTO.hasCloneOf()).ifPresent(commList::add);
+                        commBought, reservedCapacityAnalysis, originalEntity, timeSlotsByCommType,
+                            traderTO.hasCloneOf()).ifPresent(commList::add);
                 }
             }
             // the shopping list might not exist in shoppingListOidToInfos, because it might be
@@ -1146,13 +1147,13 @@ public class TopologyConverter {
         topologyEntityDTOs.add(entityDTO);
         topologyEntityDTOs.addAll(createResources(entityDTO));
         topologyEntityDTOs.addAll(createCollapsedTopologyEntityDTOs(collapsedShoppingLists,
-                reservedCapacityAnalysis));
+                reservedCapacityAnalysis,  traderTO.hasCloneOf()));
         return topologyEntityDTOs;
     }
 
     private List<TopologyEntityDTO> createCollapsedTopologyEntityDTOs(
             final List<ShoppingListTO> collapsedShoppingList,
-            final ReservedCapacityAnalysis reservedCapacityAnalysis) {
+            final ReservedCapacityAnalysis reservedCapacityAnalysis, final boolean isProvisioned) {
         final List<TopologyEntityDTO> result = new ArrayList<>();
         for (final ShoppingListTO shoppingListTO : collapsedShoppingList) {
             final Optional<Long> collapsedEntityId =
@@ -1173,7 +1174,7 @@ public class TopologyConverter {
                                         collapsedEntityDTO.getOid(), shoppingListTO.getSupplier(),
                                         shoppingListTO.getOid(), commodityBoughtTO,
                                         reservedCapacityAnalysis, collapsedEntityDTO,
-                                        new HashMap<>()))
+                                        new HashMap<>(), isProvisioned))
                                 .filter(Optional::isPresent)
                                 .map(Optional::get)
                                 .collect(Collectors.toList());
@@ -1203,7 +1204,7 @@ public class TopologyConverter {
                     commodityBoughtTO.getSpecification().getType());
             double newCapacity = commodityBoughtTO.getAssignedCapacityForBuyer();
             if (newCapacity <= 0) {
-                newCapacity = commodityIndex.getCommSold(entity.getOid(), commodityType)
+                newCapacity = getCommodityIndex().getCommSold(entity.getOid(), commodityType)
                         .map(CommoditySoldDTO::getCapacity)
                         .orElse(0D);
             }
@@ -1214,7 +1215,7 @@ public class TopologyConverter {
                     .setCommodityType(commodityType)
                     .setCapacity(newCapacity);
             final Optional<CommoditySoldDTO> currentCommSold =
-                    commodityIndex.getCommSold(entity.getOid(), commodityType);
+                    getCommodityIndex().getCommSold(entity.getOid(), commodityType);
             if (currentCommSold.isPresent()) {
                 soldBuilder.setUsed(currentCommSold.get().getUsed());
                 if (newCapacity > 0) {

@@ -1290,7 +1290,7 @@ public class ActionInterpreter {
                         //If this SE has underutilized commodities pre-stored.
                         .orElseGet(() -> getUndertilizedExplanationFromTracker(buyerId, sellerId)
                                 //Get from savings
-                                .orElseGet(() -> getExplanationFromSaving(savings)
+                                .orElseGet(() -> getExplanationFromSaving(buyerId,moveTO,savings)
                                         //Default move explanation
                                         .orElseGet(() -> getDefaultExplanationForCloud(buyerId, moveTO).orElse(null)
                         )))));
@@ -1338,16 +1338,17 @@ public class ActionInterpreter {
         return Optional.empty();
     }
 
-    private Optional<ChangeProviderExplanation.Builder> getExplanationFromSaving(@Nonnull final CalculatedSavings savings) {
+    private Optional<ChangeProviderExplanation.Builder> getExplanationFromSaving(
+            final long id, @Nonnull final MoveTO moveTO, @Nonnull final CalculatedSavings savings) {
         if (savings.savingsAmount.getValue() > 0) {
             return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
                     Efficiency.newBuilder().setIsWastedCost(true)));
             } else {
                 logger.error("Could not explain cloud scale action. MoveTO = {} .Action target oid = {}",
-                    moveTO, actionTargetId);
-                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                    moveTO, id);
+                return Optional.of(ChangeProviderExplanation.newBuilder()
+                        .setEfficiency(Efficiency.getDefaultInstance()));
         }
-        return Optional.empty();
     }
 
     private Optional<ChangeProviderExplanation.Builder> getDefaultExplanationForCloud(long id, @Nonnull final MoveTO moveTO) {
