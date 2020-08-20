@@ -63,6 +63,7 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
     private final EntityType entityType;
     private final ProbeCategory probeCategory;
     private final String sloValueSettingName;
+    private final float defaultSLO;
     private final String enableSLOSettingName;
     private final CommodityType commodityType;
     private final com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig commodityStitchingOperationConfig;
@@ -76,19 +77,23 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
      * @param probeCategory probe category
      * @param commodityType commodity type
      * @param sloValueSettingName the SLO value setting name
+     * @param defaultSLO default SLO value for this commodity type
      * @param enableSLOSettingName the Enable SLO setting name
+     * @param commodityStitchingOperationConfig used for communicating with other components
      */
     public SetAutoSetCommodityCapacityPostStitchingOperation(
             @Nonnull final EntityType entityType,
             @Nonnull final ProbeCategory probeCategory,
             @Nonnull final CommodityType commodityType,
             @Nonnull final String sloValueSettingName,
+            @Nonnull final Float defaultSLO,
             @Nonnull final String enableSLOSettingName,
             @Nonnull com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig commodityStitchingOperationConfig) {
         this.entityType = Objects.requireNonNull(entityType);
         this.probeCategory = Objects.requireNonNull(probeCategory);
         this.commodityType = Objects.requireNonNull(commodityType);
         this.sloValueSettingName = Objects.requireNonNull(sloValueSettingName);
+        this.defaultSLO = defaultSLO;
         this.enableSLOSettingName = Objects.requireNonNull(enableSLOSettingName);
         this.commodityStitchingOperationConfig = commodityStitchingOperationConfig;
     }
@@ -111,28 +116,33 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
         // sold commodities of the correct type and set their capacities according to the
         // value in the setting.
         entities.forEach(entity -> {
-            final Optional<Setting> sloSetting = settingsCollection
-                    .getEntitySetting(entity.getOid(), sloValueSettingName);
-            if (!sloSetting.isPresent()) {
-                logger.error("SLO Setting {} does not exist for entity {}."
-                                + " Not setting capacity for it.", sloValueSettingName,
-                        entity.getDisplayName());
-            } else {
-                // Checking if the capacity value should be updated from the db
-                 if (shouldUpdateCapacityFromDb(entity, settingsCollection)) {
-                    entitiesToUpdateCapacity.put(entity, entity.getTopologyEntityDtoBuilder()
-                        .getCommoditySoldListBuilderList().stream()
-                        .filter(this::commodityTypeMatches)
-                        .collect(Collectors.toSet()));
+            final Optional<Setting> sloEnabledSetting = settingsCollection
+                .getEntitySetting(entity.getOid(), enableSLOSettingName);
+            if (sloEnabledSetting.isPresent()) {
+                final Optional<Setting> sloValueSetting = settingsCollection
+                        .getEntitySetting(entity.getOid(), sloValueSettingName);
+                if (sloEnabledSetting.get().getBooleanSettingValue().getValue()
+                    && !sloValueSetting.isPresent()) {
+                    logger.error("SLO value Setting {} does not exist for entity {} while its enabled."
+                                    + " Not setting capacity for it.", sloValueSettingName,
+                            entity.getDisplayName());
                 } else {
-                     // Queueing and updating entities which we can determine their capacity value
-                     // by using the SLO value from the settings as capacity.
-                    resultBuilder.queueUpdateEntityAlone(entity,
+                    // Checking if the capacity value should be updated from the db
+                    if (shouldUpdateCapacityFromDb(entity, settingsCollection)) {
+                        entitiesToUpdateCapacity.put(entity, entity.getTopologyEntityDtoBuilder()
+                            .getCommoditySoldListBuilderList().stream()
+                            .filter(this::commodityTypeMatches)
+                            .collect(Collectors.toSet()));
+                    } else {
+                        // Queueing and updating entities which we can determine their capacity value
+                        // by using the SLO value from the settings as capacity.
+                        resultBuilder.queueUpdateEntityAlone(entity,
                             entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
-                                    .getCommoditySoldListBuilderList().stream()
-                                    .filter(this::commodityTypeMatches)
-                                    .forEach(commSold -> commSold.setCapacity(
-                                            getSLOValueFromSetting(settingsCollection, entity))));
+                                .getCommoditySoldListBuilderList().stream()
+                                .filter(this::commodityTypeMatches)
+                                .forEach(commSold -> commSold.setCapacity(
+                                    getSLOValueFromSetting(settingsCollection, entity))));
+                    }
                 }
             }
         });
@@ -298,11 +308,11 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
     /**
      * Get the SLO from the relevant user / default setting.
      * If the "Enable SLO" setting is true and SLO numeric setting exists, then return
-     * the SLO value from the setting. Otherwise return 0.
+     * the SLO value from the setting. Otherwise return default value.
      *
      * @param settingsCollection the settings collection.
      * @param entity the entity for which to get the SLO value.
-     * @return the SLO value if exists, 0 otherwise.
+     * @return the SLO value if exists, default value otherwise.
      */
     private double getSLOValueFromSetting(EntitySettingsCollection settingsCollection,
                                          TopologyEntity entity) {
@@ -311,7 +321,7 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
                 .filter(setting -> setting.getBooleanSettingValue().getValue())
                 .map(setting -> getSetting(entity, settingsCollection, sloValueSettingName)
                         .map(valueSetting -> valueSetting.getNumericSettingValue().getValue())
-                        .orElse(0f))
-                .orElse(0f);
+                        .orElse(defaultSLO))
+                .orElse(defaultSLO);
     }
 }
