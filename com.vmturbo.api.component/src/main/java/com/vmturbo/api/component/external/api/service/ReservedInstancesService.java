@@ -271,7 +271,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                         + "Should be a valid numeric id.", scope.oid()));
             } else {
                 throw new IllegalArgumentException(String.format("%s is illegal argument. "
-                        + "Should be a valid scope id. A valid scope is an id for a"
+                        + "Should be a valid scope id. A valid scope is an id for a "
                                 + "zone/region/Account or scope =\"Market\" for Market.",
                         scope.oid()));
             }
