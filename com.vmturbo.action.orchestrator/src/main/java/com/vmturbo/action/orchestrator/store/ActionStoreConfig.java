@@ -143,6 +143,17 @@ public class ActionStoreConfig {
     @Value("${actionIdentityCachePurgeIntervalSec:1800}")
     private int identityCachePurgeIntervalSec;
 
+    /**
+     * If true, we will expect that the topology ID of the incoming live action plan strictly
+     * matches the topology ID of the per-entity setting breakdown that the topology processor
+     * uploads to the group component. This is slightly safer because we will know the market
+     * generated the actions using the same settings. However, we may end up getting no settings
+     * at all if the topology processor uploaded a newer version of the setting breakdown before the
+     * action plan gets to the action orchestrator.
+     */
+    @Value("${actionSettingsStrictTopologyIdMatch:false}")
+    private boolean actionSettingsStrictTopologyIdMatch;
+
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator());
@@ -176,7 +187,8 @@ public class ActionStoreConfig {
             tpConfig.realtimeTopologyContextId(),
             repositoryClientConfig.topologyAvailabilityTracker(),
             minsToWaitForTopology,
-            TimeUnit.MINUTES, acceptedActionsStore());
+            TimeUnit.MINUTES, acceptedActionsStore(),
+            actionSettingsStrictTopologyIdMatch);
     }
 
     @Bean
