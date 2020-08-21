@@ -2,17 +2,16 @@ package com.vmturbo.market.cloudscaling.sma.analysis;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.vmturbo.auth.api.Pair;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.jsonprocessing.JsonToSMAInputTranslator;
@@ -29,14 +28,12 @@ public class SMATest {
      * @param filename the json file with the info of vms, ris and templates.
      */
     private void testExactResult(String filename) {
-        JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
-        Pair<SMAInput, SMAOutput> inputOutputPair = jsonToSMAInputTranslator.parseInputWithExpectedOutput(dirPath + filename);
-        int index = 0;
-        for (SMAInputContext inputContext : inputOutputPair.first.getContexts()) {
-            SMAOutputContext outputActualContext = StableMarriagePerContext.execute(inputContext);
-            SMAOutputContext outputExpectedContext = inputOutputPair.second.getContexts().get(index);
-            Assert.assertTrue(compareSMAMatches(outputActualContext.getMatches(), outputExpectedContext.getMatches()));
-        }
+        JsonToSMAInputTranslator jsonToSMAInputTranslator =
+                new JsonToSMAInputTranslator();
+        SMAInputContext smaInputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
+        List<SMAMatch> expectedouput = jsonToSMAInputTranslator.readsmaOutput(dirPath + filename + ".o.txt", smaInputContext);
+        SMAOutputContext outputActualContext = StableMarriagePerContext.execute(smaInputContext);
+        Assert.assertTrue(compareSMAMatches(outputActualContext.getMatches(), expectedouput));
     }
 
     /**
@@ -46,8 +43,11 @@ public class SMATest {
      * @param count expected output.
      */
     private void testSMACount(String filename, int count) {
-        JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
-        SMAInput smaInput = jsonToSMAInputTranslator.parseInput(dirPath + filename);
+        JsonToSMAInputTranslator jsonToSMAInputTranslator =
+                new JsonToSMAInputTranslator();
+        SMAInputContext smaInputContext = jsonToSMAInputTranslator
+                .readsmaInput(dirPath + filename + ".i");
+        SMAInput smaInput = new SMAInput(Collections.singletonList(smaInputContext));
         for (SMAInputContext inputContext : smaInput.getContexts()) {
             SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
             List<SMAMatch> actualMatches = outputContext.getMatches().stream()
@@ -62,7 +62,7 @@ public class SMATest {
     @Test
     public void testSMACount() {
         testSMACount("testStress.json", 30);
-        testSMACount("realExample.json", 10);
+        testSMACount("realExample.json", 12);
     }
 
     /**
@@ -72,8 +72,7 @@ public class SMATest {
     public void testPostProcessing() {
         String filename = "2vm1rinorioptimisation.json";
         JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
-        SMAInputContext inputContext = jsonToSMAInputTranslator
-                .parseInput(dirPath + filename).getContexts().get(0);
+        SMAInputContext inputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
         SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
         StableMarriageAlgorithm.postProcessing(outputContext);
         assertEquals(outputContext.getMatches().stream()
@@ -92,8 +91,8 @@ public class SMATest {
     public void testPostProcessing2() {
         String filename = "2vm1rinorioptimisation2.json";
         JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
-        SMAInput smaInput = jsonToSMAInputTranslator
-                .parseInput(dirPath + filename);
+        SMAInputContext smaInputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
+        SMAInput smaInput = new SMAInput(Collections.singletonList(smaInputContext));
         SMAOutputContext outputContext = StableMarriageAlgorithm.execute(smaInput).getContexts().get(0);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)
@@ -112,8 +111,8 @@ public class SMATest {
     public void testPostProcessing3() {
         String filename = "2vm1rinorioptimisation3.json";
         JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
-        SMAInput smaInput = jsonToSMAInputTranslator
-                .parseInput(dirPath + filename);
+        SMAInputContext smaInputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
+        SMAInput smaInput = new SMAInput(Collections.singletonList(smaInputContext));
         SMAOutputContext outputContext = StableMarriageAlgorithm.execute(smaInput).getContexts().get(0);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)

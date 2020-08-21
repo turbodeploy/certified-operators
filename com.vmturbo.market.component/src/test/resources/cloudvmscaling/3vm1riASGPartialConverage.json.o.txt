@@ -1,0 +1,20 @@
+[
+    {
+        "virtualMachineOid": "2000001",
+        "reservedInstanceOid": "1000001",
+        "templateOid": "100006",
+        "discountedCoupons": 2
+    },
+    {
+        "virtualMachineOid": "2000010",
+        "reservedInstanceOid": "1000001",
+        "templateOid": "100006",
+        "discountedCoupons": 4
+    },
+    {
+        "virtualMachineOid": "2000011",
+        "reservedInstanceOid": "1000001",
+        "templateOid": "100006",
+        "discountedCoupons": 4
+    }
+]

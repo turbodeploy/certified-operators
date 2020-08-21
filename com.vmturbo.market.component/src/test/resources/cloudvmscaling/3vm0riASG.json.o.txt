@@ -1,0 +1,14 @@
+[
+    {
+        "virtualMachineOid": "2000001",
+        "templateOid": "100004"
+    },
+    {
+        "virtualMachineOid": "2000010",
+        "templateOid": "100004"
+    },
+    {
+        "virtualMachineOid": "2000011",
+        "templateOid": "100004"
+    }
+]
