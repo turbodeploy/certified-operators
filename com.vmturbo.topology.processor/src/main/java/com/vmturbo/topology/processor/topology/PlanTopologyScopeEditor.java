@@ -370,12 +370,13 @@ public class PlanTopologyScopeEditor {
                     // if thisTrader is "skipped", and is not a seed, bring in just the sellers that we have already scoped in.
                     // This logic is for business applications.
                     if (!skipEntityType || (seedOids.contains(traderOid) || scopedTopologyOIDs.contains(seller.getOid())) ) {
-                        if (!allSeed.containsKey(EntityType.forNumber(topology.getEntity(sellerId).get().getEntityType()))) {
+                        if (!allSeed.containsKey(EntityType.forNumber(topology.getEntity(sellerId).get().getEntityType()))
+                                || seedOids.contains(sellerId)) {
                             scopedTopologyOIDs.add(sellerId);
-                        }
-                        if (!visited.contains(sellerId)) {
-                            visited.add(sellerId);
-                            buyersToSatisfy.tryAdd(sellerId);
+                            if (!visited.contains(sellerId)) {
+                                visited.add(sellerId);
+                                buyersToSatisfy.tryAdd(sellerId);
+                            }
                         }
                     }
                 }

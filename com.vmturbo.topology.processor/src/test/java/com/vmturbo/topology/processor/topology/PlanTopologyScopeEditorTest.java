@@ -92,17 +92,25 @@ public class PlanTopologyScopeEditorTest {
             .setKey("BAPP1").build();
     private static final TopologyDTO.CommodityType BAPP2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
             .setKey("BAPP2").build();
+    private static final TopologyDTO.CommodityType DSPM1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
+            .setKey("DSPM1").build();
+    private static final TopologyDTO.CommodityType DS1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATASTORE_VALUE)
+            .setKey("DS1").build();
+    private static final TopologyDTO.CommodityType DSPM2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
+            .setKey("DSPM2").build();
+    private static final TopologyDTO.CommodityType DS2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATASTORE_VALUE)
+            .setKey("DS2").build();
     private static final TopologyDTO.CommodityType ST_AMT = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build();
 
-    private static final List<TopologyDTO.CommodityType> basketSoldByPMinDC1 = Lists.newArrayList(DC1, CPU);
-    private static final List<TopologyDTO.CommodityType> basketSoldByPMinDC2 = Lists.newArrayList(DC2, CPU);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPMinDC1 = Lists.newArrayList(DC1, CPU, DS1);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPMinDC2 = Lists.newArrayList(DC2, CPU, DS1, DS2);
     private static final List<TopologyDTO.CommodityType> basketSoldByDC1 = Lists.newArrayList(DC1, POWER);
     private static final List<TopologyDTO.CommodityType> basketSoldByDC2 = Lists.newArrayList(DC2, POWER);
     private static final List<TopologyDTO.CommodityType> basketSoldByVM1 = Lists.newArrayList(VCPU, APP1);
     private static final List<TopologyDTO.CommodityType> basketSoldByVM2 = Lists.newArrayList(VCPU, APP2);
     private static final List<TopologyDTO.CommodityType> basketSoldByDA = Lists.newArrayList(EXTENT1, ST_AMT);
-    private static final List<TopologyDTO.CommodityType> basketSoldByDS1 = Lists.newArrayList(ST_AMT, SC1);
-    private static final List<TopologyDTO.CommodityType> basketSoldByDS2 = Lists.newArrayList(ST_AMT, SC2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByDS1 = Lists.newArrayList(ST_AMT, SC1, DSPM1, DSPM2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByDS2 = Lists.newArrayList(ST_AMT, SC2, DSPM2);
     private static final List<TopologyDTO.CommodityType> basketSoldByAS1 = Lists.newArrayList(BAPP1);
     private static final List<TopologyDTO.CommodityType> basketSoldByAS2 = Lists.newArrayList(BAPP2);
 
@@ -598,6 +606,65 @@ public class PlanTopologyScopeEditorTest {
                                                         .addMembers(pm2InDc1.getOid())
                                                         )))
                         .build();
+
+        List<Grouping> groups = Arrays.asList(g);
+        when(groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
+            .setGroupFilter(GroupFilter.newBuilder().addId(25001L))
+            .setReplaceGroupPropertyWithGroupMembershipFilter(true)
+            .build())).thenReturn(groups);
+        when(groupResolver.resolve(eq(g), eq(graph))).thenReturn(
+            new ResolvedGroup(g, Collections.singletonMap(ApiEntityType.PHYSICAL_MACHINE,
+                Sets.newHashSet(pm1InDc1.getOid(), pm2InDc1.getOid()))));
+
+        final PlanScope planScope = PlanScope.newBuilder()
+                        .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Cluster")
+                                .setScopeObjectOid(25001L).setDisplayName("PM cluster/dc1").build()).build();
+        // populate InvertedIndex
+        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+                index = planTopologyScopeEditor.createInvertedIndex();
+        graph.entities().forEach(entity -> index.add(entity));
+        // scope using inverted index
+        TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
+                .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
+        assertEquals(11, result.size());
+    }
+
+    /**
+     * Scenario: scope on pm1 and pm2 which consumes on dc1.
+     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, appc1, as1, ba
+     * Because ds1 is shared across pm1, pm2, and (pm3 which is not in the cluster) via dspm, datastore
+     * Accesses relationship, we still should not pull in pm3 and its related entities like st2 into
+     * the scope.
+     *
+     * @throws Exception An exception thrown when a stage of the pipeline fails.
+     */
+    @Test
+    public void testScopeOnpremTopologyOnClusterAccessesRelationship() throws Exception {
+        Grouping g = Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                        .addMembersByType(StaticMembersByType.newBuilder()
+                                                        .setType(MemberType.newBuilder()
+                                                                        .setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                                                        .addMembers(pm1InDc1.getOid())
+                                                        .addMembers(pm2InDc1.getOid())
+                                                        )))
+                        .build();
+
+        // st1 connected to PM1, PM2, and PM3. PM3 is same entity type as seed members PM1 and PM2
+        // and should not be brought into scope and we should not pull in related entities of it
+        // into scope.
+        pm1InDc1.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(st1.getOid());
+        pm2InDc1.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(st1.getOid());
+        pmInDc2.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(st1.getOid());
+        pmInDc2.getEntityBuilder().getCommoditySoldListBuilder(3).setAccesses(st2.getOid());
+
+        // st2 connected only to PM3 and should not be brought into scope.
+        st1.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(pm1InDc1.getOid());
+        st1.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(pm2InDc1.getOid());
+        st1.getEntityBuilder().getCommoditySoldListBuilder(3).setAccesses(pmInDc2.getOid());
+        st2.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(pmInDc2.getOid());
 
         List<Grouping> groups = Arrays.asList(g);
         when(groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
