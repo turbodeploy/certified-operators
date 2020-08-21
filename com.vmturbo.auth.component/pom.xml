@@ -43,6 +43,7 @@
                                         <location>com.vmturbo.auth</location>
                                         <location>com.vmturbo.components.common</location>
                                         <location>com.vmturbo.common.protobuf.logging</location>
+                                        <location>com.vmturbo.common.protobuf.licensing</location>
                                     </locations>
                                 </apiSource>
                             </apiSources>

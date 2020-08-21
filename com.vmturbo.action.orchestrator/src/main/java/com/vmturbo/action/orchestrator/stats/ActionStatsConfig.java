@@ -16,6 +16,7 @@ import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.Combined
 import com.vmturbo.action.orchestrator.stats.aggregator.BusinessAccountActionAggregator.BusinessAccountActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.ClusterActionAggregator.ClusterActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator.GlobalAggregatorFactory;
+import com.vmturbo.action.orchestrator.stats.aggregator.ResourceGroupActionAggregator.ResourceGroupActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
@@ -26,11 +27,13 @@ import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 @Configuration
@@ -92,6 +95,17 @@ public class ActionStatsConfig {
     public BusinessAccountActionAggregatorFactory businessAccountActionAggregatorFactory() {
         return new BusinessAccountActionAggregatorFactory(
             RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()));
+    }
+
+    /**
+     * Factory for resource group aggregators.
+     *
+     * @return The {@link ResourceGroupActionAggregatorFactory}.
+     */
+    @Bean
+    public ResourceGroupActionAggregatorFactory resourceGroupActionAggregatorFactory() {
+        return new ResourceGroupActionAggregatorFactory(
+            new GroupMemberRetriever(GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel())));
     }
 
     /**
@@ -158,7 +172,8 @@ public class ActionStatsConfig {
                 actionGroupStore(),
                 mgmtUnitSubgroupStore(),
                 snapshotFactory(),
-                Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory(), businessAccountActionAggregatorFactory()),
+                Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory(),
+                    businessAccountActionAggregatorFactory(), resourceGroupActionAggregatorFactory()),
                 globalConfig.actionOrchestratorClock(),
                 rollupConfig.rollupScheduler(),
                 rollupConfig.cleanupScheduler());

@@ -59,14 +59,16 @@ public class TopologyConversionConstants {
 
     /**
      * Map for the type of the commodity in an entity on the cloud to the type of
-     * the  commodity sold in a cloud tier.
+     * the commodity sold in a cloud tier.
      **/
     public static Map<Integer, ImmutableMap<Integer, Integer>> entityCommTypeToTierCommType
-            = ImmutableMap.<Integer, ImmutableMap<Integer, Integer>>builder()
+        = ImmutableMap.<Integer, ImmutableMap<Integer, Integer>>builder()
             .put(EntityType.COMPUTE_TIER.getNumber(),
                     ImmutableMap.<Integer, Integer>builder()
                     .put(CommodityType.VMEM_VALUE, CommodityType.MEM_VALUE)
-                    .put(CommodityType.VCPU_VALUE, CommodityType.CPU_VALUE).build())
+                    .put(CommodityType.VCPU_VALUE, CommodityType.CPU_VALUE)
+                    // retrieve the old capacity when converted
+                    .put(CommodityType.STORAGE_ACCESS_VALUE, CommodityType.STORAGE_ACCESS_VALUE).build())
             .put(EntityType.DATABASE_SERVER_TIER.getNumber(),
                     ImmutableMap.<Integer, Integer>builder()
                     .put(CommodityType.VMEM_VALUE, CommodityType.VMEM_VALUE)
@@ -100,5 +102,5 @@ public class TopologyConversionConstants {
      * Commodity types whose category need to be stored if the SE is cloud SE.
      */
     public static final Set<Integer> CLOUD_BOUGHT_COMMODITIES_RESIZED =
-            ImmutableSet.of(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE);
+            ImmutableSet.of(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, CommodityType.STORAGE_ACCESS_VALUE);
 }

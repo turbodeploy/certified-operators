@@ -1,0 +1,369 @@
+{
+  "entityType": 10,
+  "oid": "73470833555810",
+  "displayName": "spcfq9keqj-worker-1",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 26
+    },
+    "used": 3523.8388256375392,
+    "peak": 3523.8388256375392,
+    "capacity": 18399.896,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "historicalUsed": {
+      "maxQuantity": 3541.645042093138,
+      "histUtilization": 3522.256103515625,
+      "percentile": 0.22
+    },
+    "historicalPeak": {
+      "histUtilization": 3502.28173828125
+    },
+    "resizeTargetUtilization": 0.699999988079071,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 53
+    },
+    "used": 1456164.0,
+    "peak": 1456164.0,
+    "capacity": 3.2939284E7,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "historicalUsed": {
+      "maxQuantity": 1458444.0,
+      "histUtilization": 1456291.0,
+      "percentile": 0.05
+    },
+    "historicalPeak": {
+      "histUtilization": 1454627.25
+    },
+    "resizeTargetUtilization": 0.8999999761581421,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 100
+    },
+    "used": 4875.972440000001,
+    "peak": 4875.972440000001,
+    "capacity": 18192.89717,
+    "effectiveCapacityPercentage": 99.98999786376953,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "historicalUsed": {
+      "maxQuantity": 4875.972440000001
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 101
+    },
+    "used": 3250176.0,
+    "peak": 3250176.0,
+    "capacity": 2.9142292E7,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "historicalUsed": {
+      "maxQuantity": 3250176.0
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 3
+    },
+    "used": 16.0,
+    "peak": 16.0,
+    "capacity": 44.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "historicalUsed": {
+      "maxQuantity": 16.0,
+      "histUtilization": 16.0
+    },
+    "historicalPeak": {
+      "histUtilization": 16.0
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 74,
+      "key": "kubernetes.io/arch=amd64"
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 74,
+      "key": "kubernetes.io/hostname=ip-172-31-94-195.ec2.internal"
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 74,
+      "key": "kubernetes.io/os=linux"
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 74,
+      "key": "beta.kubernetes.io/arch=amd64"
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 74,
+      "key": "beta.kubernetes.io/instance-type=t2.2xlarge"
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 74,
+      "key": "beta.kubernetes.io/os=linux"
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 74,
+      "key": "failure-domain.beta.kubernetes.io/region=us-east-1"
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 74,
+      "key": "failure-domain.beta.kubernetes.io/zone=us-east-1f"
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 0,
+      "key": "08ade073-af7c-11e8-bae9-0af656d66a28"
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 2,
+      "key": "ba3e4e93-2bd3-11ea-b5cb-0aa528db8aa9"
+    },
+    "used": 3362.959774259055,
+    "peak": 3362.959774259055,
+    "capacity": 18399.896,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "historicalUsed": {
+      "maxQuantity": 3708.241,
+      "histUtilization": 3362.66064453125
+    },
+    "historicalPeak": {
+      "histUtilization": 3349.573486328125
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 50,
+      "key": "ba3e4e93-2bd3-11ea-b5cb-0aa528db8aa9"
+    },
+    "used": 557740.0,
+    "peak": 557740.0,
+    "capacity": 3.2939284E7,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "historicalUsed": {
+      "maxQuantity": 560208.0,
+      "histUtilization": 557840.125
+    },
+    "historicalPeak": {
+      "histUtilization": 558169.1875
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 102,
+      "key": "ba3e4e93-2bd3-11ea-b5cb-0aa528db8aa9"
+    },
+    "used": 4875.972440000001,
+    "peak": 4875.972440000001,
+    "capacity": 18192.89717,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "historicalUsed": {
+      "maxQuantity": 4875.972440000001,
+      "histUtilization": 4875.97265625
+    },
+    "historicalPeak": {
+      "histUtilization": 4875.97265625
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 103,
+      "key": "ba3e4e93-2bd3-11ea-b5cb-0aa528db8aa9"
+    },
+    "used": 3250176.0,
+    "peak": 3250176.0,
+    "capacity": 2.9142292E7,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "historicalUsed": {
+      "maxQuantity": 3250176.0,
+      "histUtilization": 3250176.0
+    },
+    "historicalPeak": {
+      "histUtilization": 3250176.0
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 74,
+      "key": "schedulable"
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [
+    {
+      "providerId": "73403214215586",
+      "providerEntityType": 56,
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 64
+          },
+          "used": 1605.0,
+          "peak": 1805.0,
+          "active": true,
+          "historicalUsed": {
+            "histUtilization": 903.353759765625,
+            "percentile": 0.8
+          },
+          "historicalPeak": {
+            "histUtilization": 2940.751220703125
+          },
+          "resizeTargetUtilization": 0.7
+        }
+      ],
+      "movable": true,
+      "startable": true,
+      "scalable": true
+    }
+  ],
+  "entityState": "POWERED_ON",
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "cloneable": true,
+    "suspendable": true,
+    "isEligibleForResizeDown": true,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": false
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1579573247912",
+      "discoveredTargetData": {
+        "73305182199648": {
+          "vendorId": "ba3e4e93-2bd3-11ea-b5cb-0aa528db8aa9"
+        }
+      }
+    }
+  },
+  "tags": {
+  },
+  "environmentType": "CLOUD",
+  "typeSpecificInfo": {
+    "virtualMachine": {
+      "guestOsInfo": {
+        "guestOsType": "UNKNOWN_OS",
+        "guestOsName": ""
+      },
+      "tenancy": "DEFAULT",
+      "ipAddresses": [{
+        "ipAddress": "172.31.94.195",
+        "isElastic": false
+      }, {
+        "ipAddress": "3.92.91.23",
+        "isElastic": false
+      }, {
+        "ipAddress": "ip-172-31-94-195.ec2.internal",
+        "isElastic": false
+      }, {
+        "ipAddress": "ip-172-31-94-195.ec2.internal",
+        "isElastic": false
+      }, {
+        "ipAddress": "ec2-3-92-91-23.compute-1.amazonaws.com",
+        "isElastic": false
+      }],
+
+      "licenseModel": "LICENSE_INCLUDED",
+      "driverInfo": {
+      }
+    }
+  }
+}

@@ -25,10 +25,13 @@ public class KafkaConfigurationServiceConfig extends BaseKafkaConfig {
     @Value("${kafka.config.default.replication.factor:1}")
     private short kafkaConfigDefaultReplicationFactor;
 
+    @Value("${kafkaConfigFile:/config/kafka-config.yml}")
+    private String kafkaConfigFile;
+
     @Bean
     public KafkaConfigurationService kafkaConfigurationService() {
         return new KafkaConfigurationService(bootstrapServer(), kafkaConfigMaxRetryTimeSecs,
-                kafkaConfigRetryDelayMs, kafkaConfigDefaultReplicationFactor, kafkaNamespacePrefix());
+                kafkaConfigRetryDelayMs, kafkaConfigDefaultReplicationFactor, kafkaConfigFile, kafkaNamespacePrefix());
     }
 
 }

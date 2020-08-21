@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -63,6 +64,8 @@ public class CommodityConverter {
     private final ConversionErrorCounts conversionErrorCounts;
     private final ConsistentScalingHelper consistentScalingHelper;
 
+    // provider oid -> commodity type -> used value of all consumers to be removed of this provider
+    private Map<Long, Map<CommodityType, Double>> providerUsedSubtractionMap = Collections.emptyMap();
 
     CommodityConverter(@Nonnull final NumericIDAllocator idAllocator,
                        final boolean includeGuaranteedBuyer,
@@ -151,6 +154,15 @@ public class CommodityConverter {
         }
         capacity *= scalingFactor;
         used *= scalingFactor;
+
+        // Subtract used value of consumers from used value of provider.
+        // This can only happen in a plan with entities to remove.
+        if (providerUsedSubtractionMap != null
+            && providerUsedSubtractionMap.containsKey(dto.getOid())
+            && providerUsedSubtractionMap.get(dto.getOid()).containsKey(topologyCommSold.getCommodityType())) {
+            used -= providerUsedSubtractionMap.get(dto.getOid()).get(topologyCommSold.getCommodityType());
+        }
+
         final int type = commodityType.getType();
         final CommodityDTO.CommodityType sdkCommType = CommodityDTO.CommodityType.forNumber(type);
         final String comName = sdkCommType == null ? "UNKNOWN" : sdkCommType.name();
@@ -665,5 +677,25 @@ public class CommodityConverter {
      */
     public boolean isSpecBiClique(final int marketId) {
         return marketId == CommodityDTO.CommodityType.BICLIQUE_VALUE;
+    }
+
+    /**
+     * Set the providerUsedSubtractionMap.
+     *
+     * @param providerUsedSubtractionMap providerUsedSubtractionMap
+     */
+    void setProviderUsedSubtractionMap(final Map<Long, Map<CommodityType, Double>> providerUsedSubtractionMap) {
+        this.providerUsedSubtractionMap = providerUsedSubtractionMap;
+    }
+
+    Map<Long, Map<CommodityType, Double>> getProviderUsedSubtractionMap() {
+        return this.providerUsedSubtractionMap;
+    }
+
+    /**
+     * Clear the providerUsedSubtractionMap.
+     */
+    void clearProviderUsedSubtractionMap() {
+        this.providerUsedSubtractionMap = Collections.emptyMap();
     }
 }

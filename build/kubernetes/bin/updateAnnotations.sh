@@ -6,10 +6,11 @@ helmRelease=$(kubectl get xls -o yaml|grep name:|head -1 | awk '{print $2}')
 secretName=$(kubectl get pvc -o yaml -n turbonomic | grep "app.kubernetes.io/instance" | uniq | awk '{print $2}')
 # Exit if the uid based release has already been converted
 if [ "$helmRelease" = "$secretName" ]; then
-  echo "helm release has already been converted. Exiting."
+  echo "helm release has already been converted, nothing to do. Exiting."
   exit 0
 fi
 
+echo "-----------------------"
 echo "Scale down the Operator"
 echo "-----------------------"
 kubectl scale deployment --replicas=0 t8c-operator -n turbonomic
@@ -30,8 +31,9 @@ metadata:
     app.kubernetes.io/instance: ${helmRelease}
 EOF
 
-echo "----------"
+echo "----------------------"
 echo "pvc update annotations"
+echo "----------------------"
 for pvc in $(kubectl get pvc -n turbonomic | awk '{print $1}' | egrep -v NAME)
 do
   kubectl patch pvc ${pvc} -n turbonomic --type merge --patch "$(cat /tmp/pvc-patch.yml)"
@@ -54,11 +56,61 @@ spec:
         app.kubernetes.io/instance: ${helmRelease}
 EOF
 
-echo "----------"
+cat << EOF > /tmp/3rdParty-deployment-patch.yml
+metadata:
+  labels:
+    app.kubernetes.io/instance: ${helmRelease}
+    release: ${helmRelease}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: ${helmRelease}
+      release: ${helmRelease}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: ${helmRelease}
+        release: ${helmRelease}
+EOF
+
+echo "------------------"
 echo "deployment updates"
+echo "------------------"
 for deployment in $(kubectl get deployment -n turbonomic | awk '{print $1}' | egrep -v NAME)
 do
-  kubectl patch deployment ${deployment} -n turbonomic --type merge --patch "$(cat /tmp/deployment-patch.yml)"
+  if [[ X${deployment} = Xgrafana ]] || [[ X${deployment} =~ Xprometheus.* ]]
+  then
+    kubectl patch deployment ${deployment} -n turbonomic --type merge --patch "$(cat /tmp/3rdParty-deployment-patch.yml)"
+  else
+    kubectl patch deployment ${deployment} -n turbonomic --type merge --patch "$(cat /tmp/deployment-patch.yml)"
+  fi
+done
+echo
+
+# Update Daemonset
+cat << EOF > /tmp/daemonset-patch.yml
+metadata:
+  labels:
+    app.kubernetes.io/instance: ${helmRelease}
+    release: ${helmRelease}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: ${helmRelease}
+      release: ${helmRelease}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: ${helmRelease}
+        release: ${helmRelease}
+EOF
+
+echo "-----------------"
+echo "daemonset updates"
+echo "-----------------"
+for daemonset in $(kubectl get daemonset -n turbonomic | awk '{print $1}' | egrep -v NAME)
+do
+  kubectl patch daemonset ${daemonset} -n turbonomic --type merge --patch "$(cat /tmp/daemonset-patch.yml)"
 done
 echo
 
@@ -71,20 +123,34 @@ EOF
 
 configMap=$(kubectl get cm -n turbonomic | grep global | awk '{print $1}')
 
-echo "----------"
+echo "-----------------"
 echo "configmap updates"
+echo "-----------------"
 kubectl patch cm ${configMap} -n turbonomic --type merge --patch "$(cat /tmp/cm-patch.yml)"
+echo
 
-## Update secrets
-echo "----------"
+# Update secrets
+echo "---------------"
 echo "secrets updates"
+echo "---------------"
 kubectl get secrets -n turbonomic $(kubectl get secrets -n turbonomic | grep ${helmRelease} | awk '{print $1}' | head -1) -o yaml > /tmp/helm-release.yml
 sed -i "s/${helmRelease}-[0-9A-Za-z]*/${helmRelease}/g" /tmp/helm-release.yml
 kubectl get secrets -n turbonomic $(kubectl get secrets -n turbonomic | grep ${helmRelease} | awk '{print $1}' | head -1) -o jsonpath={.data.release} | base64 -d | base64 -d |gunzip > /tmp/xl-release
-sed -i "s/${helmRelease}-[0-9A-Za-z]*/${helmRelease}/g" /tmp/helm-release.yml
+sed -i "s/${helmRelease}-[0-9A-Za-z]*/${helmRelease}/g" /tmp/xl-release
 gzip -c /tmp/xl-release | base64 -w 0 | base64 -w 0 > /tmp/xl-updated-release
-data=$(cat /tmp/xl-updated-release)
-sed -i "s/release:.*/release: ${data}/g" /tmp/helm-release.yml
+cat << EOF > /tmp/script.sed
+/release:.*/ {
+  r  /tmp/xl-updated-release
+  d
+}
+EOF
+sed -i "s/release:.*/release:/g" /tmp/helm-release.yml
+sed -i '/kind:/i \
+' /tmp/helm-release.yml
+sed -i -f /tmp/script.sed /tmp/helm-release.yml
+sed -i '/^data:/a \
+  release:' /tmp/helm-release.yml
+sed -i '/^  release/N;s/\n/ /' /tmp/helm-release.yml
 
 # Delete the latest secret and apply the updated one
 for secrets in $(kubectl get secrets -n turbonomic | grep ${helmRelease} | awk '{print $1}')
@@ -96,7 +162,12 @@ done
 kubectl apply -f /tmp/helm-release.yml -n turbonomic
 echo
 
+# Delete existing replica sets
+kubectl delete rs --all -n turbonomic
+kubectl delete daemonset --all -n turbonomic
+
 # Scale the operator back up
+echo "---------------------"
 echo "Scale up the Operator"
 echo "---------------------"
 kubectl scale deployment --replicas=1 t8c-operator -n turbonomic

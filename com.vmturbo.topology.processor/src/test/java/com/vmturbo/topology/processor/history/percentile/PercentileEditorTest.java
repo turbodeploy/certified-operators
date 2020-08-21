@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -236,6 +237,71 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         // Percentile should be set for business user entities
         Assert.assertTrue(percentileEditor.isEntityApplicable(
             topologyBuilderMap.get(BUSINESS_USER_OID).build()));
+    }
+
+    /**
+     * Test the applicability of percentile calculation at the commodity level.
+     */
+    @Test
+    public void testIsCommodityApplicable() {
+        // Don't set percentile for commodity sold without utilization data or required type
+        Assert.assertFalse(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommoditySoldDTO.newBuilder()));
+        // Set percentile for commodity sold with utilization data and without required type
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance())));
+        // Set percentile for commodity sold without utilization data and with required type
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.VCPU_VALUE))));
+        // Set percentile for commodity sold with utilization data and required type
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance())
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.VCPU_VALUE))));
+
+        // Don't set percentile for commodity bought without utilization data
+        Assert.assertFalse(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommodityBoughtDTO.newBuilder(),
+            0));
+        // Don't set percentile for commodity bought without enabled type of commodity or provider
+        Assert.assertFalse(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommodityBoughtDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance()),
+            0));
+        // Set percentile for commodity bought with enabled type
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommodityBoughtDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance())
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.IMAGE_CPU_VALUE)),
+            0));
+        // Don't set percentile for commodity bought from enabled provider type without associated commodity type
+        Assert.assertFalse(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommodityBoughtDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance())
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.BALLOONING_VALUE)),
+            EntityType.COMPUTE_TIER_VALUE));
+        // Set percentile for commodity bought from enabled provider type with enabled commodity type
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommodityBoughtDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance())
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.STORAGE_ACCESS_VALUE)),
+            EntityType.COMPUTE_TIER_VALUE));
     }
 
     /**

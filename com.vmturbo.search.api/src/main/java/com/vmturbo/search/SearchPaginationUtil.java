@@ -5,6 +5,8 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 /**
  * Utility class to help construct pagination related fields.
  */
@@ -31,7 +33,7 @@ public class SearchPaginationUtil {
     }
 
     //Delimiting char for write/read of cursors
-    private static final CharSequence DELIMITER = ":";
+    private static final CharSequence DELIMITER = "|";
 
     /**
      * Constructs next cursor representation of passed values.
@@ -63,9 +65,11 @@ public class SearchPaginationUtil {
      * @param cursor to be parsed
      * @return collection of cursor values
      */
+    @VisibleForTesting
     @Nonnull
-    private static List<String> parseCursor(@Nonnull String cursor) {
-        return Arrays.asList(cursor.split(DELIMITER.toString()));
+    static List<String> parseCursor(@Nonnull String cursor) {
+        String excapeDelimiter = "\\" + DELIMITER;
+        return Arrays.asList(cursor.split(excapeDelimiter));
     }
 
     /**

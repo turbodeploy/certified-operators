@@ -170,6 +170,15 @@ public class TopologyConverter {
         EntityType.DATABASE_SERVER_VALUE
     );
 
+    /**
+     * Provider utilization should be updated when removing the following entities.
+     */
+    private static final Set<Integer> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
+        EntityType.VIRTUAL_MACHINE_VALUE,
+        EntityType.CONTAINER_VALUE,
+        EntityType.CONTAINER_POD_VALUE,
+        EntityType.APPLICATION_COMPONENT_VALUE);
+
     private static final Set<Integer> OLD_QUANTITY_REQUIRED_COMM_TYPES = ImmutableSet.of(
             CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
             CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
@@ -568,6 +577,19 @@ public class TopologyConverter {
     @Nonnull
     public Set<EconomyDTOs.TraderTO> convertToMarket(
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> topology) {
+        return convertToMarket(topology, Collections.emptySet());
+    }
+
+    /**
+     * Convert a collection of common protobuf topology entity DTOs to analysis protobuf economy DTOs.
+     * @param topology list of topology entity DTOs
+     * @param oidsToRemove oids to remove
+     * @return set of economy DTOs
+     */
+    @Nonnull
+    public Set<EconomyDTOs.TraderTO> convertToMarket(
+                @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> topology,
+                @Nonnull final Set<Long> oidsToRemove) {
         // Initialize the consistent resizer
         if (!TopologyDTOUtil.isCloudMigrationPlan(topologyInfo)) {
             consistentScalingHelper.initialize(topology);
@@ -639,6 +661,9 @@ public class TopologyConverter {
             // Initialize the template exclusion applicator
             tierExcluder.initialize(topology, tierExcluderEntityOids);
 
+            commodityConverter.setProviderUsedSubtractionMap(
+                createProviderUsedSubtractionMap(entityOidToDto, oidsToRemove));
+
             return convertToMarket();
         } catch (RuntimeException e) {
             //throw new RuntimeException("RuntimeException in convertToMarket(topology) ", e);
@@ -689,6 +714,8 @@ public class TopologyConverter {
                     .map(this::topologyDTOtoTraderTO)
                     .filter(Objects::nonNull)
                     .forEach(t -> oidToOriginalTraderTOMap.put(t.getOid(), t));
+
+            commodityConverter.clearProviderUsedSubtractionMap();
 
             logger.info("Converted topologyEntityDTOs to traderTOs");
             return new HashSet<>(oidToOriginalTraderTOMap.values());
@@ -1787,11 +1814,14 @@ public class TopologyConverter {
         float[] histUsed = histUsedValue.orElseGet(() -> new float[] {});
         float[] histPeak = histPeakValue.orElseGet(() -> new float[] {});
 
-        if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD) {
-            final float[][] onPremResizedCapacity = getOnPremResizedCapacity(histUsed, histPeak,
-                    commBought, providerOid, topologyDTO);
-            return new float[][]{onPremResizedCapacity[0], onPremResizedCapacity[1]};
+        if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD
+            || !CLOUD_SCALING_ENTITY_TYPES.contains(topologyDTO.getEntityType())) {
+            final float[][] standardResizedCapacity = getStandardResizedCapacity(histUsed, histPeak,
+                commBought, providerOid, topologyDTO);
+            return new float[][]{standardResizedCapacity[0], standardResizedCapacity[1]};
         }
+
+        // Handle entities for which we generate cloud-scaling actions.
         final Integer drivingCommSoldType =
                 TopologyConversionConstants.commDependancyMapForCloudResize.get(
                         commBought.getCommodityType().getType());
@@ -1818,23 +1848,10 @@ public class TopologyConverter {
                         .filter(c -> c.getCommodityType().equals(commBought.getCommodityType()))
                         .filter(CommoditySoldDTO::hasCapacity)
                         .findFirst();
+
                 if (commoditySoldDTO.isPresent() && commoditySoldDTO.get().getIsResizeable()
                                 && commoditySoldDTO.get().hasCapacity()) {
-                    // We want to use the historical used (already smoothened) for both the resize-up
-                    // and resize-down demand calculations. We do not want to consider the
-                    // historical max or the peaks to avoid a one-time historic max value to cause
-                    // resize decisions.
-                    final float[] resizedQuantity = calculateResizedQuantity(histUsed[0], histUsed[0],
-                            (float)commBought.getUsed(), histPeak[0],
-                            (float)commoditySoldDTO.get().getCapacity(),
-                            (float)commBought.getResizeTargetUtilization(), false);
-                    commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commBought.getCommodityType(),
-                               resizedQuantity[0] - commoditySoldDTO.get().getCapacity() > 0);
-                    logger.debug("Using a peak used of {} for commodity type {} for entity {}.",
-                            resizedQuantity[1], commBought.getCommodityType().getType(),
-                            topologyDTO.getDisplayName());
-                    return new float[][]{new float[]{resizedQuantity[0]},
-                            new float[]{resizedQuantity[1]}};
+                    return getCloudResizableBoughtCommodityCapacity(topologyDTO, commBought, histUsed, histPeak, commoditySoldDTO.get(), providerOid);
                 } else {
                     logger.debug("Tier {} does not sell commodity type {} for entity {}",
                             tier::getDisplayName, commBought::getCommodityType,
@@ -1843,6 +1860,63 @@ public class TopologyConverter {
             }
         }
         return new float[][]{histUsed, histPeak};
+    }
+
+    /**
+     * Calculate capacity for bought commodities in cloud entity which is resizable.
+     *
+     * @param topologyDTO cloud entity {@link TopologyEntityDTO}
+     * @param commBought {@link CommodityBoughtDTO} of the cloud entity which its provider
+     * @param histUsed historical used values
+     * @param histPeak historical peak values
+     * @param commoditySoldDTO the corresponding {@link CommoditySoldDTO}
+     * @return an array of two elements, the first element is an array of new used values,
+     *         the second is the array of new peak values
+     */
+    private float[][] getCloudResizableBoughtCommodityCapacity(@Nonnull final TopologyEntityDTO topologyDTO,
+                                                               @Nonnull final CommodityBoughtDTO commBought,
+                                                               float[] histUsed,
+                                                               final float[] histPeak,
+                                                               final CommoditySoldDTO commoditySoldDTO,
+                                                               final long providerOid) {
+
+        if (commBought.hasHistoricalUsed() && commBought.getHistoricalUsed().hasPercentile()) {
+            float targetUtil = (float)commBought.getResizeTargetUtilization();
+            if (targetUtil <= 0.0) {
+                targetUtil = EntitySettingSpecs.UtilTarget.getSettingSpec()
+                    .getNumericSettingValueType()
+                    .getDefault() / 100;
+            }
+            // For cloud entities / cloud migration plans, we do not use the peakQuantity.
+            // We only use the quantity values inside M2
+            final float percentile = (float)commBought.getHistoricalUsed().getPercentile();
+
+            logger.debug("Using percentile value {} to recalculate capacity for {} in {}",
+                percentile, commBought.getCommodityType().getType(), topologyDTO.getDisplayName());
+
+            float histUsage = percentile * (float)commoditySoldDTO.getCapacity();
+            final float resizeUsage = histUsage / targetUtil;
+
+            commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commBought.getCommodityType(),
+                resizeUsage - commoditySoldDTO.getCapacity() > 0);
+            return new float[][]{new float[]{resizeUsage}, new float[]{resizeUsage}};
+        } else {
+            // We want to use the historical used (already smoothened) for both the resize-up
+            // and resize-down demand calculations. We do not want to consider the
+            // historical max or the peaks to avoid a one-time historic max value to cause
+            // resize decisions.
+            final float[] resizedQuantity = calculateResizedQuantity(histUsed[0], histUsed[0],
+                (float)commBought.getUsed(), histPeak[0],
+                (float)commoditySoldDTO.getCapacity(),
+                (float)commBought.getResizeTargetUtilization(), false);
+            commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commBought.getCommodityType(),
+                resizedQuantity[0] - commoditySoldDTO.getCapacity() > 0);
+            logger.debug("Using a peak used of {} for commodity type {} for entity {}.",
+                resizedQuantity[1], commBought.getCommodityType().getType(),
+                topologyDTO.getDisplayName());
+            return new float[][]{new float[]{resizedQuantity[0]},
+                new float[]{resizedQuantity[1]}};
+        }
     }
 
     private float[][] drivingSoldCommodityBasedCapacity(final List<CommoditySoldDTO> drivingCommmoditySoldList,
@@ -1929,6 +2003,7 @@ public class TopologyConverter {
     /**
      * Calculates the new resized  capacities for the bought commodity based on historical
      * demands.
+     *
      * @param used Bought commodity historical used value.
      * @param peak Bought commodity peak value.
      * @param commBought Bought commodity.
@@ -1936,14 +2011,13 @@ public class TopologyConverter {
      * @param topologyDTO the TopologyDTO buying this commodity.
      * @return the new calculated capacities for the bought commodity.
      */
-    private float[][] getOnPremResizedCapacity(final float[] used,
-                                              final float[] peak,
-                                              @Nonnull final TopologyDTO.CommodityBoughtDTO commBought,
-                                              final Long providerOid,
-                                              @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
+    private float[][] getStandardResizedCapacity(final float[] used,
+                                                 final float[] peak,
+                                                 @Nonnull final TopologyDTO.CommodityBoughtDTO commBought,
+                                                 final Long providerOid,
+                                                 @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
         // An example use case for the condition below is the
         // VDI use case where we need to apply the target Util on the percentile.
-
         final TopologyEntityDTO providerTopologyEntity = entityOidToDto.get(providerOid);
         if (providerTopologyEntity == null) {
             logger.warn("Could not find provider for entity {} with id {}." +
@@ -1963,9 +2037,9 @@ public class TopologyConverter {
                                 == commBought.getCommodityType().getType())
                         .collect(Collectors.toList());
         if (commoditiesSoldByProvider.size() != 1 || commoditiesSoldByProvider.get(0) == null) {
-            logger.warn("Could not find corresponding sold commodity from provider {} for" +
-                            "type {},  for entity {}. Using percentile used and peak without" +
-                            "applying the target utilization", providerTopologyEntity.getDisplayName(),
+            logger.debug("Could not find corresponding sold commodity from provider {} for "
+                    + "type {}, for entity {}. Using percentile used and peak without "
+                    + "applying the target utilization", providerTopologyEntity.getDisplayName(),
                     commBought.getCommodityType().getType(), topologyDTO.getDisplayName());
             return new float[][]{new float[]{histUsed}, new float[]{histPeak}};
         } else {
@@ -2190,22 +2264,51 @@ public class TopologyConverter {
         }
 
         final double originalPercentile = boughtDTO.getHistoricalUsed().getPercentile();
+        long oldSupplierId = shoppingListInfo.getSellerId();
+        long newSupplierId = supplierOid;
+        if (shoppingListInfo.getSellerEntityType().isPresent() && TopologyDTOUtil.isTierEntityType(shoppingListInfo.getSellerEntityType().get())) {
+            // If it is tier type, the traderOid is stored in the shoppinglistInfo.
+            // Need to convert it to the entityOid in order to look up in commodityIndex
+            if (cloudTc.isMarketTier(oldSupplierId)) {
+                final MarketTier marketTier = cloudTc.getMarketTier(oldSupplierId);
+                if (marketTier.hasRIDiscount()) {
+                    // For now the system only support RI for computeTier.  In the further if other tiers
+                    // can be RI, this needs to be handled in a generic way.
+                    final Optional<TopologyEntityDTO> computeTier = cloudTopology.getComputeTier(shoppingListInfo.getBuyerId());
+                    if (computeTier.isPresent()) {
+                        oldSupplierId = computeTier.get().getOid();
+                    } else {
+                        logger.error("{} does not have compute tier supplier", shoppingListInfo.getBuyerId());
+                        oldSupplierId = marketTier.getTier().getOid();
+                    }
+                } else {
+                    oldSupplierId = cloudTc.getMarketTier(oldSupplierId).getTier().getOid();
+                }
+            }
+            if (cloudTc.isMarketTier(newSupplierId)) {
+                // new supplier is always OnDemandMarketTier
+                newSupplierId = cloudTc.getMarketTier(newSupplierId).getTier().getOid();
+            }
+        }
         final Optional<Double> oldCapacity = getCommodityIndex().getCommSold(
-            shoppingListInfo.getSellerId(),
+            oldSupplierId,
             commType).map(CommoditySoldDTO::getCapacity);
         final Optional<Double> newCapacity =
-            getCommodityIndex().getCommSold(supplierOid, commType)
+            getCommodityIndex().getCommSold(newSupplierId, commType)
                                         .map(CommoditySoldDTO::getCapacity)
                                         .filter(capacity -> capacity != 0);
         if (oldCapacity.isPresent() && newCapacity.isPresent()) {
+            logger.debug("converting for commType={}, buyer oid {}, seller {} oid={}.  oldCapacity={}, newcapacity={}, originalPercentile={}, newPercentile={}",
+                commType, shoppingListInfo.getBuyerId(), shoppingListInfo.sellerEntityType, shoppingListInfo.getSellerId(), oldCapacity, newCapacity, originalPercentile, originalPercentile * oldCapacity.get() / newCapacity.get());
             return originalPercentile * oldCapacity.get() / newCapacity.get();
         }
 
-        logger.warn("Projected percentile approximation can't be calculated. Original percentile = {}, oldCapacity = {}, newCapacity = {}, boughtDTO = {}",
-                originalPercentile,
-                oldCapacity,
-                newCapacity,
-                boughtDTO);
+        logger.warn("Projected percentile approximation can't be calculated. commType={}; Original percentile = {}, oldCapacity = {}, newCapacity = {}, boughtDTO = {}",
+            commType,
+            originalPercentile,
+            oldCapacity,
+            newCapacity,
+            boughtDTO);
         return null;
     }
 
@@ -3659,5 +3762,55 @@ public class TopologyConverter {
             index.addEntity(dto);
         }
         return index;
+    }
+
+    /**
+     * Create providerUsedSubtractionMap.
+     * provider oid -> commodity type -> used value of all consumers to be removed of this provider.
+     * This map is used to update the utilization of providers if there are entities to be removed.
+     * This can only happen in a plan with entities to remove.
+     *
+     * @param entityOidToDto topology entity DTOs
+     * @param oidsToRemove oids to remove
+     * @return providerUsedSubtractionMap
+     */
+    @VisibleForTesting
+    Map<Long, Map<TopologyDTO.CommodityType, Double>> createProviderUsedSubtractionMap(
+            final Map<Long, TopologyEntityDTO> entityOidToDto, final Set<Long> oidsToRemove) {
+        if (oidsToRemove.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        final Map<Long, Map<TopologyDTO.CommodityType, Double>> providerUsedSubtractionMap = new HashMap<>();
+        for (long oid : oidsToRemove) {
+            final TopologyEntityDTO entity = entityOidToDto.get(oid);
+            for (CommoditiesBoughtFromProvider commBoughtProvider : entity.getCommoditiesBoughtFromProvidersList()) {
+                final TopologyEntityDTO provider = entityOidToDto.get(commBoughtProvider.getProviderId());
+                // SKip non-workload type entity and entity without provider.
+                if (!WORKLOAD_ENTITY_TYPES.contains(entity.getEntityType()) || provider == null) {
+                    continue;
+                }
+
+                for (CommodityBoughtDTO commBought : commBoughtProvider.getCommodityBoughtList()) {
+                    // Skip segmentation commodity.
+                    if (commBought.getCommodityType().hasKey()) {
+                        continue;
+                    }
+                    final Map<TopologyDTO.CommodityType, Double> commodityUsed =
+                        providerUsedSubtractionMap.computeIfAbsent(commBoughtProvider.getProviderId(),
+                            key -> new HashMap<>());
+                    final List<Pair<Float, Float>> quantityList =
+                        getCommBoughtQuantities(entity, commBought, provider.getOid());
+                    // The size of quantityList is greater than 1 only when the commBought is a time slot commodity.
+                    if (quantityList.size() >= 1) {
+                        commodityUsed.put(commBought.getCommodityType(),
+                            commodityUsed.getOrDefault(commBought.getCommodityType(), 0.0d)
+                                + quantityList.get(0).first);
+                    }
+                }
+            }
+        }
+
+        return providerUsedSubtractionMap;
     }
 }

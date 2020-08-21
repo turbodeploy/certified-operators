@@ -26,7 +26,12 @@ public enum ManagementUnitType {
     /**
      * Business account scope. This is only relevant in the cloud.
      */
-    BUSINESS_ACCOUNT(3);
+    BUSINESS_ACCOUNT(3),
+
+    /**
+     * Resource group scope. This is only relevant in the cloud.
+     */
+    RESOURCE_GROUP(4);
 
 
     private final int numericValue;

@@ -1,10 +1,12 @@
 package com.vmturbo.group.setting;
 
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
@@ -17,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +28,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Functions;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
@@ -98,6 +102,9 @@ import com.vmturbo.sql.utils.DbConfigurationRule;
  * Unit test for {@link SettingStore}.
  */
 public class SettingStoreTest {
+    private static final long DEFAULT_POLICY_ID = 1023L;
+    private static final float VMEM_INCREMENT = 10.0f;
+    private static final float VCPU_INCREMENT = 15.0f;
 
     /**
      * Rule to create the DB schema and migrate it.
@@ -608,6 +615,175 @@ public class SettingStoreTest {
     }
 
     /**
+     * Tests successful updating of default setting.
+     *
+     * @throws StoreOperationException if something goes wrong.
+     */
+    @Test
+    public void testUpdateDefaultPolicy() throws StoreOperationException {
+        // ARRANGE
+        final Map<String, Setting> defaultSettingPolicyMap = DefaultSettingPolicyCreator
+            .defaultSettingPoliciesFromSpecs(settingSpecStore.getAllSettingSpecs())
+            .get(EntityType.VIRTUAL_MACHINE.getNumber()).getSettingsList().stream()
+            .collect(Collectors.toMap(Setting::getSettingSpecName, Functions.identity()));
+
+        SettingPolicy originalPolicy = SettingPolicy.newBuilder()
+            .setId(DEFAULT_POLICY_ID)
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .addAllSettings(defaultSettingPolicyMap.values()))
+            .setSettingPolicyType(Type.DEFAULT)
+            .build();
+        // we create the initial setting we want to update
+        settingStore.createSettingPolicies(dbConfig.getDslContext(),
+            Collections.singleton(originalPolicy));
+
+        final Map<String, Setting> updatedSettingPolicyMap = new HashMap<>(defaultSettingPolicyMap);
+        updatedSettingPolicyMap.put(EntitySettingSpecs.VmVmemIncrement.getSettingName(),
+            Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.VmVmemIncrement.getSettingName())
+                .setNumericSettingValue(
+                NumericSettingValue
+                    .newBuilder()
+                    .setValue(VMEM_INCREMENT))
+            .build());
+        updatedSettingPolicyMap.put(EntitySettingSpecs.VmVcpuIncrement.getSettingName(),
+            Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.VmVcpuIncrement.getSettingName())
+                .setNumericSettingValue(
+                    NumericSettingValue
+                        .newBuilder()
+                        .setValue(VCPU_INCREMENT))
+                .build());
+        SettingPolicyInfo updatedPolicy = SettingPolicyInfo.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+            .addAllSettings(updatedSettingPolicyMap.values())
+            .build();
+
+        // ACT
+        settingStore.updateSettingPolicy(DEFAULT_POLICY_ID, updatedPolicy);
+
+        // ASSERT
+        Collection<SettingPolicy> retrievedPolicies =
+            settingStore.getSettingPolicies(dbConfig.getDslContext(),
+            SettingPolicyFilter.newBuilder().withId(DEFAULT_POLICY_ID).build());
+
+        assertTrue(retrievedPolicies.iterator().hasNext());
+        SettingPolicy retrievedPolicy = retrievedPolicies.iterator().next();
+        assertThat(retrievedPolicy.getInfo().getSettingsList(),
+            containsInAnyOrder(updatedPolicy.getSettingsList().toArray()));
+    }
+
+    /**
+     * Tests when a user tries does not send a policy and don't sent a field that should always
+     * have value. We go with existing value in this case.
+     *
+     * @throws StoreOperationException if something goes wrong.
+     */
+    @Test
+    public void testRemovingSettingFromDefaultPolicyWithDefaultValue() throws StoreOperationException {
+        // ARRANGE
+        final Map<String, Setting> defaultSettingPolicyMap = DefaultSettingPolicyCreator
+            .defaultSettingPoliciesFromSpecs(settingSpecStore.getAllSettingSpecs())
+            .get(EntityType.VIRTUAL_MACHINE.getNumber()).getSettingsList().stream()
+            .collect(Collectors.toMap(Setting::getSettingSpecName, Functions.identity()));
+
+        defaultSettingPolicyMap.put(EntitySettingSpecs.VmVmemIncrement.getSettingName(),
+            Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.VmVmemIncrement.getSettingName())
+                .setNumericSettingValue(
+                    NumericSettingValue
+                        .newBuilder()
+                        .setValue(25f))
+                .build());
+
+        SettingPolicy originalPolicy = SettingPolicy.newBuilder()
+            .setId(DEFAULT_POLICY_ID)
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .addAllSettings(defaultSettingPolicyMap.values()))
+            .setSettingPolicyType(Type.DEFAULT)
+            .build();
+        // we create the initial setting we want to update
+        settingStore.createSettingPolicies(dbConfig.getDslContext(),
+            Collections.singleton(originalPolicy));
+
+        final Map<String, Setting> updatedSettingPolicyMap = new HashMap<>(defaultSettingPolicyMap);
+        updatedSettingPolicyMap.remove(EntitySettingSpecs.VmVmemIncrement.getSettingName());
+        SettingPolicyInfo updatedPolicy = SettingPolicyInfo.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+            .addAllSettings(updatedSettingPolicyMap.values())
+            .build();
+
+        // ACT
+        settingStore.updateSettingPolicy(DEFAULT_POLICY_ID, updatedPolicy);
+
+        // ASSERT
+        Collection<SettingPolicy> retrievedPolicies =
+            settingStore.getSettingPolicies(dbConfig.getDslContext(),
+                SettingPolicyFilter.newBuilder().withId(DEFAULT_POLICY_ID).build());
+
+        assertTrue(retrievedPolicies.iterator().hasNext());
+        SettingPolicy retrievedPolicy = retrievedPolicies.iterator().next();
+        assertThat(retrievedPolicy.getInfo().getSettingsCount(), is(1));
+        assertThat((double)retrievedPolicy.getInfo().getSettings(0).getNumericSettingValue().getValue(),
+            closeTo(25f, 0.01f));
+    }
+
+    /**
+     * Tests successful updating of default setting when removing a setting that can be removed.
+     *
+     * @throws StoreOperationException if something goes wrong.
+     */
+    @Test
+    public void testRemoveSettingFromDefaultPolicyWithDefaultNoValue() throws StoreOperationException {
+        // ARRANGE
+        final Map<String, Setting> defaultSettingPolicyMap = DefaultSettingPolicyCreator
+            .defaultSettingPoliciesFromSpecs(settingSpecStore.getAllSettingSpecs())
+            .get(EntityType.VIRTUAL_MACHINE.getNumber()).getSettingsList().stream()
+            .collect(Collectors.toMap(Setting::getSettingSpecName, Functions.identity()));
+        defaultSettingPolicyMap.put(EntitySettingSpecs.VmVcpuIncrement.getSettingName(),
+            Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.VmVcpuIncrement.getSettingName())
+                .setNumericSettingValue(
+                    NumericSettingValue
+                        .newBuilder()
+                        .setValue(VCPU_INCREMENT))
+                .build());
+
+        SettingPolicy originalPolicy = SettingPolicy.newBuilder()
+            .setId(DEFAULT_POLICY_ID)
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .addAllSettings(defaultSettingPolicyMap.values()))
+            .setSettingPolicyType(Type.DEFAULT)
+            .build();
+        // we create the initial setting we want to update
+        settingStore.createSettingPolicies(dbConfig.getDslContext(),
+            Collections.singleton(originalPolicy));
+
+        final Map<String, Setting> updatedSettingPolicyMap = new HashMap<>(defaultSettingPolicyMap);
+        updatedSettingPolicyMap.remove(EntitySettingSpecs.VmVcpuIncrement.getSettingName());
+        SettingPolicyInfo updatedPolicy = SettingPolicyInfo.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+            .addAllSettings(updatedSettingPolicyMap.values())
+            .build();
+
+        // ACT
+        settingStore.updateSettingPolicy(DEFAULT_POLICY_ID, updatedPolicy);
+
+        // ASSERT
+        Collection<SettingPolicy> retrievedPolicies =
+            settingStore.getSettingPolicies(dbConfig.getDslContext(),
+                SettingPolicyFilter.newBuilder().withId(DEFAULT_POLICY_ID).build());
+
+        assertTrue(retrievedPolicies.iterator().hasNext());
+        SettingPolicy retrievedPolicy = retrievedPolicies.iterator().next();
+        assertThat(retrievedPolicy.getInfo().getSettingsList(),
+            containsInAnyOrder(updatedPolicy.getSettingsList().toArray()));
+    }
+
+    /**
      * Tests removal of non-existing policy. Exception is expected. Store data should not change.
      *
      * @throws Exception on exceptions occurred
@@ -743,7 +919,7 @@ public class SettingStoreTest {
         // might make this test to fail
 
         Collection<SettingSpec> retrievedSettingSpecs = settingSpecStore.getAllSettingSpecs();
-        assertEquals(retrievedSettingSpecs.size(), 5);
+        assertEquals(retrievedSettingSpecs.size(), 6);
     }
 
     private static final String NAME = "foo";

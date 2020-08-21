@@ -1,0 +1,27 @@
+{
+  "entityType": 56,
+  "oid": 73403214215586,
+  "displayName": "Standard_A2",
+  "commoditySoldList": [
+    {
+      "commodityType": {
+        "type": 64
+      },
+      "isResizeable": true,
+      "capacity": 2000.0,
+      "isThin": true,
+      "active": true,
+      "displayName": "",
+      "historicalUsed": {
+        "histUtilization": 0.0
+      },
+      "historicalPeak": {
+        "histUtilization": 0.0
+      }
+    }
+  ],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap" : {
+    "shopTogether" : "false"
+  }
+}

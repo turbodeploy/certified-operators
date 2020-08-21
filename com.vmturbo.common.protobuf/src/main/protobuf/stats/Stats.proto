@@ -192,6 +192,9 @@ message ProjectedStatsRequest {
 
     // The commodities to retrieve.
     repeated string commodity_name = 2;
+
+    // providerOid
+    repeated int64 providers = 3;
 }
 
 // Request for GetMostRecentStat rpc
@@ -233,6 +236,9 @@ message ProjectedEntityStatsRequest {
 
     // The commodities to retrieve.
     repeated string commodity_name = 2;
+
+    // Providers. If empty, get all the providers
+    repeated int64 providers = 3;
 
     // The pagination parameters outlying the sort order, and previous cursor (if any).
     // If not set, use the default instance of PaginationParameters. The backend

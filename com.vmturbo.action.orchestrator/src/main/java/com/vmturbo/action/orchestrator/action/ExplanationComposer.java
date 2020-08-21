@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -108,6 +109,10 @@ public class ExplanationComposer {
     private static final String ALLOCATE_CATEGORY = "Virtual Machine RI Coverage";
     private static final String ACTION_ERROR_CATEGORY = "";
 
+    private static final String STORAGE_ACCESS_TO_IOPS = "IOPs";
+    private static final Function<String, String> convertStorageAccessToIops = (commodity) ->
+        commodity.equals("Storage Access") ? STORAGE_ACCESS_TO_IOPS : commodity;
+    
     // Explanation overrides for cloud migration
     private static final String CLOUD_MIGRATION_LIFT_AND_SHIFT_EXPLANATION = "Lift & Shift migration";
     private static final String CLOUD_MIGRATION_OPTIMIZED_EXPLANATION = "Optimized migration";
@@ -531,7 +536,7 @@ public class ExplanationComposer {
             @Nonnull final ChangeProviderExplanationTypeCase explanationType,
             final boolean keepItShort) {
         final Stream<String> reasonCommodityStream = reasonCommodities.stream()
-            .map(commodityType -> buildExplanationWithTimeSlots(commodityType, keepItShort));
+            .map(commodityType -> convertStorageAccessToIops.apply(buildExplanationWithTimeSlots(commodityType, keepItShort)));
         final Set<String> commodities;
         if (keepItShort) {
             commodities = reasonCommodityStream.collect(Collectors.toSet());
@@ -541,10 +546,10 @@ public class ExplanationComposer {
         }
 
         if (explanationType == ChangeProviderExplanationTypeCase.EFFICIENCY) {
-            return commodities.stream().map(commodity -> UNDERUTILIZED_EXPLANATION + commodity)
+            return commodities.stream().map(commodity -> UNDERUTILIZED_EXPLANATION + convertStorageAccessToIops.apply(commodity))
                 .collect(Collectors.toSet());
         } else if (explanationType == ChangeProviderExplanationTypeCase.CONGESTION) {
-            return commodities.stream().map(commodity -> commodity + CONGESTION_EXPLANATION)
+            return commodities.stream().map(commodity -> convertStorageAccessToIops.apply(commodity) + CONGESTION_EXPLANATION)
                 .collect(Collectors.toSet());
         } else {
             return Collections.singleton(keepItShort ? ACTION_ERROR_CATEGORY : ACTION_TYPE_ERROR);
@@ -615,7 +620,7 @@ public class ExplanationComposer {
             String resizeExplanation;
 
             CommodityType commType = resize.getCommodityType();
-            final String commodityType = commodityDisplayName(commType, keepItShort)
+            final String commodityType = convertStorageAccessToIops.apply(commodityDisplayName(commType, keepItShort))
                     + (resize.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
 
             String commString = commodityType;
@@ -729,7 +734,7 @@ public class ExplanationComposer {
      */
     private static String buildResizeCoreExplanation(ActionDTO.Action action, final boolean keepItShort) {
         final Resize resize = action.getInfo().getResize();
-        final String commodityType = commodityDisplayName(resize.getCommodityType(), keepItShort) +
+        final String commodityType = convertStorageAccessToIops.apply(commodityDisplayName(resize.getCommodityType(), keepItShort)) +
             (resize.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
 
         // now modeling this behavior after ActionGeneratorImpl.notifyRightSize() in classic.

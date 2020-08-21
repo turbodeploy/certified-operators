@@ -4,15 +4,18 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
+import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -51,8 +54,9 @@ public class ProjectedCommodityStatsSubQuery implements StatsSubQuery {
     @Override
     public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
                                                       @Nonnull final StatsQueryContext context) throws OperationFailedException {
+        final Set<Long> providerOids = getProviderOids(stats);
         final ProjectedStatsRequest.Builder builder = ProjectedStatsRequest.newBuilder()
-            .addAllEntities(context.getQueryScope().getExpandedOids());
+            .addAllEntities(context.getQueryScope().getExpandedOids()).addAllProviders(providerOids);
         stats.forEach(statApiInputDTO -> {
             // If necessary we can add support for other parts of the StatPeriodApiInputDTO,
             // and extend the Projected Stats API to serve the additional functionality.
@@ -79,5 +83,15 @@ public class ProjectedCommodityStatsSubQuery implements StatsSubQuery {
                     context.getCurTime() + liveStatsRetrievalWindow.plusMinutes(1).toMillis())));
         projectedStatSnapshot.setEpoch(Epoch.PROJECTED);
         return Collections.singletonList(projectedStatSnapshot);
+    }
+
+    private Set<Long> getProviderOids(@Nonnull final Set<StatApiInputDTO> statInputs) {
+        return statInputs.stream()
+            .filter(stat -> stat.getFilters() != null)
+            .flatMap(stat -> stat.getFilters().stream())
+            .filter(filter -> StatsUtils.PROJECTED_PROVIDER_STAT_FILTER.equals(filter.getType()))
+            .map(StatFilterApiDTO::getValue)
+            .map(Long::valueOf)
+            .collect(Collectors.toSet());
     }
 }

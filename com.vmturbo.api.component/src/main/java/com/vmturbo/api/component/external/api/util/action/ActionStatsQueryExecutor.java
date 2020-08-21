@@ -109,7 +109,7 @@ public class ActionStatsQueryExecutor {
         this(clock, actionsServiceBlockingStub,
             userSessionContext,
             uuidMapper,
-            new HistoricalQueryMapper(actionSpecMapper, buyRiScopeHandler, clock),
+            new HistoricalQueryMapper(actionSpecMapper, buyRiScopeHandler, groupExpander, clock),
             new CurrentQueryMapper(actionSpecMapper, groupExpander, supplyChainFetcherFactory,
                     userSessionContext, repositoryApi, buyRiScopeHandler),
             new ActionStatsMapper(clock, actionSpecMapper),

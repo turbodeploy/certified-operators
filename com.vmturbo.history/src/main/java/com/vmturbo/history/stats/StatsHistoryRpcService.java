@@ -221,7 +221,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         final ProjectedStatsResponse.Builder builder = ProjectedStatsResponse.newBuilder();
         projectedStatsStore.getStatSnapshotForEntities(
                 new HashSet<>(request.getEntitiesList()),
-                new HashSet<>(request.getCommodityNameList()))
+                new HashSet<>(request.getCommodityNameList()),
+                new HashSet<>(request.getProvidersList()))
             .ifPresent(builder::setSnapshot);
         responseObserver.onNext(builder.build());
         responseObserver.onCompleted();
@@ -265,6 +266,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         responseObserver.onNext(projectedStatsStore.getEntityStats(
             seedEntityToDerivedEntities,
             new HashSet<>(request.getCommodityNameList()),
+            new HashSet<>(request.getProvidersList()),
             paginationParamsFactory.newPaginationParams(request.getPaginationParams())));
         responseObserver.onCompleted();
     }

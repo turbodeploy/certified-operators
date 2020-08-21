@@ -4,9 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nonnull;
@@ -61,9 +58,6 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
     @Autowired
     private ClustermgrDBConfig clustermgrDBConfig;
 
-    @Value("${kafkaConfigFile:/config/kafka-config.yml}")
-    private String kafkaConfigFile;
-
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
 
@@ -72,8 +66,6 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
 
     @Autowired
     private ComponentRegistrationConfig componentRegistrationConfig;
-
-    private ExecutorService backgroundTaskRunner;
 
     /**
      * Returns environment variable value.
@@ -151,20 +143,6 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
         // default configuration properties have been loaded from configMap.
         clusterMgrConfig.clusterMgrService().setClusterKvStoreInitialized(true);
         log.info(">>>>>>>>>  clustermgr beginning for " + nodeName);
-        // configure kafka
-        try {
-            kafkaConfigurationService.loadConfiguration(kafkaConfigFile);
-            log.info("<<<<<<<<<<<< kafka configured.");
-        } catch (TimeoutException te) {
-            log.error("Kafka configuration timed out. Will continue retrying in background.");
-            startBackgroundTask(new KafkaBackgroundConfigurationTask());
-        } catch (InterruptedException ie) {
-            log.warn("Kafka configuration interrupted. Configuration was not completed.");
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(ie);
-        }
-
-
     }
 
     /**
@@ -181,25 +159,10 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
         return healthMonitor;
     }
 
-    private synchronized void startBackgroundTask(Runnable task) {
-        if (backgroundTaskRunner == null) {
-            log.info("Creating background task executor service.");
-            backgroundTaskRunner = Executors.newCachedThreadPool();
-        }
-        backgroundTaskRunner.submit(task);
-    }
-
     @PreDestroy
     private void shutDown() {
         log.info("<<<<<<<  clustermgr shutting down");
         ComponentGrpcServer.get().stop();
-        // stop any background tasks
-        synchronized (this) {
-            if (backgroundTaskRunner != null) {
-                log.info("Stopping background tasks...");
-                backgroundTaskRunner.shutdownNow();
-            }
-        }
     }
 
     @Override
@@ -209,32 +172,6 @@ public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent
             services.add(clusterMgrConfig.logConfigurationService());
             services.add(clusterMgrConfig.tracingConfigurationRpcService());
             ComponentGrpcServer.get().addServices(services, Collections.emptyList());
-        }
-    }
-
-    /**
-     * A Runnable that will keep trying kafka configuration in the background.
-     */
-    private class KafkaBackgroundConfigurationTask implements Runnable {
-        @Override
-        public void run() {
-            Thread.currentThread().setName("kafka-background-configurator");
-            log.info("Starting background thread for retrying Kafka configuration.");
-            while (true) {
-                try {
-                    kafkaConfigurationService.loadConfiguration(kafkaConfigFile);
-                    log.info("Kafka configuration successful -- exiting background thread.");
-                    break;
-                } catch (TimeoutException te) {
-                    // try again.
-                    log.error("Kafka background configuration timed out. Trying again.");
-                } catch (InterruptedException ie) {
-                    log.warn("Kafka background configuration interrupted. Configuration was not completed.");
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(ie);
-                }
-            }
-
         }
     }
 }

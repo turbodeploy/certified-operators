@@ -128,6 +128,7 @@ import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRe
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
 import com.vmturbo.history.stats.PropertySubType;
+import com.vmturbo.history.stats.live.TimeRange;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -640,45 +641,26 @@ public class HistorydbIO extends BasedbIO {
      * commodity in the stasFilter is priceIndex, the timestamp will be selected among the
      * ingested priceIndex timestamps
      *
-     * @param statsFilter          stats filter which contains commodity requests.
      * @param timepPointOpt        time point to specify end time. If not present, the result is
      *                             the most recent time stamp.
      * @param timeFrameOpt         required timeframe, or LATEST if not specified
-     * @param paginationParams     The option to use for getting the time based on pagination sort commodity.
+     * @param historyVariety       The history variety for which the time stamp is being calculated.
      * @return a {@link Timestamp} for the snapshot recorded in the xxx_stats_latest table having
      *                             closest time to a given time point.
      * @throws IllegalArgumentException
      */
-    public Optional<Timestamp> getClosestTimestampBefore(@Nonnull final StatsFilter statsFilter,
-                                                         @Nonnull final Optional<Long> timepPointOpt,
+    public Optional<Timestamp> getClosestTimestampBefore(@Nonnull final Optional<Long> timepPointOpt,
                                                          @Nonnull final Optional<TimeFrame> timeFrameOpt,
-                                                         @Nonnull final Optional<EntityStatsPaginationParams> paginationParams)
+                                                         @Nonnull final HistoryVariety historyVariety)
             throws IllegalArgumentException {
         try {
             Timestamp exclusiveUpperTimeBound =
                     // timePointOpt, if provided, is inclusive; we need an exclusive upper bound
                     timepPointOpt.map(t -> new Timestamp(t + 1))
                             .orElse(null);
-            // PI timestamp needs to be treated differently because it doesn't get persisted when a topology is ingested.
-            // Check the commodity request list, if it only contains PI, fetch data for PI.
-            // Check if query is sorted by PI, if so, fetch timestamp for PI.
-            // Otherwise, get the timestamp of the most recent ingested topology.
-            final boolean usePriceDataBasedVariety = isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList())
-                    || isPaginationParamsSortByPI(paginationParams);
-            final HistoryVariety historyVariety = usePriceDataBasedVariety ? HistoryVariety.PRICE_DATA : HistoryVariety.ENTITY_STATS;
-
             Optional<Timestamp> timestamp = getMostRecentTimeStampForHistoryVariety(historyVariety,
                 exclusiveUpperTimeBound, timeFrameOpt);
-            // Price index data can take some time to be generated. If they do not exists yet,
-            // get the most recent ingested topology timestamp
-            if(!timestamp.isPresent() && historyVariety == HistoryVariety.PRICE_DATA) {
-                return getMostRecentTimeStampForHistoryVariety(HistoryVariety.ENTITY_STATS,
-                    exclusiveUpperTimeBound, timeFrameOpt);
-            }
             return timestamp;
-
-
-
         } catch (VmtDbException e) {
             logger.error("Failed to get database connection.", e);
         }
@@ -697,6 +679,7 @@ public class HistorydbIO extends BasedbIO {
         }
         return Optional.empty();
     }
+
     /**
      * Whether a given list contains only price index or current price index request.
      *
@@ -772,8 +755,8 @@ public class HistorydbIO extends BasedbIO {
      * returned first (ordered accordingly) and then the rest will follow ordered by uuid.
      *
      * @param entityScope      The {@link EntityStatsScope} for the stats query.
-     * @param timestamp        The timestamp to use to calculate the next page.
-     * @param tFrame           The timeframe to use for the timestamp.
+     * @param paginationTimeRange Timerange that contains information about timestamps used by
+     *                            the query
      * @param paginationParams The pagination parameters. For SORTED_BY_AVG_COMMODITIES, we sort the results by
      *                         the average value; for others, we sort the results by the utilization
      *                        (average/capacity) value of the sort commodity. And then by the UUID of the entity.
@@ -789,11 +772,12 @@ public class HistorydbIO extends BasedbIO {
      */
     @Nonnull
     public NextPageInfo getNextPage(final EntityStatsScope entityScope,
-                                    final Timestamp timestamp,
-                                    final TimeFrame tFrame,
+                                    final TimeRange paginationTimeRange,
                                     final EntityStatsPaginationParams paginationParams,
                                     final EntityType entityType,
                            @Nonnull final StatsFilter statsFilter) throws VmtDbException {
+        final TimeFrame tFrame = paginationTimeRange.getTimeFrame();
+        final Timestamp timestamp = paginationTimeRange.getMostRecentSnapshotTime();
         // This will be an empty list if entity list is not set.
         // This should NOT be an empty list if the entity list is set (we should filter out
         // those requests earlier on).
@@ -835,7 +819,7 @@ public class HistorydbIO extends BasedbIO {
             // Create a table (subquery) with the entities that have the orderBy commodity
             final Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats =
                     createAggregatedStatsTable(conn, table, timestamp,
-                            paginationParams, statsFilter, requestedIdSet);
+                            paginationParams, statsFilter, requestedIdSet, paginationTimeRange.getLatestPriceIndexTimeStamp());
             final Field<String> aggregatedUuidField = getStringField(aggregatedStats, UUID);
             final Field<BigDecimal> aggregateValueField =
                 SeekPaginationCursor.getValueField(paginationParams, aggregatedStats);
@@ -937,9 +921,16 @@ public class HistorydbIO extends BasedbIO {
             final Timestamp timestamp,
             final EntityStatsPaginationParams paginationParams,
             @Nonnull final StatsFilter statsFilter,
-            final Set<String> requestedIdSet) {
+            final Set<String> requestedIdSet,
+            final Optional<Timestamp> priceIndexTimestamp) {
         final List<Condition> conditions = new ArrayList<>();
-        conditions.add(getTimestampField(table, SNAPSHOT_TIME).eq(timestamp));
+        Condition timeCondition = getTimestampField(table, SNAPSHOT_TIME).eq(timestamp);
+        if (priceIndexTimestamp.isPresent()) {
+            timeCondition =
+                timeCondition.or(getTimestampField(table, SNAPSHOT_TIME).eq(priceIndexTimestamp.get())
+                .and(getStringField(table, PROPERTY_TYPE).equal(PRICE_INDEX)));
+        }
+        conditions.add(timeCondition);
         conditions.add(getStringField(table, PROPERTY_TYPE).eq(paginationParams.getSortCommodity()));
         final String sortCommodity = paginationParams.getSortCommodity();
         if (!sortCommodity.equals(PRICE_INDEX)) {
