@@ -112,7 +112,7 @@ public class ExplanationComposer {
     private static final String STORAGE_ACCESS_TO_IOPS = "IOPs";
     private static final Function<String, String> convertStorageAccessToIops = (commodity) ->
         commodity.equals("Storage Access") ? STORAGE_ACCESS_TO_IOPS : commodity;
-    
+
     // Explanation overrides for cloud migration
     private static final String CLOUD_MIGRATION_LIFT_AND_SHIFT_EXPLANATION = "Lift & Shift migration";
     private static final String CLOUD_MIGRATION_OPTIMIZED_EXPLANATION = "Optimized migration";
