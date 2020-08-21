@@ -95,7 +95,7 @@ public class ActionDTOUtil {
             EntityType.STORAGE_TIER_VALUE, EntityType.DATABASE_TIER_VALUE);
 
     // String constant for displayName.
-    private static final String DISPLAY_NAME = "displayName";
+    public static final String DISPLAY_NAME = "displayName";
 
     private ActionDTOUtil() {}
 
@@ -450,11 +450,6 @@ public class ActionDTOUtil {
             case ATOMICRESIZE:
                 final List<ActionEntity> atomicResizeEntities = new ArrayList<>();
                 atomicResizeEntities.add(getPrimaryEntity(action));
-                for (ResizeInfo resize : action.getInfo().getAtomicResize().getResizesList()) {
-                    if (resize.hasTarget()) {
-                        atomicResizeEntities.add(resize.getTarget());
-                    }
-                }
                 return atomicResizeEntities;
             case RESIZE:
             case ACTIVATE:
