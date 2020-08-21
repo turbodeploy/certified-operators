@@ -1194,24 +1194,14 @@ public class CloudCostsStatsSubQueryTest {
                     .setAttachmentState(AttachmentState.UNATTACHED)))
             .build();
 
-        final long id4 = 4567L;
-        final TopologyEntityDTO volume4 = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-            .setOid(id4)
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                    .setAttachmentState(AttachmentState.ATTACHED)))
-            .build();
-
-        final Set<Long> volumeOids = ImmutableSet.of(id1, id2, id3, id4);
+        final Set<Long> volumeOids = ImmutableSet.of(id1, id2, id3);
         when(queryScope.getExpandedOids()).thenReturn(volumeOids);
         final MultiEntityRequest entitiesRequest =
-            ApiTestUtils.mockMultiFullEntityReq(ImmutableList.of(volume1, volume2, volume3, volume4));
+            ApiTestUtils.mockMultiFullEntityReq(ImmutableList.of(volume1, volume2, volume3));
         when(repositoryApi.entitiesRequest(volumeOids)).thenReturn(entitiesRequest);
 
-        final Map<Long, Float> firstRecordCosts = ImmutableMap.of(id1, 10f, id2, 15f, id3, 20f);
-        final Map<Long, Float> secondRecordCosts = ImmutableMap.of(id4, 100f);
-        setupVolumeCostResponse(firstRecordCosts, secondRecordCosts);
+        final Map<Long, Float> volumeCosts = ImmutableMap.of(id1, 10f, id2, 15f, id3, 20f);
+        setupVolumeCostResponse(volumeCosts);
 
         final StatApiInputDTO numVolsByAttachment = new StatApiInputDTO();
         numVolsByAttachment.setName(StorageStatsSubQuery.NUM_VOL);
@@ -1235,7 +1225,7 @@ public class CloudCostsStatsSubQueryTest {
             }
             if (stat.getName().equals(StorageStatsSubQuery.NUM_VOL)) {
                 if (stat.getFilters().get(0).getValue().equals(StringConstants.ATTACHED)) {
-                    Assert.assertEquals(3, stat.getValues().getTotal(), .001);
+                    Assert.assertEquals(2, stat.getValues().getTotal(), .001);
                 } else if (stat.getFilters().get(0).getValue().equals(StringConstants.UNATTACHED)) {
                     Assert.assertEquals(1, stat.getValues().getTotal(), .001);
                 } else {
@@ -1243,7 +1233,7 @@ public class CloudCostsStatsSubQueryTest {
                 }
             } else if (stat.getName().equals(StringConstants.COST_PRICE)) {
                 if (stat.getFilters().get(0).getValue().equals(StringConstants.ATTACHED)) {
-                    Assert.assertEquals(125, stat.getValues().getTotal(), .001);
+                    Assert.assertEquals(25, stat.getValues().getTotal(), .001);
                 } else if (stat.getFilters().get(0).getValue().equals(StringConstants.UNATTACHED)) {
                     Assert.assertEquals(20, stat.getValues().getTotal(), .001);
                 } else {
@@ -1270,11 +1260,8 @@ public class CloudCostsStatsSubQueryTest {
         final long tierId2 = 8765L;
         final String tierName2 = "tier-name-2";
         final MinimalEntity tier2 = MinimalEntity.newBuilder().setDisplayName(tierName2).setOid(tierId2).build();
-        final long tierId3 = 7654L;
-        final String tierName3 = "tier-name-3";
-        final MinimalEntity tier3 = MinimalEntity.newBuilder().setDisplayName(tierName3).setOid(tierId3).build();
 
-        final SearchRequest tierSearch = ApiTestUtils.mockSearchMinReq(ImmutableList.of(tier1, tier2, tier3));
+        final SearchRequest tierSearch = ApiTestUtils.mockSearchMinReq(ImmutableList.of(tier1, tier2));
         when(repositoryApi.newSearchRequest(any())).thenReturn(tierSearch);
 
         final long volId1 = 1234L;
@@ -1303,25 +1290,14 @@ public class CloudCostsStatsSubQueryTest {
                 .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
                 .setProviderId(tierId1))
             .build();
-
-        final long volId4 = 4567L;
-        final TopologyEntityDTO volume4 = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-            .setOid(volId4)
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
-                .setProviderId(tierId3))
-            .build();
-
-        final Set<Long> volumeOids = ImmutableSet.of(volId1, volId2, volId3, volId4);
+        final Set<Long> volumeOids = ImmutableSet.of(volId1, volId2, volId3);
         when(queryScope.getExpandedOids()).thenReturn(volumeOids);
         final MultiEntityRequest entitiesRequest =
-            ApiTestUtils.mockMultiFullEntityReq(ImmutableList.of(volume1, volume2, volume3, volume4));
+            ApiTestUtils.mockMultiFullEntityReq(ImmutableList.of(volume1, volume2, volume3));
         when(repositoryApi.entitiesRequest(volumeOids)).thenReturn(entitiesRequest);
 
-        final Map<Long, Float> firstRecordCosts = ImmutableMap.of(volId1, 10f, volId2, 15f, volId3, 20f);
-        final Map<Long, Float> secondRecordCosts = ImmutableMap.of(volId4, 100f);
-        setupVolumeCostResponse(firstRecordCosts, secondRecordCosts);
+        final Map<Long, Float> volumeCosts = ImmutableMap.of(volId1, 10f, volId2, 15f, volId3, 20f);
+        setupVolumeCostResponse(volumeCosts);
 
 
         final StatApiInputDTO numVolumesByTierInput = new StatApiInputDTO();
@@ -1337,39 +1313,27 @@ public class CloudCostsStatsSubQueryTest {
 
         final List<StatSnapshotApiDTO> result = query.getAggregateStats(requestedStats, context);
         Assert.assertEquals(1, result.size());
-        Assert.assertEquals(6, result.get(0).getStatistics().size());
+        Assert.assertEquals(4, result.get(0).getStatistics().size());
         for (final StatApiDTO stat : result.get(0).getStatistics()) {
             Assert.assertEquals(1, stat.getFilters().size());
             if (!stat.getFilters().get(0).getType().equals(ApiEntityType.STORAGE_TIER.apiStr())) {
                 Assert.fail("Incorrect filter type");
             }
             if (stat.getName().equals(StorageStatsSubQuery.NUM_VOL)) {
-                switch (stat.getFilters().get(0).getValue()) {
-                    case tierName1:
-                        Assert.assertEquals(2, stat.getValues().getTotal(), .001);
-                        break;
-                    case tierName2:
-                    case tierName3:
-                        Assert.assertEquals(1, stat.getValues().getTotal(), .001);
-                        break;
-                    default:
-                        Assert.fail("Incorrect filter value");
-                        break;
+                if (stat.getFilters().get(0).getValue().equals(tierName1)) {
+                    Assert.assertEquals(2, stat.getValues().getTotal(), .001);
+                } else if (stat.getFilters().get(0).getValue().equals(tierName2)) {
+                    Assert.assertEquals(1, stat.getValues().getTotal(), .001);
+                } else {
+                    Assert.fail("Incorrect filter value");
                 }
             } else if (stat.getName().equals(StringConstants.COST_PRICE)) {
-                switch (stat.getFilters().get(0).getValue()) {
-                    case tierName1:
-                        Assert.assertEquals(30, stat.getValues().getTotal(), .001);
-                        break;
-                    case tierName2:
-                        Assert.assertEquals(15, stat.getValues().getTotal(), .001);
-                        break;
-                    case tierName3:
-                        Assert.assertEquals(100, stat.getValues().getTotal(), .001);
-                        break;
-                    default:
-                        Assert.fail("Incorrect filter value");
-                        break;
+                if (stat.getFilters().get(0).getValue().equals(tierName1)) {
+                    Assert.assertEquals(30, stat.getValues().getTotal(), .001);
+                } else if (stat.getFilters().get(0).getValue().equals(tierName2)) {
+                    Assert.assertEquals(15, stat.getValues().getTotal(), .001);
+                } else {
+                    Assert.fail("Incorrect filter value");
                 }
             } else {
                 Assert.fail("Incorrect stat type");
@@ -1389,24 +1353,15 @@ public class CloudCostsStatsSubQueryTest {
         when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
     }
 
-    private void setupVolumeCostResponse(Map<Long, Float> record1, Map<Long, Float> record2) {
-        final CloudCostStatRecord.Builder recordBuilder1 = CloudCostStatRecord.newBuilder()
+    private void setupVolumeCostResponse(Map<Long, Float> volumeCosts) {
+        final CloudCostStatRecord.Builder recordBuilder = CloudCostStatRecord.newBuilder()
             .setSnapshotDate(987L);
-        record1.forEach((volId, volCost) -> recordBuilder1.addStatRecords(StatRecord.newBuilder()
-            .setAssociatedEntityId(volId)
-            .setAssociatedEntityType(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
-            .setValues(StatValue.newBuilder().setAvg(volCost).build())));
-
-        final CloudCostStatRecord.Builder recordBuilder2 = CloudCostStatRecord.newBuilder()
-            .setSnapshotDate(987L);
-        record2.forEach((volId, volCost) -> recordBuilder2.addStatRecords(StatRecord.newBuilder()
+        volumeCosts.forEach((volId, volCost) -> recordBuilder.addStatRecords(StatRecord.newBuilder()
             .setAssociatedEntityId(volId)
             .setAssociatedEntityType(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
             .setValues(StatValue.newBuilder().setAvg(volCost).build())));
         when(costServiceMole.getCloudCostStats(any()))
             .thenReturn(Collections.singletonList(GetCloudCostStatsResponse.newBuilder()
-                .addCloudStatRecord(recordBuilder1.build())
-                .addCloudStatRecord(recordBuilder2.build())
-                .build()));
+                .addCloudStatRecord(recordBuilder.build()).build()));
     }
 }
