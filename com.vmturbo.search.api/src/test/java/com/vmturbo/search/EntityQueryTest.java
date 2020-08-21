@@ -1,5 +1,6 @@
 package com.vmturbo.search;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -450,6 +451,51 @@ public class EntityQueryTest {
 
         String expectedCondition = "\"extractor\".\"search_entity\".\"state\" in (\n  " + "'POWERED_ON', 'POWERED_OFF'\n)";
         assertTrue(containsCondition(conditions, expectedCondition));
+    }
+
+    /**
+     * Expect {@link InclusionConditionApiDTO} for multitext to use like conditional.
+     */
+    @Test
+    public void buildWhereClauseInclusionConditionForMultiTextFields() {
+        //GIVEN
+        String[] hostNames = {"hostname1, hostName2.?,"};
+        InclusionConditionApiDTO enumCondition = RelatedEntityFieldApiDTO.entityNames(EntityType.PhysicalMachine).in(hostNames);
+
+        final EntityType type = EntityType.VirtualMachine;
+        final WhereApiDTO where = WhereApiDTO.where().and(enumCondition).build();
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(type)
+                .fields(PrimitiveFieldApiDTO.entityState())
+                .build();
+
+        EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity, where);
+        EntityQuery query = entityQuery(request);
+
+        //WHEN
+        List<Condition> conditions = query.buildWhereClauses();
+
+        //THEN
+        assertTrue(conditions.size() == 2);
+
+        String expectedCondition = "(cast(attrs->>'related_host' as longnvarchar) like_regex '\"hostname1, hostName2\\.\\?,\"')";
+        assertTrue(containsCondition(conditions, expectedCondition));
+    }
+
+    /**
+     * Tests mapping string with postgres regex chars to string literal and surrounding with quotes.
+     */
+    @Test
+    public void testMapToStringLiteral() {
+        //GIVEN
+        //   Postgres regex chars needed escape -  . + * ? [ ^ ] $ ( ) { } = ! < > | : - \
+        String value ="g.g+g*g?g[g^g]g$g(g)g{g}g=g!g<g>g|g:g-g\\";
+
+        //WHEN
+        String queryString = AbstractSearchQuery.mapToStringLiteral(value);
+
+        //THEN
+        String expectedCondition = "\"g\\.g\\+g\\*g\\?g\\[g\\^g\\]g\\$g\\(g\\)g\\{g\\}g\\=g\\!g\\<g\\>g\\|g\\:g\\-g\\\\\"";
+        assertEquals(expectedCondition, queryString);
     }
 
     /**

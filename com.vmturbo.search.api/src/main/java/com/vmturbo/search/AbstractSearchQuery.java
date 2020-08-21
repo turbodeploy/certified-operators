@@ -576,10 +576,10 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
      * @return constructed {@link Condition}
      */
     private Condition parseCondition(@Nonnull InclusionConditionApiDTO entityCondition, @Nonnull Field field) {
-        final List<String> values = entityCondition.getValue(); //List of enumLiterals only
-        final List<String> jooqEnumValues = parseTextAndInclusionConditions(entityCondition.getField(), values);
-        //InclusionCondition can only be configured for IN operator
-        return field.in(jooqEnumValues);
+        final List<String> requestedValues = entityCondition.getValue(); //List of enumLiterals only
+        FieldApiDTO fieldApiDTO = entityCondition.getField();
+        final List<String> queryValues = parseTextAndInclusionConditions(fieldApiDTO, requestedValues);
+        return createInclusionDTOBasedConditions(queryValues, fieldApiDTO, field);
     }
 
     /**
@@ -621,9 +621,52 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
     }
 
     /**
+     * Construct conditions for inclusionDTO.
+     *
+     * @param queryValues the string values to use in query, if enum, alread mapped
+     * @param fieldApiDTO corresponding {@link FieldApiDTO} of configered condition.
+     * @param field field the field to compare against the provided condition
+     * @return query conditions
+     */
+    private Condition createInclusionDTOBasedConditions(final List<String> queryValues, final FieldApiDTO fieldApiDTO, @Nonnull Field field) {
+        SearchMetadataMapping mapping = getMetadataMapping().get(fieldApiDTO);
+        if (!mapping.getApiDatatype().equals(Type.MULTI_TEXT)) {
+            return field.in(queryValues);
+        }
+        //For multiText columns we cannot apply in clause.
+        //JsonB multitext columns save values as strings
+        //Example: attrs_column = {colKey ["123", "456"]}
+        //         User request inclusion where colKey in "123"
+        //         PSQL translation -> where colkey in ("123")
+        //         Because they are strings this equates to:  "123" = '["123","456"]' with inclusion
+        //         so no match will be made.  We can use like conditions to get desired results
+
+
+        List<String> valuesWithSurroundingQuotes = queryValues.stream()
+                .map(AbstractSearchQuery::mapToStringLiteral).collect(
+                Collectors.toList());
+
+        String queryValue = String.join("|", valuesWithSurroundingQuotes);
+        return field.likeRegex(queryValue);
+
+    }
+
+    /**
+     * Maps query value to string literal to be used in regex matching.
+     * @param queryValue string value to be matched on
+     * @return string literal of queryValue
+     */
+    @VisibleForTesting
+    static String mapToStringLiteral(String queryValue) {
+        String sanitized = queryValue.replaceAll("[-.\\+*?\\[^\\]$(){}=!<>|:\\\\]", "\\\\$0");
+        //Surrounding in quotes, this is specific to values in multitext columns
+        return "\"" + sanitized + "\"";
+    }
+
+    /**
      * If {@link Type#ENUM} conditions this maps api enums to jooq equivalents.
      *
-     * @param fieldApiDto Corresponding {@link FieldApiDTO} of configered condition.
+     * @param fieldApiDto Corresponding {@link FieldApiDTO} of configured condition.
      * @param values request api values, enums will be converted to jooq enums
      * @return jooq enum references or original values returned
      */
