@@ -152,7 +152,6 @@ public class UsersService implements IUsersService {
         this.invalidScopes.add(ApiEntityType.BUSINESS_ACCOUNT.displayName());
         this.invalidScopes.add(ApiEntityType.REGION.displayName());
         this.invalidScopes.add(ApiEntityType.AVAILABILITY_ZONE.displayName());
-        this.invalidScopes.add("ResourceGroup");
         this.registrationId = Objects.requireNonNull(samlRegistrationID);
         this.samlEnabled = samlEnabled;
         this.reportingUserCalculator = reportingUserCalculator;
