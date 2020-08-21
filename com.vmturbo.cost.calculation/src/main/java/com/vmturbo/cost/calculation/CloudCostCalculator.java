@@ -1,9 +1,13 @@
 package com.vmturbo.cost.calculation;
 
+import static com.vmturbo.commons.Units.GBYTE;
+import static com.vmturbo.commons.Units.MBYTE;
 import static com.vmturbo.trax.Trax.trax;
 import static com.vmturbo.trax.Trax.traxConstant;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -29,9 +33,9 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForGuestOsType;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
@@ -42,6 +46,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierC
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal.Builder;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
@@ -643,7 +648,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                     final DatabaseTierPriceList dbPriceList = getDbPriceList(databaseConfig,
                         onDemandPriceTable.get(), entityInfoExtractor.getId(databaseTier));
                     if (dbPriceList != null) {
-                        recordDatabaseCost(dbPriceList, context.getCostJournal(), databaseTier, databaseConfig);
+                        recordDatabaseCost(dbPriceList, context.getCostJournal(), databaseTier, databaseConfig, entity);
                     }
                 } else {
                     logger.warn("calculateDatabaseCost: Global price table has no entry for region {}." +
@@ -679,23 +684,101 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     /**
      * Record db prices and add it to the compute cost journal.
      *
-     * @param dbPriceList     DB list contains all the db prices.
-     * @param journal         Journal used to add the costs to.
-     * @param databaseTier    DB Tier that we are calculating.
-     * @param databaseConfig  DB config of the db that we want to record.
+     * @param dbPriceList    DB list contains all the db prices.
+     * @param journal        Journal used to add the costs to.
+     * @param databaseTier   DB Tier that we are calculating.
+     * @param databaseConfig DB config of the db that we want to record.
+     * @param entity         current DB entity.
      */
-    private void recordDatabaseCost(DatabaseTierPriceList dbPriceList, CostJournal.Builder<ENTITY_CLASS> journal,
-                                    ENTITY_CLASS databaseTier, DatabaseConfig databaseConfig) {
+    private void recordDatabaseCost(DatabaseTierPriceList dbPriceList, Builder<ENTITY_CLASS> journal,
+                                    ENTITY_CLASS databaseTier, DatabaseConfig databaseConfig,
+                                    final ENTITY_CLASS entity) {
         final DatabaseTierConfigPrice basePrice = dbPriceList.getBasePrice();
+        List<Price> storagePrices = dbPriceList.getDependentPricesList();
         journal.recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, databaseTier,
-            basePrice.getPricesList().get(0), FULL);
+                basePrice.getPricesList().get(0), FULL);
         dbPriceList.getConfigurationPriceAdjustmentsList().stream()
-            .filter(databaseConfig::matchesPriceTableConfig)
-            .findAny()
-            .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
-                CostCategory.ON_DEMAND_LICENSE,
-                databaseTier,
-                priceAdjustmentConfig.getPricesList().get(0), FULL));
+                .filter(databaseConfig::matchesPriceTableConfig)
+                .findAny()
+                .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
+                        CostCategory.ON_DEMAND_LICENSE,
+                        databaseTier,
+                        priceAdjustmentConfig.getPricesList().get(0), FULL));
+        if (!dbPriceList.getDependentPricesList().isEmpty()) {
+            //add storage price
+            journal.recordOnDemandCost(CostCategory.STORAGE,
+                    databaseTier,
+                    calculateDBStorageCost(storagePrices,
+                            entity),
+                    FULL);
+        }
+    }
+
+    /**
+     * Helper Method to calculate dependent storage for DB cost in a cumulative fashion.
+     *
+     * @param dependentPricesList List of {@link Price} for various storage amounts.
+     * @param entity          current DB entity.
+     * @return {@link Price} final price for storage.
+     */
+    @Nonnull
+    private Price calculateDBStorageCost(@Nonnull final List<Price> dependentPricesList,
+                                         @Nonnull final ENTITY_CLASS entity) {
+        final float storageAmount;
+        final float storageAmountInMB;
+        final Optional<Float> dbStorageCapacity = entityInfoExtractor.getDBStorageCapacity(entity);
+        final Price defaultPrice = Price.getDefaultInstance();
+        if (!dbStorageCapacity.isPresent()) {
+            return defaultPrice;
+        } else if (dependentPricesList.isEmpty()) {
+            logger.warn("No storage prices found for {}.", entityInfoExtractor.getName(entity));
+            return defaultPrice;
+        } else {
+            storageAmountInMB = dbStorageCapacity.get();
+        }
+        Unit storageUnit = dependentPricesList.get(0).getUnit();
+        /*
+         * Convert storage bytes from MB to GB; as StorageAmount't UNIT is MB
+         * and prices can be in GB_MONTH;
+         */
+        storageAmount = storageUnit.equals(Unit.GB_MONTH) ?
+                storageAmountInMB / (float)(GBYTE / MBYTE) : storageAmountInMB;
+        TraxNumber totalCost = trax(0.0d, "DB Storage cost");
+        float currentSize = 0f;
+        final ArrayList<Price> sortedDependentPrices = new ArrayList<>(dependentPricesList);
+        sortedDependentPrices.sort(Comparator.comparingLong(Price::getEndRangeInUnits));
+
+        for (Price storagePrice : sortedDependentPrices) {
+            if (storagePrice.getIncrementInterval() == 0) {
+                logger.error("Invalid increment interval for DB : {}. Can not calculate DB storage cost",
+                        entityInfoExtractor.getName(entity));
+                return defaultPrice;
+            }
+            for (; currentSize < storagePrice.getEndRangeInUnits(); currentSize += storagePrice.getIncrementInterval()) {
+                String traxDescription = String.format("Storage price for incrementInterval %s is %s",
+                        storagePrice.getIncrementInterval(), storagePrice.getPriceAmount().getAmount() );
+                TraxNumber addedStoragePrice = trax(storagePrice.getIncrementInterval() * storagePrice.getPriceAmount().getAmount(),
+                        traxDescription);
+                totalCost = totalCost.plus(addedStoragePrice).compute();
+                if (currentSize >= storageAmount) {
+                    // We have reached storage requirements.
+                    break;
+                }
+            }
+            if (currentSize >= storageAmount) {
+                // We have reached storage requirements.
+                break;
+            }
+        }
+        if (currentSize < storageAmount) {
+            logger.error("The storage tier was unable to satisfy DB: {} storage requirement."
+                    + "This will lead to incorrect cost calculation.", entityInfoExtractor.getName(entity));
+        }
+        // final calculated storage price.
+        return Price.newBuilder().setPriceAmount(CurrencyAmount
+                .newBuilder().setAmount(totalCost.getValue()).build())
+                .setEndRangeInUnits((long)currentSize)
+                .setUnit(storageUnit).build();
     }
 
     /**

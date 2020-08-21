@@ -113,6 +113,9 @@ public class CloudCostCalculatorTest {
         IP_RANGE * IP_PRICE_RANGE_1 + (DEFAULT_ELASTIC_IPS_BOUGHT - IP_RANGE) * IP_PRICE;
     private static final double MYSQL_ADJUSTMENT = 5;
     private static final int GB_RANGE = 11;
+    private static final int INCREMENT_INTERVAL_GB = 1;
+    private static final int STORAGE_RANGE = 11264; // 11 GB in MBytes.
+    private static final double STORAGE_PRICE = 1.0;
     private static final double GB_PRICE_RANGE_1 = 13.0; // price per GB within GB_RANGE
     private static final double GB_PRICE = 9.0; // price per GB above the range
     private static final double GB_PRICE_RAGRS = 10.0;
@@ -517,7 +520,7 @@ public class CloudCostCalculatorTest {
         when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
         when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
-
+        when(infoExtractor.getDBStorageCapacity(any())).thenReturn(Optional.of((float)STORAGE_RANGE));
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
             ACCOUNT_PRICING_DATA_OID);
@@ -528,13 +531,21 @@ public class CloudCostCalculatorTest {
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(db);
 
         // assert
-        assertThat(journal.getTotalHourlyCost().getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(BASE_PRICE));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(MYSQL_ADJUSTMENT));
+        assertThat(journal.getTotalHourlyCost().getValue(),
+                is(BASE_PRICE + MYSQL_ADJUSTMENT +
+                        CostProtoUtil.getHourlyPriceAmount(price(Unit.GB_MONTH,
+                                GB_RANGE * STORAGE_PRICE))));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
+                is(BASE_PRICE ));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(),
+                is(CostProtoUtil.getHourlyPriceAmount(price(Unit.GB_MONTH,
+                        GB_RANGE * STORAGE_PRICE))));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(),
+                is(MYSQL_ADJUSTMENT));
 
         // Once for the compute, once for the license, because both costs are "paid to" the
         // database tier.
-        verify(discountApplicator, times(2)).getDiscountPercentage(databaseTier);
+        verify(discountApplicator, times(3)).getDiscountPercentage(databaseTier);
     }
 
     /**
@@ -708,6 +719,17 @@ public class CloudCostCalculatorTest {
                         .build();
     }
 
+    private static Price price(Price.Unit unit, int endRange, int incrementInterval, double amount) {
+        return Price.newBuilder()
+                .setUnit(unit)
+                .setEndRangeInUnits(endRange)
+                .setIncrementInterval(incrementInterval)
+                .setPriceAmount(CurrencyAmount.newBuilder()
+                        .setAmount(amount)
+                        .build())
+                .build();
+    }
+
     private static LicensePrice licensePrice(int numCores, Price price) {
         return LicensePrice.newBuilder()
                         .setNumberOfCores(numCores)
@@ -768,6 +790,8 @@ public class CloudCostCalculatorTest {
                                     .setDbDeploymentType(DeploymentType.SINGLE_AZ)
                                     .setDbLicenseModel(LicenseModel.LICENSE_INCLUDED)
                                     .addPrices(price(Unit.HOURS, MYSQL_ADJUSTMENT)))
+                                .addDependentPrices(price(Unit.GB_MONTH, GB_RANGE,
+                                        INCREMENT_INTERVAL_GB, STORAGE_PRICE))
                                 .build())
                         .build())
                 .putDbPricesByInstanceId(DB_SERVER_TIER_ID, DbTierOnDemandPriceTable.newBuilder()
