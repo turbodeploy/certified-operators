@@ -1,5 +1,6 @@
 package com.vmturbo.common.protobuf.topology;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION;
 import static com.vmturbo.platform.common.builders.SDKConstants.FREE_STORAGE_CLUSTER;
 
 import java.time.Instant;
@@ -21,6 +22,10 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -61,6 +66,14 @@ public final class TopologyDTOUtil {
      * Name of optimize cloud plan type.
      */
     private static final String OPTIMIZE_CLOUD_PLAN = "OPTIMIZE_CLOUD";
+
+    /**
+     * Types of entities that are considered as workloads.
+     */
+    public static final Set<EntityType> WORKLOAD_TYPES = ImmutableSet.of(
+            EntityType.VIRTUAL_MACHINE,
+            EntityType.DATABASE,
+            EntityType.DATABASE_SERVER);
 
     /**
      * The primary tiers entity types. Cloud consumers like VMs and DBs can only consume from one
@@ -174,7 +187,33 @@ public final class TopologyDTOUtil {
     }
 
     /**
-     * Gets the TopologyEntityDTOs of type connectedEntityType which are connected to entity
+     * Determines whether or not the topology described by a {@link TopologyDTO.TopologyInfo}
+     * is generated for a Migrate to Public Cloud plan.
+     *
+     * @param topologyInfo The {@link TopologyDTO.TopologyInfo} describing a topology.
+     * @return true if the plan is MPC
+     */
+    public static boolean isCloudMigrationPlan(@Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
+        return isPlan(topologyInfo) && PlanProjectType.CLOUD_MIGRATION.name().equals(
+                topologyInfo.getPlanInfo().getPlanType());
+    }
+
+    /**
+     * Checks if MCP plan allows for resize - only for consumption (Optimized) plan type.
+     *
+     * @param topologyInfo TopologyInfo to check.
+     * @return Whether plan allows for resize.
+     */
+    public static boolean isResizableCloudMigrationPlan(@Nonnull final TopologyDTO.TopologyInfo
+                                                                topologyInfo) {
+        if (!isCloudMigrationPlan(topologyInfo)) {
+            return false;
+        }
+        return CLOUD_MIGRATION_PLAN__CONSUMPTION.equals(topologyInfo.getPlanInfo().getPlanSubType());
+    }
+
+    /**
+     * Gets the TopologyEntityDTOs of type connectedEntityType which are connected to entity.
      *
      * @param entity entity for which connected entities are retrieved
      * @param connectedEntityType the type of connectedEntity which should be retrieved
@@ -235,6 +274,56 @@ public final class TopologyDTOUtil {
      */
     public static boolean isPrimaryTierEntityType(int entityType) {
         return PRIMARY_TIER_VALUES.contains(entityType);
+    }
+
+    /**
+     * Checks if the change provider refers to a move action within the same region. In that case,
+     * the market generated move action is translated to a scale action.
+     * If the move involves different regions (as in the case of cloud-to-cloud migration), then
+     * we show move action as-is, and don't translate it to a scale.
+     *
+     * @param action Move action whose change providers to check.
+     * @return True if change providers refers to a move action within same region.
+     */
+    public static boolean isMoveWithinSameRegion(@Nonnull final ActionDTO.Action action) {
+        if (action.getInfo().getActionTypeCase() != ActionTypeCase.MOVE) {
+            // Not a move action
+            return false;
+        }
+        // First check the primary (tier) change provider, verify same entity (e.g compute tier) type.
+        final ChangeProvider primaryChangeProvider = ActionDTOUtil.getPrimaryChangeProvider(action);
+        if (!primaryChangeProvider.hasSource() || !primaryChangeProvider.hasDestination()) {
+            // Not a move action
+            return false;
+        }
+        boolean bothPrimaryTier = isPrimaryTierEntityType(primaryChangeProvider.getSource().getType())
+                && isPrimaryTierEntityType(primaryChangeProvider.getDestination().getType());
+        if (!bothPrimaryTier) {
+            // Don't translate moves that are not b/w primary tiers.
+            return false;
+        }
+
+        // Primary compute tiers source and destination are same. Check if we are doing a
+        // region/zone change, if so, we need to show a MOVE instead of SCALE action.
+        // Find the change provider for region/zone move
+        final Optional<ChangeProvider> optLocation = action.getInfo().getMove()
+                .getChangesList()
+                .stream()
+                .filter(cp -> cp.hasSource()
+                        && cp.hasDestination()
+                        && (cp.getSource().getType() == EntityType.REGION_VALUE
+                        || cp.getSource().getType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                        && cp.getDestination().getType() == EntityType.REGION_VALUE)
+                .findFirst();
+        if (!optLocation.isPresent()) {
+            // No region provided, translate move to scale in that case.
+            return true;
+        }
+        final ChangeProvider locationProvider = optLocation.get();
+        // If regions/zones are same, we need to translate move to scale. Otherwise (as in
+        // cloud-to-cloud migration case, we would be moving b/w same compute tier types,
+        // but would be b/w different zone/regions, so in that case, we need to return false.
+        return locationProvider.getSource().getId() == locationProvider.getDestination().getId();
     }
 
     /**

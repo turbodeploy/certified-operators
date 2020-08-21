@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -31,15 +32,35 @@ public interface PlanDao extends DiagsRestorable {
     PlanInstance createPlanInstance(@Nonnull CreatePlanRequest planRequest) throws IntegrityException;
 
     /**
+     * Creates a plan instance with the given project type, no project id is set.
+     *
+     * @param scenario Plan scenario instance.
+     * @param planProjectType The type of plan project.
+     * @return Instance of plan.
+     * @throws IntegrityException Thrown on some constraint violations.
+     */
+    @Nonnull
+    default PlanInstance createPlanInstance(@Nonnull final Scenario scenario,
+                                    @Nonnull final PlanProjectType planProjectType)
+            throws IntegrityException {
+        return createPlanInstance(scenario, planProjectType, null, null);
+    }
+
+    /**
      * Creates a plan instance from a scenario object.
      *
-     * @param scenario
+     * @param scenario Plan scenario instance.
      * @param planProjectType The type of plan project.
+     * @param planProjectId Optional, id of project that plan (e.g migration) belongs to.
+     * @param planName Optional, name of the plan.
      * @return plan instance, if created
+     * @throws IntegrityException Thrown on some constraint violations.
      */
     @Nonnull
     PlanInstance createPlanInstance(@Nonnull final Scenario scenario,
-                                    @Nonnull final PlanProjectType planProjectType)
+                                    @Nonnull PlanProjectType planProjectType,
+                                    @Nullable Long planProjectId,
+                                    @Nullable String planName)
             throws IntegrityException;
 
     /**

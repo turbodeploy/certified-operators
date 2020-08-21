@@ -10,18 +10,22 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
+import org.jooq.exception.MappingException;
 import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject.PlanProjectStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -32,6 +36,8 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanProject;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanProjectRecord;
+import com.vmturbo.plan.orchestrator.plan.IntegrityException;
+import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 
 /**
  * DAO backed by RDBMS to hold plan project.
@@ -62,18 +68,21 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
 
     @Nonnull
     @Override
-    public PlanProjectOuterClass.PlanProject createPlanProject(@Nonnull PlanProjectInfo info) {
+    public PlanProjectOuterClass.PlanProject createPlanProject(@Nonnull PlanProjectInfo info)
+            throws IntegrityException {
         LocalDateTime curTime = LocalDateTime.now();
 
-        PlanProject planProject = new
-                PlanProject(IdentityGenerator.next(), curTime, curTime, info,
-                info.getType().name());
-        dsl.newRecord(PLAN_PROJECT, planProject).store();
+        try {
+            PlanProject planProject = new
+                    PlanProject(IdentityGenerator.next(), curTime, curTime, info,
+                    info.getType().name(), PlanProjectStatus.READY.name());
+            dsl.newRecord(PLAN_PROJECT, planProject).store();
 
-        return PlanProjectOuterClass.PlanProject.newBuilder()
-                .setPlanProjectId(planProject.getId())
-                .setPlanProjectInfo(info)
-                .build();
+            return toPlanProjectDTO(planProject);
+        } catch (MappingException dbException) {
+            throw new IntegrityException("Unable to create plan project of type "
+                    + info.getType().name(), dbException);
+        }
     }
 
     @Nonnull
@@ -150,6 +159,60 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public PlanProjectOuterClass.PlanProject updatePlanProject(final long planProjectId,
+                                                               @Nullable final PlanProjectStatus newStatus,
+                                                               @Nullable final Long mainPlanId,
+                                                               @Nullable final List<Long> relatedPlanIds)
+            throws IntegrityException, NoSuchObjectException {
+        try {
+            final PlanProjectOuterClass.PlanProject oldPlanProject = getPlanProject(planProjectId)
+                    .orElseThrow(() -> new NoSuchObjectException("Plan project with id "
+                            + planProjectId + " not found while trying to update."));
+            LocalDateTime now = LocalDateTime.now();
+            final PlanProjectInfo.Builder builder = PlanProjectInfo.newBuilder(
+                    oldPlanProject.getPlanProjectInfo());
+            if (mainPlanId != null) {
+                builder.setMainPlanId(mainPlanId);
+            }
+            if (CollectionUtils.isNotEmpty(relatedPlanIds)) {
+                builder.addAllRelatedPlanIds(relatedPlanIds);
+            }
+            final PlanProjectInfo projectInfo = builder.build();
+
+            PlanProjectStatus projectStatus = newStatus == null
+                    ? oldPlanProject.getStatus() : newStatus;
+            final PlanProjectOuterClass.PlanProject planProject =
+                    PlanProjectOuterClass.PlanProject.newBuilder(oldPlanProject)
+                            .setStatus(projectStatus)
+                            .setPlanProjectInfo(projectInfo)
+                            .build();
+            int numRows = dsl.update(PLAN_PROJECT)
+                    .set(PLAN_PROJECT.UPDATE_TIME, now)
+                    .set(PLAN_PROJECT.STATUS, projectStatus.name())
+                    .set(PLAN_PROJECT.PROJECT_INFO, projectInfo)
+                    .where(PLAN_PROJECT.ID.eq(planProjectId))
+                    .execute();
+            if (numRows == 0) {
+                throw new NoSuchObjectException("Plan project with id " + planProjectId
+                        + " does not exist.");
+            }
+            return planProject;
+        } catch (DataAccessException e) {
+            if (e.getCause() instanceof NoSuchObjectException) {
+                throw (NoSuchObjectException)e.getCause();
+            } else if (e.getCause() instanceof IntegrityException) {
+                throw (IntegrityException)e.getCause();
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    /**
      * Convert pojos.PlanProject to PlanProjectOuterClass.PlanProject.
      *
      * @param planProject pojos.PlanProject the pojos.PlanProject from JOOQ
@@ -161,6 +224,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
         return PlanProjectOuterClass.PlanProject.newBuilder()
                 .setPlanProjectId(planProject.getId())
                 .setPlanProjectInfo(planProject.getProjectInfo())
+                .setStatus(PlanProjectStatus.valueOf(planProject.getStatus()))
                 .build();
     }
 
@@ -191,14 +255,14 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
      * serialized plan projects from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link StringDiagnosable#collectDiagsStream()}. Must be in the same order.
+     *      {@link StringDiagnosable#collectDiags(DiagnosticsAppender)}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains plan projects, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              plan project.
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
-
+    public void restoreDiags(@Nonnull final List<String> collectedDiags)
+            throws DiagnosticsException {
         final List<String> errors = new ArrayList<>();
 
         final List<PlanProjectOuterClass.PlanProject> preexisting = getAllPlanProjects();
@@ -259,14 +323,17 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
      * @param planProject the plan project to add
      * @return an optional of a string representing any error that may have occurred
      */
-    private Optional<String> restorePlanProject(@Nonnull final PlanProjectOuterClass.PlanProject planProject) {
+    private Optional<String> restorePlanProject(@Nonnull final PlanProjectOuterClass.PlanProject
+                                                        planProject) {
         LocalDateTime curTime = LocalDateTime.now();
 
         PlanProject record = new PlanProject(planProject.getPlanProjectId(), curTime, curTime,
-            planProject.getPlanProjectInfo(), planProject.getPlanProjectInfo().getType().name());
+            planProject.getPlanProjectInfo(), planProject.getPlanProjectInfo().getType().name(),
+                planProject.getStatus().name());
         try {
             int r = dsl.newRecord(PLAN_PROJECT, record).store();
-            return r == 1 ? Optional.empty() : Optional.of("Failed to restore plan project " + planProject);
+            return r == 1 ? Optional.empty() : Optional.of("Failed to restore plan project "
+                    + planProject);
         } catch (DataAccessException e) {
             return Optional.of("Could not restore plan project " + planProject +
                 " because of DataAccessException "+ e.getMessage());

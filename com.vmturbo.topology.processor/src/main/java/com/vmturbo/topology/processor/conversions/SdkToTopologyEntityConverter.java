@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.conversions;
 
 import java.util.Collections;
+import java.util.function.BiFunction;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,6 +34,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.RatioDependency;
@@ -60,6 +64,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.TagValues;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.stitching.utilities.CopyActionEligibility;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountInfoMapper;
@@ -181,6 +186,93 @@ public class SdkToTopologyEntityConverter {
         return builder.build();
     }
 
+    // TODO: This function will be moved into newTopologyEntityDTO when VVs are ready to handle num_disks (OM-59261)
+
+    /**
+     * This is the original logic without any notion of numDisk- generate a list of
+     * CommodityBoughtDTO purchased from a single provider.
+     *
+     * @return a BiFunction that returns a list of CommodityBoughtDTO purchased from a single provider
+     */
+    private static BiFunction<Map.Entry<StitchingEntity, List<CommoditiesBought>>, CommoditiesBought, List<CommodityBoughtDTO>> getCommoditiesBoughtLambda() {
+        return (entry, commodityBought) -> commodityBought.getBoughtList().stream()
+                .map(commDTO -> newCommodityBoughtDTO(commDTO, entry.getKey().getCommoditiesSold()))
+                .collect(Collectors.toList());
+    }
+
+    // TODO: This function will be removed when VVs are ready to handle num_disks (OM-59261)
+    /**
+     * Given a value of numDisks, generate a list of CommodityBoughtDTO corresponding to a single
+     * provider, and add an addition bought numDisk commodity if the provider is a PM.
+     * @param numDisks the numDisk value derived from diskToStorage
+     * @return a list of CommodityBoughtDTO bought from a given provider
+     */
+    private static BiFunction<Map.Entry<StitchingEntity, List<CommoditiesBought>>, CommoditiesBought, List<CommodityBoughtDTO>> getCommoditiesBoughtWithNumDisksLambda(
+            long numDisks) {
+        return (entry, commodityBought) -> {
+            final List<CommodityBoughtDTO> toAdd = getCommoditiesBoughtLambda().apply(entry, commodityBought);
+            final StitchingEntity key = entry.getKey();
+            if (EntityType.PHYSICAL_MACHINE.equals(key.getEntityType())) {
+                toAdd.add(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.NUM_DISK_VALUE))
+                        .setUsed(numDisks)
+                        .build());
+            }
+            return toAdd;
+        };
+    }
+
+    // TODO: This code will be removed, and numDisks commodity created in plan when VVs are ready (OM-59261)
+
+    /**
+     * If we're processing a VM that has a diskToStorage map, it should buy the numDisk commodity
+     * from it's PM provider.
+     *
+     * @param entity the {@link TopologyStitchingEntity} from which the dto is derived
+     * @param dto the {@link CommonDTO.EntityDTOOrBuilder} derived from {@param entity} used to
+     * determine whether we're processing a VM with a diskToStorage map
+     * @return whether or not this entity should buy numDisk
+     */
+    public static boolean shouldBuyNumDisk(
+            @Nonnull final TopologyStitchingEntity entity,
+            @Nonnull final CommonDTO.EntityDTOOrBuilder dto) {
+        if (!dto.hasVirtualMachineData()
+                || MapUtils.isEmpty(dto.getVirtualMachineData().getDiskToStorageMap())) {
+            return false;
+        }
+        final boolean buysNumDisk = entity.getCommodityBoughtListByProvider().values().stream()
+                .flatMap(commBought -> commBought.stream())
+                .anyMatch(boughCommodities -> boughCommodities.getBoughtList().stream()
+                        .anyMatch(boughtCommodity ->
+                                CommodityDTO.CommodityType.NUM_DISK.equals(boughtCommodity.getCommodityType())));
+        return buysNumDisk ? false : true;
+    }
+
+    // TODO: This code will be removed, and numDisks commodity created in plan when VVs are ready (OM-59261)
+    /**
+     * If we're processing a Physical Machine, add a sold numDisk commodity. VMs with diskToStorage
+     * maps must buy this commodity from their corresponding PM.
+     *
+     * @param dto entity currently being processed
+     * @param soldList the list of commodities already being sold by {@param dto}
+     * @return whether or not the processed entity should sell a numDisk commodity
+     */
+    public static boolean shouldSellNumDisk(
+            @Nonnull final CommonDTO.EntityDTOOrBuilder dto,
+            @Nonnull List<TopologyDTO.CommoditySoldDTO> soldList) {
+        if (!dto.hasPhysicalMachineData()) {
+            return false;
+        }
+        if (CollectionUtils.isEmpty(soldList)) {
+            return true;
+        }
+        final boolean pmSellsNumDisk = soldList.stream().anyMatch(
+                commoditySold -> CommodityDTO.CommodityType.NUM_DISK.equals(
+                        commoditySold.getCommodityType()));
+        return pmSellsNumDisk ? false : true;
+    }
+
     /**
      * Convert one probe entity DTO to one topology entity DTO.
      *
@@ -225,6 +317,19 @@ public class SdkToTopologyEntityConverter {
                 return builder.build();
             }).collect(Collectors.toList());
 
+        // TODO: This code will be removed, and numDisks commodity created in plan when VVs are ready (OM-59261)
+        if (shouldSellNumDisk(dto, soldList)) {
+            soldList.add(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.NUM_DISK_VALUE).build())
+                    .setCapacity(Double.valueOf(SDKConstants.UNLIMITED_CAPACITY))
+                    .build());
+        }
+        final BiFunction<Map.Entry<StitchingEntity, List<CommoditiesBought>>, CommoditiesBought, List<CommodityBoughtDTO>> getCommoditiesBought =
+                shouldBuyNumDisk(entity, dto)
+                        ? getCommoditiesBoughtWithNumDisksLambda(
+                                Math.max(0, dto.getVirtualMachineData().getDiskToStorageCount() - 1))
+                        : getCommoditiesBoughtLambda();
         // list of commodities bought from different providers (there may be multiple
         // CommoditiesBoughtFromProvider for same provider)
         List<CommoditiesBoughtFromProvider> boughtList =
@@ -234,10 +339,7 @@ public class SdkToTopologyEntityConverter {
                         CommoditiesBoughtFromProvider.Builder cbBuilder =
                             CommoditiesBoughtFromProvider.newBuilder()
                                 .setProviderId(entry.getKey().getOid())
-                                .addAllCommodityBought(commodityBought.getBoughtList().stream()
-                                    .map(commDTO -> newCommodityBoughtDTO(commDTO,
-                                        entry.getKey().getCommoditiesSold()))
-                                    .collect(Collectors.toList()))
+                                .addAllCommodityBought(getCommoditiesBought.apply(entry, commodityBought))
                                 .setProviderEntityType(entry.getKey().getEntityType().getNumber());
                         Long volumeId = commodityBought.getVolumeId();
                         if (volumeId != null) {
@@ -253,7 +355,6 @@ public class SdkToTopologyEntityConverter {
                     })
                 )
                 .collect(Collectors.toList());
-
         // Create a Set of connected-to entities.
         // Here we use a Set because the same stitchingEntity can appear multiple times in the
         // connected entity set, e.g. one business account can be discovered by multiple targets.

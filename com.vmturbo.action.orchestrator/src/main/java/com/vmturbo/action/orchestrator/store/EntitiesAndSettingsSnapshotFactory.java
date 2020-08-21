@@ -59,6 +59,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.setting.SettingAndPolicies;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -134,6 +135,8 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         private final long topologyContextId;
         private final TopologyType topologyType;
         private final long populationTimestamp;
+        @Nullable
+        private TopologyInfo topologyInfo;
 
         /**
          * Constructor of {@link EntitiesAndSettingsSnapshot}.
@@ -233,6 +236,34 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         @Nonnull
         public TopologyType getTopologyType() {
             return topologyType;
+        }
+
+        /**
+         * Sets optional topology info, for plans.
+         *
+         * @param topologyInfo Topology info for plans.
+         */
+        public void setTopologyInfo(@Nullable final TopologyInfo topologyInfo) {
+            this.topologyInfo = topologyInfo;
+        }
+
+        /**
+         * Gets topology info.
+         *
+         * @return Topology info, can be null.
+         */
+        @Nullable
+        public TopologyInfo getTopologyInfo() {
+            return topologyInfo;
+        }
+
+        /**
+         * Checks if TopologyInfo is null.
+         *
+         * @return Whether TopologyInfo is set.
+         */
+        public boolean hasTopologyInfo() {
+            return topologyInfo != null;
         }
 
         /**

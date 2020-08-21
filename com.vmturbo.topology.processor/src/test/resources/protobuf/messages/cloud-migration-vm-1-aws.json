@@ -1,0 +1,276 @@
+{
+  "entityType": 10,
+  "oid": "73320835644076",
+  "displayName": "Turbo-datadog",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 56,
+      "key": "73320835644076"
+    },
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 53
+    },
+    "capacity": 8388608.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "hotResizeInfo": {
+      "hotReplaceSupported": false,
+      "hotAddSupported": false
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 26
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 22688.19921875,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "hotResizeInfo": {
+      "hotReplaceSupported": false,
+      "hotAddSupported": false,
+      "hotRemoveSupported": false
+    },
+    "displayName": "",
+    "utilizationData": {
+      "point": [0.0, 0.0],
+      "lastPointTimestampMs": "1593157200000",
+      "intervalMs": 300000
+    }
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "73320835644202",
+    "providerEntityType": 56,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 40
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": "",
+      "reservedCapacity": 0.0
+    }, {
+      "commodityType": {
+        "type": 28
+      },
+      "used": 22688.19921875,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 104
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 39
+      },
+      "used": 2.175,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 45
+      },
+      "used": 8388608.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 84,
+        "key": "UNKNOWN"
+      },
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 83,
+        "key": "DEFAULT"
+      },
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 21
+      },
+      "active": true,
+      "displayName": "",
+      "reservedCapacity": 0.0
+    }, {
+      "commodityType": {
+        "type": 47
+      },
+      "used": 0.45226399739583334,
+      "peak": 0.6401204427083333,
+      "active": true,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73320835643859",
+    "providerEntityType": 55,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 87,
+        "key": "aws::us-east-1::PM::us-east-1d"
+      },
+      "active": true,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73320835644316",
+    "providerEntityType": 60,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.39666666666666667,
+      "peak": 0.09333333333333334,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 59,
+        "key": "Group::elasticStorageClusterBootDisk"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 1.485563025210084,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 153600.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 39
+      },
+      "used": 0.0169921875,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 6
+      },
+      "used": 153600.0,
+      "active": true,
+      "displayName": ""
+    }],
+    "movable": false,
+    "startable": false,
+    "scalable": false
+  }],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "Agent": "Datadog",
+    "enhancedNetworkingType": "ENA",
+    "virtualizationType": "HVM",
+    "ebsOptimized": "true",
+    "NVMe": "true",
+    "numCpus": "2",
+    "tenancy": "default",
+    "isEbsOptimized": "true",
+    "turbo_lifetime": "",
+    "turbo_owner": "endre.sara@turbonomic.com",
+    "AutoSuspend": "False",
+    "isEnaSupported": "true",
+    "turbo_expiration": "2019-11-15",
+    "turbo_comment": "",
+    "region": "us-east-1",
+    "architecture": "64-bit"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1593158612166",
+      "discoveredTargetData": {
+        "73320153769232": {
+          "vendorId": "i-0c53dfcd39d8891f2"
+        }
+      }
+    }
+  },
+  "connectedEntityList": [{
+    "connectedEntityId": "73320835643859",
+    "connectedEntityType": 55,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }],
+  "tags": {
+    "tags": {
+      "turbo_owner": {
+        "values": ["endre.sara@turbonomic.com"]
+      },
+      "AutoSuspend": {
+        "values": ["False"]
+      },
+      "Agent": {
+        "values": ["Datadog"]
+      },
+      "turbo_expiration": {
+        "values": ["2019-11-15"]
+      },
+      "turbo_comment": {
+        "values": [""]
+      },
+      "turbo_lifetime": {
+        "values": [""]
+      }
+    }
+  },
+  "environmentType": "CLOUD",
+  "typeSpecificInfo": {
+    "virtualMachine": {
+      "guestOsInfo": {
+        "guestOsType": "UNKNOWN_OS",
+        "guestOsName": "turbonomic-opsmgr-610-854e84fc-e1d3-4392-847f-868b4c2ed137-ami-4366e43c.4"
+      },
+      "tenancy": "DEFAULT",
+      "ipAddresses": [{
+        "ipAddress": "52.23.192.106",
+        "isElastic": false
+      }, {
+        "ipAddress": "172.32.49.47",
+        "isElastic": false
+      }],
+      "numCpus": 2,
+      "billingType": "ONDEMAND",
+      "licenseModel": "LICENSE_INCLUDED",
+      "driverInfo": {
+        "hasEnaDriver": true,
+        "hasNvmeDriver": true
+      },
+      "architecture": "BIT_64",
+      "virtualizationType": "HVM",
+      "dynamicMemory": false
+    }
+  }
+}

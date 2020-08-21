@@ -32,6 +32,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
+import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -159,7 +160,8 @@ public class CompoundMoveTest {
                 Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,
                 mock(EntityAspectMapper.class), virtualVolumeAspectMapper,
                 REAL_TIME_TOPOLOGY_CONTEXT_ID, null, null, serviceEntityMapper,
-                supplyChainService, Mockito.mock(PoliciesService.class));
+                supplyChainService, Mockito.mock(PoliciesService.class),
+                mock(ReservedInstancesService.class));
 
         CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -176,7 +178,8 @@ public class CompoundMoveTest {
                 costServiceBlockingStub,
                 reservedInstanceUtilizationCoverageServiceBlockingStub,
                 mock(BuyRiScopeHandler.class),
-                REAL_TIME_TOPOLOGY_CONTEXT_ID);
+                REAL_TIME_TOPOLOGY_CONTEXT_ID,
+                mock(UuidMapper.class));
         IdentityGenerator.initPrefix(0);
 
         final MultiEntityRequest multiReq = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(

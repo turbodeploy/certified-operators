@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,6 +65,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor.FastLookupQueue;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
  * Unit tests for {@link PlanTopologyScopeEditor}.
@@ -351,6 +353,22 @@ public class PlanTopologyScopeEditorTest {
                 appAws, appAzure, unattachedVirtualVolumeInCentralUs,
                 unattachedVirtualVolumeInLondon, virtualVolume2InCanada);
 
+
+    private final TopologyGraph<TopologyEntity> cloudMigrationGraph = TopologyEntityUtils
+            .topologyGraphOf(bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
+                    pm2InDc1, pmInDc2, dc1, dc2, st1, st2, da1, as1,
+                    as2, az1London, az2London, azOhio,
+                    az1HongKong, az2HongKong, regionLondon, regionOhio,
+                    regionHongKong, computeTier, vm1InLondon,
+                    vm2InLondon, dbLondon, dbsLondon, dbsHongKong,
+                    vmInOhio, vmInHongKong, businessAcc1, businessAcc2, businessAcc3,
+                    virtualVolumeInOhio, virtualVolumeInLondon, virtualVolumeInHongKong,
+                    storageTier, regionCentralUs, regionCanada, dbCentralUs, dbsCentralUs,
+                    computeTier2, storageTier2, virtualVolumeInCentralUs,
+                    vmInCentralUs, virtualVolumeInCanada, vmInCanada, businessAcc4, cloudService,
+                    appAws, appAzure, unattachedVirtualVolumeInCentralUs,
+                    unattachedVirtualVolumeInLondon, virtualVolume2InCanada);
+
     private final Set<TopologyEntity.Builder> expectedEntitiesForAwsRegion = Stream
         .of(az1London, az2London, regionLondon, computeTier,
                 vm1InLondon, vm2InLondon, dbLondon, dbsLondon, businessAcc1,
@@ -429,6 +447,8 @@ public class PlanTopologyScopeEditorTest {
     private final GroupResolver groupResolver = mock(GroupResolver.class);
     private PlanTopologyScopeEditor planTopologyScopeEditor;
     private final GroupServiceMole groupServiceClient = spy(new GroupServiceMole());
+
+    final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceClient);
@@ -581,7 +601,8 @@ public class PlanTopologyScopeEditorTest {
                         .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
                         .addAllScopeSeedOids(oidsList)
                         .build();
-        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeCloudTopology(cloudTopologyInfo, graph);
+        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeTopology(
+                cloudTopologyInfo, graph, context);
         Assert.assertEquals(expectedEntities.size(), result.size());
         expectedEntities.forEach(entity -> assertTrue(entity.getOid() + " is missing", result.getEntity(entity.getOid())
                         .isPresent()));
@@ -1005,6 +1026,40 @@ public class PlanTopologyScopeEditorTest {
         return TopologyEntityUtils.connectedTopologyEntity(oid, targetId, 0,
                                                            displayName, EntityType.REGION,
                                                            connectedAvailabilityZones);
+    }
+
+    /**
+     * Test the migration of an on-prem VM to the cloud AWS London region.
+     * The plan scope should contain:
+     * 1. The cloud entities of the destination region
+     * 2. The on-prem VM and its providers
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testScopeCloudMigrationPlanOnPremToAwsRegion() {
+        final TopologyInfo cloudTopologyInfo = TopologyInfo.newBuilder()
+                .setTopologyContextId(1)
+                .setTopologyId(1)
+                .setTopologyType(TopologyType.PLAN)
+                .setPlanInfo(PlanTopologyInfo.newBuilder()
+                        .setPlanType(PlanProjectType.CLOUD_MIGRATION.name())
+                        .build())
+                .addAllScopeSeedOids(Collections.singleton(regionLondon.getOid()))
+                .build();
+        final Set<TopologyEntity.Builder> awsRegionExpectedEntities = Stream
+                .of(vm1InDc1, pm1InDc1, da1, st1, dc1, regionLondon, virtualVolume,
+                        computeTier, storageTier)
+                .collect(Collectors.toSet());
+        final Set<Long> sourceVMOids = new HashSet<>();
+        sourceVMOids.add(vm1InDc1.getOid());
+        when(context.getSourceEntities()).thenReturn(sourceVMOids);
+        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeTopology(
+                cloudTopologyInfo, cloudMigrationGraph, context);
+        // Now we use generic scoping, that pulls in more entities than directly connected ones.
+        Assert.assertEquals(19, result.size());
+        awsRegionExpectedEntities.forEach(entity -> assertTrue(entity.getOid()
+                + " is missing", result.getEntity(entity.getOid()).isPresent()));
     }
 
     private static TopologyEntity.Builder createCloudVm(

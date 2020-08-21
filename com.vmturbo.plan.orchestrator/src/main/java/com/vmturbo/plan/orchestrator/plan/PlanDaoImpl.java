@@ -159,6 +159,12 @@ public class PlanDaoImpl implements PlanDao {
     @Override
     public PlanDTO.PlanInstance createPlanInstance(@Nonnull CreatePlanRequest planRequest)
             throws IntegrityException {
+        // If specific scenario instance is already specified, use the other method.
+        if (planRequest.hasScenarioId() && planRequest.hasProjectType()
+                && planRequest.hasPlanProjectId()) {
+            return createPlanInstance(planRequest.getScenarioId(), planRequest.getProjectType(),
+                    planRequest.getPlanProjectId(), planRequest.getName());
+        }
 
         final PlanDTO.PlanInstance.Builder builder = PlanDTO.PlanInstance.newBuilder();
 
@@ -181,6 +187,9 @@ public class PlanDaoImpl implements PlanDao {
             builder.setScenario(scenario);
             builder.setName(scenario.getScenarioInfo().getName());
         }
+        if (planRequest.hasName()) {
+            builder.setName(planRequest.getName());
+        }
         builder.setPlanId(IdentityGenerator.next());
         builder.setStatus(PlanStatus.READY);
         builder.setProjectType(PlanProjectType.USER);
@@ -195,20 +204,46 @@ public class PlanDaoImpl implements PlanDao {
     }
 
     /**
+     * Create a plan instance in DB with the given scenario (should exist) and project id.
+     *
+     * @param scenarioId Id of plan existing scenario.
+     * @param planProjectType Project type of plan.
+     * @param planProjectId Id of plan project.
+     * @param planName Name of plan.
+     * @return Instance of plan.
+     * @throws IntegrityException Thrown on create constraint violation.
+     */
+    @Nonnull
+    private PlanDTO.PlanInstance createPlanInstance(@Nonnull final Long scenarioId,
+                                                   @Nonnull final PlanProjectType planProjectType,
+                                                   @Nullable final Long planProjectId,
+                                                   @Nullable final String planName)
+            throws IntegrityException {
+        final Scenario scenario = ensureScenarioExist(scenarioId);
+        return createPlanInstance(scenario, planProjectType, planProjectId, planName);
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
     @Nonnull
     public PlanDTO.PlanInstance createPlanInstance(@Nonnull final Scenario scenario,
-                                                   @Nonnull final PlanProjectType planProjectType)
+                                                   @Nonnull final PlanProjectType planProjectType,
+                                                   @Nullable final Long planProjectId,
+                                                   @Nullable final String planName)
             throws IntegrityException {
-
         final PlanDTO.PlanInstance.Builder planInstanceBuilder = PlanDTO.PlanInstance.newBuilder()
                 .setScenario(scenario)
                 .setPlanId(IdentityGenerator.next())
                 .setStatus(PlanStatus.READY)
                 .setProjectType(planProjectType);
-
+        if (planProjectId != null) {
+            planInstanceBuilder.setPlanProjectId(planProjectId);
+        }
+        if (planName != null) {
+            planInstanceBuilder.setName(planName);
+        }
         // we'll set the createdByUser to either the user from the calling context, or SYSTEM if
         // a user is not found.
         Optional<String> userId = UserContextUtils.getCurrentUserId();

@@ -35,6 +35,7 @@ import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.MigratedWorkloadCloudCommitmentConfig;
 import com.vmturbo.cost.component.rpc.CostDebugConfig;
 import com.vmturbo.cost.component.stats.CostStatsConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
@@ -60,7 +61,8 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CostStatsConfig.class,
     CostPlanListenerConfig.class,
     ReservedInstanceSpecConfig.class,
-    CostDiagnosticsConfig.class})
+    CostDiagnosticsConfig.class,
+    MigratedWorkloadCloudCommitmentConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.
@@ -108,6 +110,9 @@ public class CostComponent extends BaseVmtComponent {
 
     @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
+
+    @Autowired
+    private MigratedWorkloadCloudCommitmentConfig migratedWorkloadCloudCommitmentConfig;
 
     /**
      * Starts the component.
@@ -165,7 +170,8 @@ public class CostComponent extends BaseVmtComponent {
             costDebugConfig.costDebugRpcService(),
             buyRIAnalysisConfig.buyReservedInstanceRpcService(),
             buyRIAnalysisConfig.riBuyContextFetchRpcService(),
-            costDebugConfig.traxConfigurationRpcService());
+            costDebugConfig.traxConfigurationRpcService(),
+            migratedWorkloadCloudCommitmentConfig.migratedWorkloadCloudCommitmentAnalysisService());
     }
 
     @Nonnull

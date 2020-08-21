@@ -306,7 +306,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     Lists.partition(paginatedViews.getResults(), actionPaginationMaxLimit)
                             .forEach(batch -> {
                                 ActionChunk.Builder actionChunk = ActionChunk.newBuilder();
-                                actionTranslator.translateToSpecs(batch)
+                                actionTranslator.translateToSpecs(batch, actionStore)
                                         .map(ActionsRpcService::aoAction)
                                         .forEach(actionChunk::addActions);
                                 responseObserver.onNext(FilteredActionResponse.newBuilder()

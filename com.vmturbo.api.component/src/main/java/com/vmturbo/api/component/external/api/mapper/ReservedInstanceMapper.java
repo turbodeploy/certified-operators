@@ -205,6 +205,9 @@ public class ReservedInstanceMapper {
         reservedInstanceApiDTO.setCoveredEntityCount(coveredEntitiesCount);
         reservedInstanceApiDTO.setUndiscoveredAccountsCoveredCount(
                 coveredUndiscoveredAccountsCount);
+        // Set the toBuy field based on the value in the ReservedInstanceBoughtInfo
+        reservedInstanceApiDTO.setToBuy(reservedInstanceBoughtInfo.getToBuy());
+
         return reservedInstanceApiDTO;
     }
 

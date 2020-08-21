@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -294,6 +296,20 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
     }
 
     /**
+     * Checks to see if entity is an onPrem volume.
+     *
+     * @param entity Entity to check.
+     * @return Whether entity is onPrem volume - is a volume and if no owner or owner not a BA.
+     */
+    private static boolean isOnPremVolume(final TopologyEntity entity) {
+        if (entity.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE) {
+            return false;
+        }
+        final Optional<TopologyEntity> owner = entity.getOwner();
+        return !owner.isPresent() || owner.get().getEntityType() != BUSINESS_ACCOUNT_VALUE;
+    }
+
+    /**
      * Segment the consumers from the rest of the topology by having each of them buy a
      * segmentation commodity specific to this policy.
      *
@@ -308,41 +324,77 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                                       @Nonnull final CommodityBoughtDTO segmentationCommodity)
         throws PolicyApplicationException {
         for (Long consumerId : consumers) {
-            final Optional<Long> volumeId = topologyGraph.getEntity(consumerId)
-                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
-                .map(TopologyEntity::getOid);
-            Optional<TopologyEntityDTO.Builder> optConsumer = getPolicyConsumerEntity(consumerId).map(TopologyEntity::getTopologyEntityDtoBuilder);
-            if (optConsumer.isPresent()) {
-                final TopologyEntityDTO.Builder consumer = optConsumer.get();
-
-                // Separate commoditiesBoughtFromProvider into two category:
-                // Key is True: list of commodityBought group, whose provider entity type matches
-                // with given providerType (and volumeId matches if consumer is VirtualVolume)
-                // Key is False: list of commodityBought group, whose provider entity type doesn't
-                // match with given providerType (or volumeId doesn't match if consumer is VirtualVolume)
-                final Map<Boolean, List<CommoditiesBoughtFromProvider>> commodityBoughtsChangeMap =
-                        consumer.getCommoditiesBoughtFromProvidersList().stream()
-                                .collect(Collectors.partitioningBy(commodityBoughtGroup ->
-                                        shouldAddSegmentToCommodityBought(commodityBoughtGroup, topologyGraph,
-                                                providerType, volumeId)));
-
-                // All Commodity Bought list which should be added segmentation commodity
-                final List<CommoditiesBoughtFromProvider> commodityBoughtsToAddSegment = commodityBoughtsChangeMap.get(true);
-                // All Commodity Bought list which should not be added segmentation commodity
-                final List<CommoditiesBoughtFromProvider> commodityBoughtsToNotAddSegment = commodityBoughtsChangeMap.get(false);
-                // If there is no matched provider type and volumeId, it means the consumer doesn't
-                // buy any commodity from this provider type. For example, VM1 buying ST1, and VM2
-                // not buying ST at all, If create a policy to Force VM1 and VM2 to buy ST1,
-                // it should throw exception, because VM2 doesn't buy any Storage type.
-                if (commodityBoughtsToAddSegment.isEmpty()) {
-                    throw new PolicyApplicationException("Unable to apply consumer segment when no "
-                        + "provider type " + providerType);
-                }
-                // For each bundle of commodities bought for the entity type that matches the
-                // provider type and volumeId, add the segmentation commodity.
-                addCommodityBoughtForProviders(segmentationCommodity, consumer,
-                        commodityBoughtsToAddSegment, commodityBoughtsToNotAddSegment);
+            final Optional<TopologyEntity> optionalConsumer = topologyGraph.getEntity(consumerId);
+            if (!optionalConsumer.isPresent()) {
+                continue;
             }
+            final TopologyEntity entity = optionalConsumer.get();
+
+            final TopologyEntityDTO.Builder consumer;
+            final Optional<Long> volumeId;
+            if (isOnPremVolume(entity)) {
+                // if it's volume, the real consumer should be the VM which uses this volume
+                Optional<TopologyEntity> optVM = entity
+                    .getInboundAssociatedEntities()
+                    .stream()
+                    .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                    .findFirst();
+                if (!optVM.isPresent()) {
+                    // Check consumes relation also, inboundAssociatedEntities doesn't seem to
+                    // be set at least for cloud migration case.
+                    optVM = entity
+                            .getConsumers()
+                            .stream()
+                            .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                            .findFirst();
+                }
+                if (!optVM.isPresent()) {
+                    // the volume is not used by any VM, which means it is a wasted volume,
+                    // so we can't add segmentation commodity to related VM
+                    logger.debug("Skipping applying consumer segment for wasted volume: {}", consumerId);
+                    continue;
+                }
+                // consumer should be the VM which is connected to this volume
+                consumer = optVM.get().getTopologyEntityDtoBuilder();
+                volumeId = Optional.of(consumerId);
+            } else {
+                // We come here if either entity is not a volume (e.g is a VM) or if it is a
+                // cloud volume, in which case we create policy on that volume, instead of the VM,
+                // so consumer in this case should be the cloud volume.
+                // Set the volumeId to empty, as we cannot use the volumeId in the
+                // commBoughtGrouping from volume -> storageTier. In this case, only check
+                // the providerType to verify it matches with cloud storageTier.
+                consumer = entity.getTopologyEntityDtoBuilder();
+                volumeId = Optional.empty();
+            }
+
+            // Separate commoditiesBoughtFromProvider into two category:
+            // Key is True: list of commodityBought group, whose provider entity type matches
+            // with given providerType (and volumeId matches if consumer is VirtualVolume)
+            // Key is False: list of commodityBought group, whose provider entity type doesn't
+            // match with given providerType (or volumeId doesn't match if consumer is VirtualVolume)
+            final Map<Boolean, List<CommoditiesBoughtFromProvider>> commodityBoughtsChangeMap =
+                consumer.getCommoditiesBoughtFromProvidersList().stream()
+                    .collect(Collectors.partitioningBy(commodityBoughtGroup ->
+                        shouldAddSegmentToCommodityBought(commodityBoughtGroup, topologyGraph,
+                            providerType, volumeId)));
+
+            // All Commodity Bought list which should be added segmentation commodity
+            final List<CommoditiesBoughtFromProvider> commodityBoughtsToAddSegment = commodityBoughtsChangeMap.get(true);
+            // All Commodity Bought list which should not be added segmentation commodity
+            final List<CommoditiesBoughtFromProvider> commodityBoughtsToNotAddSegment = commodityBoughtsChangeMap.get(false);
+            // If there is no matched provider type and volumeId, it means the consumer doesn't
+            // buy any commodity from this provider type. For example, VM1 buying ST1, and VM2
+            // not buying ST at all, If create a policy to Force VM1 and VM2 to buy ST1,
+            // it should throw exception, because VM2 doesn't buy any Storage type.
+            if (commodityBoughtsToAddSegment.isEmpty()) {
+                throw new PolicyApplicationException("Unable to apply consumer segment when no "
+                        + "provider type " + providerType);
+            }
+            // For each bundle of commodities bought for the entity type that matches the
+            // provider type and volumeId, add the segmentation commodity.
+            addCommodityBoughtForProviders(segmentationCommodity, consumer,
+                commodityBoughtsToAddSegment, commodityBoughtsToNotAddSegment);
         }
     }
 

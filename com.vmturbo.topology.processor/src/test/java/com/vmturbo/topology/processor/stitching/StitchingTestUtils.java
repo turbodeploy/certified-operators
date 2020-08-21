@@ -26,6 +26,7 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -280,14 +281,26 @@ public class StitchingTestUtils {
                 final TopologyEntityDTO firstEntity = (TopologyEntityDTO) o;
                 final TopologyEntityDTO firstEntityWithoutBought = firstEntity.toBuilder()
                     .clearCommoditiesBoughtFromProviders()
+                    // TODO: This code will be removed, and numDisks commodity created in plan when VVs are ready (OM-59261)
+                    .clearCommoditySoldList()
                     .clearOrigin()
                     .build();
                 final TopologyEntityDTO secondEntityWithoutBought = secondEntity.toBuilder()
                     .clearCommoditiesBoughtFromProviders()
+                    // TODO: This code will be removed, and numDisks commodity created in plan when VVs are ready (OM-59261)
+                    .clearCommoditySoldList()
                     .clearOrigin()
                     .build();
 
-                if (!firstEntityWithoutBought.equals(secondEntityWithoutBought)) {
+
+                // TODO: This code will be removed, and numDisks commodity created in plan when VVs are ready (OM-59261)
+                final Set<CommoditySoldDTO> firstSoldCommodities = firstEntity.getCommoditySoldListList().stream()
+                        .filter(x -> CommodityType.NUM_DISK.equals(x.getCommodityType()))
+                        .collect(Collectors.toSet());
+                final Set<CommoditySoldDTO> secondSoldCommodities = secondEntity.getCommoditySoldListList().stream()
+                        .filter(x -> CommodityType.NUM_DISK.equals(x.getCommodityType()))
+                        .collect(Collectors.toSet());
+                if (!firstSoldCommodities.equals(secondSoldCommodities)) {
                     return false;
                 }
 

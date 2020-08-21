@@ -1,0 +1,31 @@
+{
+  "entity_type": 57,
+  "oid": 73363299852962,
+  "display_name": "GP2",
+  "commodity_sold_list": [{
+    "commodityType": {
+      "type": 64
+    },
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "historical_used": {
+      "hist_utilization": 0.0
+    },
+    "historical_peak": {
+      "hist_utilization": 0.0
+    },
+    "display_name": ""
+  }],
+  "entity_state": "POWERED_ON",
+  "analysis_settings": {
+    "is_available_as_provider": true,
+    "shop_together": false,
+    "is_eligible_for_resize_down": true,
+    "controllable": true,
+    "provider_must_clone": false,
+    "deletable": true
+  },
+  "environment_type": "CLOUD"
+}

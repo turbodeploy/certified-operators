@@ -1105,6 +1105,11 @@
         "connectionType": "OWNS_CONNECTION"
       },
       {
+        "connectedEntityId": "72623594843371",
+        "connectedEntityType": 10,
+        "connectionType": "OWNS_CONNECTION"
+      },
+      {
         "connectedEntityId": "72623594843399",
         "connectedEntityType": 46,
         "connectionType": "OWNS_CONNECTION"

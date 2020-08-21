@@ -6,6 +6,7 @@ import static org.junit.Assert.fail;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
@@ -17,6 +18,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject.PlanProjectStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence;
@@ -81,10 +83,18 @@ public class PlanProjectDaoImplTest {
                 .setRecurrence(recurrence)
                 .setType(planProjectType)
                 .build();
-        planProjectDao.createPlanProject(planProjectInfo);
+        PlanProject result = planProjectDao.createPlanProject(planProjectInfo);
+        assertEquals(PlanProjectStatus.READY, result.getStatus());
 
         projectList = planProjectDao.getPlanProjectsByType(planProjectType);
         assertEquals(projectList.size(), numOfHeadroomProjectsBeforeInsert + 1);
+
+        Optional<PlanProject> createdPlanProject = projectList.stream()
+            .filter(planProject -> planProject.getPlanProjectId() == result.getPlanProjectId())
+            .findAny();
+
+        assertTrue(createdPlanProject.isPresent());
+        assertEquals(PlanProjectStatus.READY, createdPlanProject.get().getStatus());
     }
 
     @Test
@@ -135,10 +145,10 @@ public class PlanProjectDaoImplTest {
         final List<String> diags = Arrays.asList(
             "{\"planProjectId\":\"1997789474912\",\"planProjectInfo\":{\"name\":" +
                 "\"Plan Project 1\",\"recurrence\":{\"schedule\":{\"daily\":{}},\"timeOfRun\":" +
-                "{\"hour\":5}},\"type\":\"USER\"}}",
+                "{\"hour\":5}},\"type\":\"USER\"},\"status\":\"SUCCEEDED\"}",
             "{\"planProjectId\":\"1997789479760\",\"planProjectInfo\":{\"name\":" +
                 "\"Plan Project 2\",\"recurrence\":{\"schedule\":{\"daily\":{}},\"timeOfRun\":" +
-                "{\"hour\":5}},\"type\":\"CLUSTER_HEADROOM\"}}"
+                "{\"hour\":5}},\"type\":\"CLUSTER_HEADROOM\"},\"status\":\"SUCCEEDED\"}"
         );
         try {
             planProjectDao.restoreDiags(diags);

@@ -35,6 +35,7 @@ import static org.jooq.impl.DSL.row;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -62,6 +63,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -192,6 +194,12 @@ public class HistorydbIO extends BasedbIO {
 
     @Value("${maxUsedLookbackDays:90}")
     private int maxUsedLookbackDays;
+
+    /**
+     * The number of days to look back when GetEntityCommoditiesMaxValuesRequest::useHistoricalCommBoughtLookbackDays is true.
+     */
+    @Value("${historicalCommBoughtLookbackDays:30}")
+    public int historicalCommBoughtLookbackDays;
 
     // Mapping from the retention settings DB column name -> Setting name
     private final ImmutableBiMap<String, String> retentionDbColumnNameToSettingName =
@@ -1549,6 +1557,124 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
+     * This method will prepare creating the temporary table sql statement.
+     *
+     * @param tempTableName the name of the temp table on which to operate
+     * @return a SQL string used to create a temp table
+     */
+    @Nonnull
+    private static String prepareTempTableNameStatement(@Nonnull String tempTableName) {
+        return String.format("CREATE TEMPORARY TABLE %s ( %s varchar(%d), "
+                        + "primary key (%s)) engine=memory;",
+                tempTableName, StringConstants.TARGET_OBJECT_UUID, 80, StringConstants.TARGET_OBJECT_UUID);
+    }
+
+    /**
+     * The variables and code immediately below are carried-over directly from Classic code
+     */
+    @VisibleForTesting protected static final int FAST_SQL_SIZE = 256;
+    private static final String[] FAST_SQL = new String[FAST_SQL_SIZE + 1];
+
+    static {
+        FAST_SQL[0] = "";
+        for (int index = 1; index <= FAST_SQL_SIZE; index++) {
+            StringBuilder sb = new StringBuilder("Insert into %s (target_object_uuid) values ");
+            for (int i = 0; i < index; i++) {
+                if (i > 0) {
+                    sb.append(',');
+                }
+                sb.append(" (?)");
+            }
+            FAST_SQL[index] = sb.toString();
+        }
+    }
+
+    /**
+     * The temporary table insertion batch size.
+     */
+    private static final int TMP_TABLE_BATCH_SIZE = 500;
+
+    /**
+     * This method will do Batch insert (limit {@link #FAST_SQL}) into the temporary table.
+     * The running time of batch insert will be 100ms to 200 ms.
+     * @param uuids the string UUIDs to insert into a temp table
+     * @param tempTableName the name of the temp table into which we are inserting
+     * @param conn the SQL connection used to operate on the DB
+     * @throws SQLException thrown on insertion error
+     */
+    @Nonnull
+    private static void insertIntoTempTableDummyBatch(@Nonnull Collection<String> uuids,
+            @Nonnull String tempTableName,
+            @Nonnull Connection conn) throws SQLException {
+        String sql = String.format(FAST_SQL[FAST_SQL_SIZE], tempTableName);
+        PreparedStatement ps = conn.prepareStatement(sql);
+        String[] uuidArray = uuids.toArray(new String[]{});
+        int fullRows = uuidArray.length / FAST_SQL_SIZE;
+        int lastRow = uuidArray.length % FAST_SQL_SIZE;
+        // Full rows
+        int index = 0;
+        int count = 0;
+        for (int i = 0; i < fullRows; i++) {
+            for (int j = 1; j <= FAST_SQL_SIZE; j++) {
+                ps.setString(j, uuidArray[index++]);
+            }
+            ps.addBatch();
+            if (count++ == TMP_TABLE_BATCH_SIZE) {
+                ps.executeBatch();
+                count = 0;
+            }
+        }
+        // Last batch
+        if (count > 0) {
+            ps.executeBatch();
+        }
+        if (lastRow > 0) {
+            // Last row.
+            sql = String.format(FAST_SQL[lastRow], tempTableName);
+            ps = conn.prepareStatement(sql);
+            for (int i = 1; index < uuidArray.length; index++, i++) {
+                ps.setString(i, uuidArray[index]);
+            }
+            ps.addBatch();
+            ps.executeBatch();
+        }
+    }
+
+    /**
+     * This method will create a temporary table with random name and insert the uuids into the
+     * temporary table using the pre-created connection.
+     *
+     * @param uuids A list of UUIDs to include in the temporary table.
+     * @param connection A shared connection that should be used to create and drop the temporary table.
+     * @return the name of the temp table created
+     * @throws VmtDbException on error inserting into a temp table
+     */
+    protected Optional<String> createTemporaryTableFromUuids(@Nonnull Collection<Long> uuids,
+            @Nonnull Connection connection)
+            throws VmtDbException {
+        Optional<String> tempTable = Optional.empty();
+        if (uuids.isEmpty()) {
+            return tempTable;
+        }
+        final String tempTableName = String.format("Tmp_%s",
+                java.util.UUID.randomUUID().toString().replace("-", ""));
+        execute(prepareTempTableNameStatement(tempTableName), connection);
+        try {
+            final Collection<String> uuidStrings = uuids.stream()
+                    .map(uuid -> uuid.toString())
+                    .collect(Collectors.toList());
+            insertIntoTempTableDummyBatch(uuidStrings, tempTableName, connection);
+            tempTable = Optional.of(tempTableName);
+        } catch (SQLException e) {
+            logger.error("When inserting into a temporary table, there is an error due to {}.",
+                    e.getMessage());
+            throw new VmtDbException(VmtDbException.INSERT_ERR,
+                    "Error inserting into a temporary table", e);
+        }
+        return tempTable;
+    }
+
+    /**
      * Compute max values aggregated over all monthly stats records for each entity-id/sold-commodity
      * combination.
      *
@@ -1567,14 +1693,29 @@ public class HistorydbIO extends BasedbIO {
      *
      * @param entityTypeNo entity type number
      * @param comms commodity list to obtain max value for.
+     * @param isBought whether bought commodities are of interest
+     * @param uuids a set of entities for which historical stats are requested
+     * @param useHistoricalCommBoughtLookbackDays the number of days to look back
      * @return query results, transformed into  {@link EntityCommoditiesMaxValues} strucures
      * @throws VmtDbException on DB exceptions
-     * @throws SQLException on DB exceptions
+     * @throws SQLException on SQL insertion exceptions
      */
-    public List<EntityCommoditiesMaxValues> getEntityCommoditiesMaxValues(int entityTypeNo, List<Integer> comms)
-            throws VmtDbException, SQLException {
+    public List<EntityCommoditiesMaxValues> getEntityCommoditiesMaxValues(
+            final int entityTypeNo,
+            @Nonnull final List<Integer> comms,
+            final boolean isBought,
+            @Nullable final List<Long> uuids,
+            final boolean useHistoricalCommBoughtLookbackDays) throws VmtDbException, SQLException {
         final EntityType entityType = EntityType.fromSdkEntityType(entityTypeNo).orElse(null);
-        Optional<Table<?>> table = entityType != null ? entityType.getMonthTable() : Optional.empty();
+        Optional<Table<?>> table = Optional.empty();
+        final int queryLookbackDays = useHistoricalCommBoughtLookbackDays
+                ? historicalCommBoughtLookbackDays
+                : maxUsedLookbackDays;
+        if (entityType != null) {
+            table = queryLookbackDays > historicalCommBoughtLookbackDays
+                    ? entityType.getMonthTable()
+                    : entityType.getDayTable();
+        }
         if (table.isPresent()) {
             List<String> commStrings = comms.stream().map(comm -> {
                 return ClassicEnumMapper.getCommodityString(
@@ -1582,11 +1723,31 @@ public class HistorydbIO extends BasedbIO {
             }).collect(Collectors.toList());
             // Query for the max of the max values from all the days in the DB for
             // each commodity in each entity.
-            try (Connection conn = connection()) {
-                final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(table.get(), commStrings, maxUsedLookbackDays).getQuery();
+            // Using an unpooledConnection to automatically drop the (potentially) created temp table
+            try (Connection conn = unpooledConnection()) {
+                Optional<String> tempTableName = Optional.empty();
+                final boolean useTempTable = CollectionUtils.isNotEmpty(uuids) && uuids.size() > 1000;
+                if (useTempTable) {
+                    tempTableName = createTemporaryTableFromUuids(uuids, conn);
+                }
+                final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(
+                        table.get(),
+                        commStrings,
+                        queryLookbackDays,
+                        isBought,
+                        uuids,
+                        tempTableName).getQuery();
                 Result<? extends Record> statsRecords = using(conn).fetch(query);
                 logger.debug("Number of records fetched for table {} = {}", table.get(), statsRecords.size());
+                if (useTempTable) {
+                    // Drop the temp table
+                    execute(String.format("DROP TEMPORARY TABLE IF EXISTS %s", tempTableName.get()), conn);
+                }
                 return convertToEntityCommoditiesMaxValues(table.get(), statsRecords);
+            } catch (VmtDbException e) {
+                logger.error(
+                        "Error while querying max historical StorageAccess bought by migrating source entities: %s", e);
+                throw e;
             }
         } else {
             logger.error("No monthly stats table for entityType: {}",
@@ -1594,7 +1755,6 @@ public class HistorydbIO extends BasedbIO {
             return Collections.emptyList();
         }
     }
-
     /**
      * Constructing a query for getting entities commodity capacity and get the result from the db.
      * according to entity type to know which for the stats tables to select.
@@ -1688,9 +1848,8 @@ public class HistorydbIO extends BasedbIO {
                     .setOid(Long.parseLong(key));
 
             records.forEach(record -> {
-                CommodityMaxValue commodityMaxValue =
+                CommodityMaxValue.Builder commodityMaxValueBuilder =
                     CommodityMaxValue.newBuilder()
-                        .setMaxValue(record.getValue(DSL.field(MAX_COLUMN_NAME, Double.class)))
                         .setCommodityType(
                             CommodityType.newBuilder()
                                 .setType(UICommodityType.fromString(
@@ -1700,12 +1859,21 @@ public class HistorydbIO extends BasedbIO {
                                 // correctness problems if keys share common prefix and they get truncated
                                 // at a common prefix boundary.
                                 .setKey(record.getValue(getStringField(tbl, COMMODITY_KEY)))
-                                .build())
-                        .build();
+                                .build());
+                final String producerOid = record.getValue(getStringField(tbl, PRODUCER_UUID));
+                if (Objects.nonNull(producerOid)) {
+                    commodityMaxValueBuilder.setProducerOid(Long.parseLong(producerOid));
+                }
+                // Null check first - this field is nullable!
+                final Double maxValue = record.getValue(DSL.field(MAX_COLUMN_NAME, Double.class));
+                if (Objects.nonNull(maxValue)) {
+                    commodityMaxValueBuilder.setMaxValue(maxValue);
+                }
 
-                entityMaxValuesBuilder.addCommodityMaxValues(commodityMaxValue);
+                entityMaxValuesBuilder.addCommodityMaxValues(commodityMaxValueBuilder.build());
             });
-            maxValues.add(entityMaxValuesBuilder.build());
+            final EntityCommoditiesMaxValues entityCommoditiesMaxValues = entityMaxValuesBuilder.build();
+            maxValues.add(entityCommoditiesMaxValues);
         });
 
         return maxValues;

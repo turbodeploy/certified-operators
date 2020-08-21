@@ -1,8 +1,15 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -42,6 +49,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -54,6 +62,7 @@ import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 public class PlanTopologyScopeEditor {
 
@@ -80,14 +89,58 @@ public class PlanTopologyScopeEditor {
     }
 
     /**
+     * Scopes topology based on source entities. If source entities includes on-prem workloads
+     * also (needed for cloud migration), that is also scoped. Any cloud source entities are
+     * included in cloud scoping.
+     *
+     * @param topologyInfo Plan topology info.
+     * @param graph Topology graph.
+     * @param context Plan pipeline context.
+     * @return {@link TopologyGraph} topology entity graph after applying scope.
+     */
+    public TopologyGraph<TopologyEntity> scopeTopology(
+            @Nonnull final TopologyInfo topologyInfo,
+            @Nonnull final TopologyGraph<TopologyEntity> graph,
+            @Nonnull final TopologyPipelineContext context) {
+
+        final Set<Long> cloudSourceEntities = new HashSet<>();
+        final Set<Long> onPremSourceEntities = new HashSet<>();
+        context.getSourceEntities()
+                .stream()
+                .map(graph::getEntity)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .forEach(entity -> {
+                    // Split source entities into cloud and on-prem.
+                    // Env type doesn't seem to be set for some reason, so check owner instead.
+                    if (entity.getOwner().isPresent()
+                            && entity.getOwner().get().getEntityType() == BUSINESS_ACCOUNT_VALUE) {
+                        cloudSourceEntities.add(entity.getOid());
+                    } else {
+                        onPremSourceEntities.add(entity.getOid());
+                    }
+                });
+
+        final Long2ObjectMap<TopologyEntity.Builder> resultEntityMap =
+                new Long2ObjectOpenHashMap<>(cloudSourceEntities.size() + onPremSourceEntities.size());
+        scopeCloudTopology(topologyInfo, graph, cloudSourceEntities, resultEntityMap);
+        scopeOnPremTopology(graph, onPremSourceEntities, resultEntityMap);
+        return new TopologyGraphCreator<>(resultEntityMap).build();
+    }
+
+    /**
      * In cloud plans, filter entities based on user defined scope.
      *
      * @param topologyInfo the topologyInfo which contains topology relevant properties
      * @param graph the topology entity graph
-     * @return {@link TopologyGraph} topology entity graph after applying scope.
+     * @param cloudSourceEntities Optional source entities to expand scope for.
+     * @param resultEntityMap Map that is updated to later convert to scoped graph.
      */
-    public TopologyGraph<TopologyEntity> scopeCloudTopology(@Nonnull final TopologyInfo topologyInfo,
-                                                            @Nonnull final TopologyGraph<TopologyEntity> graph) {
+    private void scopeCloudTopology(
+            @Nonnull final TopologyInfo topologyInfo,
+            @Nonnull final TopologyGraph<TopologyEntity> graph,
+            @Nonnull final Set<Long> cloudSourceEntities,
+            @Nonnull final Map<Long, TopologyEntity.Builder> resultEntityMap) {
         // from the seed list keep accounts, regions, and workloads only
         final Set<Long> seedIds =
             topologyInfo.getScopeSeedOidsList().stream()
@@ -97,6 +150,8 @@ public class PlanTopologyScopeEditor {
                                     .orElse(false))
                 .collect(Collectors.toCollection(HashSet::new));
 
+        seedIds.addAll(cloudSourceEntities);
+
         // for all VMs in the seed, we should bring the connected volumes to the seed
         // and for all volumes in the seed, we should bring the connected VMs
         final Set<Long> connectedVMsAndVVIds = new HashSet<>();
@@ -105,14 +160,14 @@ public class PlanTopologyScopeEditor {
             if (entity == null) {
                 continue;
             }
-            if (entity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+            if (entity.getEntityType() == VIRTUAL_VOLUME_VALUE) {
                 Streams.concat(entity.getInboundAssociatedEntities().stream(), entity.getConsumers().stream())
-                        .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                        .filter(e -> e.getEntityType() == VIRTUAL_MACHINE_VALUE)
                         .map(TopologyEntity::getOid)
                         .forEach(connectedVMsAndVVIds::add);
-            } else if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            } else if (entity.getEntityType() == VIRTUAL_MACHINE_VALUE) {
                 Streams.concat(entity.getOutboundAssociatedEntities().stream(), entity.getProviders().stream())
-                        .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                        .filter(e -> e.getEntityType() == VIRTUAL_VOLUME_VALUE)
                         .map(TopologyEntity::getOid)
                         .forEach(connectedVMsAndVVIds::add);
             }
@@ -173,10 +228,8 @@ public class PlanTopologyScopeEditor {
         //   - the zone and region in which the workload lives
         //   - the account owning this workload and the account owning that account
         final Set<TopologyEntity> cloudConsumers =
-            TopologyGraphEntity.applyTransitively(workLoadsZonesAndConsumers,
-                                                  TopologyEntity::getAggregatorsAndOwner)
-                .stream()
-                .collect(Collectors.toSet());
+                new HashSet<>(TopologyGraphEntity.applyTransitively(workLoadsZonesAndConsumers,
+                        TopologyEntity::getAggregatorsAndOwner));
 
         // calculate all tiers associated with all the regions in cloudConsumers
         // add the owning services
@@ -195,20 +248,79 @@ public class PlanTopologyScopeEditor {
         final List<TopologyEntity> cloudProviders = new ArrayList<>(regions);
         cloudProviders.addAll(tiers);
         cloudProviders.addAll(services);
-
+        // For cloud migration, if we are migration to a region with no workloads, then
+        // add accounts associated to destination region, as accounts are needed for costs.
+        // Pick up only primary accounts (with null owner accounts).
+        final Set<TopologyEntity> accounts = regions
+                .stream()
+                .map(TopologyEntity::getOwner)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .flatMap(e -> e.getAggregatedEntities().stream())
+                .filter(e -> e.getEntityType() == BUSINESS_ACCOUNT_VALUE
+                        && e.getOwner().equals(Optional.empty()))
+                .collect(Collectors.toSet());
+        cloudProviders.addAll(accounts);
         // union consumers and producers and filter by target
-        final Long2ObjectMap<TopologyEntity.Builder> resultEntityMap =
-                new Long2ObjectOpenHashMap<>(cloudConsumers.size() + cloudProviders.size());
-        Stream.concat(cloudConsumers.stream(), cloudProviders.stream())
-                .distinct()
-                .filter(e -> discoveredBy(e, targetIds))
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .forEach(bldr -> resultEntityMap.put(bldr.getOid(), TopologyEntity.newBuilder(bldr)));
-        return new TopologyGraphCreator<>(resultEntityMap).build();
+        resultEntityMap.putAll(Stream.concat(cloudConsumers.stream(), cloudProviders.stream())
+                    .distinct()
+                    .filter(e -> discoveredBy(e, targetIds))
+                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                    .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder)));
     }
 
     /**
-     * Returns an instance of the InvertedIndex
+     * Scopes on-prem topology (needed for cloud migration case).
+     *
+     * @param graph Topology graph.
+     * @param sourceEntityOids Source on-prem entities, if empty, no changes are made.
+     * @param resultEntityMap Map is updated with any on-prem entities to include in scope.
+     */
+    private void scopeOnPremTopology(
+            @Nonnull final TopologyGraph<TopologyEntity> graph,
+            @Nonnull final Set<Long> sourceEntityOids,
+            @Nonnull final Map<Long, TopologyEntity.Builder> resultEntityMap) {
+        final Set<TopologyEntity> sourceEntities = new HashSet<>();
+        sourceEntityOids
+                .stream()
+                .map(graph::getEntity)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .forEach(sourceEntities::add);
+        if (sourceEntities.isEmpty()) {
+            return;
+        }
+        final Set<TopologyEntity> allEntities = new HashSet<>(sourceEntities);
+        final Set<TopologyEntity> providers =
+                new HashSet<>(TopologyGraphEntity.applyTransitively(
+                        new ArrayList<>(sourceEntities),
+                        TopologyEntity::getProviders));
+        allEntities.addAll(providers);
+
+        final Set<TopologyEntity> volumes = sourceEntities
+                .stream()
+                .map(TopologyEntity::getOutboundAssociatedEntities)
+                .flatMap(Collection::stream)
+                .filter(e -> e.getEntityType() == VIRTUAL_VOLUME_VALUE)
+                .collect(Collectors.toSet());
+        allEntities.addAll(volumes);
+
+        final Collection<Long> targetIds = sourceEntities
+                .stream()
+                .flatMap(TopologyEntity::getDiscoveringTargetIds)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // Finally filter by target and update result map.
+        resultEntityMap.putAll(allEntities
+                .stream()
+                .filter(e -> discoveredBy(e, targetIds))
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder)));
+    }
+
+    /**
+     * Returns an instance of the InvertedIndex.
      *
      * @return newly created {@link InvertedIndex}
      **/
@@ -301,14 +413,14 @@ public class PlanTopologyScopeEditor {
 
             // Pull in outBoundAssociatedEntities for VMs and inBoundAssociatedEntities for Storage
             // so as to not skip entities like vVolume that don't buy/sell commodities.
-            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            if (entity.getEntityType() == VIRTUAL_MACHINE_VALUE) {
                 entity.getOutboundAssociatedEntities().forEach(e -> {
                     final long oid = e.getOid();
                     if (!scopedTopologyOIDs.contains(oid)) {
                         suppliersToExpand.tryAdd(oid);
                     }
                 });
-            } else if (entity.getEntityType() == EntityType.STORAGE_VALUE) {
+            } else if (entity.getEntityType() == STORAGE_VALUE) {
                 entity.getInboundAssociatedEntities().forEach(e -> {
                     final long oid = e.getOid();
                     if (!scopedTopologyOIDs.contains(oid)) {
@@ -346,16 +458,16 @@ public class PlanTopologyScopeEditor {
             final Stream<TopologyEntity> potentialSellers = getPotentialSellers(index, buyer.getTopologyEntityDtoBuilder()
                             .getCommoditiesBoughtFromProvidersList().stream());
             final Stream<TopologyEntity> associatedEntities;
-            if (buyer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+            if (buyer.getEntityType() == VIRTUAL_MACHINE_VALUE) {
                 associatedEntities = Stream.concat(potentialSellers, buyer.getOutboundAssociatedEntities().stream());
-            } else if (buyer.getEntityType() == EntityType.STORAGE_VALUE) {
+            } else if (buyer.getEntityType() == STORAGE_VALUE) {
                 // In case of an empty storage cluster, Storages will not have VMs as customers.
                 // And we rely on VMs to pull in the PMs. But we still need to pull in PMs even if
                 // there are no VMs. Hence, PMs are pulled in using accesses relation.
                 Stream<TopologyEntity> intermediateAssociatedEntities = Stream.concat(
                     potentialSellers, buyer.getInboundAssociatedEntities().stream());
                 associatedEntities = Stream.concat(intermediateAssociatedEntities, getAccesses(buyer, topology));
-            } else if (buyer.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+            } else if (buyer.getEntityType() == PHYSICAL_MACHINE_VALUE) {
                 // In case of an empty cluster, PMs will not have VMs as customers. And we rely on
                 // VMs to pull in the Storages. But we still need to pull in Storages even if
                 // there are no VMs. Hence, Storages are pulled in using accesses relation.

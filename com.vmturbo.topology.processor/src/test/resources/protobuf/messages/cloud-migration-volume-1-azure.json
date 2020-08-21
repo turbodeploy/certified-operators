@@ -1,0 +1,163 @@
+{
+  "entityType": 60,
+  "oid": "73320335294658",
+  "displayName": "Enlin-Demo-VM-disk-1_66fb9ee24ca04d4db47da28485dd2d54",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 8
+    },
+    "used": 114688.0,
+    "capacity": 114688.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "minAmountForConsumer": 4.0,
+    "maxAmountForConsumer": 32767.0,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 64
+    },
+    "capacity": 500.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "minAmountForConsumer": 120.0,
+    "maxAmountForConsumer": 20000.0,
+    "ratioDependency": {
+      "baseCommodity": {
+        "type": 8
+      },
+      "ratio": 4
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 59,
+      "key": "Group::MANAGED_PREMIUM"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 22
+    },
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 6
+    },
+    "used": 114688.0,
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 39
+    },
+    "capacity": 102400.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "minAmountForConsumer": 25600.0,
+    "maxAmountForConsumer": 921600.0,
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "73320334249139",
+    "providerEntityType": 57,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 8
+      },
+      "used": 114688.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 6
+      },
+      "used": 114688.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 59,
+        "key": "Group::MANAGED_PREMIUM"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 64
+      },
+      "used": 500.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 39
+      },
+      "used": 102400.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "AutoSuspend": "False",
+    "isAttached": "true"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "suspendable": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1593138091551",
+      "discoveredTargetData": {
+        "73320333631169": {
+          "vendorId": "/subscriptions/758ad253-cbf5-4b18-8863-3eed0825bf07/resourceGroups/TURBONOMIC/providers/Microsoft.Compute/disks/Enlin-Demo-VM-disk-1_66fb9ee24ca04d4db47da28485dd2d54"
+        }
+      }
+    }
+  },
+  "connectedEntityList": [{
+    "connectedEntityId": "73320334248977",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }],
+  "tags": {
+    "tags": {
+      "AutoSuspend": {
+        "values": ["False"]
+      }
+    }
+  },
+  "typeSpecificInfo": {
+    "virtualVolume": {
+      "redundancyType": "LRS",
+      "attachmentState": "ATTACHED"
+    }
+  }
+}

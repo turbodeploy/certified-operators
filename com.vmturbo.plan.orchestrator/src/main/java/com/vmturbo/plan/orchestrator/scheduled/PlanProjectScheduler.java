@@ -128,6 +128,13 @@ public class PlanProjectScheduler {
     private void initializePlanProjectSchedule(final ThreadPoolTaskScheduler scheduleExecutor) {
         List<PlanProject> planProjects = planProjectDao.getAllPlanProjects();
         planProjects.forEach(planProject -> {
+            if (!planProject.hasPlanProjectInfo()
+                    || !planProject.getPlanProjectInfo().hasRecurrence()) {
+                // Skip any non-scheduled projects like cloud migration plan projects.
+                logger.trace("Skipping non-recurrence project {} from schedule.",
+                        planProject.getPlanProjectId());
+                return;
+            }
             try {
                 setPlanProjectSchedule(planProject.getPlanProjectId());
             } catch (PlanProjectNotFoundException e) {

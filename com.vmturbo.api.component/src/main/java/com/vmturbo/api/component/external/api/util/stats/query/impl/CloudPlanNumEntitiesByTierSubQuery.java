@@ -36,10 +36,10 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -51,10 +51,14 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
     private static final Set<String> CLOUD_PLAN_TYPES = ImmutableSet.of(
         StringConstants.OPTIMIZE_CLOUD_PLAN, StringConstants.CLOUD_MIGRATION_PLAN);
 
-    // set of stats passed from UI, which are for the number of entities grouped by tier
-    private static final Set<String> CLOUD_PLAN_ENTITIES_BY_TIER_STATS = ImmutableSet.of(
-        StringConstants.NUM_VIRTUAL_DISKS,
-        StringConstants.NUM_WORKLOADS
+    /**
+     * Mapping of all 'numEntity' stat types to a Set of their respective API strings.
+     */
+    private static final Map<String, Set<String>> NUM_STAT_TYPES_TO_ENTITIES = ImmutableMap.of(
+        StringConstants.NUM_WORKLOADS, WORKLOAD_ENTITY_TYPES_API_STR,
+        StringConstants.NUM_VMS, ImmutableSet.of(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        StringConstants.NUM_DBSS, ImmutableSet.of(ApiEntityType.DATABASE_SERVER.apiStr()),
+        StringConstants.NUM_VIRTUAL_DISKS, ImmutableSet.of(ApiEntityType.VIRTUAL_VOLUME.apiStr())
     );
 
     // the function of how to get the tier id from a given TopologyEntityDTO, this is used
@@ -102,7 +106,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
 
     @Override
     public SubQuerySupportedStats getHandledStats(@Nonnull final StatsQueryContext context) {
-        final Set<StatApiInputDTO> stats = context.findStats(CLOUD_PLAN_ENTITIES_BY_TIER_STATS).stream()
+        final Set<StatApiInputDTO> stats = context.findStats(NUM_STAT_TYPES_TO_ENTITIES.keySet()).stream()
             // this is for "Cloud Template Summary By Type", but ccc chart also passes numWorkload
             // as stat name, we need to handle them differently, so check filters since ccc chart
             // passes filters here, we might need to change UI to handle it better
@@ -133,12 +137,16 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         List<StatApiDTO> statsBeforePlan = new ArrayList<>();
         List<StatApiDTO> statsAfterPlan = new ArrayList<>();
 
-        if (containsStat(StringConstants.NUM_VIRTUAL_DISKS, requestedStats)) {
-            statsBeforePlan.addAll(getNumVirtualDisksStats(scopes, planTopologyContextId, false));
-            statsAfterPlan.addAll(getNumVirtualDisksStats(scopes, planTopologyContextId, true));
-        } else if (containsStat(StringConstants.NUM_WORKLOADS, requestedStats)) {
-            statsBeforePlan.addAll(getNumWorkloadsByTierStats(scopes, planTopologyContextId, false));
-            statsAfterPlan.addAll(getNumWorkloadsByTierStats(scopes, planTopologyContextId, true));
+        final Optional<String> foundNumStat = getNumStatFromRequestedStats(requestedStats);
+        if (foundNumStat.isPresent()) {
+            final String stat = foundNumStat.get();
+            if (StringConstants.NUM_VIRTUAL_DISKS.equals(stat)) {
+                statsBeforePlan.addAll(getNumVirtualDisksStats(scopes, planTopologyContextId, false));
+                statsAfterPlan.addAll(getNumVirtualDisksStats(scopes, planTopologyContextId, true));
+            } else {
+                statsBeforePlan.addAll(getNumEntitiesByTierStats(scopes, planTopologyContextId, false, stat, NUM_STAT_TYPES_TO_ENTITIES.get(stat)));
+                statsAfterPlan.addAll(getNumEntitiesByTierStats(scopes, planTopologyContextId, true, stat, NUM_STAT_TYPES_TO_ENTITIES.get(stat)));
+            }
         }
 
         // set stats
@@ -157,6 +165,15 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         afterSnapshot.setStatistics(statsAfterPlan);
 
         return ImmutableList.of(beforeSnapshot, afterSnapshot);
+    }
+
+    private Optional<String> getNumStatFromRequestedStats(Set<StatApiInputDTO> requestedStats) {
+        for (String stat : NUM_STAT_TYPES_TO_ENTITIES.keySet()) {
+            if (containsStat(stat, requestedStats)) {
+                return Optional.of(stat);
+            }
+        }
+        return Optional.empty();
     }
 
     private List<StatApiDTO> getNumVirtualDisksStats(@Nonnull Set<Long> scopes,
@@ -183,14 +200,16 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
             .collect(Collectors.toMap(SupplyChainNode::getEntityType, RepositoryDTOUtil::getAllMemberOids));
     }
 
-    private List<StatApiDTO> getNumWorkloadsByTierStats(@Nonnull Set<Long> scopes,
-                                                        long contextId, boolean projectedTopology) throws OperationFailedException {
+    private List<StatApiDTO> getNumEntitiesByTierStats(@Nonnull Set<Long> scopes,
+                                                       long contextId, boolean projectedTopology,
+                                                       @Nonnull String statName,
+                                                       @Nonnull Set<String> entityTypes) throws OperationFailedException {
         // fetch related entities ids for given scopes
         final Map<String, Set<Long>> idsByEntityType = getRelatedEntities(scopes,
-            new ArrayList<>(WORKLOAD_ENTITY_TYPES_API_STR));
+            new ArrayList<>(entityTypes));
         return idsByEntityType.entrySet().stream()
             .flatMap(entry -> fetchNumEntitiesByTierStats(entry.getValue(), projectedTopology, contextId,
-                StringConstants.NUM_WORKLOADS, StringConstants.TEMPLATE,
+                statName, StringConstants.TEMPLATE,
                 ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(entry.getKey())).stream()
             ).collect(Collectors.toList());
     }
@@ -206,8 +225,11 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         // fetch entities
         final Map<Long, ApiPartialEntity> entities = request.getEntities()
             .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
-        // tier id --> number of entities using the tier
+        // tier id --> number of entities using the tier. Only include entities that are connected
+        // to a region.  If they are not, they are unplaced and should be omitted.
         final Map<Optional<Long>, Long> tierIdToNumEntities = entities.values().stream()
+                .filter(partialEntity -> partialEntity.getConnectedToList().stream()
+                        .anyMatch(entity -> entity.getEntityType() == EntityType.REGION_VALUE))
             .collect(Collectors.groupingBy(getTierId, Collectors.counting()));
         // tier id --> tier name
         // Looking up display name in real-time topology, as some (like NVME_SSD StorageTier -
@@ -215,6 +237,9 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         // It should be safe to look up the tiers in the real-time topology because
         // Storage tiers available in plan are always going to be a subset of tiers available
         // in real-time, and the properties (like displayName) of the tiers won't change.
+        // Unplaced entities have a provider (tier ID) of 0.  We don't want to include these in the
+        // number of entities stats, so remove them here.
+        tierIdToNumEntities.remove(Optional.of(0L));
         final Map<Long, String> tierIdToName = repositoryApi.entitiesRequest(tierIdToNumEntities.keySet()
                         .stream().filter(key -> key.isPresent())
                         .map(Optional::get).collect(Collectors.toSet()))

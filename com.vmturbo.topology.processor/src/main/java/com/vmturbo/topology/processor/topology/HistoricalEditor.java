@@ -627,19 +627,28 @@ public class HistoricalEditor {
 
     /**
      * Update historical values for commodity that exist in the previous cycle.
+     * If the historical used and historical peak values are already set, don't override them.
+     * It can happen for migrate to cloud plan where the historical used and peak values are the
+     * historical max of the previous 30 days.
      *
      * @param histBoughtInfoList the list of HistoricalCommodityInfo
      * @param histSeInfo HistoricalServiceEntityInfo
      * @param topoEntity the topology entity
      * @param topoCommBought the commodity bought DTO
      * @param sourceId provider or volume id
-     * @return true if topoCommBought matches to existing commodity and is being updated.
+     * @return true if topoCommBought matches to existing commodity and is being updated or the
+     *         historical used and peak values are already set.
      */
     private boolean updateAlreadyExistingCommodity(@Nonnull final List<HistoricalCommodityInfo> histBoughtInfoList,
             @Nonnull final HistoricalServiceEntityInfo histSeInfo,
             @Nonnull final TopologyEntityDTO.Builder topoEntity,
             @Nonnull final CommodityBoughtDTO.Builder topoCommBought,
             final long sourceId) {
+        if (topoCommBought.hasHistoricalUsed() && topoCommBought.getHistoricalUsed().hasHistUtilization()
+                && topoCommBought.hasHistoricalPeak() && topoCommBought.getHistoricalPeak().hasHistUtilization()) {
+            // Value are already set.
+            return true;
+        }
         for (HistoricalCommodityInfo histBoughtInfo : histBoughtInfoList) {
             if (histBoughtInfo.getCommodityTypeAndKey().equals(topoCommBought.getCommodityType()) &&
                     (histBoughtInfo.getSourceId() == sourceId) && histBoughtInfo.getMatched() &&

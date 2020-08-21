@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -42,6 +43,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -62,11 +64,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
@@ -79,12 +84,14 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.Consisten
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -245,7 +252,7 @@ public class TopologyConverterFromMarketTest {
                         .build());
 
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, null,
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, null, null,
                 EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field shoppingListInfos =
                 TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
@@ -350,7 +357,7 @@ public class TopologyConverterFromMarketTest {
                 CommodityBoughtDTO.newBuilder().setCommodityType(cpuCommType).build());
 
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(2, DS_OID, PM_OID, null,
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(2, DS_OID, PM_OID, null, null,
                 EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field shoppingListInfos =
                 TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
@@ -568,9 +575,10 @@ public class TopologyConverterFromMarketTest {
                         .setModelBuyer(-DS_OID).setModelSeller(DA_OID)
                         .setProvisionedSeller(DA_OID + 100L).build())
                 .build();
-        Optional<Action> provByDemandOptional =
+        List<Action> provByDemandList =
                 converter.interpretAction(provByDemandTO, projectedTopo, null, null, null);
-        assertNotNull(provByDemandOptional.get());
+        assertTrue(!provByDemandList.isEmpty());
+        assertNotNull(provByDemandList.get(0));
 
         //assert for wasted file actions
         Optional<CommoditySoldDTO> daStorageAmtCommSold = projectedTopo.get(traderDS.getOid()).getEntity().getCommoditySoldListList().stream()
@@ -718,7 +726,7 @@ public class TopologyConverterFromMarketTest {
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
         shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, VOLUME_ID,
-                EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
+                null, EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field shoppingListInfos =
                 TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
         shoppingListInfos.setAccessible(true);
@@ -864,7 +872,7 @@ public class TopologyConverterFromMarketTest {
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, VOLUME_ID,
+        shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, VOLUME_ID, null,
                 EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field shoppingListInfos =
                 TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
@@ -2070,4 +2078,77 @@ public class TopologyConverterFromMarketTest {
         Assert.assertEquals(THRUGHPUT_USED / 2f, actualBought.getUsed(), DELTA);
     }
 
+    /**
+     * Tests getNewlyConnectedProjectedEntitiesFromOriginalTopo to ensure new connections are
+     * made appropriately.
+     */
+    @Test
+    public void testGetNewlyConnectedProjectedEntitiesFromOriginalTopo() {
+        final long baOid = 1L;
+        final long vmOid = 2L;
+        final long regionOid = 3L;
+
+        TopologyDTO.TopologyEntityDTO ba = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(baOid)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .build();
+
+        TopologyDTO.TopologyEntityDTO vm = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(vmOid)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        // create trader DTO corresponds to originalEntity
+        EconomyDTOs.TraderTO trader = TraderTO.newBuilder()
+                .setOid(vmOid)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addShoppingLists(ShoppingListTO.newBuilder().setOid(vmOid)
+                        .setContext(Context.newBuilder()
+                                .setRegionId(regionOid)
+                                .setBalanceAccount(BalanceAccountDTO.newBuilder()
+                                        .setId(baOid)
+                                        .build()).build()).build()).build();
+
+
+        DiscountApplicator discountApplicator = mock(DiscountApplicator.class);
+        converter.getCloudTc().insertIntoAccountPricingDataByBusinessAccountOidMap(baOid,
+                new AccountPricingData(discountApplicator,
+                        PriceTable.newBuilder().getDefaultInstanceForType(),
+                        baOid));
+        Map<Long, Set<ConnectedEntity>> businessAccountsToNewlyOwnedEntities =
+                converter.getCloudTc().getBusinessAccountsToNewlyOwnedEntities(
+                        Lists.newArrayList(trader),
+                        new HashMap<Long, TopologyDTO.TopologyEntityDTO>() {{
+                            put(baOid, ba);
+                            put(vmOid, vm);
+                        }}, new HashMap<Long, TopologyDTO.TopologyEntityDTO>() {{
+                            put(baOid, ba);
+                        }});
+        assertFalse(businessAccountsToNewlyOwnedEntities.isEmpty());
+        Set<ConnectedEntity> connectedEntities = businessAccountsToNewlyOwnedEntities.get(baOid);
+        assertEquals(1, connectedEntities.size());
+        ConnectedEntity connectedEntity = connectedEntities.iterator().next();
+        assertEquals(ConnectionType.OWNS_CONNECTION, connectedEntity.getConnectionType());
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, connectedEntity.getConnectedEntityType());
+        assertEquals(vmOid, connectedEntity.getConnectedEntityId());
+    }
+
+    /**
+     * Checks if logic to skip shopping list creation for ephemeral storage works or not.
+     */
+    @Test
+    public void skipShoppingListForEphemeralStorage() {
+        final TopologyDTO.TopologyEntityDTO ephemeralVolume =
+                TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(VOLUME_ID).setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(
+                        VirtualVolumeInfo.newBuilder().setIsEphemeral(true)))
+                .build();
+        assertTrue(converter.skipShoppingListCreation(ephemeralVolume));
+
+        final TopologyDTO.TopologyEntityDTO nonEphemeralVolume =
+                TopologyDTO.TopologyEntityDTO.newBuilder()
+                        .setOid(VOLUME_ID).setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .build();
+        assertFalse(converter.skipShoppingListCreation(nonEphemeralVolume));
+    }
 }

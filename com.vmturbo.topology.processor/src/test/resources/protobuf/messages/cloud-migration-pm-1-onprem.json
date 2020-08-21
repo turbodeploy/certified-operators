@@ -1,0 +1,404 @@
+{
+  "entityType": 14,
+  "oid": "73433887033008",
+  "displayName": "dc17-host-02.eng.vmturbo.com",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 31
+    },
+    "capacity": 20000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 57,
+      "key": "Network::VM Network"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 58
+    },
+    "capacity": 20000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 39
+    },
+    "used": 674.0666666666667,
+    "peak": 1397.0,
+    "capacity": 1280000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 57,
+      "key": "Network::PM Network"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 47
+    },
+    "used": 1693.8,
+    "peak": 3378.0,
+    "capacity": 256000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 50,
+      "key": "PhysicalMachine::34313836-3333-5553-4537-33394e43424e"
+    },
+    "used": 6.9731762E7,
+    "peak": 6.9744896E7,
+    "capacity": 1.34214444E8,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 36,
+      "key": "Storage::5cf6e809-7d9d85ad-7a3f-001cc46d09d2"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73433887031974",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 81
+    },
+    "used": 4.0,
+    "capacity": 256.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 5
+    },
+    "capacity": 20000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 45
+    },
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 36,
+      "key": "Storage::e4239e48-103391a2"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73490062265697",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 28
+    },
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 36,
+      "key": "Storage::5cf946e3-b81e4f03-8feb-001cc46d09d2"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73433887031975",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 9
+    },
+    "capacity": 20000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 2,
+      "key": "PhysicalMachine::34313836-3333-5553-4537-33394e43424e"
+    },
+    "used": 5426.1,
+    "peak": 5754.0,
+    "capacity": 44992.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 21
+    },
+    "used": 6.9731762E7,
+    "peak": 6.9744896E7,
+    "capacity": 1.34214444E8,
+    "effectiveCapacityPercentage": 100.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 0,
+      "key": "Cluster::ec109a981367a2da23848a17d9eef401294a1d39"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 57,
+      "key": "Network::ST Network"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 33
+    },
+    "used": 0.0,
+    "capacity": 5000000.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": false,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 57,
+      "key": "Network::Infrastructure"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 41
+    },
+    "used": 0.0,
+    "capacity": 1.34214444E8,
+    "isResizeable": true,
+    "isThin": true,
+    "active": false,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 17
+    },
+    "capacity": 20000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 55,
+      "key": "DataCenter::cdcd967d1e08d20936c3aa9a0879c635214c79ee"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 40
+    },
+    "used": 5426.1,
+    "peak": 5754.0,
+    "capacity": 44992.0,
+    "effectiveCapacityPercentage": 100.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "73490062265697",
+    "providerEntityType": 2,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 14.925925925925926,
+      "peak": 361.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 123.4074074074074,
+      "peak": 3297.0,
+      "active": false,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73433887031969",
+    "providerEntityType": 12,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 24
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 55,
+        "key": "DataCenter::DataCenter::cdcd967d1e08d20936c3aa9a0879c635214c79ee"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 18
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 20
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73433887031975",
+    "providerEntityType": 2,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 0.1,
+      "peak": 3.0,
+      "active": false,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73433887031974",
+    "providerEntityType": 2,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 32.6,
+      "peak": 56.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 4.166666666666667,
+      "peak": 46.0,
+      "active": false,
+      "displayName": ""
+    }]
+  }],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "AssetTag": " unknown",
+    "VcTgtIdAndInternalName": "9eeacd8ef1cdffce69d1eb6291c6f28810929bec",
+    "ServiceTag": "USE739NCBN",
+    "timezone": "UTC",
+    "vendor": "HP",
+    "cpuModel": "Quad-Core AMD Opteron(tm) Processor 8386 SE",
+    "model": "ProLiant DL585 G2"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "suspendable": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1593106961750",
+      "discoveredTargetData": {
+        "73433886535248": {
+          "vendorId": "host-622"
+        }
+      }
+    }
+  },
+  "tags": {
+  },
+  "typeSpecificInfo": {
+    "physicalMachine": {
+      "cpuModel": "Quad-Core AMD Opteron(tm) Processor 8386 SE",
+      "vendor": "HP",
+      "model": "ProLiant DL585 G2",
+      "numCpus": 16,
+      "timezone": "UTC",
+      "numCpuSockets": 4,
+      "cpuCoreMhz": 2812
+    }
+  }
+}

@@ -36,9 +36,12 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -908,5 +911,28 @@ public class HistorydbIOTest {
             StatsFilter.newBuilder().build());
         assertEquals( 2, nextPageInfo.getEntityOids().size());
         assertEquals(entityUuid2, nextPageInfo.getEntityOids().get(0));
+    }
+
+    /**
+     * Test createTemporaryTableFromUuids with uuids lists of various lengths.
+     *
+     * @throws VmtDbException indicates the test has failed
+     */
+    @Test
+    public void testCreateTemporaryTableFromUuids() throws VmtDbException {
+        final Connection conn = historydbIO.connection();
+
+        // Test boundary conditions, with lists of uuids of the following lengths
+        final List<Integer> countsToTest = Arrays.asList(0, 1, HistorydbIO.FAST_SQL_SIZE - 1,
+            HistorydbIO.FAST_SQL_SIZE, HistorydbIO.FAST_SQL_SIZE + 1);
+
+        for (int count : countsToTest) {
+            List<Long> uuids = LongStream.range(1, count + 1).boxed().collect(Collectors.toList());
+            assertEquals(count, uuids.size());
+
+            Optional<String> tempTableName = historydbIO.createTemporaryTableFromUuids(uuids, conn);
+
+            assertEquals(count != 0, tempTableName.isPresent());
+        }
     }
 }
