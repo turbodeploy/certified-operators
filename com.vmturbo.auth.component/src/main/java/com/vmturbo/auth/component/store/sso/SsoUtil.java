@@ -5,7 +5,6 @@ import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADVISOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.AUTOMATOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.DEPLOYER;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
-import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.READ_ONLY;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SHARED_ADVISOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SHARED_OBSERVER;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SITE_ADMIN;
@@ -75,7 +74,6 @@ public class SsoUtil {
                     .put(DEPLOYER, 50)
                     .put(OBSERVER, 40)
                     .put(SHARED_OBSERVER, 30)
-                    .put(READ_ONLY, 20)
                     .build());
     /**
      * The logger.

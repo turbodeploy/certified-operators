@@ -4,9 +4,8 @@ import static io.grpc.Metadata.ASCII_STRING_MARSHALLER;
 
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
@@ -66,47 +65,42 @@ public class SecurityConstant {
     /**
      * The role for the ADMINISTRATOR.
      */
-    public static final String ADMINISTRATOR = PredefinedRole.ADMINISTRATOR.name();
+    public static final String ADMINISTRATOR = "ADMINISTRATOR";
 
     /**
      * The role for observer.
      */
-    public static final String OBSERVER = PredefinedRole.OBSERVER.name();
-
-    /**
-     * The role for read_only.
-     */
-    public static final String READ_ONLY = PredefinedRole.READ_ONLY.name();
+    public static final String OBSERVER = "OBSERVER";
 
     /**
      * The role for automator user.
      */
-    public static final String AUTOMATOR = PredefinedRole.AUTOMATOR.name();
+    public static final String AUTOMATOR = "AUTOMATOR";
 
     /**
      * The role for deployer.
      */
-    public static final String DEPLOYER = PredefinedRole.DEPLOYER.name();
+    public static final String DEPLOYER = "DEPLOYER";
 
     /**
      * The role for advisor.
      */
-    public static final String ADVISOR = PredefinedRole.ADVISOR.name();
+    public static final String ADVISOR = "ADVISOR";
 
     /**
      * The role for shared_observer.
      */
-    public static final String SHARED_OBSERVER = PredefinedRole.SHARED_OBSERVER.name();
+    public static final String SHARED_OBSERVER = "SHARED_OBSERVER";
 
     /**
      * The role for shared_advisor.
      */
-    public static final String SHARED_ADVISOR = PredefinedRole.SHARED_ADVISOR.name();
+    public static final String SHARED_ADVISOR = "SHARED_ADVISOR";
 
     /**
      * The role for site_admin.
      */
-    public static final String SITE_ADMIN = PredefinedRole.SITE_ADMIN.name();
+    public static final String SITE_ADMIN = "SITE_ADMIN";
 
     /**
      * The legacy customer type.
@@ -142,15 +136,14 @@ public class SecurityConstant {
                     new SecurityGroupDTO(DEPLOYER.toLowerCase(), DEDICATED_CUSTOMER, DEPLOYER),
                     new SecurityGroupDTO(ADVISOR.toLowerCase(), DEDICATED_CUSTOMER, ADVISOR),
                     new SecurityGroupDTO(OBSERVER.toLowerCase(), DEDICATED_CUSTOMER, OBSERVER),
-                    new SecurityGroupDTO(READ_ONLY.toLowerCase(), DEDICATED_CUSTOMER, READ_ONLY),
                     new SecurityGroupDTO(SITE_ADMIN.toLowerCase(), DEDICATED_CUSTOMER, SITE_ADMIN));
 
     /**
      * These are predefined roles in XL.
      */
-    public static final Set<String> PREDEFINED_ROLE_SET = Stream.of(PredefinedRole.values())
-            .map(Enum::name)
-            .collect(Collectors.toSet());
+    public static final Set<String> PREDEFINED_ROLE_SET =
+            ImmutableSet.of(ADMINISTRATOR, SITE_ADMIN, AUTOMATOR, DEPLOYER, ADVISOR, OBSERVER,
+                    SHARED_ADVISOR, SHARED_OBSERVER);
 
     /**
      * Enum for predefine roles.
@@ -180,10 +173,6 @@ public class SecurityConstant {
          * OBSERVER role.
          */
         OBSERVER,
-        /**
-         * READ_ONLY role.
-         */
-        READ_ONLY,
         /**
          * SHARED_ADVISOR role.
          */
