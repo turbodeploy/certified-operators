@@ -13,11 +13,11 @@ spec:
 
   # Global settings
   global:
-  #  registry: index.docker.io
-  #  imageUsername: turbouser
-  #  imagePassword: turbopassword
+    #  registry: index.docker.io
+    #  imageUsername: turbouser
+    #  imagePassword: turbopassword
     repository: turbonomic
-    tag: 7.22.100-MPC-SNAPSHOT
+    tag: 7.22.8-SNAPSHOT
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
     externalTimescaleDBIP: 10.0.2.15
@@ -215,4 +215,3 @@ spec:
     resources:
       limits:
         memory: 1Gi
-
