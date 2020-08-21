@@ -23,11 +23,11 @@ public class UpdateNaturalTemplatesTest {
     private static long zone = SMATestConstants.ZONE_BASE + 9L;
     private static String family = "foo";
 
-    static SMATemplate small = new SMATemplate(4L, "small", family, 2, SMAUtils.BOGUS_CONTEXT, null);
-    static SMATemplate small2 = new SMATemplate(5L, "small2", family, 2, SMAUtils.BOGUS_CONTEXT, null);
-    static SMATemplate medium = new SMATemplate(8L, "medium", family, 4, SMAUtils.BOGUS_CONTEXT, null);
-    static SMATemplate large = new SMATemplate(16L, "large", family, 8, SMAUtils.BOGUS_CONTEXT, null);
-    static SMATemplate xlarge = new SMATemplate(32L, "xlarge", family, 16, SMAUtils.BOGUS_CONTEXT, null);
+    static SMATemplate small = new SMATemplate(4L, "small", family, 2, null);
+    static SMATemplate small2 = new SMATemplate(5L, "small2", family, 2, null);
+    static SMATemplate medium = new SMATemplate(8L, "medium", family, 4, null);
+    static SMATemplate large = new SMATemplate(16L, "large", family, 8, null);
+    static SMATemplate xlarge = new SMATemplate(32L, "xlarge", family, 16, null);
 
     static {
         small.setOnDemandCost(businessAccount, OSType.UNKNOWN_OS, new SMACost(1, 3));

@@ -78,6 +78,7 @@ import com.vmturbo.market.diagnostics.ActionLogger;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
@@ -486,6 +487,7 @@ public class Analysis {
                                 cloudVmOidToProvidersOIDsMap,
                                 topologyCostCalculator.getCloudCostData(),
                                 marketPriceTable, converter.getConsistentScalingHelper(), isOptimizeCloudPlan);
+                        saveSMADiags(smaInput);
                         smaConverter.setSmaOutput(StableMarriageAlgorithm.execute(smaInput));
                     }
                     // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
@@ -672,9 +674,16 @@ public class Analysis {
     private void saveAnalysisDiags(final Collection<TraderTO> traderTOs,
                                    final List<CommoditySpecification> commSpecsToAdjustOverhead) {
         AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
-        factory.newDiagsCollector(topologyInfo).ifPresent(diagsCollector -> {
+        factory.newDiagsCollector(topologyInfo, AnalysisMode.M2).ifPresent(diagsCollector -> {
             diagsCollector.saveAnalysis(traderTOs, topologyInfo, config,
                 commSpecsToAdjustOverhead);
+        });
+    }
+
+    private void saveSMADiags(final SMAInput smaInput) {
+        AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
+        factory.newDiagsCollector(topologyInfo, AnalysisMode.SMA).ifPresent(diagsCollector -> {
+            diagsCollector.saveSMAInput(smaInput, topologyInfo);
         });
     }
 

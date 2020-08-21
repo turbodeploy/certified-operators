@@ -53,7 +53,7 @@ public class SMAReservedInstance {
      * Template, used to infer CSP, family and coupons.
      */
 
-    private final SMATemplate template;
+    private SMATemplate template;
 
     /*
      * The count of coupons this RI represents.  Count is a float, and not an int, to handle VMs
@@ -633,5 +633,20 @@ public class SMAReservedInstance {
                 ", shared=" + shared +
                 ", normalizedTemplate=" + normalizedTemplate.toStringWithOutCost() +
                 '}';
+    }
+
+    // Compression for diags related code
+    private long templateOid;
+
+    public void setTemplate(final SMATemplate template) {
+        this.template = template;
+    }
+
+    public long getTemplateOid() {
+        return templateOid;
+    }
+
+    public void setTemplateOid(final long templateOid) {
+        this.templateOid = templateOid;
     }
 }

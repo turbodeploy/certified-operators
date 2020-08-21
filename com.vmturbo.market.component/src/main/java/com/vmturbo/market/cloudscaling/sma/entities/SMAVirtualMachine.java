@@ -167,7 +167,7 @@ public class SMAVirtualMachine {
                 // Template cost is equal, then switch if the new template is the natural
                 // template.
                 if ((Math.abs(onDemandTotalCost - minCost) < SMAUtils.EPSILON) &&
-                        getCurrentTemplate().equals(template)) {
+                        getCurrentTemplate().getOid() == template.getOid()) {
                         minCostProvider = Optional.of(template);
                 }
             }
@@ -269,7 +269,6 @@ public class SMAVirtualMachine {
         return minCostProviderPerFamily.get(family);
     }
 
-    @Nonnull
     public List<SMATemplate> getGroupProviders() {
         return groupProviders;
     }
@@ -395,23 +394,52 @@ public class SMAVirtualMachine {
         return ri.isShared() || ri.getApplicableBusinessAccounts().contains(getBusinessAccountId());
     }
 
-     @Override
-     public int hashCode() {
-         return Objects.hash(oid, name, businessAccountId, zoneId);
-     }
+    @Override
+    public int hashCode() {
+        return Objects.hash(oid, name, businessAccountId, zoneId);
+    }
 
-     @Override
-     public boolean equals(final Object o) {
-         if (this == o) {
-             return true;
-         }
-         if (o == null || getClass() != o.getClass()) {
-             return false;
-         }
-         final SMAVirtualMachine that = (SMAVirtualMachine)o;
-         return oid == that.oid &&
-             name.equals(that.name) &&
-             businessAccountId == that.businessAccountId &&
-             zoneId == that.zoneId;
-     }
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        final SMAVirtualMachine that = (SMAVirtualMachine)o;
+        return oid == that.oid &&
+                name.equals(that.name) &&
+                businessAccountId == that.businessAccountId &&
+                zoneId == that.zoneId;
+    }
+
+    // Compression for diags related code
+
+    private long currentTemplateOid;
+    private List<Long> providersOid = new ArrayList();
+    private long currentRIOID;
+
+    public long getCurrentRIOID() {
+        return currentRIOID;
+    }
+
+    public void setCurrentRIOID(final long currentRIOID) {
+        this.currentRIOID = currentRIOID;
+    }
+
+    public void setCurrentTemplateOid(final long currentTemplateOid) {
+        this.currentTemplateOid = currentTemplateOid;
+    }
+
+    public long getCurrentTemplateOid() {
+        return currentTemplateOid;
+    }
+
+    public List<Long> getProvidersOid() {
+        return providersOid;
+    }
+
+
+
 }

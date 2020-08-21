@@ -20,6 +20,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsHandler;
 import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -37,12 +39,92 @@ public class AnalysisDiagnosticsCollector {
     static final String ANALYSIS_CONFIG_DIAGS_FILE_NAME = "AnalysisConfig.diags";
     @VisibleForTesting
     static final String ADJUST_OVERHEAD_DIAGS_FILE_NAME = "CommSpecsToAdjustOverhead.diags";
+    @VisibleForTesting
+    static final String SMAINPUT_FILE_NAME_SUFFIX = "SMAInput.diags";
+    @VisibleForTesting
+    static final String SMA_RESERVED_INSTANCE_PREFIX = "RI";
+    @VisibleForTesting
+    static final String SMA_VIRTUAL_MACHINE_PREFIX = "VM";
+    @VisibleForTesting
+    static final String SMA_CONTEXT_PREFIX = "Context";
+    @VisibleForTesting
+    static final String SMA_TEMPLATE_PREFIX = "Template";
+
+    static final String SMA_ZIP_LOCATION_PREFIX = "tmp/smaDiags-";
+    static final String M2_ZIP_LOCATION_PREFIX = "tmp/analysisDiags-";
+
     private static final Logger logger = LogManager.getLogger();
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     private final DiagnosticsWriter diagsWriter;
 
+    /**
+     * To identify which analysis diags we are saving.
+     */
+    public enum AnalysisMode {
+        /**
+         * mode for saving m2 diags.
+         */
+        M2,
+
+        /**
+         * mode for saving SMA diags.
+         */
+        SMA;
+    }
+
     private AnalysisDiagnosticsCollector(DiagnosticsWriter diagsWriter) {
         this.diagsWriter = diagsWriter;
+    }
+
+    /**
+     * Save SMA Input data.
+     *
+     * @param smaInput smaInput to save
+     * @param topologyInfo topology info
+     */
+    public void saveSMAInput(final SMAInput smaInput,
+                             final TopologyInfo topologyInfo) {
+        try {
+            logger.info("Starting dump of SMA diagnostics for topology context id {}",
+                    topologyInfo.getTopologyContextId());
+            final Stopwatch stopwatch = Stopwatch.createStarted();
+            smaInput.getContexts().stream().forEach(a -> a.compress());
+            for (int contextIndex = 0; contextIndex < smaInput.getContexts().size(); contextIndex++) {
+                SMAInputContext inputContext = smaInput.getContexts().get(contextIndex);
+                writeAnalysisDiagsEntry(diagsWriter, inputContext.getReservedInstances().stream(),
+                        SMA_RESERVED_INSTANCE_PREFIX + "_" + contextIndex + "_"
+                                + SMAINPUT_FILE_NAME_SUFFIX,
+                        inputContext.getReservedInstances().size()
+                                + " Reserved Instances" + " contextID: " + contextIndex);
+                writeAnalysisDiagsEntry(diagsWriter, inputContext.getVirtualMachines().stream(),
+                        SMA_VIRTUAL_MACHINE_PREFIX + "_" + contextIndex + "_"
+                                + SMAINPUT_FILE_NAME_SUFFIX,
+                        inputContext.getVirtualMachines().size()
+                                + " Virtual Machines" + " contextID: " + contextIndex);
+                writeAnalysisDiagsEntry(diagsWriter, inputContext.getTemplates().stream(),
+                        SMA_TEMPLATE_PREFIX + "_" + contextIndex + "_"
+                                + SMAINPUT_FILE_NAME_SUFFIX,
+                        inputContext.getTemplates().size()
+                                + " Templates" + " contextID: " + contextIndex);
+                writeAnalysisDiagsEntry(diagsWriter, Stream.of(inputContext.getContext()),
+                        SMA_CONTEXT_PREFIX + "_" + contextIndex + "_"
+                                + SMAINPUT_FILE_NAME_SUFFIX,
+                        "SMA Context" + " contextID: " + contextIndex);
+            }
+            smaInput.getContexts().stream().forEach(a -> a.decompress());
+            stopwatch.stop();
+
+            logger.info("Completed dump of SMA diagnostics for topology context id {} in {} seconds",
+                    topologyInfo.getTopologyContextId(), stopwatch.elapsed(TimeUnit.SECONDS));
+        } catch (StackOverflowError e) {
+            // If any of the objects being converted to JSON have a circular reference, then it
+            // can lead to a StackOverflowError. We only print the message of the exception because
+            // we don't want to spam the logs with the stack trace for a stack overflow exception
+            logger.error("Error when attempting to save SMA diags. But analysis will continue.", e.toString());
+        } catch (Exception e) {
+            // Analysis should not stop because there was an error in saving diags.
+            logger.error("Error when attempting to save SMA diags. But analysis will continue.", e);
+        }
     }
 
     /**
@@ -90,7 +172,7 @@ public class AnalysisDiagnosticsCollector {
             // can lead to a StackOverflowError. We only print the message of the exception because
             // we don't want to spam the logs with the stack trace for a stack overflow exception
             logger.error("Error when attempting to save Analysis diags. But analysis will continue.", e.toString());
-        } catch (Throwable e) {
+        } catch (Exception e) {
             // Analysis should not stop because there was an error in saving diags.
             logger.error("Error when attempting to save Analysis diags. But analysis will continue.", e);
         }
@@ -121,9 +203,10 @@ public class AnalysisDiagnosticsCollector {
         /**
          * Create a new {@link AnalysisDiagnosticsCollector}.
          * @param topologyInfo the topologyInfo
+         * @param analysisMode collecting sma diags if mode is SMA
          * @return new instance of{@link AnalysisDiagnosticsCollector}
          */
-        Optional<AnalysisDiagnosticsCollector> newDiagsCollector(TopologyInfo topologyInfo);
+        Optional<AnalysisDiagnosticsCollector> newDiagsCollector(TopologyInfo topologyInfo, AnalysisMode analysisMode);
 
         /**
          * The default implementation of {@link AnalysisDiagnosticsCollectorFactory}, for use in "real" code.
@@ -132,14 +215,15 @@ public class AnalysisDiagnosticsCollector {
             /**
              * Returns a new {@link AnalysisDiagnosticsCollector}.
              * @param topologyInfo the topologyInfo
+             * @param analysisMode collecting sma diags if mode is SMA
              * @return a new {@link AnalysisDiagnosticsCollector}
              */
             @Override
-            public Optional<AnalysisDiagnosticsCollector> newDiagsCollector(TopologyInfo topologyInfo) {
+            public Optional<AnalysisDiagnosticsCollector> newDiagsCollector(TopologyInfo topologyInfo, AnalysisMode analysisMode) {
                 AnalysisDiagnosticsCollector diagsCollector = null;
                 if (AnalysisDiagnosticsCollector.isEnabled()) {
                     try {
-                        DiagnosticsWriter diagsWriter = createDiagnosticsWriter(topologyInfo);
+                        DiagnosticsWriter diagsWriter = createDiagnosticsWriter(topologyInfo, analysisMode);
                         diagsCollector = new AnalysisDiagnosticsCollector(diagsWriter);
                     } catch (Exception e) {
                         logger.error("Error when attempting to write DTOs. But analysis will continue.", e);
@@ -148,10 +232,14 @@ public class AnalysisDiagnosticsCollector {
                 return Optional.ofNullable(diagsCollector);
             }
 
-            private DiagnosticsWriter createDiagnosticsWriter(TopologyInfo topologyInfo)
+            private DiagnosticsWriter createDiagnosticsWriter(TopologyInfo topologyInfo, AnalysisMode analysisMode)
                 throws FileNotFoundException {
-                final String zipLocation = "tmp/analysisDiags-" + topologyInfo.getTopologyContextId()
-                    + "-" + topologyInfo.getTopologyId() + ".zip";
+
+                final String zipLocation = (analysisMode == AnalysisMode.SMA
+                        ? SMA_ZIP_LOCATION_PREFIX : M2_ZIP_LOCATION_PREFIX)
+                        + topologyInfo.getTopologyContextId()
+                        + "-" + topologyInfo.getTopologyId()
+                        + ".zip";
                 FileOutputStream fos = new FileOutputStream(zipLocation);
                 ZipOutputStream diagnosticZip = new ZipOutputStream(fos);
                 final DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);

@@ -13,8 +13,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -28,6 +30,14 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
+import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
@@ -51,12 +61,36 @@ public class AnalysisDiagnosticsCollectorTest {
     private List<TraderTO> traderTOs = new ArrayList<>();
     private Optional<AnalysisConfig> analysisConfig = Optional.empty();
     private Optional<TopologyInfo> topologyInfo = Optional.empty();
+    private Optional<SMAInput> smaInput = Optional.empty();
     private List<CommoditySpecification> commSpecsToAdjustOverhead = new ArrayList<>();
     private List<Action> replayActions = new ArrayList<>();
     private List<Deactivate> replayDeactivateActions = new ArrayList<>();
     // To run your own diagnostics, change this to the location of your unzipped analysis diags.
     // For ex., change it to "/Users/thiru_arun/Downloads/analysisDiags-777777-73588629312080"
     private final String unzippedAnalysisDiagsLocation = "target/test-classes/analysisDiags";
+
+    //Change this to the location of unzipped analysis diags.
+    private final String unzippedSMADiagsLocation = "src/test/resources/cloudvmscaling/smaDiags";
+
+    /**
+     * Unit test to run SMA from the unzipped analysis diags.
+     * Steps to run this unit test:
+     * 1. Unzip your sma diags,
+     * 2. Change the variable unzippedSMADiagsLocation.
+     * 3. Run the unit test.
+     */
+    @Test
+    public void testRunSMAFromDiags() {
+        restoreSMAsMembers(unzippedSMADiagsLocation);
+        if (smaInput.isPresent()) {
+            smaInput.get().getContexts().stream().forEach(a -> a.decompress());
+            SMAOutput smaOutput = StableMarriageAlgorithm.execute(smaInput.get());
+            logger.info("SMA generated {} outputContexts", smaOutput.getContexts().size());
+            assertTrue(smaOutput.getContexts().size() > 0);
+        } else {
+            logger.error("Could not create SMAInput. SMA was not run.");
+        }
+    }
 
     /**
      * Unit test to run analysis from the unzipped analysis diags.
@@ -90,6 +124,71 @@ public class AnalysisDiagnosticsCollectorTest {
         ReplayActions restoredReplayActions = new ReplayActions(replayActions, replayDeactivateActions, topology);
         when(analysis.getReplayActions()).thenReturn(restoredReplayActions);
         return analysis;
+    }
+
+    /**
+     * restore SMAInput from diags.
+     * @param unzippedSMADiagsLocation diags location.
+     */
+    private void restoreSMAsMembers(String unzippedSMADiagsLocation) {
+        try {
+            Iterator<Path> paths = Files.walk(Paths.get(unzippedSMADiagsLocation), 1)
+                    .filter(Files::isRegularFile).iterator();
+            Map<Integer, List<SMAVirtualMachine>> virtualMachineList = new HashMap<>();
+            Map<Integer, List<SMAReservedInstance>> reservedInstanceList = new HashMap<>();
+            Map<Integer, List<SMATemplate>> templateList = new HashMap<>();
+            Map<Integer, SMAContext> contextList = new HashMap<>();
+            List<SMAInputContext> smaInputContexts = new ArrayList<>();
+            while (paths.hasNext()) {
+                Path path = paths.next();
+                String fileName = path.getFileName().toString();
+                String[] splitStrings = fileName.split("_");
+                if (splitStrings.length != 3) {
+                    continue;
+                }
+                int index = Integer.parseInt(splitStrings[1]);
+                switch (splitStrings[0]) {
+                    case AnalysisDiagnosticsCollector.SMA_RESERVED_INSTANCE_PREFIX:
+                        reservedInstanceList.put(index, extractMultipleInstancesOfType(path, SMAReservedInstance.class));
+                        break;
+                    case AnalysisDiagnosticsCollector.SMA_CONTEXT_PREFIX:
+                        Optional<SMAContext> context = extractSingleInstanceOfType(path, SMAContext.class);
+                        if (!context.isPresent()) {
+                            smaInput = Optional.empty();
+                            logger.error("Could not create SMAInput. Context is absent.");
+                            return;
+                        }
+                        contextList.put(index, context.get());
+                        break;
+                    case AnalysisDiagnosticsCollector.SMA_TEMPLATE_PREFIX:
+                        templateList.put(index, extractMultipleInstancesOfType(path, SMATemplate.class));
+                        break;
+                    case AnalysisDiagnosticsCollector.SMA_VIRTUAL_MACHINE_PREFIX:
+                        virtualMachineList.put(index, extractMultipleInstancesOfType(path, SMAVirtualMachine.class));
+                        break;
+                    default:
+                        logger.error("Unknown file {} in Analysis diags. Skipping this file.", fileName);
+                        break;
+                }
+            }
+            for (Integer index : contextList.keySet()) {
+                if (contextList.get(index) == null || virtualMachineList.get(index) == null
+                        || reservedInstanceList.get(index) == null
+                        || templateList.get(index) == null) {
+                    smaInput = Optional.empty();
+                    logger.error("Could not create SMAInput.");
+                    return;
+                }
+                smaInputContexts.add(new SMAInputContext(contextList.get(index),
+                        virtualMachineList.get(index),
+                        reservedInstanceList.get(index), templateList.get(index)));
+            }
+
+            smaInput = Optional.of(new SMAInput(smaInputContexts));
+
+        } catch (IOException e) {
+            logger.error("Could not extract from file {}.", unzippedSMADiagsLocation, e);
+        }
     }
 
     private void restoreAnalysisMembers(String unzippedAnalysisDiagsLocation) {

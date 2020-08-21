@@ -271,6 +271,7 @@ public class SMAInput {
                 logger.error(" no template for context={}", context);
                 continue;
             }
+            smaTemplates.stream().forEach(t -> t.setComputeTier(null));
             logger.debug("{} #VMs={} #RIs={} #templates={}", () -> context,
                 () -> smaVMs.size(), () -> smaRIs.size(), () -> smaTemplates.size());
             SMAInputContext inputContext = new SMAInputContext(context,
@@ -622,7 +623,7 @@ public class SMAInput {
                 /*
                  * For each osType create template with osType specific cost.
                  */
-                SMATemplate template = new SMATemplate(oid, name, family, coupons, context, computeTier);
+                SMATemplate template = new SMATemplate(oid, name, family, coupons, computeTier);
                 logger.trace("processComputeTier: new {} in {}", template, context);
                 Set<SMATemplate> templates = smaContextToTemplates.getOrDefault(context, new HashSet<>());
                 templates.add(template);

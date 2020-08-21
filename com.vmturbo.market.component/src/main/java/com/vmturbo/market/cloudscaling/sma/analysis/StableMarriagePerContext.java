@@ -94,7 +94,7 @@ public class StableMarriagePerContext {
             SMAVirtualMachine vm = match.getVirtualMachine();
             SMATemplate currentTemplate = vm.getCurrentTemplate();
             SMATemplate matchTemplate = match.getTemplate();
-            if (currentTemplate != matchTemplate || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
+            if (currentTemplate.getOid() != matchTemplate.getOid() || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
                 mismatch++;
             }
         }
@@ -1082,11 +1082,11 @@ public class StableMarriagePerContext {
         if (vm.getGroupSize() > 1) {
             for (SMAVirtualMachine member : virtualMachineGroupMap
                     .get(vm.getGroupName()).getVirtualMachines()) {
-                moves += member.getCurrentTemplate().equals(template) ? 0 : 1;
+                moves += member.getCurrentTemplate().getOid() == template.getOid() ? 0 : 1;
             }
             return moves;
         } else {
-            return vm.getCurrentTemplate().equals(template) ? 0 : 1;
+            return vm.getCurrentTemplate().getOid() == template.getOid() ? 0 : 1;
         }
     }
 

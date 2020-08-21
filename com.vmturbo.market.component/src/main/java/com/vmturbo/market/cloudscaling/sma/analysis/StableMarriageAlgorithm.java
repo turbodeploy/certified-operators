@@ -50,7 +50,7 @@ public class StableMarriageAlgorithm {
             postProcessing(outputContext);
             outputContexts.add(outputContext);
             for (SMAMatch match : outputContext.getMatches()) {
-                if ((match.getVirtualMachine().getCurrentTemplate() != match.getTemplate())
+                if ((match.getVirtualMachine().getCurrentTemplate().getOid() != match.getTemplate().getOid())
                         || (Math.abs(match.getVirtualMachine().getCurrentRICoverage()
                         - match.getProjectedRICoverage()) > SMAUtils.EPSILON)) {
                     actionCount++;

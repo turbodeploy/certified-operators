@@ -152,7 +152,7 @@ public class JsonToSMAInputTranslator {
         String name = templateObj.get("name").getAsString();
         String family = templateObj.get("family").getAsString();
         int coupons = templateObj.get("coupons").getAsInt();
-        SMATemplate template = new SMATemplate(oid, name, family, coupons, SMAUtils.BOGUS_CONTEXT, null);
+        SMATemplate template = new SMATemplate(oid, name, family, coupons, null);
 
         JsonArray onDemandCostObjs = (JsonArray)templateObj.get("onDemandCost");
         for (JsonElement onDemandCostObj : onDemandCostObjs) {

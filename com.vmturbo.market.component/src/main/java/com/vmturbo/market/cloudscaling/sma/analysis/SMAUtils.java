@@ -95,7 +95,7 @@ public class SMAUtils {
      * Placeholder for invalid SMATemplate.
      */
     public static final SMATemplate BOGUS_TEMPLATE = new SMATemplate(-1, "SMATemplate placeholder",
-        "xxx", 0, BOGUS_CONTEXT, null);
+        "xxx", 0, null);
 
     /**
      * if Azure, then OS type agnostic and use UNKNOWN_OS.

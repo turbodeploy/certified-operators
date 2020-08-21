@@ -1,8 +1,11 @@
 package com.vmturbo.market.cloudscaling.sma.entities;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -153,6 +156,67 @@ public class SMAInputContext {
                 ", reservedInstances=" + reservedInstances == null ? "" + 0 : reservedInstances.size() +
                 ", templates=" + templates.size() +
                 '}';
+    }
+
+    // Compression for diags related code
+
+
+
+    /**
+     * decompress inputContext.
+     */
+    public void decompress() {
+        Map<Long, SMATemplate> oidToTemplateMap = new HashMap();
+
+        Map<Long, SMAReservedInstance> oidToRIMap = new HashMap();
+        getTemplates().stream().forEach(template -> {
+            oidToTemplateMap.put(template.getOid(), template);
+        });
+        getReservedInstances().stream().forEach(ri -> {
+            oidToRIMap.put(ri.getOid(), ri);
+        });
+        getVirtualMachines().stream().forEach(vm -> {
+            vm.setCurrentTemplate(oidToTemplateMap.get(vm.getCurrentTemplateOid()));
+            vm.setCurrentRI(oidToRIMap.get(vm.getCurrentRIOID()));
+            List<SMATemplate> providerList = (vm.getProvidersOid()
+                    .stream().map(oid -> oidToTemplateMap.get(oid)).collect(Collectors.toList()));
+            vm.setProviders(providerList);
+            vm.getProvidersOid().clear();
+        });
+        getReservedInstances().stream().forEach(ri -> {
+            ri.setTemplate(oidToTemplateMap.get(ri.getTemplateOid()));
+            ri.setNormalizedTemplate(oidToTemplateMap.get(ri.getTemplateOid()));
+        });
+
+    }
+
+    /**
+     * compress inputContext.
+     */
+    public void compress() {
+        getVirtualMachines().stream().forEach(vm -> {
+            vm.getProvidersOid().clear();
+            if (vm.getProviders() != null) {
+                vm.getProvidersOid().addAll(vm.getProviders()
+                        .stream().map(provider -> provider.getOid())
+                        .collect(Collectors.toList()));
+                vm.getProviders().clear();
+            }
+            vm.setGroupProviders(new ArrayList<>());
+            vm.setCurrentTemplateOid(vm.getCurrentTemplate().getOid());
+            vm.setCurrentTemplate(null);
+            vm.setNaturalTemplate(null);
+            if (vm.getCurrentRI() != null) {
+                vm.setCurrentRIOID(vm.getCurrentRI().getOid());
+                vm.setCurrentRI(null);
+            }
+        });
+
+        getReservedInstances().stream().forEach(ri -> {
+            ri.setTemplateOid(ri.getTemplate().getOid());
+            ri.setTemplate(null);
+            ri.setNormalizedTemplate(null);
+        });
     }
 }
 
