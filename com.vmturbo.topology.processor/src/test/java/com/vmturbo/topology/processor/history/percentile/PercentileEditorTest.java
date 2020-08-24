@@ -65,6 +65,7 @@ import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
+import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.CapacityChange;
 import com.vmturbo.topology.processor.history.percentile.PercentileEditor.CacheBackup;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
@@ -527,14 +528,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                     ArgumentCaptor<Long> periodCaptor, PercentileCounts maintenanceCurrentDay) {
         final List<PercentileRecord> currentDayRecords =
                         maintenanceCurrentDay.getPercentileRecordsList();
-        final Set<Long> currentDayPeriods = currentDayRecords.stream().filter(Objects::nonNull)
-                        .map(r -> (long)r.getPeriod()).collect(Collectors.toSet());
-        Assert.assertThat(currentDayPeriods.size(), CoreMatchers.is(1));
-        Assert.assertThat(currentDayPeriods, Matchers.containsInAnyOrder(1L));
-        Assert.assertThat(currentDayRecords.stream().map(PercentileRecord::getUtilizationList)
-                                        .flatMap(Collection::stream).collect(Collectors.toSet()),
-                        CoreMatchers.is(Collections.singleton(0)));
-
+        // after maintenance, latest is cleared and will get saved w/o entries at all
+        Assert.assertTrue(currentDayRecords.isEmpty());
         if (enforceMaintenanceIsExpected) {
             final int indexOfYesterdaySave = 1;
             final long period = periodCaptor.getAllValues().get(indexOfYesterdaySave);
@@ -980,6 +975,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                             .setEntityOid(VIRTUAL_MACHINE_OID)
                             .setCommodityType(VCPU_COMMODITY_REFERENCE.getCommodityType().getType())
                             .setCapacity(CAPACITY)
+                            .addCapacityChanges(CapacityChange.newBuilder().setNewCapacity(CAPACITY).setTimestamp(0L))
                             .setPeriod((int)PREVIOUS_VIRTUAL_MACHINE_OBSERVATION_PERIOD)
                             .build();
 
@@ -988,6 +984,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                             .setCommodityType(IMAGE_CPU_COMMODITY_REFERENCE.getCommodityType().getType())
                             .setProviderOid(IMAGE_CPU_COMMODITY_REFERENCE.getProviderOid())
                             .setKey(IMAGE_CPU_COMMODITY_REFERENCE.getCommodityType().getKey())
+                            .addCapacityChanges(CapacityChange.newBuilder().setNewCapacity(CAPACITY).setTimestamp(0L))
                             .setCapacity(CAPACITY)
                             .setProviderOid(DESKTOP_POOL_PROVIDER_OID)
                             .setPeriod((int)PREVIOUS_BUSINESS_USER_OBSERVATION_PERIOD)
