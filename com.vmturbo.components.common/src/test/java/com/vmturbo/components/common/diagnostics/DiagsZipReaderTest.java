@@ -1,15 +1,45 @@
 package com.vmturbo.components.common.diagnostics;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import com.vmturbo.components.common.diagnostics.Diags.UncompressedDiags;
 
 public class DiagsZipReaderTest extends Assert {
+
+    CustomDiagHandler customDiagHandler;
+    /**
+     * Temporary folder with cached responses for testing.
+     */
+    @Rule
+    public TemporaryFolder tmpFolder = new TemporaryFolder();
+
+    /**
+     * Folder in the diags that will contain the the discovery dumps.
+     */
+    public static String dumpsFolderInDiags = "discoveryDumps";
+
+    /**
+     * Filepath to the discovery dumps.
+     */
+    public static String discoveryDumpFilePath = "/discoveryDTO.lz4";
+
+    @Before
+    public void setUp() {
+        customDiagHandler = mock(CustomDiagHandler.class);
+        when(customDiagHandler.shouldHandleRestore(any())).thenReturn(false);
+    }
 
     @Test
     public void testDiagsZipReader() throws IOException {
@@ -23,6 +53,7 @@ public class DiagsZipReaderTest extends Assert {
                 .withTextFile("x/d.txt", "hello d")
                 .withTextFile("e.diags", "e", "f", "g")
             )
+            .withTextFile(dumpsFolderInDiags + discoveryDumpFilePath)
             .withBinaryFile("f.binary", 1, 2, 3)
             .withTextFile("g.diags", "g", "h", "i");
         checkDiags(builder, new Object[][]{
@@ -36,7 +67,7 @@ public class DiagsZipReaderTest extends Assert {
     }
 
     private void checkDiags(ZipStreamBuilder zipBuilder, Object[][] expected) throws IOException {
-        DiagsZipReader diags = new DiagsZipReader(zipBuilder.toInputStream());
+        DiagsZipReader diags = new DiagsZipReader(zipBuilder.toInputStream(), customDiagHandler, true);
         Iterator<Diags> diagsIter = diags.iterator();
         for (final Object[] objects : expected) {
             assertTrue(diagsIter.hasNext());

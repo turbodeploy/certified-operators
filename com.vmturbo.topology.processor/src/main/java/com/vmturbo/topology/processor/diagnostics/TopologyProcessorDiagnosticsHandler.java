@@ -61,6 +61,7 @@ import com.vmturbo.topology.processor.TopologyProcessorComponent;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.cost.PriceTableUploader;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityStore.TargetIncrementalEntities;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
@@ -109,7 +110,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     private final PriceTableUploader priceTableUploader;
     private final TopologyPipelineExecutorService topologyPipelineExecutorService;
     private final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts;
-
+    private final BinaryDiscoveryDumper binaryDiscoveryDumper;
     private final Logger logger = LogManager.getLogger();
 
     TopologyProcessorDiagnosticsHandler(
@@ -124,7 +125,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
             @Nonnull final PriceTableUploader priceTableUploader,
             @Nonnull final TopologyPipelineExecutorService topologyPipelineExecutorService,
-            @Nonnull final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts) {
+            @Nonnull final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts,
+            @Nonnull final BinaryDiscoveryDumper binaryDiscoveryDumper) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
         this.scheduler = scheduler;
@@ -137,6 +139,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         this.priceTableUploader = priceTableUploader;
         this.topologyPipelineExecutorService = topologyPipelineExecutorService;
         this.fixedFilenameBinaryDiagnosticParts = fixedFilenameBinaryDiagnosticParts;
+        this.binaryDiscoveryDumper = binaryDiscoveryDumper;
     }
 
     /**
@@ -256,6 +259,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                             .iterator());
         }
 
+        diagsWriter.writeCustomEntries(binaryDiscoveryDumper);
         diagsWriter.dumpDiagnosable(
                 new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry));
         fixedFilenameBinaryDiagnosticParts.values().forEach(diagsWriter::dumpDiagnosable);
@@ -397,7 +401,10 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         // will be written to Consul with the old ID. This entry will later become a duplicate entry
         // and cause severe problems.
         final Stopwatch stopwatch = Stopwatch.createStarted();
-        final List<Diags> sortedDiagnostics = Streams.stream(new DiagsZipReader(zis, true))
+        final DiagsZipReader diagsReader = new DiagsZipReader(zis,
+            binaryDiscoveryDumper,
+            true);
+        final List<Diags> sortedDiagnostics = Streams.stream(diagsReader)
             .sorted(diagsRestoreComparator)
             .collect(Collectors.toList());
         final List<String> errors = new ArrayList<>();
