@@ -33,6 +33,7 @@ import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
+import com.vmturbo.topology.processor.history.HistoryAggregationConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
@@ -54,6 +55,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     GroupConfig.class,
     ClockConfig.class,
     TopologyProcessorDiagnosticsConfig.class,
+    HistoryAggregationConfig.class
 })
 public class RESTConfig extends WebMvcConfigurerAdapter {
     @Autowired
@@ -85,6 +87,9 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
 
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
+
+    @Autowired
+    private HistoryAggregationConfig historyAggregationConfig;
 
     /**
      * Maximum amount of time to wait for async REST requests. This comes into use when requesting the stitching
@@ -143,7 +148,8 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public DiagnosticsControllerImportable diagnosticsController() {
-        return new DiagnosticsControllerImportable(diagnosticsConfig.diagsHandler());
+        return new TopologyProcessorDiagnosticsController(diagnosticsConfig.diagsHandler(),
+                        historyAggregationConfig.percentileHistoryEditor());
     }
 
     @Bean

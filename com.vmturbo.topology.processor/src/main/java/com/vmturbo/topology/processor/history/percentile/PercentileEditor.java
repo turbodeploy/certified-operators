@@ -247,10 +247,20 @@ public class PercentileEditor extends
     }
 
     @Override
-    public void completeBroadcast(@Nonnull HistoryAggregationContext context) throws HistoryCalculationException, InterruptedException {
+    public synchronized void completeBroadcast(@Nonnull HistoryAggregationContext context)
+                    throws HistoryCalculationException, InterruptedException {
         super.completeBroadcast(context);
         if (!context.isPlan()) {
             final long checkpointMs = getCheckpoint();
+
+            // clean up the empty entries
+            int entriesBefore = getCache().size();
+            getCache().entrySet().removeIf(field2data -> field2data.getValue().getUtilizationCountStore().isEmpty());
+            int entriesAfter = getCache().size();
+            if (entriesAfter < entriesBefore && logger.isDebugEnabled()) {
+                logger.debug("Cleared {} empty percentile records out of {}",
+                                entriesBefore - entriesAfter, entriesBefore);
+            }
 
             // perform enforce maintenance if required
             enforcedMaintenance(context, checkpointMs);
@@ -267,6 +277,23 @@ public class PercentileEditor extends
                             (data) -> String.format("Percentile utilization counts: %s",
                                             data.getUtilizationCountStore().toDebugString()));
         }
+    }
+
+    /**
+     * Re-compute the full page from the daily pages over the maximum defined observation period.
+     * Update memory cache only, without persisting it, which will happen only during maintenance.
+     * Execute synchronously (will block the ongoing broadcast, if happens at the same time).
+     *
+     * @throws InterruptedException when interrupted
+     * @throws HistoryCalculationException when failed
+     */
+    public synchronized void reassembleFullPage() throws InterruptedException, HistoryCalculationException {
+        int maxPeriod = getCache().values().stream()
+                        .map(PercentileCommodityData::getUtilizationCountStore)
+                        .map(UtilizationCountStore::getPeriodDays).max(Long::compare)
+                        .orElse(PercentileHistoricalEditorConfig
+                                        .getDefaultObservationPeriod());
+        reassembleFullPage(getCache(), maxPeriod, false);
     }
 
     private void persistDailyRecord(HistoryAggregationContext context, long checkpointMs) throws InterruptedException, HistoryCalculationException {
@@ -292,8 +319,10 @@ public class PercentileEditor extends
                     throws HistoryCalculationException, InterruptedException {
         final PercentileCounts.Builder builder = PercentileCounts.newBuilder();
         for (PercentileCommodityData data : getCache().values()) {
-            builder.addPercentileRecords(
-                            countStoreToRecordStore.apply(data.getUtilizationCountStore()));
+            PercentileRecord.Builder record = countStoreToRecordStore.apply(data.getUtilizationCountStore());
+            if (record != null) {
+                builder.addPercentileRecords(record);
+            }
         }
         return builder;
     }
@@ -329,12 +358,7 @@ public class PercentileEditor extends
             } catch (InvalidHistoryDataException e) {
                 logger.warn("Failed to read percentile full window data, re-assembling from the daily blobs", e);
                 initializeCacheValues(context, eligibleComms);
-                int maxPeriod = getCache().values().stream()
-                                .map(PercentileCommodityData::getUtilizationCountStore)
-                                .map(UtilizationCountStore::getPeriodDays).max(Long::compare)
-                                .orElse(PercentileHistoricalEditorConfig
-                                                .getDefaultObservationPeriod());
-                reassembleFullPage(getCache(), maxPeriod, false);
+                reassembleFullPage();
             }
 
             sw.reset();
@@ -468,8 +492,10 @@ public class PercentileEditor extends
             // at this point full record is a sum of all previous days up to period
             // except the latest page -> add latest to full, rescaling as necessary
             for (PercentileCommodityData entry : entriesToUpdate.values()) {
-                entry.getUtilizationCountStore().setLatestCountsRecord(
-                                entry.getUtilizationCountStore().getLatestCountsRecord().build());
+                PercentileRecord.Builder record = entry.getUtilizationCountStore().getLatestCountsRecord();
+                if (record != null) {
+                    entry.getUtilizationCountStore().setLatestCountsRecord(record.build());
+                }
             }
 
             this.enforceMaintenance = enforceMaintenance;
@@ -553,7 +579,9 @@ public class PercentileEditor extends
             for (Map.Entry<PercentileCommodityData, List<PercentileRecord>> entry : dataRef2outdatedRecords.entrySet()) {
                 final PercentileRecord.Builder checkpoint =
                                 entry.getKey().checkpoint(entry.getValue());
-                total.addPercentileRecords(checkpoint);
+                if (checkpoint != null) {
+                    total.addPercentileRecords(checkpoint);
+                }
             }
             writeBlob(total, checkpointMs, PercentilePersistenceTask.TOTAL_TIMESTAMP);
             lastCheckpointMs = checkpointMs;

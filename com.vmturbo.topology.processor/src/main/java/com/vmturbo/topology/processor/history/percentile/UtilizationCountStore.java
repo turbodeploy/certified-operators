@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -166,17 +167,19 @@ public class UtilizationCountStore {
      * @throws HistoryCalculationException when passed data are not valid
      */
     public synchronized void addBeforeLatest(PercentileRecord record) throws HistoryCalculationException {
-        PercentileRecord latestCopy = getLatestCountsRecord().build();
+        PercentileRecord.Builder latestCopy = getLatestCountsRecord();
         latest.clear();
         String description = fieldReference.toString();
         latest.deserialize(record, description);
-        latest.deserialize(latestCopy, description);
+        if (latestCopy != null) {
+            latest.deserialize(latestCopy.build(), description);
+        }
     }
 
     /**
      * Serialize the latest window counts array.
      *
-     * @return serialized record
+     * @return serialized record, null if empty
      */
     public synchronized PercentileRecord.Builder getLatestCountsRecord() {
         return serialize(latest, 1);
@@ -185,16 +188,17 @@ public class UtilizationCountStore {
     /**
      * Serialize the full window counts array.
      *
-     * @return serialized record
+     * @return serialized record, null if empty
      */
     public synchronized PercentileRecord.Builder getFullCountsRecord() {
         return serialize(full, periodDays);
     }
 
-    @Nonnull
+    @Nullable
     private PercentileRecord.Builder serialize(@Nonnull UtilizationCountArray full,
                     int periodDays) {
-        return full.serialize(fieldReference).setPeriod(periodDays);
+        PercentileRecord.Builder builder = full.serialize(fieldReference);
+        return builder == null ? null : builder.setPeriod(periodDays);
     }
 
     /**
@@ -204,7 +208,7 @@ public class UtilizationCountStore {
      *
      * @param oldPages counts arrays for the old periods of time that go out of observation window
      * @param clearLatest should the latest record be cleared.
-     * @return serialized counts array for the entire observation window, to be persisted
+     * @return serialized counts array for the entire observation window, to be persisted, null if empty
      * @throws HistoryCalculationException when passed data are not valid
      */
     public synchronized PercentileRecord.Builder checkpoint(Collection<PercentileRecord> oldPages,
@@ -236,6 +240,15 @@ public class UtilizationCountStore {
      */
     public synchronized void clearFullRecord() {
         full.clear();
+    }
+
+    /**
+     * Whether the store is empty.
+     *
+     * @return true if no points have ever been added
+     */
+    public synchronized boolean isEmpty() {
+        return full.isEmpty() && latest.isEmpty();
     }
 
     public int getPeriodDays() {
