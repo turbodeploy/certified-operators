@@ -237,14 +237,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                 long baOID = entityDTO.getOid();
                 businessAccountHelper.storeTargetMapping(baOID,
                         entityDTO.getDisplayName(), getTargetId(entityDTO));
-                if (entityDTO.hasTypeSpecificInfo()
-                        && entityDTO.getTypeSpecificInfo().hasBusinessAccount()
-                        && entityDTO.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId()) {
-                    businessAccountHelper.storeDiscoveredBusinessAccount(entityDTO);
-                }
-
                 logger.debug("TopologyEntityDTO for BA {}", entityDTO);
-
             }
         }
     }

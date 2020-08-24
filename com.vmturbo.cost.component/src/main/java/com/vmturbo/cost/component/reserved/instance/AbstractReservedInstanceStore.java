@@ -2,11 +2,7 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -17,11 +13,8 @@ import org.jooq.Record3;
 import org.jooq.Result;
 
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.cost.component.identity.IdentityProvider;
-import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
-import com.vmturbo.cost.component.util.BusinessAccountHelper;
 
 /**
  * Abstract class for updating RIs table by reserved instance bought data from Topology Processor.
@@ -47,30 +40,18 @@ public abstract class AbstractReservedInstanceStore {
 
     private final ReservedInstanceCostCalculator reservedInstanceCostCalculator;
 
-    private final AccountRIMappingStore accountRIMappingStore;
-    private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
-    protected final BusinessAccountHelper businessAccountHelper;
-
     /**
      * Creates {@link AbstractReservedInstanceStore} instance.
+     *
      * @param dsl DSL context.
      * @param identityProvider identity provider.
      * @param reservedInstanceCostCalculator RI cost calculator.
-     * @param accountRIMappingStore Account RI mapping store
-     * @param entityReservedInstanceMappingStore The Entity to ReservedInstance mapping store
-     * @param businessAccountHelper BusinessAccountHelper
      */
     public AbstractReservedInstanceStore(@Nonnull DSLContext dsl, @Nonnull IdentityProvider identityProvider,
-                                         @Nonnull final ReservedInstanceCostCalculator reservedInstanceCostCalculator,
-                                         @Nonnull final AccountRIMappingStore accountRIMappingStore,
-                                         @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
-                                         @Nonnull final BusinessAccountHelper businessAccountHelper) {
+        @Nonnull final ReservedInstanceCostCalculator reservedInstanceCostCalculator) {
         this.dsl = Objects.requireNonNull(dsl);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.reservedInstanceCostCalculator = Objects.requireNonNull(reservedInstanceCostCalculator);
-        this.accountRIMappingStore = accountRIMappingStore;
-        this.entityReservedInstanceMappingStore = entityReservedInstanceMappingStore;
-        this.businessAccountHelper = businessAccountHelper;
     }
 
     /**
@@ -127,58 +108,4 @@ public abstract class AbstractReservedInstanceStore {
         return riAggregatedCostResult.getValues(valueName, Double.class).stream().filter(s -> s != null)
                         .findAny().orElse(0D);
     }
-
-    protected List<ReservedInstanceBought> adjustAvailableCouponsForPartialCloudEnv(
-            final List<ReservedInstanceBought> reservedInstances) {
-
-        Set<Long> discoveredBaOids = businessAccountHelper.getDiscoveredBusinessAccounts();
-        List<ReservedInstanceBought> riFromUndiscoveredAccounts = reservedInstances.stream()
-                .filter(ri -> !discoveredBaOids.contains(
-                        ri.getReservedInstanceBoughtInfo().getBusinessAccountId()))
-                .collect(Collectors.toList());
-        List<Long> undiscoveredRiIds = riFromUndiscoveredAccounts.stream()
-                .map(ri -> ri.getId())
-                .collect(Collectors.toList());
-        // Retrieve the total  used coupons from discovered workloads for each RI
-        final Map<Long, Double> riToDiscoveredUsageMap = entityReservedInstanceMappingStore
-                .getReservedInstanceUsedCouponsMapByFilter(
-                        EntityReservedInstanceMappingFilter.newBuilder().riBoughtFilter(
-                                Cost.ReservedInstanceBoughtFilter.newBuilder()
-                                        .addAllRiBoughtId(undiscoveredRiIds).build()).build());
-
-        // Retrieve the total  used coupons from undiscovered accounts for each RI
-        final Map<Long, Double> riToUndiscoveredAccountUsage =
-                accountRIMappingStore.getUndiscoveredAccountUsageForRI();
-        if (riToUndiscoveredAccountUsage.isEmpty()) {
-            logger.warn("No RI usage for undiscovered accounts recorded.");
-        }
-        // Update the capacities for each RI
-        return reservedInstances.stream()
-                .map(ReservedInstanceBought::toBuilder)
-                .peek(riBuilder -> {
-                    if (undiscoveredRiIds.contains(riBuilder.getId())) {
-                        long coupons = Math.round(riToDiscoveredUsageMap.getOrDefault(riBuilder.getId(),
-                                0d));
-                        riBuilder.getReservedInstanceBoughtInfoBuilder()
-                                .getReservedInstanceBoughtCouponsBuilder()
-                                .setNumberOfCouponsUsed(coupons)
-                                .setNumberOfCoupons((int)coupons);
-                    } else {
-                        int coupons = (int)Math.round(riToUndiscoveredAccountUsage.getOrDefault(riBuilder.getId(),
-                                0d));
-                        if (coupons > 0) {
-                            int capacity = riBuilder.getReservedInstanceBoughtInfoBuilder()
-                                    .getReservedInstanceBoughtCouponsBuilder()
-                                    .getNumberOfCoupons();
-                            riBuilder.getReservedInstanceBoughtInfoBuilder()
-                                    .getReservedInstanceBoughtCouponsBuilder()
-                                    .setNumberOfCoupons(capacity - coupons);
-                        }
-                    }
-                })
-                .map(ReservedInstanceBought.Builder::build)
-                .collect(Collectors.toList());
-    }
-
-
 }

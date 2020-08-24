@@ -14,7 +14,6 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
@@ -25,7 +24,6 @@ import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageLate
 import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
-import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
@@ -83,16 +81,13 @@ public class ReservedInstanceCoverageStoreTest {
                     .setUsedCoupons(30)
                     .setTotalCoupons(50)
                     .build();
-    private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore = Mockito.mock(EntityReservedInstanceMappingStore.class);
-    private AccountRIMappingStore accountRIMappingStore = Mockito.mock(AccountRIMappingStore.class);
 
     @Before
     public void setup() throws Exception {
         reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
         reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
         reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore,
-                entityReservedInstanceMappingStore, accountRIMappingStore, new BusinessAccountHelper());
+                new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore);
         reservedInstanceCoverageStore = new ReservedInstanceCoverageStore(dsl);
     }
 

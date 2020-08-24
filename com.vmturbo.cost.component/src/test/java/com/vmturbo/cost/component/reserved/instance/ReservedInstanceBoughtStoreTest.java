@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.ZoneOffset;
@@ -46,7 +47,6 @@ import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
-import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
@@ -80,12 +80,9 @@ public class ReservedInstanceBoughtStoreTest {
     private ReservedInstanceCostCalculator reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
 
     private PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
-    private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore = Mockito.mock(EntityReservedInstanceMappingStore.class);
-    private AccountRIMappingStore accountRIMappingStore = Mockito.mock(AccountRIMappingStore.class);
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore,
-            entityReservedInstanceMappingStore, accountRIMappingStore, new BusinessAccountHelper());
+                new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore);
 
     private static final int REGION_VALUE = 54;
     private static final int AVAILABILITYZONE_VALUE = 55;

@@ -6,7 +6,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -189,23 +188,6 @@ public class AccountRIMappingStore {
                 Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING).where(condition).fetchStream().collect(
                 Collectors.groupingBy(Record2::value1,
                         Collectors.mapping(Record2::value2, Collectors.toSet())));
-    }
-
-    /**
-     * Returns the sum of usage from all undiscovered accounts.
-     *
-     * @return Map of RI id and corresponding usage from undiscovered accounts.
-     */
-    public  Map<Long, Double> getUndiscoveredAccountUsageForRI() {
-        final Map<Long, List<AccountRIMappingItem>> usedCouponInUndiscAccounts =
-                getAccountRICoverageMappings(Collections.emptyList());
-        Map<Long, Double> undiscoveredAccountRIUsage =
-                usedCouponInUndiscAccounts.values().stream()
-                        .flatMap(List::stream)
-                        .collect(Collectors.toMap(AccountRIMappingItem::getReservedInstanceId,
-                                AccountRIMappingItem::getUsedCoupons,
-                                (oldValue, newValue) -> oldValue + newValue));
-        return undiscoveredAccountRIUsage;
     }
 
     /**

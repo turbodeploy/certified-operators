@@ -6,7 +6,6 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -26,10 +25,8 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -71,9 +68,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
-import com.vmturbo.cost.component.util.BusinessAccountHelper;
+import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore.AccountRIMappingItem;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -88,24 +84,14 @@ import com.vmturbo.repository.api.RepositoryClient;
  */
 public class ReservedInstanceBoughtRpcServiceTest {
 
+    private ReservedInstanceBoughtStore reservedInstanceBoughtStore =
+            mock(ReservedInstanceBoughtStore.class);
 
-    private final DSLContext dsl = Mockito.mock(DSLContext.class);
-    private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
-    private final ReservedInstanceCostCalculator reservedInstanceCostCalculato =
-            Mockito.mock(ReservedInstanceCostCalculator.class);
-    private final PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
     private final EntityReservedInstanceMappingStore reservedInstanceMappingStore =
-            mock(EntityReservedInstanceMappingStore.class);
+                    mock(EntityReservedInstanceMappingStore.class);
+
     private final AccountRIMappingStore accountRIMappingStore =
             mock(AccountRIMappingStore.class);
-    private final BusinessAccountHelper businessAccountHelper =
-            mock(BusinessAccountHelper.class);
-
-
-    private final ReservedInstanceBoughtStore riBoughtStore =
-            new SQLReservedInstanceBoughtStore(dsl, identityProvider, reservedInstanceCostCalculato,
-                    priceTableStore, reservedInstanceMappingStore, accountRIMappingStore, businessAccountHelper);
-    private ReservedInstanceBoughtStore reservedInstanceBoughtStore = Mockito.spy(riBoughtStore);
 
     final PlanReservedInstanceServiceMole planReservedInstanceServiceMole = spy(PlanReservedInstanceServiceMole.class);
 
@@ -202,8 +188,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 mock(ReservedInstanceSpecStore.class);
         when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any())).thenReturn(
                 RESERVED_INSTANCE_SPECS);
-        doReturn(Collections.singletonMap(RI_SPEC_ID, RI_BOUGHT_COUNT))
-                .when(reservedInstanceBoughtStore).getReservedInstanceCountByRISpecIdMap(any());
+        when(reservedInstanceBoughtStore.getReservedInstanceCountByRISpecIdMap(any())).thenReturn(
+                Collections.singletonMap(RI_SPEC_ID, RI_BOUGHT_COUNT));
         final PriceTableStore priceTableStore = mock(PriceTableStore.class);
         mockPricedTableStore(priceTableStore);
 
@@ -212,16 +198,13 @@ public class ReservedInstanceBoughtRpcServiceTest {
         PlanReservedInstanceServiceBlockingStub planReservedInstanceService =
                 PlanReservedInstanceServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
-        PlanReservedInstanceStore planReservedInstanceStore = Mockito.mock(PlanReservedInstanceStore.class);
-
         final ReservedInstanceBoughtRpcService service =
                 new ReservedInstanceBoughtRpcService(reservedInstanceBoughtStore,
                         reservedInstanceMappingStore, repositoryClient, supplyChainService,
                         planReservedInstanceService, realtimeTopologyContextId, priceTableStore,
                         reservedInstanceSpecStore,
                         BuyReservedInstanceServiceGrpc.newBlockingStub(
-                        grpcTestServer.getChannel()), accountRIMappingStore,
-                        planReservedInstanceStore, businessAccountHelper);
+                        grpcTestServer.getChannel()), accountRIMappingStore);
 
         final GrpcTestServer grpcServer = GrpcTestServer.newServer(service);
         grpcServer.start();
@@ -385,8 +368,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
      */
     @Test
     public void testOnDemandCostSetRIBought() {
-        doReturn(Collections.singletonList(createRiBought(RI_SPEC_ID)))
-                .when(reservedInstanceBoughtStore).getReservedInstanceBoughtByFilter(any());
+        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
+                .thenReturn(Collections.singletonList(createRiBought(RI_SPEC_ID)));
         final GetReservedInstanceBoughtByFilterRequest request =
                 GetReservedInstanceBoughtByFilterRequest.newBuilder().build();
         final GetReservedInstanceBoughtByFilterResponse response =
@@ -411,8 +394,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
     @Test
     public void testOnDemandCostWithLicenseSetRIBought() {
         // given
-        doReturn(Collections.singletonList(createRiBought(RI_SPEC_WINDOWS)))
-                .when(reservedInstanceBoughtStore).getReservedInstanceBoughtByFilter(any());
+        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
+               .thenReturn(Collections.singletonList(createRiBought(RI_SPEC_WINDOWS)));
         final GetReservedInstanceBoughtByFilterRequest request =
                 GetReservedInstanceBoughtByFilterRequest.newBuilder().build();
 
@@ -465,7 +448,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 .setOid(1)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                         .setBusinessAccount(BusinessAccountInfo.newBuilder()
-                                .setAssociatedTargetId(1).setAccountId("1").build()).build())
+                                .setAssociatedTargetId(1).build()).build())
                 .build();
 
         TopologyEntityDTO ba2 = TopologyEntityDTO.newBuilder()
@@ -473,7 +456,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .build();
 
-        Mockito.doReturn(ImmutableSet.of(ba1.getOid())).when(businessAccountHelper).getDiscoveredBusinessAccounts();
+        Mockito.doReturn(ImmutableList.of(ba1, ba2)).when(repositoryClient).getAllBusinessAccounts(anyLong());
 
         // Set up what RI bought store returns
         final int riCapacity = 10;
@@ -507,15 +490,16 @@ public class ReservedInstanceBoughtRpcServiceTest {
 
         final double numUsedCouponsByDiscAccounts = 4d;
         final double numUsedCouponsByUnDiscAccounts = 2d;
-
-        doReturn(ImmutableList.of(riBought, riBoughtFromUndiscoverdAccount))
-            .when(reservedInstanceBoughtStore).getReservedInstanceBoughtByFilter(any());
-
-        doReturn(ImmutableMap.of(RI_BOUGHT_ID_4, numUsedCouponsByDiscAccounts))
-            .when(reservedInstanceMappingStore).getReservedInstanceUsedCouponsMapByFilter(any());
-
-        when(accountRIMappingStore.getUndiscoveredAccountUsageForRI())
-                .thenReturn(ImmutableMap.of(RI_BOUGHT_ID_3, numUsedCouponsByUnDiscAccounts));
+        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
+                .thenReturn(ImmutableList.of(riBought, riBoughtFromUndiscoverdAccount));
+        when(reservedInstanceMappingStore.getReservedInstanceUsedCouponsMapByFilter(any()))
+                .thenReturn(ImmutableMap.of(RI_BOUGHT_ID_4, numUsedCouponsByDiscAccounts));
+        AccountRIMappingItem item = mock(AccountRIMappingItem.class);
+        when(item.getBusinessAccountOid()).thenReturn(1L);
+        when(item.getReservedInstanceId()).thenReturn(RI_BOUGHT_ID_3);
+        when(item.getUsedCoupons()).thenReturn(numUsedCouponsByUnDiscAccounts);
+        when(accountRIMappingStore.getAccountRICoverageMappings(any()))
+                .thenReturn(ImmutableMap.of(2L, ImmutableList.of(item)));
 
         // ACT
         GetReservedInstanceBoughtForAnalysisResponse response = client.getReservedInstanceBoughtForAnalysis(request);
@@ -532,17 +516,18 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 .filter(r -> r.getId() == RI_BOUGHT_ID_4)
                 .findFirst();
         assertTrue(undiscoveredRIOpt.isPresent());
-        assertEquals(numUsedCouponsByDiscAccounts, undiscoveredRIOpt.get()
+        assertTrue(undiscoveredRIOpt.get()
                 .getReservedInstanceBoughtInfo()
                 .getReservedInstanceBoughtCoupons()
-                .getNumberOfCoupons(), 0.001);
+                .getNumberOfCoupons() == numUsedCouponsByDiscAccounts);
         Optional<ReservedInstanceBought> discoveredRIOpt = response.getReservedInstanceBoughtList().stream()
                 .filter(r -> r.getId() == RI_BOUGHT_ID_3)
                 .findFirst();
         assertTrue(discoveredRIOpt.isPresent());
-        assertEquals( (riCapacity - numUsedCouponsByUnDiscAccounts),
-                discoveredRIOpt.get().getReservedInstanceBoughtInfo()
-                            .getReservedInstanceBoughtCoupons().getNumberOfCoupons(), 0.001);
+        assertTrue(discoveredRIOpt.get()
+                .getReservedInstanceBoughtInfo()
+                .getReservedInstanceBoughtCoupons()
+                .getNumberOfCoupons() == (riCapacity - numUsedCouponsByUnDiscAccounts));
 
     }
 
@@ -572,8 +557,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
                     ReservedInstanceBought.newBuilder().setReservedInstanceBoughtInfo(RI_INFO_3)
                                     .build());
 
-        doReturn(allReservedInstanceBought).when(reservedInstanceBoughtStore)
-                .getReservedInstanceBoughtByFilter(any());
+        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any())).thenReturn(
+                allReservedInstanceBought);
 
         List<ReservedInstanceBought> riBought2 = client
                         .getReservedInstanceBoughtForScope(

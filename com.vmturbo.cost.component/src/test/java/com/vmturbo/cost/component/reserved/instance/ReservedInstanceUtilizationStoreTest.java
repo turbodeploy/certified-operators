@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.Period;
 import java.time.ZoneOffset;
@@ -38,7 +39,6 @@ import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
-import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
@@ -76,7 +76,6 @@ public class ReservedInstanceUtilizationStoreTest {
     private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
 
     private PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
-    private AccountRIMappingStore accountRIMappingStore = Mockito.mock(AccountRIMappingStore.class);
 
     final EntityRICoverageUpload coverageOne = EntityRICoverageUpload.newBuilder()
             .setEntityId(123L)
@@ -160,12 +159,9 @@ public class ReservedInstanceUtilizationStoreTest {
         Mockito.when(priceTableStore.getMergedRiPriceTable()).thenReturn(riPriceTable);
         reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
         reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
-
-        entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
         reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore,
-                entityReservedInstanceMappingStore, accountRIMappingStore, new BusinessAccountHelper());
-
+                        new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore);
+        entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
         reservedInstanceUtilizationStore = new ReservedInstanceUtilizationStore(dsl, reservedInstanceBoughtStore,
                 reservedInstanceSpecStore, entityReservedInstanceMappingStore);
         insertDefaultReservedInstanceSpec();
