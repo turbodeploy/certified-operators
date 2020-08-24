@@ -95,9 +95,6 @@ public class IngestersConfig {
     @Value("${ingest.defaultChunkTimeLimitMsec:60000}") // 1 minute
     private long defaultChunkTimeLimitMsec;
 
-    @Value("${realtimeTopologyContextId}")
-    private long realtimeTopologyContextId;
-
     @Bean
     MarketClientConfig marketClientConfig() {
         return new MarketClientConfig();
@@ -163,7 +160,6 @@ public class IngestersConfig {
                 .hourlyRollupTimeoutSecs(hourlyRollupTimeoutSecs)
                 .repartitioningTimeoutSecs(repartitioningTimeoutSecs)
                 .processingLoopMaxSleepSecs(processingLoopMaxSleepSecs)
-                .realtimeTopologyContextId(realtimeTopologyContextId)
                 .build();
     }
 

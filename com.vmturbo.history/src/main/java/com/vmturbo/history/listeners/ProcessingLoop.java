@@ -159,11 +159,11 @@ class ProcessingLoop implements Runnable {
                         case Repartition:
                             topologyCoordinator.runRetentionProcessing();
                             if (processingStatus.getLastRepartitionTime() != Instant.MIN) {
-                                logger.error("Running repartioning because the time limit was " +
-                                        "exceeded; this could signal a serious issue with " +
-                                        "topology processing in history component.");
+                                logger.error("Running repartioning because the time limit was "
+                                        + "exceeded; this could signal a serious issue with "
+                                        + "topology processing in history component.");
                                 IngestionMetrics.SAFETY_VALVE_ACTIVATION_COUNTER
-                                        .labels(SafetyValve.REPARTITION.getLabel(), "-")
+                                        .labels(SafetyValve.REPARTITION.getLabel(), "-", "-")
                                         .increment();
                             }
                             processingStatus.setLastRepartitionTime(Instant.now());
@@ -207,8 +207,8 @@ class ProcessingLoop implements Runnable {
             processingStatus.getIngestions(flavor).forEach(ingestion -> {
                 if (ingestion.getState() == Processing) {
                     final IllegalStateException failureReason = new IllegalStateException(
-                            String.format("Ingestion %s was found to be in Processing state at " +
-                                            "startup; presumed failed due to component shutdown",
+                            String.format("Ingestion %s was found to be in Processing state at "
+                                            + "startup; presumed failed due to component shutdown",
                                     ingestion));
                     ingestion.failIngestion(Optional.empty(), failureReason);
                 }
@@ -236,14 +236,14 @@ class ProcessingLoop implements Runnable {
         // be picked up as ready-for-hourly rollups in the following logic.
         Instant snapshot;
         if ((snapshot = findTimedoutHourlyRollup()) != null) {
-            logger.error("Forcing resolution for snapshot time {} because a time limit was " +
-                    "exceeded; this may indicate a serious issue with topology processing " +
-                    "in history component.", snapshot);
-            for (IngestionStatus ingestion: processingStatus.forceResolved(snapshot)) {
+            logger.error("Forcing resolution for snapshot time {} because a time limit was "
+                    + "exceeded; this may indicate a serious issue with topology processing "
+                    + "in history component.", snapshot);
+            for (IngestionStatus ingestion : processingStatus.forceResolved(snapshot)) {
                 release(ingestion);
             }
             IngestionMetrics.SAFETY_VALVE_ACTIVATION_COUNTER
-                    .labels(SafetyValve.RESOLVE_SNAPSHOT.getLabel(), snapshot.toString())
+                    .labels(SafetyValve.RESOLVE_SNAPSHOT.getLabel(), "-", "-")
                     .increment();
         }
 

@@ -31,7 +31,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]ingesters[/\\]live[/\\]ProjectedLiveTopologyIngester.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]ingesters[/\\]live[/\\]writers[/\\]EntitiesWriter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]ingesters[/\\]live[/\\]writers[/\\]SystemLoadWriter.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]listeners[/\\]ProcessingLoop.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]listeners[/\\]ProcessingStatus.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]listeners[/\\]SnapshotStatus.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]MarketStatsAccumulator.java" />
@@ -46,7 +45,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]live[/\\]StatsQueryFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]live[/\\]TimeRange.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]priceindex[/\\]TopologyPriceIndices.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]projected[/\\]AccumulatedCommodity.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]projected[/\\]BoughtCommoditiesInfo.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]projected[/\\]EntityCountInfo.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]projected[/\\]ProjectedPriceIndexSnapshot.java" />

@@ -68,8 +68,7 @@ public class TopologyCoordinatorSafetyValveTest {
                     .ingestionTimeoutSecs(Integer.MAX_VALUE)
                     .hourlyRollupTimeoutSecs(Integer.MAX_VALUE)
                     .repartitioningTimeoutSecs(Integer.MAX_VALUE)
-                    .processingLoopMaxSleepSecs(1)
-                    .realtimeTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID);
+                    .processingLoopMaxSleepSecs(1);
 
     /**
      * Test that {@link ProcessingLoop} kicks off a repartitioning action from time to time

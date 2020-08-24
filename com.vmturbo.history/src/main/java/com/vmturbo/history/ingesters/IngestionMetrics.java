@@ -18,15 +18,17 @@ public class IngestionMetrics {
     /** Safety valve metrics label for valve name. */
     public static final String VALVE_NAME_LABEL = "valve_name";
 
-    /** Safety valve metrics label for tag. */
-    public static final String TAG_LABEL = "tag";
+    /** Safety valve metrics label for topology type. */
+    public static final String TYPE_LABEL = "type";
+    /** Safety valve metrics label for topology stage. */
+    public static final String STAGE_LABEL = "stage";
 
     /**
      * Counter to track instances where "safety valves" have been activated in order to mitigate
      * damage from some problematic situation that may arise in ingestion/rollup processing.
      *
      * <p>Any single occurrence of any of these safety valves is cause for concern. A scenario
-     * where activations are being recorded repeatedly is especailly worrying.</p>
+     * where activations are being recorded repeatedly is especially worrying.</p>
      *
      * <p>A useful metaphor is water dripping from the ceiling. There could be a variety of
      * root causes, and a single unexplained drip is worth attention. A steady drip is
@@ -34,11 +36,15 @@ public class IngestionMetrics {
      * to contain the potential damage to the floor, furniture, etc. The safety valves
      * built into history component spot "leaks" and put "buckets" under them, to limit damage
      * without diagnosing or addressing the actual root cause.</p>
+     *
+     * <p>Only the {@link SafetyValve#SKIP_TOPOLOGY} safety valve currently populates the type
+     * and stage labels with meaningful values.
+     * </p>
      */
     public static final DataMetricCounter SAFETY_VALVE_ACTIVATION_COUNTER = DataMetricCounter.builder()
             .withName("health:history_safety_valves")
             .withHelp("Activation counts of history component safety valves")
-            .withLabelNames(VALVE_NAME_LABEL, TAG_LABEL)
+            .withLabelNames(VALVE_NAME_LABEL, TYPE_LABEL, STAGE_LABEL)
             .build()
             .register();
 

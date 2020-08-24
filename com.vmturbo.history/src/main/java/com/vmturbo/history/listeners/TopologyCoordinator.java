@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -106,8 +107,6 @@ public class TopologyCoordinator extends TopologyListenerBase
     private final StatsAvailabilityTracker availabilityTracker;
     // our processing status
     private final ProcessingStatus processingStatus;
-    // context id for realtime topologies, so we can skip projected plan topologies
-    private final long realtimeTopologyContextId;
     private int ingestionTimeoutSecs;
     // following latch allows kafka listeners to wait for component startup to complete
     // before processing any messages.
@@ -187,7 +186,6 @@ public class TopologyCoordinator extends TopologyListenerBase
         this.processingStatus = maybeNullProcessingStatus != null ? maybeNullProcessingStatus
                 : new ProcessingStatus(config, historydbIO);
         this.ingestionTimeoutSecs = config.ingestionTimeoutSecs();
-        this.realtimeTopologyContextId = config.realtimeTopologyContextId();
         // Create a processing loop that will be driven from our processing stats. We'll
         // start it the first time we receive a message
         this.processingLoop = maybeNullProcessingLoop != null ? maybeNullProcessingLoop
@@ -251,8 +249,7 @@ public class TopologyCoordinator extends TopologyListenerBase
         awaitStartup();
         try (TracingScope scope = Tracing.trace("history_on_projected_topology", tracingContext)) {
             final String topologyLabel = TopologyDTOUtil.getProjectedTopologyLabel(info);
-            if (info.getTopologyContextId() == realtimeTopologyContextId) {
-
+            if (info.getTopologyType() == TopologyType.REALTIME) {
                 int count = handleTopology(info, topologyLabel, topology,
                     projectedLiveTopologyIngester, Projected);
                 SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
@@ -369,7 +366,7 @@ public class TopologyCoordinator extends TopologyListenerBase
                         + "processing in history component");
                 processingStatus.skip(flavor, info, topologyLabel);
                 IngestionMetrics.SAFETY_VALVE_ACTIVATION_COUNTER
-                        .labels(SafetyValve.SKIP_TOPOLOGY.getLabel(), topologyLabel)
+                        .labels(getLabelsForSkipSafetyValve(info, flavor))
                         .increment();
             }
         } finally {
@@ -382,11 +379,22 @@ public class TopologyCoordinator extends TopologyListenerBase
         return 0;
     }
 
+    @VisibleForTesting
+    static String[] getLabelsForSkipSafetyValve(TopologyInfo info, TopologyFlavor flavor) {
+        final String typeTag = info.getTopologyType() == TopologyType.REALTIME
+                ? SharedMetrics.LIVE_CONTEXT_TYPE_LABEL
+                : SharedMetrics.PLAN_CONTEXT_TYPE_LABEL;
+        final String stageTag = flavor == Projected
+                ? SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL
+                : SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL;
+        return new String[]{SafetyValve.SKIP_TOPOLOGY.getLabel(), typeTag, stageTag};
+    }
+
     @Override
     public void onTopologySummary(final TopologySummary topologySummary) {
         awaitStartup();
         final TopologyInfo topologyInfo = topologySummary.getTopologyInfo();
-        if (topologyInfo.getTopologyContextId() != realtimeTopologyContextId) {
+        if (topologyInfo.getTopologyType() == TopologyType.PLAN) {
             // not interested in plan topologies
             return;
         }
@@ -410,7 +418,7 @@ public class TopologyCoordinator extends TopologyListenerBase
     public void onAnalysisSummary(@Nonnull final AnalysisSummary analysisSummary) {
         awaitStartup();
         final TopologyInfo topologyInfo = analysisSummary.getSourceTopologyInfo();
-        if (topologyInfo.getTopologyContextId() != realtimeTopologyContextId) {
+        if (topologyInfo.getTopologyType() == TopologyType.PLAN) {
             // not interested in plan topologies
             return;
         }
@@ -514,7 +522,7 @@ public class TopologyCoordinator extends TopologyListenerBase
         String label = flavor == Live ? SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL
                 : flavor == Projected ? SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL
                 : "unknown";
-        String value = info.getTopologyContextId() == realtimeTopologyContextId
+        String value = info.getTopologyType() == TopologyType.REALTIME
                 ? SharedMetrics.LIVE_CONTEXT_TYPE_LABEL
                 : SharedMetrics.PLAN_CONTEXT_TYPE_LABEL;
         return SharedMetrics.UPDATE_TOPOLOGY_DURATION_SUMMARY
