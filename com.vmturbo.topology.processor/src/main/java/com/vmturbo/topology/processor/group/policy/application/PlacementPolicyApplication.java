@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.group.policy.application;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -249,6 +250,9 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                 final long providerEntityType,
                 @Nonnull final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex,
                 @Nonnull final CommoditySoldDTO segmentationCommodity) {
+        // Set of provider OIDs to sell the given segmentationCommodity. This is used to deduplicate
+        // SegmentationCommodities sold by the same provider.
+        Set<Long> providersSet = new HashSet<>();
         // The potential providers for the consumers are any potential providers that are
         // NOT blocked by the policy. We use the inverted index to find providers
         // that satisfy all other constraints (e.g. cluster, datacenter).
@@ -264,8 +268,11 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
             .filter(potentialProvider -> potentialProvider.getEntityType() == providerEntityType)
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(provider -> {
-                recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
-                provider.addCommoditySoldList(segmentationCommodity);
+                if (!providersSet.contains(provider.getOid())) {
+                    providersSet.add(provider.getOid());
+                    recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
+                    provider.addCommoditySoldList(segmentationCommodity);
+                }
             });
     }
 
