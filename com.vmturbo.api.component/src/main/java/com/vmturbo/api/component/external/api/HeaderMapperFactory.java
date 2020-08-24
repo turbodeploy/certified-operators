@@ -11,6 +11,8 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
 
+import org.apache.commons.collections4.map.CaseInsensitiveMap;
+
 import com.vmturbo.api.component.security.HeaderMapper;
 import com.vmturbo.api.component.security.IntersightHeaderMapper;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PredefinedRole;
@@ -62,7 +64,7 @@ public class HeaderMapperFactory {
                 builder.put(tokenizer.nextToken().trim(), role);
             }
         }
-        return new IntersightHeaderMapper(builder.build(), externalUser, externalRole,
+        return new IntersightHeaderMapper(new CaseInsensitiveMap(builder.build()), externalUser, externalRole,
                 jwtTokenPublicKeyTag, jwtToken);
     }
 
