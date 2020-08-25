@@ -335,7 +335,15 @@ public class MarketsService implements IMarketsService {
                         .getPlanProjectInfo().getType()))
                 .collect(Collectors.toList());
         for (PlanProject planProject : planProjects) {
-            result.add(getMarketApiDto(planProject, null));
+            try {
+                result.add(getMarketApiDto(planProject, null));
+            } catch (ConversionException ce) {
+                // When listing all projects, if there is a conversion issue for a few projects
+                // (e.g because of missing plans), then try and return rest of the good projects,
+                // otherwise user doesn't see any plans in the UI.
+                logger.warn("Unable to convert plan project {}. Message: {}",
+                        planProject.getPlanProjectId(), ce.getMessage());
+            }
         }
         return result;
     }

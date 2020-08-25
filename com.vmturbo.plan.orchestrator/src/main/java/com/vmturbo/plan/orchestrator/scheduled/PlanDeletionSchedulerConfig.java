@@ -22,6 +22,8 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
+import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
+import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioDao;
 
@@ -34,7 +36,8 @@ import com.vmturbo.plan.orchestrator.scenario.ScenarioDao;
 @Import({GroupClientConfig.class,
          PlanConfig.class,
          ScenarioConfig.class,
-        PlanOrchestratorDBConfig.class})
+         PlanOrchestratorDBConfig.class,
+         PlanProjectConfig.class})
 public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
 
     @Autowired
@@ -48,6 +51,9 @@ public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
 
     @Autowired
     private ScenarioDao scenarioDao;
+
+    @Autowired
+    private PlanProjectDao planProjectDao;
 
     /**
      * Time to run plan deletion every day.
@@ -74,7 +80,7 @@ public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
 
     @Bean
     public PlanDeletionTask planDeletionTask() {
-        return new PlanDeletionTask(settingServiceClient(), planDao, scenarioDao,
+        return new PlanDeletionTask(settingServiceClient(), planDao, planProjectDao, scenarioDao,
                     dbConfig.dsl(), threadPoolTaskScheduler(), cronTrigger(),
                     batchSize, delayBetweenDeletesInSeconds);
     }
