@@ -32,6 +32,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction.Cache;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
 /**
@@ -290,9 +291,8 @@ public class Suspension {
             return rollBackSuspends(suspendActions);
         }
 
-        // If the new suspensions would cause a guaranteed buyer to get an infinite quote,
+        // If the new suspensions would cause a guaranteed buyer to get a very large quote,
         // then reverse the suspensions.
-
         for (Set<ShoppingList> shoppingLists : slsSponsoredByGuaranteedBuyer.values()) {
             for (ShoppingList sl : shoppingLists) {
                 final @NonNull List<@NonNull Trader> sellers =
@@ -301,7 +301,13 @@ public class Suspension {
                         sellers.stream()
                                 .collect(() -> new QuoteMinimizer(economy, sl),
                                         QuoteMinimizer::accept, QuoteMinimizer::combine);
-                if (Double.isInfinite(minimizer.getTotalBestQuote())) {
+                if (Double.compare(minimizer.getTotalBestQuote(), Cache.MAX_UNIT_PRICE) > 0) {
+                    if (logger.isTraceEnabled() || isDebugTrader) {
+                        logger.info("{} will not be suspended because otherwise it will cause"
+                                        + " its guaranteed buyer {} to have a quote larger than {}.",
+                                traderDebugInfo, sl.getBuyer().getDebugInfoNeverUseInCode(),
+                                Cache.MAX_UNIT_PRICE);
+                    }
                     return rollBackSuspends(suspendActions);
                 }
             }
