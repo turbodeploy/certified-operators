@@ -19,8 +19,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.google.common.base.Preconditions;
-
 import io.grpc.stub.StreamObserver;
 import io.opentracing.SpanContext;
 
@@ -34,7 +32,6 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -45,8 +42,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
@@ -279,17 +274,6 @@ public class MarketPerformanceTest {
         @Override
         public void getGlobalSetting(final GetSingleGlobalSettingRequest request,
                                    final StreamObserver<GetGlobalSettingResponse> responseObserver) {
-            Preconditions.checkArgument(
-                request.getSettingSpecName().equals(GlobalSettingSpecs.DefaultRateOfResize.getSettingName())
-            );
-
-            responseObserver.onNext(GetGlobalSettingResponse.newBuilder()
-                .setSetting(Setting.newBuilder()
-                    .setSettingSpecName(
-                        GlobalSettingSpecs.DefaultRateOfResize.getSettingName())
-                    .setNumericSettingValue(
-                        SettingDTOUtil.createNumericSettingValue(2.0f)))
-                .build());
             responseObserver.onCompleted();
         }
     }

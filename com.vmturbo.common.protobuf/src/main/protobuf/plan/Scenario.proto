@@ -45,7 +45,7 @@ message ScenarioInfo {
     optional PlanScope scope = 4;
 
     // Plan global setting
-    optional PlanGlobalSetting plan_global_setting = 5;
+    optional PlanGlobalSetting __deprecated_plan_global_setting = 5 [deprecated = true];
 }
 
 // The Plan Scope is a set of entity groups chosen as part of the plan. This scope is used to filter
@@ -72,7 +72,7 @@ message PlanScopeEntry {
 
 // Plan global setting
 message PlanGlobalSetting {
-    optional setting.Setting rate_of_resize = 1;
+    optional setting.Setting __deprecated_rate_of_resize = 1 [deprecated = true];
 }
 
 message ScenarioChange {

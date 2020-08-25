@@ -186,19 +186,6 @@ public class AnalysisTest {
                 .thenReturn(buyRIImpactAnalysis);
     }
 
-    private Map<String, Setting> getRateOfResizeSettingMap(float resizeValue) {
-        return ImmutableMap.of(
-            GlobalSettingSpecs.DefaultRateOfResize.getSettingName(), Setting.newBuilder()
-                .setSettingSpecName(GlobalSettingSpecs.DefaultRateOfResize.getSettingName())
-                .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(resizeValue))
-                .build(),
-            GlobalSettingSpecs.ContainerRateOfResize.getSettingName(), Setting.newBuilder()
-                .setSettingSpecName(GlobalSettingSpecs.ContainerRateOfResize.getSettingName())
-                .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(resizeValue))
-                .build()
-        );
-    }
-
     /**
      * Convenience method to get an Analysis based on an analysisConfig, a set of
      * TopologyEntityDTOs, and TopologyInfo.
@@ -269,7 +256,7 @@ public class AnalysisTest {
     public void testConstructor() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
                     SuspensionsThrottlingConfig.DEFAULT,
-                    getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                    Collections.emptyMap())
                 .setIncludeVDC(true)
                 .build();
 
@@ -290,7 +277,7 @@ public class AnalysisTest {
     public void testExecute() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
             SuspensionsThrottlingConfig.DEFAULT,
-            getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+            Collections.emptyMap())
             .setIncludeVDC(true)
             .build();
 
@@ -313,7 +300,7 @@ public class AnalysisTest {
     public void testExecuteNoWastedFiles() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
             SuspensionsThrottlingConfig.DEFAULT,
-            getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+            Collections.emptyMap())
             .setIncludeVDC(true)
             .build();
 
@@ -335,29 +322,6 @@ public class AnalysisTest {
         assertTrue(analysis.getActionPlan().isPresent());
         assertTrue(analysis.getProjectedTopology().isPresent());
         assertFalse(analysis.getActionPlan().get().getActionList().contains(wastedFileAction));
-    }
-
-    /**
-     * Test the {@link Analysis#execute} method for a failed run.
-     */
-    @Test
-    public void testFailedAnalysis() {
-        Set<TopologyEntityDTO> set = Sets.newHashSet(buyer());
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
-                    SuspensionsThrottlingConfig.DEFAULT,
-                    // DefaultRateOfResize negative to throw exception
-                    getRateOfResizeSettingMap(-1))
-                .setIncludeVDC(true)
-                .build();
-
-        final Analysis analysis  = getAnalysis(analysisConfig);
-        analysis.execute();
-        assertFalse(analysis.isDone());
-        assertSame(AnalysisState.FAILED, analysis.getState());
-        assertNotNull(analysis.getErrorMsg());
-
-        assertFalse(analysis.getActionPlan().isPresent());
-        assertFalse(analysis.getProjectedTopology().isPresent());
     }
 
     /**
@@ -384,7 +348,7 @@ public class AnalysisTest {
         // On Analysis execution, projected entities are populated
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
                 MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
-                getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                Collections.emptyMap())
                 .setIncludeVDC(true)
                 .build();
         when(cloudTopology.getAllEntitiesOfType(any())).thenReturn(ImmutableList
@@ -425,7 +389,7 @@ public class AnalysisTest {
     public void testTwoExecutes() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
                 SuspensionsThrottlingConfig.DEFAULT,
-                getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                Collections.emptyMap())
                 .setIncludeVDC(true)
                 .build();
 
@@ -440,7 +404,7 @@ public class AnalysisTest {
     public void testActionPlanTimestamps() {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
                 SuspensionsThrottlingConfig.DEFAULT,
-                getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                Collections.emptyMap())
                 .setIncludeVDC(true)
                 .build();
 
@@ -582,7 +546,7 @@ public class AnalysisTest {
             InterruptedException {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
                 MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
-                getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                Collections.emptyMap())
                 .setIncludeVDC(true)
                 .build();
 
@@ -609,7 +573,7 @@ public class AnalysisTest {
             InterruptedException {
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
                 MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
-                getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                Collections.emptyMap())
                 .setIncludeVDC(true)
                 .build();
         final Analysis analysis = getAnalysis(analysisConfig, Collections.emptySet(),
@@ -652,7 +616,7 @@ public class AnalysisTest {
         // On Analysis execution, projected entities are populated
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
                 MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
-                getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                Collections.emptyMap())
                 .setIncludeVDC(true)
                 .build();
 
@@ -741,7 +705,7 @@ public class AnalysisTest {
         // On Analysis execution, projected entities are populated
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
             MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
-            getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+            Collections.emptyMap())
             .build();
         final Analysis analysis = getAnalysis(analysisConfig, Collections.emptySet());
         analysis.projectedContainerSpecsPostProcessing(projectedTopologyEntityMap, actionTOList);

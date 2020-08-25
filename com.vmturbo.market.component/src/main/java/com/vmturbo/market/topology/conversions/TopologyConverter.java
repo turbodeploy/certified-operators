@@ -2482,7 +2482,8 @@ public class TopologyConverter {
                             ? PLAN_MOVE_COST_FACTOR
                             : liveMarketMoveCostFactor)
                     .setProviderMustClone(isProviderMustClone)
-                    .setDaemon(topologyDTO.getAnalysisSettings().getDaemon());
+                    .setDaemon(topologyDTO.getAnalysisSettings().getDaemon())
+                    .setRateOfResize(topologyDTO.getAnalysisSettings().getRateOfResize());
 
             // Overwrite flags for vSAN
             if (TopologyConversionUtils.isVsanStorage(topologyDTO)) {

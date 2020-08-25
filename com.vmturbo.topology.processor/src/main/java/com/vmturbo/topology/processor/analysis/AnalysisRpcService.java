@@ -97,9 +97,6 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
         if (request.hasPlanSubType()) {
             planTopologyInfoBuilder.setPlanSubType(request.getPlanSubType());
         }
-        if (request.hasPlanGlobalSetting()) {
-            planTopologyInfoBuilder.setPlanGlobalSetting(request.getPlanGlobalSetting());
-        }
         PlanTopologyInfo planTopologyInfo = planTopologyInfoBuilder.build();
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()

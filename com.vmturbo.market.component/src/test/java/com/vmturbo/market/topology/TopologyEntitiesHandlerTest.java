@@ -1084,17 +1084,11 @@ public class TopologyEntitiesHandlerTest {
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
                 .setTopologyType(TopologyType.PLAN).setTopologyId(1L).build();
 
-        Map<String, Setting> settings = Maps.newHashMap();
-        settings.put(GlobalSettingSpecs.DefaultRateOfResize.getSettingName(),
-                Setting.newBuilder().setNumericSettingValue(
-                        NumericSettingValue.newBuilder().setValue(RATE_OF_RESIZE).build())
-                        .build());
-
         final AnalysisConfig analysisConfig = AnalysisConfig
                 .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
                         MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         SuspensionsThrottlingConfig.DEFAULT,
-                        settings)
+                        Collections.emptyMap())
                 .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                 .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                 .setMaxPlacementsOverride(maxPlacementIterations)
