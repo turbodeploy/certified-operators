@@ -387,6 +387,16 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         // Retrieve the costs for migrating this workload: on-demand and various RI costs
         CostRecord costRecord = getCosts(placement, priceTable, riPriceTable, cloudType, riProviderSetting).orElseThrow(MigratedWorkloadCloudCommitmentAlgorithmException::new);
 
+        // Validate that the reserved instance price is less than the on-demand price
+        double totalOnDemandPrice = costRecord.calculateOnDemandCostForTerm();
+        double totalReservedInstancePrice = costRecord.calculateReservedInstanceCostForTerm();
+        if (totalReservedInstancePrice >= totalOnDemandPrice) {
+            logger.info("Not recommending RI for VM: {}, Compute Tier: {}, Region: {} because reserved instance cost: {} is greater than on-demand cost: {}",
+                    placement.getVirtualMachine().getOid(), placement.getComputeTier().getOid(), placement.getRegion().getOid(), totalReservedInstancePrice, totalOnDemandPrice);
+            return Optional.empty();
+        }
+
+
         // Build our BuyRI action info
         ActionDTO.BuyRI buyRI = ActionDTO.BuyRI.newBuilder()
                 .setBuyRiId(IdentityGenerator.next())
@@ -927,6 +937,10 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
 
         public double calculateOnDemandCostForTerm() {
             return getOnDemandPrice() * 24 * 365 * term;
+        }
+
+        public double calculateReservedInstanceCostForTerm() {
+            return upFrontPrice + (term * 24 * 365 * (recurringPrice + reservedInstanceLicensePrice));
         }
     }
 }
