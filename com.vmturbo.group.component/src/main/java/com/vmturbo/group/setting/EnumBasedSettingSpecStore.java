@@ -51,18 +51,6 @@ public class EnumBasedSettingSpecStore implements SettingSpecStore {
         final Map<ProbeFeature, Map<String, SettingSpec>> specs = new HashMap<>();
         for (EntitySettingSpecs setting : EntitySettingSpecs.values()) {
             SettingSpec settingSpec = setting.getSettingSpec();
-            if (hideExternalApprovalOrAuditSettings && ActionSettingSpecs.isActionModeSetting(setting)) {
-                // replace enum setting values with EXTERNAL_APPROVAL filtered
-                List<String> filteredEnumValues =
-                    settingSpec.getEnumSettingValueType().getEnumValuesList().stream()
-                        .filter(enumValue -> !ActionMode.EXTERNAL_APPROVAL.toString().equals(enumValue))
-                        .collect(Collectors.toList());
-                settingSpec = settingSpec.toBuilder()
-                    .setEnumSettingValueType(settingSpec.getEnumSettingValueType().toBuilder()
-                        .clearEnumValues()
-                        .addAllEnumValues(filteredEnumValues))
-                    .build();
-            }
             specs.computeIfAbsent(null, e -> new HashMap<>()).put(setting.getSettingName(),
                     settingSpec);
         }
@@ -75,6 +63,18 @@ public class EnumBasedSettingSpecStore implements SettingSpecStore {
                 ActionSettingSpecs.getSettingSpecToProbeFeatureMap();
 
         for (SettingSpec settingSpec : ActionSettingSpecs.getSettingSpecs()) {
+            if (hideExternalApprovalOrAuditSettings && ActionSettingSpecs.isActionModeSetting(settingSpec.getName())) {
+                // replace enum setting values with EXTERNAL_APPROVAL filtered
+                List<String> filteredEnumValues =
+                    settingSpec.getEnumSettingValueType().getEnumValuesList().stream()
+                        .filter(enumValue -> !ActionMode.EXTERNAL_APPROVAL.toString().equals(enumValue))
+                        .collect(Collectors.toList());
+                settingSpec = settingSpec.toBuilder()
+                    .setEnumSettingValueType(settingSpec.getEnumSettingValueType().toBuilder()
+                        .clearEnumValues()
+                        .addAllEnumValues(filteredEnumValues))
+                    .build();
+            }
             // only keep settings that have not been hidden by a feature flag
             if (isSettingVisible(settingSpec)) {
                 final String settingSpecName = settingSpec.getName();

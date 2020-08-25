@@ -50,7 +50,7 @@ public class EntitySettingSpecsTest {
      */
     @Test
     public void testProperResult() {
-        Assert.assertTrue(EntitySettingSpecs.getSettingByName("move").isPresent());
+        Assert.assertTrue(ActionSettingSpecs.isActionModeSetting("move"));
     }
 
     /**
@@ -123,9 +123,9 @@ public class EntitySettingSpecsTest {
     @Test
     public void testOrchestrationPoliciesDefined() {
         Assert.assertTrue("Expect suspendActionWorkflow",
-                EntitySettingSpecs.getSettingByName("suspendActionWorkflow").isPresent());
+                ActionSettingSpecs.getSettingSpec("suspendActionWorkflow") != null);
         Assert.assertTrue("Expect provisionActionWorkflow",
-                EntitySettingSpecs.getSettingByName("provisionActionWorkflow").isPresent());
+            ActionSettingSpecs.getSettingSpec("provisionActionWorkflow") != null);
     }
 
     /**

@@ -60,6 +60,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -226,8 +227,8 @@ public class ActionOrchestratorTestUtils {
     public static Map<String, Setting> makeActionModeAndExecutionScheduleSetting(
             @Nonnull ActionMode mode, @Nonnull Collection<Long> executionScheduleIds) {
         ImmutableMap.Builder<String, Setting> settingMap = new ImmutableMap.Builder<>();
-        settingMap.put(EntitySettingSpecs.Move.getSettingName(), Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+        settingMap.put(ConfigurableActionSettings.Move.getSettingName(), Setting.newBuilder()
+                .setSettingSpecName(ConfigurableActionSettings.Move.getSettingName())
                 .setEnumSettingValue(
                         EnumSettingValue.newBuilder().setValue(mode.toString()).build())
                 .build());
@@ -235,13 +236,13 @@ public class ActionOrchestratorTestUtils {
             final Setting executionScheduleSetting = Setting.newBuilder()
                 .setSettingSpecName(
                     ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                        EntitySettingSpecs.Move, ActionSettingType.SCHEDULE))
+                        ConfigurableActionSettings.Move, ActionSettingType.SCHEDULE))
                 .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
                     .addAllOids(executionScheduleIds)
                     .build())
                 .build();
             settingMap.put(ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                    EntitySettingSpecs.Move, ActionSettingType.SCHEDULE),
+                    ConfigurableActionSettings.Move, ActionSettingType.SCHEDULE),
                     executionScheduleSetting);
         }
         return settingMap.build();

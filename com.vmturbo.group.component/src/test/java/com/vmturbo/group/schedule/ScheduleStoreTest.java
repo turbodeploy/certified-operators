@@ -48,7 +48,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemDeleteException.ScheduleInUseDeleteException;
@@ -440,14 +440,14 @@ public class ScheduleStoreTest {
                 Collections.singleton(MemberType.newBuilder().setEntity(1).build()), false);
 
         final Setting actionModeSetting = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.Move.getSettingName())
                 .setEnumSettingValue(
                         EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()).build())
                 .build();
 
         final Setting executionScheduleSetting = Setting.newBuilder()
                 .setSettingSpecName(ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                    EntitySettingSpecs.Move, ActionSettingType.SCHEDULE))
+                    ConfigurableActionSettings.Move, ActionSettingType.SCHEDULE))
                 .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
                         .addAllOids(Collections.singletonList(schedule.getId()))
                         .build())

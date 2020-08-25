@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.GsonPostProcessable;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
@@ -57,15 +58,15 @@ public class SettingsManagerMappingLoader {
 
     private final SettingsManagerMapping mapping;
 
-    private static final Set<EntitySettingSpecs> virtualMachineResizeSettings =
-        new HashSet<>(Arrays.asList(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold,
-            EntitySettingSpecs.ResizeVcpuBelowMinThreshold,
-            EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds,
-            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
-            EntitySettingSpecs.ResizeVmemAboveMaxThreshold,
-            EntitySettingSpecs.ResizeVmemBelowMinThreshold,
-            EntitySettingSpecs.ResizeVmemDownInBetweenThresholds,
-            EntitySettingSpecs.ResizeVmemUpInBetweenThresholds));
+    private static final Set<ConfigurableActionSettings> virtualMachineResizeSettings =
+        new HashSet<>(Arrays.asList(ConfigurableActionSettings.ResizeVcpuAboveMaxThreshold,
+            ConfigurableActionSettings.ResizeVcpuBelowMinThreshold,
+            ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds,
+            ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds,
+            ConfigurableActionSettings.ResizeVmemAboveMaxThreshold,
+            ConfigurableActionSettings.ResizeVmemBelowMinThreshold,
+            ConfigurableActionSettings.ResizeVmemDownInBetweenThresholds,
+            ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds));
 
     public SettingsManagerMappingLoader(@Nonnull final String settingsMgrJsonFileName) throws IOException {
         this.mapping = loadManagerMappings(settingsMgrJsonFileName);
@@ -240,8 +241,7 @@ public class SettingsManagerMappingLoader {
             final Set<String> actionWorkflowSettings =
                 ActionSettingSpecs.getSettingSpecs().stream()
                     .map(SettingSpec::getName)
-                    .filter(
-                        settingName -> !ActionSettingSpecs.isExecutionScheduleSetting(settingName))
+                    .filter(ActionSettingSpecs::isActionWorkflowSetting)
                     .collect(Collectors.toSet());
             replaceManagerSettings(SettingsService.CONTROL_MANAGER,
                 actionWorkflowSettings,
@@ -326,7 +326,7 @@ public class SettingsManagerMappingLoader {
             final List<SettingApiDTO<String>> convertedSettings = new ArrayList<>();
             String resizeConvertedValue = null;
             Set<String> virtualMachineResizeSettingNames = virtualMachineResizeSettings
-                .stream().map(EntitySettingSpecs::getSettingName).collect(Collectors.toSet());
+                .stream().map(ConfigurableActionSettings::getSettingName).collect(Collectors.toSet());
             for (SettingApiDTO realtimeSetting : realtimeSettings) {
                 if (virtualMachineResizeSettingNames.contains(realtimeSetting.getUuid())
                     && realtimeSetting.getEntityType().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr())) {
@@ -372,14 +372,14 @@ public class SettingsManagerMappingLoader {
         @VisibleForTesting
         void addPlanResizeSetting(List<SettingApiDTO<String>> retBuilder,
                                   String resizeConvertedValue) {
-            if (resizeConvertedValue != null && getManagerForSetting(EntitySettingSpecs.Resize.getSettingName()).isPresent()) {
+            if (resizeConvertedValue != null && getManagerForSetting(ConfigurableActionSettings.Resize.getSettingName()).isPresent()) {
                 SettingsManagerInfo mgr =
-                    getManagerForSetting(EntitySettingSpecs.Resize.getSettingName()).get();
+                    getManagerForSetting(ConfigurableActionSettings.Resize.getSettingName()).get();
                 if (mgr.getPlanSettingInfo().isPresent()) {
                     final SettingApiDTO resizeDto = new SettingApiDTO();
-                    resizeDto.setUuid(EntitySettingSpecs.Resize.getSettingName());
+                    resizeDto.setUuid(ConfigurableActionSettings.Resize.getSettingName());
                     resizeDto.setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
-                    resizeDto.setDisplayName(EntitySettingSpecs.Resize.getDisplayName());
+                    resizeDto.setDisplayName(ConfigurableActionSettings.Resize.getDisplayName());
                     resizeDto.setValue(resizeConvertedValue);
                     retBuilder.add(resizeDto);
                 }
@@ -419,7 +419,7 @@ public class SettingsManagerMappingLoader {
          * plan setting that is consistent with the backend values.
          *
          * @param planSetting The plan setting
-         * @return A {@link SettingApiDTO} to use to convert to a {@link Setting}.
+         * @return A {@link SettingApiDTO} to use to convert to a List of {@link SettingApiDTO}.
          *         This may be the input planSetting if the input was not created from a model
          *         generated by {@link PlanSettingInfo}.
          * @throws IllegalArgumentException If the plan setting is illegal - most notably
@@ -436,7 +436,7 @@ public class SettingsManagerMappingLoader {
             final String convertedValue = planSetting.getValue().toString();
             List<SettingApiDTO> newDtos = new ArrayList<>();
             if (ApiEntityType.fromString(planSetting.getEntityType()).equals(ApiEntityType.VIRTUAL_MACHINE)
-                && planSetting.getUuid().equals(EntitySettingSpecs.Resize.getSettingName())) {
+                && planSetting.getUuid().equals(ConfigurableActionSettings.Resize.getSettingName())) {
                 virtualMachineResizeSettings.forEach(resizeSetting -> {
                     final SettingApiDTO newResizeDto = new SettingApiDTO();
                     newResizeDto.setUuid(resizeSetting.getSettingName());

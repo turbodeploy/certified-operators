@@ -28,6 +28,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 
@@ -130,14 +132,21 @@ public class SettingOverrides {
         overridesForGroup.forEach((groupOid, settingsMap) -> {
             final ResolvedGroup group = groupsById.get(groupOid);
             if (group != null) {
-                settingsMap.forEach((settingName, setting) ->
+                settingsMap.forEach((settingName, setting) -> {
                     EntitySettingSpecs.getSettingByName(settingName).ifPresent(entitySpec -> {
                         final Set<Long> groupMemberOids = group.getEntitiesOfSdkTypes(entitySpec.getEntityTypeScope());
                         grpOverrideSpecs.putIfAbsent(settingName, entitySpec.getSettingSpec());
                         groupOverrideSettings.computeIfAbsent(setting, k -> new HashSet<>())
                             .addAll(groupMemberOids);
-                    })
-                );
+                    });
+                    ConfigurableActionSettings configurableActionSettings = ConfigurableActionSettings.fromSettingName(settingName);
+                    if (configurableActionSettings != null) {
+                        final Set<Long> groupMemberOids = group.getEntitiesOfSdkTypes(configurableActionSettings.getEntityTypeScope());
+                        grpOverrideSpecs.putIfAbsent(settingName, ActionSettingSpecs.getSettingSpec(settingName));
+                        groupOverrideSettings.computeIfAbsent(setting, k -> new HashSet<>())
+                            .addAll(groupMemberOids);
+                    }
+                });
             }
         });
 

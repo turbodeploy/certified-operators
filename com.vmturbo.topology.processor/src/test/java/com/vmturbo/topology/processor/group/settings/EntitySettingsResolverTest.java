@@ -95,6 +95,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
@@ -248,7 +250,8 @@ public class EntitySettingsResolverTest {
         createSettingSpec(SPEC_NAME, SettingTiebreaker.BIGGER);
 
     private static final SettingSpec ACTION_MODE_SETTING_SPEC =
-            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingSpec();
+        ActionSettingSpecs.getSettingSpec(
+            ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds.getSettingName());
 
     private static final SettingSpec EXECUTION_SCHEDULE_SETTING_SPEC =
             createSettingSpec(SPEC_VCPU_UP_EXEC_SCHEDULE, SettingTiebreaker.UNION);

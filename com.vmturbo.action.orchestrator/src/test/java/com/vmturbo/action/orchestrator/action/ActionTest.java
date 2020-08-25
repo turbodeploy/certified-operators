@@ -33,6 +33,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ActionSpecifications;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -50,7 +51,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -419,7 +420,8 @@ public class ActionTest {
             .put("resize", makeSetting("resize", ActionMode.AUTOMATIC))
             .build();
 
-        doAnswer(invocationOnMock -> Stream.of(EntitySettingSpecs.Resize)).when(actionModeCalculator)
+        doAnswer(invocationOnMock -> Stream.of(new ActionSpecifications(ConfigurableActionSettings.Resize)))
+            .when(actionModeCalculator)
             .specsApplicableToAction(any(), any());
 
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))

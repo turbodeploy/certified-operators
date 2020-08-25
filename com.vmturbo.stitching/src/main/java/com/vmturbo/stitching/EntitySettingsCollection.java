@@ -132,7 +132,7 @@ public class EntitySettingsCollection {
      * @param settingName The {@link EntitySettingSpecs} describing the name of the setting to look up.
      * @return The user setting with the given name, if there is one, for the entity with the given OID.
      */
-    private Optional<Setting> getEntityUserSetting(final long oid, @Nonnull final String settingName) {
+    public Optional<Setting> getEntityUserSetting(final long oid, @Nonnull final String settingName) {
         final EntitySettings settingsForEntity = settingsByEntity.get(oid);
         if (settingsForEntity == null) {
             return Optional.empty();

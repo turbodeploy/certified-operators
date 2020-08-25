@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.utils.HCIUtils;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -54,7 +55,8 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
 
     @Override
     public void apply(@Nonnull Builder storage,
-            @Nonnull Map<EntitySettingSpecs, Setting> settings) {
+                      @Nonnull Map<EntitySettingSpecs, Setting> settings,
+                      @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
         if (!HCIUtils.isVSAN(storage))  {
             return;
         }

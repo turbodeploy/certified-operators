@@ -80,6 +80,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequ
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.identity.IdentityProvider;
@@ -122,7 +124,7 @@ public class SettingPolicyRpcServiceTest {
             .build();
 
     private SettingSpec automationSettingSpec =
-            EntitySettingSpecs.Move.getSettingSpec();
+        ActionSettingSpecs.getSettingSpec(ConfigurableActionSettings.Move.getSettingName());
 
     private Setting automationSetting =
             Setting.newBuilder()
