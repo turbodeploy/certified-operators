@@ -449,26 +449,32 @@ public class TopologyEntityUtils {
 
     static TopologyEntity.Builder buildTopologyEntityWithCommSold(
             long oid, int commType, int entityType) {
-        return buildTopologyEntityWithCommSold(oid, commType, entityType, 0, 0, 0, 0);
+        return buildTopologyEntityWithCommSold(oid, commType, entityType, 0, 0, null, null);
     }
 
     static TopologyEntity.Builder buildTopologyEntityWithCommSold(
         long oid, int commType, int entityType, double used, double peak) {
-        return buildTopologyEntityWithCommSold(oid, commType, entityType, used, peak, 0, 0);
+        return buildTopologyEntityWithCommSold(oid, commType, entityType, used, peak, null, null);
     }
 
     static TopologyEntity.Builder buildTopologyEntityWithCommSold(
             long oid, int commType, int entityType,
-            double used, double peak, double historicalUsed, double historicalPeak) {
+            double used, double peak, @Nullable Double historicalUsed, @Nullable Double historicalPeak) {
         final ImmutableList.Builder<CommoditySoldDTO> commSoldList = ImmutableList.builder();
-        commSoldList.add(CommoditySoldDTO.newBuilder().setCommodityType(
-            CommodityType.newBuilder().setType(commType).setKey("").build())
-            .setActive(true)
-            .setUsed(used)
-            .setPeak(peak)
-            .setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(historicalUsed))
-            .setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(historicalPeak))
-            .build());
+        CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder().setCommodityType(
+                CommodityType.newBuilder().setType(commType).setKey("").build())
+                .setActive(true)
+                .setUsed(used)
+                .setPeak(peak);
+        if (historicalUsed != null) {
+            commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
+                    .setHistUtilization(historicalUsed));
+        }
+        if (historicalPeak != null) {
+            commoditySoldBuilder.setHistoricalPeak(HistoricalValues.newBuilder()
+                    .setHistUtilization(historicalPeak));
+        }
+        commSoldList.add(commoditySoldBuilder.build());
 
         return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
             .addAllCommoditySoldList(commSoldList.build())
