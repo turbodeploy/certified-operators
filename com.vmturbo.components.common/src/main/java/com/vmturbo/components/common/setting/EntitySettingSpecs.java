@@ -878,6 +878,18 @@ public enum EntitySettingSpecs {
             true),
 
     /**
+     * SLA Capacity used by Application and Database.
+     */
+    @Deprecated
+    SLACapacity("slaCapacity", "SLA Capacity",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
+                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
+            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
+            true),
+
+    /**
      * Indicates whether to auto set the response time SLO of an entity's commodity to the value
      * of the ResponseTimeCapacity setting or to calculate it as the max of the commodity's capacity,
      * used value, and the ResponseTimeCapacity setting.
