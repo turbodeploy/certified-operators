@@ -3,7 +3,6 @@ package com.vmturbo.components.common.metrics;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 
-import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
 /**
@@ -68,8 +67,7 @@ public class MemoryMetricsManagerTest {
     public void testHistogram() {
         final String result = MemoryMetricsManager.histogram(foo).toString();
         assertThat(result, containsString("9 TOTAL"));
-        // Java8 reports array of chars, java11 - array of bytes
-        assertThat(result, CoreMatchers.anyOf(containsString("3 [C"), containsString("3 [B")));
+        assertThat(result, containsString("3 [C"));
         assertThat(result, containsString("3 com.vmturbo.components.common.metrics.MemoryMetricsManagerTest$TestObject"));
         assertThat(result, containsString("3 java.lang.String"));
     }

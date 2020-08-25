@@ -24,9 +24,6 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.hamcrest.CoreMatchers;
-import org.junit.Assume;
-import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.memory.MemoryVisitor.MemoryGraphVisitor;
@@ -100,16 +97,6 @@ public class MemoryGraphVisitorTest {
     private final Pattern pathPattern = Pattern.compile(
         "\\s+(?<depth>\\d+)\\s+(?<size>[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)\\s+(?<units>\\S+)\\s+(?<children>\\S+)\\s+(?<klassName>\\S+)\\s+(?<path>\\S+)");
     private final Pattern titlePattern = Pattern.compile("=(?<size>[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?)\\s+(?<units>\\w+), CHILD_COUNT=(?<children>\\S+)]");
-
-
-    /**
-     * Ignore the tests under Java11. They seem to be working incorrectly. Or even the code itself
-     * works incorrectly under Java11.
-     */
-    @Before
-    public void assume() {
-        Assume.assumeThat(System.getProperty("java.version"), CoreMatchers.startsWith("1.8."));
-    }
 
     /**
      * testShallow.

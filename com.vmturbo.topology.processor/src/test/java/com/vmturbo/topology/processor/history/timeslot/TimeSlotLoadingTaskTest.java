@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.history.timeslot;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
@@ -8,24 +7,24 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.powermock.api.mockito.PowerMockito;
+import org.powermock.core.classloader.annotations.PrepareForTest;
+import org.powermock.modules.junit4.PowerMockRunner;
 
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
-import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -36,6 +35,8 @@ import com.vmturbo.topology.processor.history.HistoryCalculationException;
 /**
  * Unit tests for TimeSlotLoadingTask.
  */
+@RunWith(PowerMockRunner.class)
+@PrepareForTest({StatsHistoryServiceBlockingStub.class})
 public class TimeSlotLoadingTaskTest {
     private static final TimeslotHistoricalEditorConfig CONFIG =
                     new TimeslotHistoricalEditorConfig(1, 1, 777777L, 1, 1, 1, 1, Clock.systemUTC(),
@@ -45,29 +46,6 @@ public class TimeSlotLoadingTaskTest {
     private static final CommodityType CT = CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE).build();
 
-    private StatsHistoryServiceMole history;
-    private GrpcTestServer grpcServer;
-
-    /**
-     * Initializes the tests.
-     *
-     * @throws IOException if error occurred while creating gRPC server
-     */
-    @Before
-    public void init() throws IOException {
-        history = Mockito.spy(new StatsHistoryServiceMole());
-        grpcServer = GrpcTestServer.newServer(history);
-        grpcServer.start();
-    }
-
-    /**
-     * Cleans up resources.
-     */
-    @After
-    public void shutdown() {
-        grpcServer.close();
-    }
-
     /**
      * Test the successful loading from history component.
      *
@@ -76,6 +54,8 @@ public class TimeSlotLoadingTaskTest {
      */
     @Test
     public void testLoadSuccess() throws HistoryCalculationException, InterruptedException {
+        StatsHistoryServiceBlockingStub history = PowerMockito.mock(StatsHistoryServiceBlockingStub.class);
+
         EntityCommodityReference ref1 = new EntityCommodityReference(OID1, CT, null);
         EntityCommodityReference ref2 = new EntityCommodityReference(OID2, CT, null);
 
@@ -104,9 +84,7 @@ public class TimeSlotLoadingTaskTest {
 
         Mockito.doAnswer(answerGetStats).when(history).getEntityStats(Mockito.any());
 
-        TimeSlotLoadingTask task = new TimeSlotLoadingTask(
-                StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                Pair.create(null, null));
+        TimeSlotLoadingTask task = new TimeSlotLoadingTask(history, Pair.create(null, null));
         Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> comms = task
                         .load(ImmutableList.of(ref1, ref2), CONFIG);
 

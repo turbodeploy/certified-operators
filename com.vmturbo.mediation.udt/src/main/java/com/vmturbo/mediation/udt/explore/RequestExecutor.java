@@ -55,12 +55,29 @@ public class RequestExecutor {
      * @param connection - provider of gRpc channels.
      */
     public RequestExecutor(@Nonnull Connection connection) {
-        this.topologyDataDefService =
-                TopologyDataDefinitionServiceGrpc.newBlockingStub(connection.getGroupChannel());
-        this.repositoryService =
-                RepositoryServiceGrpc.newBlockingStub(connection.getRepositoryChannel());
-        this.groupService = newBlockingStub(connection.getGroupChannel());
-        this.searchService = SearchServiceGrpc.newBlockingStub(connection.getRepositoryChannel());
+        this(TopologyDataDefinitionServiceGrpc.newBlockingStub(connection.getGroupChannel()),
+                RepositoryServiceGrpc.newBlockingStub(connection.getRepositoryChannel()),
+                newBlockingStub(connection.getGroupChannel()),
+                SearchServiceGrpc.newBlockingStub(connection.getRepositoryChannel()));
+    }
+
+    /**
+     * Constructor that receives the blocking stubs. Used for testing.
+     *
+     * @param topologyDataDefService - a topology data definition service.
+     * @param repositoryService - a repository service.
+     * @param groupService - a group service.
+     * @param searchService - a search service.
+     */
+    @VisibleForTesting
+    protected RequestExecutor(@Nonnull final TopologyDataDefinitionServiceBlockingStub topologyDataDefService,
+                           @Nonnull final RepositoryServiceBlockingStub repositoryService,
+                           @Nonnull final GroupServiceBlockingStub groupService,
+                           @Nonnull final SearchServiceBlockingStub searchService) {
+        this.topologyDataDefService = topologyDataDefService;
+        this.repositoryService = repositoryService;
+        this.groupService = groupService;
+        this.searchService = searchService;
     }
 
     @Nonnull

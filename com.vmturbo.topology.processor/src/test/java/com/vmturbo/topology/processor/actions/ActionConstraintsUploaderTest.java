@@ -9,7 +9,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.powermock.api.mockito.PowerMockito.when;
 
 import java.text.MessageFormat;
 import java.util.ArrayList;
