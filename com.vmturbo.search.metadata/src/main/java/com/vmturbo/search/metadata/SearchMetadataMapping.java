@@ -93,31 +93,39 @@ public enum SearchMetadataMapping {
      * Entity type specific fields.
      */
     PRIMITIVE_ATTACHMENT_STATE("attrs", "attachment_state", Type.ENUM, AttachmentState.class,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualVolume().getAttachmentState())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getVirtualVolume().hasAttachmentState(),
+            entity.getTypeSpecificInfo().getVirtualVolume().getAttachmentState())),
 
     PRIMITIVE_CONNECTED_NETWORKS("attrs", "connected_networks", Type.MULTI_TEXT, null,
             entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getConnectedNetworksList())),
 
     PRIMITIVE_CPU_MODEL("attrs", "cpu_model", Type.TEXT, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getCpuModel())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getPhysicalMachine().hasCpuModel(),
+            entity.getTypeSpecificInfo().getPhysicalMachine().getCpuModel())),
 
     PRIMITIVE_GUEST_OS_TYPE("attrs", "guest_os_type", Type.ENUM, OSType.class,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().hasGuestOsType(),
+            entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType())),
 
     PRIMITIVE_IS_LOCAL("attrs", "is_local", Type.BOOLEAN, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getStorage().getIsLocal())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getStorage().hasIsLocal(),
+            entity.getTypeSpecificInfo().getStorage().getIsLocal())),
 
     PRIMITIVE_MODEL("attrs", "model", Type.TEXT, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getModel())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getPhysicalMachine().hasModel(),
+            entity.getTypeSpecificInfo().getPhysicalMachine().getModel())),
 
     PRIMITIVE_PM_NUM_CPUS("attrs", "num_cpus", Type.NUMBER, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getNumCpus())),
+            entity -> conditionallySet(entity.getTypeSpecificInfo().getPhysicalMachine().hasNumCpus(),
+                entity.getTypeSpecificInfo().getPhysicalMachine().getNumCpus())),
 
     PRIMITIVE_TIMEZONE("attrs", "timezone", Type.TEXT, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getTimezone())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getPhysicalMachine().hasTimezone(),
+            entity.getTypeSpecificInfo().getPhysicalMachine().getTimezone())),
 
     PRIMITIVE_VM_NUM_CPUS("attrs", "num_cpus", Type.NUMBER, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getVirtualMachine().hasNumCpus(),
+            entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus())),
 
     PRIMITIVE_VENDOR_ID("attrs", "vendor_id", Type.TEXT, null,
             entity -> entity.getOrigin().hasDiscoveryOrigin()
@@ -938,5 +946,23 @@ public enum SearchMetadataMapping {
 
     public boolean isDirect() {
         return direct;
+    }
+
+    /**
+     * Convenience method to provide a value only if the value has been marked as set.
+     *
+     * <p>This avoids repeating a lot of code to wrap value in optionals only when protobuf tells
+     * us that the value has actually been set. If the value is unset, protobuf will set a default
+     * value and we don't want to accidentally ingest this default value.</p>
+     *
+     * @param hasValue a flag indicating whether or not the value is present
+     * @param value the value (if present) or a default value (if not present)
+     * @return an optional containing either empty (if the value is not set) or the value (if set)
+     */
+    private static Optional<Object> conditionallySet(final boolean hasValue, @Nonnull final Object value) {
+        if (hasValue) {
+            return Optional.of(value);
+        }
+        return Optional.empty();
     }
 }
