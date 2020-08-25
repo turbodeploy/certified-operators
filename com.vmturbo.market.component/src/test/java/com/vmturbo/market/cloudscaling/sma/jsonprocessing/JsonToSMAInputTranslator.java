@@ -53,7 +53,7 @@ public class JsonToSMAInputTranslator {
             SMATemplate smaTemplate = inputContext.getTemplates().stream()
                     .filter(a -> a.getOid() == smaMatchTestTrim.getTemplateOid())
                     .findFirst().get();
-            int discountedCoupons = smaMatchTestTrim.getReservedInstanceOid() == null ? 0
+            float discountedCoupons = smaMatchTestTrim.getReservedInstanceOid() == null ? 0f
                     : smaMatchTestTrim.getDiscountedCoupons();
             smaMatches.add(new SMAMatch(smaVirtualMachine, smaTemplate,
                     smaReservedInstance, discountedCoupons));

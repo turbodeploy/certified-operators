@@ -77,10 +77,10 @@ public class SMATest {
         StableMarriageAlgorithm.postProcessing(outputContext);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)
-                .findFirst().get().getProjectedRICoverage(), 2.8f, 0.001);
+                .findFirst().get().getDiscountedCoupons(), 2.8f, 0.001);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000002L)
-                .findFirst().get().getProjectedRICoverage(), 1.2f, 0.001);
+                .findFirst().get().getDiscountedCoupons(), 1.2f, 0.001);
 
     }
 
@@ -96,10 +96,10 @@ public class SMATest {
         SMAOutputContext outputContext = StableMarriageAlgorithm.execute(smaInput).getContexts().get(0);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)
-                .findFirst().get().getProjectedRICoverage(), 32f, 0.001);
+                .findFirst().get().getDiscountedCoupons(), 32f, 0.001);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000002L)
-                .findFirst().get().getProjectedRICoverage(), 0f, 0.001);
+                .findFirst().get().getDiscountedCoupons(), 0f, 0.001);
 
     }
 
@@ -116,7 +116,7 @@ public class SMATest {
         SMAOutputContext outputContext = StableMarriageAlgorithm.execute(smaInput).getContexts().get(0);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)
-                .findFirst().get().getProjectedRICoverage(), 2f, 0.001);
+                .findFirst().get().getDiscountedCoupons(), 2f, 0.001);
 
     }
 
@@ -125,6 +125,8 @@ public class SMATest {
      */
     @Test
     public void testAwsSMA() {
+
+        testExactResult("1vm1riPartialRI.json");
 
         /*
          * 2 vms. both belong to ASG. no common provider. THey should keep using the RI. Increase in
@@ -262,10 +264,10 @@ public class SMATest {
             boolean found = false;
             for (SMAMatch match2 : matches2) {
                 if (compareReservedInstance(match1.getReservedInstance(),
-                        match2.getReservedInstance()) &&
-                        (match1.getDiscountedCoupons() == match2.getDiscountedCoupons()) &&
-                        (match1.getVirtualMachine().getOid() == match2.getVirtualMachine().getOid()) &&
-                        (match1.getTemplate().getOid() == match2.getTemplate().getOid())) {
+                        match2.getReservedInstance())
+                        && Math.abs(match1.getDiscountedCoupons() - match2.getDiscountedCoupons()) < SMAUtils.EPSILON
+                        && (match1.getVirtualMachine().getOid() == match2.getVirtualMachine().getOid())
+                        && (match1.getTemplate().getOid() == match2.getTemplate().getOid())) {
                     found = true;
                     break;
                 }

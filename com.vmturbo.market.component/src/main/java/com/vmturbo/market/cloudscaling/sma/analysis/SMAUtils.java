@@ -36,7 +36,7 @@ public class SMAUtils {
     /**
      * Improvement factor for a vm to be discounted by an RI.
      */
-    public static final double IMPROVEMENT_FACTOR = 0.01f;
+    public static final double BIG_EPSILON = 0.01f;
     /**
      * ROUNDING to trim floating point for comparison.
      */

@@ -247,7 +247,7 @@ public class SMAUtilsTest {
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
                         //oldVM.getCurrentRICoverage(),
-                        (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
+                        outputContext.getMatches().get(i).getDiscountedCoupons(),
                         oldVM.getZoneId(),
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
                                 SMAUtils.BOGUS_RI :
@@ -492,7 +492,7 @@ public class SMAUtilsTest {
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
                         //oldVM.getCurrentRICoverage(),
-                        (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
+                        outputContext.getMatches().get(i).getDiscountedCoupons(),
                         oldVM.getZoneId(),
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
                                 SMAUtils.BOGUS_RI :

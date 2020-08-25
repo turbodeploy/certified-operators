@@ -110,7 +110,7 @@ public class SMAInputContext {
                     oldVM.getBusinessAccountId(),
                     smaMatch.getTemplate(),
                     oldVM.getProviders(),
-                    (float)smaMatch.getDiscountedCoupons(),
+                    smaMatch.getDiscountedCoupons(),
                     oldVM.getZoneId(),
                     smaMatch.getReservedInstance() == null ?
                             SMAUtils.BOGUS_RI :

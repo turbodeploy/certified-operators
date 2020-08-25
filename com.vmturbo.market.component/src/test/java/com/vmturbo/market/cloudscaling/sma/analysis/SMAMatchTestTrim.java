@@ -8,7 +8,7 @@ public class SMAMatchTestTrim {
     private final Long virtualMachineOid;
     private final Long reservedInstanceOid;
     private final Long templateOid;
-    private final Integer discountedCoupons;
+    private final Float discountedCoupons;
 
     /**
      * constructor.
@@ -21,7 +21,7 @@ public class SMAMatchTestTrim {
     public SMAMatchTestTrim(Long virtualMachineOid,
                             Long reservedInstanceOid,
                             Long templateOid,
-                            Integer discountedCoupons) {
+                            Float discountedCoupons) {
 
         this.discountedCoupons = discountedCoupons;
         this.reservedInstanceOid = reservedInstanceOid;
@@ -29,7 +29,7 @@ public class SMAMatchTestTrim {
         this.virtualMachineOid = virtualMachineOid;
     }
 
-    public Integer getDiscountedCoupons() {
+    public Float getDiscountedCoupons() {
         return discountedCoupons;
     }
 
