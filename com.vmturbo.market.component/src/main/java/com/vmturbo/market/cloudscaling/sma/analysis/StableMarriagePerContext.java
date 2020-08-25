@@ -553,7 +553,7 @@ public class StableMarriagePerContext {
      *
      * @return the intersection of providers of all vms in the group.
      */
-    private static List<SMATemplate>  findProviderIntersection(List<SMAVirtualMachine> virtualMachines) {
+    public static List<SMATemplate>  findProviderIntersection(List<SMAVirtualMachine> virtualMachines) {
         if (virtualMachines.isEmpty()) {
             return new ArrayList<>();
         }

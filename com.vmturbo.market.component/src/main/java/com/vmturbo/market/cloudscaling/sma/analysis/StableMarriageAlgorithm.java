@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -24,6 +25,7 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
+import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
 
 /**
@@ -177,6 +179,13 @@ public class StableMarriageAlgorithm {
             float saving = 0;
             Optional<SMAMatch> matchWithCoverage = smaMatches.stream()
                     .filter(a -> a.getReservedInstance() != null).findFirst();
+            List<SMAVirtualMachine> virtualMachines = smaMatches.stream()
+                    .map(a -> a.getVirtualMachine()).collect(Collectors.toList());
+            List<SMATemplate> groupProviderList = StableMarriagePerContext
+                    .findProviderIntersection(virtualMachines);
+            if (!groupProviderList.isEmpty()) {
+                virtualMachines.stream().forEach(a -> a.setGroupProviders(groupProviderList));
+            }
             // at least one member is convered.
             if (matchWithCoverage.isPresent()) {
                 for (SMAMatch smaMatch : smaMatches) {

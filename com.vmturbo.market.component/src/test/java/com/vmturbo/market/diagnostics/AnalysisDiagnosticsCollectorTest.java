@@ -1,5 +1,6 @@
 package com.vmturbo.market.diagnostics;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Stopwatch;
 import com.google.gson.Gson;
@@ -30,11 +32,14 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
@@ -71,6 +76,8 @@ public class AnalysisDiagnosticsCollectorTest {
 
     //Change this to the location of unzipped analysis diags.
     private final String unzippedSMADiagsLocation = "src/test/resources/cloudvmscaling/smaDiags";
+    private final String unzippedSMADiagsLocation2 = "src/test/resources/cloudvmscaling/smaDiags2";
+
 
     /**
      * Unit test to run SMA from the unzipped analysis diags.
@@ -86,10 +93,82 @@ public class AnalysisDiagnosticsCollectorTest {
             smaInput.get().getContexts().stream().forEach(a -> a.decompress());
             SMAOutput smaOutput = StableMarriageAlgorithm.execute(smaInput.get());
             logger.info("SMA generated {} outputContexts", smaOutput.getContexts().size());
-            assertTrue(smaOutput.getContexts().size() > 0);
+            assertTrue(getActionCount(smaOutput) > 0);
         } else {
             logger.error("Could not create SMAInput. SMA was not run.");
         }
+    }
+
+    /**
+     * I run the SMA with the SMA diags. I get the output contexts…
+     * I update the current template, and current coverage of input vms with the info from outputcontext..
+     * (this step is like simulating the customer actually executing the move).
+     * We then run SMA again..This time ideally there should be 0 actions
+     */
+    @Test
+    public void testStabilityWithDiags() {
+        restoreSMAsMembers(unzippedSMADiagsLocation2);
+        if (smaInput.isPresent()) {
+            smaInput.get().getContexts().stream().forEach(a -> a.decompress());
+            SMAOutput smaOutput = StableMarriageAlgorithm.execute(smaInput.get());
+            List<SMAInputContext> newInputContexts = new ArrayList<>();
+            for (SMAOutputContext outputContext : smaOutput.getContexts()) {
+                for (SMAInputContext inputContext : smaInput.get().getContexts()) {
+                    if (outputContext.getContext().equals(inputContext.getContext())) {
+                        List<SMAVirtualMachine> smaVirtualMachines = outputContext.getMatches()
+                                .stream().map(a -> a.getVirtualMachine()).collect(Collectors.toList());
+                        List<SMAVirtualMachine> newVirtualMachines = new ArrayList<>();
+                        for (int i = 0; i < smaVirtualMachines.size(); i++) {
+                            SMAVirtualMachine oldVM = smaVirtualMachines.get(i);
+                            SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
+                                    oldVM.getName(),
+                                    oldVM.getGroupName(),
+                                    oldVM.getBusinessAccountId(),
+                                    outputContext.getMatches().get(i).getTemplate(),
+                                    oldVM.getProviders(),
+                                    outputContext.getMatches().get(i).getDiscountedCoupons(),
+                                    oldVM.getZoneId(),
+                                    outputContext.getMatches().get(i).getReservedInstance(),
+                                    oldVM.getOsType());
+                            newVirtualMachines.add(smaVirtualMachine);
+                        }
+                        SMAContext context = inputContext.getContext();
+                        List<SMAReservedInstance> newReservedInstances = new ArrayList<>();
+                        List<SMAReservedInstance> oldReservedInstances = inputContext.getReservedInstances();
+                        for (int i = 0; i < oldReservedInstances.size(); i++) {
+                            SMAReservedInstance oldRI = oldReservedInstances.get(i);
+                            SMAReservedInstance newRI = SMAReservedInstance.copyFrom(oldRI);
+                            newReservedInstances.add(newRI);
+                        }
+                        newInputContexts.add(new SMAInputContext(context, newVirtualMachines,
+                                newReservedInstances, inputContext.getTemplates()));
+                    }
+                }
+            }
+            SMAOutput newOutput = StableMarriageAlgorithm
+                    .execute(new SMAInput(newInputContexts));
+            assertEquals(0, getActionCount(newOutput));
+        }
+    }
+
+    /**
+     * find the number of actions.
+     *
+     * @param smaOutput outputcontext
+     * @return number of actions.
+     */
+    private int getActionCount(SMAOutput smaOutput) {
+        int actionCount = 0;
+        for (SMAOutputContext outputContext : smaOutput.getContexts()) {
+            for (SMAMatch match : outputContext.getMatches()) {
+                if ((match.getVirtualMachine().getCurrentTemplate().getOid() != match.getTemplate().getOid())
+                        || (Math.abs(match.getVirtualMachine().getCurrentRICoverage()
+                        - match.getDiscountedCoupons()) > SMAUtils.EPSILON)) {
+                    actionCount++;
+                }
+            }
+        }
+        return actionCount;
     }
 
     /**

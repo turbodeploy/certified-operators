@@ -104,6 +104,31 @@ public class SMATest {
     }
 
     /**
+     * test post processing. undo unnecessary coverage.
+     */
+    @Test
+    public void testPostProcessingASG() {
+        String filename = "2vm1rinorioptimisationASG.json";
+        JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
+        SMAInputContext smaInputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
+        SMAInput smaInput = new SMAInput(Collections.singletonList(smaInputContext));
+        SMAOutputContext outputContext = StableMarriageAlgorithm.execute(smaInput).getContexts().get(0);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)
+                .findFirst().get().getDiscountedCoupons(), 32f, 0.001);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000002L)
+                .findFirst().get().getDiscountedCoupons(), 0f, 0.001);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000002L)
+                .findFirst().get().getTemplate().getOid(), 100004L);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000003L)
+                .findFirst().get().getTemplate().getOid(), 100004L);
+
+    }
+
+    /**
      * test post processing. ri optimization investment can arise if the RI is not available.
      * If source coverage is more than the available coupons.
      */
