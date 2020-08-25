@@ -317,6 +317,7 @@ public final class ProtobufToAnalysis {
         destination.setSuspendable(source.getSuspendable());
         destination.setMinDesiredUtil(source.getMinDesiredUtilization());
         destination.setMaxDesiredUtil(source.getMaxDesiredUtilization());
+        destination.setRateOfResize(source.getRateOfResize());
         destination.setGuaranteedBuyer(source.getGuaranteedBuyer());
         destination.setCanAcceptNewCustomers(source.getCanAcceptNewCustomers());
         destination.setIsEligibleForResizeDown(source.getIsEligibleForResizeDown());

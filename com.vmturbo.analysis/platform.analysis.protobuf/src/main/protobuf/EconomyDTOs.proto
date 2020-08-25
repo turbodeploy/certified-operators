@@ -22,7 +22,7 @@ message EconomySettingsTO {
     required float expense_metric_factor = 4;
 
     // Support user configured rate of resize.
-    required float rate_of_resize = 5;
+    required float __deprecated_rate_of_resize = 5 [deprecated = true];
 
     // flag to enable estimates
     required bool estimates = 6 [default = false];
@@ -150,6 +150,9 @@ message TraderSettingsTO {
 
     // Whether the trader resizes commodity capacities through Supplier cloning or suspending.
     optional bool resizeThroughSupplier = 17 [default = false];
+
+    // Rate of resize setting
+    optional float rate_of_resize = 18;
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm
