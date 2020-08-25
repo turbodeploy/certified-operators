@@ -145,7 +145,7 @@ public class SearchEntityWriterTest {
     }
 
     /**
-     * Tests that we can propertly insert entities into the search_entities table.
+     * Tests that we can properly insert entities into the search_entities table.
      *
      * @throws SQLException                if there's a DB problem
      * @throws UnsupportedDialectException if the DB endpoint is misconfigured
@@ -198,7 +198,7 @@ public class SearchEntityWriterTest {
      *
      * @throws SQLException                if there's a DB problem
      * @throws UnsupportedDialectException if the DB endpoint is misconfigured
-     * @throws InterruptedException        if interrupetd
+     * @throws InterruptedException        if interrupted
      */
     @Test
     public void testInsertGroups() throws SQLException, UnsupportedDialectException, InterruptedException {

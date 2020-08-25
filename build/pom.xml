@@ -3077,6 +3077,11 @@
                 <version>${hibernate.validator.version}</version>
                 <scope>test</scope>
             </dependency>
+            <dependency>
+                <groupId>org.javatuples</groupId>
+                <artifactId>javatuples</artifactId>
+                <version>1.2</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
     <repositories>

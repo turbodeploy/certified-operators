@@ -163,7 +163,9 @@ public class EntityMetricWriterTest {
         this.metricInsertCapture = captureSink(metricInserterSink, false);
         DslRecordSink wastedFileReplacerSink = mock(DslRecordSink.class);
         this.wastedFileReplacerCapture = captureSink(wastedFileReplacerSink, false);
+        final EntityIdManager entityIdManager = new EntityIdManager();
         this.writer = spy(new EntityMetricWriter(endpoint, new EntityHashManager(config),
+                mock(ScopeManager.class), entityIdManager,
                 Executors.newSingleThreadScheduledExecutor()));
         doReturn(entitiesUpserterSink).when(writer).getEntityUpsertSink(
                 any(DSLContext.class), any(), any());

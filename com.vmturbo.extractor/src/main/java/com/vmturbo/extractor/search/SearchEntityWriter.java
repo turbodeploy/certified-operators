@@ -133,7 +133,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
     @Override
     public Consumer<TopologyEntityDTO> startTopology(final TopologyInfo topologyInfo,
             final WriterConfig config, final MultiStageTimer timer)
-            throws IOException, UnsupportedDialectException, SQLException {
+            throws IOException, UnsupportedDialectException, SQLException, InterruptedException {
         return super.startTopology(topologyInfo, config, timer);
     }
 

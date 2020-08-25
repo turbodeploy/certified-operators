@@ -420,7 +420,7 @@ public class Table {
         }
 
         /**
-         * Return this record as a map, ommitting null keys and values, if any.
+         * Return this record as a map, omitting null keys and values, if any.
          *
          * <p>This is currently used for testing.</p>
          *
