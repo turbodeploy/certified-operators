@@ -3,14 +3,9 @@ package com.vmturbo.licensing.utils;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.stream.Collectors;
-
-import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableSortedSet;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -18,8 +13,6 @@ import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
 import com.vmturbo.api.dto.license.ILicense.ErrorReason;
 import com.vmturbo.api.dto.license.LicenseApiDTO;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
 import com.vmturbo.licensing.License;
 import com.vmturbo.licensing.utils.TurboEncryptionUtil.HashFunc;
 
@@ -64,8 +57,6 @@ public class LicenseUtil {
     /**
      * Validate a license and return a set of ErrorReason.
      * If no errors are found, then will return an empty set
-     *
-     * @param license The license to validate.
      */
     public static Set<ErrorReason> validate(ILicense license) {
         if (!license.isValid()) {
@@ -117,64 +108,31 @@ public class LicenseUtil {
     }
 
     /**
-     * Convert a {@link LicenseDTO} to {@link License}.
-     *
-     * @param dto The {@link LicenseDTO} to convert.
-     * @return The {@link License}, or an empty {@link Optional} if the {@link LicenseDTO} is an
-     *          external license.
+     * Convert a LicenseApiDTO to License
      */
-    public static Optional<License> toModel(LicenseDTO dto) {
-        if (dto.hasTurbo()) {
-            TurboLicense turboLicense = dto.getTurbo();
-            License license = new License().setUuid(dto.getUuid())
-                    .setEmail(turboLicense.getEmail())
-                    .setExpirationDate(turboLicense.getExpirationDate())
-                    .setLicenseKey(turboLicense.getLicenseKey())
-                    .setLicenseOwner(turboLicense.getLicenseOwner())
-                    .setEdition(turboLicense.getEdition())
-                    .setFilename(dto.getFilename())
-                    .setCountedEntity(CountedEntity.valueOf(turboLicense.getCountedEntity()))
-                    .setNumLicensedEntities(turboLicense.getNumLicensedEntities())
-                    .setErrorReasons(turboLicense.getErrorReasonList().stream()
-                        .map(ErrorReason::valueOf)
-                        .collect(Collectors.toSet()))
-                    .setFeatures(ImmutableSortedSet.<String>naturalOrder()
-                        .addAll(turboLicense.getFeaturesList())
-                        .build())
-                    .setExternalLicenseKey(turboLicense.getExternalLicenseKey())
-                    .setExternalLicense(turboLicense.hasExternalLicenseKey());
-            license.setErrorReasons(LicenseUtil.validate(license));
-            return Optional.of(license);
-        } else {
-            return Optional.empty();
-        }
+    public static License toModel(LicenseApiDTO dto) {
+        License license = new License()
+                .setUuid(dto.getUuid())
+                .setEmail(dto.getEmail())
+                .setExpirationDate(dto.getExpirationDate())
+                .setLicenseKey(dto.getLicenseKey())
+                .setLicenseOwner(dto.getLicenseOwner())
+                .setEdition(dto.getEdition())
+                .setFilename(dto.getFilename())
+                .setCountedEntity(dto.getCountedEntity())
+                .setNumLicensedEntities(dto.getNumLicensedEntities())
+                .setNumInUseEntities(dto.getNumInUseEntities())
+                .setErrorReasons(dto.getErrorReasons())
+                .setFeatures(dto.getFeatures())
+                .setExternalLicenseKey(dto.getExternalLicenseKey())
+                .setExternalLicense(dto.isExternalLicense());
+        license.setErrorReasons(LicenseUtil.validate(license));
+        return license;
     }
 
-    /**
-     * Extract the expiration date from a {@link LicenseDTO}.
-     *
-     * @param license The {@link LicenseDTO}.
-     * @return The expiration date, or an empty string if none found.
-     */
-    public static String getExpirationDate(@Nonnull final LicenseDTO license) {
-        switch (license.getTypeCase()) {
-            case TURBO:
-                return license.getTurbo().getExpirationDate();
-            case EXTERNAL:
-                return license.getExternal().getExpirationDate();
-            default:
-                return "";
-        }
-    }
 
-    /**
-     * Check if a license protobuf is expired.
-     *
-     * @param license The {@link LicenseDTO}.
-     * @return True if it's expired. False otherwise.
-     */
-    public static boolean isExpired(LicenseDTO license) {
-        return ILicense.isExpired(getExpirationDate(license));
+    public static boolean isNotExpired(String expirationDate) {
+        return !ILicense.isExpired(expirationDate);
     }
 
     /**

@@ -258,9 +258,38 @@ public class VoltronsContainer {
                     .setPassword("a")
                     .build();
 
-            // Need to add a license.
+            // Add a license.
+            initializeLicense();
             return client;
         });
+    }
+
+    private void initializeLicense() {
+        final String licensePath = config.getLicensePath().orElseGet(
+                () -> EnvironmentUtils.getOptionalEnvProperty("license_path")
+                .orElseThrow(() -> new IllegalStateException("Must specify license path in configuration, or set the license_path env property")));
+        try {
+            LicenseService licenseService = context.getComponents().get(Component.API).getBean(LicenseService.class);
+            RetriableOperation.newOperation(() -> {
+                List<LicenseApiDTO> existing = licenseService.findAllLicenses();
+                if (existing.stream().noneMatch(license -> license.isValid() && !license.isExpired())) {
+                    String licenseContent = null;
+                    try {
+                        licenseContent = new String(Files.readAllBytes(Paths.get(licensePath)));
+                    } catch (IOException e) {
+                        throw new RetriableOperationFailedException(e);
+                    }
+                    LicenseApiDTO inputLicense = licenseService.deserializeLicenseToLicenseDTO(licenseContent);
+                    return licenseService.addLicenses(Collections.singletonList(inputLicense), false);
+                } else {
+                    return existing;
+                }
+            })
+            .retryOnUnavailable()
+            .run(60, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to initialize license", e);
+        }
     }
 
     private void loadComponentDiags(@Nonnull final Component component, @Nonnull final InputStream input) {

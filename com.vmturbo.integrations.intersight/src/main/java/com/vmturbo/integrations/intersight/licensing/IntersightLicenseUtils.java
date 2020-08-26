@@ -29,7 +29,6 @@ import org.json.JSONObject;
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.licensing.License;
@@ -83,7 +82,7 @@ public class IntersightLicenseUtils {
      */
     public static boolean isIntersightLicense(LicenseDTO licenseDTO) {
         try {
-            return (IntersightProxyLicenseEdition.valueOf(licenseDTO.getTurbo().getEdition()) != null);
+            return (IntersightProxyLicenseEdition.valueOf(licenseDTO.getEdition()) != null);
         } catch (IllegalArgumentException iae) {
             return false;
         }
@@ -113,7 +112,7 @@ public class IntersightLicenseUtils {
             return false;
         }
         // validate the expiration date field
-        return !StringUtils.isBlank(licenseDTO.getTurbo().getExpirationDate());
+        return !StringUtils.isBlank(licenseDTO.getExpirationDate());
     }
 
     /**
@@ -186,7 +185,6 @@ public class IntersightLicenseUtils {
         // now that we have a keyed license, converted it to a protobuf license for sending to the
         // license manager.
         return LicenseDTO.newBuilder()
-            .setTurbo(TurboLicense.newBuilder()
                 .setExternalLicenseKey(proxyLicense.getExternalLicenseKey())
                 .setEmail(proxyLicense.getEmail())
                 .setEdition(proxyLicense.getEdition())
@@ -194,8 +192,8 @@ public class IntersightLicenseUtils {
                 .setCountedEntity(proxyLicense.getCountedEntity().name())
                 .setNumLicensedEntities(proxyLicense.getNumLicensedEntities())
                 .addAllFeatures(proxyLicense.getFeatures())
-                .setLicenseKey(proxyLicense.getLicenseKey()))
-            .build();
+                .setLicenseKey(proxyLicense.getLicenseKey())
+                .build();
     }
 
     /**
@@ -214,13 +212,13 @@ public class IntersightLicenseUtils {
             return false;
         }
 
-        if (!StringUtils.equals(a.getTurbo().getExternalLicenseKey(), b.getTurbo().getExternalLicenseKey())) {
+        if (!StringUtils.equals(a.getExternalLicenseKey(), b.getExternalLicenseKey())) {
             return false;
         }
 
         // the license key should cover the rest of the attributes, and also exclude the oid field.
         // this is because the license key is generated independently from the oid.
-        if (!StringUtils.equals(a.getTurbo().getLicenseKey(), b.getTurbo().getLicenseKey())) {
+        if (!StringUtils.equals(a.getLicenseKey(), b.getLicenseKey())) {
             return false;
         }
         return true;

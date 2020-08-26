@@ -13,15 +13,15 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.protobuf.InvalidProtocolBufferException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.util.encoders.Base64;
+import org.springframework.security.access.prepost.PreAuthorize;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 
@@ -138,25 +138,8 @@ public class LicenseKVStore implements ILicenseStore {
         // decrypt it
         byte[] licenseData = CryptoFacility.decrypt(cipherData);
         // reform is as a protobuf License
-        try {
-            return LicenseDTO.parseFrom(licenseData);
-        } catch (InvalidProtocolBufferException e) {
-            // Try parsing the data as TurboLicense.
-            logger_.info("Error deserializing license in new format: {}. Attempting to parse"
-                    + "it in old format", e.getMessage());
-            final TurboLicense turboLicense = TurboLicense.parseFrom(licenseData);
-            final LicenseDTO.Builder migratedLicenseBldr = LicenseDTO.newBuilder()
-                .setUuid(turboLicense.getDeprecatedUuid())
-                .setFilename(turboLicense.getDeprecatedFilename())
-                .setTurbo(turboLicense);
-            migratedLicenseBldr.getTurboBuilder().clearDeprecatedFilename();
-            migratedLicenseBldr.getTurboBuilder().clearDeprecatedUuid();
-            final LicenseDTO migratedLicense = migratedLicenseBldr.build();
-            logger_.info("Successfully parsed license (filename: {}).", migratedLicense.getFilename());
-            storeLicense(migratedLicense);
-            logger_.info("Successfully stored migrated license (filename: {}).", migratedLicense.getFilename());
-            return migratedLicense;
-        }
+        LicenseDTO licenseDTO = LicenseDTO.parseFrom(licenseData);
+        return licenseDTO;
     }
 
     /**

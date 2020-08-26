@@ -24,7 +24,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.utils.BuildProperties;
 
@@ -142,10 +141,8 @@ public class DiagEnvironmentSummary {
         try {
             domains = licenseManagerService.getLicenses(Empty.getDefaultInstance())
                 .getLicenseDTOList().stream()
-                .filter(LicenseDTO::hasTurbo)
-                .map(LicenseDTO::getTurbo)
-                .filter(TurboLicense::hasEmail)
-                .map(TurboLicense::getEmail)
+                .filter(LicenseDTO::hasEmail)
+                .map(LicenseDTO::getEmail)
                 // remove any trailing white spaces that can be there
                 .map(String::trim)
                 .map(email -> {

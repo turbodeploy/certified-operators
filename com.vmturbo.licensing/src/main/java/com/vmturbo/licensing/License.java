@@ -2,10 +2,15 @@ package com.vmturbo.licensing;
 
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.Stream;
+
+import com.google.common.base.Joiner;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.EqualsBuilder;
@@ -181,6 +186,61 @@ public class License implements ILicense, Comparable<ILicense>, Serializable {
     @Override
     public int compareTo(ILicense other) {
         return ILicense.super.compareTo(other);
+    }
+
+    /**
+     * Combine the details of the other license to the details of this license
+     * @see LicenseManagerImpl#aggregateLicenses()
+     */
+    public License combine(ILicense other) {
+        // take the latest expirationDate so LicenseManager won't expire when the earliest license expires
+        this.expirationDate = Stream.of(this.expirationDate, other.getExpirationDate())
+                .filter(StringUtils::isNotBlank)
+                .max(Comparator.naturalOrder())
+                .orElse(null);
+
+        if (other.isExpired()) {
+            // add logging
+            return this;
+        }
+
+        other.getErrorReasons().forEach(this::addErrorReason);
+
+        // initialize licenseOwner if not set
+        this.licenseOwner = Stream.of(this.licenseOwner, other.getLicenseOwner())
+                .filter(StringUtils::isNotBlank)
+                .findFirst().orElse(null);
+
+        // initialize email if not set
+        this.email = Stream.of(this.email, other.getEmail())
+                .filter(StringUtils::isNotBlank)
+                .findFirst().orElse(null);
+
+        // initialize edition if not set
+        this.edition = Stream.of(this.edition, other.getEdition())
+                .filter(StringUtils::isNotBlank)
+                .findFirst().orElse(null);
+
+        // initialize countedEntity if not set
+        this.countedEntity = Stream.of(this.countedEntity, other.getCountedEntity())
+                .filter(Objects::nonNull)
+                .findFirst().orElse(null);
+
+        if (other.isExternalLicense()) {
+            this.externalLicenseKey = Joiner.on("|").skipNulls().join(
+                    StringUtils.trimToNull(this.externalLicenseKey),
+                    StringUtils.trimToNull(other.getExternalLicenseKey())
+            );
+            this.setExternalLicense(true);
+        }
+
+        // add entities
+        this.numLicensedEntities += other.getNumLicensedEntities();
+        this.numInUseEntities += other.getNumInUseEntities();
+
+        // union of features
+        addFeatures(other.getFeatures());
+        return this;
     }
 
     @Override

@@ -19,7 +19,6 @@ import org.junit.Test;
 import com.vmturbo.clustermgr.DiagEnvironmentSummary.ChannelFactory;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
 import com.vmturbo.common.protobuf.licensing.LicensingMoles.LicenseManagerServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -85,8 +84,7 @@ public class DiagEnvironmentSummaryTest {
     public void testLicenseNoEmail() {
         doReturn(GetLicensesResponse.newBuilder()
             .addLicenseDTO(LicenseDTO.newBuilder()
-                .setTurbo(TurboLicense.newBuilder()
-                    .setEdition("foo")))
+                .setEdition("foo"))
             .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
 
         final String diagFileName = diagEnvironmentSummary.getDiagFileName();
@@ -104,9 +102,8 @@ public class DiagEnvironmentSummaryTest {
     public void testLicenseEmailNoDomain() {
         doReturn(GetLicensesResponse.newBuilder()
             .addLicenseDTO(LicenseDTO.newBuilder()
-                .setTurbo(TurboLicense.newBuilder()
-                    .setEmail("myemail")
-                    .setEdition("foo")))
+                .setEmail("myemail")
+                .setEdition("foo"))
             .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
 
         final String diagFileName = diagEnvironmentSummary.getDiagFileName();
@@ -123,9 +120,8 @@ public class DiagEnvironmentSummaryTest {
     public void testDisplayNameWithDomain() {
         doReturn(GetLicensesResponse.newBuilder()
             .addLicenseDTO(LicenseDTO.newBuilder()
-                .setTurbo(TurboLicense.newBuilder()
-                    .setEmail("myemail@turbonomic.com")
-                    .setEdition("foo")))
+                .setEmail("myemail@turbonomic.com")
+                .setEdition("foo"))
             .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
 
         final String diagFileName = diagEnvironmentSummary.getDiagFileName();
@@ -144,9 +140,8 @@ public class DiagEnvironmentSummaryTest {
     public void testLicenseEmailTrailingSpace() {
         doReturn(GetLicensesResponse.newBuilder()
             .addLicenseDTO(LicenseDTO.newBuilder()
-                .setTurbo(TurboLicense.newBuilder()
-                    .setEmail("myemail@turbonomic.io ")
-                    .setEdition("foo")))
+                .setEmail("myemail@turbonomic.io ")
+                .setEdition("foo"))
             .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
 
         final String diagFileName = diagEnvironmentSummary.getDiagFileName();
@@ -162,11 +157,9 @@ public class DiagEnvironmentSummaryTest {
     public void testDisplayNameWithMultipleDomains() {
         doReturn(GetLicensesResponse.newBuilder()
             .addLicenseDTO(LicenseDTO.newBuilder()
-                .setTurbo(TurboLicense.newBuilder()
-                    .setEmail("myemail@turbonomic.com")))
+                .setEmail("myemail@turbonomic.com"))
             .addLicenseDTO(LicenseDTO.newBuilder()
-                .setTurbo(TurboLicense.newBuilder()
-                    .setEmail("myemail@vmturbo.com")))
+                .setEmail("myemail@vmturbo.com"))
             .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
 
         final String diagFileName = diagEnvironmentSummary.getDiagFileName();

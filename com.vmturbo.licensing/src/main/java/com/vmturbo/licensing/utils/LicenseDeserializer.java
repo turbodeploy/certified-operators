@@ -1,6 +1,7 @@
 package com.vmturbo.licensing.utils;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -10,17 +11,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import javax.annotation.Nonnull;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.interfaces.DecodedJWT;
 import com.cisco.magellan.ciscoInfo;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -46,11 +43,7 @@ import org.xml.sax.XMLReader;
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
 import com.vmturbo.api.dto.license.ILicense.ErrorReason;
-import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicense;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicense.Type;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
+import com.vmturbo.api.dto.license.LicenseApiDTO;
 
 public class LicenseDeserializer {
 
@@ -68,30 +61,76 @@ public class LicenseDeserializer {
      * - turbo license xml v1
      * - turbo license xml v2
      * - CWOM license flexlm
-     * - external license (e.g. Grafana .jwt license)
-     *
-     * @param licenseData The license string, which is the raw license file contents.
-     * @param filename The name of the license file (for display purposes).
-     * @return The {@link LicenseDTO}. An invalid input will generate a license with an
-     *         {@link ErrorReason}.
      */
-    public static LicenseDTO deserialize(String licenseData, String filename) {
-        LicenseDTO.Builder retBldr = LicenseDTO.newBuilder();
-        if (filename != null) {
-            retBldr.setFilename(filename);
-        }
+    public static LicenseApiDTO deserialize(String licenseData, String filename) throws IOException {
         if (isWellFormedXML(licenseData)) {
-            retBldr.setTurbo(deserializeXmlTurboLicense(licenseData));
-        } else if (isGrafanaJwt(licenseData)) {
-            retBldr.setExternal(deserializeExternalGrafanaLicense(licenseData));
-        } else if (isLicenseGeneratedByFlexlm(licenseData)) {
-            retBldr.setTurbo(deserializeCWOMLicenseToTurboLicense(licenseData));
-        } else {
-            logger.warn("Invalid License content type");
-            retBldr.setTurbo(TurboLicense.newBuilder()
-                .addErrorReason(ErrorReason.INVALID_CONTENT_TYPE.name()));
+            return toDTO(deserializeTurboLicenseXmlToLicense(licenseData), filename);
         }
-        return retBldr.build();
+        if (isLicenseGeneratedByFlexlm(licenseData)) {
+            return toDTO(deserializeCWOMLicenseToLicenseCertificate(licenseData), filename);
+        }
+        logger.warn("Invalid License content type");
+        return LicenseApiDTO.createLicenseWithError(ErrorReason.INVALID_CONTENT_TYPE);
+    }
+
+    /**
+     * Deserialize three flavors of licenses to LicenseApiDTO.
+     */
+    public static LicenseApiDTO deserialize(InputStream licenseData, String filename) throws IOException {
+        return deserialize(IOUtils.toString(licenseData, "UTF-8"), filename);
+    }
+
+    /**
+     * Convert LicenseXmlDTO to LicenseApiDTO
+     */
+    private static LicenseApiDTO toDTO(LicenseXmlDTO inputV2DTO, final String filename) {
+        return new LicenseApiDTO()
+                .setLicenseOwner(inputV2DTO.getFirstName() + " " + inputV2DTO.getLastName())
+                .setEmail(inputV2DTO.getEmail())
+                .setExpirationDate(inputV2DTO.getExpirationDate())
+                .setFeatures(inputV2DTO.getFeatures())
+                .setCountedEntity(inputV2DTO.getCountedEntity())
+                .setNumLicensedEntities(inputV2DTO.getNumEntities())
+                .setEdition(inputV2DTO.getEdition())
+                .setFilename(filename)
+                .setLicenseKey(inputV2DTO.getLockCode());
+    }
+
+
+    /**
+     * Convert LicenseCertificate to LicenseApiDTO
+     */
+    private static LicenseApiDTO toDTO(LicenseCertificate licenseCertificate, final String filename) {
+        FeatureLine featureLine = (FeatureLine) licenseCertificate.getFeatures().getFirst();
+
+        Optional<CWOMLicenseEdition> cwomLicenseEdition = CWOMLicenseEdition.valueOfFeatureName(featureLine.getName());
+
+        SortedSet<String> features = cwomLicenseEdition
+                .map(CWOMLicenseEdition::getFeatures)
+                .orElse(Collections.emptySortedSet());
+
+        String edition = cwomLicenseEdition
+                .map(CWOMLicenseEdition::name)
+                .orElse(null);
+
+        LicenseApiDTO license = new LicenseApiDTO()
+                .setExternalLicenseKey(featureLine.getSignature())
+                .setExternalLicense(true)
+                .setFeatures(features)
+                .setCountedEntity(ILicense.CountedEntity.VM)
+                .setNumLicensedEntities(getLicensedVMCount(featureLine))
+                .setExpirationDate(getExpirationDate(featureLine))
+                .setEmail("support@cisco.com")
+                .setLicenseOwner("cisco")
+                .setEdition(edition)
+                .setFilename(filename);
+        license.addErrorReason(validateCWOMLicenseCertificate(licenseCertificate));
+
+        if (license.isValid()) {
+            license.setLicenseKey(LicenseUtil.generateLicenseKey(license));
+        }
+
+        return license;
     }
 
     private static String getExpirationDate(final FeatureLine featureLine) {
@@ -104,98 +143,22 @@ public class LicenseDeserializer {
         return matcher.find() ? Integer.parseInt(matcher.group(1)) : -1;
     }
 
-    @Nonnull
-    private static ExternalLicense deserializeExternalGrafanaLicense(String jwt) {
-        DecodedJWT decoded = JWT.decode(jwt);
-
-        return ExternalLicense.newBuilder()
-            .setExpirationDate(DateTimeUtil.formatDate(decoded.getExpiresAt()))
-            .setType(Type.GRAFANA)
-            .setPayload(jwt)
-            .build();
-    }
-
     /**
      * Deserialize Turbo license XML to LicenseXmlDTO
-     *
-     * @param xml The XML license string.
-     * @return The {@link TurboLicense}.
      */
-    @Nonnull
-    private static TurboLicense deserializeXmlTurboLicense(String xml) {
-        try {
-            LicenseXmlDTO xmlDto = XML_MAPPER.readValue(xml, LicenseXmlDTO.class);
-            TurboLicense.Builder bldr = TurboLicense.newBuilder().setLicenseOwner(
-                    xmlDto.getFirstName() + " " + xmlDto.getLastName());
-            setIfNotNull(xmlDto.getEmail(), bldr::setEmail);
-            setIfNotNull(xmlDto.getExpirationDate(), bldr::setExpirationDate);
-            setIfNotNull(xmlDto.getFeatures(), bldr::addAllFeatures);
-            setIfNotNull(xmlDto.getCountedEntity(), e -> bldr.setCountedEntity(e.name()));
-            setIfNotNull(xmlDto.getNumEntities(), bldr::setNumLicensedEntities);
-            setIfNotNull(xmlDto.getEdition(), bldr::setEdition);
-            setIfNotNull(xmlDto.getLockCode(), bldr::setLicenseKey);
-            return bldr.build();
-        } catch (IOException e) {
-            return TurboLicense.newBuilder()
-                    .addErrorReason(ErrorReason.INVALID_CONTENT_TYPE.name())
-                    .build();
-        }
-    }
-
-    private static <T> void setIfNotNull(T val, Consumer<T> setter) {
-        if (val != null) {
-            setter.accept(val);
-        }
+    private static LicenseXmlDTO deserializeTurboLicenseXmlToLicense(String xml) throws IOException {
+        return XML_MAPPER.readValue(xml, LicenseXmlDTO.class);
     }
 
     /**
      * Deserialize CWOM license to a LicenseCertificate
-     *
-     * @param licenseData The license string.
-     * @return The {@link TurboLicense}.
      */
-    @Nonnull
-    private static TurboLicense deserializeCWOMLicenseToTurboLicense(String licenseData) {
+    private static LicenseCertificate deserializeCWOMLicenseToLicenseCertificate(String licenseData) {
         try {
-            LicenseCertificate licenseCertificate = new LicenseCertificate(new StringReader(licenseData), null, new ciscoInfo());
-            FeatureLine featureLine = (FeatureLine) licenseCertificate.getFeatures().getFirst();
-
-            Optional<CWOMLicenseEdition> cwomLicenseEdition = CWOMLicenseEdition.valueOfFeatureName(featureLine.getName());
-
-            SortedSet<String> features = cwomLicenseEdition
-                    .map(CWOMLicenseEdition::getFeatures)
-                    .orElse(Collections.emptySortedSet());
-
-            String edition = cwomLicenseEdition
-                    .map(CWOMLicenseEdition::name)
-                    .orElse(null);
-
-            CountedEntity countedEntity = CountedEntity.VM;
-            TurboLicense.Builder bldr = TurboLicense.newBuilder()
-                .addAllFeatures(features)
-                .setCountedEntity(countedEntity.name())
-                .setEmail("support@cisco.com")
-                .setLicenseOwner("cisco");
-            setIfNotNull(featureLine.getSignature(), bldr::setExternalLicenseKey);
-            setIfNotNull(edition, bldr::setEdition);
-            setIfNotNull(getLicensedVMCount(featureLine), bldr::setNumLicensedEntities);
-            setIfNotNull(getExpirationDate(featureLine), bldr::setExpirationDate);
-
-            ErrorReason errorReason = validateCWOMLicenseCertificate(licenseCertificate);
-            if (errorReason == null) {
-                bldr.setLicenseKey(LicenseUtil.generateLicenseKey(bldr.getExpirationDate(),
-                        bldr.getEmail(), features, bldr.getNumLicensedEntities(),
-                        countedEntity, bldr.getExternalLicenseKey()));
-            } else {
-                bldr.addErrorReason(errorReason.name());
-            }
-
-            return bldr.build();
+            return new LicenseCertificate(new StringReader(licenseData), null, new ciscoInfo());
         } catch (FlexlmException | IOException e) {
             logger.warn("Invalid license entered.", e);
-            return TurboLicense.newBuilder()
-                .addErrorReason(ErrorReason.INVALID_CONTENT_TYPE.name())
-                .build();
+            return null;
         }
     }
 
@@ -229,15 +192,6 @@ public class LicenseDeserializer {
     static boolean isLicenseGeneratedByFlexlm(String licenseData) {
         String trimmedData = StringUtils.trimToEmpty(licenseData);
         return trimmedData.startsWith("FEATURE") || trimmedData.startsWith("INCREMENT");
-    }
-
-    static boolean isGrafanaJwt(String text) {
-        try {
-            DecodedJWT decoded = JWT.decode(text);
-            return decoded.getIssuer().contains("grafana");
-        } catch (RuntimeException e) {
-            return false;
-        }
     }
 
     /**
