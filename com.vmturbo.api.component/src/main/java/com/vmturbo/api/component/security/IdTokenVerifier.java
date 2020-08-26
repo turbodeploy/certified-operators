@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.security;
 
-import java.security.Key;
 import java.security.PublicKey;
 import java.util.Optional;
 
@@ -43,7 +42,7 @@ public interface IdTokenVerifier {
      * @return {@link Pair} with claimed username and role in JWT token.
      * @throws AuthenticationException if JWT token verification failed.
      */
-    Pair<String, String> verifyLatest(@Nonnull Optional<? extends Key> jwtPublicKey,
+    Pair<String, String> verifyLatest(@Nonnull Optional<PublicKey> jwtPublicKey,
                                 @Nonnull Optional<String> jwtToken, long clockSkewSecond)
             throws AuthenticationException;
 }
