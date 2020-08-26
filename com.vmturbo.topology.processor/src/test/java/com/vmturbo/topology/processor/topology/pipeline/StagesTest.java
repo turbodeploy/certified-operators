@@ -395,7 +395,8 @@ public class StagesTest {
         postStitchingStage.setContext(context);
         postStitchingStage.execute(graphWithSettings);
 
-        verify(stitchingManager).postStitch(eq(graphWithSettings), eq(postStitchingJournal));
+        verify(stitchingManager).postStitch(eq(graphWithSettings), eq(postStitchingJournal),
+                eq(Collections.emptySet()));
         verify(postStitchingJournal).dumpTopology(any(Stream.class));
     }
 

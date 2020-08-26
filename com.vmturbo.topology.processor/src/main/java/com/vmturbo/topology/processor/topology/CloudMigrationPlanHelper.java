@@ -80,6 +80,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.stitching.poststitching.SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.processor.entity.EntityNotFoundException;
@@ -248,6 +249,9 @@ public class CloudMigrationPlanHelper {
             context.addSettingPolicyEditor(new CloudMigrationSettingsPolicyEditor(
                 context.getSourceEntities()));
         }
+        // Certain stitching operations need to be skipped to for HyperV VMs.
+        context.setPostStitchingOperationsToSkip(ImmutableSet.of(
+                new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation().getOperationName()));
 
         return outputGraph;
     }

@@ -68,6 +68,11 @@ public class TopologyPipelineContext implements PipelineContext {
      */
     private final Set<Pair<Grouping, Grouping>> policyGroups;
 
+    /**
+     * If set, contains the names of post-stitching operations that should be skipped.
+     */
+    private Set<String> postStitchingOperationsToSkip;
+
     public TopologyPipelineContext(@Nonnull final GroupResolver groupResolver,
                                    @Nonnull final TopologyInfo topologyInfo,
                                    @Nonnull final ConsistentScalingManager consistentScalingManager) {
@@ -79,6 +84,7 @@ public class TopologyPipelineContext implements PipelineContext {
         destinationEntities = new HashSet<>();
         policyGroups = new HashSet<>();
         settingPolicyEditors = new ArrayList<>();
+        postStitchingOperationsToSkip = new HashSet<>();
     }
 
     @Nonnull
@@ -159,6 +165,28 @@ public class TopologyPipelineContext implements PipelineContext {
      */
     public void addPolicyGroup(@Nonnull final Pair<Grouping, Grouping> group) {
         policyGroups.add(group);
+    }
+
+    /**
+     * Any optional operations that need to be skipped for post-stitching stage. E.g, for cloud
+     * migration, certain operation that makes HyperV VM's unmovable need to be skipped, so that
+     * such VMs can be migrated to cloud.
+     *
+     * @param operationNames Names of operations to skip.
+     */
+    public void setPostStitchingOperationsToSkip(@Nonnull final Set<String> operationNames) {
+        postStitchingOperationsToSkip.clear();
+        postStitchingOperationsToSkip.addAll(operationNames);
+    }
+
+    /**
+     * Gets optional post-stitching operations to skip.
+     *
+     * @return Post-stitching operations to skip.
+     */
+    @Nonnull
+    public Set<String> getPostStitchingOperationsToSkip() {
+        return Collections.unmodifiableSet(postStitchingOperationsToSkip);
     }
 
     public String getTopologyTypeName() {

@@ -1221,7 +1221,8 @@ public class Stages {
                 new TopologyEntitySemanticDiffer(mainJournal.getJournalOptions().getVerbosity()));
             getContext().getStitchingJournalContainer().setPostStitchingJournal(postStitchingJournal);
 
-            stitchingManager.postStitch(input, postStitchingJournal);
+            stitchingManager.postStitch(input, postStitchingJournal,
+                    getContext().getPostStitchingOperationsToSkip());
 
             if (postStitchingJournal.shouldDumpTopologyAfterPostStitching()) {
                 postStitchingJournal.dumpTopology(input.getTopologyGraph().entities());
