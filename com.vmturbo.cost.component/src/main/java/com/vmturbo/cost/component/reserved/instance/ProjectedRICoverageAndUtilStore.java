@@ -303,11 +303,11 @@ public class ProjectedRICoverageAndUtilStore {
                 .plus(PROJECTED_STATS_TIME_IN_FUTURE_HOURS, ChronoUnit.HOURS).toEpochMilli();
 
         // Determine the capacity of both RI inventory and buy RI instances.
-        final long coverageCapacity = Stream.of(risInScope, buyRIsInScope)
+        final double coverageCapacity = Stream.of(risInScope, buyRIsInScope)
                 .flatMap(List::stream)
                 .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
                 .map(ReservedInstanceBoughtInfo::getReservedInstanceBoughtCoupons)
-                .mapToLong(ReservedInstanceBoughtCoupons::getNumberOfCoupons)
+                .mapToDouble(ReservedInstanceBoughtCoupons::getNumberOfCoupons)
                 .sum();
 
         if (coverageCapacity == 0) {
