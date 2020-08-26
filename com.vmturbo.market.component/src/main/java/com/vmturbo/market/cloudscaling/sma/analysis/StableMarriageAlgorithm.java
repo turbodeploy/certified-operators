@@ -185,6 +185,8 @@ public class StableMarriageAlgorithm {
                     .findProviderIntersection(virtualMachines);
             if (!groupProviderList.isEmpty()) {
                 virtualMachines.stream().forEach(a -> a.setGroupProviders(groupProviderList));
+            } else {
+                continue;
             }
             // at least one member is convered.
             if (matchWithCoverage.isPresent()) {

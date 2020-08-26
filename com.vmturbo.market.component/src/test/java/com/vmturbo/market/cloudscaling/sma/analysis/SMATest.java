@@ -32,7 +32,7 @@ public class SMATest {
                 new JsonToSMAInputTranslator();
         SMAInputContext smaInputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
         List<SMAMatch> expectedouput = jsonToSMAInputTranslator.readsmaOutput(dirPath + filename + ".o.txt", smaInputContext);
-        SMAOutputContext outputActualContext = StableMarriagePerContext.execute(smaInputContext);
+        SMAOutputContext outputActualContext = StableMarriageAlgorithm.execute(new SMAInput(Collections.singletonList(smaInputContext))).getContexts().get(0);
         Assert.assertTrue(compareSMAMatches(outputActualContext.getMatches(), expectedouput));
     }
 
@@ -49,7 +49,9 @@ public class SMATest {
                 .readsmaInput(dirPath + filename + ".i");
         SMAInput smaInput = new SMAInput(Collections.singletonList(smaInputContext));
         for (SMAInputContext inputContext : smaInput.getContexts()) {
-            SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
+            SMAOutputContext outputContext = StableMarriageAlgorithm
+                    .execute(new SMAInput(Collections.singletonList(inputContext)))
+                    .getContexts().get(0);
             List<SMAMatch> actualMatches = outputContext.getMatches().stream()
                     .filter(a -> (a.getReservedInstance() != null)).collect(Collectors.toList());
             assertEquals(count, actualMatches.size());
@@ -73,7 +75,9 @@ public class SMATest {
         String filename = "2vm1rinorioptimisation.json";
         JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
         SMAInputContext inputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
-        SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
+        SMAOutputContext outputContext = StableMarriageAlgorithm
+                .execute(new SMAInput(Collections.singletonList(inputContext)))
+                .getContexts().get(0);
         StableMarriageAlgorithm.postProcessing(outputContext);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)

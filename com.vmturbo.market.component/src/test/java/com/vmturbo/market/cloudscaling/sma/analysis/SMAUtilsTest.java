@@ -448,7 +448,8 @@ public class SMAUtilsTest {
                 Tenancy.DEFAULT);
         SMAInputContext inputContext = new SMAInputContext(context, virtualMachines,
                 reservedInstances, templates);
-        SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
+        SMAOutputContext outputContext = StableMarriageAlgorithm
+                .execute(new SMAInput(Collections.singletonList(inputContext))).getContexts().get(0);
 
     }
 
