@@ -315,6 +315,10 @@ public class Suspension {
 
         if (isProviderOfResizeThroughSupplier) {
             for (ShoppingList sl : resizeThroughSupplierCustomers) {
+                // skip vsan storage's shopping list when considering reverse suspension
+                if (!sl.isMovable() && sl.getBuyer().getSettings().isResizeThroughSupplier()) {
+                    continue;
+                }
                 final @NonNull List<@NonNull Trader> sellers =
                                 economy.getMarket(sl).getActiveSellersAvailableForPlacement();
                 final QuoteMinimizer minimizer = sellers.stream()
