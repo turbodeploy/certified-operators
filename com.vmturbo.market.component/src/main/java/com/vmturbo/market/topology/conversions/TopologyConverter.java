@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -46,7 +47,10 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -81,6 +85,8 @@ import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
 import com.vmturbo.market.runner.WastedFilesAnalysis;
@@ -202,6 +208,8 @@ public class TopologyConverter {
     private final ProjectedRICoverageCalculator projectedRICoverageCalculator;
 
     private CloudStorageTierIOPSCalculator cloudStorageTierIOPSCalculator;
+
+    private Status costNotificationStatus = Status.UNKNOWN;
 
     /**
      * A non-shop-together TopologyConverter.
@@ -2883,7 +2891,10 @@ public class TopologyConverter {
             isMovable &= commBoughtGroupingForSL.getScalable();
             // Apply EligibleForScale to movable for cloud VMs in realtime
             if (!isPlan()) {
-                isMovable = isMovable && entityForSL.getAnalysisSettings().getIsEligibleForScale();
+                // In realtime analysis, we need to check if the cost notification status has succeeded.
+                // If it hasn't, we mark movable false for cloud VMs.
+                isMovable = isMovable && entityForSL.getAnalysisSettings().getIsEligibleForScale()
+                        && costNotificationStatus == Status.SUCCESS;
             }
         }
 
@@ -3812,5 +3823,46 @@ public class TopologyConverter {
         }
 
         return providerUsedSubtractionMap;
+    }
+
+    /**
+     * Sets the cost notification status to be used by topology converter for setting movable on cloud entities.
+     * If the cloud cost notification fails, we will set movable false on cloud entities.
+     *
+     * @param listener The listened for the notification.
+     * @param analysis The analysis currently running.
+     *
+     * @throws InterruptedException An interrupted exception.
+     */
+    public void setCostNotificationStatus(AnalysisRICoverageListener listener, Analysis analysis)
+            throws InterruptedException {
+        final long waitStartTime = System.currentTimeMillis();
+        try {
+            CostNotification notification = listener.receiveCostNotification(analysis).get();
+            final StatusUpdate statusUpdate = notification.getStatusUpdate();
+            final Status status = statusUpdate.getStatus();
+            if (status != Status.SUCCESS) {
+                logger.error("WARNING!!:Cost notification reception failed for analysis with context id"
+                                + " : {}, topology id: {} with status: {} and message: {}. This will result"
+                                + "in movable being set to false for cloud entities.", analysis.getContextId(), analysis.getTopologyId(), status,
+                        statusUpdate.getStatusDescription());
+                costNotificationStatus = Status.FAIL;
+            } else {
+                logger.debug("Cost notification with a success status received for analysis "
+                        + "with context id: {}, topology id: {}", analysis.getContextId(), analysis.getTopologyId());
+                costNotificationStatus = Status.SUCCESS;
+            }
+        } catch (ExecutionException e) {
+            logger.error(
+                    String.format("Error while receiving cost notification for analysis %s. WARNING!!:"
+                                    + " Movable will be set to false for cloud entities. ",
+                            analysis.getTopologyInfo()), e);
+            costNotificationStatus = Status.FAIL;
+        } finally {
+            final long waitEndTime = System.currentTimeMillis();
+            logger.debug("Analysis with context id: {}, topology id: {} waited {} ms for the "
+                            + "cost notification.", analysis.getContextId(), analysis.getTopologyId(),
+                    waitEndTime - waitStartTime);
+        }
     }
 }

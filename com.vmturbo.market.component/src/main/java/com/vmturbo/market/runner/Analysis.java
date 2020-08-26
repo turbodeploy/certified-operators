@@ -352,42 +352,18 @@ public class Analysis {
         if (isM2AnalysisEnabled) {
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME
                     && !originalCloudTopology.getEntities().isEmpty()) {
-                final long waitStartTime = System.currentTimeMillis();
-                try (TracingScope tracingScope = Tracing.trace("receive_cost_notification")) {
-                    final CostNotification notification =
-                            listener.receiveCostNotification(this).get();
-                    final StatusUpdate statusUpdate = notification.getStatusUpdate();
-                    final Status status = statusUpdate.getStatus();
-                    if (status != Status.SUCCESS) {
-                        logger.error("Cost notification reception failed for analysis with context id" +
-                                        " : {}, topology id: {} with status: {} and message: {}",
-                                this.getContextId(), this.getTopologyId(), status,
-                                statusUpdate.getStatusDescription());
-                        return false;
-                    } else {
-                        logger.debug("Cost notification with a success status received for analysis " +
-                                        "with context id: {}, topology id: {}", this.getContextId(),
-                                this.getTopologyId());
-                    }
+                try {
+                    // Set the cloud cost notification status. If the cloud cost notification status fails,
+                    // TC will set movable to false for cloud entities
+                    converter.setCostNotificationStatus(listener, this);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     logger.error(
                             String.format("Error while receiving cost notification for analysis %s",
                                     getTopologyInfo()), e);
                     return false;
-                } catch (ExecutionException e) {
-                    logger.error(
-                            String.format("Error while receiving cost notification for analysis %s",
-                                    getTopologyInfo()), e);
-                    return false;
-                } finally {
-                    final long waitEndTime = System.currentTimeMillis();
-                    logger.debug("Analysis with context id: {}, topology id: {} waited {} ms for the " +
-                                    "cost notification.", this.getContextId(), this.getTopologyId(),
-                            waitEndTime - waitStartTime);
                 }
             }
-
             state = AnalysisState.IN_PROGRESS;
             startTime = clock.instant();
             logger.info("{} Started", logPrefix);
