@@ -16,7 +16,8 @@ import com.vmturbo.platform.sdk.common.PricingDTO;
 /**
  * An interface for a SQL-based stores for reserved isntances.
  */
-public interface ReservedInstanceBoughtStore extends ReservedInstanceCostStore, DiagsRestorable {
+public interface ReservedInstanceBoughtStore extends ReservedInstanceCostStore,
+    DiagsRestorable<Void> {
 
     /**
      * Get all {@link ReservedInstanceBought} from reserved instance table.

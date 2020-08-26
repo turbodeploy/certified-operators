@@ -256,12 +256,13 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
      *
      * @param collectedDiags The diags collected from a previous call to
      *      {@link StringDiagnosable#collectDiags(DiagnosticsAppender)}. Must be in the same order.
+     * @param context diags restore context.
      * @throws DiagnosticsException if the db already contains plan projects, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              plan project.
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags)
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context)
             throws DiagnosticsException {
         final List<String> errors = new ArrayList<>();
 

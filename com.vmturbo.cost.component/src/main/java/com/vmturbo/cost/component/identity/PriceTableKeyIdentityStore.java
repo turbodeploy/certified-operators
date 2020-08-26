@@ -19,6 +19,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
@@ -45,7 +46,7 @@ import com.vmturbo.sql.utils.DbException;
 /**
  * Persistence for price table key oids for {@link Tables#PRICE_TABLE}.
  */
-public class PriceTableKeyIdentityStore implements DiagsRestorable {
+public class PriceTableKeyIdentityStore implements DiagsRestorable<Void> {
     private static final Logger logger = LogManager.getLogger();
     private final DSLContext dsl;
     private final IdentityProvider identityProvider;
@@ -240,7 +241,8 @@ public class PriceTableKeyIdentityStore implements DiagsRestorable {
      * {@inheritDoc}
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags,
+                             @Nullable Void restoreContext) throws DiagnosticsException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         try {
             dsl.transaction(configuration -> {

@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
@@ -32,7 +33,7 @@ import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 /**
  * Diagnostics dumper/imported for workflows.
  */
-public class WorkflowDiagnostics implements DiagsRestorable {
+public class WorkflowDiagnostics implements DiagsRestorable<Void> {
 
     private final WorkflowStore store;
     private final Logger logger = LogManager.getLogger(getClass());
@@ -48,7 +49,7 @@ public class WorkflowDiagnostics implements DiagsRestorable {
     }
 
     @Override
-    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         logger.info("Restoring {} workflows from diags", collectedDiags::size);
         final List<Workflow> workflows = new ArrayList<>(collectedDiags.size());
         for (String diags : collectedDiags) {

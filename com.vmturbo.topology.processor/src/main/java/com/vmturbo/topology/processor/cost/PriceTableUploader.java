@@ -87,7 +87,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * Because price data is expected to change infrequently, we will do a checksum comparison with the
  * latest price table checksum from the cost component before initiating a new upload.
  */
-public class PriceTableUploader implements DiagsRestorable {
+public class PriceTableUploader implements DiagsRestorable<Void> {
     /**
      * File name inside diagnostics to store price table info.
      */
@@ -703,7 +703,7 @@ public class PriceTableUploader implements DiagsRestorable {
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags)
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context)
             throws DiagnosticsException {
         if (collectedDiags.size() % 2 != 1) {
             //odd length because of one extra line for END_OF_TARGET_ID_MAPPINGS.

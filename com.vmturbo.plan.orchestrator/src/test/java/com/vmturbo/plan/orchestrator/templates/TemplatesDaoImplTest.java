@@ -278,7 +278,7 @@ public class TemplatesDaoImplTest {
         );
 
         try {
-            templatesDao.restoreDiags(serialized);
+            templatesDao.restoreDiags(serialized, null);
             fail();
         } catch (DiagnosticsException e) {
             assertTrue(e.hasErrors());

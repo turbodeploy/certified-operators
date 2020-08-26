@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableTable;
@@ -56,7 +57,7 @@ import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanc
  * coupons coverage information. And the data is only comes from billing topology. For example:
  * VM1 use RI1 10 coupons, VM1 use RI2 20 coupons, VM2 use RI3 5 coupons.
  */
-public class EntityReservedInstanceMappingStore implements DiagsRestorable {
+public class EntityReservedInstanceMappingStore implements DiagsRestorable<Void> {
     private static final Logger logger = LogManager.getLogger();
     private static final String entityReservedInstanceMappingFile = "entityToReserved_dump";
 
@@ -644,7 +645,7 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable {
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         // TODO to be implemented as part of OM-58627
     }
 

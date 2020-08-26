@@ -16,6 +16,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 import com.google.gson.reflect.TypeToken;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -31,7 +32,6 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
-import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
@@ -47,7 +47,7 @@ import com.vmturbo.proactivesupport.DataMetricCounter;
  * The {@link PolicyStore} class is used for CRUD operations on policies, to abstract away the
  * persistence details from the rest of the component.
  */
-public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
+public class PolicyStore implements DiagsRestorable<DSLContext>, IPlacementPolicyStore {
 
     /**
      * The file name for the policies dump collected from the {@link PolicyStore}.
@@ -312,41 +312,41 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
         appender.appendString(ComponentGsonFactory.createGsonNoPrettyPrint().toJson(policies));
     }
 
-    /**
-     * {@inheritDoc}
-     * Restore policies to the {@link PolicyStore} from the collected diags.
-     *
-     * @param collectedDiags The diags collected from a previous call to
-     *      {@link StringDiagnosable#collectDiags(DiagnosticsAppender)}. Must be in the same order.
-     * @throws DiagnosticsException If there is a problem writing the policies
-     *         to the store.
-     */
     @Override
-    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull List<String> collectedDiags, @Nonnull DSLContext context) throws DiagnosticsException {
         // Replace all existing groups with the ones in the collected diags.
-        Collection<PolicyDTO.Policy> policies = ComponentGsonFactory.createGsonNoPrettyPrint()
-            .fromJson(collectedDiags.get(0), new TypeToken<Collection<PolicyDTO.Policy>>(){}.getType());
-        logger.info("Attempting to restore {} policies from diagnostics.", policies.size());
-
+        Collection<PolicyDTO.Policy> policies = getPoliciesFromJsonString(collectedDiags);
         try {
-            dslContext.transaction(configuration -> {
-                final DSLContext transactionContext = DSL.using(configuration);
-                final int rowsAffected = transactionContext.deleteFrom(Tables.POLICY).execute();
-                logger.info("Deleted {} existing policies.", rowsAffected);
-                for (final PolicyDTO.Policy policy : policies) {
-                    try {
-                        internalCreate(transactionContext, policy);
-                    } catch (DuplicateNameException | RuntimeException e) {
-                        // Log the exception, but continue attempting to restore other policies.
-                        logger.error("Failed to restore policy " + policy.getPolicyInfo().getName()
-                                + "!", e);
-                    }
-                }
-            });
-            logger.info("Finished restoring policies from diagnostics.");
-        } catch (DataAccessException e) {
-            throw new DiagnosticsException(e);
+            replacePolicies(policies, context);
+        } catch (DataAccessException ex) {
+            throw new DiagnosticsException(ex);
         }
+    }
+
+    private void replacePolicies(@Nonnull Collection<PolicyDTO.Policy> policies,
+                                 @Nonnull DSLContext context) {
+        logger.info("Attempting to restore {} policies from diagnostics.", policies.size());
+        final int rowsAffected = context.deleteFrom(Tables.POLICY).execute();
+        logger.info("Deleted {} existing policies.", rowsAffected);
+        for (final PolicyDTO.Policy policy : policies) {
+            try {
+                internalCreate(context, policy);
+            } catch (DuplicateNameException | RuntimeException e) {
+                // Log the exception, but continue attempting to restore other policies.
+                logger.error("Failed to restore policy " + policy.getPolicyInfo().getName()
+                    + "!", e);
+            }
+        }
+        logger.info("Finished restoring policies from diagnostics.");
+    }
+
+    @Nonnull
+    private Collection<PolicyDTO.Policy> getPoliciesFromJsonString(@Nonnull List<String> collectedDiags) {
+        if (CollectionUtils.isEmpty(collectedDiags)) {
+            return Collections.emptyList();
+        }
+        return ComponentGsonFactory.createGsonNoPrettyPrint()
+            .fromJson(collectedDiags.get(0), new TypeToken<Collection<PolicyDTO.Policy>>(){}.getType());
     }
 
     @Nonnull
@@ -371,7 +371,7 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
      * This method should be executed inside a transaction.
      *
      * <p>Policy is not validated in this method. It is vital to be able importing customers
-     * topology as-is using {@link #restoreDiags(List)}.
+     * topology as-is using {@link #restoreDiags(List,DSLContext)}.
      *
      * @param context The transaction context. This should NOT be the root DSLContext.
      * @param policyProto The protobuf representation of the policy.
@@ -392,7 +392,7 @@ public class PolicyStore implements DiagsRestorable, IPlacementPolicyStore {
      * Updates the existing policy.
      *
      * <p>Policy is not validated in this method. It is vital to be able importing customers
-     * topology as-is using {@link #restoreDiags(List)}.
+     * topology as-is using {@link #restoreDiags(List,DSLContext)}.
      *
      * @param context transactional context to use
      * @param newPolicyProto new version of policy proto

@@ -634,7 +634,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
      *                              template.
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         final List<String> errors = new ArrayList<>();
 

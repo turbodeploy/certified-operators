@@ -609,7 +609,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                         statefulEditors);
         when(probeStore.getProbe(71664194068896L)).thenReturn(Optional.of(Probes.defaultProbe));
         when(probeStore.getProbe(71564745273056L)).thenReturn(Optional.of(Probes.defaultProbe));
-        handler.restore(new FileInputStream(ResourcePath.getTestResource(getClass(), "diags/compressed/diags0.zip").toFile()));
+        handler.restore(new FileInputStream(ResourcePath.getTestResource(getClass(), "diags"
+            + "/compressed/diags0.zip").toFile()), null);
         List<Target> targets = simpleTargetStore.getAll();
         assertFalse(targets.isEmpty());
         for (Target target : simpleTargetStore.getAll()) {
@@ -638,7 +639,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             assertTrue(profileResult.values().stream().allMatch(set -> set.size() == 1));
 
         }
-        verify(identityProvider).restoreDiags(any());
+        verify(identityProvider).restoreDiags(any(), any());
 
         ArgumentCaptor<Map> mapCaptor = ArgumentCaptor.forClass(Map.class);
         verify(probeStore).overwriteProbeInfo(mapCaptor.capture());

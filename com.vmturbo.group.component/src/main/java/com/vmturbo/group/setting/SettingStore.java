@@ -103,7 +103,7 @@ import com.vmturbo.platform.sdk.common.util.Pair;
  * The {@link SettingStore} class is used to store settings-related objects, and retrieve them
  * in an efficient way.
  */
-public class SettingStore implements DiagsRestorable {
+public class SettingStore implements DiagsRestorable<DSLContext> {
 
     /**
      * The file name for the settings dump collected from the {@link SettingStore}.
@@ -927,6 +927,7 @@ public class SettingStore implements DiagsRestorable {
      * the DB.
      *
      * @param settings List of settings to be inserted into the database
+     * @param context the context for DB access.
      * @throws DataAccessException
      * @throws InvalidProtocolBufferException
      * @throws SQLTransientException
@@ -934,7 +935,8 @@ public class SettingStore implements DiagsRestorable {
      */
     @Retryable(value = {SQLTransientException.class},
         maxAttempts = 3, backoff = @Backoff(delay = 2000))
-    private void insertGlobalSettingsInternal(@Nonnull final List<Setting> settings)
+    private void insertGlobalSettingsInternal(@Nonnull final List<Setting> settings,
+                                              @Nonnull DSLContext context)
             throws SQLTransientException, DataAccessException, InvalidProtocolBufferException {
 
         if (settings.isEmpty()) {
@@ -963,9 +965,9 @@ public class SettingStore implements DiagsRestorable {
                 logger.info("No new global settings to add to the database");
                 return;
             }
-            BatchBindStep batch = dslContext.batch(
+            BatchBindStep batch = context.batch(
                 //have to provide dummy values for jooq
-                dslContext.insertInto(GLOBAL_SETTINGS, GLOBAL_SETTINGS.NAME, GLOBAL_SETTINGS.SETTING_DATA)
+                context.insertInto(GLOBAL_SETTINGS, GLOBAL_SETTINGS.NAME, GLOBAL_SETTINGS.SETTING_DATA)
                                 .values(newSettings.get(0).getSettingSpecName(), newSettings.get(0).toByteArray()));
             for (Setting setting : newSettings) {
                 batch.bind(setting.getSettingSpecName(), setting.toByteArray());
@@ -986,7 +988,25 @@ public class SettingStore implements DiagsRestorable {
         throws DataAccessException, InvalidProtocolBufferException {
 
         try {
-            insertGlobalSettingsInternal(settings);
+            insertGlobalSettingsInternal(settings, dslContext);
+        } catch (SQLTransientException e) {
+            throw new DataAccessException("Failed to insert settings into DB", e.getCause());
+        }
+    }
+
+    /**
+     * Inserts global settings into db tables.
+     *
+     * @param settings the settings that is being inserted
+     * @param context the context for db access.
+     * @throws DataAccessException when something goes wrong with DB interaction.
+     * @throws InvalidProtocolBufferException when we cannot parse protobuf objects.
+     */
+    public void insertGlobalSettings(@Nonnull final List<Setting> settings, DSLContext context)
+        throws DataAccessException, InvalidProtocolBufferException {
+
+        try {
+            insertGlobalSettingsInternal(settings, context);
         } catch (SQLTransientException e) {
             throw new DataAccessException("Failed to insert settings into DB", e.getCause());
         }
@@ -1120,7 +1140,7 @@ public class SettingStore implements DiagsRestorable {
      * {@inheritDoc}
      */
     @Override
-    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull List<String> collectedDiags, @Nonnull DSLContext context) throws DiagnosticsException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         final List<String> errors = new ArrayList<>();
 
@@ -1135,8 +1155,8 @@ public class SettingStore implements DiagsRestorable {
             logger.info("Attempting to restore {} global settings.", globalSettingsToRestore.size());
 
             // Attempt to restore global settings.
-            deleteAllGlobalSettings();
-            insertGlobalSettings(globalSettingsToRestore);
+            deleteAllGlobalSettings(context);
+            insertGlobalSettings(globalSettingsToRestore, context);
 
 
         } catch (DataAccessException | InvalidProtocolBufferException e) {
@@ -1152,8 +1172,8 @@ public class SettingStore implements DiagsRestorable {
             logger.info("Attempting to restore {} setting policies.", settingPoliciesToRestore.size());
 
             // Attempt to restore setting policies.
-            deleteAllSettingPolicies();
-            insertAllSettingPolicies(settingPoliciesToRestore);
+            deleteAllSettingPolicies(context);
+            insertAllSettingPolicies(settingPoliciesToRestore, context);
 
         } catch (DataAccessException | StoreOperationException e) {
             errors.add("Failed to restore setting policies: " + e.getMessage() + ": " +
@@ -1173,22 +1193,20 @@ public class SettingStore implements DiagsRestorable {
 
     /**
      * Delete all global settings.
+     *
+     * @param context the dsl context for db access.
      */
-    private void deleteAllGlobalSettings() {
-        dslContext.truncate(GLOBAL_SETTINGS).execute();
+    private void deleteAllGlobalSettings(@Nonnull DSLContext context) {
+        context.truncate(GLOBAL_SETTINGS).execute();
     }
 
     /**
      * Delete all setting policies.
+     *
+     * @param context the dsl context for db access.
      */
-    private void deleteAllSettingPolicies() {
-        // Calling delete instead of truncate so that ON DELETE triggers in child table
-        // can be fired
-        dslContext.transactionResult(configuration -> {
-            final DSLContext context = DSL.using(configuration);
-            return context.deleteFrom(SETTING_POLICY)
-                .execute();
-        });
+    private void deleteAllSettingPolicies(@Nonnull DSLContext context) {
+         context.deleteFrom(SETTING_POLICY).execute();
     }
 
     /**
@@ -1230,16 +1248,17 @@ public class SettingStore implements DiagsRestorable {
      * For internal use only when restoring setting policies from diagnostics.
      *
      * @param settingPolicies The setting policies to insert.
+     * @param context The dsl context for accessing db.
      * @throws StoreOperationException if failed to insert operation failed.
      */
     private void insertAllSettingPolicies(
-            @Nonnull final List<SettingProto.SettingPolicy> settingPolicies)
+            @Nonnull final List<SettingProto.SettingPolicy> settingPolicies, @Nonnull DSLContext context)
             throws StoreOperationException {
         final Collection<TableRecord<?>> inserts = new ArrayList<>();
         for (SettingProto.SettingPolicy settingPolicy : settingPolicies) {
             inserts.addAll(createSettingPolicy(settingPolicy));
         }
-        dslContext.batchInsert(inserts).execute();
+        context.batchInsert(inserts).execute();
     }
 
     /**

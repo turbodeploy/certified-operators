@@ -469,7 +469,7 @@ public class PlanDaoImplTest {
             "\"READY\",\"projectType\":\"USER\"}";
 
         try {
-            planDao.restoreDiags(Arrays.asList(first, second));
+            planDao.restoreDiags(Arrays.asList(first, second), null);
             fail();
         } catch (DiagnosticsException e) {
             assertTrue(e.hasErrors());

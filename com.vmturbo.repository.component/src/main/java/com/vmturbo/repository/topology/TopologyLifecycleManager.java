@@ -17,6 +17,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.arangodb.ArangoDBException;
 import com.google.common.annotations.VisibleForTesting;
@@ -64,7 +65,7 @@ import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
  * Topologies may also be removed (e.g. when a plan is deleted) via
  * {@link TopologyLifecycleManager#deleteTopology(TopologyID)}.
  */
-public class TopologyLifecycleManager implements DiagsRestorable {
+public class TopologyLifecycleManager implements DiagsRestorable<Void> {
 
     /**
      * The file name for the state of the {@link TopologyLifecycleManager}. It's a string file,
@@ -190,7 +191,8 @@ public class TopologyLifecycleManager implements DiagsRestorable {
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags,
+                             @Nullable Void context) throws DiagnosticsException {
         // Overwrite whatever is in the lifecycle manager with the restored diags.
         // We rely on the diags handler to actually do the restoration of the database
         // to arangodb.

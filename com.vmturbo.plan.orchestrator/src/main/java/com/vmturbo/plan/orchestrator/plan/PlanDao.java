@@ -19,7 +19,7 @@ import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 /**
  * DAO for plan instance.
  */
-public interface PlanDao extends DiagsRestorable {
+public interface PlanDao extends DiagsRestorable<Void> {
 
     /**
      * Creates a plan instance, based on plan information.

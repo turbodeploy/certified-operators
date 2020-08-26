@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.commons.lang.mutable.MutableLong;
 import org.apache.logging.log4j.LogManager;
@@ -163,7 +164,7 @@ public class SQLCloudScopeStore implements CloudScopeStore {
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         //TODO To be implemented as a part of OM-58627
         return;
     }

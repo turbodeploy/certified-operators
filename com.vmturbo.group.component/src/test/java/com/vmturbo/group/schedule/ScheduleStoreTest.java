@@ -20,7 +20,6 @@ import java.util.Set;
 import org.assertj.core.util.Sets;
 import org.jooq.DSLContext;
 import org.jooq.TransactionalCallable;
-import org.jooq.TransactionalRunnable;
 import org.jooq.exception.DataAccessException;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -542,10 +541,10 @@ public class ScheduleStoreTest {
     @Test
     public void testRestoreDiagsDataAccessException() throws Exception {
         doThrow(DataAccessException.class).when(dslContextSpy)
-            .transaction(any(TransactionalRunnable.class));
+            .deleteFrom(any());
         List<String> diags = new ArrayList<>();
         thrown.expect(DiagnosticsException.class);
-        scheduleStore.restoreDiags(diags);
+        scheduleStore.restoreDiags(diags, dslContextSpy);
     }
 
     private void verifySchedule(final Schedule expected, final Schedule actual, boolean isPerpetual) {

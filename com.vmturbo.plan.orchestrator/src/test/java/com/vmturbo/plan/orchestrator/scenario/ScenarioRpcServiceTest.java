@@ -296,7 +296,7 @@ public class ScenarioRpcServiceTest {
         );
 
         try {
-            scenarioDao.restoreDiags(serialized);
+            scenarioDao.restoreDiags(serialized, null);
             fail();
         } catch (DiagnosticsException e) {
             assertTrue(e.hasErrors());

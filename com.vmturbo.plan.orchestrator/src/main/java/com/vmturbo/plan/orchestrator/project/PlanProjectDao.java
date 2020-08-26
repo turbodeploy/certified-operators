@@ -18,7 +18,7 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 /**
  * DAO for plan project.
  */
-public interface PlanProjectDao extends DiagsRestorable {
+public interface PlanProjectDao extends DiagsRestorable<Void> {
 
     /**
      * Creates a plan project, based on plan project information.

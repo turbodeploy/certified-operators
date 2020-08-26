@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterators;
 
@@ -37,7 +38,7 @@ import com.vmturbo.cost.component.util.EntityCostFilter;
 /**
  * Storage for plan projected per-entity costs.
  */
-public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostStore implements DiagsRestorable {
+public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostStore implements DiagsRestorable<Void> {
 
     private static final  Logger logger = LogManager.getLogger();
 
@@ -192,7 +193,7 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         // TODO to be implemented as part of OM-58627
     }
 

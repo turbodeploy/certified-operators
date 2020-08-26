@@ -151,7 +151,7 @@ public class PlanProjectDaoImplTest {
                 "{\"hour\":5}},\"type\":\"CLUSTER_HEADROOM\"},\"status\":\"SUCCEEDED\"}"
         );
         try {
-            planProjectDao.restoreDiags(diags);
+            planProjectDao.restoreDiags(diags, null);
             fail();
         } catch (DiagnosticsException e) {
             assertTrue(e.hasErrors());

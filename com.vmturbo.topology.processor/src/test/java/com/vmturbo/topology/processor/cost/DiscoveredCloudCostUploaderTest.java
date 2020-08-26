@@ -111,7 +111,7 @@ public class DiscoveredCloudCostUploaderTest {
             new DiscoveredCloudCostUploader(riCostDataUploader, accountExpensesUploader, priceTableUploader,
                     businessAccountPriceTableKeyUploader);
 
-        newUploader.restoreDiags(diagsCaptor.getAllValues());
+        newUploader.restoreDiags(diagsCaptor.getAllValues(), null);
 
         assertThat(newUploader.getProbeTypesForTargetId(), is(cloudCostUploader.getProbeTypesForTargetId()));
 

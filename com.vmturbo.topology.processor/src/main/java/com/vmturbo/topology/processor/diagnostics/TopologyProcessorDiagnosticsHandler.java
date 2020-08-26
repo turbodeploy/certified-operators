@@ -89,7 +89,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutor
  * targets, one file for their schedules, and then one file per target with the entities
  * associated with that target.
  */
-public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerImportable {
+public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerImportable<Void> {
 
     private static final String TARGETS_DIAGS_FILE_NAME = "Targets.diags";
     private static final String SCHEDULES_DIAGS_FILE_NAME = "Schedules.diags";
@@ -380,7 +380,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
      */
     @Override
     @Nonnull
-    public String restore(@Nonnull InputStream zis) throws DiagnosticsException {
+    public String restore(@Nonnull InputStream zis, @Nullable Void context) throws DiagnosticsException {
         try {
             topologyPipelineExecutorService.blockBroadcasts(1, TimeUnit.HOURS);
             return internalRestore(zis);
@@ -413,7 +413,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                 switch (diagsName) {
                     // TODO change this switch with mapping from Diagnosable.getFileName()
                     case IdentityProviderImpl.ID_DIAGS_FILE_NAME + DiagsZipReader.TEXT_DIAGS_SUFFIX:
-                        identityProvider.restoreDiags(diagsLines);
+                        identityProvider.restoreDiags(diagsLines, null);
                         break;
                     case PersistentTargetSpecIdentityStore.TARGET_IDENTIFIERS_DIAGS_FILE_NAME +
                             DiagsZipReader.TEXT_DIAGS_SUFFIX:
@@ -430,10 +430,10 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                         break;
                     case DiscoveredCloudCostUploader.DISCOVERED_CLOUD_COST_NAME +
                             DiagsZipReader.TEXT_DIAGS_SUFFIX:
-                        discoveredCloudCostUploader.restoreDiags(diagsLines);
+                        discoveredCloudCostUploader.restoreDiags(diagsLines, null);
                         break;
                     case PriceTableUploader.PRICE_TABLE_NAME + DiagsZipReader.TEXT_DIAGS_SUFFIX:
-                        priceTableUploader.restoreDiags(diagsLines);
+                        priceTableUploader.restoreDiags(diagsLines, null);
                         break;
                     default:
                         // TODO Roman Zimine, Emanuele Maccherani history processing restoration is
@@ -447,7 +447,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                             logger.info("'{}' state will be restored from '{}' file found in diagnostics.",
                                             diagnosticPart.getClass().getSimpleName(),
                                             diagsName);
-                            diagnosticPart.restoreDiags(bytes);
+                            diagnosticPart.restoreDiags(bytes, null);
                             break;
                         }
                         // Other diags files should match a pattern
@@ -501,7 +501,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             throws DiagnosticsException {
         logger.info("Attempting to restore " + serializedTargetIdentifiers.size() + " target identifiers data "
                 + "to database");
-        targetPersistentIdentityStore.restoreDiags(serializedTargetIdentifiers);
+        targetPersistentIdentityStore.restoreDiags(serializedTargetIdentifiers, null);
         logger.info("Restored target identifiers into database.");
     }
 

@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,7 +41,7 @@ import com.vmturbo.cost.component.util.BusinessAccountHelper;
  * This class is used to update plan RI table by plan reserved instance bought data
  * from Topology Processor.
  */
-public class PlanReservedInstanceStore extends AbstractReservedInstanceStore implements DiagsRestorable {
+public class PlanReservedInstanceStore extends AbstractReservedInstanceStore implements DiagsRestorable<Void> {
 
     private static final String planReservedInstanceDumpFile = "planReservedInstance_dump";
 
@@ -196,7 +197,7 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         // TODO to be implemented as part of OM-58627
     }
 

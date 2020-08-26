@@ -750,7 +750,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         createKvConfig();
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             percentileEditor.collectDiags(output);
-            percentileEditor.restoreDiags(output.toByteArray());
+            percentileEditor.restoreDiags(output.toByteArray(), null);
         }
         // LATEST(1, 2, 3, 4, 5) + TOTAL(42, 44, 46, 48, 50) = FULL(43, 46, 49, 52, 55)
         Assert.assertEquals(Arrays.asList(43, 46, 49, 52, 55),

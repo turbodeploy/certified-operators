@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
@@ -33,7 +34,7 @@ import com.vmturbo.plan.orchestrator.db.tables.records.ScenarioRecord;
 /**
  * This class provides access to the scenario db.
  */
-public class ScenarioDao implements DiagsRestorable {
+public class ScenarioDao implements DiagsRestorable<Void> {
 
     @VisibleForTesting
     static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
@@ -154,7 +155,7 @@ public class ScenarioDao implements DiagsRestorable {
      *                              scenario.
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         final List<String> errors = new ArrayList<>();
 
         final List<Scenario> preexisting = getScenarios();
