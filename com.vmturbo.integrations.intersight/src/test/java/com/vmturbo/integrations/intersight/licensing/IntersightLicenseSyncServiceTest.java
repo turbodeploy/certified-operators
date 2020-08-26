@@ -22,6 +22,7 @@ import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
 import com.vmturbo.common.protobuf.licensing.LicensingMoles.LicenseManagerServiceMole;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -84,9 +85,10 @@ public class IntersightLicenseSyncServiceTest {
     @Test
     public void testDiscoverLicenseEditsSingleLicenseRemoved() {
         LicenseDTO onlyLicense = LicenseDTO.newBuilder()
+            .setTurbo(TurboLicense.newBuilder()
                 .setExternalLicenseKey("1")
-                .setEdition(IntersightProxyLicenseEdition.IWO_ESSENTIALS.name())
-                .build();
+                .setEdition(IntersightProxyLicenseEdition.IWO_ESSENTIALS.name()))
+            .build();
 
         Pair<List<LicenseDTO>, List<LicenseDTO>> edits = syncService.discoverLicenseEdits(
                 ImmutableList.of(onlyLicense), Collections.emptyList());
@@ -102,15 +104,17 @@ public class IntersightLicenseSyncServiceTest {
     @Test
     public void testDiscoverLicenseEditsLeaveNonIWOLicenseAlone() {
         LicenseDTO iwoLicense = LicenseDTO.newBuilder()
-                .setUuid("1")
+            .setUuid("1")
+            .setTurbo(TurboLicense.newBuilder()
                 .setExternalLicenseKey("1")
-                .setEdition(IntersightProxyLicenseEdition.IWO_ESSENTIALS.name())
-                .build();
+                .setEdition(IntersightProxyLicenseEdition.IWO_ESSENTIALS.name()))
+            .build();
 
         LicenseDTO cwomLicense = LicenseDTO.newBuilder()
-                .setUuid("2")
-                .setEdition("Advanced")
-                .build();
+            .setUuid("2")
+            .setTurbo(TurboLicense.newBuilder()
+                .setEdition("Advanced"))
+            .build();
 
         Pair<List<LicenseDTO>, List<LicenseDTO>> edits = syncService.discoverLicenseEdits(
                 ImmutableList.of(cwomLicense, iwoLicense), Collections.emptyList());
@@ -129,11 +133,12 @@ public class IntersightLicenseSyncServiceTest {
     public void testDiscoverLicenseEditsUpdateExpired() {
         // we'll simulate an expired license
         LicenseDTO existingLicense = LicenseDTO.newBuilder()
-                .setUuid("1")
+            .setUuid("1")
+            .setTurbo(TurboLicense.newBuilder()
                 .setExternalLicenseKey("1")
                 .setEdition(IntersightProxyLicenseEdition.IWO_ESSENTIALS.name())
-                .setExpirationDate(ILicense.PERM_LIC)
-                .build();
+                .setExpirationDate(ILicense.PERM_LIC))
+            .build();
 
         // the license info with the same moid is now out of compliance
         LicenseDTO updatedLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.OUTOFCOMPLIANCE);

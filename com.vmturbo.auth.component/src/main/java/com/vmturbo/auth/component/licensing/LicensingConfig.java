@@ -90,9 +90,19 @@ public class LicensingConfig {
     }
 
     @Bean
+    public LicensedEntitiesCountCalculator licensedEntitiesCountCalculator() {
+        return new LicensedEntitiesCountCalculator(repositoryClientConfig.searchServiceClient());
+    }
+
+    /**
+     * The {@link LicenseCheckService}.
+     *
+     * @return The {@link LicenseCheckService}.
+     */
+    @Bean
     public LicenseCheckService licenseCheckService() {
         return new LicenseCheckService(licenseManager(),
-                repositoryClientConfig.searchServiceClient(),
+                licensedEntitiesCountCalculator(),
                 repositoryClientConfig.repositoryListener(),
                 licenseSummaryPublisher(),
                 notificationApiConfig.notificationMessageSender(),
