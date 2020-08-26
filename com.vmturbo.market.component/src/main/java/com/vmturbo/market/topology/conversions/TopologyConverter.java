@@ -977,8 +977,9 @@ public class TopologyConverter {
             // which is not correct.
             supplier = slInfo.sellerId;
         }
+
+        Integer supplierEntityType = null;
         if (supplier != null) {
-            int supplierEntityType = 0;
             // If the supplier is a market tier, then get the tier TopologyEntityDTO and
             // make that the supplier.
             if (cloudTc.isMarketTier(supplier)) {
@@ -1006,13 +1007,14 @@ public class TopologyConverter {
                 }
             }
             commoditiesBoughtFromProviderBuilder.setProviderId(supplier);
-            commoditiesBoughtFromProviderBuilder.setProviderEntityType(supplierEntityType);
         }
         // For a sl of an unplaced VM before market, it doesn't have a provider, but has
         // providerEntityType. It should remain the same if it's unplaced after market.
         // For a sl moving from active provider/unplaced to provisioned provider,
         // we can get the providerEntityType from slInfo.
-        if (!commoditiesBoughtFromProviderBuilder.hasProviderEntityType()) {
+        if (supplierEntityType != null) {
+            commoditiesBoughtFromProviderBuilder.setProviderEntityType(supplierEntityType);
+        } else {
             slInfo.getSellerEntityType()
                     .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
         }
