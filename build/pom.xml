@@ -484,6 +484,7 @@
         <profile>
             <id>grafana</id>
             <modules>
+                <module>../xl-python</module>
                 <module>../grafana</module>
             </modules>
         </profile>
@@ -1127,6 +1128,8 @@
                 <module>../kafka</module>
                 <module>../zookeeper</module>
                 <module>../nginx</module>
+                <!-- Generate XL python bindings. -->
+                <module>../xl-python</module>
                 <module>../grafana</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
