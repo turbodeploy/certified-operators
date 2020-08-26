@@ -1718,7 +1718,8 @@ public class ActionSpecMapper {
 
         try {
             ReservedInstanceApiDTO riApiDTO = reservedInstanceMapper.mapToReservedInstanceApiDTO(ri,
-                    riSpec, context.getServiceEntityApiDTOs(), null, null);
+                    riSpec, context.getServiceEntityApiDTOs(),
+                    null, null, null);
             actionApiDTO.setReservedInstance(riApiDTO);
             actionApiDTO.setTarget(getServiceEntityDTO(context, buyRI.getRegion()));
             // For less brittle UI integration, we set the current entity to an empty object.

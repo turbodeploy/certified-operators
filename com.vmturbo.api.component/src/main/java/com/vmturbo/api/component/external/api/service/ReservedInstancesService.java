@@ -59,6 +59,8 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.Reserv
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 
 public class ReservedInstancesService implements IReservedInstancesService {
@@ -141,6 +143,15 @@ public class ReservedInstancesService implements IReservedInstancesService {
         final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap =
             repositoryApi.entitiesRequest(relatedEntityIds).getSEMap();
 
+        final Set<Long> businessAccountIds = serviceEntityApiDTOMap.values()
+                .stream()
+                .filter(dto -> ApiEntityType.BUSINESS_ACCOUNT.apiStr().equals(dto.getClassName()))
+                .map(dto -> Long.parseLong(dto.getUuid()))
+                .collect(Collectors.toSet());
+
+        final List<TopologyDTO.TopologyEntityDTO> relatedBusinessAccountsList = repositoryApi
+                .entitiesRequest(businessAccountIds).getFullEntities().collect(Collectors.toList());
+
         final Map<Long, EntitiesCoveredByReservedInstance> entitiesCoveredByReservedInstancesMap =
                 reservedInstanceUtilizationCoverageService.getReservedInstanceCoveredEntities(
                         GetReservedInstanceCoveredEntitiesRequest.newBuilder()
@@ -160,7 +171,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
                             reservedInstanceBought.getReservedInstanceBoughtInfo()
                                     .getReservedInstanceSpec()), serviceEntityApiDTOMap,
                     entitiesCoveredByReservedInstance.getCoveredEntityIdCount(),
-                    entitiesCoveredByReservedInstance.getCoveredUndiscoveredAccountIdCount()));
+                    entitiesCoveredByReservedInstance.getCoveredUndiscoveredAccountIdCount(),
+                    relatedBusinessAccountsList));
         }
         return results;
     }

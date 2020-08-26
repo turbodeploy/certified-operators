@@ -1,11 +1,14 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -50,6 +53,8 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -148,14 +153,24 @@ public class ReservedInstanceServiceTest {
                         .build());
         final MultiEntityRequest req = Mockito.mock(MultiEntityRequest.class);
         final ServiceEntityApiDTO region = new ServiceEntityApiDTO();
+        final ServiceEntityApiDTO businessAccount = new ServiceEntityApiDTO();
+        businessAccount.setUuid("200");
+        businessAccount.setClassName(ApiEntityType.BUSINESS_ACCOUNT.apiStr());
+        region.setClassName(ApiEntityType.REGION.apiStr());
+        final Map<Long, ServiceEntityApiDTO> seMap = new HashMap<>();
+        seMap.put(100L, region);
+        seMap.put(200L, businessAccount);
         final TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setType("Azure");
         region.setDiscoveredBy(targetApiDTO);
-        Mockito.when(req.getSEMap()).thenReturn(Collections.singletonMap(100L, region));
+        Mockito.when(req.getSEMap()).thenReturn(seMap);
         Mockito.when(cloudTypeMapper.fromTargetType("Azure")).thenReturn(
                 Optional.of(CloudType.AZURE));
         Mockito.when(repositoryApi.entitiesRequest(ImmutableSet.of(0L, 100L))).thenReturn(req);
-
+        final MultiEntityRequest baRequest = Mockito.mock(MultiEntityRequest.class);
+        Mockito.when(baRequest.getFullEntities()).thenReturn(Stream.<TopologyDTO.TopologyEntityDTO>builder().build());
+        Mockito.when(repositoryApi.entitiesRequest(ImmutableSet.of(200L))).thenReturn(baRequest);
+        final List<TopologyDTO.TopologyEntityDTO> baResponse = new ArrayList<>();
         final List<ReservedInstanceApiDTO> reservedInstanceApiDTOs =
                 reservedInstancesService.getReservedInstances("Market", true, AccountFilterType.PURCHASED_BY);
 
