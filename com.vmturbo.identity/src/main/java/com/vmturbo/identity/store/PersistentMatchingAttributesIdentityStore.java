@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
@@ -188,8 +189,11 @@ public class PersistentMatchingAttributesIdentityStore<RecordTypeT
     }
 
     @Override
-    public void restoreDiags(@Nonnull List<String> collectedDiags, @Nonnull DSLContext context) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull List<String> collectedDiags, @Nullable DSLContext context) throws DiagnosticsException {
         try {
+            if (context == null) {
+                context = dsl;
+            }
             // Clear table first.
             removeAllOids(context);
             final Map<IdentityMatchingAttributes, Long> attrToOidMap = Maps.newHashMap();
