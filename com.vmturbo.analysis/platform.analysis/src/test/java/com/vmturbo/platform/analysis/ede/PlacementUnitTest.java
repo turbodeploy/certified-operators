@@ -1,18 +1,24 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static com.vmturbo.platform.analysis.ede.Placement.mergeContextSets;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -289,5 +295,78 @@ public class PlacementUnitTest {
         assertTrue(minimizer != null);
         assertFalse(minimizer.getShoppingListContextMap().isEmpty());
 
+    }
+
+    /**
+     * Checks if after context merge, the parent id is set correctly, where applicable. Parent id
+     * is needed for fetching cost tuple for CBTP cost table.
+     */
+    @Test
+    public void contextMerger() {
+        // Account/pricing id.
+        final long accountId = 100L;
+        // Id of parent (BillingFamily).
+        final long parentId = 200L;
+        final long regionId = 300L;
+        final long zoneId = 400L;
+
+        // Only CBTP context has the parent id set.
+        final Context cbtpContext = new Context(regionId, zoneId,
+                new BalanceAccount(accountId, parentId));
+        final Context computeContext = new Context(regionId, zoneId,
+                new BalanceAccount(accountId));
+        final Context storageContext = new Context(regionId, zoneId,
+                new BalanceAccount(accountId));
+
+        final Set<Context> contextSet1 = ImmutableSet.of(cbtpContext, computeContext);
+        final Set<Context> contextSet2 = ImmutableSet.of(storageContext);
+        final Set<Context> resultSet = Stream.of(contextSet1, contextSet2)
+                .reduce(mergeContextSets)
+                .orElse(Collections.emptySet());
+
+        assertEquals(1, resultSet.size());
+        final Context resultContext = resultSet.iterator().next();
+        assertEquals(regionId, resultContext.getRegionId());
+        assertEquals(zoneId, resultContext.getZoneId());
+        assertEquals(accountId, resultContext.getBalanceAccount().getId());
+        final Long resultParentId = resultContext.getBalanceAccount().getParentId();
+        assertNotNull(resultParentId);
+        assertEquals(parentId, resultParentId.longValue());
+    }
+
+    /**
+     * When MPC use case, it can happen that source and destination contexts only differ by the
+     * parentId of the balanceAccount - one has the parentId set and one does not. We want to
+     * consider two contexts the same in this situation.
+     */
+    @Test
+    public void testContextMergerSet() {
+        // Account/pricing id.
+        final long accountId = 100L;
+        // Id of parent (BillingFamily).
+        final long parentId = 200L;
+        final long regionId = 300L;
+        final long zoneId = 400L;
+
+        // Context1 has parent ID in balanceAccount, but context2 does not.
+        final Context context1 = new Context(regionId, zoneId,
+                new BalanceAccount(accountId, parentId));
+        final Context context2 = new Context(regionId, zoneId,
+                new BalanceAccount(accountId));
+
+        final Set<Context> contextSet1 = ImmutableSet.of(context1);
+        final Set<Context> contextSet2 = ImmutableSet.of(context2);
+        final Set<Context> resultSet = Stream.of(contextSet1, contextSet2)
+                .reduce(mergeContextSets)
+                .orElse(Collections.emptySet());
+
+        assertEquals(1, resultSet.size());
+        final Context resultContext = resultSet.iterator().next();
+        assertEquals(regionId, resultContext.getRegionId());
+        assertEquals(zoneId, resultContext.getZoneId());
+        assertEquals(accountId, resultContext.getBalanceAccount().getId());
+        final Long resultParentId = resultContext.getBalanceAccount().getParentId();
+        assertNotNull(resultParentId);
+        assertEquals(parentId, resultParentId.longValue());
     }
 }

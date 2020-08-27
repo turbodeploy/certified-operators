@@ -67,6 +67,7 @@ public class Placement {
                     if (ctx.getBalanceAccount().getParentId() != null) {
                         accountIdToParentId.put(ctx.getBalanceAccount().getId(),
                                 ctx.getBalanceAccount().getParentId());
+                        ctx.getBalanceAccount().setParentId(null);
                     }
                 });
         // Find common context b/w the 2 sets.

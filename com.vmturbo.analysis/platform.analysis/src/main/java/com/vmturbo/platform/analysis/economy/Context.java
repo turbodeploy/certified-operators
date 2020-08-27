@@ -276,7 +276,7 @@ public class Context {
          *
          * @param parentId ID of parent.
          */
-        public void setParentId(@Nonnull Long parentId) {
+        public void setParentId(Long parentId) {
             parentId_ = parentId;
         }
 
@@ -309,7 +309,8 @@ public class Context {
                     && this.getBudget() == otherBalanceAccount.getBudget()
                     && this.getId() == otherBalanceAccount.getId()
                     && this.getPriceId() == otherBalanceAccount.getPriceId()
-                    && this.getParentId() == otherBalanceAccount.getParentId();
+                    && (this.getParentId() != null ? this.getParentId().equals(otherBalanceAccount.getParentId())
+                    : otherBalanceAccount.getParentId() == null);
         }
     }
 
