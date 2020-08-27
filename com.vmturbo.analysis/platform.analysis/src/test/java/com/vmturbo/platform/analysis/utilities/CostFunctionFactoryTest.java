@@ -50,6 +50,12 @@ public class CostFunctionFactoryTest {
     private static ShoppingList linuxComputeSL;
     private static ShoppingList stSL;
     private static ShoppingList windowsComputeSL;
+    private static final long accountId1 = 101L;
+    private static final long accountId2 = 102L;
+    private static final long regionId11 = 211L;
+    private static final long regionId12 = 212L;
+    private static final long regionId21 = 221L;
+    private static final long zoneId213 = 321L;
 
     @BeforeClass
     public static void setUp() {
@@ -81,17 +87,51 @@ public class CostFunctionFactoryTest {
     }
 
     /**
+     * Test CostFunctionFactory.calculateComputeAndDatabaseCostQuote with buyer asking for linux
+     * license template without context and with context which has region id being regionId11,
+     * business account id being accountId1.
+     */
+    @Test
+    public void testCalculateComputeCost() {
+        final Trader buyerVm = TestUtils.createVM(economy);
+        final ShoppingList shoppingList = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.CPU, new CommoditySpecification(TestUtils.LINUX_COMM_TYPE,
+                        licenseAccessCommBaseType)), buyerVm, new double[] {500, 1},
+                new double[] {500, 1}, computeTier);
+        CostTable costTable = new CostTable(createComputeCost().getCostTupleListList());
+        MutableQuote quote1 = CostFunctionFactory.calculateComputeAndDatabaseCostQuote(computeTier,
+                shoppingList, costTable, licenseAccessCommBaseType);
+        // 1. test without context computation
+        assertTrue(quote1 instanceof CommodityQuote);
+        assertTrue(quote1.getSeller().equals(computeTier) && Double.isInfinite(quote1.getQuoteValue()));
+        // 2. test with context computation
+        BalanceAccount account1 = new BalanceAccount(100, 10000, accountId1, 0);
+        buyerVm.getSettings().setContext(new com.vmturbo.platform.analysis.economy.Context(
+                regionId11, 0, account1));
+        MutableQuote quote2 = CostFunctionFactory.calculateComputeAndDatabaseCostQuote(computeTier,
+                shoppingList, costTable, licenseAccessCommBaseType);
+        assertNotNull(quote2);
+        Context context = quote2.getContext().get();
+        assertEquals(regionId11, context.getRegionId());
+        assertEquals(accountId1, context.getBalanceAccount().getId());
+        assertEquals(5, quote2.getQuoteValue(), 0d);
+    }
+
+    /**
      * Helper method to create compute cost tuples.
      * @return
      */
     private List<CostTuple> generateComputeCostTuples() {
         List<CostTuple> computeTuples = new ArrayList<>();
-        computeTuples.add(CostTuple.newBuilder().setBusinessAccountId(1L)
-                .setRegionId(100L).setLicenseCommodityType(TestUtils.LINUX_COMM_TYPE).setPrice(5).build());
-        computeTuples.add(CostTuple.newBuilder().setBusinessAccountId(2L).setRegionId(200L)
-                .setLicenseCommodityType(TestUtils.WINDOWS_COMM_TYPE).setPrice(100).build());
-        computeTuples.add(CostTuple.newBuilder().setBusinessAccountId(2L).setZoneId(201L)
-                .setLicenseCommodityType(TestUtils.WINDOWS_COMM_TYPE).setPrice(50).build());
+        computeTuples.add(CostTuple.newBuilder().setBusinessAccountId(accountId1)
+                .setRegionId(regionId11).setLicenseCommodityType(TestUtils.LINUX_COMM_TYPE)
+                .setPrice(5).build());
+        computeTuples.add(CostTuple.newBuilder().setBusinessAccountId(accountId2)
+                .setRegionId(regionId21).setLicenseCommodityType(TestUtils.WINDOWS_COMM_TYPE)
+                .setPrice(100).build());
+        computeTuples.add(CostTuple.newBuilder().setBusinessAccountId(accountId2)
+                .setZoneId(zoneId213).setLicenseCommodityType(TestUtils.WINDOWS_COMM_TYPE)
+                .setPrice(50).build());
         return computeTuples;
     }
 
@@ -141,12 +181,6 @@ public class CostFunctionFactoryTest {
      */
     @Test
     public void calculateStorageTierCost() {
-        final long accountId1 = 101;
-        final long accountId2 = 102;
-        final long regionId11 = 211;
-        final long regionId12 = 212;
-        final long regionId21 = 221;
-
         // Price for 500 GB storage (SL requested amount) in region1 in account1 should be sum of:
         // 200 x $10 (unit price per GB) = $2000
         PriceData priceUpTo50Gb = new PriceData(200d, 10d, true, true, regionId11);
@@ -185,7 +219,7 @@ public class CostFunctionFactoryTest {
         BalanceAccount account1 = new BalanceAccount(100, 10000, accountId1, 0);
         buyerVm.getSettings().setContext(new com.vmturbo.platform.analysis.economy.Context(
                 regionId11, 0, account1));
-        CommodityQuote quote1 = CostFunctionFactory.calculateStorageTierCost(priceDataMap,
+        MutableQuote quote1 = CostFunctionFactory.calculateStorageTierCost(priceDataMap,
                 commCapacity, new ArrayList<RangeBasedResourceDependency>(), shoppingList, storageTier);
         assertNotNull(quote1);
         assertTrue(quote1.getContext().isPresent());
@@ -197,11 +231,18 @@ public class CostFunctionFactoryTest {
         // 2. Bad bounds check for region12, should get infinite quote back.
         buyerVm.getSettings().setContext(new com.vmturbo.platform.analysis.economy.Context(
                 regionId12, 0, account1));
-        CommodityQuote quote2 = CostFunctionFactory.calculateStorageTierCost(priceDataMap,
+        MutableQuote quote2 = CostFunctionFactory.calculateStorageTierCost(priceDataMap,
                 commCapacity, new ArrayList<RangeBasedResourceDependency>(), shoppingList, storageTier);
         assertNotNull(quote2);
         assertFalse(quote2.getContext().isPresent());
         assertEquals(Double.POSITIVE_INFINITY, quote2.getQuoteValue(), 0d);
+
+        // 3. Set null context for buyer
+        buyerVm.getSettings().setContext(null);
+        MutableQuote quote3 = CostFunctionFactory.calculateStorageTierCost(priceDataMap,
+                commCapacity, new ArrayList<RangeBasedResourceDependency>(), shoppingList, storageTier);
+        assertTrue(quote3 instanceof CommodityQuote);
+        assertTrue(quote3.getSeller().equals(storageTier) && Double.isInfinite(quote3.getQuoteValue()));
 
     }
 

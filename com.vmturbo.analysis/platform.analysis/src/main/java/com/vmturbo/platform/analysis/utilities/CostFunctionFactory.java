@@ -37,7 +37,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
@@ -784,11 +783,15 @@ public class CostFunctionFactory {
      * @param licenseBaseType The base type of the license commodity the sl contains.
      * @return A quote for the cost given by {@link CostFunction}
      */
-    private static MutableQuote calculateComputeAndDatabaseCostQuote(Trader seller, ShoppingList sl,
-                                                                     CostTable costTable, final int licenseBaseType) {
+    @VisibleForTesting
+    protected static MutableQuote calculateComputeAndDatabaseCostQuote(Trader seller, ShoppingList sl,
+                                                                       CostTable costTable, final int licenseBaseType) {
         final int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
         final long groupFactor = sl.getGroupFactor();
         final Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
+        if (!optionalContext.isPresent()) {
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+        }
         final Context context = optionalContext.get();
         final long regionIdBought = context.getRegionId();
         final BalanceAccount balanceAccount = context.getBalanceAccount();
@@ -1064,12 +1067,15 @@ public class CostFunctionFactory {
      *
      * @return the Quote given by {@link CostFunction}
      */
-    public static CommodityQuote calculateStorageTierCost(@Nonnull Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap,
-                                                          @Nonnull Map<CommoditySpecification, CapacityLimitation> commCapacity,
-                                                          @Nonnull List<RangeBasedResourceDependency> rangeDependencyList,
-                                                          @Nonnull ShoppingList sl, Trader seller) {
+    public static MutableQuote calculateStorageTierCost(@Nonnull Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap,
+                                                        @Nonnull Map<CommoditySpecification, CapacityLimitation> commCapacity,
+                                                        @Nonnull List<RangeBasedResourceDependency> rangeDependencyList,
+                                                        @Nonnull ShoppingList sl, Trader seller) {
         // TODO: refactor the PriceData to improve performance for region and business account lookup
         Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
+        if (!optionalContext.isPresent()) {
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+        }
         final Context context = optionalContext.get();
         final long regionId = context.getRegionId();
         final BalanceAccount balanceAccount = context.getBalanceAccount();
