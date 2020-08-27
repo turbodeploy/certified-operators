@@ -1041,11 +1041,38 @@ public class TopologyConverterToMarketTest {
         double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE, used, peak, max,
-                100, 0.8, 80d, 75d, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
+                100, 0.8, 0.8, 75d, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
         // new used = capacity
         // new peak = max(peak, used) / rtu
-        assertEquals(100 * 100, quantities[0], 0.01f);
+        assertEquals(100, quantities[0], 0.01f);
         assertEquals(peak / 0.8, quantities[1], 0.01f);
+    }
+
+    /**
+     * Test that if percentile is not set and used is 0, then sold commodity resize quantity is same
+     * as current capacity.
+     */
+    @Test
+    public void testResizeQuantityForZeroUsed() {
+        final double capacity = 100;
+        final double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+            CommodityDTO.CommodityType.MEM_VALUE, CommodityDTO.CommodityType.VMEM_VALUE, 0,
+            0, 0, capacity, 0.8, null, null, EnvironmentType.CLOUD, null, null,
+            REALTIME_TOPOLOGY_INFO);
+        assertEquals(capacity, quantities[0], 0.01f);
+    }
+
+    /**
+     * Test that if percentile is set to 0, then the resize quantity is also 0.
+     */
+    @Test
+    public void testResizeQuantityForZeroPercentile() {
+        final double capacity = 100;
+        final double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+            CommodityDTO.CommodityType.MEM_VALUE, CommodityDTO.CommodityType.VMEM_VALUE, 0,
+            0, 0, capacity, 0.8, 0d, null, EnvironmentType.CLOUD, null, null,
+            REALTIME_TOPOLOGY_INFO);
+        assertEquals(0, quantities[0], 0.01f);
     }
 
     private double[] getResizedCapacityForCloud(int entityType, int commBoughtType, int commSoldType,

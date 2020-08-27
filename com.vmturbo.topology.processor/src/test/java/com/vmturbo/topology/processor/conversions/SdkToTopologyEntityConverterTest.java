@@ -588,6 +588,39 @@ public class SdkToTopologyEntityConverterTest {
     }
 
     /**
+     * Test that if SDK CommodityDTO does not have used value set, then the converted
+     * CommoditySoldDTO also does not have used value set.
+     */
+    @Test
+    public void testCommoditySoldUsedUnset() {
+        // given
+        final EntityDTO entity = EntityDTO.newBuilder()
+            .setId("111")
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .addCommoditiesSold(CommodityDTO.newBuilder()
+                .setCapacity(10000)
+                .setCommodityType(CommodityType.VMEM)
+                .build())
+            .build();
+        final TopologyStitchingEntity stitchingEntity = new TopologyStitchingEntity(
+            StitchingEntityData.newBuilder(entity.toBuilder())
+                .build());
+        entity.getCommoditiesSoldList().forEach(commodity -> stitchingEntity
+            .addCommoditySold(commodity.toBuilder(), Optional.empty()));
+
+        // when
+        final TopologyEntityDTO.Builder topologyEntityDTO =
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity,
+                resoldCommodityCache);
+
+        // then
+        final List<CommoditySoldDTO> commoditySoldDTOS =
+            topologyEntityDTO.getCommoditySoldListList();
+        Assert.assertFalse(commoditySoldDTOS.isEmpty());
+        Assert.assertFalse(commoditySoldDTOS.iterator().next().hasUsed());
+    }
+
+    /**
      * Tests that {@link SdkToTopologyEntityConverter} preserves
      * the connections between cloud entities correctly.
      */

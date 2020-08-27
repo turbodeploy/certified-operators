@@ -21,6 +21,7 @@ public class ICommodityFieldAccessorTest extends BaseGraphRelatedTest {
     private static final long OID1 = 1;
     private static final long OID2 = 2;
     private static final long OID3 = 3;
+    private static final long OID4 = 4;
     private static final CommodityType CT1 = CommodityType.newBuilder().setType(1).build();
     private static final CommodityType CT2 = CommodityType.newBuilder().setType(2).build();
     private static final CommodityType CT3 = CommodityType.newBuilder().setType(3).setKey("qqq").build();
@@ -47,7 +48,9 @@ public class ICommodityFieldAccessorTest extends BaseGraphRelatedTest {
         entity3 = mockEntity(ENTITY_TYPE, OID3, CT3, CAPACITY3, USED3, OID2, CT2, USED2,
                              UtilizationData.newBuilder().setLastPointTimestampMs(0)
                                              .setIntervalMs(1).addPoint(USED3).build(), true);
-        graph = mockGraph(ImmutableSet.of(entity1, entity2, entity3));
+        final TopologyEntity entity4 = mockEntity(ENTITY_TYPE, OID4, CT1, CAPACITY1, null, null,
+            null, null, null, true);
+        graph = mockGraph(ImmutableSet.of(entity1, entity2, entity3, entity4));
     }
 
     /**
@@ -69,6 +72,18 @@ public class ICommodityFieldAccessorTest extends BaseGraphRelatedTest {
         peak = accessor.getRealTimeValue(new EntityCommodityFieldReference(OID2, CT2, OID1, CommodityField.PEAK));
         Assert.assertNull(peak);
         used = accessor.getRealTimeValue(new EntityCommodityFieldReference(OID2, CT3, OID1, CommodityField.USED));
+        Assert.assertNull(used);
+    }
+
+    /**
+     * Test that if CommoditySoldDTO has used value unset, then CommodityFieldAccessor returns
+     * null as the used value.
+     */
+    @Test
+    public void testGetUnsetRealTimeValue() {
+        final ICommodityFieldAccessor accessor = new CommodityFieldAccessor(graph);
+        final Double used = accessor.getRealTimeValue(new EntityCommodityFieldReference(OID4, CT1,
+            CommodityField.USED));
         Assert.assertNull(used);
     }
 
