@@ -324,12 +324,101 @@ public class CloudMigrationPlanHelper {
             prepareBoughtCommodities(builder, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess,
                     isDestinationAws, true);
 
-            // Add coupon commodity to allow existing RIs to be utilized
-            addCouponCommodity(entity);
+            // Add NEW bought commodities
+            addNewBoughtCommodities(entity);
 
             // Add license access commodities for VMs being migrated.
             updateLicenseAccessCommodities(entity, licenseCommodityKeyByOS);
         }
+    }
+
+    private void addNewBoughtCommodities(final TopologyEntity entity) {
+        // Add coupon commodity to allow existing RIs to be utilized
+        addCouponCommodity(entity);
+        // Add numDisk commodity to allow Azure numDisk-aware compute tier placement
+        addNumDiskCommodity(entity);
+    }
+
+    // TODO: This code will be removed, and numDisks commodity created in plan when VVs are ready (OM-59261)
+    /**
+     * If we're processing a VM that has a diskToStorage map, it should buy the numDisk commodity
+     * from it's PM provider.
+     *
+     * @param vmBuilder corresponding to the entity in question
+     * @param entityPropertyMap potentially containing StringConstants.NUM_VIRTUAL_DISKS
+     * @return whether or not this entity should buy numDisk
+     */
+    public static boolean shouldBuyNumDisk(
+            @Nonnull final TopologyEntityDTO.Builder vmBuilder,
+            @Nonnull final Map<String, String> entityPropertyMap) {
+        if (!entityPropertyMap.containsKey(StringConstants.NUM_VIRTUAL_DISKS)) {
+            return false;
+        }
+        final boolean buysNumDisk = vmBuilder.getCommoditiesBoughtFromProvidersList().stream()
+                .flatMap(commBought -> commBought.getCommodityBoughtList().stream())
+                .anyMatch(boughtCommodity ->
+                        CommodityDTO.CommodityType.NUM_DISK.equals(boughtCommodity.getCommodityType()));
+        return buysNumDisk ? false : true;
+    }
+
+    // TODO: This code will be removed, and numDisks commodity created in plan when VVs are ready (OM-59261)
+    /**
+     * If we're processing a PM, add a sold numDisk commodity. If we're processing a VM, add a bought
+     * numDisk commodity. This enables disk-capacity-aware placements in cloud migrations to Azure.
+     *
+     * @param entity the entity being migrated
+     */
+    private void addNumDiskCommodity(final TopologyEntity entity) {
+        final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
+        final Map<String, String> entityPropertyMap = entityBuilder.getEntityPropertyMapMap();
+        if (shouldBuyNumDisk(entityBuilder, entityPropertyMap)) {
+            try {
+                addNumDiskBoughtCommodity(
+                        entityBuilder,
+                        Double.valueOf(entityPropertyMap.get(StringConstants.NUM_VIRTUAL_DISKS)));
+            } catch (NumberFormatException e) {
+                logger.error("Error converting numVirtualDisks from entityPropertyMap in "
+                        + "cloud migration plan. Placement of {} ({}) may be disk capacity unaware.",
+                        entityBuilder.getDisplayName(), entityBuilder.getOid());
+            }
+        }
+    }
+
+    /**
+     * Add a numDisk bought commodity.
+     *
+     * @param vmBuilder the builder correspondint to the VM being processed
+     * @param numDisksToBuy the numDisk used value
+     */
+    private void addNumDiskBoughtCommodity(
+            @Nonnull final TopologyEntityDTO.Builder vmBuilder,
+            final double numDisksToBuy) {
+        final List<CommoditiesBoughtFromProvider> originalCommBoughtGroupings =
+                vmBuilder.getCommoditiesBoughtFromProvidersList();
+        final List<CommoditiesBoughtFromProvider> newCommBoughtGroupings = Lists.newArrayList();
+
+        final Set<Integer> computeProviders = ImmutableSet.of(
+                EntityType.PHYSICAL_MACHINE_VALUE,
+                EntityType.COMPUTE_TIER_VALUE);
+
+        originalCommBoughtGroupings.forEach(commoditiesBoughtFromProvider -> {
+            if (computeProviders.contains(commoditiesBoughtFromProvider.getProviderEntityType())) {
+                CommoditiesBoughtFromProvider newCommoditiesBoughtFromProvider =
+                        CommoditiesBoughtFromProvider.newBuilder(commoditiesBoughtFromProvider)
+                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                                .setType(CommodityDTO.CommodityType.NUM_DISK_VALUE))
+                                        .setUsed(numDisksToBuy)
+                                        .build())
+                                .build();
+                newCommBoughtGroupings.add(newCommoditiesBoughtFromProvider);
+            } else {
+                newCommBoughtGroupings.add(commoditiesBoughtFromProvider);
+            }
+        });
+
+        vmBuilder.clearCommoditiesBoughtFromProviders();
+        vmBuilder.addAllCommoditiesBoughtFromProviders(newCommBoughtGroupings);
     }
 
     /**
