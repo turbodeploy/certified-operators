@@ -20,10 +20,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.ingesters.live.LiveTopologyIngester;
-import com.vmturbo.history.ingesters.live.ProjectedLiveTopologyIngester;
-import com.vmturbo.history.ingesters.plan.PlanTopologyIngester;
+import com.vmturbo.history.ingesters.live.ProjectedRealtimeTopologyIngester;
+import com.vmturbo.history.ingesters.live.SourceRealtimeTopologyIngester;
 import com.vmturbo.history.ingesters.plan.ProjectedPlanTopologyIngester;
+import com.vmturbo.history.ingesters.plan.SourcePlanTopologyIngester;
 import com.vmturbo.history.listeners.IngestionStatus.IngestionState;
 import com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor;
 
@@ -66,9 +66,9 @@ public class TopologyCoordinatorTest extends Assert {
         processingStatus = Mockito.spy(new ProcessingStatus(config, historydbIo));
         doNothing().when(processingStatus).load();
         topologyCoordinator = new TopologyCoordinator(
-                mock(LiveTopologyIngester.class),
-                mock(ProjectedLiveTopologyIngester.class),
-                mock(PlanTopologyIngester.class),
+                mock(SourceRealtimeTopologyIngester.class),
+                mock(ProjectedRealtimeTopologyIngester.class),
+                mock(SourcePlanTopologyIngester.class),
                 mock(ProjectedPlanTopologyIngester.class),
                 mock(RollupProcessor.class),
                 processingStatus,

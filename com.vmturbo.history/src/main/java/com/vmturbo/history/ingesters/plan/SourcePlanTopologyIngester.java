@@ -6,6 +6,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessorFactory;
@@ -15,7 +16,7 @@ import com.vmturbo.history.ingesters.common.TopologyIngesterConfig;
 /**
  * Ingester to process plan topologies broadcast by market component.
  */
-public class PlanTopologyIngester extends TopologyIngesterBase<Topology.DataSegment> {
+public class SourcePlanTopologyIngester extends TopologyIngesterBase<Topology.DataSegment> {
 
     private static final TopologyType TOPOLOGY_TYPE = TopologyType.PLAN;
 
@@ -26,7 +27,7 @@ public class PlanTopologyIngester extends TopologyIngesterBase<Topology.DataSegm
      * @param topologyIngesterConfig   ingester config
      * @param loaderFactorySupplier    supplier of bulk loader factories
      */
-    public PlanTopologyIngester(
+    public SourcePlanTopologyIngester(
             @Nonnull final Collection<? extends IChunkProcessorFactory
                     <Topology.DataSegment, TopologyInfo, SimpleBulkLoaderFactory>>
                     iChunkProcessorFactories,
@@ -45,7 +46,7 @@ public class PlanTopologyIngester extends TopologyIngesterBase<Topology.DataSegm
     @Override
     protected int getChunkObjectCount(final Collection<Topology.DataSegment> chunk) {
         final long count = chunk.stream()
-                .filter(item -> item.hasEntity())
+                .filter(DataSegment::hasEntity)
                 .count();
         return (int)count;
     }

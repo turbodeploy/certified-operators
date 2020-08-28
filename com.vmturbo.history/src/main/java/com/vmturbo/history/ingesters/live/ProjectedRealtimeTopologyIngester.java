@@ -6,7 +6,6 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.TopologyIngesterBase;
 import com.vmturbo.history.ingesters.common.TopologyIngesterConfig;
@@ -15,7 +14,7 @@ import com.vmturbo.history.ingesters.common.writers.ProjectedTopologyWriterBase.
 /**
  * Ingester for projected live topologies, broadcast by market.
  */
-public class ProjectedLiveTopologyIngester extends TopologyIngesterBase<ProjectedTopologyEntity> {
+public class ProjectedRealtimeTopologyIngester extends TopologyIngesterBase<ProjectedTopologyEntity> {
 
     private static final TopologyType TOPOLOGY_TYPE = TopologyType.PROJECTED_LIVE;
 
@@ -26,7 +25,7 @@ public class ProjectedLiveTopologyIngester extends TopologyIngesterBase<Projecte
      * @param topologyIngesterConfig  ingester config
      * @param loaderFactorySupplier   supplier of a bulk loader factories
      */
-    public ProjectedLiveTopologyIngester(
+    public ProjectedRealtimeTopologyIngester(
             @Nonnull final Collection<Factory> chunkProcessorFactories,
             @Nonnull final TopologyIngesterConfig topologyIngesterConfig,
             @Nonnull Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier) {

@@ -16,6 +16,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.Optional;
 import java.util.Properties;
@@ -138,7 +139,7 @@ public class PropertiesLoader {
             @Nonnull final String secretYamlFilePath) throws ContextConfigurationException {
         try {
             final Properties yamlProperties = getProperties(componentType, propertiesYamlFilePath);
-            getSecrets(componentType, secretYamlFilePath).ifPresent(secrets -> yamlProperties.putAll(secrets));
+            getSecrets(componentType, secretYamlFilePath).ifPresent(yamlProperties::putAll);
             // populate a PropertySource with the config properties from the yaml file
             return new PropertiesPropertySource(PROPERTIES_YAML_CONFIG_SOURCE, yamlProperties);
         } catch (IOException e) {
@@ -154,7 +155,9 @@ public class PropertiesLoader {
         // log the properties for debugging
         logger.info("Configuration properties loaded from properties.yaml: {}",
             propertiesYamlFilePath);
-        yamlProperties.forEach(PropertiesLoader::logProperty);
+        yamlProperties.entrySet().stream()
+                .sorted(Comparator.comparing(e -> (String)e.getKey()))
+                .forEach(e -> logProperty(e.getKey(), e.getValue()));
         return yamlProperties;
     }
 
@@ -164,7 +167,7 @@ public class PropertiesLoader {
             // log the properties for debugging
             logger.info("Trying to load secrets from: {}", secretYamlFilePath);
             final Properties yamlProperties = SecretPropertiesReader.readSecretFile(componentType, secretYamlFilePath);
-            return Optional.ofNullable(yamlProperties);
+            return Optional.of(yamlProperties);
         } catch (FileNotFoundException e) {
             logger.info("The DB secret file: {} doesn't exist, skip loading secrets.", secretYamlFilePath);
         }
