@@ -794,7 +794,8 @@ public class ServiceConfig {
     public CloudPlanNumEntitiesByTierSubQuery cloudPlanNumEntitiesByTierSubQuery() {
         final CloudPlanNumEntitiesByTierSubQuery cloudPlanNumEntitiesByTierQuery =
             new CloudPlanNumEntitiesByTierSubQuery(communicationConfig.repositoryApi(),
-                communicationConfig.supplyChainFetcher());
+                communicationConfig.supplyChainFetcher(),
+                    communicationConfig.actionsRpcService());
         statsQueryExecutor().addSubquery(cloudPlanNumEntitiesByTierQuery);
         return cloudPlanNumEntitiesByTierQuery;
     }
