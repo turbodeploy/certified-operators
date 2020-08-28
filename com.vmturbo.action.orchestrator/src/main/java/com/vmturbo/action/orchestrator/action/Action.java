@@ -480,11 +480,18 @@ public class Action implements ActionView {
     @Nonnull
     private Set<Long> getAssociatedPolicies(@Nonnull EntitiesAndSettingsSnapshot entitiesSnapshot,
             long primaryEntity) {
+        final Optional<ActionDTO.Action> translatedRecommendation = getActionTranslation()
+            .getTranslatedRecommendation();
+        if (!translatedRecommendation.isPresent()) {
+            logger.error("Action translation for action {} is not ready. Cannot find associated "
+                    + "policies", this::getId);
+            return Collections.emptySet();
+        }
         final Map<String, Collection<Long>> settingPoliciesForEntity =
                 entitiesSnapshot.getSettingPoliciesForEntity(primaryEntity);
         final Set<Long> policiesAssociatedWithAction = new HashSet<>();
         final List<String> specApplicableToAction =
-                actionModeCalculator.specsApplicableToAction(getRecommendation(),
+                actionModeCalculator.specsApplicableToAction(translatedRecommendation.get(),
                         entitiesSnapshot.getSettingsForEntity(primaryEntity))
                         .map(EntitySettingSpecs::getSettingName)
                         .collect(Collectors.toList());
