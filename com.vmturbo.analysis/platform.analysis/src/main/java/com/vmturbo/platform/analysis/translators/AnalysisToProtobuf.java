@@ -83,7 +83,7 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 import com.vmturbo.platform.analysis.topology.Topology;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
 
 /**
  * A class containing methods to convert java classes used by analysis to Protobuf messages.
@@ -825,7 +825,7 @@ public final class AnalysisToProtobuf {
                         complianceCommSet.add(commBought.getType());
                     } else {
                         CommoditySold newCommSold = newSupplier.getCommoditySold(commBought);
-                        FunctionalOperator updatingFunction = newCommSold.getSettings().getUpdatingFunction();
+                        UpdatingFunction updatingFunction = newCommSold.getSettings().getUpdatingFunction();
                         // if the comm utilization is less than min desired util, we don't consider
                         // it as reason commodities even though the quote at destination may be
                         // smaller, because from a user's point of view, move away from such a low

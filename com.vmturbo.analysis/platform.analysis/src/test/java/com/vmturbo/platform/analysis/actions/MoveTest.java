@@ -25,8 +25,8 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 
 import junitparams.JUnitParamsRunner;
@@ -313,7 +313,7 @@ public final class MoveTest {
         Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM_ALL);
         Trader pm2 = economy.addTrader(0, TraderState.ACTIVE, PM_ALL);
 
-        FunctionalOperator max = FunctionalOperatorUtil.MAX_COMM;
+        UpdatingFunction max = UpdatingFunctionFactory.MAX_COMM;
         pm1.getCommoditySold(LAT1).getSettings().setUpdatingFunction(max);
         pm1.getCommoditySold(LAT2).getSettings().setUpdatingFunction(max);
         pm2.getCommoditySold(LAT1).getSettings().setUpdatingFunction(max);

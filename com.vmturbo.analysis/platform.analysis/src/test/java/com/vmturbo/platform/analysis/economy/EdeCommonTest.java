@@ -1,5 +1,13 @@
 package com.vmturbo.platform.analysis.economy;
 
+import static org.junit.Assert.assertTrue;
+
+import java.util.Arrays;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -7,15 +15,9 @@ import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
-import static org.junit.Assert.*;
-
-import java.util.Arrays;
 
 /**
  * A test case for the {@link Basket} class.
@@ -112,16 +114,16 @@ public class EdeCommonTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestQuote_quantityFunction_Double_boolean() {
         return new Object[][]{
-            {new FunctionalOperator[]{FunctionalOperatorUtil.ADD_COMM, FunctionalOperatorUtil.MAX_COMM}, new double[]{4,9},
-                new double[] {5,9}, true},
-            {new FunctionalOperator[]{FunctionalOperatorUtil.ADD_COMM, FunctionalOperatorUtil.MAX_COMM}, new double[]{7,9},
-                    new double[] {5,9}, false},// large quantity for commodity1
-            {new FunctionalOperator[]{FunctionalOperatorUtil.ADD_COMM, FunctionalOperatorUtil.ADD_COMM},
-                        new double[]{9,4}, new double[] {9,4}, false},// large quantity for commodity1
-            {new FunctionalOperator[]{FunctionalOperatorUtil.ADD_COMM, FunctionalOperatorUtil.ADD_COMM},
-                            new double[]{4,4}, new double[] {9,4}, false},// large peakQuantity for commodity1
-            {new FunctionalOperator[]{FunctionalOperatorUtil.ADD_COMM, FunctionalOperatorUtil.ADD_COMM},
-                                new double[]{4,4}, new double[] {4,5}, true},
+                {new UpdatingFunction[]{UpdatingFunctionFactory.ADD_COMM, UpdatingFunctionFactory.MAX_COMM}, new double[]{4, 9},
+                        new double[]{5, 9}, true},
+                {new UpdatingFunction[]{UpdatingFunctionFactory.ADD_COMM, UpdatingFunctionFactory.MAX_COMM}, new double[]{7, 9},
+                        new double[]{5, 9}, false},// large quantity for commodity1
+                {new UpdatingFunction[]{UpdatingFunctionFactory.ADD_COMM, UpdatingFunctionFactory.ADD_COMM},
+                        new double[]{9, 4}, new double[]{9, 4}, false},// large quantity for commodity1
+                {new UpdatingFunction[]{UpdatingFunctionFactory.ADD_COMM, UpdatingFunctionFactory.ADD_COMM},
+                        new double[]{4, 4}, new double[]{9, 4}, false},// large peakQuantity for commodity1
+                {new UpdatingFunction[]{UpdatingFunctionFactory.ADD_COMM, UpdatingFunctionFactory.ADD_COMM},
+                        new double[]{4, 4}, new double[]{4, 5}, true},
         };
     }
 
@@ -129,8 +131,8 @@ public class EdeCommonTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: Quote({0},{1},{2},{3})")
-    public final void testQuote_quantityFunction_Double_boolean(FunctionalOperator quantityFunction[], double quantity[],
-                                                                double peakQuantity[], boolean isCorrect) {
+    public final void testQuote_quantityFunction_Double_boolean(UpdatingFunction[] quantityFunction, double[] quantity,
+                                                                double[] peakQuantity, boolean isCorrect) {
         Economy economy = new Economy();
         Basket basket = ST_SELL;
         Trader seller = economy.addTrader(0, TraderState.ACTIVE, basket); // u can create a trader only by adding it to the market

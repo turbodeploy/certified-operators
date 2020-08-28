@@ -41,13 +41,12 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 
 @RunWith(JUnitParamsRunner.class)
@@ -159,16 +158,12 @@ public class CloudActionsIntegrationTest {
                                 .setPrice(LOW_PRICE).build())
                         .build())
                 .build();
-        FunctionalOperator ignore = FunctionalOperatorUtil.createIgnoreConsumptionUpdatingFunction(costDtoTp1, UpdatingFunctionDTOs.UpdatingFunctionTO.newBuilder()
-                .setIgnoreConsumption(UpdatingFunctionDTOs.UpdatingFunctionTO.IgnoreConsumption.newBuilder()
-                        .build())
-                .build());
+        UpdatingFunction ignore = UpdatingFunctionFactory.IGNORE_CONSUMPTION;
 
         tp1.getSettings().setCostFunction(CostFunctionFactory.createCostFunctionForComputeTier(costDtoTp1.getComputeTierCost()));
         tp1.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         tp1.getCommoditySold(CPU).setCapacity(50).getSettings().setUpdatingFunction(ignore);
-        tp1.getCommoditySold(COUPON).setCapacity(8).getSettings().setUpdatingFunction(FunctionalOperatorUtil.createIgnoreConsumptionUpdatingFunction(costDtoTp1,
-                UpdatingFunctionDTOs.UpdatingFunctionTO.newBuilder().build()));
+        tp1.getCommoditySold(COUPON).setCapacity(8).getSettings().setUpdatingFunction(UpdatingFunctionFactory.IGNORE_CONSUMPTION);
 
         CostDTOs.CostDTO costDtoTp2 = CostDTOs.CostDTO.newBuilder()
                 .setComputeTierCost(CostDTOs.CostDTO.ComputeTierCostDTO.newBuilder()
@@ -185,8 +180,7 @@ public class CloudActionsIntegrationTest {
         tp2.getSettings().setCostFunction(CostFunctionFactory.createCostFunctionForComputeTier(costDtoTp2.getComputeTierCost()));
         tp2.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         tp2.getCommoditySold(CPU).setCapacity(100).getSettings().setUpdatingFunction(ignore);
-        tp2.getCommoditySold(COUPON).setCapacity(16).getSettings().setUpdatingFunction(FunctionalOperatorUtil.createIgnoreConsumptionUpdatingFunction(costDtoTp2,
-                UpdatingFunctionDTOs.UpdatingFunctionTO.newBuilder().build()));
+        tp2.getCommoditySold(COUPON).setCapacity(16).getSettings().setUpdatingFunction(UpdatingFunctionFactory.IGNORE_CONSUMPTION);
 
         CostDTOs.CostDTO costDtoCbtp1 = CostDTOs.CostDTO.newBuilder()
                 .setCbtpResourceBundle(CostDTOs.CostDTO.CbtpCostDTO.newBuilder()
@@ -216,14 +210,12 @@ public class CloudActionsIntegrationTest {
         cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(costDtoCbtp1.getCbtpResourceBundle()));
         cbtp1.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         cbtp1.getCommoditySold(CPU).setCapacity(100);
-        cbtp1.getCommoditySold(COUPON).getSettings().setUpdatingFunction(FunctionalOperatorUtil.createCouponUpdatingFunction(costDtoCbtp1,
-                UpdatingFunctionDTOs.UpdatingFunctionTO.newBuilder().build()));
+        cbtp1.getCommoditySold(COUPON).getSettings().setUpdatingFunction(UpdatingFunctionFactory.createCouponUpdatingFunction(costDtoCbtp1));
 
         cbtp2.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(costDtoCbtp2.getCbtpResourceBundle()));
         cbtp2.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         cbtp2.getCommoditySold(CPU).setCapacity(100);
-        cbtp2.getCommoditySold(COUPON).getSettings().setUpdatingFunction(FunctionalOperatorUtil.createCouponUpdatingFunction(costDtoCbtp2,
-                UpdatingFunctionDTOs.UpdatingFunctionTO.newBuilder().build()));
+        cbtp2.getCommoditySold(COUPON).getSettings().setUpdatingFunction(UpdatingFunctionFactory.createCouponUpdatingFunction(costDtoCbtp2));
         // coupon used and cap unset
 
         tp1.getSettings().setCanAcceptNewCustomers(true).setSuspendable(false).setCloneable(false);

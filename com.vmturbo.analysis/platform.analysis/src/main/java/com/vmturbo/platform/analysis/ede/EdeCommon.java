@@ -12,8 +12,8 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 /**
@@ -71,14 +71,17 @@ public final class EdeCommon {
                         Double.POSITIVE_INFINITY};
         boolean isCurrentSupplier = seller == shoppingList.getSupplier();
         final CommoditySold commSold = seller.getCommoditiesSold().get(soldIndex);
-        final FunctionalOperator addition = FunctionalOperatorUtil.ADD_COMM;
-
-        // add quantities bought by buyer, to quantities already used at seller
+        final UpdatingFunction addition = UpdatingFunctionFactory.ADD_COMM;
         final double effectiveCapacity = commSold.getEffectiveCapacity();
-        final double[] newQuantities = Move.updatedQuantities(economy, addition, shoppingList,
-                        boughtIndex, seller, soldIndex, true, false);
-        final double newQuantity = isCurrentSupplier ? commSold.getQuantity() : newQuantities[0];
-        final double newPeakQuantity = isCurrentSupplier ? commSold.getPeakQuantity() : newQuantities[1];
+        double newQuantity = commSold.getQuantity();
+        double newPeakQuantity = commSold.getPeakQuantity();
+        if (!isCurrentSupplier) {
+            // add quantities bought by buyer, to quantities already used at seller
+            final double[] newQuantities = Move.updatedQuantities(economy, addition, shoppingList,
+                    boughtIndex, seller, soldIndex, true, false, null);
+            newQuantity = newQuantities[0];
+            newPeakQuantity = newQuantities[1];
+        }
         final double utilUpperBound = commSold.getSettings().getUtilizationUpperBound();
         final double excessQuantity = peakQuantities[boughtIndex] - boughtQnty;
         if (logger.isTraceEnabled()) {
