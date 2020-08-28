@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -651,7 +652,22 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                 }
 
                 // Set the on-demand license price
-                costRecord.setOnDemandLicencePrice(getOnDemandLicenseHourlyCost(computeTierPriceList, costRecord.getOsType()));
+                OSType osType = costRecord.getOsType();
+                Optional<Double> onDemandLicenseCost = Optional.empty();
+                if (osType == OSType.LINUX) {
+                    // Linux Defaults to 0
+                    onDemandLicenseCost = Optional.of(0d);
+                } else if (osType == OSType.WINDOWS || osType == OSType.WINDOWS_BYOL) {
+                    // Windows has an implicit license cost, load it from the computeTierPriceList
+                    onDemandLicenseCost = getOnDemandLicenseHourlyCost(computeTierPriceList, costRecord.getOsType());
+                } else {
+                    // This must be an explicit OS license cost, load it from the on-demand license price list
+                    onDemandLicenseCost = getExplicitOnDemandLicenseCost(priceTable, placement.getComputeTier(), osType);
+                }
+                if (!onDemandLicenseCost.isPresent()) {
+                    return Optional.empty();
+                }
+                costRecord.setOnDemandLicencePrice(onDemandLicenseCost.get());
             }
         }
 
@@ -801,7 +817,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
      * @param osType               The OS for which to retrieve the cost
      * @return The total hourly cost, including the base cost and the OS license cost
      */
-    private double getOnDemandLicenseHourlyCost(PricingDTO.ComputeTierPriceList computeTierPriceList, OSType osType) {
+    private Optional<Double> getOnDemandLicenseHourlyCost(PricingDTO.ComputeTierPriceList computeTierPriceList, OSType osType) {
         // Get the hourly cost
         double basePrice = computeTierPriceList.getBasePrice().getPricesList().get(0).getPriceAmount().getAmount();
 
@@ -810,8 +826,82 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                 .filter(adj -> adj.getGuestOsType() == osType)
                 .findFirst();
 
-        // Total hourly license cost
-        return licenseCost.isPresent() ? licenseCost.get().getPricesList().get(0).getPriceAmount().getAmount() : 0;
+        // Retrieve the total hourly license cost
+        if (licenseCost.isPresent()) {
+            List<Price> priceList = licenseCost.get().getPricesList();
+            if (CollectionUtils.isNotEmpty(priceList)) {
+                Price price = priceList.get(0);
+                CurrencyAmount currencyAmount = price.getPriceAmount();
+                if (currencyAmount != null) {
+                    return Optional.of(currencyAmount.getAmount());
+                }
+            }
+        }
+
+        // We were not successfully able to retrieve the on-demand license cost
+        logger.warn("Unable to find on-demand license in the compute tier's per configuration price adjustment list for OS Type: {}", osType);
+        return Optional.empty();
+    }
+
+    /**
+     * For all operating systems other than WINDOWS and WINDOWS_BYOL, the license cost is stored in the price table in the
+     * on-demand license price list. This method retrieves the license cost for the specified OS type and the number of
+     * cores that are present in the specified compute tier.
+     *
+     * @param priceTable  The cost price table
+     * @param computeTier The compute tier for which we are retrieving the on-demand license cost
+     * @param osType      The OSType for which to return the on-demand license cost
+     * @return The on-demand license cost if present, otherwise Optional.empty()
+     */
+    private Optional<Double> getExplicitOnDemandLicenseCost(Pricing.PriceTable priceTable, TopologyEntityDTO computeTier, OSType osType) {
+        // Retrieve the onDemandLicensePriceList
+        List<LicensePriceEntry> licensePriceEntries = priceTable.getOnDemandLicensePricesList();
+        if (CollectionUtils.isNotEmpty(licensePriceEntries)) {
+
+            // Find the LicensePriceEntry that matches the specified OSType
+            Optional<LicensePriceEntry> osLicensePriceEntry = licensePriceEntries.stream()
+                    .filter(licensePriceEntry -> licensePriceEntry.getOsType() == osType)
+                    .findFirst();
+            if (!osLicensePriceEntry.isPresent()) {
+                logger.warn("Unable to find on-demand license for OS Type: {}", osType);
+                return Optional.empty();
+            }
+
+            // Determine how many cores this compute tier has
+            TypeSpecificInfo typeSpecificInfo = computeTier.getTypeSpecificInfo();
+            if (typeSpecificInfo != null) {
+                ComputeTierInfo computeTierInfo = typeSpecificInfo.getComputeTier();
+                if (computeTierInfo != null) {
+                    // Get the number of cores for our compute tier
+                    int numberOfCores = computeTierInfo.getNumCores();
+
+                    // Find the license price for the number of cores in the compute tier
+                    Optional<LicensePrice> licensePrice = osLicensePriceEntry.get().getLicensePricesList().stream()
+                            .filter(price -> price.getNumberOfCores() > numberOfCores)
+                            .min(Comparator.comparingInt(LicensePrice::getNumberOfCores));
+
+                    if (!licensePrice.isPresent()) {
+                        // We could not find the license price for this OS with this number of cores
+                        logger.warn("Unable to find on-demand license for OS Type: {}, Compute tier: {}, Number of cores: {}",
+                                osType, computeTier.getOid(), numberOfCores);
+                        return Optional.empty();
+                    }
+
+                    // Find the price for this license
+                    Price price = licensePrice.get().getPrice();
+                    if (price != null) {
+                        CurrencyAmount currencyAmount = price.getPriceAmount();
+                        if (currencyAmount != null) {
+                            return Optional.of(currencyAmount.getAmount());
+                        }
+                    }
+                }
+            }
+        }
+
+        // We failed to find the license cost
+        logger.warn("Unable to find on-demand license for OS Type: {}, Compute Tier: {}", osType, computeTier.getOid());
+        return Optional.empty();
     }
 
     /**
@@ -940,7 +1030,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         }
 
         public double calculateReservedInstanceCostForTerm() {
-            return upFrontPrice + (term * 24 * 365 * (recurringPrice + reservedInstanceLicensePrice));
+            return upFrontPrice + (term * 24 * 365 * recurringPrice);
         }
     }
 }
