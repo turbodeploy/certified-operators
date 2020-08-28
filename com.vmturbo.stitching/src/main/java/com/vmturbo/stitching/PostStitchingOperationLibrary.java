@@ -25,7 +25,6 @@ import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOpe
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmCpuAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.PmStateChangePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PropagatePowerStatePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PropagatedUpUsedPostStitchingOperation;
@@ -355,7 +354,7 @@ public class PostStitchingOperationLibrary {
             new ProtectSharedStorageWastedFilesPostStitchingOperation(),
             new WastedFilesPostStitchingOperation(),
             new PropagatePowerStatePostStitchingOperation(),
-            new GuestLoadAppPostStitchingOperation(), new PmStateChangePostStitchingOperation()
+            new GuestLoadAppPostStitchingOperation()
         );
     }
 

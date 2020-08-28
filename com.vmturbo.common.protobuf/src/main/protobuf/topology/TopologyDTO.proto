@@ -116,9 +116,6 @@ message TypeSpecificInfo {
 
         // Disk Groups for vSAN storages
         repeated .common_dto.EntityDTO.DiskGroupData diskGroup = 8;
-
-        //Whether the host is a failover or not
-        optional bool dedicatedFailover = 9;
     }
 
     message BusinessAccountInfo {

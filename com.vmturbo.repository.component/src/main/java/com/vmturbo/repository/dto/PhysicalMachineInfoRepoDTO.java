@@ -30,8 +30,6 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     private String timezone;
     // The core speed in MHz
     private Integer cpuCoreMHz;
-    //Whether the host is a failover or not
-    private Boolean dedicatedFailover;
 
     @Override
     public void fillFromTypeSpecificInfo(@Nonnull final TypeSpecificInfo typeSpecificInfo,
@@ -59,9 +57,6 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         if (physicalMachineInfo.hasCpuCoreMhz()) {
             setCpuCoreMHz(physicalMachineInfo.getCpuCoreMhz());
-        }
-        if (physicalMachineInfo.hasDedicatedFailover()) {
-            setDedicatedFailover(physicalMachineInfo.getDedicatedFailover());
         }
 
         serviceEntityRepoDTO.setPhysicalMachineInfoRepoDTO(this);
@@ -92,9 +87,6 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (getCpuCoreMHz() != null) {
             physicalMachineInfoBuilder.setCpuCoreMhz(getCpuCoreMHz());
-        }
-        if (getDedicatedFailover() != null) {
-            physicalMachineInfoBuilder.setDedicatedFailover(getDedicatedFailover());
         }
         return TypeSpecificInfo.newBuilder()
                 .setPhysicalMachine(physicalMachineInfoBuilder)
@@ -155,37 +147,35 @@ public class PhysicalMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.cpuCoreMHz = cpuCoreMHz;
     }
 
-    public Boolean getDedicatedFailover() {
-        return dedicatedFailover;
-    }
-
-    public void setDedicatedFailover(Boolean dedicatedFailover) {
-        this.dedicatedFailover = dedicatedFailover;
-    }
-
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
         if (!(o instanceof PhysicalMachineInfoRepoDTO)) return false;
         final PhysicalMachineInfoRepoDTO that = (PhysicalMachineInfoRepoDTO) o;
-        return Objects.equals(cpuModel, that.cpuModel) && Objects.equals(vendor, that.vendor)
-                && Objects.equals(model, that.model) && Objects.equals(numCpus, that.numCpus)
-                && Objects.equals(numCpuSockets, that.numCpuSockets) && Objects.equals(timezone,
-                that.timezone) && Objects.equals(cpuCoreMHz, that.cpuCoreMHz) && Objects.equals(
-                dedicatedFailover, that.dedicatedFailover);
+        return Objects.equals(cpuModel, that.cpuModel) &&
+            Objects.equals(vendor, that.vendor) &&
+            Objects.equals(model, that.model) &&
+            Objects.equals(numCpus, that.numCpus) &&
+            Objects.equals(numCpuSockets, that.numCpuSockets) &&
+            Objects.equals(timezone, that.timezone) &&
+            Objects.equals(cpuCoreMHz, that.cpuCoreMHz);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cpuModel, vendor, model, numCpus, numCpuSockets, timezone, cpuCoreMHz, dedicatedFailover);
+        return Objects.hash(cpuModel, vendor, model, numCpus, numCpuSockets, timezone, cpuCoreMHz);
     }
 
     @Override
     public String toString() {
-        return "PhysicalMachineInfoRepoDTO{" + "cpuModel='" + cpuModel + '\'' + ", vendor='"
-                + vendor + '\'' + ", model='" + model + '\'' + ", numCpus=" + numCpus
-                + ", numCpuSockets=" + numCpuSockets + ", timezone='" + timezone + '\''
-                + ", cpuCoreMHz='" + cpuCoreMHz + '\'' + ", dedicatedFailover='" + dedicatedFailover
-                + '\'' + '}';
+        return "PhysicalMachineInfoRepoDTO{" +
+            "cpuModel='" + cpuModel + '\'' +
+            ", vendor='" + vendor + '\'' +
+            ", model='" + model + '\'' +
+            ", numCpus=" + numCpus +
+            ", numCpuSockets=" + numCpuSockets +
+            ", timezone='" + timezone + '\'' +
+            ", cpuCoreMHz='" + cpuCoreMHz + '\'' +
+            '}';
     }
 }

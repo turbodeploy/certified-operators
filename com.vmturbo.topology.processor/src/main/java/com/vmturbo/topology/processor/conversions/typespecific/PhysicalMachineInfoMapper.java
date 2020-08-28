@@ -49,8 +49,6 @@ public class PhysicalMachineInfoMapper extends TypeSpecificInfoMapper {
 
         physicalMachineInfoBuilder.addAllDiskGroup(physicalMachineData.getDiskGroupList());
 
-        physicalMachineInfoBuilder.setDedicatedFailover(
-                physicalMachineData.getPmState().getFailover());
         // note that the PhysicalMachineInfo will be added even if none of the properties are found
         return TypeSpecificInfo.newBuilder()
                 .setPhysicalMachine(physicalMachineInfoBuilder)
