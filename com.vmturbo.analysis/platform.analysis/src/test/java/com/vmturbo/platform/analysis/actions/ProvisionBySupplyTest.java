@@ -4,6 +4,7 @@ import static org.junit.Assert.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -337,6 +338,67 @@ public class ProvisionBySupplyTest {
         Action action = new ProvisionBySupply(e, t2, CPU).take();
         // check cliques are cloned
         assertEquals(cliques, ((ProvisionBySupply)action).getProvisionedSeller().getCliques());
+    }
+
+    /**
+     * Case: One service consume on one app which is hosted by a container.
+     * The app sells 100 transactions. The service requests 150 transaction (over capacity)
+     * from the app.
+     *
+     * <p>Expected:
+     * If provisionBySupply of app occurs, then one container should also be cloned to host
+     * the new app. Service requests 75 transactions from each of the two apps due to standard
+     * distribution, and requests 1 application from each of the two apps due to constant distribution.
+     * If the provisionBySupply is rolled back, then economy contains original traders
+     * and service requests 150 transactions and 1 application from the app.
+     */
+    @Test
+    public void testProvisionBySupplyWithDifferentDistributionFunctions() {
+        Economy e = new Economy();
+        // Create a container entity that sells VCPU with capacity 200
+        Trader container = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, TestUtils.NO_CLIQUES,
+                Collections.singletonList(TestUtils.VCPU), new double[]{200}, true, false);
+        // Create an application entity that sells Transaction with capacity 100,
+        // and Application with capacity 1E22
+        Trader application = TestUtils.createTrader(e, TestUtils.APP_TYPE, TestUtils.NO_CLIQUES,
+                Arrays.asList(TestUtils.TRANSACTION, TestUtils.APPLICATION), new double[]{100, 1E22},
+                true, false);
+        // Set the providerMustClone flag for the application entity
+        application.getSettings().setProviderMustClone(true);
+        // Create a service entity
+        Trader service = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, TestUtils.NO_CLIQUES,
+                Collections.emptyList(), new double[]{}, true, true);
+        // Let the application entity buy VCPU with quantity 70 from the container entity
+        Basket bApp = new Basket(TestUtils.VCPU);
+        ShoppingList slApp = e.addBasketBought(application, bApp);
+        TestUtils.moveSlOnSupplier(e, slApp, container, new double[]{70});
+        // Let the service entity buy Transaction with quantity 150, and Application with quantity 1
+        // from the application entity
+        Basket bSvc = new Basket(TestUtils.TRANSACTION, TestUtils.APPLICATION);
+        ShoppingList slSvc = e.addBasketBought(service, bSvc);
+        TestUtils.moveSlOnSupplier(e, slSvc, application, new double[]{150, 1});
+        // Provision
+        ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(
+                e, application, TestUtils.TRANSACTION).take();
+        // Make sure 2 additional traders are cloned due to the providerMustClone logic
+        assertEquals(5, e.getTraders().size());
+        // Make sure Transaction commodity values are distributed with standard distribution function
+        assertEquals(75.0, provision.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(75.0, slSvc.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        // Make sure Application commodity values are distributed with constant distribution function
+        assertEquals(1.0, provision.getActionTarget().getCustomers().get(0).getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(1.0, slSvc.getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
+        // Make sure the sold commodities on the existing and cloned trader are correct
+        assertEquals(75.0, application.getCommoditySold(bSvc.get(0)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(1.0, application.getCommoditySold(bSvc.get(1)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(75.0, provision.getActionTarget().getCommoditySold(bSvc.get(0)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(1.0, provision.getActionTarget().getCommoditySold(bSvc.get(1)).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        // Rollback
+        provision.rollback();
+        // Make sure everything goes back to the original state
+        assertEquals(3, e.getTraders().size());
+        assertEquals(150.0, slSvc.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(1.0, slSvc.getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
