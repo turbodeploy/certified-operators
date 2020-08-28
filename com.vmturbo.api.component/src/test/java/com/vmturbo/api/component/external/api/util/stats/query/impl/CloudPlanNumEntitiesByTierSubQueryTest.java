@@ -76,7 +76,8 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
-        query = new CloudPlanNumEntitiesByTierSubQuery(repositoryApi, supplyChainFetcherFactory);
+        query = new CloudPlanNumEntitiesByTierSubQuery(repositoryApi, supplyChainFetcherFactory,
+                null);
     }
 
     private static Map<String, Set<Long>> createRelatedEntitiesMap() {
