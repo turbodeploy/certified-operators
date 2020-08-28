@@ -103,9 +103,11 @@ public class CloudStorageMigrationHelper {
      * storage amount need to be adjusted based on IOPS.
      *
      * @param inputGraph input graph
+     * @param isDestinationAws boolean that indicates if migration destination is AWS
      * @return IopsToStorageRatios
      */
-    static IopsToStorageRatios populateMaxIopsRatioAndCapacity(@Nonnull final TopologyGraph<TopologyEntity> inputGraph) {
+    static IopsToStorageRatios populateMaxIopsRatioAndCapacity(
+            @Nonnull final TopologyGraph<TopologyEntity> inputGraph, boolean isDestinationAws) {
         int maxRatio = 1;
         int maxCapacity = 0;
         // maxRatioOnNonExpensiveTier and maxCapacityOnNonExpensiveTier is populated for storages that
@@ -119,39 +121,42 @@ public class CloudStorageMigrationHelper {
                 .map(TopologyEntityDTO.Builder::build)
                 .collect(Collectors.toSet());
 
-        for (TopologyEntityDTO st : storageTiers) {
-            if (st.getDisplayName().equalsIgnoreCase(StorageTier.GP2.name())) {
-                maxRatio = Math.max(maxRatio, GP2_IOPS_TO_STORAGE_AMOUNT_RATIO);
-                maxCapacity = Math.max(maxCapacity, GP2_IOPS_AMOUNT_MAX_CAPACITY);
-                maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier,
-                        GP2_IOPS_TO_STORAGE_AMOUNT_RATIO);
-                maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
-                        GP2_IOPS_AMOUNT_MAX_CAPACITY);
-            } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.IO1.name())) {
-                maxRatio = Math.max(maxRatio, IO1_IOPS_TO_STORAGE_AMOUNT_RATIO);
-                maxCapacity = Math.max(maxCapacity, IO1_IOPS_AMOUNT_MAX_CAPACITY);
-            } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.SC1.name())) {
-                maxRatio = Math.max(maxRatio, 1);
-                maxCapacity = Math.max(maxCapacity, SC1_IOPS_AMOUNT_MAX_CAPACITY);
-                maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier, 1);
-                maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
-                        SC1_IOPS_AMOUNT_MAX_CAPACITY);
-            } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.ST1.name())) {
-                maxRatio = Math.max(maxRatio, 1);
-                maxCapacity = Math.max(maxCapacity, ST1_IOPS_AMOUNT_MAX_CAPACITY);
-                maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier, 1);
-                maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
-                        ST1_IOPS_AMOUNT_MAX_CAPACITY);
-            } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.STANDARD.name())) {
-                maxRatio = Math.max(maxRatio, 1);
-                maxCapacity = Math.max(maxCapacity, STANDARD_IOPS_AMOUNT_MAX_CAPACITY);
-                maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier, 1);
-                maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
-                        STANDARD_IOPS_AMOUNT_MAX_CAPACITY);
-            } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.MANAGED_ULTRA_SSD.name())) {
-                maxRatio = Math.max(maxRatio, MANAGED_ULTRA_SSD_IOPS_RATIO);
-                maxCapacity = Math.max(maxCapacity, MANAGED_ULTRA_SSD_IOPS_AMOUNT_MAX_CAPACITY);
+        if (isDestinationAws) {
+            for (TopologyEntityDTO st : storageTiers) {
+                if (st.getDisplayName().equalsIgnoreCase(StorageTier.GP2.name())) {
+                    maxRatio = Math.max(maxRatio, GP2_IOPS_TO_STORAGE_AMOUNT_RATIO);
+                    maxCapacity = Math.max(maxCapacity, GP2_IOPS_AMOUNT_MAX_CAPACITY);
+                    maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier,
+                            GP2_IOPS_TO_STORAGE_AMOUNT_RATIO);
+                    maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
+                            GP2_IOPS_AMOUNT_MAX_CAPACITY);
+                } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.IO1.name())) {
+                    maxRatio = Math.max(maxRatio, IO1_IOPS_TO_STORAGE_AMOUNT_RATIO);
+                    maxCapacity = Math.max(maxCapacity, IO1_IOPS_AMOUNT_MAX_CAPACITY);
+                } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.SC1.name())) {
+                    maxRatio = Math.max(maxRatio, 1);
+                    maxCapacity = Math.max(maxCapacity, SC1_IOPS_AMOUNT_MAX_CAPACITY);
+                    maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier, 1);
+                    maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
+                            SC1_IOPS_AMOUNT_MAX_CAPACITY);
+                } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.ST1.name())) {
+                    maxRatio = Math.max(maxRatio, 1);
+                    maxCapacity = Math.max(maxCapacity, ST1_IOPS_AMOUNT_MAX_CAPACITY);
+                    maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier, 1);
+                    maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
+                            ST1_IOPS_AMOUNT_MAX_CAPACITY);
+                } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.STANDARD.name())) {
+                    maxRatio = Math.max(maxRatio, 1);
+                    maxCapacity = Math.max(maxCapacity, STANDARD_IOPS_AMOUNT_MAX_CAPACITY);
+                    maxRatioOnNonExpensiveTier = Math.max(maxRatioOnNonExpensiveTier, 1);
+                    maxCapacityOnNonExpensiveTier = Math.max(maxCapacityOnNonExpensiveTier,
+                            STANDARD_IOPS_AMOUNT_MAX_CAPACITY);
+                }
             }
+        } else {
+            // Azure: Only Ultra SSD has a ratio between storage amount and IOPS.
+            maxRatio = Math.max(maxRatio, MANAGED_ULTRA_SSD_IOPS_RATIO);
+            maxCapacity = Math.max(maxCapacity, MANAGED_ULTRA_SSD_IOPS_AMOUNT_MAX_CAPACITY);
         }
         return new IopsToStorageRatios(maxRatio, maxCapacity, maxRatioOnNonExpensiveTier, maxCapacityOnNonExpensiveTier);
     }
@@ -260,9 +265,9 @@ public class CloudStorageMigrationHelper {
                                 + "IOPS value is below non-expensive max.", entityOid,
                         commBoughtGroupingForSL.getProviderId(), diskSizeInGB, historicalMaxIops);
             } else {
-                // When iops is more than capacity of iops available, resize doesn't help.
                 logger.debug("Entity {} has a commodity list with provider {} is using storage "
-                        + "provisioned used value as storage amount for MPC plan.");
+                        + "provisioned used value as storage amount for MPC plan.", entityOid,
+                        commBoughtGroupingForSL.getProviderId());
             }
         }
         float diskSizeInMB = (float)(diskSizeInGB * Units.KIBI);

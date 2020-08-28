@@ -38,6 +38,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -45,6 +47,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
@@ -273,6 +276,29 @@ public class CloudMigrationPlanHelperTest {
 
         // Check storage commBought values.
         verifyStorageCommBought(vm1Azure, settings);
+    }
+
+    /**
+     * Make sure IOPS commodity value is not 0.
+     */
+    @Test
+    public void testPrepareSoldCommodities() {
+        Map<Long, Double> providerToMaxStorageAccessMap = new HashMap<>();
+        providerToMaxStorageAccessMap.put(100L, 0d);
+
+        TopologyEntityDTO.Builder volumeDtoBuild = TopologyEntityDTO.newBuilder();
+        volumeDtoBuild
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setOid(100L)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                                .setType(CommodityType.STORAGE_ACCESS_VALUE).build()));
+
+        cloudMigrationPlanHelper.prepareSoldCommodities(volumeDtoBuild, providerToMaxStorageAccessMap);
+        double iopsValue = volumeDtoBuild.getCommoditySoldListBuilderList().stream()
+                .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
+                .findFirst().map(c -> c.getUsed()).orElse(-1d);
+        assertTrue(iopsValue > 0);
     }
 
     /**

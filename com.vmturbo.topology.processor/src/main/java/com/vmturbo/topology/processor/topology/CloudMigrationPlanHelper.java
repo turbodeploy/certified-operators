@@ -234,10 +234,11 @@ public class CloudMigrationPlanHelper {
                                 ? EntityType.VIRTUAL_MACHINE.getNumber()
                                 : EntityType.DATABASE_SERVER.getNumber(),
                         context.getSourceEntities());
-        // Prepare source entities for migration.
-        iopsToStorageRatios = CloudStorageMigrationHelper.populateMaxIopsRatioAndCapacity(inputGraph);
         // Set the migration destination.
         boolean isDestinationAws = isDestinationAws(context, inputGraph);
+        // Prepare source entities for migration.
+        iopsToStorageRatios = CloudStorageMigrationHelper.populateMaxIopsRatioAndCapacity(inputGraph,
+                isDestinationAws);
         prepareEntities(context, outputGraph, migrationChange, sourceToProducerToMaxStorageAccess,
                 isDestinationAws);
         prepareProviders(outputGraph, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess,
@@ -692,13 +693,13 @@ public class CloudMigrationPlanHelper {
      * @param dtoBuilder Provider DTO being updated.
      * @param providerToMaxStorageAccessMap A map that maps provider to historical Max IOPS
      */
-    // TODO: Temporary, not needed once these issues are fixed in probe, with real-time VV support.
     void prepareSoldCommodities(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
                                 @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap) {
         if (dtoBuilder.getEntityType() == VIRTUAL_VOLUME_VALUE) {
             // For vol providers, storage_access commodity doesn't have capacity, so set it.
             // Not doing this makes volumes non-controllable later in EntityValidator.
             // Hopefully this block can be removed when the probe issue is fixed.
+            // TODO: Temporary, not needed once these issues are fixed in probe, with real-time VV support.
             dtoBuilder.getCommoditySoldListBuilderList()
                     .forEach(commSoldBuilder -> {
                         if (commSoldBuilder.getCapacity() == 0d) {
@@ -710,6 +711,9 @@ public class CloudMigrationPlanHelper {
                     .forEach(c -> {
                         Double histMaxIops = providerToMaxStorageAccessMap.get(dtoBuilder.getOid());
                         if (histMaxIops != null) {
+                            // Make sure historical max value is larger than 0 because TC will use the
+                            // capacity instead of the used value if value is 0.
+                            histMaxIops = Math.max(0.1, histMaxIops);
                             c.setUsed(histMaxIops);
                             c.setPeak(histMaxIops);
                             c.setHistoricalUsed(HistoricalValues.newBuilder()
@@ -898,6 +902,9 @@ public class CloudMigrationPlanHelper {
                 }
             }
         }
+        // Make sure historical max value is larger than 0 because TC will use the
+        // capacity instead of the used value if value is 0.
+        maxHistoricalIopsBoughtValue = Math.max(0.1, maxHistoricalIopsBoughtValue);
         return maxHistoricalIopsBoughtValue;
     }
 
