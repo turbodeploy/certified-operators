@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -63,8 +64,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -82,6 +85,7 @@ import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
@@ -98,7 +102,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Unit tests for {@link TopologyConverter}.
@@ -986,6 +990,86 @@ public class TopologyConverterFromMarketTest {
 
         assertThat(entity.get(VM_OID).getEntity().getTypeSpecificInfo(),
                 is(originalVm.getTypeSpecificInfo()));
+    }
+
+    /**
+     * Migrating VMs may change OS. The destination OS is indicated by properties added
+     * to the migrating entity DTO. Verify that these are applied correctly.
+     */
+    @Test
+    public void testMigratedOSUpdate() {
+        final TopologyDTO.TopologyEntityDTO.Builder vmBuilder = TopologyDTO.TopologyEntityDTO
+            .newBuilder()
+            .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualMachine(
+                VirtualMachineInfo.newBuilder()
+                    .setNumCpus(100)
+                    .setGuestOsInfo(OS.newBuilder()
+                        .setGuestOsType(OSType.LINUX)
+                        .setGuestOsName("Linux")
+                    )
+                )
+            ).putEntityPropertyMap(
+                StringConstants.PLAN_NEW_OS_TYPE_PROPERTY, OsType.RHEL.getDtoOS().name()
+            ).putEntityPropertyMap(
+                StringConstants.PLAN_NEW_OS_NAME_PROPERTY, OsType.RHEL.getDisplayName()
+            );
+
+        converter.updateProjectedEntityOsType(vmBuilder);
+
+        OS osInfo = vmBuilder.build().getTypeSpecificInfo().getVirtualMachine()
+            .getGuestOsInfo();
+
+        assertEquals(OSType.RHEL, osInfo.getGuestOsType());
+        assertEquals(OsType.RHEL.getDisplayName(), osInfo.getGuestOsName());
+    }
+
+    /**
+     * Projected costs for VMs may include licensing that depends on the number of cores.
+     * If the VM is buying from a new compute tier, the VMs number of cores should be updated
+     * to match that of the new tier.
+     */
+    @Test
+    public void testMigratedVMCoreUpdate() {
+        final int vmOldNumberOfCpus = 100;
+        final int newComputeTierCpus = 42;
+
+        TopologyDTO.TopologyEntityDTO newTierDTO = createEntityDTO(CLOUD_NEW_COMPUTE_TIER_OID,
+            EntityType.COMPUTE_TIER_VALUE, Collections.EMPTY_LIST, 0)
+            .toBuilder()
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setComputeTier(ComputeTierInfo.newBuilder()
+                    .setNumCores(newComputeTierCpus)
+                    .build())
+            ).build();
+
+        CommoditySoldTO x = CommoditySoldTO.getDefaultInstance();
+
+        when(mockCommodityConverter.createCommoditySoldTO(Mockito.anyObject(), Mockito.anyFloat(),
+            Mockito.anyFloat(), Mockito.anyObject())).thenReturn(x);
+
+        // Prime the topology converter with the compute tier by converting it,
+        // so that it can be looked up in the new topology.
+        converter.convertToMarket(ImmutableMap.of(CLOUD_NEW_COMPUTE_TIER_OID, newTierDTO),
+            Collections.EMPTY_SET);
+
+        // This VM had 100 CPUs, but is migrating to the new compute tier, which has 42
+        final TopologyDTO.TopologyEntityDTO.Builder vmBuilder = TopologyDTO.TopologyEntityDTO
+            .newBuilder()
+            .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(VirtualMachineInfo.newBuilder().setNumCpus(vmOldNumberOfCpus)))
+            .addCommoditiesBoughtFromProviders(
+                CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(CLOUD_NEW_COMPUTE_TIER_OID)
+                    .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                    .build()
+            );
+
+        converter.updateProjectedCores(vmBuilder);
+
+        assertEquals(newComputeTierCpus,
+            vmBuilder.build().getTypeSpecificInfo().getVirtualMachine().getNumCpus());
     }
 
     @Test

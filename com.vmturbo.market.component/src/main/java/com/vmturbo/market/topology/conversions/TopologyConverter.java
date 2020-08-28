@@ -1217,6 +1217,7 @@ public class TopologyConverter {
 
         overwriteCommoditiesBoughtByVMsFromVolumes(entityDTOBuilder);
         updateProjectedEntityOsType(entityDTOBuilder);
+        updateProjectedCores(entityDTOBuilder);
 
         TopologyEntityDTO entityDTO = entityDTOBuilder.build();
         topologyEntityDTOs.add(entityDTO);
@@ -1287,7 +1288,8 @@ public class TopologyConverter {
      *
      * @param builder Projected entity builder to update.
      */
-    private void updateProjectedEntityOsType(@Nonnull final TopologyEntityDTO.Builder builder) {
+    @VisibleForTesting
+    void updateProjectedEntityOsType(@Nonnull final TopologyEntityDTO.Builder builder) {
         if (builder.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
             return;
         }
@@ -1322,6 +1324,45 @@ public class TopologyConverter {
                         .setGuestOsType(newOsType)
                         .setGuestOsName(newOsName).build()));
         builder.setTypeSpecificInfo(typeInfoBuilder);
+    }
+
+    /**
+     * Update the number of CPU cores in a projected VM
+     * based on the number of cores that its new Compute Tier has.
+     * This is important so that calculations such as projected
+     * OS license costs, which can vary with the number of cores, are
+     * correct. This method is safe to call on any entity.
+     * If the entity is not a VM that will be buying from a Compute Tier,
+     * the entity will not be updated.
+     *
+     * @param entityBuilder Projected entity builder.
+     */
+    @VisibleForTesting
+    void updateProjectedCores(@Nonnull final TopologyEntityDTO.Builder entityBuilder) {
+        if (entityBuilder.getEntityType() != EntityType.VIRTUAL_MACHINE.getNumber()) {
+            return;
+        }
+
+        entityBuilder.getCommoditiesBoughtFromProvidersList().stream()
+            .filter(commBought -> commBought.getProviderEntityType()
+                == EntityType.COMPUTE_TIER.getNumber())
+            .map(CommoditiesBoughtFromProvider::getProviderId)
+            .forEach(tierId -> {
+                final TopologyEntityDTO newComputeTier = entityOidToDto.get(tierId);
+                if (newComputeTier == null) {
+                    logger.error("Cannot find compute tier for projected VM: " + entityBuilder.getOid());
+                    return;
+                }
+
+                int newCores = newComputeTier.getTypeSpecificInfo().getComputeTier().getNumCores();
+
+                entityBuilder.setTypeSpecificInfo(
+                    TypeSpecificInfo.newBuilder().setVirtualMachine(
+                        entityBuilder.getTypeSpecificInfo().getVirtualMachine().toBuilder()
+                            .setNumCpus(newCores)
+                    )
+                );
+            });
     }
 
     /**
