@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
@@ -183,7 +184,7 @@ public class Context {
          */
         private long priceId_;
 
-        private final Long parentId_;
+        private Long parentId_;
 
         /**
          * Constructor for the Balance Account.
@@ -215,6 +216,27 @@ public class Context {
             this(spent, budget, id, priceId, null);
         }
 
+        /**
+         * Constructor for the {@link BalanceAccount} with a given account id.
+         * When priceId is not specified, defaults it to be the same as account id, as there is
+         * one possible. Otherwise, use the other constructor.
+         *
+         * @param id the business account id.
+         */
+        public BalanceAccount(long id) {
+            this(0, 0, id, id, null);
+        }
+
+        /**
+         * Creates a new BalanceAccount with account id and the parent id.
+         *
+         * @param id Account id.
+         * @param parentId Parent (e.g BillingFamily) id.
+         */
+        public BalanceAccount(long id, long parentId) {
+            this(0, 0, id, id, parentId);
+        }
+
         public void setSpent(double spent) {
             spent_ = spent;
         }
@@ -244,14 +266,57 @@ public class Context {
          *
          * @return ID of trader's parent account.
          */
+        @Nullable
         public Long getParentId() {
             return parentId_;
+        }
+
+        /**
+         * Sets parent id, e.g BillingFamily id in case of AWS.
+         *
+         * @param parentId ID of parent.
+         */
+        public void setParentId(Long parentId) {
+            parentId_ = parentId;
+        }
+
+        /**
+         * Checks if a non-null parent id had been previously set.
+         *
+         * @return Whether parent id was set.
+         */
+        public boolean hasParentId() {
+            return parentId_ != null;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(spent_, budget_, id_, priceId_, parentId_);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof BalanceAccount)) {
+                return false;
+            }
+            // the balance account is considered to be equal if all the contents
+            // are the same.
+            BalanceAccount otherBalanceAccount = (BalanceAccount)other;
+            return this.getSpent() == otherBalanceAccount.getSpent()
+                    && this.getBudget() == otherBalanceAccount.getBudget()
+                    && this.getId() == otherBalanceAccount.getId()
+                    && this.getPriceId() == otherBalanceAccount.getPriceId()
+                    && (this.getParentId() != null ? this.getParentId().equals(otherBalanceAccount.getParentId())
+                    : otherBalanceAccount.getParentId() == null);
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(regionId_, balanceAccount_);
+        return Objects.hash(regionId_) + balanceAccount_.hashCode();
     }
 
     @Override
@@ -266,7 +331,8 @@ public class Context {
 
         Context otherContext = (Context)other;
 
-        return this.getBalanceAccount() == otherContext.getBalanceAccount() && this.getRegionId() == otherContext.getRegionId();
+        return this.getBalanceAccount().equals(otherContext.getBalanceAccount())
+                && this.getRegionId() == otherContext.getRegionId();
     }
 
     @Override

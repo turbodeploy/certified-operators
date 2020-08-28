@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.economy;
 
+import java.util.Optional;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;
@@ -101,12 +102,14 @@ public interface TraderSettings {
     QuoteFunction getQuoteFunction();
 
     /**
-     * Returns the associated context with trader.
+     * Returns the associated context with trader. Allow Optional context for cloud migration case,
+     * where we need to ignore current context and find the cheapest quote from new CSP tiers.
      *
-     * @return The context asoociated with the trader
+     * @return The context associated with the trader. If no context, will return empty Optional.
      */
     // TODO: Have this method return a Context class which is generic for both on prem and cloud.
-    Context getContext();
+    @NonNull
+    Optional<Context> getContext();
 
     /**
      * Sets the value of the <b>controllable</b> field.

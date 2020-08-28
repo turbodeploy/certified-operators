@@ -3,15 +3,19 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
@@ -23,11 +27,14 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 import com.vmturbo.platform.analysis.utilities.Quote;
@@ -46,6 +53,42 @@ public class Placement {
     public static int globalCounter = 0;
     private static boolean printMaxPlacementIterations = true;
     public static final int MOVE_COST_FACTOR_MAX_COMM_SIZE = 10;
+
+    /**
+     * Used to set parent id in the merged context, parent id is needed for CBTP cost lookup
+     * to work in case of from onPrem to cloud migration.
+     */
+    @VisibleForTesting
+    static final BinaryOperator<Set<Context>> mergeContextSets = (s1, s2) -> {
+        // Make up a map of account id to their parent (BillingFamily) ids.
+        final Map<Long, Long> accountIdToParentId = new HashMap<>();
+        Stream.of(s1, s2)
+                .flatMap(Collection::stream)
+                .forEach(ctx -> {
+                    if (ctx.getBalanceAccount().getParentId() != null) {
+                        accountIdToParentId.put(ctx.getBalanceAccount().getId(),
+                                ctx.getBalanceAccount().getParentId());
+                        ctx.getBalanceAccount().setParentId(null);
+                    }
+                });
+        // Find common context b/w the 2 sets.
+        Set<Context> commonContexts = Sets.intersection(s1, s2);
+
+        // make clones of commonContext which derived from active sellers and later pass
+        // them to buying trader. The buying trader can not use the same context as the
+        // seller mainly because parentId exists only on cbtp seller but not tp seller.
+        // The above intersection on context will exclude the cbtp seller context, but it
+        // is needed for later cost calculation.
+        Set<Context> buyerContexts = Sets.newHashSet();
+        for (Context c : commonContexts) {
+            long baId = c.getBalanceAccount().getId();
+            BalanceAccount ba = accountIdToParentId.containsKey(baId)
+                    ? new BalanceAccount(baId, accountIdToParentId.get(baId))
+                    : new BalanceAccount(baId);
+            buyerContexts.add(new Context(c.getRegionId(), c.getZoneId(), ba));
+        }
+        return buyerContexts;
+    };
 
     /**
      * Returns a list of recommendations to optimize the placement of all traders in the economy.
@@ -266,7 +309,8 @@ public class Placement {
                         < currentQuote * buyer.getSettings().getQuoteFactor() ||
                 (cheapestSeller == shoppingList.getSupplier()
                         && minimizer.getBestQuote().getContext().isPresent()
-                        && !shoppingList.getBuyer().getSettings().getContext()
+                        && shoppingList.getBuyer().getSettings().getContext().isPresent()
+                        && !shoppingList.getBuyer().getSettings().getContext().get()
                             .isEqualCoverages(minimizer.getBestQuote().getContext())) ||
                 // isScalingGroupConsistentlySized() is only meaningful for cloud providers.
                 // Anything else will return consistently sized.
@@ -447,21 +491,36 @@ public class Placement {
             .map(Entry::getKey).collect(Collectors.toList());
         final List<Trader> currentSuppliers = minimizer.getEntries().stream()
             .map(entry -> entry.getKey().getSupplier()).collect(Collectors.toList());
+        final List<Optional<EconomyDTOs.Context>> contextList = new ArrayList<>();
+        if (!minimizer.getShoppingListContextMap().isEmpty()) {
+            shoppingLists.forEach(sl -> contextList.add(minimizer.getShoppingListContextMap().get(sl)));
+        }
         final List<Trader> bestSellers = minimizer.getBestSellers();
 
-        boolean isLeaderSl = shoppingLists.stream().anyMatch(sl -> (sl.getGroupFactor() > 1));
-        // If there is a leader SL, then we want to always want to produce the move for that
-        // SL even if it the best sellers are the same as the current suppliers.
-        if (!currentSuppliers.equals(bestSellers) || isLeaderSl) {
+        // get the RI coverage from minimizer, compare it with the current RI coverage on buyer,
+        // if there is a difference, then create the move action.
+        boolean isCoverageSame = true;
+        if (!minimizer.getShoppingListContextMap().isEmpty()) {
+            for (ShoppingList sl : shoppingLists) {
+                if (!sl.getContext().isPresent() || !sl.getContext().get().equals(minimizer
+                        .getShoppingListContextMap().get(sl).get())) {
+                    isCoverageSame = false;
+                    break;
+                }
+            }
+        }
+        // create the move action if the current suppliers are different from best sellers, or if
+        // they are the same but RI coverage changes
+        if (!currentSuppliers.equals(bestSellers) || !isCoverageSame) {
             ShoppingList firstSL = shoppingLists.get(0);
             double currentTotalQuote = computeCurrentQuote(economy, minimizer.getEntries());
-            if (isLeaderSl || Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, firstSL.getBasket().size())
+            if (!isCoverageSame || Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, firstSL.getBasket().size())
                             * firstSL.getBuyer().getSettings().getMoveCostFactor()
                             + minimizer.getBestTotalQuote() < currentTotalQuote
                             * firstSL.getBuyer().getSettings().getQuoteFactor()) {
                 double importance = currentTotalQuote - minimizer.getBestTotalQuote();
                 generateCompoundMoveOrMoveAction(
-                    economy, shoppingLists, currentSuppliers, bestSellers, actions, importance);
+                    economy, shoppingLists, currentSuppliers, bestSellers, actions, importance, contextList);
             }
         }
         return actions;
@@ -521,9 +580,11 @@ public class Placement {
      * @param bestSellers list of future suppliers of shoppingLists
      * @param actions list of actions
      * @param importance importance of the action
+     * @param contextList list of contexts associated with each shopping list
      */
     public static void generateCompoundMoveOrMoveAction(Economy economy, List<ShoppingList> shoppingLists,
-        List<Trader> currentSuppliers, List<Trader> bestSellers, List<Action> actions, double importance) {
+        List<Trader> currentSuppliers, List<Trader> bestSellers, List<Action> actions, double importance,
+        List<Optional<EconomyDTOs.Context>> contextList) {
         // step 1
         int numOfOriginalActions = actions.size();
         List<Integer> slsWithCommonCliques = new ArrayList<>(bestSellers.size());
@@ -570,9 +631,9 @@ public class Placement {
             // Generate a move action if
             // all sources and destinations are in a common biclique or generateMoveAction is true.
             if (slsWithoutCommonCliques.size() == 0 || generateMoveAction) {
-                actions.add(new Move(
-                    economy, shoppingLists.get(i), currentSuppliers.get(i), bestSellers.get(i))
-                    .take().setImportance(importance));
+                actions.add(new Move(economy, shoppingLists.get(i), currentSuppliers.get(i),
+                        bestSellers.get(i), contextList.isEmpty() ? Optional.empty()
+                                : contextList.get(i)).take().setImportance(importance));
                 numOfMoveActions++;
             } else {
                 compoundMoveCandidates.add(i);
@@ -584,32 +645,45 @@ public class Placement {
         slsWithoutCommonCliques.addAll(compoundMoveCandidates);
         int numOfCompoundMoveActions = 0;
         if (slsWithoutCommonCliques.size() > 1) {
-            CompoundMove compoundMove =
-                CompoundMove.createAndCheckCompoundMoveWithExplicitSources(economy,
-                    slsWithoutCommonCliques.stream().map(shoppingLists::get).collect(Collectors.toList()),
-                    slsWithoutCommonCliques.stream().map(currentSuppliers::get).collect(Collectors.toList()),
-                    slsWithoutCommonCliques.stream().map(bestSellers::get).collect(Collectors.toList()));
+            CompoundMove compoundMove;
+            if (contextList.isEmpty()) {
+                compoundMove = CompoundMove.createAndCheckCompoundMoveWithExplicitSources(economy,
+                        slsWithoutCommonCliques.stream().map(shoppingLists::get).collect(Collectors.toList()),
+                        slsWithoutCommonCliques.stream().map(currentSuppliers::get).collect(Collectors.toList()),
+                        slsWithoutCommonCliques.stream().map(bestSellers::get).collect(Collectors.toList()));
+            } else {
+                compoundMove = CompoundMove.createAndCheckCompoundMoveWithExplicitSources(economy,
+                        slsWithoutCommonCliques.stream().map(shoppingLists::get).collect(Collectors.toList()),
+                        slsWithoutCommonCliques.stream().map(currentSuppliers::get).collect(Collectors.toList()),
+                        slsWithoutCommonCliques.stream().map(bestSellers::get).collect(Collectors.toList()),
+                        contextList);
+            }
             actions.add(compoundMove.take().setImportance(importance));
             numOfCompoundMoveActions++;
         } else if (slsWithoutCommonCliques.size() == 1) {
             int i = slsWithoutCommonCliques.get(0);
-            actions.add(new Move(economy, shoppingLists.get(i), currentSuppliers.get(i), bestSellers.get(i))
-                .take().setImportance(importance));
+            actions.add(new Move(economy, shoppingLists.get(i), currentSuppliers.get(i),
+                    bestSellers.get(i), contextList.isEmpty() ? Optional.empty() : contextList.get(i))
+                            .take().setImportance(importance));
             numOfMoveActions++;
         }
-
         if (logger.isTraceEnabled() || isDebugTrader) {
             String buyerDebugInfo = shoppingLists.get(0).getBuyer().getDebugInfoNeverUseInCode();
             IntStream.range(numOfOriginalActions, numOfOriginalActions + numOfMoveActions).forEach(i ->
-                logger.info("A new Move from {} to {} is generated.",
+                logger.info("A new Move from {} to {} with context {} is generated.",
                     printTraderDetail(((Move)actions.get(i)).getSource()),
-                    printTraderDetail(((Move)actions.get(i)).getDestination())));
+                    printTraderDetail(((Move)actions.get(i)).getDestination()),
+                    ((Move)actions.get(i)).getContext().isPresent()
+                    ? ((Move)actions.get(i)).getContext().get() : ""));
             IntStream.range(numOfOriginalActions + numOfMoveActions, actions.size()).forEach(i ->
-                logger.info("A new CompoundMove from {} to {} is generated.",
+                logger.info("A new CompoundMove from {} to {} with context {} is generated.",
                     ((CompoundMove)actions.get(i)).getConstituentMoves().stream().map(move ->
                         printTraderDetail(move.getSource())).collect(Collectors.toList()),
                     ((CompoundMove)actions.get(i)).getConstituentMoves().stream().map(move ->
-                        printTraderDetail(move.getDestination())).collect(Collectors.toList())));
+                        printTraderDetail(move.getDestination())).collect(Collectors.toList()),
+                    ((CompoundMove)actions.get(i)).getConstituentMoves().stream().map(move ->
+                    move.getContext().isPresent() ? move.getContext().get() : "")
+                    .collect(Collectors.toList())));
             logger.info("{} Move, {} CompoundMove were generated for trader {}.",
                 numOfMoveActions, numOfCompoundMoveActions, buyerDebugInfo);
         }
@@ -639,6 +713,13 @@ public class Placement {
 
     }
 
+    /**
+     * Compute the best quote for the given trader.
+     *
+     * @param economy the economy.
+     * @param trader the buying trader.
+     * @return the best CliqueMinimizer.
+     */
     public static @Nullable CliqueMinimizer computeBestQuote(Economy economy, Trader trader) {
         Set<Long> commonCliques = economy.getCommonCliques(trader);
         if (commonCliques.isEmpty()) {
@@ -646,18 +727,110 @@ public class Placement {
         }
 
         List<Entry<ShoppingList, Market>> movableSlByMarket = economy.moveableSlByMarket(trader);
-        final QuoteCache cache = economy.getSettings().getUseQuoteCacheDuringSNM()
-                && commonCliques.size() > 1
-            ? new QuoteCache(economy.getTraders().size(),
-                economy.getMarketsAsBuyer(trader).values().stream()
-                    .mapToInt(market -> market.getActiveSellers().size()).sum(),
-                economy.getMarketsAsBuyer(trader).size())
-            : null;
+        // check if the trader buys in market that all sellers have a cost function
+        boolean shopByBugdet = movableSlByMarket.stream().map(Entry::getValue)
+                .map(Market::getActiveSellers)
+                .flatMap(List::stream)
+                .allMatch(t -> t.getSettings().getCostFunction() != null);
+        Optional<Context> origContext = trader.getSettings().getContext();
+        // when trader shop by budget, it could be a trader without any context(on prem/cloud workloads
+        // shop for cloud provider, when no business account is assigned by plan configuration),
+        // or it could be a trader with context partially specified(on prem/cloud workloads shop for
+        // cloud provider, when a business account is assigned by plan configuration).
+        // NOTE: we have to make sure the cloud to cloud migration plan unset workloads' original
+        // region and business account when creating traderDTO in TopologyConverter.
+        if (shopByBugdet && (!origContext.isPresent() || origContext.get().getBalanceAccount() == null // on prem entity
+                || origContext.get().getRegionId() == -1L)) { // cloud entity without region
+            Set<Context> contextCombination = populateContextCombination(movableSlByMarket
+                    .stream().map(Entry::getValue).collect(Collectors.toSet()), economy);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Buying trader {} has possible context combination: {}, parentId {}",
+                        trader.getDebugInfoNeverUseInCode(), contextCombination.stream()
+                        .collect(Collectors.toSet()), contextCombination.stream()
+                        .map(c -> c.getBalanceAccount().getParentId()).collect(Collectors.toSet()));
+            }
+            CliqueMinimizer bestMinimizer = null;
+            for (Context context : contextCombination) {
+                // assign a context to buying trader at a time so that it shop by the same context
+                // in all markets. For a buying trader, it should have at most 1 context in contextlist.
+                // move.internaltake will reset context to shopping list with the one associated with
+                // bestMinimizer, but not touch the context on trader settings.
+                // move.updateQuantities for UPDATE_COUPON_COMM will need the trader setting to have a context
+                trader.getSettings().setContext(context);
+                // quoteCache is useful for on prem, but cloud quote may not need it.
+                // 1. Every context will give out a different price so that quote is different for
+                // different buying context on same seller. 2. The number of cliques in cloud are a
+                // lot less than on prem because of the static infrastructure in AWS/Azure
+                CliqueMinimizer minimizer = commonCliques.stream()
+                        .collect(() -> new CliqueMinimizer(economy, movableSlByMarket, null),
+                        CliqueMinimizer::accept, CliqueMinimizer::combine);
+                if (bestMinimizer == null || minimizer.getBestTotalQuote() < bestMinimizer.getBestTotalQuote()) {
+                    bestMinimizer = minimizer;
+                }
+            }
+            if (logger.isDebugEnabled()) {
+                boolean noBestMinimizer = bestMinimizer == null
+                        || bestMinimizer.getBestSellers() == null;
+                logger.debug("Buying trader {} has best sellers {} with context {}",
+                        trader.getDebugInfoNeverUseInCode(),
+                        noBestMinimizer ? "N/A" : bestMinimizer.getBestSellers()
+                                .stream()
+                                .map(Trader::getDebugInfoNeverUseInCode)
+                                .collect(Collectors.toList()),
+                        noBestMinimizer ? "N/A" : bestMinimizer.getShoppingListContextMap()
+                                .values()
+                                .iterator()
+                                .next()
+                                .get());
+            }
+            return bestMinimizer;
+        } else {
+            final QuoteCache cache = economy.getSettings().getUseQuoteCacheDuringSNM() && commonCliques.size() > 1
+                    ? new QuoteCache(economy.getTraders().size(), economy.getMarketsAsBuyer(trader)
+                            .values().stream().mapToInt(market -> market.getActiveSellers().size()).sum(),
+                                    economy.getMarketsAsBuyer(trader).size()) : null;
+           return commonCliques.stream().collect(() -> new CliqueMinimizer(economy, movableSlByMarket, cache),
+                    CliqueMinimizer::accept, CliqueMinimizer::combine);
+        }
+    }
 
-        return commonCliques.stream().collect(
-            () -> new CliqueMinimizer(economy, movableSlByMarket, cache),
-            CliqueMinimizer::accept,
-            CliqueMinimizer::combine);
+    /**
+     * Populate a set of context that is present in all the given markets.
+     *
+     * @param markets a list of markets provided.
+     * @param economy the economy.
+     * @return a set of context.
+     */
+    @VisibleForTesting
+    protected static Set<Context> populateContextCombination(@NonNull Set<Market> markets,
+                                                             @NonNull Economy economy) {
+        // for each market, we find their complete set of context list by getting context from each
+        // active seller, then find intersection of contexts from all markets.
+        // NOTE: two contexts are considered equal if the balance account contents are the same
+        // and region ids are the same. In the final common contexts that we return, we set the
+        // parent context id if there was a match based on the account id.
+        if (logger.isDebugEnabled()) {
+            for (Market m : markets) {
+                Set<Context> sets = m.getActiveSellers().stream()
+                                .map(t -> economy.getTraderWithContextMap().get(t))
+                                .filter(contextList -> contextList != null && !contextList.isEmpty())
+                                .flatMap(Collection::stream)
+                                .collect(Collectors.toSet());
+                logger.debug("Market basket {}", m.getBasket());
+                for (Context c : sets) {
+                    logger.debug("Region id " + c.getRegionId() + " Ba id " + c.getBalanceAccount().getId()
+                                + " parent id " + c.getBalanceAccount().getParentId());
+                }
+            }
+        }
+        return markets.stream()
+                .map(m -> m.getActiveSellers().stream()
+                        .map(t -> economy.getTraderWithContextMap().get(t))
+                        .filter(contextList -> contextList != null && !contextList.isEmpty())
+                        .flatMap(Collection::stream)
+                        .collect(Collectors.toSet()))
+                .reduce(mergeContextSets)
+                .orElse(Collections.emptySet());
     }
 
     /**

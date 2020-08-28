@@ -285,7 +285,8 @@ public class CostFunctionFactory {
                                                               CostTable costTable,
                                                               final int licenseBaseType) {
         long groupFactor = buyer.getGroupFactor();
-        final Context buyerContext = buyer.getBuyer().getSettings().getContext();
+        @Nullable final Context buyerContext = buyer.getBuyer().getSettings()
+                .getContext().orElse(null);
         final int licenseCommBoughtIndex = buyer.getBasket().indexOfBaseType(licenseBaseType);
         if (costTable.getAccountIds().isEmpty()) {
             // empty cost table, return infinity to not place entity on this seller
@@ -578,15 +579,16 @@ public class CostFunctionFactory {
      * @param licenseBaseType The base type of the license commodity the sl contains.
      * @return A quote for the cost given by {@link CostFunction}
      */
-    private static MutableQuote calculateComputeAndDatabaseCostQuote(Trader seller, ShoppingList sl,
-                                                                     CostTable costTable, final int licenseBaseType) {
+    @VisibleForTesting
+    protected static MutableQuote calculateComputeAndDatabaseCostQuote(Trader seller, ShoppingList sl,
+                                                                       CostTable costTable, final int licenseBaseType) {
         final int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
         final long groupFactor = sl.getGroupFactor();
-        final com.vmturbo.platform.analysis.economy.Context context = sl.getBuyer().getSettings().getContext();
-        if (context == null) {
-            // on prem entities do not have context can reach here in migration plan
-            return getCheapestComputeCostWithoutContext(seller, sl, costTable, licenseCommBoughtIndex);
+        final Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
+        if (!optionalContext.isPresent()) {
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
         }
+        final Context context = optionalContext.get();
         final long regionIdBought = context.getRegionId();
         final BalanceAccount balanceAccount = context.getBalanceAccount();
         if (balanceAccount == null) {
@@ -630,47 +632,6 @@ public class CostFunctionFactory {
         return Double.isInfinite(cost) && licenseCommBoughtIndex != CostTable.NO_VALUE ?
                 new LicenseUnavailableQuote(seller, sl.getBasket().get(licenseCommBoughtIndex)) :
                 new CommodityCloudQuote(seller, cost * (groupFactor > 0 ? groupFactor : 1), regionId, accountId, null);
-    }
-
-    /**
-     * Iterate the CostTable to get the cheapest cost. It is applied when buyer does not have
-     * a context specifying the region or business account information.
-     *
-     * @param seller the seller
-     * @param sl the buyer
-     * @param costTable pricing information table
-     * @param licenseCommBoughtIndex the index of the license access commodity in the basket
-     * @return
-     */
-    private static MutableQuote getCheapestComputeCostWithoutContext(@Nonnull final Trader seller,
-                                                                     @Nonnull final ShoppingList sl,
-                                                                     @Nonnull final CostTable costTable,
-                                                                     final int licenseCommBoughtIndex) {
-        Set<Long> accountIds = costTable.getAccountIds();
-        if (accountIds.isEmpty()) {
-            // empty cost table, return infinity to not place entity on this seller
-            logger.warn("No cost information found for seller {}, return infinity quote",
-                    seller.getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
-        }
-        if (licenseCommBoughtIndex == -1) {
-            // when there is no license for the shopping list, return infinity quote
-            // NOTE: we assume that on prem entities have to contain LicenseAccessCommodity
-            logger.warn("No license commodity found for buyer {}, return infinity quote",
-                    sl.getBuyer().getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
-        }
-        int licenseTypeKey = sl.getBasket().get(licenseCommBoughtIndex).getType();
-        CostTuple cheapestTuple = getCheapestTuple(costTable, licenseTypeKey);
-        if (cheapestTuple == null) {
-            logger.warn("Seller {} does not support license {}, return infinity quote",
-                    seller.getDebugInfoNeverUseInCode(),
-                    sl.getBasket().get(licenseCommBoughtIndex).getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
-        }
-        return new CommodityCloudQuote(seller, cheapestTuple.getPrice() * (sl.getGroupFactor() > 0
-                ? sl.getGroupFactor() : 1), cheapestTuple.hasZoneId() ? cheapestTuple.getZoneId()
-                : cheapestTuple.getRegionId(), cheapestTuple.getBusinessAccountId(), null);
     }
 
     /**

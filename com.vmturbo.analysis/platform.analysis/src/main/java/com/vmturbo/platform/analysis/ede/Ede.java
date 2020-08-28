@@ -74,11 +74,6 @@ public final class Ede {
             Set<Long> providerList = new HashSet<>();
             for (Trader trader : economy.getMarket(shoppingList)
                     .getActiveSellersAvailableForPlacement()) {
-                Trader tp = AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, trader);
-                // if  trader is a cbtp convert it to tp
-                if (tp != null) {
-                    trader = tp;
-                }
                 if (CostFunctionFactory.insufficientCommodityWithinSellerCapacityQuote(shoppingList, trader, couponCommodityBaseType).isFinite()) {
                     providerList.add(trader.getOid());
                 }

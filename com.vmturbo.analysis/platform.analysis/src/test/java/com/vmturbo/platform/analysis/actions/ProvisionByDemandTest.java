@@ -24,6 +24,8 @@ import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -44,6 +46,34 @@ public class ProvisionByDemandTest {
     private static final String DEBUG_INFO = "trader name";
 
     // Methods
+
+    /**
+     * This test is testing the case where model buyer is a clone.
+     * Make sure that the model buyer of the action is the shopping list of the original entity.
+     */
+    @Test
+    public final void testModelBuyer() {
+        Economy e = new Economy();
+        CommoditySpecification commSpec1 = new CommoditySpecification(0, 1);
+        CommoditySpecification commSpec2 = new CommoditySpecification(0, 2);
+
+        Trader origin = e.addTrader(0, TraderState.ACTIVE, EMPTY);
+        ShoppingList originSL1 = e.addBasketBought(origin, new Basket(commSpec1));
+        ShoppingList originSL2 = e.addBasketBought(origin, new Basket(commSpec2));
+
+        Trader clone = e.addTrader(0, TraderState.ACTIVE, EMPTY);
+        ShoppingList cloneSL1 = e.addBasketBought(clone, new Basket(commSpec1));
+        ShoppingList cloneSL2 = e.addBasketBought(clone, new Basket(commSpec2));
+        clone.setCloneOf(origin);
+
+        Trader modelSeller = e.addTrader(0, TraderState.ACTIVE, new Basket(commSpec1));
+        ProvisionByDemand provision = new ProvisionByDemand(e, cloneSL1, modelSeller);
+        assertEquals(originSL1, provision.getModelBuyer());
+
+        modelSeller = e.addTrader(0, TraderState.ACTIVE, new Basket(commSpec2));
+        provision = new ProvisionByDemand(e, cloneSL2, modelSeller);
+        assertEquals(originSL2, provision.getModelBuyer());
+    }
 
     @Test
     @Parameters
@@ -278,6 +308,33 @@ public class ProvisionByDemandTest {
         // check cliques are cloned
         assertEquals(cliques, ((ProvisionByDemand)action).getProvisionedSeller().getCliques());
     }
+
+
+    /**
+     * The test checks that the newly provisioned seller has the same context as model seller.
+     */
+    @Test
+    public void testContextOfProvSeller() {
+        //Test setup
+        Economy e1 = new Economy();
+        ShoppingList sl = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
+                new Basket(new CommoditySpecification(0)));
+        sl.setQuantity(0, 100).setPeakQuantity(0, 100);
+        Trader modelSeller = e1.addTrader(0, TraderState.ACTIVE,
+                new Basket(new CommoditySpecification(0))
+        );
+        modelSeller.getCommoditiesSold().get(0).setCapacity(75).setQuantity(0);
+        modelSeller.setDebugInfoNeverUseInCode(DEBUG_INFO);
+        modelSeller.getSettings().setContext(new Context(1L, 1L,
+                new BalanceAccount(1, 1, 1L, 1L)));
+        // call provision by demand
+        ProvisionByDemand provision = (ProvisionByDemand)(new
+                ProvisionByDemand(e1, sl, modelSeller)).take();
+        Trader provSeller = provision.getProvisionedSeller();
+        //Asserts
+        assertEquals(modelSeller.getSettings().getContext(), provSeller.getSettings().getContext());
+    }
+
 
     /**
      * We set up a shopping list request 100 units of commSpec0. There is a model seller which sells

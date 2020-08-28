@@ -2,12 +2,16 @@ package com.vmturbo.platform.analysis.translators;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,6 +52,11 @@ import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTop
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependencyEntry;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.ResizeDependencySkipEntry;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
@@ -279,6 +288,7 @@ public final class ProtobufToAnalysis {
         destination.setStartPeakQuantity(source.getQuantity() >
             source.getPeakQuantity() ? source.getQuantity() :
                 source.getPeakQuantity());
+        destination.setStartCapacity(source.getCapacity());
         destination.setThin(source.getThin());
 
         // Only populate the right size quantity if it has been sent
@@ -301,12 +311,14 @@ public final class ProtobufToAnalysis {
      * Populates the fields of a {@link TraderSettings} instance from information in a
      * {@link TraderSettingsTO}.
      *
+     * @param topology the economy associated topology
      * @param input The {@link TraderTO} from which to get the settings.
-     * @param destination The {@link TraderSettings} instance to put the settings to.
+     * @param output The {@link TraderSettings} instance to put the settings to.
      */
     public static void populateTraderSettings(@NonNull Topology topology,
                                               @Nonnull TraderTO input,
-                                              @NonNull TraderSettings destination) {
+                                              @NonNull Trader output) {
+        TraderSettings destination = output.getSettings();
         @NonNull TraderSettingsTO source = input.getSettings();
         destination.setControllable(source.getControllable());
         destination.setCloneable(source.getClonable());
@@ -325,12 +337,142 @@ public final class ProtobufToAnalysis {
         destination.setMoveCostFactor(source.getMoveCostFactor());
         destination.setCanSimulateAction(source.getCanSimulateAction());
         if (source.getQuoteFunction().hasRiskBased() && source.getQuoteFunction().getRiskBased().hasCloudCost()) {
-            destination.setCostFunction(
-                            CostFunctionFactory.createCostFunction(source.getQuoteFunction().getRiskBased().getCloudCost()));
+            CostDTO costDTO = source.getQuoteFunction().getRiskBased().getCloudCost();
+            destination.setCostFunction(CostFunctionFactory.createCostFunction(costDTO));
+            // source has costDTO suggests that it is a cloud tier, we are populating a list
+            // of contexts for it by extracting the region and ba information from costDTO.
+            // NOTE: the cloud tiers do not have context in the TraderDTO. Only cloud workloads have
+            // context in the TraderDTO.
+            if (!source.hasCurrentContext()) {
+                topology.getEconomy().getTraderWithContextMap().put(output, constructContext(costDTO));
+            }
         }
+        // the traderDTO has context and business account suggests that it is a cloud workload
         if (source.hasCurrentContext() && source.getCurrentContext().hasBalanceAccount()) {
             populateCloudSpent(topology, input, destination);
         }
+
+    }
+
+    /**
+     * Create a list of contexts based on data provided by a {@link CostDTO}.
+     *
+     * @param costDTO costDTO
+     * @return a list of context, each context represents a region/zone and business account
+     * combination.
+     */
+    private static List<Context> constructContext(@Nonnull CostDTO costDTO) {
+        switch (costDTO.getCostTypeCase()) {
+            case STORAGE_TIER_COST:
+                 return populateAllContextStorageTier(costDTO.getStorageTierCost()
+                         .getStorageResourceCostList());
+            case COMPUTE_TIER_COST:
+                return populateAllContextComputeTier(costDTO.getComputeTierCost());
+            // DB is not a shop together provider so no need to populate context
+            case DATABASE_TIER_COST:
+                return new ArrayList<>();
+            case CBTP_RESOURCE_BUNDLE:
+                return populateAllContextCbtp(costDTO.getCbtpResourceBundle());
+            default:
+                throw new IllegalArgumentException("input = " + costDTO);
+        }
+
+    }
+
+    /**
+     * Populate contexts based on a {@link CbtpCostDTO}.
+     *
+     * @param cbtpResourceBundle a CbtpCostDTO.
+     * @return a list of contexts.
+     */
+    private static List<Context> populateAllContextCbtp(@Nonnull CbtpCostDTO cbtpResourceBundle) {
+        final Map<Long, Set<Long>> regionListByAccount =
+                        extractContextFromCostTuple(cbtpResourceBundle.getCostTupleListList());
+        // ParentId is only expected to be one if present, so pass that in.
+        Long parentId = cbtpResourceBundle.getScopeIdsList().isEmpty() ? null
+                : cbtpResourceBundle.getScopeIds(0);
+        return createContextList(regionListByAccount, parentId);
+    }
+
+    /**
+     * Populate contexts based on a {@link ComputeTierCostDTO}.
+     *
+     * @param computeTierCost a ComputeTierCostDTO.
+     * @return a list of contexts.
+     */
+    private static List<Context> populateAllContextComputeTier(
+            @NonNull ComputeTierCostDTO computeTierCost) {
+        final Map<Long, Set<Long>> regionListByAccount =
+                extractContextFromCostTuple(computeTierCost.getCostTupleListList());
+        return createContextList(regionListByAccount, null);
+    }
+
+    /**
+     * Populate contexts based on a list of {@link StorageResourceCost}.
+     *
+     * @param storageResourceCostList a list of StorageResourceCost.
+     * @return a list of contexts.
+     */
+    private static List<Context> populateAllContextStorageTier(
+            @Nonnull List<StorageResourceCost> storageResourceCostList) {
+        final Map<Long, Set<Long>> regionOrZoneSetByAccount = new HashMap<>();
+        for (StorageResourceCost cost : storageResourceCostList) {
+            for (StorageTierPriceData priceData : cost.getStorageTierPriceDataList()) {
+                extractContextFromCostTuple(priceData.getCostTupleListList()).entrySet().forEach(e -> {
+                    Set<Long> regionSet = regionOrZoneSetByAccount.get(e.getKey());
+                    if (regionSet == null) {
+                        regionSet = new HashSet<>();
+                        regionOrZoneSetByAccount.put(e.getKey(), regionSet);
+                    }
+                    regionSet.addAll(e.getValue());
+                });
+
+            }
+        }
+        return createContextList(regionOrZoneSetByAccount, null);
+    }
+
+    /**
+     * Create a context list based on a map of business account id to region/zone set.
+     *
+     * @param regionOrZoneSetByAccount a map of business account id to a region/zone set.
+     * @param parentId Scope/BillingFamily id set in case of CBTP contexts only.
+     * @return a list of contexts.
+     */
+    private static List<Context> createContextList(Map<Long, Set<Long>> regionOrZoneSetByAccount,
+            @Nullable Long parentId) {
+        List<Context> contextList = new ArrayList<>();
+        regionOrZoneSetByAccount.entrySet().forEach(e -> {
+            e.getValue().stream().forEach(regionOrZoneId -> {
+                long accountId = e.getKey();
+                // each context will represent a region X ba combination or a zone X ba combination
+                contextList.add(new Context(regionOrZoneId, regionOrZoneId,
+                        parentId == null
+                                ? new BalanceAccount(accountId)
+                                : new BalanceAccount(accountId, parentId)));
+            });
+        });
+        return contextList;
+    }
+
+    /**
+     * Extract business account id and region/zone ids from cost tuples.
+     *
+     * @param costTupleListList a list of {@link CostTuple}.
+     * @return a map of business account id to region/zone set.
+     */
+    private static Map<Long, Set<Long>> extractContextFromCostTuple(List<CostTuple> costTupleListList) {
+        Map<Long, Set<Long>> regionListByAccount = new HashMap<>();
+        for (CostTuple tuple : costTupleListList) {
+            long baId = tuple.getBusinessAccountId();
+            Set<Long> zoneOrRegionList = regionListByAccount.get(baId);
+            if (zoneOrRegionList == null) {
+                zoneOrRegionList = new HashSet<>();
+                regionListByAccount.put(baId, zoneOrRegionList);
+            }
+            zoneOrRegionList.add(tuple.getZoneId() != 0 ? tuple.getZoneId() : tuple.getRegionId());
+        }
+        return regionListByAccount;
     }
 
     /**
@@ -383,7 +525,7 @@ public final class ProtobufToAnalysis {
         final String scalingGroupId = input.getScalingGroupId();
         output.setScalingGroupId(scalingGroupId);
         ((Economy)topology.getEconomy()).populatePeerMembersForScalingGroup(output, scalingGroupId);
-        populateTraderSettings(topology, input, output.getSettings());
+        populateTraderSettings(topology, input, output);
 
         output.setDebugEnabled(input.getDebugEnabled());
         for (CommoditySoldTO commoditySold : input.getCommoditiesSoldList()) {

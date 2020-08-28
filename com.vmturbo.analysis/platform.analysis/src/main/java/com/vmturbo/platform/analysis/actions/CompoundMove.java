@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
@@ -26,6 +27,7 @@ import org.checkerframework.dataflow.qual.Pure;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 
 /**
  * An action to group multiple {@link Move}s that should happen atomically by {@link ShoppingList}s
@@ -53,8 +55,28 @@ public class CompoundMove extends ActionImpl {
      */
     private CompoundMove(@NonNull Economy economy, @NonNull Collection<@NonNull ShoppingList> shoppingLists,
                         @NonNull Collection<@Nullable Trader> destinations) {
-        this(economy,shoppingLists,shoppingLists.stream().map(ShoppingList::getSupplier)
-             .collect(Collectors.toList()),destinations);
+        this(
+                economy,
+                shoppingLists,
+                shoppingLists.stream()
+                        .map(ShoppingList::getSupplier)
+                        .collect(Collectors.toList()),
+                destinations,
+                shoppingLists.stream()
+                        .map(ShoppingList::getContext)
+                        .collect(Collectors.toList()));
+    }
+
+    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@NonNull ShoppingList> shoppingLists,
+            @NonNull Collection<@Nullable Trader> sources, @NonNull Collection<@Nullable Trader> destinations) {
+        this(
+                economy,
+                shoppingLists,
+                sources,
+                destinations,
+                shoppingLists.stream()
+                        .map(ShoppingList::getContext)
+                        .collect(Collectors.toList()));
     }
 
     /**
@@ -75,9 +97,14 @@ public class CompoundMove extends ActionImpl {
      *                {@link Economy#getMarketsAsBuyer(Trader)}.
      *                Must be the same size as <b>destinations</b> and not empty.
      * @param destinations Same as for {@link #CompoundMove(Economy, Collection, Collection)}.
+     * @param contexts ShoppingList Context objects
      */
-    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@NonNull ShoppingList> shoppingLists,
-            @NonNull Collection<@Nullable Trader> sources, @NonNull Collection<@Nullable Trader> destinations) {
+    private CompoundMove(
+            @NonNull Economy economy,
+            @NonNull Collection<@NonNull ShoppingList> shoppingLists,
+            @NonNull Collection<@Nullable Trader> sources,
+            @NonNull Collection<@Nullable Trader> destinations,
+            @NonNull Collection<Optional<Context>> contexts) {
         super(economy);
 
         checkArgument(shoppingLists.size() == destinations.size(), "shoppingLists.size() = "
@@ -89,13 +116,18 @@ public class CompoundMove extends ActionImpl {
         Iterator<ShoppingList> shoppingListIter = shoppingLists.iterator();
         Iterator<Trader> sourceIter = sources.iterator();
         Iterator<Trader> destinationIter = destinations.iterator();
+        Iterator<Optional<Context>> contextIter = contexts.iterator();
         while (shoppingListIter.hasNext()) {
             // create move action only if the source and destination are different
             ShoppingList sl = shoppingListIter.next();
             Trader source = sourceIter.next();
             Trader destination = destinationIter.next();
-            if (destination != null && !destination.equals(source)) {
-                moves.add(new Move(economy, sl, source, destination));
+            Optional<Context> context = contextIter.next();
+            if ((context.isPresent() && !sl.getContext().equals(context)) || (destination != null
+                    && !destination.equals(source))) {
+                moves.add(context.isPresent()
+                        ? new Move(economy, sl, source, destination, context)
+                        : new Move(economy, sl, source, destination));
             }
         }
 
@@ -307,6 +339,45 @@ public class CompoundMove extends ActionImpl {
         return ActionType.COMPOUND_MOVE;
     }
 
+    /**
+     * Create a {@link CompoundMove} with a list of shopping lists, their source traders, destination
+     * traders and contexts.
+     *
+     * @param economy the economy.
+     * @param shoppingLists a list of shopping lists.
+     * @param sources a list of source traders where the shopping lists used to stay. The order of
+     *                {@link sources} should match with the order of {@link shoppingLists}.
+     * @param destinations a list of destination traders where the shopping lists will move to. The
+     *                     order of {@link destinations} should match with the order of
+     *                     {@link shoppingLists}.
+     * @param contextList a list of contexts. The order of {@link contextList} should match with
+     *                    the order of {@link shoppingLists}.
+     * @return a CompoundMove.
+     */
+    public static @Nullable CompoundMove
+            createAndCheckCompoundMoveWithExplicitSources(@NonNull Economy economy,
+                                                          @NonNull Collection<@Nullable ShoppingList> shoppingLists,
+                                                          @NonNull Collection<@Nullable Trader> sources,
+                                                          @NonNull Collection<@Nullable Trader> destinations,
+                                                          @NonNull Collection<Optional<Context>> contextList) {
+
+        CompoundMove compoundMove = new CompoundMove(economy, shoppingLists, sources, destinations, contextList);
+        return validateCompoundMove(compoundMove, sources, destinations);
+    }
+
+    /**
+     * Create a {@link CompoundMove} with a list of shopping lists, their source traders and destination
+     * traders.
+     *
+     * @param economy the economy
+     * @param shoppingLists a list of shopping lists
+     * @param sources a list of source traders where the shopping lists used to stay. The order of
+     *                {@link sources} should match with the order of {@link shoppingLists}.
+     * @param destinations a list of destination traders where the shopping lists will move to. The
+     *                     order of {@link destinations} should match with the order of
+     *                     {@link shoppingLists}.
+     * @return a CompoundMove
+     */
     public static @Nullable CompoundMove createAndCheckCompoundMoveWithExplicitSources(
                             @NonNull Economy economy,
                             @NonNull Collection<@Nullable ShoppingList> shoppingLists,
@@ -314,11 +385,26 @@ public class CompoundMove extends ActionImpl {
                             @NonNull Collection<@Nullable Trader> destinations) {
 
         CompoundMove compoundMove = new CompoundMove(economy, shoppingLists, sources, destinations);
+        return validateCompoundMove(compoundMove, sources, destinations);
+    }
+
+    /**
+     * Utility method to check if the there is any constituent move within the compoundMove. If no,
+     * print out an error message.
+     *
+     * @param compoundMove the given compoundMove.
+     * @param sources a list of source traders.
+     * @param destinations a list of destination traders.
+     * @return a CompoundMove.
+     */
+    private static @Nullable CompoundMove validateCompoundMove(@NonNull CompoundMove compoundMove,
+                                                               @NonNull Collection<@Nullable Trader> sources,
+                                                               @NonNull Collection<@Nullable Trader> destinations) {
         if (!compoundMove.getConstituentMoves().isEmpty()) {
             return compoundMove;
         } else {
             StringBuilder errorMsg = new StringBuilder("A compound move with no " +
-                    "constituent actions was generated. ");
+                            "constituent actions was generated. ");
             errorMsg.append("Current Suppliers: ");
             for (Trader supplier : sources) {
                 errorMsg.append(supplier.getDebugInfoNeverUseInCode()).append(" ");

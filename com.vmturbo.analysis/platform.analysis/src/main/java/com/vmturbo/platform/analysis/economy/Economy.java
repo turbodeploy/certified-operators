@@ -95,6 +95,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private Map<String, ScalingGroupPeerInfo> scalingGroupToPeerInfo = new HashMap<>();
     // Map from scaling group ID to members in scaling group
     private Map<String, Set<Trader>> scalingGroupToMembers = new HashMap<>();
+    // Map of trader to its context list
+    private Map<Trader, List<Context>> traderWithContext = new HashMap<>();
 
     // Cached data
 
@@ -384,6 +386,18 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
+     * Returns a map of trader and its context combination.
+     * This map will keep track of the context combination per trader so that when buyer doesn't have
+     * context specified, it can iterate all possible context to get the best quote associated context.
+     *
+     * @return trader to context list map.
+     */
+    @Override
+    public @NonNull Map<Trader, List<Context>> getTraderWithContextMap() {
+        return traderWithContext;
+    }
+
+    /**
      * Creates a new {@link Trader trader} with the given characteristics and adds it to
      * {@code this} economy.
      *
@@ -477,7 +491,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         // available for placement
         newTrader.getSettings().setCanAcceptNewCustomers(modelSeller.getSettings()
                                                                          .canAcceptNewCustomers());
-
+        newTrader.getSettings().setContext(modelSeller.getSettings().getContext().orElse(null));
         Collection<Market> marketsToScan = basketSold.equals(modelSeller.getBasketSold()) ?
             getMarketsAsSeller(modelSeller) : markets_.values();
 
@@ -944,9 +958,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private void cloneContext(Trader trader, Trader cloneTrader) {
         //TODO Have Cloud Context extend a Context class so that the setting is generic for
         // on prem and cloud
-        Context context = trader.getSettings().getContext();
-        if (context != null) {
-            Context cloneContext = new Context(context);
+        Optional<Context> optionalContext = trader.getSettings().getContext();
+        if (optionalContext.isPresent()) {
+            Context cloneContext = new Context(optionalContext.get());
             cloneTrader.getSettings().setContext(cloneContext);
         }
     }
@@ -1260,10 +1274,10 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                     groupSupplierId = oid;
                 }
                 first = false;
-                Context context = sl.getBuyer().getSettings().getContext();
-                if (context == null) {
+                if (!sl.getBuyer().getSettings().getContext().isPresent()) {
                     continue;
                 }
+                Context context = sl.getBuyer().getSettings().getContext().get();
                 if (oid != null) {
                     // create coverageEntries in the map only for non-zero coverages
                     if (context.getTotalAllocatedCoupons(oid).isPresent()) {

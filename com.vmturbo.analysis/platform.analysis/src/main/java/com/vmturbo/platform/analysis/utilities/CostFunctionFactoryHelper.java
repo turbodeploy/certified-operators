@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -23,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
@@ -681,53 +683,87 @@ public class CostFunctionFactoryHelper {
                                                            @Nonnull List<CommodityContext> commodityContext,
                                                            @Nonnull Map<CommoditySpecification, Table<Long, Long, List<PriceData>>> priceDataMap,
                                                            boolean appendPenalty) {
-        Long businessAccountChosenId = null;
-        Long regionId = null;
-        BalanceAccount balanceAccount = null;
-        final Context context = sl.getBuyer().getSettings().getContext();
-        if (context != null) {
-            regionId = context.getRegionId();
-            balanceAccount = sl.getBuyer().getSettings().getContext().getBalanceAccount();
+        Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
+        if (!optionalContext.isPresent()) {
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
         }
-        double cost = appendPenalty ? REVERSIBILITY_PENALTY_COST : 0;
+        final Context context = optionalContext.get();
+        final long regionId = context.getRegionId();
+        final BalanceAccount balanceAccount = context.getBalanceAccount();
+        final long priceId = balanceAccount.getPriceId();
+        final long balanceAccountId = balanceAccount.getId();
+        Pair<Double, Long> costAccountPair = getTotalCost(regionId, balanceAccountId, priceId,
+                commQuantityMap, priceDataMap, appendPenalty);
+        Double cost = costAccountPair.first;
+        Long chosenAccountId = costAccountPair.second;
+        // If no pricing was found for commodities in basket, then return infinite quote for seller.
+        if (cost == Double.MAX_VALUE) {
+            logger.warn("No (cheapest) cost found for storage {} in region {}, account {}.",
+                    seller.getDebugInfoNeverUseInCode(), regionId, balanceAccount);
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+        }
+        return new CommodityCloudQuote(seller, cost, regionId, chosenAccountId, commodityContext);
+    }
+
+    /**
+     * Gets the cost for all commodities in the priceDataMap. Used to calculate cheapest cost
+     * across all regions and accounts.
+     *
+     * @param regionId Region id for which cost needs to be obtained.
+     * @param accountId Business account id.
+     * @param priceId Pricing id for account.
+     * @param commQuantityMap the map containing commodity quantity used for price calculation.
+     * @param priceDataMap Map containing all cost data.
+     * @param appendPenalty if penalty cost should be counted into quote cost.
+     * @return Pair with first value as the total cost for region, and second value as the chosen
+     * business account (could be the price id if found). If there are no commodities in the pricing
+     * map or if we could not get any costs, then Double.MAX_VALUE is returned for cost.
+     */
+    @Nonnull
+    private static Pair<Double, Long> getTotalCost(
+            long regionId, long accountId, @Nullable Long priceId,
+            @Nonnull Map<CommoditySpecification, Double> commQuantityMap,
+            @Nonnull Map<CommoditySpecification, Table<Long, Long, List<PriceData>>> priceDataMap,
+            boolean appendPenalty) {
+        // Cost if we didn't get any valid commodity pricing, will be max, so that we don't
+        // mistakenly think this region is cheapest because it is $0.
+        double totalCost = Double.MAX_VALUE;
+        Long businessAccountChosenId = null;
+
         // iterating the priceDataMap for each type of commodity resource
-        for (Entry<CommoditySpecification, Table<Long, Long, List<PriceData>>> commodityPrice : priceDataMap.entrySet()) {
+        for (Entry<CommoditySpecification, Table<Long, Long, List<PriceData>>> commodityPrice
+                : priceDataMap.entrySet()) {
             final Double requestedAmount = commQuantityMap.get(commodityPrice.getKey());
             if (requestedAmount == null) {
+                // The commQuantityMap is from the buyer, which may not buy all resources sold
+                // by the seller, e.g: some VM does not request IOPS sold by IO1. We can skip it
+                // when trying to compute cost.
                 continue;
             }
             final Table<Long, Long, List<PriceData>> priceTable = commodityPrice.getValue();
-            if (balanceAccount != null) {
-                // priceMap may contain PriceData by price id. Price id is the identifier for a price
-                // offering associated with a Balance Account. Different Balance Accounts (i.e.
-                // Balance Accounts with different ids) may have the same price id, if they are
-                // associated with the same price offering. If no entry is found in the priceMap for a
-                // price id, then the Balance Account id is used to lookup the priceMap.
-                final long rId = regionId.longValue();
-                businessAccountChosenId = balanceAccount.getPriceId();
-                List<PriceData> priceDataList = priceTable.get(businessAccountChosenId, rId);
-                if (priceDataList == null) {
-                    businessAccountChosenId = balanceAccount.getId();
-                    priceDataList = priceTable.get(businessAccountChosenId, rId);
-                }
-                if (priceDataList != null) {
-                    cost += getCostFromPriceDataList(requestedAmount, priceDataList);
-                }
-            } else {
-                // on prem entities without context can reach here, iterate all business account
-                // in price data map to find cheapest cost
-                double cheapestCost = Double.MAX_VALUE;
-                for (Cell<Long, Long, List<PriceData>> cell : priceTable.cellSet()) {
-                    double tempCost = getCostFromPriceDataList(requestedAmount, cell.getValue());
-                    if (cheapestCost > tempCost) {
-                        cheapestCost = tempCost;
-                        businessAccountChosenId = cell.getRowKey();
+            // priceMap may contain PriceData by price id. Price id is the identifier for a price
+            // offering associated with a Balance Account. Different Balance Accounts (i.e.
+            // Balance Accounts with different ids) may have the same price id, if they are
+            // associated with the same price offering. If no entry is found in the priceMap for a
+            // price id, then the Balance Account id is used to lookup the priceMap.
+            businessAccountChosenId = priceId != null && priceTable.containsRow(priceId)
+                    ? priceId : accountId;
+            final List<PriceData> priceDataList = priceTable.get(businessAccountChosenId, regionId);
+            if (priceDataList != null) {
+                double cost = getCostFromPriceDataList(requestedAmount, priceDataList);
+                if (cost != Double.MAX_VALUE) {
+                    if (totalCost == Double.MAX_VALUE) {
+                        // Initialize cost now that we are getting a valid cost.
+                        totalCost = appendPenalty ? REVERSIBILITY_PENALTY_COST : 0;
                     }
+                    totalCost += cost;
                 }
-                cost += cheapestCost;
             }
         }
-        return new CommodityCloudQuote(seller, cost, regionId, businessAccountChosenId, commodityContext);
+        if (businessAccountChosenId == null) {
+            businessAccountChosenId = accountId;
+        }
+        return new Pair<>(totalCost, businessAccountChosenId);
     }
 
     /**
@@ -750,6 +786,6 @@ public class CostFunctionFactoryHelper {
                 return priceData.getPrice() * requestedAmount;
             }
         }
-        return 0f;
+        return Double.MAX_VALUE;
     }
 }
