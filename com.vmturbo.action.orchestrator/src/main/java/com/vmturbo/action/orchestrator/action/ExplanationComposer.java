@@ -1,15 +1,17 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityType;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.buildEntityNameOrType;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.buildEntityTypeAndName;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.getCommodityDisplayName;
 
 import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,7 +30,6 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
@@ -59,9 +60,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.graph.util.BaseGraphEntity;
 
 /**
  * A utility with static methods that assist in composing explanations for actions.
@@ -136,8 +134,7 @@ public class ExplanationComposer {
     @Nonnull
     @VisibleForTesting
     public static Set<String> composeRelatedRisks(@Nonnull ActionDTO.Action action) {
-        return internalComposeExplanation(action, true, Collections.emptyMap(),
-            Optional.empty(), null);
+        return internalComposeExplanation(action, true, Collections.emptyMap(), null);
     }
 
     /**
@@ -149,8 +146,7 @@ public class ExplanationComposer {
     @Nonnull
     @VisibleForTesting
     static String composeExplanation(@Nonnull final ActionDTO.Action action) {
-        return internalComposeExplanation(action, false, Collections.emptyMap(),
-            Optional.empty(), null)
+        return internalComposeExplanation(action, false, Collections.emptyMap(), null)
             .iterator().next();
     }
 
@@ -159,8 +155,6 @@ public class ExplanationComposer {
      *
      * @param action the action to explain
      * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
      * @param topologyInfo Info about plan topology for explanation override.
      * @return the explanation sentence
      */
@@ -168,10 +162,9 @@ public class ExplanationComposer {
     public static String composeExplanation(
             @Nonnull final ActionDTO.Action action,
             @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
-            @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
             @Nullable final TopologyInfo topologyInfo) {
         return internalComposeExplanation(action, false,
-            settingPolicyIdToSettingPolicyName, topology, topologyInfo)
+                settingPolicyIdToSettingPolicyName, topologyInfo)
             .iterator().next();
     }
 
@@ -201,8 +194,6 @@ public class ExplanationComposer {
      * @param action the action to explain
      * @param keepItShort generate short explanation or not
      * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
      * @param topologyInfo Info about plan topology for explanation override.
      * @return a set of explanation sentences
      */
@@ -210,30 +201,29 @@ public class ExplanationComposer {
     private static Set<String> internalComposeExplanation(
             @Nonnull final ActionDTO.Action action, final boolean keepItShort,
             @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
-            @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
             @Nullable final TopologyInfo topologyInfo) {
         final Explanation explanation = action.getExplanation();
         switch (explanation.getActionExplanationTypeCase()) {
             case MOVE:
             case SCALE:
                 return buildMoveExplanation(action, settingPolicyIdToSettingPolicyName,
-                    topology, keepItShort, topologyInfo);
+                        keepItShort, topologyInfo);
             case ALLOCATE:
                 return Collections.singleton(buildAllocateExplanation(action, keepItShort));
             case ATOMICRESIZE:
                 //invoked when the action spec is created from the action view
-                return buildAtomicResizeExplanation(action, topology, keepItShort);
+                return buildAtomicResizeExplanation(action, keepItShort);
             case RESIZE:
-                return Collections.singleton(buildResizeExplanation(action, topology, keepItShort));
+                return Collections.singleton(buildResizeExplanation(action, keepItShort));
             case ACTIVATE:
                 return Collections.singleton(buildActivateExplanation(action, keepItShort));
             case DEACTIVATE:
                 return Collections.singleton(buildDeactivateExplanation());
             case RECONFIGURE:
                 return Collections.singleton(buildReconfigureExplanation(
-                    action, settingPolicyIdToSettingPolicyName, topology, keepItShort));
+                    action, settingPolicyIdToSettingPolicyName, keepItShort));
             case PROVISION:
-                return buildProvisionExplanation(action, topology, keepItShort);
+                return buildProvisionExplanation(action, keepItShort);
             case DELETE:
                 return Collections.singleton(buildDeleteExplanation(action));
             case BUYRI:
@@ -248,8 +238,6 @@ public class ExplanationComposer {
      *
      * @param action the action to explain
      * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
      * @param keepItShort compose a short explanation if true
      * @param topologyInfo Info about plan topology for explanation override.
      * @return a set of explanation sentences
@@ -257,7 +245,6 @@ public class ExplanationComposer {
     private static Set<String> buildMoveExplanation(
             @Nonnull final ActionDTO.Action action,
             @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
-            @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
             final boolean keepItShort,
             @Nullable final TopologyInfo topologyInfo) {
         final String explanationOverride = getPlanExplanationOverride(topologyInfo);
@@ -265,7 +252,7 @@ public class ExplanationComposer {
             return ImmutableSet.of(explanationOverride);
         }
         final Set<String> moveExplanations = buildMoveCoreExplanation(
-            action, settingPolicyIdToSettingPolicyName, topology, keepItShort);
+            action, settingPolicyIdToSettingPolicyName, keepItShort);
         if (keepItShort) {
             return moveExplanations;
         }
@@ -279,15 +266,12 @@ public class ExplanationComposer {
      *
      * @param action the action to explain
      * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
      * @param keepItShort generate short explanation or not
      * @return a set of explanation sentences
      */
     private static Set<String> buildMoveCoreExplanation(
             @Nonnull final ActionDTO.Action action,
             @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
-            @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
             final boolean keepItShort) {
         final Explanation explanation = action.getExplanation();
         // if we only have one source entity, we'll use it in the explanation builder. if
@@ -321,7 +305,7 @@ public class ExplanationComposer {
             try {
                 return buildMoveChangeExplanation(optionalSourceEntity,
                     ActionDTOUtil.getPrimaryEntity(action, false), changeExplanation,
-                    settingPolicyIdToSettingPolicyName, topology, keepItShort).stream();
+                    settingPolicyIdToSettingPolicyName, keepItShort).stream();
             } catch (UnsupportedActionException e) {
                 logger.error("Cannot build action explanation", e);
                 return Stream.of(keepItShort ? ACTION_ERROR_CATEGORY : ACTION_TYPE_ERROR);
@@ -374,33 +358,28 @@ public class ExplanationComposer {
      * @param target the target entity
      * @param changeProviderExplanation the reason that we change provider
      * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
      * @param keepItShort generate short explanation or not
      * @return a set of explanation sentences
      */
     private static Set<String> buildMoveChangeExplanation(
             @Nonnull final Optional<ActionEntity> optionalSourceEntity, @Nonnull final ActionEntity target,
             @Nonnull final ChangeProviderExplanation changeProviderExplanation,
-            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
-            @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
-            final boolean keepItShort) {
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName, final boolean keepItShort) {
         switch (changeProviderExplanation.getChangeProviderExplanationTypeCase()) {
             case COMPLIANCE:
                 if (!changeProviderExplanation.getCompliance().getReasonSettingsList().isEmpty()) {
                     return Collections.singleton(buildReasonSettingsExplanation(target,
                         changeProviderExplanation.getCompliance().getReasonSettingsList(),
-                        settingPolicyIdToSettingPolicyName, topology, keepItShort));
+                        settingPolicyIdToSettingPolicyName, keepItShort));
                 } else {
                     return buildComplianceReasonCommodityExplanation(optionalSourceEntity,
-                        changeProviderExplanation.getCompliance().getMissingCommoditiesList(),
-                        topology, keepItShort);
+                        changeProviderExplanation.getCompliance().getMissingCommoditiesList(), keepItShort);
                 }
             case CONGESTION:
                 return buildCongestionExplanation(changeProviderExplanation.getCongestion(), keepItShort);
             case EVACUATION:
                 return Collections.singleton(buildEvacuationExplanation(
-                    changeProviderExplanation.getEvacuation(), topology, keepItShort));
+                    changeProviderExplanation.getEvacuation(), keepItShort));
             case PERFORMANCE:
                 return Collections.singleton(buildPerformanceExplanation());
             case EFFICIENCY:
@@ -419,16 +398,12 @@ public class ExplanationComposer {
      *
      * @param optionalSourceEntity the source entity
      * @param reasonCommodities a list of commodities that causes this action
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
      * @param keepItShort generate short explanation or not
      * @return the explanation sentence
      */
     private static Set<String> buildComplianceReasonCommodityExplanation(
             @Nonnull final Optional<ActionEntity> optionalSourceEntity,
-            @Nonnull final List<ReasonCommodity> reasonCommodities,
-            @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
-            final boolean keepItShort) {
+            @Nonnull final List<ReasonCommodity> reasonCommodities, final boolean keepItShort) {
         if (keepItShort) {
             return reasonCommodities.stream().map(reasonCommodity -> {
                 if (reasonCommodity.getCommodityType().getType() ==
@@ -442,8 +417,8 @@ public class ExplanationComposer {
         }
 
         return Collections.singleton(MessageFormat.format(MOVE_COMPLIANCE_EXPLANATION_FORMAT,
-            optionalSourceEntity.map(e -> buildEntityNameOrType(e, topology)).orElse("Current supplier"))
-            + reasonCommodities.stream().map(ReasonCommodity::getCommodityType)
+            optionalSourceEntity.map(ActionDTOUtil::buildEntityNameOrType).orElse("Current supplier")) +
+            reasonCommodities.stream().map(ReasonCommodity::getCommodityType)
                 .map(commType -> commodityDisplayName(commType, false))
                 .collect(Collectors.joining(", ")));
     }
@@ -487,21 +462,17 @@ public class ExplanationComposer {
      *      "Underutilized resources"
      *
      * @param evacuation The evacuation change provider explanation
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
      * @param keepItShort Defines whether to generate short explanation or not.
      * @return explanation
      */
-    private static String buildEvacuationExplanation(Evacuation evacuation,
-                                                     @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
-                                                     boolean keepItShort) {
+    private static String buildEvacuationExplanation(Evacuation evacuation, boolean keepItShort) {
         if (keepItShort) {
             return UNDERUTILIZED_RESOURCES_CATEGORY;
         }
         return MessageFormat.format(
             evacuation.getIsAvailable() ? MOVE_EVACUATION_SUSPENSION_EXPLANATION_FORMAT :
                 MOVE_EVACUATION_AVAILABILITY_EXPLANATION_FORMAT,
-            buildNameBlock(evacuation.getSuspendedEntity(), "Current supplier", topology));
+            ActionDTOUtil.createTranslationBlock(evacuation.getSuspendedEntity(), "displayName", "Current supplier"));
     }
 
     /**
@@ -624,14 +595,11 @@ public class ExplanationComposer {
      *      "Merged on Workload Controller twitter-cass-tweet"
      *
      * @param action the action to explain
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
      * @param keepItShort compose a short explanation if true
      * @return the explanation sentence
      */
     private static Set<String> buildAtomicResizeExplanation(
             @Nonnull final ActionDTO.Action action,
-            @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
             final boolean keepItShort) {
 
         if (!action.getInfo().hasAtomicResize()) {
@@ -641,12 +609,12 @@ public class ExplanationComposer {
 
         AtomicResize atomicResize = action.getInfo().getAtomicResize();
 
-        final String coreExplanation = buildAtomicResizeCoreExplanation(action, topology);
+        final String coreExplanation = buildAtomicResizeCoreExplanation(action);
         if (keepItShort) {
             return Collections.singleton(coreExplanation);
         }
 
-        final List<String> resizeInfoExplanations = new ArrayList<>();
+        final Set<String> resizeInfoExplanations = new HashSet<>();
         for (ResizeInfo resize : atomicResize.getResizesList()) {
 
             String resizeExplanation;
@@ -671,7 +639,7 @@ public class ExplanationComposer {
 
             StringBuilder sb = new StringBuilder();
             String targetClause = resize.hasTarget()
-                    ? " in " + buildEntityTypeAndName(resize.getTarget(), topology)
+                    ? " in " + buildEntityTypeAndName(resize.getTarget())
                     : "";
             sb.append(resizeExplanation).append(targetClause);
 
@@ -702,12 +670,11 @@ public class ExplanationComposer {
         return Collections.singleton(allExplanations.toString());
     }
 
-    private static String buildAtomicResizeCoreExplanation(ActionDTO.Action action,
-                                                           @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology) {
+    private static String buildAtomicResizeCoreExplanation(ActionDTO.Action action) {
         StringBuilder sb = new StringBuilder(ActionDTOUtil.TRANSLATION_PREFIX);
         AtomicResize atomicResize = action.getInfo().getAtomicResize();
         String targetClause = atomicResize.hasExecutionTarget()
-                ? " Merged on " + buildEntityTypeAndName(atomicResize.getExecutionTarget(), topology)
+                ? " Merged on " + buildEntityTypeAndName(atomicResize.getExecutionTarget())
                 : "";
 
         sb.append(targetClause);
@@ -724,13 +691,10 @@ public class ExplanationComposer {
      *      resize up: "Mem Congestion"
      *
      * @param action the resize action
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
      * @param keepItShort compose a short explanation if true
      * @return the explanation sentence
      */
     private static String buildResizeExplanation(@Nonnull final ActionDTO.Action action,
-                                                 @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
                                                  final boolean keepItShort) {
         // verify it's a resize.
         if (!action.getInfo().hasResize()) {
@@ -748,7 +712,7 @@ public class ExplanationComposer {
         Resize resize = action.getInfo().getResize();
         // if we have a target, we will try to show it's name in the explanation
         String targetClause = resize.hasTarget()
-                ? " in " + buildEntityTypeAndName(resize.getTarget(), topology)
+                ? " in "+ buildEntityTypeAndName(resize.getTarget())
                 : "";
         sb.append(resizeExplanation).append(targetClause);
         getScalingGroupExplanation(action.getExplanation()).ifPresent(sb::append);
@@ -867,15 +831,12 @@ public class ExplanationComposer {
      *
      * @param action the action to explain
      * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
      * @param keepItShort compose a short explanation if true
      * @return the explanation sentence
      */
     private static String buildReconfigureExplanation(
             @Nonnull final ActionDTO.Action action,
             @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
-            @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
             final boolean keepItShort) {
         if (keepItShort) {
             return RECONFIGURE_EXPLANATION_CATEGORY;
@@ -888,7 +849,7 @@ public class ExplanationComposer {
             sb.append(ActionDTOUtil.TRANSLATION_PREFIX)
                 .append(buildReasonSettingsExplanation(action.getInfo().getReconfigure().getTarget(),
                     reconfigExplanation.getReasonSettingsList(),
-                    settingPolicyIdToSettingPolicyName, topology, false));
+                    settingPolicyIdToSettingPolicyName, false));
         } else {
             sb.append(buildReconfigureReasonCommodityExplanation(
                 reconfigExplanation.getReconfigureCommodityList()));
@@ -923,20 +884,17 @@ public class ExplanationComposer {
      *
      * @param target the target entity
      * @param reasonSettings a list of settingPolicyIds that causes this action
-     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
      * @param keepItShort generate short explanation or not
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
      * @return the explanation sentence
      */
     private static String buildReasonSettingsExplanation(
             @Nonnull final ActionEntity target, @Nonnull final List<Long> reasonSettings,
-            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
-            @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology, final boolean keepItShort) {
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName, final boolean keepItShort) {
         if (keepItShort) {
             return REASON_SETTING_EXPLANATION_CATEGORY;
         }
-        return MessageFormat.format(REASON_SETTINGS_EXPLANATION, buildEntityNameOrType(target, topology),
+        return MessageFormat.format(REASON_SETTINGS_EXPLANATION, buildEntityNameOrType(target),
             reasonSettings.stream().map(settingPolicyIdToSettingPolicyName::get).collect(Collectors.joining(", ")));
     }
 
@@ -949,15 +907,11 @@ public class ExplanationComposer {
      *
      *
      * @param action the action to explain
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
      * @param keepItShort compose a short explanation if true
      * @return the explanation sentence
      */
     private static Set<String> buildProvisionExplanation(
-            @Nonnull final ActionDTO.Action action,
-            @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology,
-            final boolean keepItShort) {
+            @Nonnull final ActionDTO.Action action, final boolean keepItShort) {
         final Explanation explanation = action.getExplanation();
         final ProvisionExplanation provisionExplanation = explanation.getProvision();
         switch (provisionExplanation.getProvisionExplanationTypeCase()) {
@@ -971,8 +925,7 @@ public class ExplanationComposer {
                 } else {
                     return Collections.singleton(ActionDTOUtil.TRANSLATION_PREFIX +
                         String.join(", ", commodityNames) + CONGESTION_EXPLANATION + " in '" +
-                        buildEntityNameOrType(action.getInfo().getProvision().getEntityToClone(),
-                            topology) + "'");
+                        buildEntityNameOrType(action.getInfo().getProvision().getEntityToClone()) + "'");
                 }
             case PROVISION_BY_SUPPLY_EXPLANATION:
                 return Collections.singleton(buildProvisionBySupplyExplanation(provisionExplanation, keepItShort));
@@ -1068,68 +1021,5 @@ public class ExplanationComposer {
         final long start = (slot * eachSlotDuration.toMillis());
         final long end = start + eachSlotDuration.toMillis();
         return new Pair<>(start, end);
-    }
-
-    /**
-     * Given an {@link ActionEntity}, create a translation fragment that shows the entity type and name.
-     * <p/>
-     * e.g. For a VM named "Bill", create a fragment that would translate to "Virtual Machine Bill".
-     * <p/>
-     * If the topology is present and the entity is in it, we directly insert the entity name via lookup.
-     * Otherwise we insert a format string for later substitution when the entity information is available.
-     *
-     * @param entity an {@link ActionEntity}
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
-     * @return the translation
-     */
-    private static String buildEntityTypeAndName(@Nonnull final ActionEntity entity,
-                                                @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology) {
-        return topology
-            .flatMap(topo -> topo.getEntity(entity.getId()))
-            .map(e -> ActionDTOUtil.upperUnderScoreToMixedSpaces(EntityType.forNumber(entity.getType()).name())
-                + " " + e.getDisplayName())
-            .orElse(ActionDTOUtil.buildEntityTypeAndName(entity));
-    }
-
-    /**
-     * Given an {@link ActionEntity}, create a translation fragment that shows the entity name, if
-     * available, otherwise will show the entity type if for some reason the entity cannot be found
-     * when the text is translated.
-     * <p/>
-     * If the topology is present and the entity is in it, we directly insert the entity name via lookup.
-     * Otherwise we insert a format string for later substitution when the entity information is available.
-     *
-     * @param entity an {@link ActionEntity}
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
-     * @return the translation
-     */
-    private static String buildEntityNameOrType(ActionEntity entity,
-                                               @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology) {
-        return topology
-            .flatMap(topo -> topo.getEntity(entity.getId()))
-            .map(BaseGraphEntity::getDisplayName)
-            .orElse(ActionDTOUtil.buildEntityNameOrType(entity));
-    }
-
-    /**
-     * Given an {@link ActionEntity}, create a translation fragment that shows the entity name, if
-     * available in the topology, otherwise will build a translation block for later translation
-     * of the name in the API component.
-     *
-     * @param entityOid OID of entity
-     * @param defaultName The default name to use if the entity is not available.
-     * @param topology A minimal topology graph containing the relevant topology.
-     *                 May be empty if no relevant topology is available.
-     * @return the translation
-     */
-    private static String buildNameBlock(final long entityOid,
-                                         @Nonnull final String defaultName,
-                                         @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology) {
-        return topology
-            .flatMap(topo -> topo.getEntity(entityOid))
-            .map(BaseGraphEntity::getDisplayName)
-            .orElse(ActionDTOUtil.createTranslationBlock(entityOid, ActionDTOUtil.DISPLAY_NAME, defaultName));
     }
 }

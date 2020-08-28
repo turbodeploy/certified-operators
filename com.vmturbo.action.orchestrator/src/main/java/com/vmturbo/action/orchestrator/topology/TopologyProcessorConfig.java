@@ -61,15 +61,4 @@ public class TopologyProcessorConfig {
     public Channel topologyProcessorChannel() {
         return topologyProcessorClientConfig.topologyProcessorChannel();
     }
-
-
-    /**
-     * See: {@link ActionTopologyStore}.
-     *
-     * @return The {@link ActionTopologyStore}.
-     */
-    @Bean
-    public ActionTopologyStore actionTopologyStore() {
-        return new ActionTopologyStore();
-    }
 }

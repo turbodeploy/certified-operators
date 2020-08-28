@@ -549,7 +549,7 @@ public class ActionExecutionRpcTest {
                                                               @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
                 return actionStream;
             }
-        }, grpcServer.getChannel(), new ActionTopologyStore()));
+        }, grpcServer.getChannel()));
 
         final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
         final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));

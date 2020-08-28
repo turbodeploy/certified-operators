@@ -29,7 +29,6 @@ import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.action.VisibilityLevel;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo;
@@ -99,7 +98,7 @@ public class ActionOrchestratorTestUtils {
                                                               @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
                 return actionStream.peek(action -> action.getActionTranslation().setPassthroughTranslationSuccess());
             }
-        }, grpcTestServer.getChannel(), new ActionTopologyStore()));
+        }, grpcTestServer.getChannel()));
     }
 
     @Nonnull

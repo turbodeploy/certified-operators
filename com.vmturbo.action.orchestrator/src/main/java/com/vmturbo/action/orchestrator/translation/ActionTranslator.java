@@ -33,7 +33,6 @@ import com.vmturbo.action.orchestrator.action.PrerequisiteDescriptionComposer;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
-import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.batch.translator.BatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.CloudMoveBatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.PassThroughBatchTranslator;
@@ -53,7 +52,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
-import com.vmturbo.topology.graph.util.BaseTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**
@@ -116,8 +114,6 @@ public class ActionTranslator {
 
     private final SettingPolicyServiceBlockingStub settingPolicyService;
 
-    private final ActionTopologyStore actionTopologyStore;
-
     /**
      * Create a new {@link ActionTranslator} for translating actions from the market's domain-agnostic
      * action recommendations into actions that can be executed and understood in real-world domain-specific
@@ -125,17 +121,12 @@ public class ActionTranslator {
      *
      * @param repoChannel The searchServiceRpc to the repository component.
      * @param groupChannel Channel to use for creating a blocking stub to query the Group Service.
-     * @param actionTopologyStore Store for minimal topology to look up entity information.
      */
     @VisibleForTesting
-    public ActionTranslator(@Nonnull final Channel repoChannel,
-                            @Nonnull final Channel groupChannel,
-                            @Nonnull final ActionTopologyStore actionTopologyStore) {
-        translationExecutor = new ActionTranslationExecutor(
-            RepositoryServiceGrpc.newBlockingStub(repoChannel), actionTopologyStore);
+    public ActionTranslator(@Nonnull final Channel repoChannel, @Nonnull final Channel groupChannel) {
+        translationExecutor = new ActionTranslationExecutor(RepositoryServiceGrpc.newBlockingStub(repoChannel));
         this.settingPolicyService =
             SettingPolicyServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
-        this.actionTopologyStore = Objects.requireNonNull(actionTopologyStore);
     }
 
     /**
@@ -150,16 +141,13 @@ public class ActionTranslator {
      *
      * @param translationExecutor The object that will perform translation of actions.
      * @param groupChannel Channel to use for creating a blocking stub to query the Group Service.
-     * @param actionTopologyStore Store for minimal topology to look up entity information.
      */
     @VisibleForTesting
     public ActionTranslator(@Nonnull final TranslationExecutor translationExecutor,
-                            @Nonnull final Channel groupChannel,
-                            @Nonnull final ActionTopologyStore actionTopologyStore) {
+                            @Nonnull final Channel groupChannel) {
         this.translationExecutor = Objects.requireNonNull(translationExecutor);
         this.settingPolicyService =
             SettingPolicyServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
-        this.actionTopologyStore = Objects.requireNonNull(actionTopologyStore);
     }
 
     /**
@@ -314,9 +302,7 @@ public class ActionTranslator {
             .setActionState(actionView.getState())
             .setIsExecutable(actionView.determineExecutability())
             .setExplanation(ExplanationComposer.composeExplanation(
-                recommendationForDisplay, settingPolicyIdToSettingPolicyName,
-                actionTopologyStore.getSourceTopology().map(BaseTopology::entityGraph),
-                topologyInfo))
+                recommendationForDisplay, settingPolicyIdToSettingPolicyName, topologyInfo))
             .setCategory(actionView.getActionCategory())
             .setSeverity(actionView.getActionSeverity())
             .setDescription(actionView.getDescription());
@@ -378,17 +364,15 @@ public class ActionTranslator {
          *
          * @param repoService The repService which can be used to fetch entity information useful
          *                    for action translation.
-         * @param actionTopologyStore Store for minimal topology to look up entity information.
          */
         ActionTranslationExecutor(
-                @Nonnull final RepositoryServiceBlockingStub repoService,
-                @Nonnull final ActionTopologyStore actionTopologyStore) {
+                @Nonnull final RepositoryServiceBlockingStub repoService) {
             // The order is important. Matching BatchTranslator is searched for from the beginning
             // to the end of the list.
             batchTranslatorList = ImmutableList.of(
                 new SkipBatchTranslator(),
                 new CloudMoveBatchTranslator(),
-                new VCpuResizeBatchTranslator(Objects.requireNonNull(repoService), actionTopologyStore),
+                new VCpuResizeBatchTranslator(Objects.requireNonNull(repoService)),
                 new PassThroughBatchTranslator());
         }
 

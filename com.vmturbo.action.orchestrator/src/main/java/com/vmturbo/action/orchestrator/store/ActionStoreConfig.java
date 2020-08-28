@@ -35,6 +35,7 @@ import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.store.identity.RecommendationIdentityStore;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyListener;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
@@ -250,6 +251,16 @@ public class ActionStoreConfig {
     }
 
     /**
+     * See: {@link ActionTopologyStore}.
+     *
+     * @return The {@link ActionTopologyStore}.
+     */
+    @Bean
+    public ActionTopologyStore actionTopologyStore() {
+        return new ActionTopologyStore();
+    }
+
+    /**
      * Topology processor listener, which forwards topology and entity state updates.
      *
      * @return The {@link ActionTopologyListener}.
@@ -257,7 +268,7 @@ public class ActionStoreConfig {
     @Bean
     public ActionTopologyListener tpListener() {
         final ActionTopologyListener topologyListener = new ActionTopologyListener(actionStorehouse(),
-                tpConfig.actionTopologyStore(),
+                actionTopologyStore(),
                 tpConfig.realtimeTopologyContextId());
         tpConfig.topologyProcessor().addLiveTopologyListener(topologyListener);
         tpConfig.topologyProcessor().addEntitiesWithNewStatesListener(topologyListener);
@@ -272,7 +283,7 @@ public class ActionStoreConfig {
     @Bean
     public IActionStoreFactory actionStoreFactory() {
         return ActionStoreFactory.newBuilder()
-            .withTopologyStore(tpConfig.actionTopologyStore())
+            .withTopologyStore(actionTopologyStore())
             .withActionFactory(actionFactory())
             .withRealtimeTopologyContextId(tpConfig.realtimeTopologyContextId())
             .withDatabaseDslContext(databaseConfig.dsl())
