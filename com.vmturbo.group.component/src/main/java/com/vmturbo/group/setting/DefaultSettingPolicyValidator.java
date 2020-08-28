@@ -336,7 +336,7 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         if (!type.getEnumValuesList().contains(value)) {
             return Collections.singleton(
                     "The value \'" + value + "\' provided for setting \'"
-                        + settingSpec.getDisplayName() + "\' is not one the "
+                        + settingSpec.getDisplayName() + "\' is not one of the "
                         + "allowed values: "
                         + StringUtils.join(type.getEnumValuesList(), ", "));
         }
