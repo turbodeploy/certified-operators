@@ -37,6 +37,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
@@ -199,6 +200,9 @@ public class PlacementUnitTest {
         long baId = 10L;
         int linuxLicense = 500;
         int windowsLicense = 700;
+        CommoditySpecificationTO stAmtSpecificatinTO = CommoditySpecificationTO.newBuilder()
+                .setBaseType(CommodityType.STORAGE_AMOUNT_VALUE)
+                .setType(CommodityType.STORAGE_AMOUNT_VALUE).build();
         TraderTO vm = TraderTO.newBuilder().setOid(10000L)
                 .setSettings(TraderSettingsTO.newBuilder().setIsShopTogether(true)
                         .setQuoteFunction(QuoteFunctionDTO.newBuilder()
@@ -215,9 +219,7 @@ public class PlacementUnitTest {
                                         .setType(linuxLicense))))
                 .addShoppingLists(ShoppingListTO.newBuilder().setOid(20002L).setMovable(true)
                         .addCommoditiesBought(CommodityBoughtTO.newBuilder().setQuantity(50)
-                                .setSpecification(CommoditySpecificationTO.newBuilder()
-                                        .setBaseType(CommodityType.STORAGE_AMOUNT_VALUE)
-                                        .setType(CommodityType.STORAGE_AMOUNT_VALUE))))
+                                .setSpecification(stAmtSpecificatinTO)))
                 .build();
         TraderTO computeTier1 = TraderTO.newBuilder().setOid(10001L).addAllCliques(Arrays.asList(0L))
                 .setState(TraderStateTO.ACTIVE).setDebugInfoNeverUseInCode("computeTier")
@@ -276,15 +278,15 @@ public class PlacementUnitTest {
                                                                 .setRegionId(usEast)
                                                                 .setPrice(0.5))
                                                         .setIsUnitPrice(true)
-                                                        .setUpperBound(Double.MAX_VALUE))))))))
+                                                        .setUpperBound(Double.MAX_VALUE)))
+                                        .addStorageResourceLimitation(StorageResourceLimitation.newBuilder()
+                                                .setResourceType(stAmtSpecificatinTO).setMaxCapacity(100000)).build())))))
                 .addCommoditiesSold(CommoditySoldTO.newBuilder().setCapacity(10000).setQuantity(1)
                         .setSettings(CommoditySoldSettingsTO.newBuilder()
                                 .setPriceFunction(PriceFunctionTO.newBuilder()
                                         .setStandardWeighted(PriceFunctionTO.StandardWeighted
                                                 .newBuilder().setWeight(1.0f))))
-                        .setSpecification(CommoditySpecificationTO.newBuilder()
-                                .setBaseType(CommodityType.STORAGE_AMOUNT_VALUE)
-                                .setType(CommodityType.STORAGE_AMOUNT_VALUE)))
+                        .setSpecification(stAmtSpecificatinTO))
                 .build();
         Topology topology = new Topology();
         ProtobufToAnalysis.addTrader(topology, computeTier1);

@@ -18,7 +18,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
-import com.google.common.collect.Table.Cell;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
