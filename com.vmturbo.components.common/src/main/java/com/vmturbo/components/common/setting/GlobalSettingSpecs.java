@@ -120,6 +120,12 @@ public enum GlobalSettingSpecs {
             new BooleanSettingDataType(true),
             Lists.newArrayList(CategoryPathConstants.RI)),
 
+    CloudCommitmentAllocationRetentionDays(
+            "cloudCommitmentAllocationRetentionDays",
+            "Cloud Commitment Allocation Retention [Days]",
+            numeric(1f, 90f, 30f),
+            Lists.newArrayList(CategoryPathConstants.RI)),
+
     /**
      * Global RI Setting of demand type.
      */
