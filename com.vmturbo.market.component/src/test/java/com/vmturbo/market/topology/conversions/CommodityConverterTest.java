@@ -40,6 +40,7 @@ import com.vmturbo.market.topology.conversions.TopologyConverter.UsedAndPeak;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.PriceFunctionTypeCase;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.UpdatingFunctionTypeCase;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -51,6 +52,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class CommodityConverterTest {
 
     private static final long PM_OID = 1L;
+    private static final long APP_OID = 2L;
     private static final Float SCALING_FACTOR = 1.5F;
     private static final Float RAW_USED = 0.5F;
     private static final Float RAW_CAPACITY = 2.0F;
@@ -424,5 +426,38 @@ public class CommodityConverterTest {
             .filter(commSold -> commSold.getSpecification().getDebugInfoNeverUseInCode().contains(type.name()))
             .findFirst()
             .get();
+    }
+
+    /**
+     * Test setting of commodity distribution function.
+     */
+    @Test
+    public final void testCreateSLOCommoditySoldTO() {
+        HistoricalValues histUsed = HistoricalValues.newBuilder()
+                .setHistUtilization(RAW_USED)
+                .setPercentile(PERCENTILE_USED)
+                .build();
+        final TopologyEntityDTO originalTopologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(APP_OID)
+                .setEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
+                .addCommoditySoldList(createSoldCommodity(histUsed, null,
+                        CommodityDTO.CommodityType.RESPONSE_TIME, 100D))
+                .addCommoditySoldList(
+                        createSoldCommodity(histUsed, null,
+                                CommodityDTO.CommodityType.TRANSACTION,
+                                100D))
+                .build();
+        // Act
+        final Collection<CommoditySoldTO> result =
+                converterToTest.commoditiesSoldList(originalTopologyEntityDTO);
+        // Assert
+        assertThat(result.size(), equalTo(2));
+        final CommoditySoldTO responseTime =
+                getCommodityByType(result, CommodityDTO.CommodityType.RESPONSE_TIME);
+        assertTrue(responseTime.getSettings().hasUpdateFunction());
+        assertEquals(UpdatingFunctionTypeCase.MM1_DISTRIBUTION,
+                responseTime.getSettings()
+                        .getUpdateFunction()
+                        .getUpdatingFunctionTypeCase());
     }
 }
