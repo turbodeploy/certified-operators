@@ -134,6 +134,18 @@ public class CommodityTypeAllocator {
         return specs;
     }
 
+    /**
+     * Uses a {@link NumericIDAllocator} to construct an integer type to
+     * each unique combination of numeric commodity type + string key.
+     *
+     * @param commType a commodity description that contains the numeric type and the key
+     * @return and integer identifying the type
+     */
+    int topologyToMarketCommodityId(@Nonnull final CommodityType commType) {
+        String commodityTypeString = defaultKeyGenerator.commodityTypeToString(commType, 0);
+        return idAllocator.allocate(commodityTypeString);
+    }
+
     @Nonnull
     private CommodityIDKeyGenerator retrieveIdKeyGenerator(final int topologyCommodityType) {
         if (TopologyConversionConstants.TIMESLOT_COMMODITIES.contains(topologyCommodityType)) {
