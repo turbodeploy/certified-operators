@@ -38,7 +38,7 @@ public abstract class CloudActionAggregator extends ActionAggregator {
             // business accounts.
             if (involvedEntity.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD || involvedEntity.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.HYBRID) {
                 // Find the most immediate business account owner.
-                final Optional<Long> ownerOid = getAggregationEntity(involvedEntity.getId());
+                final Optional<Long> ownerOid = getAggregationEntity(action);
                 if (ownerOid.isPresent()) {
                     // The first time we encounter an involved entity with an owner we can actually
                     // initialize the map.
@@ -75,10 +75,10 @@ public abstract class CloudActionAggregator extends ActionAggregator {
      * Gets the oid for the entity that we are aggregating based on or empty if such entity does
      * not exists.
      *
-     * @param entityOid the oid of entity that aggregation entity is needed for.
+     * @param action the action view object.
      * @return the oid of the aggregation entity or otherwise false.
      */
-    protected abstract Optional<Long> getAggregationEntity(long entityOid);
+    protected abstract Optional<Long> getAggregationEntity(StatsActionViewFactory.StatsActionView action);
 
     /**
      * The method that increments the counter for the entities that don't have aggregation entity.

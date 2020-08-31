@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.stats;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -53,7 +54,9 @@ public class StatsActionViewFactory {
                             .actionMode(action.getMode())
                             .category(action.getActionCategory())
                             .actionRelatedRisk(relatedRisk)
-                            .build());
+                            .build())
+                    .resourceGroupId(action.getAssociatedResourceGroupId())
+                    .businessAccountId(action.getAssociatedAccount());
             snapshotBuilder.addInvolvedEntities(primaryEntity);
             return snapshotBuilder.build();
         });
@@ -67,5 +70,7 @@ public class StatsActionViewFactory {
         ActionDTO.Action recommendation();
         ActionGroupKey actionGroupKey();
         Set<ActionEntity> involvedEntities();
+        Optional<Long> businessAccountId();
+        Optional<Long> resourceGroupId();
     }
 }

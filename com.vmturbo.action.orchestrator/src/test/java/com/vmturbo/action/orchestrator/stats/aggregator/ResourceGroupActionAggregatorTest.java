@@ -4,14 +4,11 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
@@ -40,7 +37,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.group.api.GroupAndMembers;
-import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 
 /**
@@ -63,8 +59,6 @@ public class ResourceGroupActionAggregatorTest {
             .setAmount(1.0))
         .build();
 
-    private GroupMemberRetriever groupMemberRetriever;
-
     private Clock clock = new MutableFixedClock(1_000_000);
 
     private ResourceGroupActionAggregator.ResourceGroupActionAggregatorFactory factory;
@@ -74,9 +68,7 @@ public class ResourceGroupActionAggregatorTest {
      */
     @Before
     public void setup() {
-        groupMemberRetriever = mock(GroupMemberRetriever.class);
-        factory =
-            new ResourceGroupActionAggregator.ResourceGroupActionAggregatorFactory(groupMemberRetriever);
+        factory = new ResourceGroupActionAggregator.ResourceGroupActionAggregatorFactory();
     }
 
     /**
@@ -96,17 +88,15 @@ public class ResourceGroupActionAggregatorTest {
         final GroupAndMembers rg2GroupAndMembers = mock(GroupAndMembers.class);
         when(rg2GroupAndMembers.group()).thenReturn(GroupDTO.Grouping.newBuilder().setId(rg2Id).build());
         when(rg2GroupAndMembers.members()).thenReturn(Collections.singletonList(vm2Id));
-        doReturn(Arrays.asList(rg1GroupAndMembers, rg2GroupAndMembers))
-            .when(groupMemberRetriever).getGroupsWithMembers(any());
         final MgmtUnitSubgroup rg1Subgroup = makeRg(rg1Id, 123);
         final MgmtUnitSubgroup rg2Subgroup = makeRg(rg2Id, 234);
 
 
         // Actions involving entity 10 and entity 11.
         final ActionDTO.ActionEntity e10 = makeVm(vm1Id);
-        final StatsActionViewFactory.StatsActionView e10Snapshot = fakeSnapshot(e10);
+        final StatsActionViewFactory.StatsActionView e10Snapshot = fakeSnapshot(rg1Id, e10);
         final ActionDTO.ActionEntity e11 = makeVm(vm2Id);
-        final StatsActionViewFactory.StatsActionView e11Snapshot = fakeSnapshot(e11);
+        final StatsActionViewFactory.StatsActionView e11Snapshot = fakeSnapshot(rg2Id, e11);
 
         // ACT
         final ResourceGroupActionAggregator aggregator = factory.newAggregator(LocalDateTime.now(clock));
@@ -142,10 +132,11 @@ public class ResourceGroupActionAggregatorTest {
         assertThat(b2Record.getActionSnapshotTime(), is(LocalDateTime.now(clock)));
     }
 
-    private StatsActionViewFactory.StatsActionView fakeSnapshot(@Nonnull final ActionDTO.ActionEntity... involvedEntities) {
+    private StatsActionViewFactory.StatsActionView fakeSnapshot(final long resourceGroupId, @Nonnull final ActionDTO.ActionEntity... involvedEntities) {
         final ImmutableStatsActionView.Builder actionSnapshotBuilder = ImmutableStatsActionView.builder()
             .actionGroupKey(ACTION_GROUP_KEY)
-            .recommendation(SAVINGS_ACTION);
+            .recommendation(SAVINGS_ACTION)
+            .resourceGroupId(resourceGroupId);
         actionSnapshotBuilder.addInvolvedEntities(involvedEntities);
         return actionSnapshotBuilder.build();
     }
