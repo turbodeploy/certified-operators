@@ -331,6 +331,8 @@ public class PlacementUnitTest {
         assertEquals(accountId, resultContext.getBalanceAccount().getId());
         final Long resultParentId = resultContext.getBalanceAccount().getParentId();
         assertNotNull(resultParentId);
+        // Verify to make sure the original context's parent id is not left as null after merger.
+        assertNotNull(cbtpContext.getBalanceAccount().getParentId());
         assertEquals(parentId, resultParentId.longValue());
     }
 
