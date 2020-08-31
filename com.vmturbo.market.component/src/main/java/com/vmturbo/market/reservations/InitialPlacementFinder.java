@@ -49,7 +49,7 @@ import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.InfiniteQuotesOfInterest.IndividualCommodityQuote;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
@@ -473,7 +473,7 @@ public class InitialPlacementFinder {
                     // roll back the already placed shopping list
                     Trader supplier = sl.getSupplier();
                     if (supplier != null) {
-                        Move.updateQuantities(economy, sl, supplier, FunctionalOperatorUtil.SUB_COMM);
+                        Move.updateQuantities(economy, sl, supplier, UpdatingFunctionFactory.SUB_COMM);
                         sl.move(null);
                     }
                     sl.setMovable(false);
