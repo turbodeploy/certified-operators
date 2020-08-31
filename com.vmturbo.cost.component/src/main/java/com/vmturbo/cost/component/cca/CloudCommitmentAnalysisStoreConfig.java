@@ -1,15 +1,11 @@
 package com.vmturbo.cost.component.cca;
 
 import java.time.Duration;
-import java.util.concurrent.ThreadFactory;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
@@ -22,12 +18,14 @@ import com.vmturbo.cost.component.entity.scope.CloudScopeStore;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
+import com.vmturbo.cost.component.stats.CostStatsConfig;
 
 /**
  * The Cloud Commitment Demand Stats Config class.
  */
 @Import({CostDBConfig.class,
         TopologyProcessorListenerConfig.class,
+        CostStatsConfig.class,
         ReservedInstanceSpecConfig.class})
 public class CloudCommitmentAnalysisStoreConfig {
 
@@ -38,20 +36,22 @@ public class CloudCommitmentAnalysisStoreConfig {
     private TopologyProcessorListenerConfig topologyProcessorListenerConfig;
 
     @Autowired
+    private CostStatsConfig costStatsConfig;
+
+    @Autowired
     private ReservedInstanceSpecStore reservedInstanceSpecStore;
 
-    @Value("${cca.recordCloudAllocationData:true}")
+    @Value("${recordCloudAllocationData:true}")
     private boolean recordAllocationData;
 
-    @Value("${cca.recordCommitBatchSize:100}")
-    private int recordCommitBatchSize;
+    @Value("${statsRecordsCommitBatchSize:5000}")
+    private int statsRecordsCommitBatchSize;
 
-    @Value("${cca.recordUpdateBatchSize:100}")
-    private int recordUpdateBatchSize;
+    @Value("${statsRecordsUpdateBatchSize:5000}")
+    private int statsRecordsBatchUpdateSize;
 
-    // Default cleanup is once per day
-    @Value("${cca.cloudScopeCleanupPeriodSeconds:86400}")
-    private int cloudScopeCleanupPeriodSeconds;
+    @Value("${reservedInstanceStatCleanup.scheduler:360000}")
+    private int cleanupSchedulerPeriod;
 
     /**
      * Bean for the cloud commitment demand writer.
@@ -71,23 +71,8 @@ public class CloudCommitmentAnalysisStoreConfig {
     @Bean
     public ComputeTierAllocationStore computeTierAllocationStore() {
         return new SQLComputeTierAllocationStore(dbConfig.dsl(), topologyProcessorListenerConfig.liveTopologyInfoTracker(),
-                recordUpdateBatchSize,
-                recordCommitBatchSize);
-    }
-
-
-    @Bean(destroyMethod = "shutdown")
-    protected ThreadPoolTaskScheduler cloudScopeCleanupScheduler() {
-        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(1);
-        scheduler.setThreadFactory(threadFactory());
-        scheduler.setWaitForTasksToCompleteOnShutdown(false);
-        scheduler.initialize();
-        return scheduler;
-    }
-
-    private ThreadFactory threadFactory() {
-        return new ThreadFactoryBuilder().setNameFormat("EntityCloudScope-cleanup-%d").build();
+                statsRecordsBatchUpdateSize,
+                statsRecordsCommitBatchSize);
     }
 
     /**
@@ -97,10 +82,9 @@ public class CloudCommitmentAnalysisStoreConfig {
      */
     @Bean
     public CloudScopeStore cloudScopeStore() {
-        return new SQLCloudScopeStore(dbConfig.dsl(),
-                cloudScopeCleanupScheduler(),
-                Duration.ofSeconds(cloudScopeCleanupPeriodSeconds),
-                recordCommitBatchSize);
+        return new SQLCloudScopeStore(dbConfig.dsl(), costStatsConfig.taskScheduler(),
+                Duration.ofSeconds(cleanupSchedulerPeriod),
+                statsRecordsCommitBatchSize);
     }
 
     /**

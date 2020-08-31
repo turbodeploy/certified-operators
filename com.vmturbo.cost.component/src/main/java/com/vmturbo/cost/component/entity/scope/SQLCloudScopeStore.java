@@ -77,7 +77,6 @@ public class SQLCloudScopeStore implements CloudScopeStore {
                               int batchCleanupSize) {
         this.dslContext = dslContext;
         this.batchCleanupSize = batchCleanupSize;
-
         taskScheduler.scheduleWithFixedDelay(this::cleanupCloudScopeRecords, cleanupInterval);
     }
 
@@ -88,40 +87,29 @@ public class SQLCloudScopeStore implements CloudScopeStore {
     @Override
     public long cleanupCloudScopeRecords() {
 
-        logger.info("Cleaning up cloud scope records");
-
         final MutableLong numRecordsDelete = new MutableLong(0);
+
         try (DataMetricTimer cleanupTimer = TOTAL_CLEANUP_DURATION_SUMMARY_METRIC.startTimer()) {
             SelectJoinStep<Record1<Long>> selectJoinStep = dslContext.select(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID)
                     .from(Tables.ENTITY_CLOUD_SCOPE);
 
 
             for (Table foreignKeyTable : resolveForeignKeyTables()) {
-
-                logger.debug("Adding foreign key join on cloud scope cleanup to {}", foreignKeyTable.getName());
                 selectJoinStep = selectJoinStep.leftAntiJoin(foreignKeyTable).onKey();
             }
+
 
             final Iterator<Long> entityOidIterator = selectJoinStep.stream()
                     .map(Record1::component1)
                     .iterator();
 
-            Iterators.partition(entityOidIterator, batchCleanupSize).forEachRemaining(entityOidsToDelete -> {
-                try {
-                    final int batchRecordsDelete = dslContext.deleteFrom(Tables.ENTITY_CLOUD_SCOPE)
-                            .where(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID.in(entityOidsToDelete))
-                            .execute();
 
-                    logger.info("Delete batch of {} cloud scope records", batchRecordsDelete);
-                    numRecordsDelete.add(batchRecordsDelete);
-                } catch (Exception e) {
-                    logger.error("Error delete batch of cloud scope records", e);
-                }
-            });
 
-            logger.info("Cleaned up {} entity cloud scope records in {}",
-                    numRecordsDelete.longValue(),
-                    Duration.ofSeconds((long)cleanupTimer.getTimeElapsedSecs()));
+            Iterators.partition(entityOidIterator, batchCleanupSize).forEachRemaining(entityOidsToDelete ->
+                    numRecordsDelete.add(
+                            dslContext.deleteFrom(Tables.ENTITY_CLOUD_SCOPE)
+                                    .where(Tables.ENTITY_CLOUD_SCOPE.ENTITY_OID.in(entityOidsToDelete))
+                                    .execute()));
         } catch (Exception e) {
             logger.error("Error during entity cloud scope cleanup", e);
         }
