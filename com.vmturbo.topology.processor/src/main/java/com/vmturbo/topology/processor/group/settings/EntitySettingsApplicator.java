@@ -205,6 +205,8 @@ public class EntitySettingsApplicator {
                 new ResizeTargetUtilizationCommodityBoughtApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationNetThroughput,
                         CommodityType.NET_THROUGHPUT),
+                new ResizeTargetUtilizationCommodityBoughtApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationIops, CommodityType.STORAGE_ACCESS),
                 new ResizeTargetUtilizationCommoditySoldApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationVcpu, CommodityType.VCPU),
                 new ResizeTargetUtilizationCommoditySoldApplicator(
@@ -457,7 +459,8 @@ public class EntitySettingsApplicator {
                 // and topology is realtime. We don't want to do it for plans because other stages
                 // like "IgnoreConstraints" set shop together to 'true' and we don't want to override it here.
                 } else if ((!isShopTogetherSettingEnabled && isRealTime)
-                        || entity.getEnvironmentType() == EnvironmentType.CLOUD) {
+                        || (entity.getEnvironmentType() == EnvironmentType.CLOUD
+                        && !TopologyDTOUtil.isCloudMigrationPlan(topologyInfo_))) {
                     // user has to change default VM action settings to explicitly indicate they
                     // want to have compound move actions generated considering best placements in
                     // terms of both storage and compute resources. Usually user ask for shop together
@@ -467,6 +470,8 @@ public class EntitySettingsApplicator {
                     // together generates compound moves but we need to show separate actions in the
                     // user interface. So, we just disable shop together for them because it has
                     // no real advantage in the cloud.
+                    // NOTE: For migration plans from on prem to cloud or from cloud to cloud,
+                    // we should shop together.
                     entity.getAnalysisSettingsBuilder().setShopTogether(false);
                     logger.debug("Shop together is disabled for {}.",
                             entity.getDisplayName());

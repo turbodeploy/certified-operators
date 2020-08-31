@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -29,7 +30,9 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.ExplanationComposer;
 import com.vmturbo.action.orchestrator.action.PrerequisiteDescriptionComposer;
+import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
+import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.translation.batch.translator.BatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.CloudMoveBatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.PassThroughBatchTranslator;
@@ -49,6 +52,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**
  * Translates actions from the market's domain-agnostic actions into real-world domain-specific actions.
@@ -166,12 +170,26 @@ public class ActionTranslator {
     @Nonnull
     public Stream<ActionSpec> translateToSpecs(
             @Nonnull final List<? extends ActionView> actionViews) {
+        return translateToSpecs(actionViews, null);
+    }
+
+    /**
+     * Generates action spec, with option to override explanation in case of a cloud migration
+     * plan. TopologyInfo in ActionStore is used to check if it is a cloud migration case.
+     *
+     * @param actionViews Actions to be translated.
+     * @param actionStore Store used to check plan topology info.
+     * @return ActionSpec info for input actions.
+     */
+    public Stream<ActionSpec> translateToSpecs(
+            @Nonnull final List<? extends ActionView> actionViews,
+            @Nullable final ActionStore actionStore) {
         final boolean isUserAbleToApplyActions = isUserAbleToApplyActions();
         final Map<Long, String> settingPolicyIdToSettingPolicyName =
                 getReasonSettingPolicyIdToSettingPolicyNameMap(actionViews);
         return actionViews.stream()
                 .map(actionView -> toSpec(actionView, settingPolicyIdToSettingPolicyName,
-                        isUserAbleToApplyActions));
+                        isUserAbleToApplyActions, actionStore));
     }
 
     /**
@@ -262,15 +280,19 @@ public class ActionTranslator {
      * @param actionView the actions to be translated and whose specs should be generated
      * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
      * @param isUserAbleToApplyActions the current user is able to apply actions
+     * @param actionStore Store to check plan topology for modifying explanation.
      * @return the {@link ActionSpec} representation of this action
      */
     @Nonnull
     private ActionSpec toSpec(@Nonnull final ActionView actionView,
             @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName,
-            boolean isUserAbleToApplyActions) {
+            boolean isUserAbleToApplyActions,
+            @Nullable final ActionStore actionStore) {
         final ActionDTO.Action recommendationForDisplay = actionView
                 .getTranslationResultOrOriginal();
 
+        final TopologyInfo topologyInfo = actionStore instanceof PlanActionStore
+                ? ((PlanActionStore)actionStore).getTopologyInfo() : null;
         ActionSpec.Builder specBuilder = ActionSpec.newBuilder()
             .setRecommendation(recommendationForDisplay)
             .setRecommendationId(actionView.getRecommendationOid())
@@ -280,7 +302,7 @@ public class ActionTranslator {
             .setActionState(actionView.getState())
             .setIsExecutable(actionView.determineExecutability())
             .setExplanation(ExplanationComposer.composeExplanation(
-                recommendationForDisplay, settingPolicyIdToSettingPolicyName))
+                recommendationForDisplay, settingPolicyIdToSettingPolicyName, topologyInfo))
             .setCategory(actionView.getActionCategory())
             .setSeverity(actionView.getActionSeverity())
             .setDescription(actionView.getDescription());

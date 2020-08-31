@@ -17,17 +17,23 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * A factory for constructing policies based on policy definitions.
  */
 public class PolicyFactory {
 
+    private final TopologyInvertedIndexFactory invertedIndexFactory;
+
     /**
      * Create a new PolicyFactory.
+     *
+     * @param invertedIndexFactory The {@link TopologyInvertedIndexFactory} policy applications can
+     * use to create an inverted index.
      */
-    public PolicyFactory() {
-
+    public PolicyFactory(@Nonnull final TopologyInvertedIndexFactory invertedIndexFactory) {
+        this.invertedIndexFactory = invertedIndexFactory;
     }
 
     public PlacementPolicyApplication newPolicyApplication(
@@ -36,22 +42,22 @@ public class PolicyFactory {
             @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
         switch (policyType) {
             case AT_MOST_N:
-                return new AtMostNPolicyApplication(groupResolver, topologyGraph);
+                return new AtMostNPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
             case AT_MOST_NBOUND:
-                return new AtMostNBoundPolicyApplication(groupResolver, topologyGraph);
+                return new AtMostNBoundPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
             case BIND_TO_COMPLEMENTARY_GROUP:
-                return new BindToComplementaryGroupPolicyApplication(groupResolver, topologyGraph);
+                return new BindToComplementaryGroupPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
             case BIND_TO_GROUP:
-                return new BindToGroupPolicyApplication(groupResolver, topologyGraph);
+                return new BindToGroupPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
             case MERGE:
-                return new MergePolicyApplication(groupResolver, topologyGraph);
+                return new MergePolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
             case MUST_RUN_TOGETHER:
-                return new MustRunTogetherPolicyApplication(groupResolver, topologyGraph);
+                return new MustRunTogetherPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
             case MUST_NOT_RUN_TOGETHER:
-                return new MustNotRunTogetherPolicyApplication(groupResolver, topologyGraph);
+                return new MustNotRunTogetherPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
             case BIND_TO_GROUP_AND_LICENSE:
                 // TODO: implement BindToGroupAndLicencePolicyApplication class
-                return new BindToGroupPolicyApplication(groupResolver, topologyGraph);
+                return new BindToGroupPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
             case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
                 throw new NotImplementedException(policyType + " not supported.");
             default:
@@ -63,7 +69,7 @@ public class PolicyFactory {
      * Construct a new policy for application to a topology.
      *
      * @param policyDefinition The definition of the policy to be created.
-     * @param groups a Map which key is group id, value is {@link Group}
+     * @param groups a Map which key is group id, value is {@link Grouping}
      * @param additionalConsumers contains a list of entity which should be part of consumers, but they
      *                         are not contains in consumer group.
      * @return A new policy for application to a topology.

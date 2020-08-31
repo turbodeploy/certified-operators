@@ -32,7 +32,7 @@ import com.vmturbo.identity.store.PersistentIdentityStore;
 /**
  * Persistence for OIDs for Workflows.
  **/
-public class PersistentWorkflowIdentityStore implements PersistentIdentityStore {
+public class PersistentWorkflowIdentityStore implements PersistentIdentityStore<Void> {
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
@@ -165,7 +165,7 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore 
     }
 
     @Override
-    public void restoreDiags(List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(List<String> collectedDiags, Void context) throws DiagnosticsException {
         dsl.transaction(configuration -> {
             final Map<IdentityMatchingAttributes, Long> attrsToOidMap = Maps.newHashMap();
             try {

@@ -10,10 +10,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.tuple.ImmutablePair;
-
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import org.apache.commons.lang3.tuple.ImmutablePair;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
  * A helper class for business account. It's currently only used
@@ -24,6 +26,9 @@ public class BusinessAccountHelper {
     // It will be populated when new topology are sent to Cost component.
     //BA OID --> List of TargetID
     private Map<ImmutablePair<Long, String>, Set<Long>> businessAccountToTargetIdMap =
+            Collections.synchronizedMap(Maps.newHashMap());
+
+    private Map<Long, TopologyEntityDTO> discoveredBusinessAccounts =
             Collections.synchronizedMap(Maps.newHashMap());
 
     /**
@@ -69,6 +74,10 @@ public class BusinessAccountHelper {
                 .filter(baToTargets -> baToTargets.getValue().isEmpty())
                 .map(Entry::getKey).collect(Collectors.toSet());
         businessAccountToTargetIdMap.keySet().removeAll(baWithNoAttachedTargets);
+        // Clean up discovered business account set
+        for (ImmutablePair<Long, String> removedBa : baWithNoAttachedTargets) {
+            discoveredBusinessAccounts.remove(removedBa.getLeft());
+        }
         return baWithNoAttachedTargets;
     }
 
@@ -84,5 +93,18 @@ public class BusinessAccountHelper {
     @Nonnull
     public Set<ImmutablePair<Long, String>> getAllBusinessAccounts() {
         return businessAccountToTargetIdMap.keySet();
+    }
+
+    /**
+     * Store discovered account to the discoveredBusinessAccounts map.
+     *
+     * @param entityDTO the discovered business account.
+     */
+    public void storeDiscoveredBusinessAccount(final TopologyEntityDTO entityDTO) {
+        discoveredBusinessAccounts.put(entityDTO.getOid(), entityDTO);
+    }
+
+    public Set<Long> getDiscoveredBusinessAccounts() {
+        return discoveredBusinessAccounts.keySet();
     }
 }

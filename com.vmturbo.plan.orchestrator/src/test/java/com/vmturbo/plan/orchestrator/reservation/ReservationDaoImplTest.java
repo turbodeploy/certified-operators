@@ -342,7 +342,7 @@ public class ReservationDaoImplTest {
                 "\"DATA_CENTER\"}]}}"
         );
         try {
-            reservationDao.restoreDiags(diags);
+            reservationDao.restoreDiags(diags, null);
             fail();
         } catch (DiagnosticsException e) {
             assertTrue(e.hasErrors());

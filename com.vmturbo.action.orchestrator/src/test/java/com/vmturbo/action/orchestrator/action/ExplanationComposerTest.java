@@ -61,6 +61,8 @@ public class ExplanationComposerTest {
                     createReasonCommodity(CommodityDTO.CommodityType.MEM_VALUE, null);
     private static final ReasonCommodity CPU =
                     createReasonCommodity(CommodityDTO.CommodityType.CPU_VALUE, null);
+    private static final ReasonCommodity IOPS =
+                    createReasonCommodity(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, null);
     private static final ReasonCommodity SEGMENTATION =
                     createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE, null);
     private static final ReasonCommodity NETWORK =
@@ -119,11 +121,11 @@ public class ExplanationComposerTest {
             .build();
 
         // commodity with no time slots
-        Explanation explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, CPU));
+        Explanation explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, CPU, IOPS));
         ActionDTO.Action action = createAction(actionInfo, explanation);
-        assertEquals("(^_^)~Mem, CPU Congestion",
+        assertEquals("(^_^)~Mem, CPU, IOPs Congestion",
             ExplanationComposer.composeExplanation(action));
-        assertEquals(ImmutableSet.of("Mem Congestion", "CPU Congestion"),
+        assertEquals(ImmutableSet.of("Mem Congestion", "CPU Congestion", "IOPs Congestion"),
             ExplanationComposer.composeRelatedRisks(action));
 
         final ReasonCommodity tsCommoditySlot0Total6 = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
@@ -186,7 +188,8 @@ public class ExplanationComposerTest {
 
         assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(moveAction,
-                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2")));
+                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
+                null));
         assertEquals(Collections.singleton("Setting policy compliance"),
             ExplanationComposer.composeRelatedRisks(moveAction));
     }
@@ -388,7 +391,8 @@ public class ExplanationComposerTest {
 
         assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(reconfigureAction,
-                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2")));
+                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
+                    null));
         assertEquals(Collections.singleton("Misconfiguration"),
             ExplanationComposer.composeRelatedRisks(reconfigureAction));
     }

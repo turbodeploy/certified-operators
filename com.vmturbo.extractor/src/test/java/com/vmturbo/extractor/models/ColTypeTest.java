@@ -9,9 +9,11 @@ import static org.junit.Assert.assertThat;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.TimeZone;
 
 import org.junit.Test;
 
@@ -20,14 +22,12 @@ import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
 import com.vmturbo.extractor.schema.enums.Severity;
+import com.vmturbo.extractor.topology.ScopeManager;
 
 /**
  * Tests for the {@link ColType} class, covering hash and csv functionality.
  */
 public class ColTypeTest {
-
-    private TimeZone timezone;
-
     /**
      * Test that Long coltype operates properly.
      */
@@ -227,14 +227,37 @@ public class ColTypeTest {
     @Test
     public void testTimestampColTypes() {
         for (Timestamp value : new Timestamp[]{new Timestamp(0L),
-                                               new Timestamp(Long.MAX_VALUE),
-                                               Timestamp.from(Instant.EPOCH),
-                                               Timestamp.from(Instant.MAX),
-                                               Timestamp.from(Instant.MIN),
-                                               Timestamp.from(Instant.now()) }) {
+                new Timestamp(Long.MAX_VALUE),
+                Timestamp.from(Instant.EPOCH),
+                Timestamp.from(Instant.MAX),
+                Timestamp.from(Instant.MIN),
+                Timestamp.from(Instant.now())}) {
             assertThat(ColType.TIMESTAMP.fromBytes(ColType.TIMESTAMP.toBytes(value)), is(value));
         }
         assertThat(ColType.TIMESTAMP.toCsv(new Timestamp(0L)), is(new Timestamp(0L).toString()));
+    }
+
+    /**
+     * Test that OffsetDateTime coltype operates properly.
+     */
+    @Test
+    public void testOffsetDateTimeColTypes() {
+        for (OffsetDateTime value : new OffsetDateTime[]{
+                // don't use actual max and min since those use extreme zone offsets, which make
+                // them impossible to convert to UTC, and we do that internally. Whoever is
+                // maintaining this code a billion years from now will need to figure it out
+                OffsetDateTime.MIN.plus(1, ChronoUnit.DAYS),
+                OffsetDateTime.MAX.minus(1, ChronoUnit.DAYS),
+                OffsetDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC),
+                ScopeManager.MAX_TIMESTAMP,
+                OffsetDateTime.now()}) {
+            final OffsetDateTime actual = (OffsetDateTime)ColType.OFFSET_DATE_TIME.fromBytes(
+                    ColType.OFFSET_DATE_TIME.toBytes(value));
+            // convert to Instant for comparison so zone differences don't produce false fails
+            assertThat(actual.toInstant(), is(value.toInstant()));
+        }
+        final OffsetDateTime epochStart = OffsetDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC);
+        assertThat(ColType.OFFSET_DATE_TIME.toCsv(epochStart), is(epochStart.toString()));
     }
 
     /**

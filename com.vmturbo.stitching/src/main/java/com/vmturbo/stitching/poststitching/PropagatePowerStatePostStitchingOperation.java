@@ -22,9 +22,14 @@ import com.vmturbo.stitching.TopologyEntity;
 /**
  * This post-stitching operation propagates the power state from VirtualMachine to its consumers,
  * except for Services, BusinessTransactions and BusinessApplications.
+ * <p/>
  * For example: Application discovered by ACM probe and then
  * stitched to the VM discovered by VC target. If VM's state is POWERED_OFF or SUSPENDED, we should
  * set its consumers' state to UNKNOWN, so they will not participate in market analysis.
+ * <p/>
+ * We propagate the UNKNOWN state recursively, so for example if a VM hosting containers is
+ * UNKNOWN we will mark the ContainerPod on the VM, the Container on the ContainerPod, and
+ * the ApplicationComponent on the Container as UNKNOWN as well.
  */
 public class PropagatePowerStatePostStitchingOperation implements PostStitchingOperation {
 
@@ -58,14 +63,16 @@ public class PropagatePowerStatePostStitchingOperation implements PostStitchingO
 
     /**
      * Whether or not the entity's power state should be propagated to its consumers. Currently,
-     * we only propagate if its state is POWERED_OFF or SUSPENDED.
+     * we only propagate if its state is POWERED_OFF, SUSPENDED, or UNKNOWN.
      *
      * @param topologyEntity the entity to propagate state from
      * @return true if the state of the entity should be propagated, otherwise false
      */
     private boolean shouldPropagate(@Nonnull TopologyEntity topologyEntity) {
         final EntityState entityState = topologyEntity.getEntityState();
-        return entityState == EntityState.POWERED_OFF || entityState == EntityState.SUSPENDED;
+        return entityState == EntityState.POWERED_OFF
+            || entityState == EntityState.SUSPENDED
+            || entityState == EntityState.UNKNOWN;
     }
 
     /**
@@ -77,12 +84,12 @@ public class PropagatePowerStatePostStitchingOperation implements PostStitchingO
     private void propagate(@Nonnull TopologyEntity topologyEntity) {
         topologyEntity.getConsumers().stream()
             .filter(consumer -> !IMMUTABLE_STATE_TYPES.contains(consumer.getEntityType()))
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(consumer -> {
                 logger.debug("Changing state of entity {} from {} to UNKNOWN since state of its " +
                     "provider {} is {}", consumer.getOid(), consumer.getEntityState(),
                     topologyEntity, topologyEntity.getEntityState());
-                consumer.setEntityState(EntityState.UNKNOWN);
+                consumer.getTopologyEntityDtoBuilder().setEntityState(EntityState.UNKNOWN);
+                propagate(consumer);
             });
     }
 }

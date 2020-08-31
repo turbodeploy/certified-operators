@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.operation.action;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -33,10 +34,13 @@ public class Action extends Operation {
         .build()
         .register();
 
+    /**
+     * Collect data about status of executed actions such as failure and success.
+     */
     private static final DataMetricCounter ACTION_STATUS_COUNTER = DataMetricCounter.builder()
-        .withName("tp_action_status_total")
+        .withName(StringConstants.METRICS_TURBO_PREFIX + "completed_actions_total")
         .withHelp("Status of all completed actions.")
-        .withLabelNames("status")
+        .withLabelNames("type", "status")
         .build()
         .register();
 
@@ -91,6 +95,15 @@ public class Action extends Operation {
     @Override
     protected DataMetricCounter getStatusCounter() {
         return ACTION_STATUS_COUNTER;
+    }
+
+    /**
+     * Update metrics for Action.
+     */
+    @Override
+    protected void completeOperation() {
+        getDurationTimer().observe();
+        getStatusCounter().labels(actionType.toString(), getStatus().name()).increment();
     }
 
     public ActionType getActionType() {

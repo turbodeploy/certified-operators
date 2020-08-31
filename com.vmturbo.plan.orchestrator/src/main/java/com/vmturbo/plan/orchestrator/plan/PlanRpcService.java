@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
@@ -38,7 +39,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
@@ -347,8 +347,8 @@ public class PlanRpcService extends PlanServiceImplBase {
             if (scenarioInfo.hasType()) {
                 builder.setPlanType(scenarioInfo.getType());
             }
-            if (StringConstants.OPTIMIZE_CLOUD_PLAN.equals(scenarioInfo.getType())) {
-                builder.setPlanSubType(PlanRpcServiceUtil.getPlanSubType(scenarioInfo));
+            if (PlanRpcServiceUtil.hasPlanSubType(scenarioInfo)) {
+                builder.setPlanSubType(PlanRpcServiceUtil.getCloudPlanSubType(scenarioInfo));
             }
         }
         builder.setPlanProjectType(planInstance.getProjectType());
@@ -418,8 +418,8 @@ public class PlanRpcService extends PlanServiceImplBase {
     public void getAllPlans(GetPlansOptions request, StreamObserver<PlanInstance> responseObserver) {
         logger.debug("Retrieving all the existing plans...");
         planDao.getAllPlanInstances().stream()
-            // When listing plans, return only USER-created plans.
-            .filter(planInstance -> planInstance.getProjectType() == PlanProjectType.USER)
+            // When listing plans, return only user displayable plans.
+            .filter(planInstance -> PlanDTOUtil.isDisplayablePlan(planInstance.getProjectType()))
             .filter(PlanUtils::canCurrentUserAccessPlan) // filter plans for non-admin users
             .forEach(responseObserver::onNext);
         responseObserver.onCompleted();

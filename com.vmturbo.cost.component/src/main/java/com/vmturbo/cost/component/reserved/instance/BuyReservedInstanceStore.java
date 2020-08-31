@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -40,7 +41,8 @@ import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.Rese
 /**
  * This class is used to store the reserved instance to buy for plans or for real time
  */
-public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore, DiagsRestorable {
+public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore,
+    DiagsRestorable<Void> {
 
     private static final String buyReservedInstanceFile = "buyReservedInstance_dump";
 
@@ -258,7 +260,7 @@ public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore, D
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         // TODO to be implemented as part of OM-58627
     }
 

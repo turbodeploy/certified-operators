@@ -110,7 +110,7 @@ public class CostJournalRecorder {
             }
 
             // Log all tracked journals.
-            trackedJournals.values().forEach(journal -> logger.info("\n {}", journal.toString()));
+            trackedJournals.values().forEach(journal -> logger.debug("\n {}", journal.toString()));
         }
     }
 

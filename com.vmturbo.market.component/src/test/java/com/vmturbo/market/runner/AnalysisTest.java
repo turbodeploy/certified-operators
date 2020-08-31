@@ -6,8 +6,10 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -16,9 +18,11 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -30,6 +34,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.commons.Pair;
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -87,7 +93,11 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.Consisten
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -222,12 +232,15 @@ public class AnalysisTest {
         when(wastedFilesAnalysis.getActions())
                 .thenReturn(Collections.singletonList(wastedFileAction));
         when(wastedFilesAnalysis.getStorageAmountReleasedForOid(anyLong())).thenReturn(Optional.empty());
+        final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
+        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
+
         return new Analysis(topoInfo, topologySet,
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
-            listener, consistentScalingHelperFactory, initialPlacementFinder,
-            reversibilitySettingFetcherFactory);
+                listener, consistentScalingHelperFactory, initialPlacementFinder,
+                        reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
     }
     /**
      * Convenience method to get an Analysis based on an analysisConfig and a set of
@@ -653,5 +666,60 @@ public class AnalysisTest {
                 analysis.getProjectedTopology().get();
         Assert.assertEquals(1, projectedEntities.size());
         Assert.assertEquals(vmInScope.getOid(), projectedEntities.iterator().next().getEntity().getOid());
+    }
+
+    /**
+     * Test unplaceFailedCloudMigrations, which removes current suppliers for VMs
+     * that failed to migrate and which returns a list of those VMs.
+     */
+    @Test
+    public void testUnplaceFailedMigrations() {
+        final long placedOid = 1L;
+        final long unplacedOid = 2L;
+        final long supplierOid = 42L;
+
+        final TraderTO placed = TraderTO.newBuilder()
+            .setOid(placedOid)
+            .addShoppingLists(ShoppingListTO.newBuilder()
+                .setOid(7)
+                .addCommoditiesBought(CommodityBoughtTO.newBuilder()
+                    .setQuantity(1)
+                    .setPeakQuantity(1)
+                    .setSpecification(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(7)
+                        .setType(8)
+                        .build())
+                    .build())
+                .setSupplier(supplierOid)
+                .build())
+            .build();
+
+        final TraderTO unplaced = TraderTO.newBuilder(placed)
+            .setOid(unplacedOid)
+            .setUnplacedExplanation("some reason").build();
+
+        Pair<List<TraderTO>, Set<Long>> result = Analysis.unplaceFailedCloudMigrations(
+            Collections.unmodifiableList(Arrays.asList(placed, unplaced)));
+
+        final List<TraderTO> updatedTraders = result.first;
+        final Set<Long> unplacedOids = result.second;
+
+        final Optional<TraderTO> placedResult =
+            updatedTraders.stream().filter(t -> t.getOid() == placedOid).findAny();
+
+        assertTrue(placedResult.isPresent());
+        assertEquals(1, placedResult.get().getShoppingListsCount());
+        assertTrue(placedResult.get().getShoppingLists(0).hasSupplier());
+        assertEquals(supplierOid, placedResult.get().getShoppingLists(0).getSupplier());
+
+        final Optional<TraderTO> unplacedResult =
+            updatedTraders.stream().filter(t -> t.getOid() == unplacedOid).findAny();
+
+        assertTrue(unplacedResult.isPresent());
+        assertEquals(1, unplacedResult.get().getShoppingListsCount());
+        assertFalse(unplacedResult.get().getShoppingLists(0).hasSupplier());
+
+        assertEquals(1, unplacedOids.size());
+        assertTrue(unplacedOids.contains(unplacedOid));
     }
 }

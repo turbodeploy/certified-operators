@@ -74,7 +74,7 @@ import com.vmturbo.repository.service.SupplyChainStatistician;
 import com.vmturbo.repository.service.TopologyGraphRepositoryRpcService;
 import com.vmturbo.repository.service.TopologyGraphSearchRpcService;
 import com.vmturbo.repository.service.TopologyGraphSupplyChainRpcService;
-import com.vmturbo.repository.topology.util.GuestLoadFilters;
+import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;

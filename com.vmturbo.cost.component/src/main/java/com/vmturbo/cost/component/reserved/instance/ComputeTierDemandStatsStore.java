@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,7 +32,7 @@ import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyDemandCluster;
 
-public class ComputeTierDemandStatsStore implements DiagsRestorable {
+public class ComputeTierDemandStatsStore implements DiagsRestorable<Void> {
 
     private static final String computeTierDemandFile = "computeTierDemand_dump";
 
@@ -214,7 +215,7 @@ public class ComputeTierDemandStatsStore implements DiagsRestorable {
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         // TODO to be implemented as part of OM-58627
     }
 

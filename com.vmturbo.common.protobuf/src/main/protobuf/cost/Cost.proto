@@ -109,6 +109,9 @@ message ReservedInstanceBought {
         // The end milliseconds since epoch for RI bought.
         optional int64 end_time = 13;
 
+        // Denotes whether or not this is a new RI that we're buying
+        optional bool to_buy = 14;
+
         message ReservedInstanceBoughtCost {
             // The upfront one-time cost of the Reserved Instance.
             optional common_dto.CurrencyAmount fixed_cost = 1;
@@ -1046,6 +1049,9 @@ message CloudCostStatRecord {
     //this the query id used in CloudCostStatsQuery to uniquely identity a query in the list.
     optional uint64 query_id = 3;
 
+    // Whether this stats record refers to projected (after action) stats or not.
+    optional bool is_projected = 4;
+
     // an individual stats value.
     message StatRecord {
 
@@ -1200,6 +1206,46 @@ message DeletePlanReservedInstanceStatsResponse {
     optional bool deleted = 1;
 }
 
+message MigratedWorkloadCloudCommitmentAnalysisRequest {
+    // The ID of the plan topology
+    optional int64 topologyContextId = 1;
+
+    // The migration profile for the RIs to buy, e.g. 3 year all upfront or 1 year partial upfront
+    optional MigrationProfile migration_profile = 2;
+
+    // A list of the placed virtual machines
+    repeated MigratedWorkloadPlacement virtual_machines = 3;
+
+    // The master business account under which to buy RIs
+    optional int64 business_account = 4;
+
+    // The placement definition of a virtual machine: the VM, the compute tier to which it is being placed,
+    // and the region that hosts that compute tier
+    message MigratedWorkloadPlacement {
+        // The virtual machine that is being placed
+        optional .topology.TopologyEntityDTO virtual_machine = 1;
+
+        // The compute tier on which it is being placed
+        optional .topology.TopologyEntityDTO compute_tier = 2;
+
+        // The region hosting the compute tier
+        optional .topology.TopologyEntityDTO region = 3;
+
+        // The cloud service provider hosting this region
+        optional .topology.TopologyEntityDTO provider = 4;
+    }
+
+    // The profile for the RIs to buy. TODO: need to flesh this out better
+    message MigrationProfile {
+        optional common_dto.ReservedInstanceType.OfferingClass preferred_offering_class = 1;
+        optional common_dto.ReservedInstanceType.PaymentOption preferred_payment_option = 2;
+        optional int32 preferred_term = 3;
+    }
+}
+
+message MigratedWorkloadCloudCommitmentAnalysisResponse {
+}
+
 // A service for getting reserved instance bought
 service ReservedInstanceBoughtService {
     // Get reserved instance bought by some filter condition, such as filter by region, availability zones
@@ -1330,6 +1376,14 @@ service CostService {
 
     // Delete plan entity costs
     rpc DeletePlanEntityCosts(DeletePlanEntityCostsRequest) returns (DeletePlanEntityCostsResponse);
+}
+
+// A service responsible for running a cloud commitment analysis against a migrated workload topology
+service MigratedWorkloadCloudCommitmentAnalysisService {
+
+    // Starts the migrated workload cloud commit analysis against the specified projected topology
+    rpc StartAnalysis(MigratedWorkloadCloudCommitmentAnalysisRequest) returns
+    (MigratedWorkloadCloudCommitmentAnalysisResponse);
 }
 
 // Stats Request Time Window with options for start_date and end_date.

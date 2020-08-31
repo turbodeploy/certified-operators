@@ -284,7 +284,7 @@ public class TopologyDataDefinitionStoreTest {
         // confirm that we now have 3 topology data definitions
         Assert.assertEquals(3,
                 topologyDataDefinitionStore.getAllTopologyDataDefinitions().size());
-        topologyDataDefinitionStore.restoreDiags(diags.getAllValues());
+        topologyDataDefinitionStore.restoreDiags(diags.getAllValues(), dbConfig.getDslContext());
         // we should only have the orginal two definitions - not the third definition created after
         // the capture but before the restore.
         Assert.assertEquals(2,

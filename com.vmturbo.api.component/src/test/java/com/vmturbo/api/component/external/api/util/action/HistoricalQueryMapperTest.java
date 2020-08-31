@@ -17,11 +17,13 @@ import java.util.Optional;
 import com.google.common.collect.ImmutableSet;
 
 import org.junit.Test;
+import org.mockito.internal.util.collections.Sets;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.enums.ActionMode;
@@ -33,9 +35,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -65,7 +69,7 @@ public class HistoricalQueryMapperTest {
         inputDto.setRiskSubCategoryList(Arrays.asList("effImpr", "compliance"));
 
         final ActionSpecMapper actionSpecMapper = mock(ActionSpecMapper.class);
-
+        final GroupExpander groupExpander = mock(GroupExpander.class);
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         when(buyRiScopeHandler.extractActionTypes(any(), any()))
                 .thenReturn(ImmutableSet.of(ActionDTO.ActionType.MOVE, ActionDTO.ActionType.RESIZE));
@@ -82,7 +86,7 @@ public class HistoricalQueryMapperTest {
 
         // Act
         final Map<ApiId, HistoricalActionStatsQuery> grpcQueries =
-            new HistoricalQueryMapper(actionSpecMapper, buyRiScopeHandler, clock)
+            new HistoricalQueryMapper(actionSpecMapper, buyRiScopeHandler, groupExpander, clock)
                     .mapToHistoricalQueries(query);
 
         // Assert
@@ -117,8 +121,9 @@ public class HistoricalQueryMapperTest {
             .actionInput(new ActionApiInputDTO())
             .build();
         final Map<ApiId, MgmtUnitSubgroupFilter> filters = new HistoricalQueryMapper(
-                mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class), clock)
-            .extractMgmtUnitSubgroupFilter(query);
+                mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class), mock(GroupExpander.class),
+                clock)
+            .extractMgmtUnitSubgroupFilter(query, Optional.empty());
         assertTrue(filters.get(mktScope).getMarket());
         assertThat(filters.get(mktScope).getEntityTypeList(),
             containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
@@ -142,13 +147,149 @@ public class HistoricalQueryMapperTest {
             .actionInput(new ActionApiInputDTO())
             .build();
         final Map<ApiId, MgmtUnitSubgroupFilter> filters = new HistoricalQueryMapper(
-                mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class), clock)
-            .extractMgmtUnitSubgroupFilter(query);
+                mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class), mock(GroupExpander.class), clock)
+            .extractMgmtUnitSubgroupFilter(query, Optional.empty());
         assertTrue(filters.get(mktScope).getMarket());
 
         // By default, the entity type of the global group is used.
         assertThat(filters.get(mktScope).getEntityTypeList(),
             containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
+    }
+
+    /**
+     * Test the case that we are in scope of business account and grouping by resource group.
+     */
+    @Test
+    public void testMappingAccountGroupByResourceGroup() {
+        // ARRANGE
+        long accountOid = 1002L;
+        long rgOid = 2001L;
+        GroupExpander groupExpander = mock(GroupExpander.class);
+        when(groupExpander.getResourceGroupsForAccounts(Collections.singleton(accountOid)))
+            .thenReturn(Collections.singletonList(GroupDTO.Grouping.newBuilder().setId(rgOid).build()));
+        HistoricalQueryMapper mapper = new HistoricalQueryMapper(
+            mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class), groupExpander, clock);
+
+        final ApiId scope = mock(ApiId.class);
+        when(scope.isRealtimeMarket()).thenReturn(false);
+        when(scope.isGlobalTempGroup()).thenReturn(false);
+        when(scope.isEntity()).thenReturn(true);
+        when(scope.getClassName()).thenReturn(ApiEntityType.BUSINESS_ACCOUNT.apiStr());
+        when(scope.oid()).thenReturn(accountOid);
+
+        ActionStatsQuery query = ImmutableActionStatsQuery.builder()
+            .addScopes(scope)
+            .actionInput(new ActionApiInputDTO())
+            .build();
+
+        Optional<GroupBy> groupbyOpt = Optional.of(GroupBy.RESOURCE_GROUP_ID);
+
+        // ACT
+        final Map<ApiId, MgmtUnitSubgroupFilter> filters = mapper.extractMgmtUnitSubgroupFilter(query,
+            groupbyOpt);
+
+        // ASSERT
+        assertThat(filters.size(), is(1));
+        assertTrue(filters.get(scope).hasMgmtUnits());
+        assertThat(filters.get(scope).getMgmtUnits().getMgmtUnitIdsList(),
+            is(Collections.singletonList(rgOid)));
+    }
+
+    /**
+     * Tests when we are querying in scope of group of resource groups.
+     */
+    @Test
+    public void testGroupOfResourceGroup() {
+        // ARRANGE
+        long groupOfRgsOids = 1001L;
+        long rg1Oid = 2001L;
+        long rg2Oid = 2002L;
+
+        GroupExpander groupExpander = mock(GroupExpander.class);
+        HistoricalQueryMapper mapper = new HistoricalQueryMapper(
+            mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class), groupExpander, clock);
+
+        final CachedGroupInfo cachedGroupInfo = mock(CachedGroupInfo.class);
+        when(cachedGroupInfo.getEntityTypes()).thenReturn(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE));
+        when(cachedGroupInfo.getNestedGroupTypes())
+            .thenReturn(Collections.singleton(CommonDTO.GroupDTO.GroupType.RESOURCE));
+        when(cachedGroupInfo.getEntityIds()).thenReturn(Sets.newSet(rg1Oid, rg2Oid));
+        when(cachedGroupInfo.getGroupType()).thenReturn(CommonDTO.GroupDTO.GroupType.REGULAR);
+
+        final ApiId scope = mock(ApiId.class);
+        when(scope.isRealtimeMarket()).thenReturn(false);
+        when(scope.isGlobalTempGroup()).thenReturn(false);
+        when(scope.isEntity()).thenReturn(false);
+        when(scope.isGroup()).thenReturn(true);
+        when(scope.oid()).thenReturn(groupOfRgsOids);
+        when(scope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+
+
+        ActionStatsQuery query = ImmutableActionStatsQuery.builder()
+            .addScopes(scope)
+            .actionInput(new ActionApiInputDTO())
+            .build();
+
+        // ACT
+        final Map<ApiId, MgmtUnitSubgroupFilter> filters = mapper.extractMgmtUnitSubgroupFilter(query,
+            Optional.empty());
+
+        // ASSERT
+        assertThat(filters.size(), is(1));
+        assertTrue(filters.get(scope).hasMgmtUnits());
+        assertThat(filters.get(scope).getMgmtUnits().getMgmtUnitIdsList(),
+            containsInAnyOrder(rg1Oid, rg2Oid));
+    }
+
+    /**
+     * Tests when we are querying in scope of group of accounts grouped by resource groups.
+     */
+    @Test
+    public void testGroupOfAccountsGroupByResourceGroup() {
+        // ARRANGE
+        long groupOfAccountsOid = 3000L;
+        long accountOid1 = 1001L;
+        long accountOid2 = 1002L;
+        long rg1Oid = 2001L;
+        long rg2Oid = 2002L;
+
+        GroupExpander groupExpander = mock(GroupExpander.class);
+        when(groupExpander.getResourceGroupsForAccounts(Sets.newSet(accountOid1, accountOid2)))
+            .thenReturn(Arrays.asList(GroupDTO.Grouping.newBuilder().setId(rg1Oid).build(),
+                GroupDTO.Grouping.newBuilder().setId(rg2Oid).build()));
+        HistoricalQueryMapper mapper = new HistoricalQueryMapper(
+            mock(ActionSpecMapper.class), mock(BuyRiScopeHandler.class), groupExpander, clock);
+
+        final CachedGroupInfo cachedGroupInfo = mock(CachedGroupInfo.class);
+        when(cachedGroupInfo.getEntityTypes()).thenReturn(Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT));
+        when(cachedGroupInfo.getEntityIds()).thenReturn(Sets.newSet(accountOid1, accountOid2));
+        when(cachedGroupInfo.getGroupType()).thenReturn(CommonDTO.GroupDTO.GroupType.REGULAR);
+
+        final ApiId scope = mock(ApiId.class);
+        when(scope.isRealtimeMarket()).thenReturn(false);
+        when(scope.isGlobalTempGroup()).thenReturn(false);
+        when(scope.isEntity()).thenReturn(false);
+        when(scope.isGroup()).thenReturn(true);
+        when(scope.oid()).thenReturn(groupOfAccountsOid);
+        when(scope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+
+
+        ActionStatsQuery query = ImmutableActionStatsQuery.builder()
+            .addScopes(scope)
+            .actionInput(new ActionApiInputDTO())
+            .build();
+
+        Optional<GroupBy> groupbyOpt = Optional.of(GroupBy.RESOURCE_GROUP_ID);
+
+        // ACT
+        final Map<ApiId, MgmtUnitSubgroupFilter> filters = mapper.extractMgmtUnitSubgroupFilter(query,
+            groupbyOpt);
+
+        // ASSERT
+        assertThat(filters.size(), is(1));
+        assertTrue(filters.get(scope).hasMgmtUnits());
+        assertThat(filters.get(scope).getMgmtUnits().getMgmtUnitIdsList(),
+            containsInAnyOrder(rg1Oid, rg2Oid));
     }
 
 }

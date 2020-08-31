@@ -4,6 +4,7 @@ import static com.vmturbo.api.component.external.api.service.AuthenticationServi
 
 import java.util.Optional;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
@@ -45,22 +46,22 @@ public class HeaderApiSecurityConfig extends ApiSecurityConfig {
      */
     static final String VENDOR_URL_CONTEXT_TAG = "vendor_url_context";
 
-    @Value("${vendor_supported_admin_role:Server Administrator,Account Administrator,Device Administrator,System Administrator}")
+    @Value("${vendor_supported_admin_role:Workload Optimizer Administrator, Account Administrator}")
     private String externalAdminRoles;
 
-    @Value("${vendor_supported_siteadmin_role:Site admin}")
+    @Value("${vendor_supported_siteadmin_role:Workload Optimizer Site admin}")
     private String externalSiteAdminRoles;
 
-    @Value("${vendor_supported_automator_role:Automator}")
+    @Value("${vendor_supported_automator_role:Workload Optimizer Automator}")
     private String externalAutomatorRoles;
 
-    @Value("${vendor_supported_deployer_role:Deployer}")
+    @Value("${vendor_supported_deployer_role:Workload Optimizer Deployer}")
     private String externalDeployerRoles;
 
-    @Value("${vendor_supported_advisor_role:Advisor}")
+    @Value("${vendor_supported_advisor_role:Workload Optimizer Advisor}")
     private String externalAdvisorRoles;
 
-    @Value("${vendor_supported_observer_role:Read-Only}")
+    @Value("${vendor_supported_observer_role:Workload Optimizer Observer, Read-Only}")
     private String externalObserverRoles;
 
     @Value("${vendor_request_username_header:x-barracuda-account}")
@@ -110,15 +111,7 @@ public class HeaderApiSecurityConfig extends ApiSecurityConfig {
     @Bean
     @Conditional(HeaderAuthenticationCondition.class)
     public HeaderAuthenticationFilter headerAuthenticationFilter() {
-        final ImmutableMap<PredefinedRole, String> roleMap =
-                ImmutableMap.<PredefinedRole, String>builder()
-                        .put(PredefinedRole.ADMINISTRATOR, externalAdminRoles)
-                        .put(PredefinedRole.SITE_ADMIN, externalSiteAdminRoles)
-                        .put(PredefinedRole.AUTOMATOR, externalAutomatorRoles)
-                        .put(PredefinedRole.DEPLOYER, externalDeployerRoles)
-                        .put(PredefinedRole.ADVISOR, externalAdvisorRoles)
-                        .put(PredefinedRole.OBSERVER, externalObserverRoles)
-                        .build();
+        final ImmutableMap<PredefinedRole, String> roleMap = getRoleMap();
         final HeaderMapper headerMapper =
                 HeaderMapperFactory.getHeaderMapper(Optional.empty(), roleMap, externalUserTag,
                         externalRoleTag, jwtTokenPublicKeyTag, jwtTokenTag);
@@ -129,6 +122,18 @@ public class HeaderApiSecurityConfig extends ApiSecurityConfig {
                 .targetName(LOGIN_MANAGER)
                 .audit();
         return new HeaderAuthenticationFilter(headerMapper, getPublicKey(), isLatestVersion());
+    }
+
+    @VisibleForTesting
+    ImmutableMap<PredefinedRole, String> getRoleMap() {
+        return ImmutableMap.<PredefinedRole, String>builder()
+                .put(PredefinedRole.ADMINISTRATOR, externalAdminRoles)
+                .put(PredefinedRole.SITE_ADMIN, externalSiteAdminRoles)
+                .put(PredefinedRole.AUTOMATOR, externalAutomatorRoles)
+                .put(PredefinedRole.DEPLOYER, externalDeployerRoles)
+                .put(PredefinedRole.ADVISOR, externalAdvisorRoles)
+                .put(PredefinedRole.OBSERVER, externalObserverRoles)
+                .build();
     }
 
     // If the public key is not default value, use it, otherwise just Optional.empty().

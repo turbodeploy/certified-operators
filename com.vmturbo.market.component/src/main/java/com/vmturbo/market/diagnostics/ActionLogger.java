@@ -71,9 +71,9 @@ public class ActionLogger {
     private static final String header = "market," + prefix + ",engine,CSP,billingFamily,businessAccount,region," +
         "osType,tenancy,vm,vmOid,vmGroup,savingsPerHour," +
         "sourceTemplate,sourceCoupons,naturalTemplate,naturalCoupons," +
-        "sourceRI,sourceRITemplate,sourceRICoupons," +
-        "projectedTemplate,projectedCoupons,projectedRI,projectedRITemplate,projectedRICoupons," +
-        "templateChange,familyChange";
+        "sourceRI,sourceRIKey,sourceRITemplate,sourceRICoupons,"
+            + "projectedTemplate,projectedCoupons,projectedRI,ProjectedRIKey,projectedRITemplate,projectedRICoupons,"
+            + "templateChange,familyChange";
     /*
      * What is written to the log for each action
      */
@@ -94,12 +94,14 @@ public class ActionLogger {
     private String naturalTemplateName;
     private int naturalTemplateCoupons;
     private String sourceReservedInstanceName;
+    private long sourceReservedInstanceKey;
     private String sourceReservedInstanceTemplateName;
     private float sourceReservedInstanceCouponsApplied;
     private String projectedTemplateName;
     private String projectedFamilyName;
     private int projectedTemplateCoupons;
     private String projectedReservedInstanceName;
+    private long projectedReservedInstanceKey;
     private String projectedReservedInstanceTemplateName;
     private float projectedReservedInstanceCouponsApplied;
     private int templateChange;
@@ -249,6 +251,7 @@ public class ActionLogger {
             SMAReservedInstance ri = vm.getCurrentRI();
             sourceReservedInstanceCouponsApplied = vm.getCurrentRICoverage();
             sourceReservedInstanceName = ri.getName();
+            sourceReservedInstanceKey = ri.getRiKeyOid();
             sourceReservedInstanceTemplateName = ri.getTemplate().getName();
         }
         long businessAccountId = vm.getBusinessAccountId();
@@ -283,16 +286,15 @@ public class ActionLogger {
         savingsPerHour = SMAUtils.format4Digits(sourceCost - projectedCost);
 
         setChange();
-        if (!(sourceTemplate.equals(projectedTemplate) && savingsPerHour == 0.0f)) {
-            // don't add row if VM is not scaled.
-            addRow(buffer);
-        }
+        addRow(buffer);
+
     }
 
     private void setProjectedReservedInstanceAttributes(SMAReservedInstance ri, SMAMatch match) {
         projectedReservedInstanceName = ri.getName();
         projectedReservedInstanceTemplateName = ri.getTemplate().getName();
-        projectedReservedInstanceCouponsApplied = match.getProjectedRICoverage();
+        projectedReservedInstanceCouponsApplied = match.getDiscountedCoupons();
+        projectedReservedInstanceKey = ri.getRiKeyOid();
     }
 
     /**
@@ -316,21 +318,23 @@ public class ActionLogger {
             .append(businessAccountName).append(",")
             .append(regionName).append(",")
             .append(platformName).append(",")
-            .append(tenancyName).append(",")
-            .append(virtualMachineName).append(",")
-            .append(virtualMachineOid).append(",")
-            .append((Strings.isNullOrEmpty(virtualMachineGroupName) ? "-" : virtualMachineGroupName)).append(",")
+            .append(tenancyName).append(",\"")
+            .append(virtualMachineName).append("\",")
+            .append(virtualMachineOid).append(",\"")
+            .append((Strings.isNullOrEmpty(virtualMachineGroupName) ? "-" : virtualMachineGroupName)).append("\",")
             .append(savingsPerHour).append(",")
             .append(sourceTemplateName).append(",")
             .append(sourceTemplateCoupons).append(",")
             .append(naturalTemplateName).append(",")
             .append(naturalTemplateCoupons == INT_UNKNOWN ? "-" : naturalTemplateCoupons).append(",")
             .append(sourceReservedInstanceName).append(",")
+            .append(sourceReservedInstanceKey == LONG_UNKNOWN ? "-" : sourceReservedInstanceKey).append(",")
             .append(sourceReservedInstanceTemplateName).append(",")
             .append(sourceReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? "-" : sourceReservedInstanceCouponsApplied).append(",")
             .append(projectedTemplateName).append(",")
             .append(projectedTemplateCoupons).append(",")
             .append(projectedReservedInstanceName).append(",")
+            .append(projectedReservedInstanceKey == LONG_UNKNOWN ? "-" : projectedReservedInstanceKey).append(",")
             .append(projectedReservedInstanceTemplateName).append(",")
             .append(projectedReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? "-" : projectedReservedInstanceCouponsApplied).append(",")
             .append(templateChange).append(",")
@@ -607,9 +611,11 @@ public class ActionLogger {
         projectedFamilyName = STRING_UNKNOWN;
         projectedTemplateCoupons = INT_UNKNOWN;
         sourceReservedInstanceName = STRING_UNKNOWN;
+        sourceReservedInstanceKey = LONG_UNKNOWN;
         sourceReservedInstanceTemplateName = STRING_UNKNOWN;
         sourceReservedInstanceCouponsApplied = FLOAT_UNKNOWN;
         projectedReservedInstanceName = STRING_UNKNOWN;
+        projectedReservedInstanceKey = LONG_UNKNOWN;
         projectedReservedInstanceTemplateName = STRING_UNKNOWN;
         projectedReservedInstanceCouponsApplied = FLOAT_UNKNOWN;
         virtualMachineName = STRING_UNKNOWN;

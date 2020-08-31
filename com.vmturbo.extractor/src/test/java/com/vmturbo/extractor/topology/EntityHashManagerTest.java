@@ -213,7 +213,7 @@ public class EntityHashManagerTest {
     }
 
     /**
-     * Test that a snapshot manager may not specify sime time as the previous one.
+     * Test that a snapshot manager may not specify same time as the previous one.
      */
     @Test(expected = IllegalArgumentException.class)
     public void testSnapshotTimesCannotRemainUnchanged() {
@@ -238,10 +238,9 @@ public class EntityHashManagerTest {
      * When an entity previously in the topology drops out, we should stop tracking the hash
      * associated with that OID.
      *
-     * @throws SQLException if there's a db error
      */
     @Test
-    public void testThatOrphanedEntitiesAreRemoved() throws SQLException {
+    public void testThatOrphanedEntitiesAreRemoved() {
         long baseOid = baseEntity.get(ENTITY_OID_AS_OID);
         try (SnapshotManager sm = entityHashManager.open(1L);
              TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
@@ -259,13 +258,12 @@ public class EntityHashManagerTest {
     }
 
     /**
-     * Test that first-seen and last-seen values added to current-topology entity recores are
+     * Test that first-seen and last-seen values added to current-topology entity records are
      * correct.
      *
-     * @throws SQLException if there's a db issue
      */
     @Test
-    public void testThatFirstAndLastSeenValuesAreCorrect() throws SQLException {
+    public void testThatFirstAndLastSeenValuesAreCorrect() {
         long updateInterval = TimeUnit.MINUTES.toMillis(config.lastSeenUpdateIntervalMinutes());
         long updateFuzz = TimeUnit.MINUTES.toMillis(config.lastSeenAdditionalFuzzMinutes());
         try (SnapshotManager sm = entityHashManager.open(0L);
@@ -327,10 +325,9 @@ public class EntityHashManagerTest {
      * Test that when entities drop out of the topology, the records sent to update their last-seen
      * values are correct.
      *
-     * @throws SQLException if there's a DB error
      */
     @Test
-    public void testCorrectedUpdateRecordsForDroppedHashes() throws SQLException {
+    public void testCorrectedUpdateRecordsForDroppedHashes() {
         final Long baseOid = baseEntity.get(ENTITY_OID_AS_OID);
         try (SnapshotManager sm = entityHashManager.open(1L);
              TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
@@ -357,10 +354,9 @@ public class EntityHashManagerTest {
      * Test that a last-seen update kicks off, any hash that was already present in the topology and
      * remains so is included in the update.
      *
-     * @throws SQLException if there's a db error
      */
     @Test
-    public void testCorrectUpdateRecordsForPeriodicUpdate() throws SQLException {
+    public void testCorrectUpdateRecordsForPeriodicUpdate() {
         final long updatePeriod = TimeUnit.MINUTES.toMillis(config.lastSeenUpdateIntervalMinutes());
         final long updateFuzz = TimeUnit.MINUTES.toMillis(config.lastSeenAdditionalFuzzMinutes());
         final long baseOid = baseEntity.get(ENTITY_OID_AS_OID);

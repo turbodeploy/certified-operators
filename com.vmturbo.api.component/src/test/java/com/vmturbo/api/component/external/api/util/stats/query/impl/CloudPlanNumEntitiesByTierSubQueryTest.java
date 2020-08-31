@@ -55,9 +55,9 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
     private static final Set<Long> SCOPE = Collections.singleton(12345L);
     private static final Set<Long> VOLUMES_IDS = Stream.of(10001L, 10002L).collect(Collectors.toSet());
     private static final Map<String, Set<Long>> RELATED_ENTITIES = createRelatedEntitiesMap();
-    private static final Stream<ApiPartialEntity> SOURCE_VOLUMES_ENTITIES = createVolumesEntities(1, 2);
+    private static final Stream<ApiPartialEntity> SOURCE_VOLUMES_ENTITIES = createVolumesEntities(1, 2, 2116);
     private static final Stream<MinimalEntity> SOURCE_TIERS_ENTITIES = createTiersEntities(2, STORAGE_TIER_ST);
-    private static final Stream<ApiPartialEntity> PROJECTED_VOLUMES_ENTITIES = createVolumesEntities(1, 3);
+    private static final Stream<ApiPartialEntity> PROJECTED_VOLUMES_ENTITIES = createVolumesEntities(1, 3, 2116);
     private static final Stream<MinimalEntity> PROJECTED_TIERS_ENTITIES = createTiersEntities(3, STORAGE_TIER_IO);
     private static final Map<Long, List<String>> TIME_TO_TYPES = createFiltersTypesMap();
     private static final Map<Long, List<String>> TIME_TO_VALUES = createFiltersValuesMap();
@@ -76,7 +76,8 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
-        query = new CloudPlanNumEntitiesByTierSubQuery(repositoryApi, supplyChainFetcherFactory);
+        query = new CloudPlanNumEntitiesByTierSubQuery(repositoryApi, supplyChainFetcherFactory,
+                null);
     }
 
     private static Map<String, Set<Long>> createRelatedEntitiesMap() {
@@ -85,13 +86,18 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
         return Collections.unmodifiableMap(result);
     }
 
-    private static Stream<ApiPartialEntity> createVolumesEntities(long oid, long tierOid) {
+    private static Stream<ApiPartialEntity> createVolumesEntities(long oid, long tierOid,
+                                                                  long... relatedEntityOids) {
         final RelatedEntity storageTier = RelatedEntity.newBuilder().setOid(tierOid)
                         .setEntityType(EntityType.STORAGE_TIER_VALUE).build();
-        final ApiPartialEntity virtualVolume = ApiPartialEntity.newBuilder().setOid(oid)
-                        .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).addProviders(storageTier)
-                        .build();
-        return Stream.of(virtualVolume);
+        final ApiPartialEntity.Builder virtualVolumeBuilder = ApiPartialEntity.newBuilder().setOid(oid)
+                        .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).addProviders(storageTier);
+        for (long relatedEntityOid : relatedEntityOids) {
+            virtualVolumeBuilder.addConnectedTo(RelatedEntity.newBuilder()
+                    .setEntityType(EntityType.REGION_VALUE)
+                    .setOid(relatedEntityOid));
+        }
+        return Stream.of(virtualVolumeBuilder.build());
     }
 
     private static Stream<MinimalEntity> createTiersEntities(long oid, String displayName) {

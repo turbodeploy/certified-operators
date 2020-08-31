@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -30,9 +31,12 @@ import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
+import org.springframework.util.CollectionUtils;
 
 /**
  * Conversion class for reserved instances.
@@ -69,6 +73,7 @@ public class ReservedInstanceMapper {
      * @param coveredEntitiesCount count of workload entities covered by the reserved instance.
      * @param coveredUndiscoveredAccountsCount count of undiscovered accounts covered
      *                               by the reserved instance.
+     * @param relatedBusinessAccountsList list of Topology Entity DTO's for related business accounts of the RI
      * @return a {@link ReservedInstanceApiDTO}.
      * @throws NotFoundMatchPaymentOptionException when no matching payment option can be found.
      * @throws NotFoundMatchTenancyException when no matching tenancy can be found.
@@ -79,7 +84,8 @@ public class ReservedInstanceMapper {
             @Nonnull final ReservedInstanceSpec reservedInstanceSpec,
             @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap,
             @Nullable final Integer coveredEntitiesCount,
-            @Nullable final Integer coveredUndiscoveredAccountsCount)
+            @Nullable final Integer coveredUndiscoveredAccountsCount,
+            @Nullable final List<TopologyDTO.TopologyEntityDTO> relatedBusinessAccountsList)
                 throws NotFoundMatchPaymentOptionException, NotFoundMatchTenancyException,
                 NotFoundMatchOfferingClassException, NotFoundCloudTypeException {
         // TODO: set RI cost data which depends on discount information.
@@ -101,6 +107,18 @@ public class ReservedInstanceMapper {
             final ServiceEntityApiDTO businessAccount = serviceEntityApiDTOMap.get(accountId);
             if (businessAccount != null) {
                 reservedInstanceApiDTO.setAccountDisplayName(businessAccount.getDisplayName());
+            }
+            // set associated target ID if available
+            if (!CollectionUtils.isEmpty(relatedBusinessAccountsList)) {
+                // RI will always have one associated business account/subscription
+                TopologyDTO.TopologyEntityDTO baTopologyEntityDTO =
+                        relatedBusinessAccountsList.stream().filter(account -> account.getOid() == accountId)
+                                .collect(Collectors.toList()).get(0);
+                if (baTopologyEntityDTO.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId()) {
+                    reservedInstanceApiDTO
+                            .setTargetId(Long.toString(baTopologyEntityDTO.getTypeSpecificInfo()
+                                    .getBusinessAccount().getAssociatedTargetId()));
+                }
             }
         }
 
@@ -168,28 +186,44 @@ public class ReservedInstanceMapper {
 
         // The following properties are used for Azure
         reservedInstanceApiDTO.setTrueID(reservedInstanceBoughtInfo.getProbeReservedInstanceId());
-        reservedInstanceApiDTO.setScopeType(
-            reservedInstanceBoughtInfo.getReservedInstanceScopeInfo().getShared()
-                ? AzureRIScopeType.SHARED
-                : AzureRIScopeType.SINGLE);
         reservedInstanceApiDTO.setOrderID(reservedInstanceBoughtInfo.getReservationOrderId());
-        reservedInstanceApiDTO.setAppliedScopes(reservedInstanceBoughtInfo
-                .getReservedInstanceScopeInfo().getApplicableBusinessAccountIdList()
-                .stream()
-                .map(oid -> {
-                    final ServiceEntityApiDTO account = serviceEntityApiDTOMap.get(oid);
-                    if (account == null) {
-                        logger.error("Cannot find account specified in applied scopes: " + oid);
-                    }
-                    return account;
-                })
-                .filter(Objects::nonNull)
-                .map(BaseApiDTO::getDisplayName)
-                .collect(Collectors.toList()));
+
+        if (reservedInstanceBoughtInfo.hasReservedInstanceScopeInfo()) {
+            final ReservedInstanceScopeInfo reservedInstanceScopeInfo =
+                    reservedInstanceBoughtInfo.getReservedInstanceScopeInfo();
+            final List<Long> applicableBusinessAccountIdList =
+                    reservedInstanceScopeInfo.getApplicableBusinessAccountIdList();
+            if (!applicableBusinessAccountIdList.isEmpty()) {
+                reservedInstanceApiDTO.setScopeType(AzureRIScopeType.SINGLE);
+                reservedInstanceApiDTO.setAppliedScopes(
+                    reservedInstanceBoughtInfo.getReservedInstanceScopeInfo()
+                        .getApplicableBusinessAccountIdList()
+                        .stream()
+                        .map(oid -> {
+                            final ServiceEntityApiDTO account = serviceEntityApiDTOMap.get(oid);
+                            if (account == null) {
+                                logger.error("Cannot find account specified in applied scopes: {}",
+                                        oid);
+                            }
+                            return account;
+                        })
+                        .filter(Objects::nonNull)
+                        .map(BaseApiDTO::getDisplayName)
+                        .collect(Collectors.toList()));
+            } else if (reservedInstanceScopeInfo.hasShared()) {
+                reservedInstanceApiDTO.setScopeType(reservedInstanceScopeInfo.getShared()
+                        ? AzureRIScopeType.SHARED : AzureRIScopeType.SINGLE);
+            } else {
+                reservedInstanceApiDTO.setScopeType(AzureRIScopeType.UNKNOWN);
+            }
+        }
 
         reservedInstanceApiDTO.setCoveredEntityCount(coveredEntitiesCount);
         reservedInstanceApiDTO.setUndiscoveredAccountsCoveredCount(
                 coveredUndiscoveredAccountsCount);
+        // Set the toBuy field based on the value in the ReservedInstanceBoughtInfo
+        reservedInstanceApiDTO.setToBuy(reservedInstanceBoughtInfo.getToBuy());
+
         return reservedInstanceApiDTO;
     }
 

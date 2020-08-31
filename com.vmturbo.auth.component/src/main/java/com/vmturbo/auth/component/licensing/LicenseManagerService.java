@@ -1,11 +1,14 @@
 package com.vmturbo.auth.component.licensing;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -38,6 +41,7 @@ import com.vmturbo.common.protobuf.licensing.Licensing.ValidateLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.ValidateLicensesResponse;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.licensing.License;
 import com.vmturbo.licensing.utils.LicenseUtil;
 import com.vmturbo.notification.api.NotificationSender;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
@@ -194,21 +198,19 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
         logger.info("Validating licenses.");
         try(DataMetricTimer timer = RPC_PROCESSING_MS.labels("validateLicenses").startTimer()) {
             // create LicenseApiDTO objects and use them to validate all licenses
-            List<ILicense> licenses = request.getLicenseDTOList().stream()
-                    .map(LicenseDTOUtils::licenseDTOtoLicense)
-                    .collect(Collectors.toList());
+            // We don't validate external licenses - we assume they are valid.
+            final InputLicenses requestLicenses = new InputLicenses(request.getLicenseDTOList());
 
             ValidateLicensesResponse.Builder responseBuilder = ValidateLicensesResponse.newBuilder();
             try {
                 // validate the licenses and add them back to the response.
-                List<LicenseDTO> validatedLicenses = validateMultipleLicenses(licenses).stream()
-                        .map(LicenseDTOUtils::iLicenseToLicenseDTO)
-                        .collect(Collectors.toList());
-                responseBuilder.addAllLicenseDTO(validatedLicenses);
+                validateMultipleLicenses(requestLicenses.getTurboLicenses());
+                requestLicenses.forEach(responseBuilder::addLicenseDTO);
             } catch (IOException ioe) {
                 // IO exception may occur when trying to load licenses to detect duplicates
                 // Error out of the call if we get this exception.
-                logger.error("IOException while validating {} licenses", licenses.size());
+                logger.error("IOException while validating {} licenses",
+                        requestLicenses.getTurboLicenses().size());
                 responseObserver.onError(ioe);
                 RPC_ERROR_COUNT.labels("validateLicenses").increment();
                 return;
@@ -219,6 +221,46 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
         }
     }
 
+    /**
+     * An object to capture licenses in requests, with the turbonomic licenses split from the
+     * external licenses.
+     */
+    private static class InputLicenses {
+        private final List<ILicense> turboModelLicenses;
+        private final List<LicenseDTO> externalLicenses;
+
+        InputLicenses(Collection<LicenseDTO> inputLicenses) {
+            turboModelLicenses = new ArrayList<>();
+            externalLicenses = new ArrayList<>();
+            inputLicenses.forEach(licenseDTO -> {
+                Optional<License> turboLicense = LicenseDTOUtils.licenseDTOtoLicense(licenseDTO);
+                if (turboLicense.isPresent()) {
+                    turboModelLicenses.add(turboLicense.get());
+                } else {
+                    externalLicenses.add(licenseDTO);
+                }
+            });
+        }
+
+        List<ILicense> getTurboLicenses() {
+            return turboModelLicenses;
+        }
+
+        List<LicenseDTO> getExternalLicenses() {
+            return externalLicenses;
+        }
+
+        int size() {
+            return turboModelLicenses.size() + externalLicenses.size();
+        }
+
+        void forEach(Consumer<LicenseDTO> licenseDTOConsumer) {
+            turboModelLicenses.stream()
+                .map(LicenseDTOUtils::iLicenseToLicenseDTO)
+                .forEach(licenseDTOConsumer);
+            externalLicenses.forEach(licenseDTOConsumer);
+        }
+    }
     /**
      * Add the licenses specified in the request to storage. Before storing them, this method will
      * first validate the licenses using the same validation code as validateLicenses, and if all
@@ -237,32 +279,29 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
         try(DataMetricTimer timer = RPC_PROCESSING_MS.labels("addLicenses").startTimer()) {
 
             // create LicenseApiDTO objects and use them to validate all licenses
-            List<ILicense> newLicenses = request.getLicenseDTOList().stream()
-                    .map(LicenseDTOUtils::licenseDTOtoLicense)
-                    .collect(Collectors.toList());
+            InputLicenses inputLicenses = new InputLicenses(request.getLicenseDTOList());
 
             try {
                 // validate the licenses
-                validateMultipleLicenses(newLicenses);
+                validateMultipleLicenses(inputLicenses.getTurboLicenses());
             } catch (IOException ioe) {
                 // IO exception may occur when trying to load licenses to detect duplicates
                 // Error out of the call if we get this exception.
-                logger.error("IOException while validating {} licenses", newLicenses.size());
+                logger.error("IOException while validating {} turbo licenses",
+                    inputLicenses.getTurboLicenses().size());
                 responseObserver.onError(ioe);
                 RPC_ERROR_COUNT.labels("addLicenses").increment();
                 return;
             }
 
             // check if all are valid.
-            boolean allAreValid = newLicenses.stream().allMatch(ILicense::isValid);
+            boolean allAreValid = inputLicenses.getTurboLicenses().stream().allMatch(ILicense::isValid);
 
             AddLicensesResponse.Builder responseBuilder = AddLicensesResponse.newBuilder();
             // if not all valid, return the validated licenses.
-            if ((!allAreValid) || newLicenses.size() == 0) {
+            if ((!allAreValid) || inputLicenses.size() == 0) {
                 logger.info("Invalid license or no licenses found, skipping save.");
-                responseBuilder.addAllLicenseDTO(newLicenses.stream()
-                            .map(LicenseDTOUtils::iLicenseToLicenseDTO)
-                            .collect(Collectors.toList()));
+                inputLicenses.forEach(responseBuilder::addLicenseDTO);
                 responseObserver.onNext(responseBuilder.build());
                 responseObserver.onCompleted();
                 return;
@@ -301,25 +340,40 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
      * Validate a collection of license objects. This may modify the incoming licenses by populating
      * their internal error structures with any validation errors found on each.
      *
-     * @param licenses the collection of {@link ILicense} objects to validate.
-     * @return the same collection of license objects w/validation errors populated.
+     * @param licenses the collection of {@link ILicense} objects to validate. This method may modify
+     *                 these input licenses, populating them with relevant errors.
+     * @return The same licenses, for convenience.
      * @throws IOException if there is a problem loading existing licenses during validation.
      */
     protected Collection<ILicense> validateMultipleLicenses(Collection<ILicense> licenses) throws IOException {
         // we're filtering out expired licenses for the purposes of validating new licenses.
-        Collection<ILicense> allNonexpiredLicenses = licenseStore.getLicenses().stream()
-                .filter(license -> LicenseUtil.isNotExpired(license.getExpirationDate()))
+        Collection<ILicense> allNonExpiredTurboLicenses = licenseStore.getLicenses().stream()
+                .filter(license -> !LicenseUtil.isExpired(license))
                 .map(LicenseDTOUtils::licenseDTOtoLicense)
+                // Ignore external licenses.
+                .filter(Optional::isPresent)
+                .map(Optional::get)
                 .collect(Collectors.toList());
-        // we'll also validate the incoming licenses against each other, so add them to the list too
-        allNonexpiredLicenses.addAll(licenses);
-        // get a combined feature set across all licenses. We'll use this to validate that all feature
-        // sets are the same (and thus, compatible -- XL does not support licenses with mismatched
-        // feature sets).
-        Set<String> combinedFeatures = allNonexpiredLicenses.stream()
+
+        // get a combined feature set across all currently-installed, non-expired licenses. We'll
+        // use this to validate that all feature sets are the same (and thus, compatible -- XL does
+        // not support licenses with mismatched feature sets).
+        Set<String> targetLicenseFeatures = allNonExpiredTurboLicenses.stream()
                 .map(ILicense::getFeatures)
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet());
+
+        // we'll also validate the incoming licenses against each other, so add them to the list too
+        allNonExpiredTurboLicenses.addAll(licenses);
+        // if the existing feature set is empty, then let's build it again, this time using the
+        // incoming licenses. This will let us validate that the incoming licenses are at least
+        // compatible with each other.
+        if (targetLicenseFeatures.isEmpty()) {
+            targetLicenseFeatures = licenses.stream()
+                    .map(ILicense::getFeatures)
+                    .flatMap(Set::stream)
+                    .collect(Collectors.toSet());
+        }
 
         for (ILicense license : licenses) {
             // run the standard validations and set the error reasons on the licenseApiDTO object we
@@ -329,10 +383,10 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
             // if we have multiple potential licenses, run some other checks to make sure the incoming
             // license is compatible with the other licenses either already in the system or being
             // added.
-            if (allNonexpiredLicenses.size() > 0) {
+            if (allNonExpiredTurboLicenses.size() > 0) {
                 // check for duplicate license keys. There should be exactly one of this type in the
                 // collection.
-                long numMatchingKeys = allNonexpiredLicenses.stream()
+                long numMatchingKeys = allNonExpiredTurboLicenses.stream()
                         .filter(otherLicense -> otherLicense.getLicenseKey().equals(license.getLicenseKey()))
                         .count();
                 if (numMatchingKeys > 1) {
@@ -342,7 +396,7 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
 
                 // verify that the CWOM/Workload license type matches that of the other licenses.
                 boolean isExternalLicense = StringUtils.isNotBlank(license.getExternalLicenseKey());
-                boolean incompatibleLicenseType = allNonexpiredLicenses.stream()
+                boolean incompatibleLicenseType = allNonExpiredTurboLicenses.stream()
                         .anyMatch(otherLicense -> StringUtils.isNotBlank(otherLicense.getExternalLicenseKey())
                                 != isExternalLicense);
                 if (incompatibleLicenseType) {
@@ -350,7 +404,7 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
                 }
 
                 // verify that the feature set for this license is compatible with the other licenses
-                if (!LicenseUtil.equalFeatures(license.getFeatures(), combinedFeatures)) {
+                if (!LicenseUtil.equalFeatures(license.getFeatures(), targetLicenseFeatures)) {
                     license.addErrorReason(ErrorReason.INVALID_FEATURE_SET);
                 }
             }
@@ -366,7 +420,8 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
      */
     protected ILicense validateLicense(ILicense licenseApiDTO) throws IOException {
         // we're going to re-use the validateMultipleLicenses method for simplicity.
-        return validateMultipleLicenses(Collections.singletonList(licenseApiDTO)).iterator().next();
+        validateMultipleLicenses(Collections.singletonList(licenseApiDTO));
+        return licenseApiDTO;
     }
 
     /**

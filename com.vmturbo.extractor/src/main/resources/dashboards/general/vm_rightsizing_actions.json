@@ -12,10 +12,11 @@
       }
     ]
   },
+  "description": "This dashboard displays current scaling actions for virtual machines in your on-prem environment.",
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1596576656708,
+  "iteration": 1597085998836,
   "links": [],
   "panels": [
     {
@@ -68,11 +69,83 @@
                 "value": "hertz"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Action Details"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 328
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "From"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 73
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "To"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 70
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Resource Type"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 108
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Resize Type"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 108
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Host Cluster"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 259
+              }
+            ]
           }
         ]
       },
       "gridPos": {
-        "h": 10,
+        "h": 15,
         "w": 24,
         "x": 0,
         "y": 0
@@ -89,7 +162,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH action_data AS (\n    SELECT DISTINCT\n           target_entity_id\n          ,savings\n          ,description\n    FROM action, action_spec\n    WHERE spec_oid = action_spec_oid\n      AND hash = action_spec_hash\n      AND type = 'RESIZE'\n      AND state = 'READY'\n      AND time between timestamptz $__timeTo() - interval '30 minute' and $__timeTo()\n      AND ($__timeFrom(), $__timeTo()) OVERLAPS (first_seen, last_seen) \n)\n\nSELECT e.name as \"VM Name\"\n      ,MAX(m.current) FILTER (WHERE m.type = 'VCPU')*1000000 as \"Peak VCPU\"\n      ,MAX(m.current) FILTER (WHERE m.type = 'VMEM') as \"Peak VMem\"\n      ,description as \"Action Details\"\n      ,btrim(regexp_matches(description, 'from ([0-9]{0,4}|[0-9]{0,4}.[0-9] GB)')::text, '{}\"')  as \"From\"\n      ,btrim(regexp_matches(description, 'to ([0-9]{0,4}|[0-9]{0,4}.[0-9] GB)')::text, '{}\"') as \"To\"\n  FROM entity as e, metric as m, action_data\n WHERE m.entity_oid = e.oid\n   AND m.entity_hash = e.hash\n   AND e.oid = action_data.target_entity_id\n   AND $__timeFilter(\"time\")\n   AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen)\n   AND e.type = 'VIRTUAL_MACHINE'\n   AND CASE WHEN ARRAY[ $VMGroup ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $VMGroup ]::bigint[]) END\n GROUP BY e.oid, description, 1",
+          "rawSql": "WITH action_data AS (\n    SELECT DISTINCT\n           target_entity_id\n          ,savings\n          ,description\n     FROM action_spec, action\n    WHERE spec_oid = action_spec_oid\n      AND hash = action_spec_hash\n      AND type = 'RESIZE'\n      AND state = 'READY'\n      AND time between now() - interval '10 minute' and now()\n      AND (now() - interval '10 minute', now()) OVERLAPS (first_seen, last_seen)\n),\n\nvms_by_cluster as (\n    SELECT DISTINCT on (e.oid) g.name as cluster_name\n          ,e.oid as vm_oid\n          ,e.name as vm_name\n          ,e.hash as vm_hash\n      FROM entity g\n      JOIN entity e on g.\"type\" = 'COMPUTE_CLUSTER' \n       AND array[g.oid] <@ e.scope\n       AND e.\"type\" = 'VIRTUAL_MACHINE' \n       AND e.state = 'POWERED_ON'\n       AND e.environment = 'ON_PREM'\n       AND (e.first_seen, e.last_seen) overlaps ($__timeFrom(),$__timeTo())\n       AND CASE WHEN ARRAY[ $VMGroup ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $VMGroup ]::bigint[]) END\n)\n\nSELECT *\nFROM (\n    SELECT cluster_name as \"Host Cluster\"\n          ,vm_name as \"VM Name\"\n          --,MAX(m.current) FILTER (WHERE m.type = 'VCPU') as \"Peak VCPU\"\n          --,MAX(m.current) FILTER (WHERE m.type = 'VMEM') as \"Peak VMem\"\n          ,description as \"Action Details\"\n          ,btrim(regexp_matches(description, 'from ([0-9]{0,4}|[0-9]{0,4}.[0-9] GB)')::text, '{}\"')  as \"From\"\n          ,btrim(regexp_matches(description, 'to ([0-9]{0,4}|[0-9]{0,4}.[0-9] GB)')::text, '{}\"') as \"To\"\n          ,btrim(regexp_matches(description, 'VMem|VCPU')::text, '{}\"') as \"Resource Type\"\n          ,CASE \n                WHEN description similar to 'Resize down%' THEN 'Downsize'\n                WHEN description similar to 'Resize up%' THEN 'Upsize'\n           END as \"Resize Type\"\n      FROM metric as m, action_data, vms_by_cluster\n     WHERE m.entity_oid = vm_oid\n       AND m.entity_hash = vm_hash\n       AND vm_oid = action_data.target_entity_id\n       AND $__timeFilter(\"time\")\n     GROUP BY vm_oid, description, 2, 1\n     ) as data\nWHERE CASE WHEN ARRAY[ $ResizeType ] = ARRAY[ '0' ] THEN true ELSE (\"Resize Type\" = $ResizeType) END\n  AND CASE WHEN ARRAY[ $ResourceType ] = ARRAY[ '0' ] THEN true ELSE (\"Resource Type\" = $ResourceType) END\nORDER BY 2\n;",
           "refId": "A",
           "select": [
             [
@@ -117,77 +190,6 @@
       "timeShift": null,
       "title": "Rightsizing Recommendations",
       "type": "table"
-    },
-    {
-      "datasource": "$DB",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": null
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 24,
-        "x": 0,
-        "y": 10
-      },
-      "id": 4,
-      "options": {
-        "showHeader": true
-      },
-      "pluginVersion": "7.0.1",
-      "targets": [
-        {
-          "format": "table",
-          "group": [],
-          "metricColumn": "none",
-          "rawQuery": true,
-          "rawSql": "WITH group_data as (\n    SELECT DISTINCT on(e.oid) g.name as group_name\n        ,e.oid as vm_oid\n    FROM entity g\n    JOIN entity e on g.\"type\" = 'GROUP' \n    AND CASE WHEN ARRAY[ $VMGroup ] = ARRAY[ '0' ] THEN true ELSE (g.oid = $VMGroup) END\n    AND e.\"type\" = 'VIRTUAL_MACHINE'\n    AND g.attrs -> 'member_types' ? 'VIRTUAL_MACHINE'\n    AND ($__timeFrom(),$__timeTo()) OVERLAPS (e.first_seen, e.last_seen)\n    AND ($__timeFrom(),$__timeTo()) OVERLAPS (g.first_seen, g.last_seen)\n    ),\n\nvm_peaks as (\n    SELECT e.oid\n          ,MAX(m.utilization) FILTER (WHERE m.type = 'VCPU') as peak_vcpu\n          ,MAX(m.utilization) FILTER (WHERE m.type = 'VMEM') as peak_vmem\n      FROM entity as e, metric as m\n     WHERE m.entity_oid = e.oid\n       AND m.entity_hash = e.hash\n       AND $__timeFilter(\"time\")\n       AND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \n       AND CASE WHEN ARRAY[ $VMGroup ] = ARRAY[ '0' ] THEN true ELSE (e.scope && ARRAY[ $VMGroup ]::bigint[]) END\n     GROUP BY e.oid\n)\n\nSELECT group_data.group_name as \"Group Name\"\n      ,AVG(peak_vcpu) as \"Avg Peak VCPU\"\n      ,AVG(peak_vmem) as \"Avg Peak VMem\"\n  FROM group_data, vm_peaks \n WHERE vm_peaks.oid = group_data.vm_oid\n GROUP BY group_data.group_name",
-          "refId": "A",
-          "select": [
-            [
-              {
-                "params": [
-                  "savings"
-                ],
-                "type": "column"
-              }
-            ]
-          ],
-          "table": "action_spec",
-          "timeColumn": "first_seen",
-          "timeColumnType": "timestamp",
-          "where": [
-            {
-              "name": "$__timeFilter",
-              "params": [],
-              "type": "macro"
-            }
-          ]
-        }
-      ],
-      "timeFrom": null,
-      "timeShift": null,
-      "title": "VM Group Average Peaks",
-      "type": "table"
     }
   ],
   "schemaVersion": 25,
@@ -212,14 +214,14 @@
       {
         "allValue": "'0'",
         "datasource": "$DB",
-        "definition": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'GROUP' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
+        "definition": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND (entity.type = 'GROUP'  \n          AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE')\nOR entity.type = 'COMPUTE_CLUSTER'\nGROUP BY name, oid \nORDER BY 1",
         "hide": 0,
         "includeAll": true,
         "label": null,
         "multi": false,
         "name": "VMGroup",
         "options": [],
-        "query": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE entity.type = 'GROUP' \nAND ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND attrs -> 'member_types' ? 'VIRTUAL_MACHINE'\nGROUP BY name, oid \nORDER BY 1",
+        "query": "SELECT name as __text,\n       oid as __value \nFROM entity \nWHERE ($__timeFrom(),$__timeTo()) OVERLAPS (first_seen, last_seen) \nAND (entity.type = 'GROUP'  \n          AND attrs -> 'member_types' ? 'VIRTUAL_MACHINE')\nOR entity.type = 'COMPUTE_CLUSTER'\nGROUP BY name, oid \nORDER BY 1",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
@@ -229,6 +231,64 @@
         "tagsQuery": "",
         "type": "query",
         "useTags": false
+      },
+      {
+        "allValue": "'0'",
+        "hide": 0,
+        "includeAll": true,
+        "label": null,
+        "multi": false,
+        "name": "ResourceType",
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          {
+            "selected": false,
+            "text": "VMem",
+            "value": "VMem"
+          },
+          {
+            "selected": false,
+            "text": "VCPU",
+            "value": "VCPU"
+          }
+        ],
+        "query": "VMem,VCPU",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "allValue": "'0'",
+        "hide": 0,
+        "includeAll": true,
+        "label": null,
+        "multi": false,
+        "name": "ResizeType",
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          {
+            "selected": false,
+            "text": "Upsize",
+            "value": "Upsize"
+          },
+          {
+            "selected": false,
+            "text": "Downsize",
+            "value": "Downsize"
+          }
+        ],
+        "query": "Upsize,Downsize",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
       }
     ]
   },
@@ -246,6 +306,6 @@
     ]
   },
   "timezone": "",
-  "title": "VM Rightsizing Recommendations",
+  "title": "Virtual Machine Scaling (aka Rightsizing) Recommendations",
   "uid": "vm_rightsizing_actions"
 }

@@ -160,6 +160,12 @@ public class ServiceConfig {
     @Value("${enableReporting:false}")
     private boolean enableReporting;
 
+    /**
+     * Configuration used to enable/disable search api.
+     */
+    @Value("${enableSearchApi:false}")
+    private boolean enableSearchApi;
+
     @Value("${grafanaViewerUsername:report-viewer}")
     private String grafanaViewerUsername;
 
@@ -234,7 +240,7 @@ public class ServiceConfig {
         return new AdminService(clusterService(), keyValueStoreConfig.keyValueStore(),
             communicationConfig.clusterMgr(), communicationConfig.serviceRestTemplate(),
             websocketConfig.websocketHandler(), BuildProperties.get(), this.deploymentMode,
-                this.enableReporting, this.settingsService());
+                this.enableReporting, this.settingsService(), this.enableSearchApi);
     }
 
     @Bean
@@ -392,6 +398,7 @@ public class ServiceConfig {
                 policiesService(),
                 communicationConfig.policyRpcService(),
                 communicationConfig.planRpcService(),
+                communicationConfig.planProjectRpcService(),
                 communicationConfig.scenarioRpcService(),
                 mapperConfig.policyMapper(),
                 mapperConfig.marketMapper(),
@@ -787,7 +794,8 @@ public class ServiceConfig {
     public CloudPlanNumEntitiesByTierSubQuery cloudPlanNumEntitiesByTierSubQuery() {
         final CloudPlanNumEntitiesByTierSubQuery cloudPlanNumEntitiesByTierQuery =
             new CloudPlanNumEntitiesByTierSubQuery(communicationConfig.repositoryApi(),
-                communicationConfig.supplyChainFetcher());
+                communicationConfig.supplyChainFetcher(),
+                    communicationConfig.actionsRpcService());
         statsQueryExecutor().addSubquery(cloudPlanNumEntitiesByTierQuery);
         return cloudPlanNumEntitiesByTierQuery;
     }
@@ -804,7 +812,8 @@ public class ServiceConfig {
     public HistoricalCommodityStatsSubQuery historicalCommodityStatsSubQuery() {
         final HistoricalCommodityStatsSubQuery historicalStatsQuery =
             new HistoricalCommodityStatsSubQuery(mapperConfig.statsMapper(),
-                communicationConfig.historyRpcService(), userSessionContext());
+                communicationConfig.historyRpcService(), userSessionContext(),
+                communicationConfig.repositoryApi());
         statsQueryExecutor().addSubquery(historicalStatsQuery);
         return historicalStatsQuery;
     }

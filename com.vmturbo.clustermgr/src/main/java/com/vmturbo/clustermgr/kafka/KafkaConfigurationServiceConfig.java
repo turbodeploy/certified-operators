@@ -21,10 +21,17 @@ public class KafkaConfigurationServiceConfig extends BaseKafkaConfig {
     @Value("${kafka.config.retry.delay.ms:"+ DEFAULT_CONFIG_RETRY_DELAY_MS +"}")
     private int kafkaConfigRetryDelayMs; // time between retry attempts
 
+    // default topic replication factor
+    @Value("${kafka.config.default.replication.factor:1}")
+    private short kafkaConfigDefaultReplicationFactor;
+
+    @Value("${kafkaConfigFile:/config/kafka-config.yml}")
+    private String kafkaConfigFile;
+
     @Bean
     public KafkaConfigurationService kafkaConfigurationService() {
         return new KafkaConfigurationService(bootstrapServer(), kafkaConfigMaxRetryTimeSecs,
-                kafkaConfigRetryDelayMs, kafkaNamespacePrefix());
+                kafkaConfigRetryDelayMs, kafkaConfigDefaultReplicationFactor, kafkaConfigFile, kafkaNamespacePrefix());
     }
 
 }

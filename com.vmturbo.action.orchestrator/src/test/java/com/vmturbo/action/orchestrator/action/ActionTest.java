@@ -5,8 +5,10 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -17,12 +19,14 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
@@ -46,6 +50,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -389,6 +394,73 @@ public class ActionTest {
         assertEquals(moveAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(storageMoveAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
+    }
+
+    /**
+     * Tests the case that translation is not populated.
+     *
+     * @throws UnsupportedActionException if something goes wrong.
+     */
+    @Test
+    public void testGetActionAssociatedPolicyTranslationNotPopulated() throws UnsupportedActionException {
+        resizeVmAction.refreshAction(entitySettingsCache);
+        assertEquals(Collections.emptySet(), resizeVmAction.getAssociatedSettingsPolicies());
+    }
+
+    /**
+     * Tests the case that associated policies gets populated.
+     *
+     * @throws UnsupportedActionException if something goes wrong.
+     */
+    @Test
+    public void testGetAssociatedPolicy() throws UnsupportedActionException {
+        resizeVmAction.getActionTranslation().setTranslationSuccess(vmResizeRecommendation);
+        Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
+            .put("resize", makeSetting("resize", ActionMode.AUTOMATIC))
+            .build();
+
+        doAnswer(invocationOnMock -> Stream.of(EntitySettingSpecs.Resize)).when(actionModeCalculator)
+            .specsApplicableToAction(any(), any());
+
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+            .thenReturn(settings);
+
+        when(entitySettingsCache.getSettingPoliciesForEntity(eq(11L)))
+            .thenReturn(Collections.singletonMap("resize", Collections.singletonList(5555L)));
+
+        resizeVmAction.refreshAction(entitySettingsCache);
+        assertEquals(Collections.singleton(5555L), resizeVmAction.getAssociatedSettingsPolicies());
+    }
+
+    /**
+     * Tests that after changing action mode from {@link ActionMode#EXTERNAL_APPROVAL} external
+     * -related info should be deleted from action.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testRemovingExternalRelatedInformation() throws Exception {
+        final String externalActionName = "CHG0133111";
+        final String externalActionUrl = "dev68876.service-now.com/CHG0133111";
+        final Map<String, Setting> initialSettings =
+                ImmutableMap.<String, Setting>builder().put("move",
+                        makeSetting("move", ActionMode.EXTERNAL_APPROVAL)).build();
+        Mockito.when(entitySettingsCache.getSettingsForEntity(eq(11L))).thenReturn(initialSettings);
+        moveAction.refreshAction(entitySettingsCache);
+        moveAction.setExternalActionName(externalActionName);
+        moveAction.setExternalActionUrl(externalActionUrl);
+
+        Assert.assertEquals(moveAction.getMode(), ActionMode.EXTERNAL_APPROVAL);
+        Assert.assertTrue(moveAction.getExternalActionName().isPresent());
+        Assert.assertTrue(moveAction.getExternalActionUrl().isPresent());
+
+        final Map<String, Setting> newSettings = ImmutableMap.<String, Setting>builder().put("move",
+                makeSetting("move", ActionMode.MANUAL)).build();
+        Mockito.when(entitySettingsCache.getSettingsForEntity(eq(11L))).thenReturn(newSettings);
+        moveAction.refreshAction(entitySettingsCache);
+
+        Assert.assertFalse(moveAction.getExternalActionName().isPresent());
+        Assert.assertFalse(moveAction.getExternalActionUrl().isPresent());
     }
 
     /**

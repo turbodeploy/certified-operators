@@ -16,6 +16,7 @@ import com.google.common.collect.Lists;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -57,7 +58,9 @@ public class SetTransactionsCapacityPostStitchingTest {
         com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig config =
             mock(com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig.class);
         stitchOperation = new SetTransactionsCapacityPostStitchingOperation(SELLER_TYPE,
-            ProbeCategory.DATABASE_SERVER, SLO_SETTING, SLO_ENABLED_SETTING, config);
+            ProbeCategory.DATABASE_SERVER, SLO_SETTING,
+            (Float)EntitySettingSpecs.ResponseTimeSLO.getDataStructure().getDefault(EntityType.DATABASE_SERVER),
+            SLO_ENABLED_SETTING, config);
     }
 
     /**
@@ -165,7 +168,7 @@ public class SetTransactionsCapacityPostStitchingTest {
         when(entitySettingsCollection.getEntitySetting(provider.getOid(), SLO_SETTING))
                 .thenReturn(Optional.empty());
         when(entitySettingsCollection.getEntitySetting(provider.getOid(), SLO_ENABLED_SETTING))
-                .thenReturn(Optional.of(sloSettingFalse));
+                .thenReturn(Optional.empty());
 
         UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
         stitchOperation.performOperation(

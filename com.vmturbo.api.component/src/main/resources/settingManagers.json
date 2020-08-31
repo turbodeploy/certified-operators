@@ -168,6 +168,7 @@
         "resizeTargetUtilizationVcpu",
         "resizeTargetUtilizationVmem",
         "resizeTargetUtilizationIopsAndThroughput",
+        "resizeTargetUtilizationIops",
         "resizeVcpuMinThreshold",
         "resizeVcpuMaxThreshold",
         "resizeVmemMinThreshold",

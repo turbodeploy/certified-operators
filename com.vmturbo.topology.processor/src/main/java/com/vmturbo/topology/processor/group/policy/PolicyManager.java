@@ -22,11 +22,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
@@ -35,16 +41,22 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanCh
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.BindToComplementaryGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
  * Responsible for the application of policies that affect the operation of the market.
@@ -122,16 +134,16 @@ public class PolicyManager {
      * Apply policies from the policy service, possibly modified by plan changes,
      * to the entities in the topology graph.
      *
+     * @param context Pipeline context.
      * @param graph The topology graph on which to apply the policies.
-     * @param groupResolver The resolver for the groups that the policy applies to.
      * @param changes list of plan changes to be applied to the policies
-     * @param topologyInfo Information about the topology under construction.
      * @return Map from (type of policy) -> (num of policies of the type)
      */
-    public PolicyApplicator.Results applyPolicies(@Nonnull final TopologyGraph<TopologyEntity> graph,
-                                                  @Nonnull final GroupResolver groupResolver,
-                                                  @Nonnull final List<ScenarioChange> changes,
-                                                  @Nonnull final TopologyInfo topologyInfo) {
+    public PolicyApplicator.Results applyPolicies(@Nonnull final TopologyPipelineContext context,
+                                                  @Nonnull final TopologyGraph<TopologyEntity> graph,
+                                                  @Nonnull final List<ScenarioChange> changes) {
+        final GroupResolver groupResolver = context.getGroupResolver();
+
         try (DataMetricTimer timer = POLICY_APPLICATION_SUMMARY.startTimer()) {
             final long startTime = System.currentTimeMillis();
             final List<Policy> livePolicies = new ArrayList<>();
@@ -165,11 +177,21 @@ public class PolicyManager {
             final Map<PolicyDetailCase, Integer> policyTypeCounts = Maps.newEnumMap(PolicyDetailCase.class);
 
 
-            final List<PlacementPolicy> policiesToApply =
-                new ArrayList<>();
+            final List<PlacementPolicy> policiesToApply = new ArrayList<>();
 
-            getServerPolicies(changes, livePolicies, groupsById)
-                .forEach(policiesToApply::add);
+            // Bind sources (consumers) to destinations (providers) in case of migration
+            // NOTE: the resulting BindToGroupPolicy binds source entities to destination (PM/tier).
+            context.getPolicyGroups()
+                    .forEach(policyPair -> {
+                        policiesToApply.add(createPlacementPolicy(policyPair.getFirst(),
+                                policyPair.getSecond()));
+                    });
+
+            // If we are doing migration, on-prem policies should be excluded.
+            if (!TopologyDTOUtil.isCloudMigrationPlan(context.getTopologyInfo())) {
+                getServerPolicies(changes, livePolicies, groupsById)
+                        .forEach(policiesToApply::add);
+            }
 
             getPlanOnlyPolicies(planOnlyPolicies, groupsById)
                 .forEach(policiesToApply::add);
@@ -343,5 +365,65 @@ public class PolicyManager {
             .filter(PolicyChange::hasPlanOnlyPolicy)
             .map(PolicyChange::getPlanOnlyPolicy)
             .collect(Collectors.toList());
+    }
+
+    @Nonnull
+    private PlacementPolicy createPlacementPolicy(@Nonnull final Grouping source,
+                                                  @Nonnull final Grouping destination) {
+        final Policy bindToGroupPolicy = generateBindToGroupPolicy(
+                destination.getId(), source.getId());
+        return new BindToGroupPolicy(bindToGroupPolicy,
+                new PolicyFactory.PolicyEntities(source),
+                new PolicyFactory.PolicyEntities(destination));
+    }
+
+    /**
+     * Generate a {@link BindToGroupPolicy} associating provider and consumer groups represented by
+     * {@param providerGroupId} and {@param consumerGroupId}.
+     *
+     * @param providerGroupId the ID of a provider {@link Grouping}
+     * @param consumerGroupId the ID of a consumer {@link Grouping}
+     * @return a BindToGroup {@link Policy} definition
+     */
+    public static Policy generateBindToGroupPolicy(final long providerGroupId,
+                                                   final long consumerGroupId) {
+        return Policy.newBuilder()
+                .setId(IdentityGenerator.next())
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                        .setEnabled(true)
+                        .setBindToGroup(PolicyInfo.BindToGroupPolicy.newBuilder()
+                                .setConsumerGroupId(consumerGroupId)
+                                .setProviderGroupId(providerGroupId)))
+                .build();
+    }
+
+    /**
+     * Generate a static group for provider and consumer of BindToGroup policy.
+     * This group will not be registered with the group component or persisted in the database.
+     * This is a feature. Moved here from ReservationPolicyFactory as it is being called by
+     * non-reservation related code as well.
+     *
+     * @param members a set of ids of group members.
+     * @param entityType entity type of group.
+     * @param description Policy group description field.
+     * @return {@link Grouping}.
+     */
+    public static Grouping generateStaticGroup(@Nonnull final Set<Long> members,
+                                               final int entityType,
+                                               @Nonnull String description) {
+        final Grouping staticGroup = Grouping.newBuilder()
+                .setId(IdentityGenerator.next())
+                .addExpectedTypes(MemberType.newBuilder().setEntity(entityType))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder().setEntity(entityType))
+                                        .addAllMembers(members))))
+                .setOrigin(GroupDTO.Origin.newBuilder().setSystem(
+                        GroupDTO.Origin.System.newBuilder()
+                                .setDescription(description)).build())
+                .build();
+        return staticGroup;
     }
 }

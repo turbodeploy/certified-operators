@@ -210,7 +210,7 @@ public class ActionApprovalServiceTest {
 
         scheduledService.executeScheduledTasks();
         Mockito.verify(operationManager).getExternalActionState(Mockito.eq(TGT_ID),
-                Mockito.eq(Sets.newHashSet(ACTION1, ACTION2)), getExternalStateCaptor.capture());
+                Mockito.eq(Sets.newHashSet(ACTION1)), getExternalStateCaptor.capture());
         final GetActionStateResponse stateResponse =
                 GetActionStateResponse.newBuilder().putActionState(ACTION1,
                         ActionResponseState.ACCEPTED).putActionState(ACTION2,
@@ -367,6 +367,11 @@ public class ActionApprovalServiceTest {
                 .addActions(createAction(ACTION1))
                 .build();
         receiver.accept(request, commitOperation, spanContext);
+        Mockito.verify(operationManager).approveActions(Mockito.eq(TGT_ID),
+                Mockito.argThat(new ActionCollectionMatcher(ACTION1)), approvalCaptor.capture());
+        final ActionApprovalResponse response1 = createResponse(ACTION1);
+        approvalCaptor.getValue().onSuccess(response1);
+        Mockito.verify(approvalResponseSender).sendMessage(response1);
         scheduledService.executeScheduledTasks();
         Mockito.verify(operationManager).getExternalActionState(Mockito.anyLong(),
                 Mockito.any(), getExternalStateCaptor.capture());
@@ -386,6 +391,11 @@ public class ActionApprovalServiceTest {
                 .addActions(createAction(ACTION1))
                 .build();
         receiver.accept(request, commitOperation, spanContext);
+        Mockito.verify(operationManager).approveActions(Mockito.eq(TGT_ID),
+                Mockito.argThat(new ActionCollectionMatcher(ACTION1)), approvalCaptor.capture());
+        final ActionApprovalResponse response1 = createResponse(ACTION1);
+        approvalCaptor.getValue().onSuccess(response1);
+        Mockito.verify(approvalResponseSender).sendMessage(response1);
         scheduledService.executeScheduledTasks();
         Mockito.verify(operationManager)
                 .getExternalActionState(Mockito.anyLong(), Mockito.any(),
@@ -411,6 +421,11 @@ public class ActionApprovalServiceTest {
                 .doAnswer(invocation -> new GetActionState(PROBE_ID, TGT_ID, identityProvider))
                 .when(operationManager)
                 .getExternalActionState(Mockito.anyLong(), Mockito.any(), Mockito.any());
+        Mockito.verify(operationManager).approveActions(Mockito.eq(TGT_ID),
+                Mockito.argThat(new ActionCollectionMatcher(ACTION1)), approvalCaptor.capture());
+        final ActionApprovalResponse response1 = createResponse(ACTION1);
+        approvalCaptor.getValue().onSuccess(response1);
+        Mockito.verify(approvalResponseSender).sendMessage(response1);
         scheduledService.executeScheduledTasks();
         scheduledService.executeScheduledTasks();
         Mockito.verify(operationManager, Mockito.times(2)).getExternalActionState(Mockito.anyLong(),

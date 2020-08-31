@@ -226,6 +226,10 @@ public class RemoteProbeStore implements ProbeStore {
                     logger.error("Failed to create stitching operations for probe {} due to {}", probeId, e);
                 }
             });
+
+            // Handle action merge data for the restored probes.
+            actionMergeSpecsRepository.clear();
+            probeInfoMap.forEach(actionMergeSpecsRepository::setPoliciesForProbe);
         }
         logger.info("Stored info from {} probes", probeInfos.size());
     }

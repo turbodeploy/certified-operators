@@ -15,6 +15,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -46,10 +48,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
+import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -68,12 +72,14 @@ import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Builder;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
+import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -94,6 +100,8 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -438,7 +446,7 @@ public class TopologyEntitiesHandlerTest {
                 .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                 .setReplayProvisionsForRealTime(replayProvisionsForRealTime)
                 .build();
-        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo, analysis);
+        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo, Collections.emptyList());
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
                         analysisConfig, analysis, topology);
 
@@ -689,22 +697,23 @@ public class TopologyEntitiesHandlerTest {
                                                                         Function.identity())));
     }
 
-    // TODO: fix the shopping list context set up in testMoveToCheaperComputeTier and re-enable it
-    @Ignore
+    @Test
     public void testMoveToCheaperComputeTier_ShopTogether()
-                    throws FileNotFoundException, InvalidProtocolBufferException {
+            throws FileNotFoundException, InvalidProtocolBufferException, NoSuchFieldException,
+            IllegalAccessException {
         testMoveToCheaperComputeTier(true);
     }
 
-    // TODO: fix the shopping list context set up in testMoveToCheaperComputeTier and re-enable it
-    @Ignore
+    @Test
     public void testMoveToCheaperComputeTier_ShopAlone()
-                    throws FileNotFoundException, InvalidProtocolBufferException {
+            throws FileNotFoundException, InvalidProtocolBufferException, NoSuchFieldException,
+            IllegalAccessException {
         testMoveToCheaperComputeTier(false);
     }
 
     public void testMoveToCheaperComputeTier(boolean isVMShopTogether)
-                    throws FileNotFoundException, InvalidProtocolBufferException {
+            throws FileNotFoundException, InvalidProtocolBufferException, NoSuchFieldException,
+            IllegalAccessException {
         // Read file
         Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders = readCloudTopologyFromJsonFile();
         TopologyEntityDTO.Builder vm = topologyEntityDTOBuilders.stream().filter(
@@ -732,6 +741,7 @@ public class TopologyEntitiesHandlerTest {
         TopologyEntityDTO m1Large = null;
         TopologyEntityDTO region = null;
         TopologyEntityDTO ba = null;
+        TopologyEntityDTO stTier = null;
         for (TopologyEntityDTO topologyEntityDTO : dtosToProcess) {
             if (topologyEntityDTO.getDisplayName().contains("m1.large")
                             && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
@@ -743,6 +753,8 @@ public class TopologyEntitiesHandlerTest {
                 region = topologyEntityDTO;
             } else if (topologyEntityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
                 ba = topologyEntityDTO;
+            } else if (topologyEntityDTO.getEntityType() == EntityType.STORAGE_TIER_VALUE) {
+                stTier = topologyEntityDTO;
             }
         }
 
@@ -760,11 +772,22 @@ public class TopologyEntitiesHandlerTest {
                         .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices));
         when(marketPriceTable.getComputePriceBundle(m1Medium, region.getOid(), accountPricingData))
                         .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
+        Map<TopologyDTO.CommodityType, StorageTierPriceData> stPrices = new HashMap<>();
+        stPrices.put(TopologyDTO.CommodityType.newBuilder().setType(8).build(), StorageTierPriceData
+                .newBuilder().setIsUnitPrice(true).setIsAccumulativeCost(false)
+                .setUpperBound(Double.MAX_VALUE).addCostTupleList(CostTuple.newBuilder()
+                        .setBusinessAccountId(ba.getOid()).setPrice(1).setRegionId(region.getOid()))
+                .build());
+        when(marketPriceTable.getStoragePriceBundle(stTier.getOid(), region.getOid(), accountPricingData))
+                .thenReturn(mockStoragePriceBundle(stPrices));
         when(ccd.getFilteredRiCoverage(anyLong())).thenReturn(Optional.empty());
         when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                         marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher);
+        Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
+        field.setAccessible(true);
+        field.set(converter, Status.SUCCESS);
         final Set<EconomyDTOs.TraderTO> traderTOs = converter.convertToMarket(dtosToProcess.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
         // Get handle to the traders which will be used in asserting
@@ -811,7 +834,8 @@ public class TopologyEntitiesHandlerTest {
                         .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                         .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
         // Call analysis
-        final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO, analysis);
+        final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO,
+            Collections.emptyList());
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
                         REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology);
         logger.info(results.getActionsList());
@@ -884,6 +908,9 @@ public class TopologyEntitiesHandlerTest {
             final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                             marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
+            Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
+            field.setAccessible(true);
+            field.set(converter, Status.SUCCESS);
             final Set<EconomyDTOs.TraderTO> traderTOs = converter
                             .convertToMarket(dtosToProcess.stream().collect(Collectors.toMap(
                                             TopologyEntityDTO::getOid, Function.identity())));
@@ -922,7 +949,8 @@ public class TopologyEntitiesHandlerTest {
                             .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                             .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
             // Call analysis
-            final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO, analysis);
+            final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO,
+                Collections.emptyList());
             AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
                             REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology);
             logger.info(results.getActionsList());
@@ -952,6 +980,14 @@ public class TopologyEntitiesHandlerTest {
         Builder builder = ComputePriceBundle.newBuilder();
         for (Map.Entry<OSType, Double> e : osPriceMapping.entrySet()) {
             builder.addPrice(businessAccountId, e.getKey(), e.getValue(), false);
+        }
+        return builder.build();
+    }
+
+    private StoragePriceBundle mockStoragePriceBundle(Map<TopologyDTO.CommodityType, StorageTierPriceData> map) {
+        StoragePriceBundle.Builder builder = StoragePriceBundle.newBuilder();
+        for (Map.Entry<TopologyDTO.CommodityType, StorageTierPriceData> e : map.entrySet()) {
+            builder.addPrice(e.getKey(), e.getValue());
         }
         return builder.build();
     }
@@ -1060,7 +1096,8 @@ public class TopologyEntitiesHandlerTest {
                 .setMaxPlacementsOverride(maxPlacementIterations)
                 .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                 .build();
-        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo, analysis);
+        final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
+            Collections.emptyList());
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
                 analysisConfig, analysis, topology);
         return results;
@@ -1283,5 +1320,136 @@ public class TopologyEntitiesHandlerTest {
         assertEquals(e.getRawMaterials(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).get().getMaterials().length,
                  RawMaterialsMap.rawMaterialsMap.get(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).size());
 
+    }
+
+    /**
+     * Testing the success and failure of a cost notification.
+     *
+     * @throws InterruptedException An interrupted exception.
+     * @throws NoSuchFieldException A no such field exception.
+     * @throws IllegalAccessException An illegal access exception.
+     */
+    @Test
+    public void testCostNotificationSuccess()
+            throws NoSuchFieldException, IllegalAccessException, InterruptedException {
+        AnalysisRICoverageListener listener = mock(AnalysisRICoverageListener.class);
+        Analysis analysis = mock(Analysis.class);
+        TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
+        Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
+        field.setAccessible(true);
+
+        // Test failure of cost notification.
+        CostNotification notification = CostNotification.newBuilder().setStatusUpdate(
+                StatusUpdate.newBuilder().setStatus(Status.FAIL).build()).build();
+        when(listener.receiveCostNotification(analysis)).thenReturn(CompletableFuture.completedFuture(notification));
+        topologyConverter.setCostNotificationStatus(listener, analysis);
+        assert (field.get(topologyConverter).equals(Status.FAIL));
+
+        // Test success of the cost notification.
+        CostNotification successNotification = CostNotification.newBuilder().setStatusUpdate(
+                StatusUpdate.newBuilder().setStatus(Status.SUCCESS).build()).build();
+        when(listener.receiveCostNotification(analysis)).thenReturn(CompletableFuture.completedFuture(successNotification));
+        topologyConverter.setCostNotificationStatus(listener, analysis);
+        assert (field.get(topologyConverter).equals(Status.SUCCESS));
+    }
+
+    /**
+     * Test the movable of shopping list on Trader TOs when cost notification fails.
+     *
+     * @throws NoSuchFieldException No such field exception.
+     * @throws IllegalAccessException Illegal Access Exception.
+     * @throws FileNotFoundException File Not Found Exception
+     * @throws InvalidProtocolBufferException Invalid Protocol Buffer Exception
+     */
+    @Test
+    public void testCostNotificationFails()
+            throws NoSuchFieldException, IllegalAccessException, FileNotFoundException,
+            InvalidProtocolBufferException {
+        Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders = readCloudTopologyFromJsonFile();
+        final Set<Integer> entityTypesToSkip = new HashSet<>();
+        entityTypesToSkip.add(EntityType.DATABASE_SERVER_VALUE);
+        entityTypesToSkip.add(EntityType.DATABASE_TIER_VALUE);
+        entityTypesToSkip.add(EntityType.DATABASE_VALUE);
+        TopologyEntityDTO.Builder vm = topologyEntityDTOBuilders.stream().filter(
+                builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .collect(Collectors.toList()).get(0);
+        // Set the shopTogether flag
+        vm.getAnalysisSettingsBuilder().setShopTogether(true);
+        TopologyEntityDTO.Builder vmNonScalable = topologyEntityDTOBuilders.stream().filter(
+                builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .collect(Collectors.toList()).get(0);
+        vmNonScalable.getAnalysisSettingsBuilder().setShopTogether(true);
+        Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
+                .map(TopologyEntityDTO.Builder::build).collect(Collectors.toSet());
+
+        Set<TopologyEntityDTO> dtosToProcess = topologyEntityDTOs.stream()
+                .filter(dto -> (!entityTypesToSkip.contains(dto.getEntityType())))
+                .collect(Collectors.toSet());
+
+        // Get handle to the templates, region and BA TopologyEntityDTO
+        TopologyEntityDTO m1Medium = null;
+        TopologyEntityDTO m1Large = null;
+        TopologyEntityDTO region = null;
+        TopologyEntityDTO ba = null;
+        TopologyEntityDTO stTier = null;
+        for (TopologyEntityDTO topologyEntityDTO : dtosToProcess) {
+            if (topologyEntityDTO.getDisplayName().contains("m1.large")
+                    && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                m1Large = topologyEntityDTO;
+            } else if (topologyEntityDTO.getDisplayName().contains("m1.medium")
+                    && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                m1Medium = topologyEntityDTO;
+            } else if (topologyEntityDTO.getEntityType() == EntityType.REGION_VALUE) {
+                region = topologyEntityDTO;
+            } else if (topologyEntityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
+                ba = topologyEntityDTO;
+            } else if (topologyEntityDTO.getEntityType() == EntityType.STORAGE_TIER_VALUE) {
+                stTier = topologyEntityDTO;
+            }
+        }
+
+        Map<OSType, Double> m1LargePrices = new HashMap<>();
+        m1LargePrices.put(OSType.LINUX, 5d);
+        m1LargePrices.put(OSType.RHEL, 3d);
+        Map<OSType, Double> m1MediumPrices = new HashMap<>();
+        m1MediumPrices.put(OSType.LINUX, 4d);
+        m1MediumPrices.put(OSType.RHEL, 2d);
+        AccountPricingData accountPricingData = mock(AccountPricingData.class);
+        when(ccd.getAccountPricingData(ba.getOid())).thenReturn(Optional.ofNullable(accountPricingData));
+        when(accountPricingData.getAccountPricingDataOid()).thenReturn(ba.getOid());
+        when(ccd.getAccountPricingData(ba.getOid())).thenReturn(Optional.ofNullable(accountPricingData));
+        when(marketPriceTable.getComputePriceBundle(m1Large, region.getOid(), accountPricingData))
+                .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices));
+        when(marketPriceTable.getComputePriceBundle(m1Medium, region.getOid(), accountPricingData))
+                .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
+        Map<TopologyDTO.CommodityType, StorageTierPriceData> stPrices = new HashMap<>();
+        stPrices.put(TopologyDTO.CommodityType.newBuilder().setType(8).build(), StorageTierPriceData
+                .newBuilder().setIsUnitPrice(true).setIsAccumulativeCost(false)
+                .setUpperBound(Double.MAX_VALUE).addCostTupleList(CostTuple.newBuilder()
+                        .setBusinessAccountId(ba.getOid()).setPrice(1).setRegionId(region.getOid()))
+                .build());
+        when(marketPriceTable.getStoragePriceBundle(stTier.getOid(), region.getOid(), accountPricingData))
+                .thenReturn(mockStoragePriceBundle(stPrices));
+        when(ccd.getFilteredRiCoverage(anyLong())).thenReturn(Optional.empty());
+        when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
+        // We fail the cost notification. Every shopping list should have movable false.
+        Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
+        field.setAccessible(true);
+        field.set(converter, Status.FAIL);
+        final Set<EconomyDTOs.TraderTO> traderTOs = converter.convertToMarket(dtosToProcess.stream()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
+        for (TraderTO traderTO: traderTOs) {
+            if (traderTO.getShoppingListsList().size() != 0) {
+                List<ShoppingListTO> slList = traderTO.getShoppingListsList();
+                for (ShoppingListTO slTO: slList) {
+                    assert (slTO.getMovable() == false);
+                }
+            }
+        }
     }
 }

@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
@@ -22,6 +23,7 @@ import io.grpc.Status;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -44,7 +46,7 @@ import com.vmturbo.group.service.TransactionProvider;
  * Group DAO diagnostics provider. This class is responsible for loading and dumping diagnostics
  * from group store.
  */
-public class GroupDaoDiagnostics implements DiagsRestorable {
+public class GroupDaoDiagnostics implements DiagsRestorable<DSLContext> {
 
     /**
      * The file name for the groups dump collected from the {@link com.vmturbo.group.group.IGroupStore}.
@@ -142,22 +144,16 @@ public class GroupDaoDiagnostics implements DiagsRestorable {
      * {@inheritDoc}
      */
     @Override
-    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull List<String> collectedDiags, @Nonnull DSLContext context) throws DiagnosticsException {
         try {
-            transactionProvider.transaction(stores -> {
-                restoreDiags(collectedDiags, stores.getGroupStore());
-                return null;
-            });
+            restoreDiags(collectedDiags, new GroupDAO(context));
         } catch (StoreOperationException e) {
-            logger.error("Failed to restore diags", e);
-            throw new DiagnosticsException(Collections.singletonList(e.getMessage()));
-        } catch (InterruptedException e) {
-            // TODO: fix with OM-56029
-            Thread.currentThread().interrupt();
+            throw new DiagnosticsException(e.getMessage(), e);
         }
     }
 
-    private void restoreDiags(@Nonnull List<String> collectedDiags, @Nonnull IGroupStore groupStore)
+    @VisibleForTesting
+    void restoreDiags(@Nonnull List<String> collectedDiags, @Nonnull IGroupStore groupStore)
             throws StoreOperationException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         // Replace all existing groups with the ones in the collected diags.

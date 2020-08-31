@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.jooq.DSLContext;
 
@@ -90,11 +91,16 @@ public class EmptyReservedInstanceBoughtStore implements ReservedInstanceBoughtS
         // no-op
     }
 
+    @Override
+    public List<ReservedInstanceBought> getReservedInstanceBoughtForAnalysis(@Nonnull final ReservedInstanceBoughtFilter filter) {
+        return Collections.emptyList();
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         // no-op
     }
 
@@ -135,4 +141,6 @@ public class EmptyReservedInstanceBoughtStore implements ReservedInstanceBoughtS
 
         return Collections.emptyList();
     }
+
+
 }

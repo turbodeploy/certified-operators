@@ -141,7 +141,7 @@ public class SearchAllQuery extends AbstractSearchQuery {
             if (!getOrderBy().isEmpty()) {
                 for (OrderByApiDTO orderBy: getOrderBy()) {
                     if (!orderBy.getField().equals(PrimitiveFieldApiDTO.name())) {
-                        throw new IllegalArgumentException("Sorting only allowed on name/type/oid");
+                        throw new IllegalArgumentException("Sorting only allowed on name");
                     }
                 }
             }

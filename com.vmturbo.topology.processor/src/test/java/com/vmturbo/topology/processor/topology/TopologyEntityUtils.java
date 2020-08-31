@@ -1,5 +1,8 @@
 package com.vmturbo.topology.processor.topology;
 
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URL;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -9,8 +12,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
+import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
@@ -25,6 +30,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.DiscoveryOriginBuilder;
@@ -402,33 +409,37 @@ public class TopologyEntityUtils {
     private static void addCommodityBoughtMap(TopologyEntityDTO.Builder builder, long... producers) {
         for (long producer : producers) {
             builder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(producer)
-                    .build());
+                .setProviderId(producer)
+                .build());
         }
     }
 
     static TopologyEntity.Builder buildTopologyEntityWithCommBought(
             long oid, int commType, int entityType, long provider) {
-        return buildTopologyEntityWithCommBought(oid, commType, entityType, provider, 0, 0, 0, 0);
+        return buildTopologyEntityWithCommBought(oid, commType, entityType, provider, 0, 0, null, null);
     }
 
     static TopologyEntity.Builder buildTopologyEntityWithCommBought(
         long oid, int commType, int entityType, long provider, double used, double peak) {
-        return buildTopologyEntityWithCommBought(oid, commType, entityType, provider, used, peak, 0, 0);
+        return buildTopologyEntityWithCommBought(oid, commType, entityType, provider, used, peak, null, null);
     }
 
     static TopologyEntity.Builder buildTopologyEntityWithCommBought(
             long oid, int commType, int entityType, long provider,
-            double used, double peak, double historicalUsed, double historicalPeak) {
+            double used, double peak, @Nullable Double historicalUsed, @Nullable Double historicalPeak) {
+        CommodityBoughtDTO.Builder commodityBoughtDTO = CommodityBoughtDTO.newBuilder().setCommodityType(
+                CommodityType.newBuilder().setType(commType).setKey("").build())
+                .setActive(true)
+                .setUsed(used)
+                .setPeak(peak);
+        if (historicalUsed != null) {
+            commodityBoughtDTO.setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(historicalUsed));
+        }
+        if (historicalPeak != null) {
+            commodityBoughtDTO.setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(historicalPeak));
+        }
         CommoditiesBoughtFromProvider.Builder commFromProvider =
-            CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
-                CommodityBoughtDTO.newBuilder().setCommodityType(
-                    CommodityType.newBuilder().setType(commType).setKey("").build())
-                    .setActive(true)
-                    .setUsed(used)
-                    .setPeak(peak)
-                    .setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(historicalUsed))
-                    .setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(historicalPeak)))
+            CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(commodityBoughtDTO)
                 .setProviderId(provider);
 
         return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
@@ -438,26 +449,32 @@ public class TopologyEntityUtils {
 
     static TopologyEntity.Builder buildTopologyEntityWithCommSold(
             long oid, int commType, int entityType) {
-        return buildTopologyEntityWithCommSold(oid, commType, entityType, 0, 0, 0, 0);
+        return buildTopologyEntityWithCommSold(oid, commType, entityType, 0, 0, null, null);
     }
 
     static TopologyEntity.Builder buildTopologyEntityWithCommSold(
         long oid, int commType, int entityType, double used, double peak) {
-        return buildTopologyEntityWithCommSold(oid, commType, entityType, used, peak, 0, 0);
+        return buildTopologyEntityWithCommSold(oid, commType, entityType, used, peak, null, null);
     }
 
     static TopologyEntity.Builder buildTopologyEntityWithCommSold(
             long oid, int commType, int entityType,
-            double used, double peak, double historicalUsed, double historicalPeak) {
+            double used, double peak, @Nullable Double historicalUsed, @Nullable Double historicalPeak) {
         final ImmutableList.Builder<CommoditySoldDTO> commSoldList = ImmutableList.builder();
-        commSoldList.add(CommoditySoldDTO.newBuilder().setCommodityType(
-            CommodityType.newBuilder().setType(commType).setKey("").build())
-            .setActive(true)
-            .setUsed(used)
-            .setPeak(peak)
-            .setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(historicalUsed))
-            .setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(historicalPeak))
-            .build());
+        CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder().setCommodityType(
+                CommodityType.newBuilder().setType(commType).setKey("").build())
+                .setActive(true)
+                .setUsed(used)
+                .setPeak(peak);
+        if (historicalUsed != null) {
+            commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
+                    .setHistUtilization(historicalUsed));
+        }
+        if (historicalPeak != null) {
+            commoditySoldBuilder.setHistoricalPeak(HistoricalValues.newBuilder()
+                    .setHistUtilization(historicalPeak));
+        }
+        commSoldList.add(commoditySoldBuilder.build());
 
         return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
             .addAllCommoditySoldList(commSoldList.build())
@@ -512,5 +529,73 @@ public class TopologyEntityUtils {
             EntityType.VIRTUAL_MACHINE_VALUE, 1L, vmUsed, vmPeak));
 
         return TopologyEntityTopologyGraphCreator.newGraph(topology);
+    }
+
+    /**
+     * Load a json file into an Entity DTO.
+     *
+     * @param fileBasename Basename of file to load.
+     * @return The entity DTO represented by the file
+     * @throws IllegalArgumentException On file read error or missing file.
+     */
+    public static CommonDTO.EntityDTO loadEntityDTO(@Nonnull final String fileBasename) {
+        CommonDTO.EntityDTO.Builder builder = CommonDTO.EntityDTO.newBuilder();
+        try {
+            JsonFormat.parser().merge(getInputReader(fileBasename), builder);
+        } catch (IOException ioe) {
+            throw new IllegalArgumentException("Bad input JSON file " + fileBasename, ioe);
+        }
+        return builder.build();
+    }
+
+    /**
+     * Logs JSON file containing TopologyEntityDTO.Builder.
+     *
+     * @param fileBasename Base filename of JSON file.
+     * @return TopologyEntityDTO.Builder read from file.
+     * @throws IllegalArgumentException On file read error or missing file.
+     */
+    public static TopologyEntityDTO.Builder loadTopologyBuilderDTO(String fileBasename) {
+        TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder();
+        try {
+            JsonFormat.parser().merge(getInputReader(fileBasename), builder);
+        } catch (IOException ioe) {
+            throw new IllegalArgumentException("Bad input JSON file " + fileBasename, ioe);
+        }
+        return builder;
+    }
+
+    /**
+     * Logs JSON file containing TopologyInfo.
+     *
+     * @param fileBasename Base filename of JSON file.
+     * @return TopologyInfo read from file.
+     * @throws IllegalArgumentException On file read error or missing file.
+     */
+    public static TopologyInfo loadTopologyInfo(String fileBasename) {
+        TopologyInfo.Builder builder = TopologyInfo.newBuilder();
+        try {
+            JsonFormat.parser().merge(getInputReader(fileBasename), builder);
+        } catch (IOException ioe) {
+            throw new IllegalArgumentException("Bad input JSON file " + fileBasename, ioe);
+        }
+        return builder.build();
+    }
+
+    /**
+     * Protobuf message JSON file reader helper.
+     *
+     * @param fileBasename Base filename of JSON file.
+     * @return Reader to pass to JsonFormat.
+     * @throws IOException Thrown on file read error.
+     */
+    private static InputStreamReader getInputReader(@Nonnull final String fileBasename)
+            throws IOException {
+        String fileName = "protobuf/messages/" + fileBasename;
+        URL fileUrl = TopologyEntityUtils.class.getClassLoader().getResource(fileName);
+        if (fileUrl == null) {
+            throw new IOException("Could not locate file: " + fileName);
+        }
+        return new InputStreamReader(fileUrl.openStream());
     }
 }

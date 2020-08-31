@@ -338,7 +338,7 @@ public class IdentityProviderImplTest {
         final IdentityService identityService = mock(IdentityService.class);
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(identityService,
                 new MapKeyValueStore(), compatibilityChecker, 0);
-        providerImpl.restoreDiags(ImmutableList.of("blah", "", ""));
+        providerImpl.restoreDiags(ImmutableList.of("blah", "", ""), null);
     }
 
     /**
@@ -349,7 +349,7 @@ public class IdentityProviderImplTest {
         final IdentityService identityService = mock(IdentityService.class);
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(identityService,
                 new MapKeyValueStore(), compatibilityChecker, 0);
-        providerImpl.restoreDiags(ImmutableList.of("{}", "blah", ""));
+        providerImpl.restoreDiags(ImmutableList.of("{}", "blah", ""), null);
     }
 
     /**
@@ -360,7 +360,7 @@ public class IdentityProviderImplTest {
         final IdentityService identityService = mock(IdentityService.class);
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(identityService,
                 new MapKeyValueStore(), compatibilityChecker, 0);
-        providerImpl.restoreDiags(Collections.emptyList());
+        providerImpl.restoreDiags(Collections.emptyList(), null);
     }
 
     /**
@@ -405,7 +405,7 @@ public class IdentityProviderImplTest {
         // the new providers behaves just like the old one.
         final IdentityProviderImpl newProvider = new IdentityProviderImpl(identityService,
                 new MapKeyValueStore(), compatibilityChecker, 0);
-        newProvider.restoreDiags(diagsCaptor.getAllValues());
+        newProvider.restoreDiags(diagsCaptor.getAllValues(), null);
         verify(identityService).restore(any());
         // It should assign the same ID for the same probe type.
         assertEquals(probeId, newProvider.getProbeId(probeInfo));

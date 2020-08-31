@@ -1,6 +1,7 @@
 package com.vmturbo.extractor.models;
 
 import java.sql.Timestamp;
+import java.time.OffsetDateTime;
 
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.schema.enums.EntityState;
@@ -52,6 +53,14 @@ public class ModelDefinitions {
     public static final Column<Double> COMMODITY_CONSUMED = Column.doubleColumn("consumed");
     /** COMMODITY_PROVIDER column. */
     public static final Column<Long> COMMODITY_PROVIDER = Column.longColumn("provider_oid");
+    /** SCOPED_OID column. */
+    public static final Column<Long> SCOPED_OID = Column.longColumn("scoped_oid");
+    /** SCOPED_TYPE column. */
+    public static final Column<EntityType> SCOPED_TYPE = Column.entityTypeColumn("scoped_type");
+    /** SCOPE_BEGIN column. */
+    public static final Column<OffsetDateTime> SCOPE_START = Column.offsetDateTimeColumn("start");
+    /** SCOPE_END column. */
+    public static final Column<OffsetDateTime> SCOPE_FINISH = Column.offsetDateTimeColumn("finish");
 
     /** Column for file path. */
     public static final Column<String> FILE_PATH = Column.stringColumn("path");
@@ -84,6 +93,11 @@ public class ModelDefinitions {
     public static final Table ENTITY_TABLE = Table.named("entity")
             .withColumns(ENTITY_OID_AS_OID, ENTITY_HASH_AS_HASH, ENTITY_TYPE_ENUM, ENTITY_NAME,
                     ENVIRONMENT_TYPE_ENUM, ENTITY_STATE_ENUM, ATTRS, SCOPED_OIDS, FIRST_SEEN, LAST_SEEN)
+            .build();
+
+    /** SCOPE_TABLE. */
+    public static final Table SCOPE_TABLE = Table.named("scope")
+            .withColumns(ENTITY_OID, SCOPED_OID, SCOPED_TYPE, SCOPE_START, SCOPE_FINISH)
             .build();
 
     /** METRIC_TABLE. */

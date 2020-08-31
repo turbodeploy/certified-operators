@@ -620,8 +620,8 @@ public class ClusterStatsReader {
             final Double capacity = capacities.get(key);
             if (used == null || capacity == null || capacity == 0.0) {
                 // Here we return positive infinity when it's ascending and
-                // -1.0 when it's descending so that such records will be grouped at the end.
-                return isAscending ? Double.POSITIVE_INFINITY : -1.0;
+                // negative infinity when it's descending so that such records will be grouped at the end.
+                return isAscending ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
             }
             return used / capacity;
         }
@@ -630,10 +630,15 @@ public class ClusterStatsReader {
          * Return value of a stat for this cluster and timestamp.
          *
          * @param key the stat name
+         * @param isAscending whether sort in ascending order or not
          * @return the value
          */
-        public double getValue(@Nonnull String key) {
-            return values.getOrDefault(key, 0.0);
+        public double getValue(@Nonnull String key, boolean isAscending) {
+            if (values.containsKey(key)) {
+                return values.get(key);
+            } else {
+                return isAscending ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
+            }
         }
 
         private static StatValue makeStatValue(double value) {
@@ -859,7 +864,7 @@ public class ClusterStatsReader {
             if (STATS_STORED_IN_TWO_RECORDS.contains(key)) {
                 selectComparisonMethod = r -> r == null ? 0.0f : (float)(r.getUtilization(key, isAscending));
             } else {
-                selectComparisonMethod = r -> r == null ? 0.0f : (float)(r.getValue(key));
+                selectComparisonMethod = r -> r == null ? 0.0f : (float)(r.getValue(key, isAscending));
             }
 
             // the comparison function is a composition of the two functions defined above

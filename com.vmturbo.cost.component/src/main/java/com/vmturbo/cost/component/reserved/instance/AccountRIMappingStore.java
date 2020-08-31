@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -191,14 +192,38 @@ public class AccountRIMappingStore {
     }
 
     /**
+     * Returns the sum of usage from all undiscovered accounts.
+     *
+     * @return Map of RI id and corresponding usage from undiscovered accounts.
+     */
+    public  Map<Long, Double> getUndiscoveredAccountUsageForRI() {
+        final Map<Long, List<AccountRIMappingItem>> usedCouponInUndiscAccounts =
+                getAccountRICoverageMappings(Collections.emptyList());
+        Map<Long, Double> undiscoveredAccountRIUsage =
+                usedCouponInUndiscAccounts.values().stream()
+                        .flatMap(List::stream)
+                        .collect(Collectors.toMap(AccountRIMappingItem::getReservedInstanceId,
+                                AccountRIMappingItem::getUsedCoupons,
+                                (oldValue, newValue) -> oldValue + newValue));
+        return undiscoveredAccountRIUsage;
+    }
+
+    /**
      * Class representing item of account RI coverage.
      */
-    protected class AccountRIMappingItem {
+    public class AccountRIMappingItem {
         private final Long businessAccountOid;
         private final Long reservedInstanceId;
         private final Double usedCoupons;
         private final RICoverageSource riSource;
 
+        /**
+         * Represents each row in the account mapping table.
+         * @param businessAccountOid the BA Id the RI is mapped to.
+         * @param reservedInstanceId the ReservedInstance Id.
+         * @param usedCoupons Number of used coupons
+         * @param riSource Source of the mapping - from billing or from supplemental analysiss.
+         */
         public AccountRIMappingItem(Long businessAccountOid, Long reservedInstanceId, Double usedCoupons,
                 RICoverageSource riSource) {
             super();

@@ -12,11 +12,11 @@
       }
     ]
   },
-  "description": "This report shows average hourly utilization measurements for Hosts compared day-over-day for the two consecutive days selected days. All machines in the selected group are included in the averages.",
+  "description": "This dashboard compares average hourly utilization measurements for physical machines (aka hosts) day-over-day for the two consecutive days. All physical machines in the selected group are included in the averages.",
   "editable": false,
   "gnetId": null,
   "graphTooltip": 1,
-  "iteration": 1596572121935,
+  "iteration": 1597070407142,
   "links": [],
   "panels": [
     {

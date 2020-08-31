@@ -33,6 +33,8 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -76,6 +78,7 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 /**
  * Writer that extracts entity and metric data from a topology and persists it to the database.
  */
+// TODO 61163 Strengthen against Exceptions killing listener
 public class EntityMetricWriter extends TopologyWriterBase {
     private static final Logger logger = LogManager.getLogger();
 
@@ -98,9 +101,9 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private static final List<Column<?>> updateMatches = ImmutableList.of(ModelDefinitions.ENTITY_HASH_AS_HASH);
     private static final List<Column<?>> updateUpdates = ImmutableList.of(ModelDefinitions.LAST_SEEN);
 
-    private final Long2ObjectMap<Record> entityRecordsMap = new Long2ObjectOpenHashMap<>();
+    private final Int2ObjectMap<Record> entityRecordsMap = new Int2ObjectOpenHashMap<>();
 
-    private final Long2ObjectMap<List<Record>> metricRecordsMap = new Long2ObjectOpenHashMap<>();
+    private final Int2ObjectMap<List<Record>> metricRecordsMap = new Int2ObjectOpenHashMap<>();
     private final EntityHashManager entityHashManager;
 
     /**
@@ -112,25 +115,33 @@ public class EntityMetricWriter extends TopologyWriterBase {
     private final GroupPrimitiveFieldsOnGroupingPatcher groupPatcher =
             new GroupPrimitiveFieldsOnGroupingPatcher();
     private final GroupTagsPatcher groupTagsPatcher = new GroupTagsPatcher();
+    private final EntityIdManager entityIdManager;
+    private final ScopeManager scopeManager;
 
     /**
      * Create a new writer instance.
      *
      * @param dbEndpoint        db endpoint for persisting data
      * @param entityHashManager to track entity hash evolution across topology broadcasts
+     * @param scopeManager      scope manager
+     * @param entityIdManager   entity id manager
      * @param pool              thread pool
      */
     public EntityMetricWriter(final DbEndpoint dbEndpoint, final EntityHashManager entityHashManager,
+            final ScopeManager scopeManager, final EntityIdManager entityIdManager,
             final ExecutorService pool) {
         super(dbEndpoint, ModelDefinitions.REPORTING_MODEL, pool);
         this.entityHashManager = entityHashManager;
+        this.scopeManager = scopeManager;
+        this.entityIdManager = entityIdManager;
     }
 
     @Override
     public Consumer<TopologyEntityDTO> startTopology(final TopologyInfo topologyInfo,
             final WriterConfig config, final MultiStageTimer timer)
-            throws IOException, UnsupportedDialectException, SQLException {
+            throws IOException, UnsupportedDialectException, SQLException, InterruptedException {
         super.startTopology(topologyInfo, config, timer);
+        scopeManager.startTopology(topologyInfo);
         return this::writeEntity;
     }
 
@@ -142,6 +153,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
             return;
         }
         final long oid = e.getOid();
+        final int iid = entityIdManager.toIid(oid);
         Record entitiesRecord = new Record(ENTITY_TABLE);
         final HashMap<String, Object> attrs = new HashMap<>();
         PartialRecordInfo rec = new PartialRecordInfo(e.getOid(), e.getEntityType(), entitiesRecord, attrs);
@@ -149,8 +161,8 @@ public class EntityMetricWriter extends TopologyWriterBase {
         entityTagsPatcher.patch(rec, e);
         rec.finalizeAttrs();
         // supply chain will be added during finish processing
-            entityRecordsMap.put(oid, entitiesRecord);
-        writeMetrics(e, oid);
+        entityRecordsMap.put(iid, entitiesRecord);
+        writeMetrics(e, oid, iid);
         // cache wasted file records, since storage name can only be fetched later
         createWastedFileRecords(e);
     }
@@ -160,9 +172,10 @@ public class EntityMetricWriter extends TopologyWriterBase {
      *
      * @param e   entity
      * @param oid entity oid
+     * @param iid entity iid (for same entity - we use both)
      */
-    private void writeMetrics(final TopologyEntityDTO e, final long oid) {
-        final List<Record> metricRecords = metricRecordsMap.computeIfAbsent(oid, k -> new ArrayList<>());
+    private void writeMetrics(final TopologyEntityDTO e, final long oid, final int iid) {
+        final List<Record> metricRecords = metricRecordsMap.computeIfAbsent(iid, k -> new ArrayList<>());
         // write bought commodity records
         e.getCommoditiesBoughtFromProvidersList().forEach(cbfp -> {
             final long producer = cbfp.getProviderId();
@@ -175,8 +188,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
                     .collect(Collectors.groupingBy(cb -> cb.getCommodityType().getType(), LinkedHashMap::new, Collectors.toList()));
             cbByType.forEach((typeNo, cbs) -> {
                 if (CommodityType.forNumber(typeNo) == null) {
-                    logger.error("Skipping invalid bought commodity type {} for entity {}",
-                            typeNo, e.getOid());
+                    logger.error("Skipping invalid bought commodity type {} for entity {}", typeNo, oid);
                 } else if (isAggregateByKeys(typeNo, producerType)) {
                     recordAggregatedBoughtCommodity(oid, typeNo, cbs, producer, metricRecords);
                 } else {
@@ -191,8 +203,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         csByType.forEach((typeNo, css) -> {
             MetricType type = CommodityTypeUtils.protoIntToDb(typeNo, null);
             if (CommodityType.forNumber(typeNo) == null) {
-                logger.error("Skipping invalid sold commodity type {} for entity {}",
-                        typeNo, e.getOid());
+                logger.error("Skipping invalid sold commodity type {} for entity {}", typeNo, oid);
             } else if (isAggregateByKeys(typeNo, e.getEntityType())) {
                 recordAggregatedSoldCommodity(oid, type, css, metricRecords);
             } else {
@@ -411,6 +422,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
             upsertEntityRecords(dataProvider, entitiesUpserter, snapshotManager);
             writeMetricRecords(metricInserter);
             snapshotManager.processChanges(entitiesUpdater);
+            scopeManager.finishTopology();
             // write wasted files records
             writeWastedFileRecords(wastedFileReplacer, dataProvider);
             return n;
@@ -450,18 +462,17 @@ public class EntityMetricWriter extends TopologyWriterBase {
                     groupPatcher.patch(rec, group);
                     groupTagsPatcher.patch(rec, group);
                     rec.finalizeAttrs();
-                    entityRecordsMap.put(group.getId(), r);
+                    entityRecordsMap.put(entityIdManager.toIid(group.getId()), r);
                 });
     }
 
     private void upsertEntityRecords(final DataProvider dataProvider, final TableWriter tableWriter,
             final SnapshotManager snapshotManager) {
-        entityRecordsMap.long2ObjectEntrySet().forEach(entry -> {
-            long oid = entry.getLongKey();
+        entityRecordsMap.int2ObjectEntrySet().forEach(entry -> {
+            int iid = entry.getIntKey();
             Record record = entry.getValue();
-            final Long[] scope = getRelatedEntitiesAndGroups(oid, dataProvider);
-            record.set(ModelDefinitions.SCOPED_OIDS, scope);
-
+            final LongSet scope = getRelatedEntitiesAndGroups(entityIdManager.toOid(iid), dataProvider);
+            record.set(ModelDefinitions.SCOPED_OIDS, scope.stream().toArray(Long[]::new));
             // only store entity if hash changes
             Long newHash = snapshotManager.updateRecordHash(record);
             if (newHash != null) {
@@ -473,21 +484,27 @@ public class EntityMetricWriter extends TopologyWriterBase {
         });
     }
 
-    private Long[] getRelatedEntitiesAndGroups(long oid, DataProvider dataProvider) {
+    private LongSet getRelatedEntitiesAndGroups(long oid, DataProvider dataProvider) {
+        // first collect iids for entities related to this one via spply chain
         final Set<Long> related = dataProvider.getRelatedEntities(oid);
+        // those all go into our result set
         LongSet result = new LongOpenHashSet(related);
+        // then we collect all the groups that any of oure related entities belong to...
         related.stream()
                 .map(dataProvider::getGroupsForEntity)
                 .flatMap(Collection::stream)
                 .mapToLong(Grouping::getId)
+                .distinct()
+                // ... and add their iids to the result as well
                 .forEach(result::add);
-        return result.toArray(new Long[0]);
+        scopeManager.addScope(oid, result.toLongArray());
+        return result;
     }
 
     private void writeMetricRecords(TableWriter tableWriter) {
         final Timestamp time = new Timestamp(topologyInfo.getCreationTime());
-        metricRecordsMap.long2ObjectEntrySet().forEach(entry -> {
-            long oid = entry.getLongKey();
+        metricRecordsMap.int2ObjectEntrySet().forEach(entry -> {
+            long oid = entityIdManager.toOid(entry.getIntKey());
             Long hash = entityHashManager.getEntityHash(oid);
             entry.getValue().forEach(partialMetricRecord -> {
                 try (Record r = tableWriter.open(partialMetricRecord)) {

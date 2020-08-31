@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -221,12 +222,15 @@ public class StitchingManager {
      *
      * @param graphWithSettings An object containing both the topology graph and associated settings.
      * @param stitchingJournal The journal to use to trace changes made during stitching.
+     * @param operationsToSkip Any optional operations to skip, non-empty for cloud migration plan.
      * {@link TopologyGraph<TopologyEntity>} and settings to be used during post-stitching.
      */
     public void postStitch(@Nonnull final GraphWithSettings graphWithSettings,
-                           @Nonnull final IStitchingJournal<TopologyEntity> stitchingJournal) {
-        logger.info("Applying {} post-stitching operations.",
-            postStitchingOperationLibrary.getPostStitchingOperations().size());
+                           @Nonnull final IStitchingJournal<TopologyEntity> stitchingJournal,
+                           @Nonnull final Set<String> operationsToSkip) {
+        logger.info("Applying {} post-stitching operations, skipping {}.",
+            postStitchingOperationLibrary.getPostStitchingOperations().size(),
+                operationsToSkip.size());
         final DataMetricTimer executionTimer = POST_STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
 
         final PostStitchingOperationScopeFactory scopeFactory = new PostStitchingOperationScopeFactory(
@@ -234,9 +238,11 @@ public class StitchingManager {
         final EntitySettingsCollection settingsCollection = graphWithSettings.constructEntitySettingsCollection();
 
         stitchingJournal.markPhase(StitchingPhase.POST_STITCHING);
-        postStitchingOperationLibrary.getPostStitchingOperations().stream()
-            .forEach(postStitchingOperation -> applyPostStitchingOperation(postStitchingOperation, scopeFactory,
-                    settingsCollection, stitchingJournal));
+        postStitchingOperationLibrary.getPostStitchingOperations()
+                .stream()
+                .filter(op -> !operationsToSkip.contains(op.getOperationName()))
+                .forEach(postStitchingOperation -> applyPostStitchingOperation(postStitchingOperation,
+                        scopeFactory, settingsCollection, stitchingJournal));
 
         executionTimer.observe();
     }
@@ -437,7 +443,7 @@ public class StitchingManager {
         // if a scope is provided, create a stream of stitching entities from the scope, otherwise
         // use the internal entities from the stitching context of the correct entity type with this
         // targetId
-        Stream<StitchingEntity> scopeEntities = operation.getScope(scopeFactory)
+        Stream<StitchingEntity> scopeEntities = operation.getScope(scopeFactory, targetId)
                 .map(scope -> scope.entities()
                         .filter(stitchEntity -> stitchEntity.getTargetId() == targetId))
                 .orElseGet(() -> scopeFactory.getStitchingContext()
@@ -502,7 +508,8 @@ public class StitchingManager {
             // the index provided by the operation.
             // Exclude entities that come from the same target as the one being stitched.
             final Stopwatch swExternalEntitiesCollected = Stopwatch.createStarted();
-            final Stream<StitchingEntity> externalEntities = operation.getScope(scopeFactory)
+            final Stream<StitchingEntity> externalEntities = operation.getScope(scopeFactory,
+                    targetId)
                             .map(f -> f.entities().map(StitchingEntity.class::cast)
                                             .filter(e -> e.getTargetId() != targetId)).orElseGet(() -> stitchingContext
                                             .externalEntities(externalEntityType, targetId).map(StitchingEntity.class::cast));

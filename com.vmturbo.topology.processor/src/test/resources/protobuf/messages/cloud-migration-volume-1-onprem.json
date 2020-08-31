@@ -1,0 +1,106 @@
+{
+  "entityType": 60,
+  "oid": "73433887060893",
+  "displayName": "Vol-win-mssql2016-174.53-NIMHF40:ACMDS1",
+  "entityState": "POWERED_ON",
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "suspendable": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1593106961750",
+      "discoveredTargetData": {
+        "73433887067200": {
+        },
+        "73433886535248": {
+          "vendorId": "Vol-dsb-421dc716-ace0-d573-7d17-0a794fcf5c4e-dsb-5cf6e809-7d9d85ad-7a3f-001cc46d09d2"
+        }
+      }
+    }
+  },
+  "connectedEntityList": [{
+    "connectedEntityId": "73433887031974",
+    "connectedEntityType": 2,
+    "connectionType": "NORMAL_CONNECTION"
+  }],
+  "tags": {
+  },
+  "typeSpecificInfo": {
+    "virtualVolume": {
+      "files": [{
+        "path": "/win-mssql2016-174.53/vmware-18.log",
+        "sizeKb": "299",
+        "type": "LOG"
+      }, {
+        "path": "/win-mssql2016-174.53/win-mssql2016-174.53-flat.vmdk",
+        "sizeKb": "49302528",
+        "type": "DISK"
+      }, {
+        "path": "/win-mssql2016-174.53/win-mssql2016-174.53.vmdk",
+        "sizeKb": "0",
+        "type": "CONFIGURATION"
+      }, {
+        "path": "/win-mssql2016-174.53/vmware-21.log",
+        "sizeKb": "227",
+        "type": "LOG"
+      }, {
+        "path": "/win-mssql2016-174.53/win-mssql2016-174.53-aux.xml",
+        "sizeKb": "0",
+        "type": "CONFIGURATION"
+      }, {
+        "path": "/win-mssql2016-174.53/vmware-16.log",
+        "sizeKb": "173",
+        "type": "LOG"
+      }, {
+        "path": "/win-mssql2016-174.53/vmx-zdump.000",
+        "sizeKb": "8076",
+        "type": "CONFIGURATION"
+      }, {
+        "path": "/win-mssql2016-174.53/vmware-17.log",
+        "sizeKb": "594",
+        "type": "LOG"
+      }, {
+        "path": "/win-mssql2016-174.53/win-mssql2016-174.53-d0476bbb.vswp",
+        "sizeKb": "2097152",
+        "type": "SWAP"
+      }, {
+        "path": "/win-mssql2016-174.53/win-mssql2016-174.53.nvram",
+        "sizeKb": "8",
+        "type": "CONFIGURATION"
+      }, {
+        "path": "/win-mssql2016-174.53/win-mssql2016-174.53.vmx",
+        "sizeKb": "3",
+        "type": "CONFIGURATION"
+      }, {
+        "path": "/win-mssql2016-174.53/vmware-20.log",
+        "sizeKb": "198",
+        "type": "LOG"
+      }, {
+        "path": "/win-mssql2016-174.53/vmx-win-mssql2016-174.53-3494341563-2.vswp",
+        "sizeKb": "224256",
+        "type": "CONFIGURATION"
+      }, {
+        "path": "/win-mssql2016-174.53/vmware.log",
+        "sizeKb": "177281",
+        "type": "LOG"
+      }, {
+        "path": "/win-mssql2016-174.53/vmware-19.log",
+        "sizeKb": "263",
+        "type": "LOG"
+      }, {
+        "path": "/win-mssql2016-174.53/vmmcores-1.gz",
+        "sizeKb": "4529",
+        "type": "CONFIGURATION"
+      }, {
+        "path": "/win-mssql2016-174.53/win-mssql2016-174.53.vmsd",
+        "sizeKb": "0",
+        "type": "SNAPSHOT"
+      }]
+    }
+  }
+}

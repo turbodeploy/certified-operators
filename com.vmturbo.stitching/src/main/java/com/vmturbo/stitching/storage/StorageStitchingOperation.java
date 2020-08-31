@@ -53,7 +53,8 @@ public class StorageStitchingOperation implements StitchingOperation<String, Str
     @Nonnull
     @Override
     public Optional<StitchingScope<StitchingEntity>> getScope(
-            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+            long targetId) {
         return Optional.empty();
     }
 

@@ -30,10 +30,14 @@ import com.google.common.collect.Table;
 
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -56,10 +60,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.tracing.Tracing;
@@ -75,21 +81,28 @@ import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.diagnostics.ActionLogger;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
+import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcher;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.SMAConverter;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
@@ -97,6 +110,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.topology.Topology;
@@ -217,6 +231,11 @@ public class Analysis {
 
     private final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory;
 
+    /**
+     * The service that will perform cloud commitment (RI) buy analysis during a migrate to cloud plan.
+     */
+    private final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService;
+
     // a set of on-prem application entity type
     private static final Set<Integer> entityTypesToSkip =
             new HashSet<>(Collections.singletonList(EntityType.BUSINESS_APPLICATION_VALUE));
@@ -241,6 +260,7 @@ public class Analysis {
      * @param consistentScalingHelperFactory CSM helper factory
      * @param initialPlacementFinder the class to perform fast reservation
      * @param reversibilitySettingFetcherFactory factory for {@link ReversibilitySettingFetcher}.
+     * @param migratedWorkloadCloudCommitmentAnalysisService cloud migration analysis
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
@@ -256,7 +276,8 @@ public class Analysis {
                     @Nonnull final AnalysisRICoverageListener listener,
                     @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
                     @Nonnull final InitialPlacementFinder initialPlacementFinder,
-                    @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory) {
+                    @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory,
+                    @NonNull final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -281,6 +302,7 @@ public class Analysis {
         this.consistentScalingHelperFactory = consistentScalingHelperFactory;
         this.initialPlacementFinder = initialPlacementFinder;
         this.reversibilitySettingFetcherFactory = reversibilitySettingFetcherFactory;
+        this.migratedWorkloadCloudCommitmentAnalysisService = migratedWorkloadCloudCommitmentAnalysisService;
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -309,6 +331,8 @@ public class Analysis {
         }
         final List<AnalysisType> analysisTypeList = topologyInfo.getAnalysisTypeList();
         final boolean isBuyRIImpactAnalysis = analysisTypeList.contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS);
+        final boolean isMigrateToCloud = (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
+                .equals(StringConstants.CLOUD_MIGRATION_PLAN));
         final boolean isM2AnalysisEnabled = analysisTypeList.contains(AnalysisType.MARKET_ANALYSIS);
         final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory
                 .newCalculator(topologyInfo, originalCloudTopology);
@@ -330,48 +354,51 @@ public class Analysis {
         Map<Long, TopologyEntityDTO> fakeEntityDTOs = Collections.emptyMap();
         AnalysisResults results = null;
         final Set<Long> oidsToRemove = new HashSet<>();
+
+        // Don't generate actions associated with entities with these oids
+        final Set<Long> suppressActionsForOids = new HashSet<>();
+
         if (isM2AnalysisEnabled) {
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME
                     && !originalCloudTopology.getEntities().isEmpty()) {
-                final long waitStartTime = System.currentTimeMillis();
-                try (TracingScope tracingScope = Tracing.trace("receive_cost_notification")) {
-                    final CostNotification notification =
-                            listener.receiveCostNotification(this).get();
-                    final StatusUpdate statusUpdate = notification.getStatusUpdate();
-                    final Status status = statusUpdate.getStatus();
-                    if (status != Status.SUCCESS) {
-                        logger.error("Cost notification reception failed for analysis with context id" +
-                                        " : {}, topology id: {} with status: {} and message: {}",
-                                this.getContextId(), this.getTopologyId(), status,
-                                statusUpdate.getStatusDescription());
-                        return false;
-                    } else {
-                        logger.debug("Cost notification with a success status received for analysis " +
-                                        "with context id: {}, topology id: {}", this.getContextId(),
-                                this.getTopologyId());
-                    }
+                try {
+                    // Set the cloud cost notification status. If the cloud cost notification status fails,
+                    // TC will set movable to false for cloud entities
+                    converter.setCostNotificationStatus(listener, this);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     logger.error(
                             String.format("Error while receiving cost notification for analysis %s",
                                     getTopologyInfo()), e);
                     return false;
-                } catch (ExecutionException e) {
-                    logger.error(
-                            String.format("Error while receiving cost notification for analysis %s",
-                                    getTopologyInfo()), e);
-                    return false;
-                } finally {
-                    final long waitEndTime = System.currentTimeMillis();
-                    logger.debug("Analysis with context id: {}, topology id: {} waited {} ms for the " +
-                                    "cost notification.", this.getContextId(), this.getTopologyId(),
-                            waitEndTime - waitStartTime);
                 }
             }
-
             state = AnalysisState.IN_PROGRESS;
             startTime = clock.instant();
             logger.info("{} Started", logPrefix);
+
+            // remove any (scoped) traders that may have been flagged for removal
+            // We are doing this after the convertToMarket() function because we need the original
+            // traders available in the "old providers maps" so the biclique calculation can
+            // preserve the original topology structure. We may refactor this in a way that lets us
+            // remove the old provider map though -- see OM-26631.
+            //
+            // Note that although we do NOT attempt to unplace buyers of the entities being removed
+            // here, the effect on the analysis is exactly equivalent if we had unplaced them
+            // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
+            // an infinite quote which is exactly the same as not having a provider.
+            Set<Long> reservationEntityOids = new HashSet<>();
+            for (TopologyEntityDTO dto : topologyDTOs.values()) {
+                if (dto.hasEdit()) {
+                    if (dto.getEdit().hasRemoved() || dto.getEdit().hasReplaced()) {
+                        oidsToRemove.add(dto.getOid());
+                    }
+                }
+                if (dto.hasOrigin() && dto.getOrigin().hasReservationOrigin()) {
+                    reservationEntityOids.add(dto.getOid());
+                }
+            }
+
             try {
                 final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
                 Set<TraderTO> traderTOs = new HashSet<>();
@@ -387,7 +414,7 @@ public class Analysis {
                     }
 
                     if (!stopAnalysis) {
-                        traderTOs.addAll(converter.convertToMarket(topologyDTOs));
+                        traderTOs.addAll(converter.convertToMarket(topologyDTOs, oidsToRemove));
                     }
                     // cache the traderTOs converted from fake TopologyEntityDTOs
                     if (enableThrottling) {
@@ -407,28 +434,6 @@ public class Analysis {
                 // remove skipped entities we don't want to send to market
                 converter.removeSkippedEntitiesFromTraderTOs(traderTOs);
 
-                // remove any (scoped) traders that may have been flagged for removal
-                // We are doing this after the convertToMarket() function because we need the original
-                // traders available in the "old providers maps" so the biclique calculation can
-                // preserve the original topology structure. We may refactor this in a way that lets us
-                // remove the old provider map though -- see OM-26631.
-                //
-                // Note that although we do NOT attempt to unplace buyers of the entities being removed
-                // here, the effect on the analysis is exactly equivalent if we had unplaced them
-                // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
-                // an infinite quote which is exactly the same as not having a provider.
-                Set<Long> reservationEntityOids = new HashSet<>();
-                for (TopologyEntityDTO dto : topologyDTOs.values()) {
-                    if (dto.hasEdit()) {
-                        if (dto.getEdit().hasRemoved() || dto.getEdit().hasReplaced()) {
-                            oidsToRemove.add(dto.getOid());
-                        }
-                    }
-                    if (dto.hasOrigin() && dto.getOrigin().hasReservationOrigin()) {
-                        reservationEntityOids.add(dto.getOid());
-                    }
-                }
-
                 if (oidsToRemove.size() > 0) {
                     logger.debug("Removing {} traders before analysis: ", oidsToRemove.size());
                     traderTOs = traderTOs.stream()
@@ -444,8 +449,10 @@ public class Analysis {
                 }
                 processResultTime = RESULT_PROCESSING.startTimer();
                 if (!stopAnalysis) {
+                    List<CommoditySpecification> commsToAdjustOverheadInClone = createCommsToAdjustOverheadInClone();
+                    saveAnalysisDiags(traderTOs, commsToAdjustOverheadInClone);
                     final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
-                            topologyInfo, this);
+                            topologyInfo, commsToAdjustOverheadInClone);
                     if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
                         // whenever market receives entities from realtime broadcast, we update
                         // cachedEconomy and also pass the commodity type to specification map associated
@@ -474,7 +481,10 @@ public class Analysis {
                         for (Entry<Long, Set<Long>> entry : cloudVmOidToTraderTOs.entrySet()) {
                             Set<Long> providerOIDList = new HashSet<>();
                             for (Long traderTO : entry.getValue()) {
-                                providerOIDList.add(converter.convertTraderTOToTopologyEntityDTO(traderTO));
+                                Optional<Long> computeTierID = converter.getTopologyEntityOIDForOnDemandMarketTier(traderTO);
+                                if (computeTierID.isPresent()) {
+                                    providerOIDList.add(computeTierID.get());
+                                }
                             }
                             cloudVmOidToProvidersOIDsMap.put(entry.getKey(), providerOIDList);
                         }
@@ -484,6 +494,7 @@ public class Analysis {
                                 cloudVmOidToProvidersOIDsMap,
                                 topologyCostCalculator.getCloudCostData(),
                                 marketPriceTable, converter.getConsistentScalingHelper(), isOptimizeCloudPlan);
+                        saveSMADiags(smaInput);
                         smaConverter.setSmaOutput(StableMarriageAlgorithm.execute(smaInput));
                     }
                     // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
@@ -565,8 +576,20 @@ public class Analysis {
                                 }
                             });
 
-                            // results can be null if M2Analysis is not run
-                            final PriceIndexMessage priceIndexMessage = results != null ?
+                        // TODO: Remove in MCP phase 2. Once we provide the explanation for
+                        // the VM not being placed to the repository component, it can
+                        // use it to know that a VM is unplaced.
+                        if (isMigrateToCloud) {
+                            // Ensure entities that fail to migrate are considered unplaced,
+                            // and don't return any actions for them.
+                            Pair<List<TraderTO>, Set<Long>> unplacedResult =
+                                unplaceFailedCloudMigrations(projectedTraderDTO);
+                            projectedTraderDTO = unplacedResult.first;
+                            suppressActionsForOids.addAll(unplacedResult.second);
+                        }
+
+                        // results can be null if M2Analysis is not run
+                        final PriceIndexMessage priceIndexMessage = results != null ?
                                 results.getPriceIndexMsg() : PriceIndexMessage.getDefaultInstance();
                             projectedEntities = converter.convertFromMarket(
                                 projectedTraderDTO,
@@ -578,7 +601,12 @@ public class Analysis {
                                 .map(Action::getInfo).map(ActionInfo::getDelete).map(Delete::getTarget)
                                 .map(ActionEntity::getId).collect(Collectors.toSet());
 
-                            copySkippedEntitiesToProjectedTopology(wastedStorageActionsVolumeIds, oidsToRemove);
+                        copySkippedEntitiesToProjectedTopology(
+                                wastedStorageActionsVolumeIds,
+                                oidsToRemove,
+                                projectedTraderDTO,
+                                topologyDTOs,
+                                isMigrateToCloud);
 
                             // Calculate the projected entity costs.
                             projectedCloudTopology =
@@ -598,10 +626,16 @@ public class Analysis {
                                 .addRICoverageToProjectedRICoverage(cloudCostData.getCurrentRiCoverage());
                         }
 
-                        // Invoke buy RI impact analysis after projected entity creation, but prior to
-                        // projected cost calculations
-                        // PS:  OCP Plan Option#2 (Market Only) will not be processed within runBuyRIImpactAnalysis.
-                        runBuyRIImpactAnalysis(projectedCloudTopology, topologyCostCalculator.getCloudCostData());
+                    // If this is a migrate to cloud plan, send a request to the cost component to start cloud commitment
+                    // analysis (Buy RI)
+                    if (isMigrateToCloud) {
+                        runMigratedWorkloadCloudCommitmentAnalysis(projectedCloudTopology, projectedEntities, projectedTraderDTO);
+                    }
+
+                    // Invoke buy RI impact analysis after projected entity creation, but prior to
+                    // projected cost calculations
+                    // PS:  OCP Plan Option#2 (Market Only) will not be processed within runBuyRIImpactAnalysis.
+                    runBuyRIImpactAnalysis(projectedCloudTopology, topologyCostCalculator.getCloudCostData());
 
                         // Projected RI coverage has been calculated by convertFromMarket
                         // Get it from TopologyConverter and pass it along to use for calculation of
@@ -620,12 +654,22 @@ public class Analysis {
                             .setMarket(MarketActionPlanInfo.newBuilder()
                                 .setSourceTopologyInfo(topologyInfo)))
                         .setAnalysisStartTimestamp(startTime.toEpochMilli());
-                    List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
+                List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
+                     originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
+
+                actions.removeIf(action -> {
+                    try {
+                        return suppressActionsForOids.contains(ActionDTOUtil.getPrimaryEntityId(action));
+                    } catch (UnsupportedActionException e) {
+                        // If it's somehow not recognized, leave the action alone
+                        return false;
+                    }
+                });
+
+                actions.forEach(actionPlanBuilder::addAction);
+                if (config.isSMAOnly()) {
+                    actions = converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,
                         originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
-                    actions.forEach(actionPlanBuilder::addAction);
-                    if (config.isSMAOnly()) {
-                        actions = converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,
-                            originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
                         actions.forEach(actionPlanBuilder::addAction);
                     }
                     writeActionsToLog(actions, config, originalCloudTopology, projectedCloudTopology,
@@ -665,6 +709,56 @@ public class Analysis {
                 + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
         completed = true;
         return true;
+    }
+
+    private void saveAnalysisDiags(final Collection<TraderTO> traderTOs,
+                                   final List<CommoditySpecification> commSpecsToAdjustOverhead) {
+        AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
+        factory.newDiagsCollector(topologyInfo, AnalysisMode.M2).ifPresent(diagsCollector -> {
+            diagsCollector.saveAnalysis(traderTOs, topologyInfo, config,
+                commSpecsToAdjustOverhead);
+        });
+    }
+
+    private void saveSMADiags(final SMAInput smaInput) {
+        AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
+        factory.newDiagsCollector(topologyInfo, AnalysisMode.SMA).ifPresent(diagsCollector -> {
+            diagsCollector.saveSMAInput(smaInput, topologyInfo);
+        });
+    }
+
+    /**
+     * Check for traders that have an unplaced explanation and remove the current
+     * suppliers of their shopping lists, so they will be considered unplaced by
+     * the repository, rather than "still placed" in their starting situation.
+     *
+     * @param projectedTraderDTOs the list of projected traders to check.
+     * @return The set of oids of unplaced traders.
+     */
+    @Nonnull
+    static Pair<List<TraderTO>, Set<Long>>
+    unplaceFailedCloudMigrations(@Nonnull final List<TraderTO> projectedTraderDTOs) {
+        List<TraderTO> updatedProjectedTraderDTOs = new ArrayList<>();
+        Set<Long> unplacedTraderOids = new HashSet<>();
+
+        for (TraderTO trader : projectedTraderDTOs) {
+            if (StringUtils.isNotEmpty(trader.getUnplacedExplanation())) {
+                List<ShoppingListTO> newShoppingLists = new ArrayList<>();
+                for (ShoppingListTO shoppingList : trader.getShoppingListsList()) {
+                    newShoppingLists.add(shoppingList.toBuilder().clearSupplier().build());
+                }
+
+                unplacedTraderOids.add(trader.getOid());
+                updatedProjectedTraderDTOs.add(trader.toBuilder()
+                    .clearShoppingLists()
+                    .addAllShoppingLists(newShoppingLists)
+                    .build());
+            } else {
+                updatedProjectedTraderDTOs.add(trader);
+            }
+        }
+
+        return new Pair<>(updatedProjectedTraderDTOs, unplacedTraderOids);
     }
 
     /*
@@ -709,6 +803,61 @@ public class Analysis {
     }
 
     /**
+     * In a Cloud Migration Plan, business account {@link TopologyEntityDTO}s must have new connected
+     * entities corresponding to workloads that were prviously on-prem. Here, those connections are added, and the entities
+     * are returned.
+     *
+     * @param projectedEntitiesFromOriginalTopo entities from the original topology for which trader creation is skipped
+     * @param traderTOs {@link TraderTO} analysis results
+     * @param originalTopology a map of OID to {@link TopologyEntityDTO} modeling the original topology
+     * @return a list of {@link TopologyEntityDTO} with businessAccount - OWNS_CONNECTION -> workload connections added
+     */
+    @Nonnull
+    private List<TopologyEntityDTO> getNewlyConnectedProjectedEntitiesFromOriginalTopo(
+            @Nonnull final List<TopologyEntityDTO> projectedEntitiesFromOriginalTopo,
+            @Nonnull final List<TraderTO> traderTOs,
+            @Nonnull final Map<Long, TopologyEntityDTO> originalTopology) {
+        final Map<Boolean, Map<Long, TopologyEntityDTO>> isBusinessAccountToIdToTopologyEntityDTO = projectedEntitiesFromOriginalTopo.stream()
+                .collect(Collectors.partitioningBy(
+                        topologyEntityDTO -> topologyEntityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE,
+                        Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
+
+        final List<TopologyEntityDTO> projectedEntitiesFromOriginalTopoNewlyConnected = Lists.newArrayList();
+        if (isBusinessAccountToIdToTopologyEntityDTO.containsKey(true)) {
+            Map<Long, TopologyEntityDTO> accountIdToAccountDto = isBusinessAccountToIdToTopologyEntityDTO.get(true);
+
+            // Remove existing connections to workloads (VMs or Virtual Volumes) from all accounts.
+            accountIdToAccountDto = accountIdToAccountDto.values().stream()
+                    .map(a -> a.toBuilder().clearConnectedEntityList().build())
+                    .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+            final Map<Long, Set<ConnectedEntity>> businessAccountsToNewlyOwnedEntities =
+                    converter.getCloudTc().getBusinessAccountsToNewlyOwnedEntities(
+                            traderTOs, originalTopology, accountIdToAccountDto);
+            projectedEntitiesFromOriginalTopoNewlyConnected.addAll(accountIdToAccountDto.entrySet().stream()
+                    .map(idToTopologyEntityDTO -> {
+                        final long id = idToTopologyEntityDTO.getKey();
+                        TopologyEntityDTO topologyEntityDTOWithNewConnections = idToTopologyEntityDTO.getValue();
+                        if (businessAccountsToNewlyOwnedEntities.containsKey(id)) {
+                            topologyEntityDTOWithNewConnections = TopologyEntityDTO.newBuilder()
+                                    .addAllConnectedEntityList(businessAccountsToNewlyOwnedEntities.get(id))
+                                    .mergeFrom(topologyEntityDTOWithNewConnections)
+                                    .build();
+                        }
+                        return topologyEntityDTOWithNewConnections;
+                    })
+                    .collect(Collectors.toList()));
+        }
+
+        if (isBusinessAccountToIdToTopologyEntityDTO.containsKey(false)) {
+            projectedEntitiesFromOriginalTopoNewlyConnected.addAll(
+                    isBusinessAccountToIdToTopologyEntityDTO.get(false).values());
+        }
+        return projectedEntitiesFromOriginalTopoNewlyConnected;
+    }
+
+
+    /**
      * Copy relevant entities (entities which did not go through market conversion) from the
      * original topology to the projected topology. Skips virtual volumes from being added to
      * projected topology if they have associated wasted storage actions.
@@ -716,17 +865,28 @@ public class Analysis {
      * @param wastedStorageActionsVolumeIds volumes id associated with wasted storage actions.
      * @param oidsRemoved entities removed via plan configurations.
      *                    For example, configuration changes like remove/decommission hosts etc.
+     * @param traderTOs {@link TraderTO} analysis results
+     * @param originalTopology the original set of {@link TopologyEntityDTO}s by OID.
+     * @param isMigrateToCloud whether this is a MCP context
      */
     private void copySkippedEntitiesToProjectedTopology(
             final Set<Long> wastedStorageActionsVolumeIds,
-            @Nonnull final Set<Long> oidsRemoved) {
-        final Stream<TopologyEntityDTO> projectedEntitiesFromOriginalTopo =
-                originalCloudTopology.getAllEntitiesOfType(
-                        TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION).stream();
+            @Nonnull final Set<Long> oidsRemoved,
+            @Nonnull final List<TraderTO> traderTOs,
+            @Nonnull final Map<Long, TopologyEntityDTO> originalTopology,
+            @Nonnull final boolean isMigrateToCloud) {
         final Stream<TopologyEntityDTO> projectedEntitiesFromSkippedEntities =
                 converter.getSkippedEntitiesInScope(topologyDTOs.keySet()).stream();
+        final List<TopologyEntityDTO> projectedEntitiesFromOriginalTopo = originalCloudTopology.getAllEntitiesOfType(
+                TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION);
         final Set<ProjectedTopologyEntity> entitiesToAdd = Stream
-                .concat(projectedEntitiesFromOriginalTopo, projectedEntitiesFromSkippedEntities)
+                .concat((isMigrateToCloud
+                                ? getNewlyConnectedProjectedEntitiesFromOriginalTopo(
+                                        projectedEntitiesFromOriginalTopo,
+                                        traderTOs,
+                                        originalTopology)
+                                : projectedEntitiesFromOriginalTopo).stream(),
+                        projectedEntitiesFromSkippedEntities)
                 // Exclude Volumes with Delete Volume action
                 .filter(entity -> !wastedStorageActionsVolumeIds.contains(entity.getOid()))
                 // Exclude entities that were removed due to plan configurations in source topology
@@ -755,11 +915,20 @@ public class Analysis {
         return ProjectedTopologyEntity.newBuilder().setEntity(topologyEntityDTO).build();
     }
 
+    private List<CommoditySpecification> createCommsToAdjustOverheadInClone() {
+        return MarketAnalysisUtils.COMM_TYPES_TO_ALLOW_OVERHEAD.stream()
+            .map(type -> TopologyDTO.CommodityType.newBuilder().setType(type).build())
+            .map(this::getCommSpecForCommodity)
+            .map(cs -> new CommoditySpecification(cs.getType(), cs.getBaseType()))
+            .collect(Collectors.toList());
+    }
+
     /**
-     * Construct fake buying TopologyEntityDTOS to help form markets with sellers bundled by cluster/storage
-     * cluster.
-     * <p>
-     * This is to ensure each cluster/storage cluster will form a unique market regardless of
+     *
+     * <p>Construct fake buying TopologyEntityDTOS to help form markets with sellers bundled by cluster/storage
+     * cluster.</p>
+     *
+     * <p>This is to ensure each cluster/storage cluster will form a unique market regardless of
      * segmentation constraint which may divided the cluster/storage cluster.
      * </p>
      * @return a set of fake TopologyEntityDTOS with only cluster/storage cluster commodity in the
@@ -834,6 +1003,110 @@ public class Analysis {
                         topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), e);
             }
         }
+    }
+
+    /**
+     * Runs the migrated workload cloud commitment analysis on the specified projected topology.
+     * @param projectedCloudTopology    The projected cloud topology: used to find placed VMs
+     * @param projectedEntities         A list of the projected entities generated by the market: used to lookup a
+     *                                  placed VM's compute tier
+     * @param projectedTraderDTO        The projected traders: used to lookup a virtual machine's region
+     */
+    private void runMigratedWorkloadCloudCommitmentAnalysis(@Nonnull CloudTopology<TopologyEntityDTO> projectedCloudTopology,
+                                                            @NonNull Map<Long, ProjectedTopologyEntity> projectedEntities,
+                                                            @NonNull List<TraderTO> projectedTraderDTO) {
+        // Define a list of all of our migrated workload placements
+        final List<Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement> workloadPlacementList = new ArrayList<>();
+
+        // Iterate over our traders and find virtual machines
+        projectedTraderDTO.stream()
+                .filter(trader -> trader.getType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .forEach(trader -> {
+                    // Get the virtual machine
+                    TopologyEntityDTO entity = projectedCloudTopology.getEntities().get(trader.getOid());
+
+                    // Find the VM's compute tier
+                    Optional<TopologyEntityDTO> computeTier = entity.getCommoditiesBoughtFromProvidersList().stream()
+                            .map(c -> projectedCloudTopology.getEntities().get(c.getProviderId()))
+                            .filter(provider -> provider != null && provider.getEntityType() == EntityType.COMPUTE_TIER_VALUE)
+                            .findFirst();
+
+                    // Find the region
+                    Optional<TopologyEntityDTO> region = trader.getShoppingListsList().stream()
+                            .filter(shoppingList -> shoppingList.hasContext() && shoppingList.getContext().hasRegionId())
+                            .map(shoppingListTO -> shoppingListTO.getContext().getRegionId())
+                            .map(regionId -> projectedCloudTopology.getEntities().get(regionId))
+                            .findFirst();
+
+                    // Validate that we were able to find a compute tier and region
+                    if (!computeTier.isPresent()) {
+                        logger.warn("Could not find compute tier for workload placement for VM: {}", entity.getOid());
+                    } else if (!region.isPresent()) {
+                        logger.warn("Could not find region for workload placement for VM: {}, compute tier: {}", entity.getOid(), computeTier.get().getOid());
+                    } else if (!isVMUsingRI(entity, computeTier.get())) {
+                        // Only add the VM to the list to analyze if it has not been resized specifically to use an existing reserved instance
+                        workloadPlacementList.add(Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement.newBuilder()
+                                .setVirtualMachine(entity)
+                                .setComputeTier(computeTier.get())
+                                .setRegion(region.get())
+                                .build());
+                    }
+                });
+
+        // Get the master business account
+        Optional<TopologyEntityDTO> masterBusinessAccount = Optional.empty();
+        if (!workloadPlacementList.isEmpty()) {
+            masterBusinessAccount = getMasterBusinessAccount(projectedCloudTopology, workloadPlacementList.get(0).getVirtualMachine().getOid());
+        }
+
+        // Validate that we actually found a master business account
+        if (!masterBusinessAccount.isPresent()) {
+            logger.warn("Could not find master business account in projected cloud topology");
+        }
+
+        // Send the request to start the analysis
+        migratedWorkloadCloudCommitmentAnalysisService.startAnalysis(topologyInfo.getTopologyContextId(),
+                masterBusinessAccount.map(TopologyEntityDTO::getOid),
+                workloadPlacementList);
+    }
+
+    /**
+     * Checks to see if the specified entity is using coupon commodities sold by the specified compute tier. This will tell
+     * us if the market has resized the VM specifically to use a reserved instance.
+     *
+     * @param entity        The virtual machine entity
+     * @param computeTier   The compute tier to which the virtual machine is being moved
+     * @return              True if the VM is using an RI, false otherwise
+     */
+    private boolean isVMUsingRI(TopologyEntityDTO entity, TopologyEntityDTO computeTier) {
+        List<CommoditiesBoughtFromProvider> commodities = entity.getCommoditiesBoughtFromProvidersList();
+        for (CommoditiesBoughtFromProvider commodity: commodities) {
+            if (commodity.getProviderId() == computeTier.getOid()) {
+                // Find all coupon commodities with a used value greater than zero that this entity is buying from the computer tier
+                List<CommodityBoughtDTO> couponCommodities = commodity.getCommodityBoughtList().stream()
+                        .filter(c -> c.getCommodityType().getType() == CommodityType.COUPON_VALUE)
+                        .filter(c -> c.getUsed() > 0)
+                        .collect(Collectors.toList());
+                if (!couponCommodities.isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns the master business account in the specified projected cloud topology for the specified VM OID.
+     *
+     * @param projectedCloudTopology    The projected cloud topology, generated by the market
+     * @param vmOid                     The VM OID for which to find the owned business account
+     * @return                          An optional wrapping the master business account, if found
+     */
+    Optional<TopologyEntityDTO> getMasterBusinessAccount(@Nonnull CloudTopology<TopologyEntityDTO> projectedCloudTopology, long vmOid) {
+        return projectedCloudTopology.getEntities().values().stream()
+                .filter(e -> e.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
+                .filter(e -> e.getConnectedEntityListList().stream().anyMatch(ce -> ce.getConnectedEntityId() == vmOid))
+                .findFirst();
     }
 
     /**

@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.group.common.Truncator;
 
 /**
  * Map discovered setting policies to instances of {@link com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo}.
@@ -72,12 +73,16 @@ public class DiscoveredSettingPoliciesMapper {
             groupOids.add(oid);
         }
 
+        final String settingPolicyDisplayName =
+            Truncator.truncateSettingPolicyName(info.getDisplayName(), true);
+        final String settingPolicyName =
+            Truncator.truncateSettingPolicyDisplayName(info.getName(), true);
         return Optional.of(SettingPolicyInfo.newBuilder()
             .setTargetId(targetId)
             .setEntityType(info.getEntityType())
             .setScope(Scope.newBuilder().addAllGroups(groupOids))
-            .setName(info.getName())
-            .setDisplayName(info.getDisplayName())
+            .setName(settingPolicyName)
+            .setDisplayName(settingPolicyDisplayName)
             .addAllSettings(info.getSettingsList())
             .build());
     }

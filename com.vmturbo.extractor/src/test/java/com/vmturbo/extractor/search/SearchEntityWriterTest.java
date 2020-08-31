@@ -145,7 +145,7 @@ public class SearchEntityWriterTest {
     }
 
     /**
-     * Tests that we can propertly insert entities into the search_entities table.
+     * Tests that we can properly insert entities into the search_entities table.
      *
      * @throws SQLException                if there's a DB problem
      * @throws UnsupportedDialectException if the DB endpoint is misconfigured
@@ -185,7 +185,7 @@ public class SearchEntityWriterTest {
             } else if (oid == pm.getOid()) {
                 // commodity
                 assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_USED.getJsonKeyName()), is(4000.0));
-                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_HISTORICAL_UTILIZATION.getJsonKeyName()), is(0.2));
+                assertThat(attrs.get(SearchMetadataMapping.COMMODITY_CPU_HISTORICAL_UTILIZATION.getJsonKeyName()), is(1.0E-5));
                 // related entity
                 assertThat(attrs.get(SearchMetadataMapping.RELATED_DATA_CENTER.getJsonKeyName()),
                         is(Collections.singletonList(dc.getDisplayName())));
@@ -198,7 +198,7 @@ public class SearchEntityWriterTest {
      *
      * @throws SQLException                if there's a DB problem
      * @throws UnsupportedDialectException if the DB endpoint is misconfigured
-     * @throws InterruptedException        if interrupetd
+     * @throws InterruptedException        if interrupted
      */
     @Test
     public void testInsertGroups() throws SQLException, UnsupportedDialectException, InterruptedException {

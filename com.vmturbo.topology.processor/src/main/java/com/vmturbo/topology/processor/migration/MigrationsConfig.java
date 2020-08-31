@@ -46,6 +46,6 @@ public class MigrationsConfig {
                 identityProviderConfig.underlyingStore(),
                 identityProviderConfig.identityProvider(),
                 kvConfig.keyValueStore(), targetConfig.targetStore(), targetConfig.targetDao(),
-                targetConfig.identityStore());
+                targetConfig.identityStore(), targetConfig.groupScopeResolver());
     }
 }

@@ -25,7 +25,6 @@ import org.apache.logging.log4j.Logger;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import jdk.nashorn.internal.ir.debug.ObjectSizeCalculator;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
@@ -126,7 +125,7 @@ public class LiveTopologyStoreMeasurementIT {
         });
 
         SourceRealtimeTopology topology = sourceRealtimeTopologyBuilder.finish();
-        logger.info(ObjectSizeCalculator.getObjectSize(topology));
+//        logger.info(ObjectSizeCalculator.getObjectSize(topology));
     }
 
     @Test
@@ -164,10 +163,10 @@ public class LiveTopologyStoreMeasurementIT {
         sourceRealtimeTopologyBuilder.finish();
         stopwatch.stop();
 
-        logger.info("Total construction time: {}\n" +
-                "Size: {}",
-            stopwatch.elapsed(TimeUnit.MILLISECONDS),
-            FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
+//        logger.info("Total construction time: {}\n" +
+//                "Size: {}",
+//            stopwatch.elapsed(TimeUnit.MILLISECONDS),
+//            FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
 
         final MutableInt cnt = new MutableInt(0);
         stopwatch.reset();
@@ -186,7 +185,7 @@ public class LiveTopologyStoreMeasurementIT {
                 GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
         stopwatch.stop();
         logger.info("Hybrid GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
-        logger.info("Size with global supply chain: {}", FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
+//        logger.info("Size with global supply chain: {}", FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
 
         stopwatch.reset();
         stopwatch.start();
@@ -247,8 +246,8 @@ public class LiveTopologyStoreMeasurementIT {
         ptbldr.finish();
         watch.stop();
 
-        logger.info("Construction time: {}\nSize: {}", watch.elapsed(TimeUnit.MILLISECONDS),
-            FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getProjectedTopology().get())));
+//        logger.info("Construction time: {}\nSize: {}", watch.elapsed(TimeUnit.MILLISECONDS),
+//            FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getProjectedTopology().get())));
 
         final MutableInt cnt = new MutableInt(0);
         watch.reset();

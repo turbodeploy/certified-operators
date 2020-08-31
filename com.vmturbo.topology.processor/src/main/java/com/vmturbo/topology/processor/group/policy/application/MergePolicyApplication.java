@@ -29,30 +29,26 @@ import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
+import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
 /**
  * Applies a collection of {@link MergePolicy} policies.
  */
-public class MergePolicyApplication extends PlacementPolicyApplication {
+public class MergePolicyApplication extends PlacementPolicyApplication<MergePolicy> {
 
-    /**
-     * Constructor.
-     *
-     * @param groupResolver the {@link GroupResolver}
-     * @param topologyGraph the {@link TopologyGraph}
-     */
-    public MergePolicyApplication(@Nonnull final GroupResolver groupResolver,
-            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
-        super(groupResolver, topologyGraph);
+    protected MergePolicyApplication(@Nonnull final GroupResolver groupResolver,
+            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+            @Nonnull final TopologyInvertedIndexFactory invertedIndexFactory) {
+        super(groupResolver, topologyGraph, invertedIndexFactory);
     }
 
     @Override
     protected Map<PlacementPolicy, PolicyApplicationException> applyInternal(
-            @Nonnull final List<PlacementPolicy> policies) {
+            @Nonnull final List<MergePolicy> policies) {
         final Map<PlacementPolicy, PolicyApplicationException> errors = new HashMap<>();
-        policies.stream().filter(MergePolicy.class::isInstance).forEach(p -> {
+        policies.forEach(p -> {
             try {
-                apply((MergePolicy)p);
+                apply(p);
             } catch (GroupResolutionException e) {
                 errors.put(p, new PolicyApplicationException(e));
             }

@@ -427,7 +427,7 @@ public class Action implements ActionView {
         synchronized (recommendationLock) {
             final ActionModeCalculator.ModeAndSchedule actionModeAndSchedule = actionModeCalculator
                 .calculateActionModeAndExecutionSchedule(this, entitiesSnapshot);
-            actionMode = actionModeAndSchedule.getMode();
+            setActionMode(actionModeAndSchedule.getMode());
             schedule = actionModeAndSchedule.getSchedule();
             workflowSettingsForState = actionModeCalculator.calculateWorkflowSettings(recommendation, entitiesSnapshot);
 
@@ -450,6 +450,19 @@ public class Action implements ActionView {
         }
     }
 
+    /**
+     * Set action mode and associated properties if need it.
+     *
+     * @param calculatedActionMode action mode after its calculation
+     */
+    private void setActionMode(@Nonnull final ActionMode calculatedActionMode) {
+        actionMode = calculatedActionMode;
+        if (calculatedActionMode != ActionMode.EXTERNAL_APPROVAL) {
+            externalActionName = null;
+            externalActionUrl = null;
+        }
+    }
+
     private static Optional<Long> getAssociatedAccountId(@Nonnull final ActionDTO.Action action,
                                                          @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
                                                          long primaryEntity) {
@@ -467,11 +480,18 @@ public class Action implements ActionView {
     @Nonnull
     private Set<Long> getAssociatedPolicies(@Nonnull EntitiesAndSettingsSnapshot entitiesSnapshot,
             long primaryEntity) {
+        final Optional<ActionDTO.Action> translatedRecommendation = getActionTranslation()
+            .getTranslatedRecommendation();
+        if (!translatedRecommendation.isPresent()) {
+            logger.error("Action translation for action {} is not ready. Cannot find associated "
+                    + "policies", this::getId);
+            return Collections.emptySet();
+        }
         final Map<String, Collection<Long>> settingPoliciesForEntity =
                 entitiesSnapshot.getSettingPoliciesForEntity(primaryEntity);
         final Set<Long> policiesAssociatedWithAction = new HashSet<>();
         final List<String> specApplicableToAction =
-                actionModeCalculator.specsApplicableToAction(getRecommendation(),
+                actionModeCalculator.specsApplicableToAction(translatedRecommendation.get(),
                         entitiesSnapshot.getSettingsForEntity(primaryEntity))
                         .map(EntitySettingSpecs::getSettingName)
                         .collect(Collectors.toList());

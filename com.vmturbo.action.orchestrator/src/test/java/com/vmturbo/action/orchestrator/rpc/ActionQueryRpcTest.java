@@ -808,10 +808,10 @@ public class ActionQueryRpcTest {
             .setGroupBy(GroupBy.ACTION_STATE)
             .build();
         final ActionStats actionStats1 = ActionStats.newBuilder()
-            .setMgmtUnitId(7)
+            .addMgmtUnitIds(7)
             .build();
         final ActionStats actionStats2 = ActionStats.newBuilder()
-            .setMgmtUnitId(8)
+            .addMgmtUnitIds(8)
             .build();
 
         when(historicalStatReader.readActionStats(query1)).thenReturn(actionStats1);

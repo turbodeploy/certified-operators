@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.util;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,6 +31,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest.Builder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
@@ -128,6 +131,27 @@ public class GroupExpander {
         }
 
         return Collections.emptyMap();
+    }
+
+    /**
+     * Gets the resource groups owned by a input collection of accounts.
+     *
+     * @param accountOids the collection of accounts we get resource groups for.
+     * @return the list of resource groups.
+     */
+    public List<GroupDTO.Grouping> getResourceGroupsForAccounts(Collection<Long> accountOids) {
+        final GroupDTO.GetGroupsRequest groupsRequest =
+            GroupDTO.GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupDTO.GroupFilter.newBuilder()
+                    .addPropertyFilters(
+                        SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.ACCOUNT_ID,
+                            accountOids.stream().map(String::valueOf).collect(Collectors.toSet())))
+                    .build())
+                .build();
+        List<GroupDTO.Grouping> resourceGroups = new ArrayList<>();
+        groupServiceGrpc.getGroups(groupsRequest)
+            .forEachRemaining(resourceGroups::add);
+        return resourceGroups;
     }
 
     /**

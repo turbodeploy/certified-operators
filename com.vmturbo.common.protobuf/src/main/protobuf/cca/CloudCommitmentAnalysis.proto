@@ -264,6 +264,10 @@ message CommitmentPurchaseProfile {
         ReservedInstancePurchaseProfile ri_purchase_profile = 3;
     }
 
+    // If true, a detailed summary of the CCA spec matcher is collected and logged. The detailed
+    // summary includes a breakdown of total uncovered demand and the number of specs matched to the
+    // demand.
+    optional bool log_detailed_summary = 4 [default = false];
 
     // Settings beyond the purchase profile which will drive the recommendation analysis after
     // uncovered demand is calculated

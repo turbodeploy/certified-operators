@@ -96,7 +96,8 @@ public class MapperConfig {
             communicationConfig.costServiceBlockingStub(),
             communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
             mapperConfig.buyRiScopeHandler(),
-            communicationConfig.getRealtimeTopologyContextId());
+            communicationConfig.getRealtimeTopologyContextId(),
+            uuidMapper());
     }
 
     @Bean
@@ -112,7 +113,8 @@ public class MapperConfig {
             ReservedInstanceSpecServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
             communicationConfig.serviceEntityMapper(),
             communicationConfig.supplyChainRpcService(),
-            serviceConfig.policiesService());
+            serviceConfig.policiesService(),
+            serviceConfig.reservedInstancesService());
     }
 
     @Bean
@@ -176,6 +178,7 @@ public class MapperConfig {
     public ScenarioMapper scenarioMapper() {
         return new ScenarioMapper(communicationConfig.repositoryApi(),
                 templatesUtils(),
+                serviceConfig.settingsService(),
                 settingManagerMappingLoader().getMapping(),
                 settingsMapper(),
                 serviceConfig.policiesService(),

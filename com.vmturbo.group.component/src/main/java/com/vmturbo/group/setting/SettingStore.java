@@ -4,6 +4,7 @@ import static com.vmturbo.group.db.Tables.ENTITY_SETTINGS;
 import static com.vmturbo.group.db.Tables.GLOBAL_SETTINGS;
 import static com.vmturbo.group.db.Tables.SETTINGS;
 import static com.vmturbo.group.db.Tables.SETTINGS_OIDS;
+import static com.vmturbo.group.db.Tables.SETTINGS_POLICIES;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY_GROUPS;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY_SETTING;
@@ -79,7 +80,6 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
-import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
@@ -95,6 +95,7 @@ import com.vmturbo.group.db.tables.records.SettingPolicySettingOidsRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicySettingRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicySettingScheduleIdsRecord;
 import com.vmturbo.group.db.tables.records.SettingsOidsRecord;
+import com.vmturbo.group.db.tables.records.SettingsPoliciesRecord;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.sdk.common.util.Pair;
 
@@ -102,7 +103,7 @@ import com.vmturbo.platform.sdk.common.util.Pair;
  * The {@link SettingStore} class is used to store settings-related objects, and retrieve them
  * in an efficient way.
  */
-public class SettingStore implements DiagsRestorable {
+public class SettingStore implements DiagsRestorable<DSLContext> {
 
     /**
      * The file name for the settings dump collected from the {@link SettingStore}.
@@ -369,68 +370,52 @@ public class SettingStore implements DiagsRestorable {
                     .defaultSettingPoliciesFromSpecs(settingSpecStore.getAllSettingSpecs())
                     .get(existingPolicy.getInfo().getEntityType());
             if (defaultSettingPolicy == null) {
-                logger.error("Cannot get default info for policy {}, entity type {}",
-                        newInfo.getName(), existingPolicy.getInfo().getEntityType());
+                throw new StoreOperationException(Status.INTERNAL, "Cannot get default "
+                    + "info for policy" + newInfo.getName()
+                    + "entity type " + existingPolicy.getInfo().getEntityType());
             }
             final Map<String, Setting> defaultSettings = defaultSettingPolicy == null
                     ? Collections.emptyMap()
                     : defaultSettingPolicy.getSettingsList().stream()
                     .collect(Collectors.toMap(Setting::getSettingSpecName, Functions.identity()));
             List<Setting> settingsToAdd = new ArrayList<>();
-            for (Setting existingSetting : existingPolicy.getInfo().getSettingsList()) {
-                final String existingSettingName = existingSetting.getSettingSpecName();
-                if (!newSettingNames.contains(existingSettingName)) {
-                    /*
-                     * SLA is created behind the scenes, not exposed in the UI.
-                     * TODO If this changes this will have to be revisited.
-                     */
-                    if (existingSettingName.contains("slaCapacity")) {
-                        settingsToAdd.add(existingSetting);
-                        continue;
-                    }
 
-                    final Setting defaultSetting = defaultSettings.get(existingSettingName);
-                    if (defaultSetting == null) {
-                        logger.error("Cannot get default value for setting {} in policy {}",
-                                existingSettingName, newInfo.getName());
-                    } else if (SettingDTOUtil.areValuesEqual(existingSetting, defaultSetting)) {
-                        // Prevent removing setting if its existing value matches default
-                        settingsToAdd.add(existingSetting);
-                        continue;
-                    }
+            // calculate removed setting with default value
+            List<String> unsentSettingNames = defaultSettings
+                .keySet()
+                .stream()
+                .filter(s -> !newSettingNames.contains(s))
+                .collect(Collectors.toList());
 
-                    /*
-                     * TODO (Marco, August 05 2018) OM-48940
-                     * ActionWorkflow and ActionScript settings are missing in the ui and
-                     * in the payload of the request due to OM-48950.
-                     * This workaround will be removed when OM-48950 will be fixed.
-                     */
-                    if (!existingSettingName.contains("ActionWorkflow") &&
-                            !existingSettingName.contains("ActionScript")) {
-                        throw new StoreOperationException(Status.INVALID_ARGUMENT,
-                                "Illegal attempt to remove a default setting "
-                                        + existingSettingName);
-                    }
+            final Map<String, Setting> existingPolicySettings =
+                existingPolicy.getInfo().getSettingsList().stream()
+                .collect(Collectors.toMap(Setting::getSettingSpecName, Functions.identity()));
+
+            // for those settings that should have a value but not sent from API, use existing value
+            for (String unsentSettingName : unsentSettingNames) {
+                Setting existingSetting = existingPolicySettings.get(unsentSettingName);
+                if (existingPolicy != null) {
+                    settingsToAdd.add(existingSetting);
+                } else {
+                    settingsToAdd.add(defaultSettings.get(unsentSettingName));
                 }
             }
 
-            if (!settingsToAdd.isEmpty()) {
-                // add the default entities that are missing
-                settingsToAdd.addAll(newInfo.getSettingsList());
+            // add all the new setting to the list
+            settingsToAdd.addAll(newInfo.getSettingsList());
 
-                SettingPolicyInfo newNewInfo = SettingPolicyInfo.newBuilder(newInfo)
-                    .clearSettings()
-                    .addAllSettings(settingsToAdd)
-                    .build();
+            SettingPolicyInfo newNewInfo = SettingPolicyInfo.newBuilder(newInfo)
+                .clearSettings()
+                .addAllSettings(settingsToAdd)
+                .build();
 
-                boolean removeAcceptancesAndRejectionsForAssociatedActions =
-                        shouldAcceptancesAndRejectionsForActionsAssociatedWithPolicyBeRemoved(newInfo,
-                                existingPolicy.getInfo());
+            boolean removeAcceptancesAndRejectionsForAssociatedActions =
+                    shouldAcceptancesAndRejectionsForActionsAssociatedWithPolicyBeRemoved(newInfo,
+                            existingPolicy.getInfo());
 
-                return Pair.create(internalUpdateSettingPolicy(context,
-                        existingPolicy.toBuilder().setInfo(newNewInfo).build()),
-                        removeAcceptancesAndRejectionsForAssociatedActions);
-            }
+            return Pair.create(internalUpdateSettingPolicy(context,
+                    existingPolicy.toBuilder().setInfo(newNewInfo).build()),
+                    removeAcceptancesAndRejectionsForAssociatedActions);
         }
 
         if (type.equals(Type.DISCOVERED)) {
@@ -942,6 +927,7 @@ public class SettingStore implements DiagsRestorable {
      * the DB.
      *
      * @param settings List of settings to be inserted into the database
+     * @param context the context for DB access.
      * @throws DataAccessException
      * @throws InvalidProtocolBufferException
      * @throws SQLTransientException
@@ -949,7 +935,8 @@ public class SettingStore implements DiagsRestorable {
      */
     @Retryable(value = {SQLTransientException.class},
         maxAttempts = 3, backoff = @Backoff(delay = 2000))
-    private void insertGlobalSettingsInternal(@Nonnull final List<Setting> settings)
+    private void insertGlobalSettingsInternal(@Nonnull final List<Setting> settings,
+                                              @Nonnull DSLContext context)
             throws SQLTransientException, DataAccessException, InvalidProtocolBufferException {
 
         if (settings.isEmpty()) {
@@ -978,9 +965,9 @@ public class SettingStore implements DiagsRestorable {
                 logger.info("No new global settings to add to the database");
                 return;
             }
-            BatchBindStep batch = dslContext.batch(
+            BatchBindStep batch = context.batch(
                 //have to provide dummy values for jooq
-                dslContext.insertInto(GLOBAL_SETTINGS, GLOBAL_SETTINGS.NAME, GLOBAL_SETTINGS.SETTING_DATA)
+                context.insertInto(GLOBAL_SETTINGS, GLOBAL_SETTINGS.NAME, GLOBAL_SETTINGS.SETTING_DATA)
                                 .values(newSettings.get(0).getSettingSpecName(), newSettings.get(0).toByteArray()));
             for (Setting setting : newSettings) {
                 batch.bind(setting.getSettingSpecName(), setting.toByteArray());
@@ -1001,7 +988,25 @@ public class SettingStore implements DiagsRestorable {
         throws DataAccessException, InvalidProtocolBufferException {
 
         try {
-            insertGlobalSettingsInternal(settings);
+            insertGlobalSettingsInternal(settings, dslContext);
+        } catch (SQLTransientException e) {
+            throw new DataAccessException("Failed to insert settings into DB", e.getCause());
+        }
+    }
+
+    /**
+     * Inserts global settings into db tables.
+     *
+     * @param settings the settings that is being inserted
+     * @param context the context for db access.
+     * @throws DataAccessException when something goes wrong with DB interaction.
+     * @throws InvalidProtocolBufferException when we cannot parse protobuf objects.
+     */
+    public void insertGlobalSettings(@Nonnull final List<Setting> settings, DSLContext context)
+        throws DataAccessException, InvalidProtocolBufferException {
+
+        try {
+            insertGlobalSettingsInternal(settings, context);
         } catch (SQLTransientException e) {
             throw new DataAccessException("Failed to insert settings into DB", e.getCause());
         }
@@ -1135,7 +1140,7 @@ public class SettingStore implements DiagsRestorable {
      * {@inheritDoc}
      */
     @Override
-    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull List<String> collectedDiags, @Nonnull DSLContext context) throws DiagnosticsException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         final List<String> errors = new ArrayList<>();
 
@@ -1150,8 +1155,8 @@ public class SettingStore implements DiagsRestorable {
             logger.info("Attempting to restore {} global settings.", globalSettingsToRestore.size());
 
             // Attempt to restore global settings.
-            deleteAllGlobalSettings();
-            insertGlobalSettings(globalSettingsToRestore);
+            deleteAllGlobalSettings(context);
+            insertGlobalSettings(globalSettingsToRestore, context);
 
 
         } catch (DataAccessException | InvalidProtocolBufferException e) {
@@ -1167,8 +1172,8 @@ public class SettingStore implements DiagsRestorable {
             logger.info("Attempting to restore {} setting policies.", settingPoliciesToRestore.size());
 
             // Attempt to restore setting policies.
-            deleteAllSettingPolicies();
-            insertAllSettingPolicies(settingPoliciesToRestore);
+            deleteAllSettingPolicies(context);
+            insertAllSettingPolicies(settingPoliciesToRestore, context);
 
         } catch (DataAccessException | StoreOperationException e) {
             errors.add("Failed to restore setting policies: " + e.getMessage() + ": " +
@@ -1188,22 +1193,20 @@ public class SettingStore implements DiagsRestorable {
 
     /**
      * Delete all global settings.
+     *
+     * @param context the dsl context for db access.
      */
-    private void deleteAllGlobalSettings() {
-        dslContext.truncate(GLOBAL_SETTINGS).execute();
+    private void deleteAllGlobalSettings(@Nonnull DSLContext context) {
+        context.truncate(GLOBAL_SETTINGS).execute();
     }
 
     /**
      * Delete all setting policies.
+     *
+     * @param context the dsl context for db access.
      */
-    private void deleteAllSettingPolicies() {
-        // Calling delete instead of truncate so that ON DELETE triggers in child table
-        // can be fired
-        dslContext.transactionResult(configuration -> {
-            final DSLContext context = DSL.using(configuration);
-            return context.deleteFrom(SETTING_POLICY)
-                .execute();
-        });
+    private void deleteAllSettingPolicies(@Nonnull DSLContext context) {
+         context.deleteFrom(SETTING_POLICY).execute();
     }
 
     /**
@@ -1245,16 +1248,17 @@ public class SettingStore implements DiagsRestorable {
      * For internal use only when restoring setting policies from diagnostics.
      *
      * @param settingPolicies The setting policies to insert.
+     * @param context The dsl context for accessing db.
      * @throws StoreOperationException if failed to insert operation failed.
      */
     private void insertAllSettingPolicies(
-            @Nonnull final List<SettingProto.SettingPolicy> settingPolicies)
+            @Nonnull final List<SettingProto.SettingPolicy> settingPolicies, @Nonnull DSLContext context)
             throws StoreOperationException {
         final Collection<TableRecord<?>> inserts = new ArrayList<>();
         for (SettingProto.SettingPolicy settingPolicy : settingPolicies) {
             inserts.addAll(createSettingPolicy(settingPolicy));
         }
-        dslContext.batchInsert(inserts).execute();
+        context.batchInsert(inserts).execute();
     }
 
     /**
@@ -1469,12 +1473,12 @@ public class SettingStore implements DiagsRestorable {
      * @param settingToEntityMap a multimap that maps settings to list of entities that use it.
      */
     public void savePlanEntitySettings(final long topologyContextId,
-                                       @Nonnull Multimap<Long, Setting> entityToSettingMap,
-                                       @Nonnull Multimap<Setting, Long> settingToEntityMap) {
+                                       @Nonnull Multimap<Long, SettingToPolicyId> entityToSettingMap,
+                                       @Nonnull Multimap<SettingToPolicyId, Long> settingToEntityMap) {
         // Insert unique settings into database
-        final Map<Setting, Integer> settingToIdMap = new HashMap<>();
-        settingToEntityMap.keySet().forEach(setting -> {
-            final SettingAdapter settingAdapter = new SettingAdapter(setting);
+        final Map<SettingToPolicyId, Integer> settingToIdMap = new HashMap<>();
+        settingToEntityMap.keySet().forEach(settingToPolicy -> {
+            final SettingAdapter settingAdapter = new SettingAdapter(settingToPolicy.getSetting());
             final Record record = dslContext.insertInto(SETTINGS, SETTINGS.TOPOLOGY_CONTEXT_ID,
                     SETTINGS.SETTING_NAME, SETTINGS.SETTING_TYPE, SETTINGS.SETTING_VALUE)
                     .values(topologyContextId, settingAdapter.getSettingName(),
@@ -1488,8 +1492,19 @@ public class SettingStore implements DiagsRestorable {
                     oidRecords.add(new SettingsOidsRecord(settingId, oid));
                 }
                 dslContext.batchInsert(oidRecords).execute();
+
+                // Save the policy(s) that are responsible for the setting. It can be multiple,
+                // for example in the case of compute tier exclusions where excluded compute tiers
+                // are the union of the exclusions from each policy.
+                final List<TableRecord<?>> policyRecords =
+                    new ArrayList<>(settingToPolicy.getSettingPolicyIdList().size());
+                for (Long policyId : settingToPolicy.getSettingPolicyIdList()) {
+                    policyRecords.add(new SettingsPoliciesRecord(settingId, policyId));
+                }
+                dslContext.batchInsert(policyRecords).execute();
             }
-            settingToIdMap.put(setting, settingId);
+
+            settingToIdMap.put(settingToPolicy, settingId);
         });
 
         // Insert entity to setting association to plan_entity_settings table.
@@ -1540,8 +1555,17 @@ public class SettingStore implements DiagsRestorable {
             }
             final SettingAdapter settingAdapter = new SettingAdapter(settingName, settingType,
                     value, oids);
+            final List<Long> policyIds = new ArrayList<>();
+            final Result<?> settingsPolicies = dslContext.select().from(SETTINGS_POLICIES)
+                .where(SETTINGS_POLICIES.SETTING_ID.eq(settingId))
+                .orderBy(SETTINGS_POLICIES.POLICY_ID)
+                .fetch();
+            for (Record settingsPoliciesRecord : settingsPolicies) {
+                policyIds.add(settingsPoliciesRecord.get(SETTINGS_POLICIES.POLICY_ID));
+            }
             final SettingToPolicyId settingToPolicyId = SettingToPolicyId.newBuilder()
                     .setSetting(settingAdapter.getSetting())
+                    .addAllSettingPolicyId(policyIds)
                     .build();
             entityToSettingsMap.put(entityId, settingToPolicyId);
         }

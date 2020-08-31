@@ -1,11 +1,16 @@
 package com.vmturbo.search.metadata;
 
+import static com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO.primitive;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -17,6 +22,10 @@ import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.api.dto.searchquery.FieldValueApiDTO.Type;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.enums.EntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * Unit tests verify that all fields in {@link SearchEntityMetadata} for different field types
@@ -109,6 +118,57 @@ public class SearchEntityMetadataTest {
         }
     }
 
+    /**
+     * Values must be mapped when present.
+     */
+    @Test
+    public void testValuesAreMappeWhenPresent() {
+        // Given
+        SearchMetadataMapping numCpusMapping =
+            SearchEntityMetadata.VirtualMachine.getMetadataMappingMap().get(primitive("numCpus"));
+        Function<TopologyEntityDTO, Optional<Object>> mappingFunction =
+            numCpusMapping.getTopoFieldFunction();
+
+        TopologyEntityDTO vmWithNumCpus = TopologyEntityDTO.newBuilder()
+            .setOid(9839335003L)
+            .setEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(
+                    VirtualMachineInfo.newBuilder()
+                        .setNumCpus(4)))
+            .build();
+
+        // When
+        final Optional<Object> maybeNumCpus = mappingFunction.apply(vmWithNumCpus);
+
+        // Assert
+        assertTrue(maybeNumCpus.isPresent());
+        assertEquals(4, maybeNumCpus.get());
+    }
+
+    /**
+     * Missing values must not be mapped (e.g. to default values).
+     */
+    @Test
+    public void testMissingValuesAreNotMapped() {
+        // Given
+        SearchMetadataMapping numCpusMapping =
+            SearchEntityMetadata.VirtualMachine.getMetadataMappingMap().get(primitive("numCpus"));
+        Function<TopologyEntityDTO, Optional<Object>> mappingFunction =
+            numCpusMapping.getTopoFieldFunction();
+
+        TopologyEntityDTO vmWithoutNumCpus = TopologyEntityDTO.newBuilder()
+            .setOid(9839335003L)
+            .setEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
+            .build();
+
+        // When
+        final Optional<Object> maybeNumCpus = mappingFunction.apply(vmWithoutNumCpus);
+
+        // Assert
+        assertFalse(maybeNumCpus.isPresent());
+    }
+
     @FunctionalInterface
     private interface MetadataVerifier {
 
@@ -137,7 +197,9 @@ public class SearchEntityMetadataTest {
         @Override
         public void verify(SearchMetadataMapping metadata) {
             commonVerify(metadata);
-            if (metadata == SearchMetadataMapping.PRIMITIVE_SEVERITY) {
+            if (metadata == SearchMetadataMapping.PRIMITIVE_SEVERITY
+            || metadata == SearchMetadataMapping.PRIMITIVE_IS_EPHEMERAL_VOLUME
+            || metadata == SearchMetadataMapping.PRIMITIVE_IS_ENCRYPTED_VOLUME) {
                 assertNull(metadata.getTopoFieldFunction());
             } else {
                 assertNotNull(metadata.getTopoFieldFunction());

@@ -96,7 +96,7 @@ public class ComponentTestRule implements TestRule {
 
         kafkaMessageProducer =
                 new KafkaMessageProducer(DockerEnvironment.getKafkaBootstrapServers(),
-                    "", 67108864, 126976);
+                    "", 67108864, 126976, 600000, 60000, 600);
     }
 
     private void teardown() {

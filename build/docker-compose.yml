@@ -1453,6 +1453,28 @@ services:
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     mem_limit: ${MEDIATION_AZURE_VOLUMES_MEM_LIMIT_MB}M
 
+  mediation-baremetal:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.baremetal.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_BAREMETAL_PORT}"
+      - "${MEDIATION_BAREMETAL_DEBUG_PORT}"
+    environment:
+      component_type: mediation-baremetal
+      instance_id: mediation-baremetal-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ONEVIEW_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_ONEVIEW_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_BAREMETAL_MEM_LIMIT_MB}M
+
   mediation-oneview:
     extends:
       file: common-services.yml
@@ -1584,6 +1606,50 @@ services:
       JAVA_OPTS: "${ALL_JAVA_OPTS}"
       JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_ACTIONSCRIPT_MEM_LIMIT_MB}M
+
+  mediation-acims:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.acims.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_ACIMS_PORT}"
+      - "${MEDIATION_ACIMS_DEBUG_PORT}"
+    environment:
+      component_type: mediation-acims
+      instance_id: mediation-acims-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ACIMS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_ACIMS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_ACIMS_MEM_LIMIT_MB}M
+
+  mediation-apic:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.apic.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_APIC_PORT}"
+      - "${MEDIATION_APIC_DEBUG_PORT}"
+    environment:
+      component_type: mediation-apic
+      instance_id: mediation-apic-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_APIC_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_APIC_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_APIC_MEM_LIMIT_MB}M
 
   mediation-wmi:
     extends:

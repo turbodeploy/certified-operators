@@ -239,7 +239,7 @@ public class IntersightLicenseSyncService {
             logger.info("Removing {} intersight proxy licenses.", licensesToDelete.size());
             for (LicenseDTO licenseToRemove : licensesToDelete) {
                 logger.info("    Removing license {} with moid {}", licenseToRemove.getUuid(),
-                        licenseToRemove.getExternalLicenseKey());
+                        licenseToRemove.getTurbo().getExternalLicenseKey());
                 RemoveLicenseResponse response = licenseManagerClient.removeLicense(RemoveLicenseRequest.newBuilder()
                         .setUuid(licenseToRemove.getUuid())
                         .build());
@@ -261,10 +261,10 @@ public class IntersightLicenseSyncService {
             int licensesWithErrorCount = 0;
             StringBuilder sb = new StringBuilder("The following licenses had errors: ");
             for (LicenseDTO license : response.getLicenseDTOList()) {
-                if (license.getErrorReasonCount() > 0) {
+                if (license.getTurbo().getErrorReasonCount() > 0) {
                     licensesWithErrorCount += 1;
-                    sb.append(license.getExternalLicenseKey()).append(":");
-                    license.getErrorReasonList().forEach(reason -> sb.append(reason).append(" "));
+                    sb.append(license.getTurbo().getExternalLicenseKey()).append(":");
+                    license.getTurbo().getErrorReasonList().forEach(reason -> sb.append(reason).append(" "));
                 }
             }
             if (licensesWithErrorCount > 0) {
@@ -281,7 +281,7 @@ public class IntersightLicenseSyncService {
         this.availableIntersightLicenses = intersightLicenses;
         // return true if we proxied a non-fallback license.
         if (proxyLicenses.size() > 0) {
-            if (!StringUtils.equals(proxyLicenses.get(0).getEdition(),
+            if (!StringUtils.equals(proxyLicenses.get(0).getTurbo().getEdition(),
                     IntersightProxyLicenseEdition.IWO_FALLBACK.name())) {
                 logger.debug("LicenseSync happy: an active Intersight license is currently installed.");
                 return true;
@@ -314,12 +314,12 @@ public class IntersightLicenseSyncService {
         final Map<String, Pair<LicenseDTO, LicenseDTO>> licenseMap = new HashMap<>(intersightLicenses.size());
         // add the intersight licenses
         // if the fallback license logic is on, then we're only going to consider "active" licenses.
-        intersightLicenses.forEach(license -> licenseMap.put(license.getExternalLicenseKey(), new Pair(license, null)));
+        intersightLicenses.forEach(license -> licenseMap.put(license.getTurbo().getExternalLicenseKey(), new Pair(license, null)));
 
         // add the local licenses to the map. But only the ones recognized as "Intersight" licenses
         localLicenses.forEach(license -> {
             if (IntersightLicenseUtils.isIntersightLicense(license)) {
-                licenseMap.compute(license.getExternalLicenseKey(),
+                licenseMap.compute(license.getTurbo().getExternalLicenseKey(),
                         (k, existingInfo) -> (existingInfo == null) ? new Pair(null, license) : new Pair(existingInfo.first, license));
             }
         });
@@ -332,11 +332,11 @@ public class IntersightLicenseSyncService {
             if (mapping.first == null) {
                 // delete any local proxy licenses that didn't have a match in the intersight API
                 // response
-                logger.info("Adding local proxy license with key {} to removal list", mapping.second.getExternalLicenseKey());
+                logger.info("Adding local proxy license with key {} to removal list", mapping.second.getTurbo().getExternalLicenseKey());
                 licensesToDelete.add(mapping.second);
             } else if (mapping.second == null) {
                 // this license was found in the intersight response but not locally --add it.
-                logger.info("Adding new proxy license with key {} to additions list", mapping.first.getExternalLicenseKey());
+                logger.info("Adding new proxy license with key {} to additions list", mapping.first.getTurbo().getExternalLicenseKey());
                 licensesToAdd.add(mapping.first);
             } else {
                 // exists in both places -- check if we need to update it.
@@ -344,9 +344,9 @@ public class IntersightLicenseSyncService {
                 LicenseDTO intersightLicense = mapping.first;
                 // are they the same?
                 if (IntersightLicenseUtils.areProxyLicensesEqual(localLicense, intersightLicense)) {
-                    logger.debug("Intersight license {} has not changed -- will not update.", localLicense.getExternalLicenseKey());
+                    logger.debug("Intersight license {} has not changed -- will not update.", localLicense.getTurbo().getExternalLicenseKey());
                 } else {
-                    logger.info("intersight license {} has changed, will update.", localLicense.getExternalLicenseKey());
+                    logger.info("intersight license {} has changed, will update.", localLicense.getTurbo().getExternalLicenseKey());
                     // a changed license will be processed as an add of a new license + removal of
                     // old
                     licensesToAdd.add(intersightLicense);

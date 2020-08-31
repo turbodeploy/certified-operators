@@ -182,9 +182,23 @@ public interface StitchingScope<ENTITY> {
          * @return Return a {@link StitchingScope} that restricts the calculation to operate on only entities
          * of a given {@link EntityType} NOT discovered by a specific type of probe.
          */
-        StitchingScope<TopologyEntity> hasAndLacksProbeCategoryEntityTypeStitchingScope(
+        StitchingScope<ENTITY> hasAndLacksProbeCategoryEntityTypeStitchingScope(
                 @Nonnull final Set<ProbeCategory> owningProbeCategories,
                 @Nonnull final Set<ProbeCategory> missingProbeCategories,
                 @Nonnull final EntityType entityType);
+
+        /**
+         * Return a {@link StitchingScope} that only includes entities of the specified type that
+         * also belong to a parent target of the specified target.
+         *
+         * @param entityType the {@link EntityType} to include
+         * @param targetId the id of the target whose parents the entities will come from
+         * @return {@link StitchingScope} of entities of type entityType that come from parent
+         * targets of the target with id targetId
+         */
+        @Nonnull
+        StitchingScope<ENTITY> parentTargetEntityType(
+                @Nonnull EntityType entityType,
+                long targetId);
     }
 }

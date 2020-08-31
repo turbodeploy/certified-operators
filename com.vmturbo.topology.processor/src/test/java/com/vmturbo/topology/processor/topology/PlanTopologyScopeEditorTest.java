@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,6 +65,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor.FastLookupQueue;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
  * Unit tests for {@link PlanTopologyScopeEditor}.
@@ -92,17 +94,25 @@ public class PlanTopologyScopeEditorTest {
             .setKey("BAPP1").build();
     private static final TopologyDTO.CommodityType BAPP2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
             .setKey("BAPP2").build();
+    private static final TopologyDTO.CommodityType DSPM1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
+            .setKey("DSPM1").build();
+    private static final TopologyDTO.CommodityType DS1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATASTORE_VALUE)
+            .setKey("DS1").build();
+    private static final TopologyDTO.CommodityType DSPM2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
+            .setKey("DSPM2").build();
+    private static final TopologyDTO.CommodityType DS2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATASTORE_VALUE)
+            .setKey("DS2").build();
     private static final TopologyDTO.CommodityType ST_AMT = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build();
 
-    private static final List<TopologyDTO.CommodityType> basketSoldByPMinDC1 = Lists.newArrayList(DC1, CPU);
-    private static final List<TopologyDTO.CommodityType> basketSoldByPMinDC2 = Lists.newArrayList(DC2, CPU);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPMinDC1 = Lists.newArrayList(DC1, CPU, DS1);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPMinDC2 = Lists.newArrayList(DC2, CPU, DS1, DS2);
     private static final List<TopologyDTO.CommodityType> basketSoldByDC1 = Lists.newArrayList(DC1, POWER);
     private static final List<TopologyDTO.CommodityType> basketSoldByDC2 = Lists.newArrayList(DC2, POWER);
     private static final List<TopologyDTO.CommodityType> basketSoldByVM1 = Lists.newArrayList(VCPU, APP1);
     private static final List<TopologyDTO.CommodityType> basketSoldByVM2 = Lists.newArrayList(VCPU, APP2);
     private static final List<TopologyDTO.CommodityType> basketSoldByDA = Lists.newArrayList(EXTENT1, ST_AMT);
-    private static final List<TopologyDTO.CommodityType> basketSoldByDS1 = Lists.newArrayList(ST_AMT, SC1);
-    private static final List<TopologyDTO.CommodityType> basketSoldByDS2 = Lists.newArrayList(ST_AMT, SC2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByDS1 = Lists.newArrayList(ST_AMT, SC1, DSPM1, DSPM2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByDS2 = Lists.newArrayList(ST_AMT, SC2, DSPM2);
     private static final List<TopologyDTO.CommodityType> basketSoldByAS1 = Lists.newArrayList(BAPP1);
     private static final List<TopologyDTO.CommodityType> basketSoldByAS2 = Lists.newArrayList(BAPP2);
 
@@ -343,6 +353,22 @@ public class PlanTopologyScopeEditorTest {
                 appAws, appAzure, unattachedVirtualVolumeInCentralUs,
                 unattachedVirtualVolumeInLondon, virtualVolume2InCanada);
 
+
+    private final TopologyGraph<TopologyEntity> cloudMigrationGraph = TopologyEntityUtils
+            .topologyGraphOf(bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
+                    pm2InDc1, pmInDc2, dc1, dc2, st1, st2, da1, as1,
+                    as2, az1London, az2London, azOhio,
+                    az1HongKong, az2HongKong, regionLondon, regionOhio,
+                    regionHongKong, computeTier, vm1InLondon,
+                    vm2InLondon, dbLondon, dbsLondon, dbsHongKong,
+                    vmInOhio, vmInHongKong, businessAcc1, businessAcc2, businessAcc3,
+                    virtualVolumeInOhio, virtualVolumeInLondon, virtualVolumeInHongKong,
+                    storageTier, regionCentralUs, regionCanada, dbCentralUs, dbsCentralUs,
+                    computeTier2, storageTier2, virtualVolumeInCentralUs,
+                    vmInCentralUs, virtualVolumeInCanada, vmInCanada, businessAcc4, cloudService,
+                    appAws, appAzure, unattachedVirtualVolumeInCentralUs,
+                    unattachedVirtualVolumeInLondon, virtualVolume2InCanada);
+
     private final Set<TopologyEntity.Builder> expectedEntitiesForAwsRegion = Stream
         .of(az1London, az2London, regionLondon, computeTier,
                 vm1InLondon, vm2InLondon, dbLondon, dbsLondon, businessAcc1,
@@ -421,6 +447,8 @@ public class PlanTopologyScopeEditorTest {
     private final GroupResolver groupResolver = mock(GroupResolver.class);
     private PlanTopologyScopeEditor planTopologyScopeEditor;
     private final GroupServiceMole groupServiceClient = spy(new GroupServiceMole());
+
+    final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceClient);
@@ -573,7 +601,8 @@ public class PlanTopologyScopeEditorTest {
                         .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
                         .addAllScopeSeedOids(oidsList)
                         .build();
-        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeCloudTopology(cloudTopologyInfo, graph);
+        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeTopology(
+                cloudTopologyInfo, graph, context);
         Assert.assertEquals(expectedEntities.size(), result.size());
         expectedEntities.forEach(entity -> assertTrue(entity.getOid() + " is missing", result.getEntity(entity.getOid())
                         .isPresent()));
@@ -598,6 +627,65 @@ public class PlanTopologyScopeEditorTest {
                                                         .addMembers(pm2InDc1.getOid())
                                                         )))
                         .build();
+
+        List<Grouping> groups = Arrays.asList(g);
+        when(groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
+            .setGroupFilter(GroupFilter.newBuilder().addId(25001L))
+            .setReplaceGroupPropertyWithGroupMembershipFilter(true)
+            .build())).thenReturn(groups);
+        when(groupResolver.resolve(eq(g), eq(graph))).thenReturn(
+            new ResolvedGroup(g, Collections.singletonMap(ApiEntityType.PHYSICAL_MACHINE,
+                Sets.newHashSet(pm1InDc1.getOid(), pm2InDc1.getOid()))));
+
+        final PlanScope planScope = PlanScope.newBuilder()
+                        .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Cluster")
+                                .setScopeObjectOid(25001L).setDisplayName("PM cluster/dc1").build()).build();
+        // populate InvertedIndex
+        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+                index = planTopologyScopeEditor.createInvertedIndex();
+        graph.entities().forEach(entity -> index.add(entity));
+        // scope using inverted index
+        TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
+                .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
+        assertEquals(11, result.size());
+    }
+
+    /**
+     * Scenario: scope on pm1 and pm2 which consumes on dc1.
+     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, appc1, as1, ba
+     * Because ds1 is shared across pm1, pm2, and (pm3 which is not in the cluster) via dspm, datastore
+     * Accesses relationship, we still should not pull in pm3 and its related entities like st2 into
+     * the scope.
+     *
+     * @throws Exception An exception thrown when a stage of the pipeline fails.
+     */
+    @Test
+    public void testScopeOnpremTopologyOnClusterAccessesRelationship() throws Exception {
+        Grouping g = Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                        .addMembersByType(StaticMembersByType.newBuilder()
+                                                        .setType(MemberType.newBuilder()
+                                                                        .setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                                                        .addMembers(pm1InDc1.getOid())
+                                                        .addMembers(pm2InDc1.getOid())
+                                                        )))
+                        .build();
+
+        // st1 connected to PM1, PM2, and PM3. PM3 is same entity type as seed members PM1 and PM2
+        // and should not be brought into scope and we should not pull in related entities of it
+        // into scope.
+        pm1InDc1.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(st1.getOid());
+        pm2InDc1.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(st1.getOid());
+        pmInDc2.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(st1.getOid());
+        pmInDc2.getEntityBuilder().getCommoditySoldListBuilder(3).setAccesses(st2.getOid());
+
+        // st2 connected only to PM3 and should not be brought into scope.
+        st1.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(pm1InDc1.getOid());
+        st1.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(pm2InDc1.getOid());
+        st1.getEntityBuilder().getCommoditySoldListBuilder(3).setAccesses(pmInDc2.getOid());
+        st2.getEntityBuilder().getCommoditySoldListBuilder(2).setAccesses(pmInDc2.getOid());
 
         List<Grouping> groups = Arrays.asList(g);
         when(groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
@@ -938,6 +1026,40 @@ public class PlanTopologyScopeEditorTest {
         return TopologyEntityUtils.connectedTopologyEntity(oid, targetId, 0,
                                                            displayName, EntityType.REGION,
                                                            connectedAvailabilityZones);
+    }
+
+    /**
+     * Test the migration of an on-prem VM to the cloud AWS London region.
+     * The plan scope should contain:
+     * 1. The cloud entities of the destination region
+     * 2. The on-prem VM and its providers
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testScopeCloudMigrationPlanOnPremToAwsRegion() {
+        final TopologyInfo cloudTopologyInfo = TopologyInfo.newBuilder()
+                .setTopologyContextId(1)
+                .setTopologyId(1)
+                .setTopologyType(TopologyType.PLAN)
+                .setPlanInfo(PlanTopologyInfo.newBuilder()
+                        .setPlanType(PlanProjectType.CLOUD_MIGRATION.name())
+                        .build())
+                .addAllScopeSeedOids(Collections.singleton(regionLondon.getOid()))
+                .build();
+        final Set<TopologyEntity.Builder> awsRegionExpectedEntities = Stream
+                .of(vm1InDc1, pm1InDc1, da1, st1, dc1, regionLondon, virtualVolume,
+                        computeTier, storageTier)
+                .collect(Collectors.toSet());
+        final Set<Long> sourceVMOids = new HashSet<>();
+        sourceVMOids.add(vm1InDc1.getOid());
+        when(context.getSourceEntities()).thenReturn(sourceVMOids);
+        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeTopology(
+                cloudTopologyInfo, cloudMigrationGraph, context);
+        // Now we use generic scoping, that pulls in more entities than directly connected ones.
+        Assert.assertEquals(19, result.size());
+        awsRegionExpectedEntities.forEach(entity -> assertTrue(entity.getOid()
+                + " is missing", result.getEntity(entity.getOid()).isPresent()));
     }
 
     private static TopologyEntity.Builder createCloudVm(

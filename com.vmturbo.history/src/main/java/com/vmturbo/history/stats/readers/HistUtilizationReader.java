@@ -32,6 +32,7 @@ import org.jooq.impl.DSL;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
@@ -62,7 +63,36 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
         if (histUtilizationRequestRequired) {
             final List<HistUtilizationRecord> result =
                             getDataFromHistUtilization(entityIds, propertyTypeToUtilizationTypes);
-            return Collections.unmodifiableList(result);
+
+            Map<Integer, Set<Long>> commodityToProviderIds = new HashMap<>();
+            statsFilter.getCommodityRequestsList().forEach(commodityRequest -> {
+                final String commodityName = commodityRequest.getCommodityName();
+                final int commodityOid = UICommodityType.fromString(commodityName).typeNumber();
+                commodityRequest.getPropertyValueFilterList().stream()
+                   .filter(propertyValueFilter -> propertyValueFilter.hasProperty() && StringConstants.PRODUCER_UUID.equals(propertyValueFilter.getProperty()))
+                   .forEach(propertyValueFilter -> {
+                       Set<Long> providerIds = commodityToProviderIds.computeIfAbsent(commodityOid, (k) -> new HashSet<>());
+                       providerIds.add(Long.valueOf(propertyValueFilter.getValue()));
+                   });
+            });
+
+            if (!commodityToProviderIds.isEmpty()) {
+                List<HistUtilizationRecord> filteredResult = new ArrayList<>();
+                for (HistUtilizationRecord record : result) {
+                    final int propertyTypeId = record.getPropertyTypeId();
+                    if (commodityToProviderIds.containsKey(propertyTypeId)) {
+                        final Long producerOid = record.getProducerOid();
+                        if (commodityToProviderIds.get(propertyTypeId).contains(producerOid)) {
+                            filteredResult.add(record);
+                        }
+                    } else {
+                        filteredResult.add(record);
+                    }
+                }
+                return Collections.unmodifiableList(filteredResult);
+            } else {
+                return Collections.unmodifiableList(result);
+            }
         }
         return Collections.emptyList();
     }
@@ -76,6 +106,7 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
              DSLContext context = historydbIO.using(connection)) {
             final Condition condition =
                             getPropertyToUtilizationTypeConditions(propertyTypeToUtilizationTypes);
+
             final List<HistUtilizationRecord> result = getChunkedEntityIds(entityIds).stream()
                             .map(chunk -> getHistUtilizationRecordsPage(chunk, context, condition))
                             .flatMap(Collection::stream).collect(Collectors.toList());

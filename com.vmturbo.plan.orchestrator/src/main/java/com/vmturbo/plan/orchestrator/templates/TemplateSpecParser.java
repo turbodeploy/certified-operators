@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
@@ -30,7 +31,7 @@ import com.vmturbo.components.common.diagnostics.StringDiagnosable;
  * Parse a Template spec Json file, it contains pre-defined template specs which contains information
  * about how to display template fields on UI.
  */
-public class TemplateSpecParser implements DiagsRestorable {
+public class TemplateSpecParser implements DiagsRestorable<Void> {
 
     private final Logger log = LogManager.getLogger();
 
@@ -98,7 +99,7 @@ public class TemplateSpecParser implements DiagsRestorable {
      *                              template spec map.
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         final List<String> errors = new ArrayList<>();
 

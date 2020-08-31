@@ -145,6 +145,62 @@ public class MemoryMetricsManager {
     }
 
     /**
+     * Convenience wrapper to calculate sizes and counts on a single root object.
+     * See {@link WalkBuilder#walkSizesAndCounts(Collection)} for more details.
+     *
+     * @param root The object whose sizes and counts should be calculated.
+     * @return A {@link TotalSizesAndCountsVisitor} containing details about sizes and counts of
+     *         the root.
+     */
+    public static TotalSizesAndCountsVisitor sizesAndCounts(@Nonnull final Object root) {
+        return newWalk().walkSizesAndCounts(Collections.singleton(root));
+    }
+
+    /**
+     * Convenience wrapper to calculate the object histogram on a single root object.
+     * See {@link WalkBuilder#walkClassHistogram(Collection)} for more details.
+     *
+     * @param root The object whose object histogram should be calculated.
+     * @return A {@link ClassHistogramSizeVisitor} containing details about the histogram of
+     *         objects reachable from the root.
+     */
+    public static ClassHistogramSizeVisitor histogram(@Nonnull final Object root) {
+        return newWalk().walkClassHistogram(Collections.singleton(root));
+    }
+
+    /**
+     * Convenience wrapper to calculate the memory graph on a single root object.
+     * See {@link WalkBuilder#walkMemoryGraph(int, boolean, Collection)} for more details.
+     * <p/>
+     * Logs with a minimum object size of 4 Kb.
+     *
+     * @param root The object whose memory graph should be calculated.
+     * @return A {@link ClassHistogramSizeVisitor} containing details about the memory graph of
+     *         objects reachable from the root.
+     */
+    public static String memoryGraph(@Nonnull final Object root) {
+        return memoryGraph(root, 4096L);
+    }
+
+    /**
+     * Convenience wrapper to calculate the memory graph on a single root object.
+     * See {@link WalkBuilder#walkMemoryGraph(int, boolean, Collection)} for more details.
+     *
+     * @param root The object whose memory graph should be calculated.
+     * @param minimumLogSizeBytes The minimum size in bytes of any entry in the memory graph table.
+     *                            If a subgraph retained by the visitor is smaller than this minimum
+     *                            size, it will not be included in the tabular results.
+     * @return A {@link ClassHistogramSizeVisitor} containing details about the memory graph of
+     *         objects reachable from the root.
+     */
+    public static String memoryGraph(@Nonnull final Object root,
+                                     final long minimumLogSizeBytes) {
+        return newWalk()
+            .walkMemoryGraph(-1, false, Collections.singleton(new NamedObject("root", root)))
+            .tabularResults(minimumLogSizeBytes);
+    }
+
+    /**
      * An object managed as a walkable root by the {@link MemoryMetricsManager}.
      * <p/>
      * {@code ManagedRoot} are usually objects near the base of the graph of walkable objects in

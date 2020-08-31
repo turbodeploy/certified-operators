@@ -1,11 +1,11 @@
 package com.vmturbo.topology.processor.topology;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import java.io.Serializable;
 import java.util.List;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.commons.lang.StringUtils;
 

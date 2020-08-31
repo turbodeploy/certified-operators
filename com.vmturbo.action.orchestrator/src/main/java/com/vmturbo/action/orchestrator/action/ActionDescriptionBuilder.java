@@ -54,11 +54,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 public class ActionDescriptionBuilder {
 
@@ -430,12 +432,26 @@ public class ActionDescriptionBuilder {
         } else {
             long sourceEntityId = primaryChange.getSource().getId();
             ActionPartialEntity currentEntityDTO = entitiesSnapshot.getEntityFromOid(
-                    sourceEntityId).get();
-            int sourceType = currentEntityDTO.getEntityType();
-            int destinationType = newEntityDTO.getEntityType();
-            String verb = (recommendation.getInfo().getActionTypeCase() == ActionTypeCase.SCALE
-                    || TopologyDTOUtil.isPrimaryTierEntityType(destinationType)
-                    && TopologyDTOUtil.isPrimaryTierEntityType(sourceType)) ? SCALE : MOVE;
+                sourceEntityId).get();
+            String currentLocation = currentEntityDTO.getDisplayName();
+            String newLocation = newEntityDTO.getDisplayName();
+
+            // We show scale if move is within same region. In cloud-to-cloud migration, there
+            // is a region change, so we keep the action as MOVE, and don't change it to a SCALE.
+            String verb = SCALE;
+            if (recommendation.getInfo().getActionTypeCase() != ActionTypeCase.SCALE
+                    && !TopologyDTOUtil.isMoveWithinSameRegion(recommendation)) {
+                verb = MOVE;
+                Pair<String, String> regions = getRegions(recommendation, entitiesSnapshot);
+                String sourceRegion = regions.getFirst();
+                String destinationRegion = regions.getSecond();
+                if (sourceRegion != null) {
+                    currentLocation = sourceRegion;
+                }
+                if (destinationRegion != null) {
+                    newLocation = destinationRegion;
+                }
+            }
             String resource = "";
             if (primaryChange.hasResource() &&
                     targetEntityId != primaryChange.getResource().getId()) {
@@ -447,8 +463,8 @@ public class ActionDescriptionBuilder {
             }
             return ActionMessageFormat.ACTION_DESCRIPTION_MOVE.format(verb, resource,
                     beautifyEntityTypeAndName(targetEntityDTO),
-                    currentEntityDTO.getDisplayName(),
-                    newEntityDTO.getDisplayName());
+                    currentLocation,
+                    newLocation);
         }
     }
 
@@ -495,6 +511,50 @@ public class ActionDescriptionBuilder {
                             optTargetEntity.getEntityType(), additionalResizeInfo.getNewCapacity()));
         }
         return description;
+    }
+
+    /**
+     * Gets names of source and destination regions for cloud migration actions. These names are
+     * now used in the final action description text, instead of the compute/storage tier names.
+     * Change only being done for cloud migration move actions, all other descriptions remain same.
+     *
+     * @param action Action whose change providers are checked to look for regions.
+     * @param entitiesSnapshot Region names are looked up in the snapshot map.
+     * @return Pair with first value (can be null for onPrem) for source region/zone name, second
+     *       value for destination region name.
+     */
+    @Nonnull
+    private static Pair<String, String> getRegions(@Nonnull final ActionDTO.Action action,
+            @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot) {
+        // source can be zone or region in case of cloud, not set for onPrem.
+        String sourceLocation = null;
+        String destinationRegion = null;
+        if (action.getInfo().getActionTypeCase() != ActionTypeCase.MOVE) {
+            return new Pair<>(sourceLocation, destinationRegion);
+        }
+        // Find the change provider first that has the destination region.
+        final Optional<ChangeProvider> regionChangeProvider = action.getInfo().getMove()
+                .getChangesList()
+                .stream()
+                .filter(cp -> cp.hasDestination()
+                        && cp.getDestination().getType() == EntityType.REGION_VALUE)
+                .findFirst();
+        if (!regionChangeProvider.isPresent()) {
+            return new Pair<>(sourceLocation, destinationRegion);
+        }
+        final Optional<ActionPartialEntity> destinationEntity = entitiesSnapshot.getEntityFromOid(
+                regionChangeProvider.get().getDestination().getId());
+        if (destinationEntity.isPresent()) {
+            destinationRegion = destinationEntity.get().getDisplayName();
+        }
+        if (regionChangeProvider.get().hasSource()) {
+            final Optional<ActionPartialEntity> sourceEntity = entitiesSnapshot.getEntityFromOid(
+                    regionChangeProvider.get().getSource().getId());
+            if (sourceEntity.isPresent()) {
+                sourceLocation = sourceEntity.get().getDisplayName();
+            }
+        }
+        return new Pair<>(sourceLocation, destinationRegion);
     }
 
     /**
@@ -603,7 +663,7 @@ public class ActionDescriptionBuilder {
             return "";
         }
         int actionCommodityType = explanation.getMostExpensiveCommodityInfo().getCommodityType().getType();
-        if (!isVSANRelatedCommodity(actionCommodityType)) {
+        if (!HCIUtils.isVSANRelatedCommodity(actionCommodityType)) {
             return "";
         }
         for (ConnectedEntity connected : entityDTO.getConnectedEntitiesList())  {
@@ -617,18 +677,6 @@ public class ActionDescriptionBuilder {
             }
         }
         return "";
-    }
-
-    /**
-     * Checks whether the commodity type is of a vSAN storage commodity.
-     * @param commodityType integer value for the commodity type
-     * @return true if the commodity type is related to vSAN storage
-     */
-    private static boolean isVSANRelatedCommodity(int commodityType) {
-        return commodityType == CommodityType.STORAGE_AMOUNT_VALUE
-                        || commodityType == CommodityType.STORAGE_PROVISIONED_VALUE
-                        || commodityType == CommodityType.STORAGE_ACCESS_VALUE
-                        || commodityType == CommodityType.STORAGE_LATENCY_VALUE;
     }
 
     /**

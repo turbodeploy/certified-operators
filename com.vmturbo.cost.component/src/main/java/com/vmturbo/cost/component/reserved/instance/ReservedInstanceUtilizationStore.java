@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -187,7 +188,7 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping monthly RI utilization db records to exported topology.
      */
-    private static final class ReservedInstanceUtilizationByMonthDiagsHelper implements DiagsRestorable {
+    private static final class ReservedInstanceUtilizationByMonthDiagsHelper implements DiagsRestorable<Void> {
         private static final String reservedInstanceUtilizationByMonthDumpFile = "reservedInstanceUtilizationByMonth_dump";
 
         private final DSLContext dsl;
@@ -197,7 +198,7 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
             // TODO to be implemented as part of OM-58627
         }
 
@@ -227,7 +228,7 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping daily RI utilization db records to exported topology.
      */
-    private static final class ReservedInstanceUtilizationByDayDiagsHelper implements DiagsRestorable {
+    private static final class ReservedInstanceUtilizationByDayDiagsHelper implements DiagsRestorable<Void> {
         private static final String reservedInstanceCoverageByDayDumpFile = "reservedInstanceUtilizationByDay_dump";
 
         private final DSLContext dsl;
@@ -237,7 +238,7 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
             // TODO to be implemented as part of OM-58627
         }
 
@@ -267,7 +268,7 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping hourly RI utilization db records to exported topology.
      */
-    private static final class ReservedInstanceUtilizationByHourDiagsHelper implements DiagsRestorable {
+    private static final class ReservedInstanceUtilizationByHourDiagsHelper implements DiagsRestorable<Void> {
         private static final String reservedInstanceCoverageByHourDumpFile = "reservedInstanceUtilizationByHour_dump";
 
         private final DSLContext dsl;
@@ -277,7 +278,7 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
             // TODO to be implemented as part of OM-58627
         }
 
@@ -307,7 +308,7 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping latest RI utilization db records to exported topology.
      */
-    private static final class LatestReservedInstanceUtilizationDiagsHelper implements DiagsRestorable {
+    private static final class LatestReservedInstanceUtilizationDiagsHelper implements DiagsRestorable<Void> {
         private static final String latestReservedInstanceUtilizationDumpFile = "latestReservedInstanceUtilization_dump";
 
         private final DSLContext dsl;
@@ -317,7 +318,7 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
             // TODO to be implemented as part of OM-58627
         }
 

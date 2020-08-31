@@ -4,10 +4,11 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.KEY;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PRICE_INDEX;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_DISK;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -27,8 +28,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -39,8 +38,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.stats.StatsAccumulator;
-import com.vmturbo.components.common.stats.StatsUtils;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.repository.service.AbridgedSoldCommoditiesForProvider.AbridgedSoldCommodity;
 import com.vmturbo.repository.topology.util.PlanEntityStatsExtractorUtil;
 
 /**
@@ -56,16 +55,23 @@ interface PlanEntityStatsExtractor {
      * {@link EntityStats} object.
      *
      * @param projectedEntity the {@link ProjectedTopologyEntity} to transform
-     * @param statsFilter the stats filter to use to build the stat snapshot
      * @param statEpoch the type of epoch to set on the stat snapshot
+     * @param providerIdToSoldCommodities oid to AbridgedSoldCommoditiesForProvider
+     * @param commodityNameToProviderType commodities requested for specific provider types
+     * @param commodityNameToGroupByFields groupBy fields for requested commodities
      * @param snapshotDate the snapshot date to use for the stat snapshot
      * @return an {@link EntityStats} object populated from the current stats for the
      * given {@link ProjectedTopologyEntity}
      */
     @Nonnull
     EntityStats.Builder extractStats(@Nonnull ProjectedTopologyEntity projectedEntity,
-                                     @Nonnull StatsFilter statsFilter,
                                      @Nullable StatEpoch statEpoch,
+                                     @Nonnull Map<Long, AbridgedSoldCommoditiesForProvider>
+                                         providerIdToSoldCommodities,
+                                     @Nonnull Map<String, Set<Integer>>
+                                         commodityNameToProviderType,
+                                     @Nonnull Map<String, Set<String>>
+                                         commodityNameToGroupByFields,
                                      long snapshotDate);
 
     /**
@@ -78,10 +84,16 @@ interface PlanEntityStatsExtractor {
         @Nonnull
         @Override
         public EntityStats.Builder extractStats(@Nonnull final ProjectedTopologyEntity projectedEntity,
-                                                @Nonnull final StatsFilter statsFilter,
                                                 @Nullable final StatEpoch statEpoch,
+                                                @Nonnull Map<Long,
+                                                    AbridgedSoldCommoditiesForProvider>
+                                                            providerIdToSoldCommodities,
+                                                @Nonnull Map<String, Set<Integer>>
+                                                            commodityNameToProviderType,
+                                                @Nonnull Map<String, Set<String>>
+                                                            commodityNameToGroupByFields,
                                                 final long snapshotDate) {
-            Set<String> commodityNames = StatsUtils.collectCommodityNames(statsFilter);
+            final Set<String> commodityNames = commodityNameToProviderType.keySet();
             logger.debug("Extracting stats for commodities: {}", commodityNames);
             StatSnapshot.Builder snapshot = StatSnapshot.newBuilder();
             if (statEpoch != null) {
@@ -89,31 +101,25 @@ interface PlanEntityStatsExtractor {
             }
             snapshot.setSnapshotDate(snapshotDate);
 
-            // Collect groupBy fields for different commodity types and store them in a map for
-            // easy lookup.
-            final Map<String, Set<String>> commodityNameToGroupByFields =
-                statsFilter.getCommodityRequestsList().stream()
-                    .filter(CommodityRequest::hasCommodityName)
-                    .collect(Collectors.toMap(CommodityRequest::getCommodityName,
-                        commodityRequest -> commodityRequest.getGroupByList().stream()
-                            .filter(Objects::nonNull)
-                            // Only support "key" and "virtualDisk" group by for now
-                            // Both equate to grouping by the key (matches existing logic in
-                            // History component).
-                            .filter(groupBy -> KEY.equalsIgnoreCase(groupBy)
-                                || VIRTUAL_DISK.equalsIgnoreCase(groupBy))
-                            .collect(Collectors.toSet())
-                    ));
-
-            // commodities bought - TODO: compute capacity of commodities bought = seller capacity
             for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider :
                 projectedEntity.getEntity().getCommoditiesBoughtFromProvidersList()) {
-                String providerOidString = Long.toString(commoditiesBoughtFromProvider.getProviderId());
+                final long providerId = commoditiesBoughtFromProvider.getProviderId();
+                final String providerOidString = Long.toString(providerId);
+                final AbridgedSoldCommoditiesForProvider soldCommodities = providerIdToSoldCommodities
+                    .get(providerId);
                 Multimap<String, CommodityBoughtDTO> commoditiesBoughtToAggregate = HashMultimap.create();
                 commoditiesBoughtFromProvider.getCommodityBoughtList().forEach(commodityBoughtDTO -> {
                     final CommodityType commodityType = commodityBoughtDTO.getCommodityType();
                     final String commodityName = getCommodityName(commodityType);
-                    if (shouldIncludeCommodity(commodityName, commodityNames)) {
+                    // Return bought commodities only for provider types specified in the filter. If
+                    // provider type not specified, return all commodities.
+                    final Set<Integer> requestedProviderTypes =
+                        commodityNameToProviderType.get(commodityName);
+                    final boolean providerTypeMatches = requestedProviderTypes == null
+                        || requestedProviderTypes.isEmpty()
+                        || requestedProviderTypes.contains(soldCommodities.getProviderType());
+                    if (shouldIncludeCommodity(commodityName, commodityNames)
+                        && providerTypeMatches) {
                         // Will either be empty, or contain a concatenated list of group by fields
                         // that apply to this commodity.
                         final String groupByKey =
@@ -125,24 +131,27 @@ interface PlanEntityStatsExtractor {
                     }
                 });
                 // Each entry in the multimap is a list of commodities that should be aggregated
-                commoditiesBoughtToAggregate.asMap().values().stream().forEach(commodityBoughtDTOS -> {
+                commoditiesBoughtToAggregate.asMap().values().forEach(commodityBoughtDTOS -> {
                     // The commodity type for all commodities being aggregated must be the same
                     CommodityType commodityType = commodityBoughtDTOS.iterator().next().getCommodityType();
                     final String commodityName = getCommodityName(commodityType);
                     // Set the key only if there are not multiple commodities being aggregated
                     final String key = commodityBoughtDTOS.size() == 1 ? commodityType.getKey() : "";
+                    final Optional<Double> capacity = extractCapacityFromSoldCommodities(
+                        soldCommodities, commodityType);
+                    final StatsAccumulator capacityAccumulator = new StatsAccumulator();
+                    capacity.ifPresent(capacityAccumulator::record);
+                    final StatValue capacityValues = capacityAccumulator.toStatValue();
                     StatsAccumulator accumulator = new StatsAccumulator();
-                    commodityBoughtDTOS.stream()
-                        .forEach(commodityBoughtDTO -> accumulator.record(
+                    commodityBoughtDTOS.forEach(commodityBoughtDTO -> accumulator.record(
                             commodityBoughtDTO.getUsed(),
                             commodityBoughtDTO.getPeak()));
                     final StatValue usedValues = accumulator.toStatValue();
-                    // Currently, there are no requirements to set percentile for commodity bought
-                    // stats. So setting histUtilizationValue to null.
+                    final HistUtilizationValue percentileValue =
+                        createPercentileUtilization(commodityBoughtDTOS, capacityValues);
                     final StatRecord statRecord =
-                        buildStatRecord(commodityName, key, usedValues,
-                                PlanEntityStatsExtractorUtil.buildStatValue(0), providerOidString,
-                                StringConstants.RELATION_BOUGHT, null);
+                        buildStatRecord(commodityName, key, usedValues, capacityValues,
+                            providerOidString, StringConstants.RELATION_BOUGHT, percentileValue);
                     snapshot.addStatRecords(statRecord);
                 });
             }
@@ -160,7 +169,7 @@ interface PlanEntityStatsExtractor {
                     commoditiesSoldToAggregate.put(aggregationKey, commoditySoldDTO);
                 }
             });
-            commoditiesSoldToAggregate.asMap().values().stream().forEach(commoditySoldDTOS -> {
+            commoditiesSoldToAggregate.asMap().values().forEach(commoditySoldDTOS -> {
                 // The commodity type for all commodities being aggregated must be the same
                 CommodityType commodityType = commoditySoldDTOS.iterator().next().getCommodityType();
                 final String commodityName = getCommodityName(commodityType);
@@ -179,28 +188,8 @@ interface PlanEntityStatsExtractor {
                 final StatValue usedValues = accumulator.toStatValue();
                 final StatValue capacityValue = capacityAccumulator.toStatValue();
 
-                // If the percentile value is available and only 1 commodity exists for this
-                // commodity type (i.e. no aggregation is needed), include the percentile value in
-                // the stat record. We cannot aggregate percentile values of different commodities.
-                HistUtilizationValue percentileValue = null;
-                if (commoditySoldDTOS.size() == 1) {
-                    final CommoditySoldDTO commoditySoldDTO = commoditySoldDTOS.iterator().next();
-                    final HistoricalValues historicalValues = commoditySoldDTO.getHistoricalUsed();
-                    if (historicalValues != null && historicalValues.hasPercentile()) {
-                        final double percentile = historicalValues.getPercentile();
-                        final double capacity = commoditySoldDTO.getCapacity();
-                        if (commoditySoldDTO.hasCapacity() && capacity > 0) {
-                            final StatValue percentileUsage = StatValue.newBuilder()
-                                    .setAvg((float)(capacity * percentile))
-                                    .build();
-                            percentileValue = HistUtilizationValue.newBuilder()
-                                    .setType(StringConstants.PERCENTILE)
-                                    .setUsage(percentileUsage)
-                                    .setCapacity(capacityValue)
-                                    .build();
-                        }
-                    }
-                }
+                final HistUtilizationValue percentileValue =
+                    createPercentileUtilization(commoditySoldDTOS, capacityValue);
 
                 final StatRecord statRecord =
                     buildStatRecord(commodityName, key, usedValues, capacityValue, entityOidString,
@@ -224,6 +213,52 @@ interface PlanEntityStatsExtractor {
             return EntityStats.newBuilder()
                 .setOid(projectedEntity.getEntity().getOid())
                 .addStatSnapshots(snapshot);
+        }
+
+        @Nullable
+        private <T> HistUtilizationValue createPercentileUtilization(
+            final Collection<T> commodityDTOs, final StatValue capacityStat) {
+            // If the percentile value is available and only 1 commodity exists for this
+            // commodity type (i.e. no aggregation is needed), include the percentile value in
+            // the stat record. We cannot aggregate percentile values of different commodities.
+            if (commodityDTOs.size() == 1) {
+                final T commodityDTO = commodityDTOs.iterator().next();
+                final HistoricalValues historicalValues = getHistoricalUsedValue(commodityDTO);
+                if (historicalValues != null && historicalValues.hasPercentile()) {
+                    final double percentile = historicalValues.getPercentile();
+                    final StatValue percentileUsage = StatValue.newBuilder()
+                        .setAvg((float)(capacityStat.getAvg() * percentile))
+                        .build();
+                    return HistUtilizationValue.newBuilder()
+                        .setType(StringConstants.PERCENTILE)
+                        .setUsage(percentileUsage)
+                        .setCapacity(capacityStat)
+                        .build();
+                }
+            }
+            return null;
+        }
+
+        @Nullable
+        private static <T> HistoricalValues getHistoricalUsedValue(T commodityDTO) {
+            if (commodityDTO instanceof CommodityBoughtDTO) {
+                return ((CommodityBoughtDTO)commodityDTO).getHistoricalUsed();
+            } else if (commodityDTO instanceof CommoditySoldDTO) {
+                return ((CommoditySoldDTO)commodityDTO).getHistoricalUsed();
+            } else {
+                return null;
+            }
+        }
+
+        private Optional<Double> extractCapacityFromSoldCommodities(
+            @Nullable final AbridgedSoldCommoditiesForProvider soldCommodities,
+            @Nonnull final CommodityType commodityType) {
+            return Optional.ofNullable(soldCommodities)
+                .flatMap(commodities -> commodities.getSoldCommodityList().stream()
+                .filter(commodity -> commodity.getCommodityType()
+                    == commodityType.getType())
+                .findAny()
+                .map(AbridgedSoldCommodity::getCapacity));
         }
 
         private String getCommodityName(final CommodityType commodityType) {

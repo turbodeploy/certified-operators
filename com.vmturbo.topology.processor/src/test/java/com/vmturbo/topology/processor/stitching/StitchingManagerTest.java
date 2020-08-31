@@ -252,7 +252,7 @@ public class StitchingManagerTest {
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
             preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore,
                 cpuCapacityStore);
-        stitchingManager.postStitch(graphWithSettings, stitchingJournal);
+        stitchingManager.postStitch(graphWithSettings, stitchingJournal, Collections.emptySet());
 
         graph.entities().forEach(entity -> {
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
@@ -303,7 +303,9 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public Optional<StitchingScope<StitchingEntity>> getScope(@Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+        public Optional<StitchingScope<StitchingEntity>> getScope(
+                @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+                long targetId) {
             return Optional.empty();
         }
 
@@ -349,7 +351,9 @@ public class StitchingManagerTest {
     public static class StitchVmsByGuestName implements StitchingOperation<String, String> {
         @Nonnull
         @Override
-        public Optional<StitchingScope<StitchingEntity>> getScope(@Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+        public Optional<StitchingScope<StitchingEntity>> getScope(
+                @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory,
+                long targetId) {
             return Optional.empty();
         }
 

@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,9 +22,11 @@ import org.apache.logging.log4j.Logger;
  * <p>If some of the restorable diagnosable failed to load its state from the associated file,
  * other diagnosable (and other files) will be tried nevertheless. As this is mostly a
  * debugging feature of XL, we'll try to restore as much as possible, regardless of consistency.
+ *
+ * @param <T> the type of context object.
  */
-public class DiagnosticsHandlerImportable extends DiagnosticsHandler implements
-        IDiagnosticsHandlerImportable {
+public class DiagnosticsHandlerImportable<T> extends DiagnosticsHandler implements
+        IDiagnosticsHandlerImportable<T> {
 
     private final Logger logger = LogManager.getLogger(getClass());
 
@@ -46,26 +49,22 @@ public class DiagnosticsHandlerImportable extends DiagnosticsHandler implements
             if (diagnosable instanceof DiagsRestorable) {
                 final DiagsRestorable stringDiagnosable = (DiagsRestorable)diagnosable;
                 consumers.put(zipEntryName,
-                        diags -> restoreFromStringDiags(stringDiagnosable, diags));
+                    (diags, context) -> restoreFromStringDiags(stringDiagnosable, diags,
+                        (T)context));
             } else if (diagnosable instanceof BinaryDiagsRestorable) {
                 final BinaryDiagsRestorable binaryDiagnosable = (BinaryDiagsRestorable)diagnosable;
                 consumers.put(zipEntryName,
-                        diags -> restoreFromBinaryDiags(binaryDiagnosable, diags));
+                    (diags, context) -> restoreFromBinaryDiags(binaryDiagnosable, diags,
+                        (T)context));
             }
         }
         this.consumers = Collections.unmodifiableMap(consumers);
         this.zipReaderFactory = Objects.requireNonNull(zipReaderFactory);
     }
 
-    /**
-     * Restore component's state from diagnostics.
-     *
-     * @param inputStream diagnostics streamed bytes
-     * @return list of errors if faced
-     */
-    @Override
     @Nonnull
-    public String restore(@Nonnull final InputStream inputStream) throws DiagnosticsException {
+    @Override
+    public String restore(@Nonnull InputStream inputStream, @Nonnull T context) throws DiagnosticsException {
         final List<String> errors = new ArrayList<>();
         for (final Diags diags : zipReaderFactory.createReader(inputStream)) {
             final RestoreProcedure diagnosable = consumers.get(diags.getName());
@@ -73,7 +72,7 @@ public class DiagnosticsHandlerImportable extends DiagnosticsHandler implements
                 logger.info("Skipping file: {}", diags.getName());
             } else {
                 try {
-                    diagnosable.restoreDiags(diags);
+                    diagnosable.restoreDiags(diags, context);
                     logger.info("Import from file {} finished successfully", diags.getName());
                 } catch (DiagnosticsException e) {
                     logger.error("Failed to import file " + diags.getName(), e);
@@ -89,35 +88,38 @@ public class DiagnosticsHandlerImportable extends DiagnosticsHandler implements
     }
 
     private void restoreFromStringDiags(@Nonnull DiagsRestorable stringDiags,
-            @Nonnull Diags diagnostics) throws DiagnosticsException {
+            @Nonnull Diags diagnostics, @Nullable T context) throws DiagnosticsException {
         logger.info("Importing string diagnostics from file {}", diagnostics.getName());
         if (diagnostics.getLines() == null) {
             throw new DiagnosticsException("File " + diagnostics.getName()
                     + " is expected to contain string data but does not");
         }
-        stringDiags.restoreDiags(diagnostics.getLines());
+        stringDiags.restoreDiags(diagnostics.getLines(), context);
     }
 
     private void restoreFromBinaryDiags(@Nonnull BinaryDiagsRestorable binaryDiags,
-            @Nonnull Diags diagnostics) throws DiagnosticsException {
+            @Nonnull Diags diagnostics, @Nullable T context) throws DiagnosticsException {
         logger.info("Importing binary diagnostics from file {}", diagnostics.getName());
         if (diagnostics.getBytes() == null) {
             throw new DiagnosticsException("File " + diagnostics.getName()
                     + " is expected to contain binary data but does not");
         }
-        binaryDiags.restoreDiags(diagnostics.getBytes());
+        binaryDiags.restoreDiags(diagnostics.getBytes(), context);
     }
 
     /**
      * Procedure to restore data from diagnostics.
+     *
+     * @param <T> type of context object
      */
-    private interface RestoreProcedure {
+    private interface RestoreProcedure<T> {
         /**
          * Restore data from diagnostics.
          *
          * @param diagnostics diagnostics data to import
+         * @param context the context object
          * @throws DiagnosticsException on some diagnostics import exceptions occurred
          */
-        void restoreDiags(@Nonnull Diags diagnostics) throws DiagnosticsException;
+        void restoreDiags(@Nonnull Diags diagnostics, @Nullable T context) throws DiagnosticsException;
     }
 }

@@ -207,7 +207,8 @@ public class TopologyListenerConfig {
             builder.add(() -> new SearchEntityWriter(dbEndpoint, pool()));
         }
         if (enableReporting) {
-            builder.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(), pool()));
+            builder.add(() -> new EntityMetricWriter(dbEndpoint, entityHashManager(),
+                    scopeManager(), entityIdManager(), pool()));
         }
         return builder.build();
     }
@@ -220,6 +221,27 @@ public class TopologyListenerConfig {
     @Bean
     public EntityHashManager entityHashManager() {
         return new EntityHashManager(writerConfig());
+    }
+
+    /**
+     * Scope manager to persist record of changing entity scopes.
+     *
+     * @return scope manager
+     */
+    @Bean
+    public ScopeManager scopeManager() {
+        return new ScopeManager(entityIdManager(),
+                dbConfig.ingesterEndpoint(), writerConfig(), pool());
+    }
+
+    /**
+     * EntityIdManager to allow entity and other long ids to be stored as ints.
+     *
+     * @return entity id manager
+     */
+    @Bean
+    public EntityIdManager entityIdManager() {
+        return new EntityIdManager();
     }
 
     /**

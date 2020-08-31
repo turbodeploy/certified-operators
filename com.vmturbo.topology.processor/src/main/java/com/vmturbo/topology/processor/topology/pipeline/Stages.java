@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
+import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
@@ -96,9 +97,11 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
+import com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor.ConstraintsEditorException;
@@ -290,6 +293,7 @@ public class Stages {
                     .append(metrics.getTotalEmptyChangests())
                     .append(" empty changesets\n")
                     .toString();
+            entityStore.sendMetricsEntityAndTargetData(stitchingContext);
             return StageResult.withResult(context)
                 .andStatus(Status.success(status));
         }
@@ -634,7 +638,7 @@ public class Stages {
             final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient,
                     searchFilterResolver);
             try {
-                topologyEditor.editTopology(input, changes, getContext().getTopologyInfo(), groupResolver);
+                topologyEditor.editTopology(input, changes, getContext(), groupResolver);
             } catch (GroupResolutionException e) {
                 throw new PipelineStageException(e);
             }
@@ -793,11 +797,24 @@ public class Stages {
      */
     public static class GraphCreationStage extends Stage<Map<Long, TopologyEntity.Builder>, TopologyGraph<TopologyEntity>> {
 
+        private GroupScopeResolver groupScopeResolver;
+
+        GraphCreationStage() {
+            this(null);
+        }
+
+        GraphCreationStage(@Nullable GroupScopeResolver groupScopeResolver) {
+            this.groupScopeResolver = groupScopeResolver;
+        }
+
         @NotNull
         @Nonnull
         @Override
         public StageResult<TopologyGraph<TopologyEntity>> execute(@NotNull @Nonnull final Map<Long, TopologyEntity.Builder> input) {
             final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(input);
+            if (groupScopeResolver != null) {
+                groupScopeResolver.setTopologyGraph(graph);
+            }
             return StageResult.withResult(graph)
                 .andStatus(Status.success());
         }
@@ -825,7 +842,8 @@ public class Stages {
         @NotNull
         @Override
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
-            commoditiesEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo(), scope);
+            commoditiesEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo(),
+                    scope);
             // TODO (roman, 23 Oct 2018): Add some information about number/type of modified commodities?
             return Status.success();
         }
@@ -954,30 +972,33 @@ public class Stages {
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
             final PolicyApplicator.Results applicationResults =
-                    policyManager.applyPolicies(input, getContext().getGroupResolver(), changes,
-                    getContext().getTopologyInfo());
+                    policyManager.applyPolicies(getContext(), input, changes);
             final StringJoiner statusMsg = new StringJoiner("\n")
                 .setEmptyValue("No policies to apply.");
             final boolean errors = applicationResults.getErrors().size() > 0;
             if (errors) {
-                statusMsg.add(applicationResults.getErrors().size() +
-                    " policies encountered errors and failed to run!\n");
+                statusMsg.add(applicationResults.getErrors().size()
+                    + " policies encountered errors and failed to run!\n");
             }
             if (applicationResults.getInvalidPolicyCount() > 0) {
-                statusMsg.add(applicationResults.getInvalidPolicyCount() +
-                    " policies were invalid and got ignored!\n");
+                statusMsg.add(applicationResults.getInvalidPolicyCount()
+                    + " policies were invalid and got ignored!\n");
             }
             if (applicationResults.getAppliedCounts().size() > 0) {
-                statusMsg.add("(policy type) : (num applied)\n" +
-                    applicationResults.getAppliedCounts().entrySet().stream()
-                        .map(entry -> entry.getKey() + " : " + entry.getValue())
-                        .collect(Collectors.joining("\n")));
+                statusMsg.add("(policy type) : (num applied)");
+                applicationResults.getAppliedCounts().forEach((policyType, numApplied) -> {
+                    statusMsg.add(FormattedString.format("{} : {}", policyType, numApplied));
+                    applicationResults.getAddedCommodityCounts(policyType).forEach((commType, numAdded) -> {
+                        statusMsg.add(FormattedString.format("    Added {} {} commodities.", numAdded, commType));
+                    });
+                });
             }
-            if (applicationResults.getAddedCommodityCounts().size() > 0) {
-                statusMsg.add("(commodity type) : (num commodities added)\n" +
-                    applicationResults.getAddedCommodityCounts().entrySet().stream()
-                        .map(entry -> entry.getKey() + " : " + entry.getValue())
-                        .collect(Collectors.joining("\n")));
+
+            if (applicationResults.getTotalAddedCommodityCounts().size() > 0) {
+                statusMsg.add("(commodity type) : (num commodities added)");
+                applicationResults.getTotalAddedCommodityCounts().forEach((commType, numAddded) -> {
+                    statusMsg.add(FormattedString.format("{} : {}", commType, numAddded));
+                });
             }
 
             if (errors || applicationResults.getInvalidPolicyCount() > 0) {
@@ -1042,7 +1063,8 @@ public class Stages {
         public StageResult<GraphWithSettings> execute(@NotNull @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
             final GraphWithSettings graphWithSettings = entitySettingsResolver.resolveSettings(
                 getContext().getGroupResolver(), topologyGraph,
-                settingOverrides, getContext().getTopologyInfo(), consistentScalingManager);
+                settingOverrides, getContext().getTopologyInfo(), consistentScalingManager,
+                getContext().getSettingPolicyEditors());
             return StageResult.withResult(graphWithSettings)
                 // TODO (roman, Oct 23 2018): Provide some information about number of
                 // setting policies applied.
@@ -1199,7 +1221,8 @@ public class Stages {
                 new TopologyEntitySemanticDiffer(mainJournal.getJournalOptions().getVerbosity()));
             getContext().getStitchingJournalContainer().setPostStitchingJournal(postStitchingJournal);
 
-            stitchingManager.postStitch(input, postStitchingJournal);
+            stitchingManager.postStitch(input, postStitchingJournal,
+                    getContext().getPostStitchingOperationsToSkip());
 
             if (postStitchingJournal.shouldDumpTopologyAfterPostStitching()) {
                 postStitchingJournal.dumpTopology(input.getTopologyGraph().entities());
@@ -1573,7 +1596,7 @@ public class Stages {
                                 " from topology of size " + graph.size()));
             } else {
                 // cloud plans
-                result = planTopologyScopeEditor.scopeCloudTopology(topologyInfo, graph);
+                result = planTopologyScopeEditor.scopeTopology(topologyInfo, graph, getContext());
                 return StageResult.withResult(result)
                                 .andStatus(Status.success("PlanScopingStage: Constructed a scoped topology of size "
                                                 + result.size() + " from topology of size " + graph.size()));
@@ -1630,6 +1653,63 @@ public class Stages {
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             ephemeralEntityEditor.applyEdits(graph);
             return Status.success();
+        }
+    }
+
+    /**
+     * Handles some cloud migration specific tasks.
+     */
+    public static class CloudMigrationPlanStage extends
+            Stage<TopologyGraph<TopologyEntity>, TopologyGraph<TopologyEntity>> {
+        /**
+         * Plan scoping info.
+         */
+        private final PlanScope planScope;
+
+        /**
+         * Helper doing the real migration stage work.
+         */
+        private final CloudMigrationPlanHelper cloudMigrationPlanHelper;
+
+        /**
+         * User specified scenario changes.
+         */
+        private final List<ScenarioChange> changes;
+
+        /**
+         * Creates new stage.
+         *
+         * @param cloudMigrationPlanHelper Helper for migration stage.
+         * @param planScope Scope for plan.
+         * @param changes Scenario changes.
+         */
+        public CloudMigrationPlanStage(
+                @Nonnull final CloudMigrationPlanHelper cloudMigrationPlanHelper,
+                @Nullable final PlanScope planScope,
+                @Nonnull final List<ScenarioChange> changes) {
+            this.cloudMigrationPlanHelper = Objects.requireNonNull(cloudMigrationPlanHelper);
+            this.planScope = planScope;
+            this.changes = changes;
+        }
+
+        /**
+         * Runs the migration stage.
+         *
+         * @param inputGraph Input graph from previous pipeline stage.
+         * @return Updated graph going to next stage of pipeline.
+         * @throws PipelineStageException Thrown on stage processing issues.
+         */
+        @Override
+        @Nonnull
+        public StageResult<TopologyGraph<TopologyEntity>> execute(
+                @Nonnull final TopologyGraph<TopologyEntity> inputGraph)
+                throws PipelineStageException {
+            TopologyGraph<TopologyEntity> outputGraph = cloudMigrationPlanHelper.executeStage(
+                    getContext(), inputGraph, planScope, changes);
+            return StageResult.withResult(outputGraph)
+                    .andStatus(Status.success("CloudMigrationPlanStage: Output topology of size "
+                            + outputGraph.size() + ", from input topology of size "
+                            + inputGraph.size()));
         }
     }
 

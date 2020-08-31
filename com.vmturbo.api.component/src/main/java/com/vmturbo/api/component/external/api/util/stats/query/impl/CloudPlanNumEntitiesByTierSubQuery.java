@@ -4,6 +4,7 @@ import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES_A
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,12 +35,20 @@ import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -51,11 +60,24 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
     private static final Set<String> CLOUD_PLAN_TYPES = ImmutableSet.of(
         StringConstants.OPTIMIZE_CLOUD_PLAN, StringConstants.CLOUD_MIGRATION_PLAN);
 
-    // set of stats passed from UI, which are for the number of entities grouped by tier
-    private static final Set<String> CLOUD_PLAN_ENTITIES_BY_TIER_STATS = ImmutableSet.of(
-        StringConstants.NUM_VIRTUAL_DISKS,
-        StringConstants.NUM_WORKLOADS
+    /**
+     * Mapping of all 'numEntity' stat types to a Set of their respective API strings.
+     */
+    private static final Map<String, Set<String>> NUM_STAT_TYPES_TO_ENTITIES = ImmutableMap.of(
+        StringConstants.NUM_WORKLOADS, WORKLOAD_ENTITY_TYPES_API_STR,
+        StringConstants.NUM_VMS, ImmutableSet.of(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        StringConstants.NUM_DBSS, ImmutableSet.of(ApiEntityType.DATABASE_SERVER.apiStr()),
+        StringConstants.NUM_VIRTUAL_DISKS, ImmutableSet.of(ApiEntityType.VIRTUAL_VOLUME.apiStr())
     );
+
+    /**
+     * Mapping of numEntity stat types used by by-tier queries to the corresponding entity type.
+     */
+    private static final ImmutableMap<String, Integer> NUM_STAT_TYPES_TO_ENTITY_TYPE =
+            ImmutableMap.of(
+                    StringConstants.NUM_VMS, EntityType.COMPUTE_TIER_VALUE,
+                    StringConstants.NUM_VIRTUAL_DISKS, EntityType.STORAGE_TIER_VALUE
+            );
 
     // the function of how to get the tier id from a given TopologyEntityDTO, this is used
     // for the stats of the number of entities by tier type
@@ -85,11 +107,14 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
 
     private final RepositoryApi repositoryApi;
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
+    private final ActionsServiceBlockingStub actionsServiceBlockingStub;
 
     public CloudPlanNumEntitiesByTierSubQuery(@Nonnull final RepositoryApi repositoryApi,
-                                              @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory) {
+            @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
+            ActionsServiceBlockingStub actionsServiceBlockingStub) {
         this.repositoryApi = repositoryApi;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
+        this.actionsServiceBlockingStub = actionsServiceBlockingStub;
     }
 
     @Override
@@ -102,7 +127,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
 
     @Override
     public SubQuerySupportedStats getHandledStats(@Nonnull final StatsQueryContext context) {
-        final Set<StatApiInputDTO> stats = context.findStats(CLOUD_PLAN_ENTITIES_BY_TIER_STATS).stream()
+        final Set<StatApiInputDTO> stats = context.findStats(NUM_STAT_TYPES_TO_ENTITIES.keySet()).stream()
             // this is for "Cloud Template Summary By Type", but ccc chart also passes numWorkload
             // as stat name, we need to handle them differently, so check filters since ccc chart
             // passes filters here, we might need to change UI to handle it better
@@ -133,12 +158,22 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         List<StatApiDTO> statsBeforePlan = new ArrayList<>();
         List<StatApiDTO> statsAfterPlan = new ArrayList<>();
 
-        if (containsStat(StringConstants.NUM_VIRTUAL_DISKS, requestedStats)) {
-            statsBeforePlan.addAll(getNumVirtualDisksStats(scopes, planTopologyContextId, false));
-            statsAfterPlan.addAll(getNumVirtualDisksStats(scopes, planTopologyContextId, true));
-        } else if (containsStat(StringConstants.NUM_WORKLOADS, requestedStats)) {
-            statsBeforePlan.addAll(getNumWorkloadsByTierStats(scopes, planTopologyContextId, false));
-            statsAfterPlan.addAll(getNumWorkloadsByTierStats(scopes, planTopologyContextId, true));
+        final Optional<String> foundNumStat = getNumStatFromRequestedStats(requestedStats);
+        if (foundNumStat.isPresent()) {
+            final String stat = foundNumStat.get();
+            if (StringConstants.NUM_VIRTUAL_DISKS.equals(stat)) {
+                statsBeforePlan.addAll(getNumVirtualDisksStats(scopes, planTopologyContextId,
+                        false, planInstance.getProjectType()));
+                statsAfterPlan.addAll(getNumVirtualDisksStats(scopes, planTopologyContextId, true,
+                        planInstance.getProjectType()));
+            } else {
+                statsBeforePlan.addAll(getNumEntitiesByTierStats(scopes, planTopologyContextId,
+                        false, stat, NUM_STAT_TYPES_TO_ENTITIES.get(stat),
+                        planInstance.getProjectType()));
+                statsAfterPlan.addAll(getNumEntitiesByTierStats(scopes, planTopologyContextId,
+                        true, stat, NUM_STAT_TYPES_TO_ENTITIES.get(stat),
+                        planInstance.getProjectType()));
+            }
         }
 
         // set stats
@@ -159,15 +194,27 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         return ImmutableList.of(beforeSnapshot, afterSnapshot);
     }
 
-    private List<StatApiDTO> getNumVirtualDisksStats(@Nonnull Set<Long> scopes,
-                                                     long contextId, boolean projectedTopology) throws OperationFailedException {
+    private Optional<String> getNumStatFromRequestedStats(Set<StatApiInputDTO> requestedStats) {
+        for (String stat : NUM_STAT_TYPES_TO_ENTITIES.keySet()) {
+            if (containsStat(stat, requestedStats)) {
+                return Optional.of(stat);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private List<StatApiDTO> getNumVirtualDisksStats(@Nonnull Set<Long> scopes, long contextId,
+            boolean projectedTopology, PlanProjectType planProjectType)
+            throws OperationFailedException {
         String volumeEntityType = ApiEntityType.VIRTUAL_VOLUME.apiStr();
         // get all volumes ids in the plan scope, using supply chain fetcher
         // get all VMs ids in the plan scope, using supply chain fetcher
         Set<Long> volumeIds = getRelatedEntities(scopes, Collections.singletonList(volumeEntityType))
             .get(volumeEntityType);
         return fetchNumEntitiesByTierStats(volumeIds, projectedTopology, contextId,
-            StringConstants.NUM_VIRTUAL_DISKS, StringConstants.TIER, ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(volumeEntityType));
+            StringConstants.NUM_VIRTUAL_DISKS, StringConstants.TIER,
+                ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(volumeEntityType),
+                planProjectType);
     }
 
     @Nonnull
@@ -183,32 +230,35 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
             .collect(Collectors.toMap(SupplyChainNode::getEntityType, RepositoryDTOUtil::getAllMemberOids));
     }
 
-    private List<StatApiDTO> getNumWorkloadsByTierStats(@Nonnull Set<Long> scopes,
-                                                        long contextId, boolean projectedTopology) throws OperationFailedException {
+    private List<StatApiDTO> getNumEntitiesByTierStats(@Nonnull Set<Long> scopes,
+                               long contextId, boolean projectedTopology,
+                               @Nonnull String statName,
+                               @Nonnull Set<String> entityTypes,
+                               PlanProjectType planProjectType) throws OperationFailedException {
         // fetch related entities ids for given scopes
         final Map<String, Set<Long>> idsByEntityType = getRelatedEntities(scopes,
-            new ArrayList<>(WORKLOAD_ENTITY_TYPES_API_STR));
+            new ArrayList<>(entityTypes));
         return idsByEntityType.entrySet().stream()
             .flatMap(entry -> fetchNumEntitiesByTierStats(entry.getValue(), projectedTopology, contextId,
-                StringConstants.NUM_WORKLOADS, StringConstants.TEMPLATE,
-                ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(entry.getKey())).stream()
+                statName, StringConstants.TEMPLATE,
+                ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(entry.getKey()), planProjectType).stream()
             ).collect(Collectors.toList());
     }
 
 
-    private List<StatApiDTO> fetchNumEntitiesByTierStats(@Nonnull Set<Long> entityIds,
-                                                         boolean projectedTopology,
-                                                         long contextId,
-                                                         @Nonnull String statName,
-                                                         @Nonnull String filterType,
-                                                         @Nonnull Function<ApiPartialEntity, Optional<Long>> getTierId) {
-        final MultiEntityRequest request = createEntitiesRequest(entityIds, projectedTopology, contextId);
-        // fetch entities
-        final Map<Long, ApiPartialEntity> entities = request.getEntities()
-            .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
-        // tier id --> number of entities using the tier
-        final Map<Optional<Long>, Long> tierIdToNumEntities = entities.values().stream()
-            .collect(Collectors.groupingBy(getTierId, Collectors.counting()));
+    private List<StatApiDTO> fetchNumEntitiesByTierStats(@Nonnull Set<Long> entityIds, boolean projectedTopology,
+            long contextId, @Nonnull String statName, @Nonnull String filterType,
+            @Nonnull Function<ApiPartialEntity, Optional<Long>> getTierId,
+            PlanProjectType planProjectType) {
+        Map<Optional<Long>, Long> tierIdToNumEntities;
+        if (planProjectType == PlanProjectType.CLOUD_MIGRATION) {
+            // The repository doesn't currently provide accurate results for newly-migrated
+            // entities, so parse the action list to determine which entities were migrated.
+            tierIdToNumEntities = getEntitiesFromActionList(contextId, statName);
+        } else {
+            tierIdToNumEntities = getEntitiesFromRepository(entityIds, projectedTopology, contextId,
+                    getTierId);
+        }
         // tier id --> tier name
         // Looking up display name in real-time topology, as some (like NVME_SSD StorageTier -
         // which don't participate in market) are not in plan topology.
@@ -216,7 +266,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         // Storage tiers available in plan are always going to be a subset of tiers available
         // in real-time, and the properties (like displayName) of the tiers won't change.
         final Map<Long, String> tierIdToName = repositoryApi.entitiesRequest(tierIdToNumEntities.keySet()
-                        .stream().filter(key -> key.isPresent())
+                        .stream().filter(Optional::isPresent)
                         .map(Optional::get).collect(Collectors.toSet()))
                         .getMinimalEntities()
                         .collect(Collectors.toMap(MinimalEntity::getOid,
@@ -227,6 +277,97 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
             .map(entry -> createStatApiDTOForPlan(statName, entry.getValue(),
                 filterType, tierIdToName.get(entry.getKey().get()), projectedTopology))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Return a map of tier ID to the number of entities on that tier.  The source of information
+     * is retrieved from the repository.
+     * @param entityIds entity IDs to search for
+     * @param projectedTopology true if requesting stats for the projected topology
+     * @param contextId context ID
+     * @param getTierId function to use to extract tier ID
+     * @return map of tier IDs to number of entities on that tier.
+     */
+    @Nonnull
+    private Map<Optional<Long>, Long> getEntitiesFromRepository(@Nonnull Set<Long> entityIds,
+            boolean projectedTopology, long contextId,
+            @Nonnull Function<ApiPartialEntity, Optional<Long>> getTierId) {
+        Map<Optional<Long>, Long> tierIdToNumEntities;
+        final MultiEntityRequest request = createEntitiesRequest(entityIds, projectedTopology,
+                contextId);
+        // fetch entities
+        final Map<Long, ApiPartialEntity> entities = request.getEntities()
+                .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
+
+        // tier id --> number of entities using the tier. Only include entities that are connected
+        // to a region.  If they are not, they are unplaced and should be omitted.
+        tierIdToNumEntities = entities.values().stream()
+                .collect(Collectors.groupingBy(getTierId, Collectors.counting()));
+        // Unplaced entities have a provider (tier ID) of 0.  We don't want to include these in the
+        // number of entities stats, so remove them here.
+        tierIdToNumEntities.remove(Optional.of(0L));
+        return tierIdToNumEntities;
+    }
+
+    /**
+     * Return a map of tier ID to the number of entities on that tier.  The source of information
+     * is extracted from the actions list.
+     * @param contextId context ID
+     * @param statName stat name to build map for. Only numVMs or numVirtualDisks are supported.
+     *                  Any other stat name will return an empty map.
+     * @return map of tier IDs to number of entities on that tier
+     */
+    @Nonnull
+    private Map<Optional<Long>, Long> getEntitiesFromActionList(long contextId,
+            @Nonnull String statName) {
+        Map<Optional<Long>, Long> tierIdToNumEntities = new HashMap<>();
+        final Integer requiredDestinationType = NUM_STAT_TYPES_TO_ENTITY_TYPE.get(statName);
+        if (requiredDestinationType == null) {
+            // Invalid entity type requested
+            return tierIdToNumEntities;
+        }
+        ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
+                .setVisible(true)
+                .addTypes(ActionType.MOVE)
+                .addEntityType(requiredDestinationType)
+                .build();
+        FilteredActionRequest filteredActionRequest = FilteredActionRequest.newBuilder()
+                .setTopologyContextId(contextId)
+                .setFilter(actionQueryFilter)
+                .build();
+        actionsServiceBlockingStub.getAllActions(filteredActionRequest).forEachRemaining(rsp -> {
+            // These are the actions related to the queried entities.  Only include entities with
+            // an associated action.
+            if (rsp.hasActionChunk()) {
+                for (ActionOrchestratorAction action : rsp.getActionChunk().getActionsList()) {
+                    // Make sure the action's destination is a region
+                    boolean hasDestinationRegion = false;
+                    Long destinationTier = null;
+                    // If the destination type is region and the entity is of the
+                    // requested type then add the entity to the tier counts map.
+                    for (ChangeProvider change : action.getActionSpec()
+                            .getRecommendation()
+                            .getInfo()
+                            .getMove()
+                            .getChangesList()) {
+                        ActionEntity destination = change.getDestination();
+                        int type = destination.getType();
+                        if (type == requiredDestinationType) {
+                            destinationTier = destination.getId();
+                        } else if (type == EntityType.REGION_VALUE) {
+                            hasDestinationRegion = true;
+                        }
+                        if (hasDestinationRegion && destinationTier != null) {
+                            Optional<Long> key = Optional.of(destinationTier);
+                            Long currentCount = tierIdToNumEntities.getOrDefault(key, 0L);
+                            tierIdToNumEntities.put(key, currentCount + 1);
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+        return tierIdToNumEntities;
     }
 
     private MultiEntityRequest createEntitiesRequest(Set<Long> entityIds, boolean projectedTopology,

@@ -9,7 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
-import com.vmturbo.api.dto.searchquery.RelatedEntityFieldApiDTO.RelatedEntitiesProperty;
 import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
 import com.vmturbo.extractor.search.SearchEntityWriter.EntityRecordPatcher;
 import com.vmturbo.extractor.search.SearchEntityWriter.PartialRecordInfo;
@@ -34,28 +33,27 @@ public class GroupRelatedEntitiesPatcher implements EntityRecordPatcher<DataProv
         final Map<String, Object> attrs = recordInfo.getAttrs();
         final long groupId = recordInfo.getOid();
 
-        metadataList.forEach(metadata -> {
-            // only relatedEntity count is handled now
-            if (metadata.getRelatedEntityProperty() == RelatedEntitiesProperty.COUNT) {
-                patchRelatedEntityCount(metadata, groupId, attrs, dataProvider);
-            } else {
-                logger.error("Unsupported group realtedEntity property: {}", metadata.getRelatedEntityProperty());
+        for (SearchMetadataMapping metadata : metadataList) {
+            if (metadata.getRelatedEntityTypes() == null) {
+                continue;
             }
-        });
-    }
-
-    private void patchRelatedEntityCount(SearchMetadataMapping metadata, long groupId,
-            Map<String, Object> attrs, DataProvider dataProvider) {
-        final String jsonKey = metadata.getJsonKeyName();
-
-        if (metadata.getRelatedEntityTypes() != null) {
-            // related entities count (vms count in a cluster)
-            // only used by cluster for now
             Set<EntityType> relatedEntityTypes = metadata.getRelatedEntityTypes().stream()
                     .map(SearchEntityTypeUtils::apiToProto)
                     .collect(Collectors.toSet());
-            attrs.put(jsonKey, dataProvider.getGroupRelatedEntitiesCount(
-                    groupId, relatedEntityTypes));
+            final String jsonKey = metadata.getJsonKeyName();
+
+            switch (metadata.getRelatedEntityProperty()) {
+                case NAMES:
+                    attrs.put(jsonKey, dataProvider.getGroupRelatedEntitiesNames(
+                            groupId, relatedEntityTypes));
+                    break;
+                case COUNT:
+                    attrs.put(jsonKey, dataProvider.getGroupRelatedEntitiesCount(
+                            groupId, relatedEntityTypes));
+                    break;
+                default:
+                    logger.error("Unsupported group relatedEntity property: {}", metadata.getRelatedEntityProperty());
+            }
         }
     }
 }

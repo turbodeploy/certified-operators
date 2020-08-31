@@ -93,31 +93,54 @@ public enum SearchMetadataMapping {
      * Entity type specific fields.
      */
     PRIMITIVE_ATTACHMENT_STATE("attrs", "attachment_state", Type.ENUM, AttachmentState.class,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualVolume().getAttachmentState())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getVirtualVolume().hasAttachmentState(),
+            entity.getTypeSpecificInfo().getVirtualVolume().getAttachmentState())),
 
     PRIMITIVE_CONNECTED_NETWORKS("attrs", "connected_networks", Type.MULTI_TEXT, null,
             entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getConnectedNetworksList())),
 
     PRIMITIVE_CPU_MODEL("attrs", "cpu_model", Type.TEXT, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getCpuModel())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getPhysicalMachine().hasCpuModel(),
+            entity.getTypeSpecificInfo().getPhysicalMachine().getCpuModel())),
 
     PRIMITIVE_GUEST_OS_TYPE("attrs", "guest_os_type", Type.ENUM, OSType.class,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().hasGuestOsType(),
+            entity.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType())),
 
     PRIMITIVE_IS_LOCAL("attrs", "is_local", Type.BOOLEAN, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getStorage().getIsLocal())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getStorage().hasIsLocal(),
+            entity.getTypeSpecificInfo().getStorage().getIsLocal())),
 
     PRIMITIVE_MODEL("attrs", "model", Type.TEXT, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getModel())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getPhysicalMachine().hasModel(),
+            entity.getTypeSpecificInfo().getPhysicalMachine().getModel())),
 
     PRIMITIVE_PM_NUM_CPUS("attrs", "num_cpus", Type.NUMBER, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getNumCpus())),
+            entity -> conditionallySet(entity.getTypeSpecificInfo().getPhysicalMachine().hasNumCpus(),
+                entity.getTypeSpecificInfo().getPhysicalMachine().getNumCpus())),
 
     PRIMITIVE_TIMEZONE("attrs", "timezone", Type.TEXT, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getPhysicalMachine().getTimezone())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getPhysicalMachine().hasTimezone(),
+            entity.getTypeSpecificInfo().getPhysicalMachine().getTimezone())),
 
     PRIMITIVE_VM_NUM_CPUS("attrs", "num_cpus", Type.NUMBER, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus())),
+        entity -> conditionallySet(entity.getTypeSpecificInfo().getVirtualMachine().hasNumCpus(),
+            entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus())),
+
+    PRIMITIVE_VENDOR_ID("attrs", "vendor_id", Type.TEXT, null,
+            entity -> entity.getOrigin().hasDiscoveryOrigin()
+                    ? entity.getOrigin()
+                        .getDiscoveryOrigin()
+                        .getDiscoveredTargetDataMap()
+                        .values()
+                        .stream()
+                        .map(perTargetEntityInformation -> (Object) perTargetEntityInformation.getVendorId())
+                        .findFirst()
+                    : Optional.empty()),
+
+    PRIMITIVE_IS_EPHEMERAL_VOLUME("attrs", "is_ephemeral_volume", Type.BOOLEAN, ImmutableSet.of(EntityType.VirtualVolume)),
+
+    PRIMITIVE_IS_ENCRYPTED_VOLUME("attrs", "is_encrypted_volume", Type.BOOLEAN, ImmutableSet.of(EntityType.VirtualVolume)),
 
     /**
      * Commodities for entity.
@@ -313,6 +336,11 @@ public enum SearchMetadataMapping {
         CommodityType.STORAGE_AMOUNT, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
         null, Type.NUMBER),
 
+    /** storage amount historical utilization. */
+    COMMODITY_STORAGE_AMOUNT_CURRENT_UTILIZATION("attrs", "storage_amount_current_utilization",
+            CommodityType.STORAGE_AMOUNT, CommodityAttribute.CURRENT_UTILIZATION,
+            null, Type.NUMBER),
+
     /** storage latency used. */
     COMMODITY_STORAGE_LATENCY_USED("attrs", "storage_latency_used",
         CommodityType.STORAGE_LATENCY, CommodityAttribute.USED,
@@ -329,8 +357,8 @@ public enum SearchMetadataMapping {
         CommodityTypeUnits.STORAGE_PROVISIONED, Type.NUMBER),
 
     /** storage provisioned historical utilization. */
-    COMMODITY_STORAGE_PROVISIONED_HISTORICAL_UTILIZATION("attrs", "storage_provisioned_hist_utilization",
-        CommodityType.STORAGE_PROVISIONED, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+    COMMODITY_STORAGE_PROVISIONED_CURRENT_UTILIZATION("attrs", "storage_provisioned_current_utilization",
+        CommodityType.STORAGE_PROVISIONED, CommodityAttribute.CURRENT_UTILIZATION,
         null, Type.NUMBER),
 
     /** swapping historical utilization. */
@@ -358,6 +386,11 @@ public enum SearchMetadataMapping {
         CommodityType.VCPU, CommodityAttribute.PERCENTILE_HISTORICAL_UTILIZATION,
         null, Type.NUMBER),
 
+    /** vCPU percentile historical utilization. */
+    COMMODITY_VCPU_HISTORICAL_UTILIZATION("attrs", "vcpu_historical_utilization",
+            CommodityType.VCPU, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+            null, Type.NUMBER),
+
     /** vMem capacity. */
     COMMODITY_VMEM_CAPACITY("attrs", "vmem_capacity",
         CommodityType.VMEM, CommodityAttribute.CAPACITY,
@@ -373,14 +406,19 @@ public enum SearchMetadataMapping {
         CommodityType.VMEM, CommodityAttribute.PERCENTILE_HISTORICAL_UTILIZATION,
         null, Type.NUMBER),
 
+    /** vMem percentile historical utilization. */
+    COMMODITY_VMEM_HISTORICAL_UTILIZATION("attrs", "vmem_historical_utilization",
+            CommodityType.VMEM, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
+            null, Type.NUMBER),
+
     /** vStorage used. */
     COMMODITY_VSTORAGE_USED("attrs", "vstorage_used",
         CommodityType.VSTORAGE, CommodityAttribute.USED,
         CommodityTypeUnits.VSTORAGE, Type.NUMBER),
 
     /** vStorage percentile historical utilization. */
-    COMMODITY_VSTORAGE_PERCENTILE_UTILIZATION("attrs", "vstorage_percentile_utilization",
-        CommodityType.VSTORAGE, CommodityAttribute.PERCENTILE_HISTORICAL_UTILIZATION,
+    COMMODITY_VSTORAGE_WEIGHTED_UTILIZATION("attrs", "vstorage_historical_utilization",
+        CommodityType.VSTORAGE, CommodityAttribute.WEIGHTED_HISTORICAL_UTILIZATION,
         null, Type.NUMBER),
 
     /**
@@ -432,6 +470,9 @@ public enum SearchMetadataMapping {
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
     RELATED_VM("attrs", "related_vm", Collections.singleton(EntityType.VirtualMachine),
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+
+    RELATED_SERVICE_PROVIDER("attrs", "related_service_provider", Collections.singleton(EntityType.ServiceProvider),
             RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
 
     NUM_VMS("attrs", "num_vms", Collections.singleton(EntityType.VirtualMachine),
@@ -612,6 +653,16 @@ public enum SearchMetadataMapping {
         this.apiDatatype = Objects.requireNonNull(apiDatatype);
         this.enumClass = enumClass;
         this.topoFieldFunction = Objects.requireNonNull(topoFieldFunction);
+    }
+
+    SearchMetadataMapping(@Nonnull String columnName,
+            @Nonnull String jsonKeyName,
+            @Nonnull Type apiDatatype,
+            @Nonnull Set<EntityType> relatedEntityTypes) {
+        this.columnName = Objects.requireNonNull(columnName);
+        this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
+        this.apiDatatype = Objects.requireNonNull(apiDatatype);
+        this.relatedEntityTypes = Objects.requireNonNull(relatedEntityTypes);
     }
 
     /**
@@ -895,5 +946,23 @@ public enum SearchMetadataMapping {
 
     public boolean isDirect() {
         return direct;
+    }
+
+    /**
+     * Convenience method to provide a value only if the value has been marked as set.
+     *
+     * <p>This avoids repeating a lot of code to wrap value in optionals only when protobuf tells
+     * us that the value has actually been set. If the value is unset, protobuf will set a default
+     * value and we don't want to accidentally ingest this default value.</p>
+     *
+     * @param hasValue a flag indicating whether or not the value is present
+     * @param value the value (if present) or a default value (if not present)
+     * @return an optional containing either empty (if the value is not set) or the value (if set)
+     */
+    private static Optional<Object> conditionallySet(final boolean hasValue, @Nonnull final Object value) {
+        if (hasValue) {
+            return Optional.of(value);
+        }
+        return Optional.empty();
     }
 }

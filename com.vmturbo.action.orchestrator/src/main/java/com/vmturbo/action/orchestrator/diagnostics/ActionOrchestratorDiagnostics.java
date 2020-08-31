@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
 import com.google.gson.Gson;
@@ -29,7 +30,7 @@ import com.vmturbo.components.common.diagnostics.DiagsRestorable;
  * Represents the diagnostics of the action
  * orchestrator. It only has two functions.
  */
-public class ActionOrchestratorDiagnostics implements DiagsRestorable {
+public class ActionOrchestratorDiagnostics implements DiagsRestorable<Void> {
 
     private static final String SERIALIZED_FILE_NAME = "serializedActions";
 
@@ -65,7 +66,7 @@ public class ActionOrchestratorDiagnostics implements DiagsRestorable {
     }
 
     @Override
-    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         if (collectedDiags.size() != 1) {
             throw new DiagnosticsException(
                     "Wrong number of values. Expected: 1 found: " + collectedDiags.size());

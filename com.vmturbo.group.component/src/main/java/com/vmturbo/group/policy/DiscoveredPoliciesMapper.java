@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToComplementar
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MustNotRunTogetherPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MustRunTogetherPolicy;
+import com.vmturbo.group.common.Truncator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 
@@ -86,8 +87,13 @@ public class DiscoveredPoliciesMapper {
         }
 
         // create the policy
+        final String policyDisplayName =
+            Truncator.truncatePolicyDisplayName(spec.getPolicyDisplayName(), true);
+        final String policyName =
+            Truncator.truncatePolicyName(spec.getPolicyName(), true);
         final PolicyInfo.Builder builder = PolicyInfo.newBuilder()
-                        .setName(spec.getPolicyName());
+                        .setDisplayName(policyDisplayName)
+                        .setName(policyName);
         switch (spec.getConstraintType()) {
             case ConstraintType.BUYER_SELLER_AFFINITY_VALUE:
                 return Optional.of(builder.setBindToGroup(BindToGroupPolicy.newBuilder()

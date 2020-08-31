@@ -11,10 +11,15 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.Config;
@@ -30,8 +35,6 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.util.StringUtils;
 import org.yaml.snakeyaml.Yaml;
 
-import com.google.common.annotations.VisibleForTesting;
-
 /**
  * Configures kafka with our chosen settings.
  * In the future, we will extend this to support partition counts and replication factors. In the
@@ -41,7 +44,8 @@ public class KafkaConfigurationService {
     private final Logger log = LogManager.getLogger();
 
     private static final int DEFAULT_TOPIC_PARTITION_COUNT = 1;
-    private static final short DEFAULT_TOPIC_REPLICATION_FACTOR = 1;
+    // we set this during runtime, but this is static so it can be more easily used during yaml parsing.
+    private static short defaultTopicReplicationFactor = 1;
 
     /**
      * the config service will retry configuration applications as long as "max retry time" hasn't
@@ -58,15 +62,19 @@ public class KafkaConfigurationService {
 
     private final String namespacePrefix;
 
+    private final String kafkaConfigFile;
+
     /**
      * Create a KafkaConfigurationService that will apply a topic configuration to the kafka
      * cluster at bootstrap servers, and use custom timeout/retry settings you provide.
      * @param bootstrapServers one or more kafka broker addresses to connect to.
      * @param kafkaConfigMaxRetryTimeSecs the amount of time the config service can start a retry within
      * @param configRetryDelayMs the number of milliseconds to wait between retry attempts
+     * @param kafkaConfigDefaultReplicationFactor default topic replication factor to use when creating topics
      */
-    public KafkaConfigurationService(@Nonnull String bootstrapServers, int kafkaConfigMaxRetryTimeSecs, int configRetryDelayMs) {
-        this(bootstrapServers, kafkaConfigMaxRetryTimeSecs, configRetryDelayMs, "");
+    public KafkaConfigurationService(@Nonnull String bootstrapServers, int kafkaConfigMaxRetryTimeSecs, int configRetryDelayMs,
+                                     short kafkaConfigDefaultReplicationFactor, String kafkaConfigFile) {
+        this(bootstrapServers, kafkaConfigMaxRetryTimeSecs, configRetryDelayMs, kafkaConfigDefaultReplicationFactor, kafkaConfigFile, "");
     }
 
     /**
@@ -75,11 +83,12 @@ public class KafkaConfigurationService {
      * @param bootstrapServers one or more kafka broker addresses to connect to.
      * @param kafkaConfigMaxRetryTimeSecs the amount of time the config service can start a retry within
      * @param configRetryDelayMs the number of milliseconds to wait between retry attempts
+     * @param kafkaConfigDefaultReplicationFactor default topic replication factor to use when creating topics
      * @param namespacePrefix namespace of this XL deployment
      */
     public KafkaConfigurationService(@Nonnull String bootstrapServers,
                                      int kafkaConfigMaxRetryTimeSecs, int configRetryDelayMs,
-                                     @Nonnull String namespacePrefix) {
+                                     short kafkaConfigDefaultReplicationFactor, String kafkaConfigFile, @Nonnull String namespacePrefix) {
         this.namespacePrefix = Objects.requireNonNull(namespacePrefix);
 
         if (StringUtils.isEmpty(bootstrapServers)) {
@@ -92,9 +101,47 @@ public class KafkaConfigurationService {
             throw new IllegalArgumentException("Configuration retry delay cannot be less than zero.");
         }
 
-        kafkaBootstrapServers = bootstrapServers;
+        if (kafkaConfigDefaultReplicationFactor < 1) {
+            throw new IllegalArgumentException("default replication factor cannot be less than 1.");
+        }
+
+        this.kafkaBootstrapServers = bootstrapServers;
         this.kafkaConfigMaxRetryTimeSecs = kafkaConfigMaxRetryTimeSecs;
-        kafkaConfigRetryDelayMs = configRetryDelayMs;
+        this.kafkaConfigRetryDelayMs = configRetryDelayMs;
+        defaultTopicReplicationFactor = kafkaConfigDefaultReplicationFactor;
+        this.kafkaConfigFile = kafkaConfigFile;
+        configureKafka();
+    }
+
+    /**
+     * Apply any kafka topic configurations that we have.
+     */
+    public void configureKafka() {
+        // configure kafka, if we have a config file to read
+        if (Strings.isNullOrEmpty(kafkaConfigFile)) {
+            log.info("No kafka config file to read -- skipping kafka config.");
+            return;
+        }
+        try {
+            loadConfiguration(kafkaConfigFile);
+            log.info("<<<<<<<<<<<< kafka configured.");
+        } catch (TimeoutException te) {
+            log.error("Kafka configuration timed out. Will continue retrying in background.");
+            startBackgroundTask(new KafkaBackgroundConfigurationTask());
+        } catch (InterruptedException ie) {
+            log.warn("Kafka configuration interrupted. Configuration was not completed.");
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(ie);
+        }
+    }
+
+    private synchronized void startBackgroundTask(Runnable task) {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("kafka-configuration-service-%d")
+                .setDaemon(true)
+                .build();
+
+        threadFactory.newThread(task).start();
     }
 
     /**
@@ -250,6 +297,31 @@ public class KafkaConfigurationService {
     }
 
     /**
+     * A Runnable that will keep trying kafka configuration in the background.
+     */
+    private class KafkaBackgroundConfigurationTask implements Runnable {
+        @Override
+        public void run() {
+            log.info("Starting background thread for retrying Kafka configuration.");
+            while (true) {
+                try {
+                    loadConfiguration(kafkaConfigFile);
+                    log.info("Kafka configuration successful -- exiting background thread.");
+                    break;
+                } catch (TimeoutException te) {
+                    // try again.
+                    log.error("Kafka background configuration timed out. Trying again.");
+                } catch (InterruptedException ie) {
+                    log.warn("Kafka background configuration interrupted. Configuration was not completed.");
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(ie);
+                }
+            }
+
+        }
+    }
+
+    /**
      * Value class that is read from the kafka config yaml. Contains a list of topics w/override settings
      * for each
      */
@@ -271,7 +343,7 @@ public class KafkaConfigurationService {
      */
     static public class TopicConfiguration {
         private String topic;
-        private short replicationFactor = DEFAULT_TOPIC_REPLICATION_FACTOR;
+        private short replicationFactor = defaultTopicReplicationFactor;
         private short partitions = DEFAULT_TOPIC_PARTITION_COUNT;
         private Map<String, Object> properties;
 
@@ -298,4 +370,5 @@ public class KafkaConfigurationService {
             return properties;
         }
     }
+
 }

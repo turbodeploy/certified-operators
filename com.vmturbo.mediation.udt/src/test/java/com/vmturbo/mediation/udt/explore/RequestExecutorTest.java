@@ -1,54 +1,74 @@
 package com.vmturbo.mediation.udt.explore;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import io.grpc.ManagedChannel;
-
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
 
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.TopologyDataDefinitionServiceGrpc.TopologyDataDefinitionServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.TopologyDataDefinitionMoles.TopologyDataDefinitionServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
  * Test class for {@link RequestExecutor}.
  */
-@RunWith(PowerMockRunner.class)
-@PrepareForTest({TopologyDataDefinitionServiceBlockingStub.class, RepositoryServiceBlockingStub.class,
-        GroupServiceBlockingStub.class, SearchServiceBlockingStub.class})
 public class RequestExecutorTest {
 
     private Connection connection;
-    private ManagedChannel groupChannel;
-    private ManagedChannel repoChannel;
+    private GrpcTestServer groupServer;
+    private GrpcTestServer repositoryServer;
+    private GrpcTestServer tpServer;
+    private TopologyDataDefinitionServiceMole tddMole;
+    private RepositoryServiceMole rsMole;
+    private GroupServiceMole groupMole;
+    private SearchServiceMole searchMole;
 
     /**
      * Initialize request executor.
+     *
+     * @throws IOException on exception starting gRPC in-memory servers
      */
     @Before
-    public void setup() {
-        connection = Mockito.mock(Connection.class);
-        groupChannel = Mockito.mock(ManagedChannel.class);
-        repoChannel = Mockito.mock(ManagedChannel.class);
-        Mockito.when(connection.getGroupChannel()).thenReturn(groupChannel);
-        Mockito.when(connection.getRepositoryChannel()).thenReturn(repoChannel);
+    public void setup() throws IOException {
+        tddMole = new TopologyDataDefinitionServiceMole();
+        rsMole = new RepositoryServiceMole();
+        groupMole = new GroupServiceMole();
+        searchMole = Mockito.spy(new SearchServiceMole());
+        groupServer = GrpcTestServer.newServer(tddMole, groupMole);
+        groupServer.start();
+        repositoryServer = GrpcTestServer.newServer(rsMole, searchMole);
+        repositoryServer.start();
+        tpServer = GrpcTestServer.newServer();
+        tpServer.start();
+
+        connection = Mockito.spy(
+                new Connection(groupServer.getChannel(), repositoryServer.getChannel(),
+                        tpServer.getChannel()));
+    }
+
+    /**
+     * Cleans up tests.
+     */
+    @After
+    public void cleanup() {
+        groupServer.close();
+        repositoryServer.close();
+        tpServer.close();
     }
 
     /**
@@ -67,10 +87,10 @@ public class RequestExecutorTest {
     @Test
     public void testChannelsUsage() {
         RequestExecutor requestExecutor = new RequestExecutor(connection);
-        Assert.assertEquals(groupChannel, requestExecutor.getGroupService().getChannel());
-        Assert.assertEquals(groupChannel, requestExecutor.getTopologyDataDefService().getChannel());
-        Assert.assertEquals(repoChannel, requestExecutor.getSearchService().getChannel());
-        Assert.assertEquals(repoChannel, requestExecutor.getRepositoryService().getChannel());
+        Assert.assertEquals(groupServer.getChannel(), requestExecutor.getGroupService().getChannel());
+        Assert.assertEquals(groupServer.getChannel(), requestExecutor.getTopologyDataDefService().getChannel());
+        Assert.assertEquals(repositoryServer.getChannel(), requestExecutor.getSearchService().getChannel());
+        Assert.assertEquals(repositoryServer.getChannel(), requestExecutor.getRepositoryService().getChannel());
     }
 
     /**
@@ -79,12 +99,6 @@ public class RequestExecutorTest {
     @Test
     public void testSearchEntities() {
         final String nextCursor = "3";
-
-        RequestExecutor requestExecutor = new RequestExecutor(
-                PowerMockito.mock(TopologyDataDefinitionServiceBlockingStub.class),
-                PowerMockito.mock(RepositoryServiceBlockingStub.class),
-                PowerMockito.mock(GroupServiceBlockingStub.class),
-                PowerMockito.mock(SearchServiceBlockingStub.class));
 
         // first request - no pagination parameter
         SearchEntitiesRequest request1 = SearchEntitiesRequest.newBuilder()
@@ -116,13 +130,13 @@ public class RequestExecutorTest {
                         createPartialEntity(5L)))
                 .build();
 
-        SearchServiceBlockingStub searchService = requestExecutor.getSearchService();
-        Mockito.doReturn(response1).when(searchService).searchEntities(request1);
-        Mockito.doReturn(response2).when(searchService).searchEntities(request2);
+        Mockito.when(searchMole.searchEntities(request1)).thenReturn(response1);
+        Mockito.when(searchMole.searchEntities(request2)).thenReturn(response2);
+        final RequestExecutor requestExecutor = new RequestExecutor(connection);
 
         SearchEntitiesResponse response = requestExecutor.searchEntities(request1);
 
-        Mockito.verify(searchService, Mockito.times(2))
+        Mockito.verify(searchMole, Mockito.times(2))
                 .searchEntities(Mockito.any());
         Assert.assertEquals(5, response.getEntitiesCount());
     }

@@ -12,11 +12,11 @@
       }
     ]
   },
-  "description": "This report shows Virtual Machines that are over or under provisioned, as indicated by their utilization levels of allocated resources.",
+  "description": "This dashboard shows virtual machines that are over or under provisioned, as indicated by their utilization levels of allocated resources.",
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1596138191962,
+  "iteration": 1597070835900,
   "links": [],
   "panels": [
     {
@@ -411,6 +411,6 @@
     ]
   },
   "timezone": "",
-  "title": "VM Over or Under Provisioning",
+  "title": "Virtual Machine Over or Under Provisioning",
   "uid": "vm_under_over_provisioning"
 }

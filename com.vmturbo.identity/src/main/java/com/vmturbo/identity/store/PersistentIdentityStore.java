@@ -13,8 +13,10 @@ import com.vmturbo.identity.exceptions.IdentityStoreException;
  * A persistent mapping from a MatchingAttribute (derived from a discovered item) to the
  * corresponding OID.
  * Intended to be used as a backing store for the IdentityStore class.
+ *
+ * @param <T> the type of context object.
  */
-public interface PersistentIdentityStore extends DiagsRestorable {
+public interface PersistentIdentityStore<T> extends DiagsRestorable<T> {
 
     /**
      * Fetches all the mappings from ItemAttributes -> OID. This is used by IdentityStore

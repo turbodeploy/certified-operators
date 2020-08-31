@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator.project;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -22,7 +23,10 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.RunPlanProjectRequest;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.RunPlanProjectResponse;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.UpdatePlanProjectRequest;
 import com.vmturbo.common.protobuf.plan.PlanProjectServiceGrpc.PlanProjectServiceImplBase;
+import com.vmturbo.plan.orchestrator.plan.IntegrityException;
+import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 
 /**
  * Implements CRUD functionality for plan project.
@@ -41,9 +45,40 @@ public class PlanProjectRpcService extends PlanProjectServiceImplBase {
     @Override
     public void createPlanProject(PlanProjectInfo info,
                                   StreamObserver<PlanProjectOuterClass.PlanProject> responseObserver) {
-        PlanProjectOuterClass.PlanProject planProject = planProjectDao.createPlanProject(info);
-        responseObserver.onNext(planProject);
-        responseObserver.onCompleted();
+        try {
+            PlanProjectOuterClass.PlanProject planProject = planProjectDao.createPlanProject(info);
+            responseObserver.onNext(planProject);
+            responseObserver.onCompleted();
+        } catch (IntegrityException e) {
+            responseObserver.onError(Status.FAILED_PRECONDITION
+                    .withDescription(e.getMessage())
+                    .asException());
+        }
+    }
+
+    @Override
+    public void updatePlanProject(UpdatePlanProjectRequest request,
+                                  StreamObserver<PlanProject> responseObserver) {
+        long planProjectId = request.getPlanProjectId();
+        try {
+            PlanProject planProject = planProjectDao.updatePlanProject(planProjectId,
+                    request.hasPlanProjectStatus() ? request.getPlanProjectStatus() : null,
+                    request.hasMainPlanId() ? request.getMainPlanId() : null,
+                    request.getRelatedPlanIdsList());
+
+            responseObserver.onNext(planProject);
+            responseObserver.onCompleted();
+        } catch (IntegrityException e) {
+            responseObserver.onError(Status.FAILED_PRECONDITION
+                    .withDescription("Plan project " + planProjectId + " could not be updated: "
+                            + e.getMessage())
+                    .asException());
+        } catch (NoSuchObjectException e) {
+            responseObserver.onError(Status.NOT_FOUND
+                    .withDescription("Plan project " + planProjectId + " not found for update: "
+                            + e.getMessage())
+                    .asException());
+        }
     }
 
     @Override
@@ -86,8 +121,11 @@ public class PlanProjectRpcService extends PlanProjectServiceImplBase {
     @Override
     public void getAllPlanProjects(GetAllPlanProjectsRequest request,
                                    StreamObserver<GetAllPlanProjectsResponse> responseObserver) {
+        List<PlanProject> projects = request.hasProjectType()
+                ? planProjectDao.getPlanProjectsByType(request.getProjectType())
+                : planProjectDao.getAllPlanProjects();
         GetAllPlanProjectsResponse response = GetAllPlanProjectsResponse.newBuilder()
-                .addAllProjects(planProjectDao.getAllPlanProjects())
+                .addAllProjects(projects)
                 .build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();

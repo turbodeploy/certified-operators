@@ -78,9 +78,9 @@ public class ParsePolicySpecTest {
             CommonDTO.GroupDTO buyers = stringIdToGroup.get(policyInfo.getBuyersGroupStringId());
             CommonDTO.GroupDTO sellers = stringIdToGroup.get(policyInfo.getSellersGroupStringId());
             Assert.assertEquals(policyInfo.getPolicyName(),
-                            sellers.getConstraintInfo().getConstraintId());
+                            String.format("%s/%s", TARGET_ID, sellers.getConstraintInfo().getConstraintId()));
             Assert.assertEquals(policyInfo.getPolicyName(),
-                            buyers.getConstraintInfo().getConstraintId());
+                            String.format("%s/%s", TARGET_ID, buyers.getConstraintInfo().getConstraintId()));
             Assert.assertEquals(policyInfo.getConstraintType(),
                             buyers.getConstraintInfo().getConstraintType().getNumber());
             Assert.assertEquals(policyInfo.getConstraintType(),
@@ -123,7 +123,7 @@ public class ParsePolicySpecTest {
         for (DiscoveredPolicyInfo policyInfo : policies) {
             CommonDTO.GroupDTO buyers = stringIdToGroup.get(policyInfo.getBuyersGroupStringId());
             Assert.assertEquals(policyInfo.getPolicyName(),
-                            buyers.getConstraintInfo().getConstraintId());
+                            String.format("%s/%s", TARGET_ID, buyers.getConstraintInfo().getConstraintId()));
             Assert.assertEquals(policyInfo.getConstraintType(),
                             buyers.getConstraintInfo().getConstraintType().getNumber());
         }

@@ -39,10 +39,12 @@ public class LicenseKVStoreTest {
     public void testStoreAndRetrieveLicense() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         LicenseKVStore store = new LicenseKVStore(keyValueStore);
-        LicenseApiDTO licenseApiDTO = LicenseDeserializer.deserialize(LicenseLocalStoreTest.C1_LICENSE, null);
-        licenseApiDTO.setUuid("C1"); // manually set a key since we don't auto-create them in the
-                                    // storage service
-        LicenseDTO licenseDTO = LicenseDTOUtils.iLicenseToLicenseDTO(licenseApiDTO);
+        LicenseDTO licenseDTO = LicenseDeserializer.deserialize(LicenseLocalStoreTest.C1_LICENSE, null)
+                .toBuilder()
+                // manually set a key since we don't auto-create them in the
+                // storage service
+                .setUuid("C1")
+                .build();
         store.storeLicense(licenseDTO);
         Optional<LicenseDTO> license = store.getLicenses().stream().findFirst();
         Assert.assertEquals(licenseDTO, license.get());

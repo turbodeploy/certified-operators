@@ -1,0 +1,168 @@
+{"entityType": 57,
+  "oid": "73556951718136",
+  "displayName": "STANDARD",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 8
+    },
+    "used": 7.0E8,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "minAmountForConsumer": 1.0,
+    "maxAmountForConsumer": 1024.0,
+    "displayName": "",
+    "checkMinAmountForConsumer": true
+  }, {
+    "commodityType": {
+      "type": 6
+    },
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 64
+    },
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "minAmountForConsumer": 0.0,
+    "maxAmountForConsumer": 200.0,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 39
+    },
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "minAmountForConsumer": 0.0,
+    "maxAmountForConsumer": 92160.0,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 22
+    },
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 59,
+      "key": "Group::elasticStorageCluster"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 59,
+      "key": "Group::elasticStorageClusterBootDisk"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }],
+  "entityState": "POWERED_ON",
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1596061177160",
+      "discoveredTargetData": {
+        "73556947340112": {
+          "vendorId": "aws::ST::STANDARD"
+        }
+      }
+    }
+  },
+  "connectedEntityList": [{
+    "connectedEntityId": "73556951717731",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717832",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717757",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717839",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717743",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717773",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951718126",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717739",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717735",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717878",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951718046",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717762",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717975",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717828",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717766",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73556951717750",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }],
+  "tags": {
+  },
+  "environmentType": "CLOUD",
+  "typeSpecificInfo": {
+  }
+}

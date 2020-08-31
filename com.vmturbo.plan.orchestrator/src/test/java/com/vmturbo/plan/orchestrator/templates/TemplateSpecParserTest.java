@@ -105,7 +105,7 @@ public class TemplateSpecParserTest {
 
         try {
             templateSpecParser.restoreDiags(Collections.singletonList(TemplateSpecParser.GSON
-                .toJson(foomap, TemplateSpecParser.TYPE))
+                .toJson(foomap, TemplateSpecParser.TYPE)), null
             );
             fail();
         } catch (DiagnosticsException e) {

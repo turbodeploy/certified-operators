@@ -225,8 +225,8 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     TopologyEntityDTO topologyEntityDTO = dataSegment.getEntity();
                     // add entity to graph
                     graphBuilder.addEntity(SupplyChainEntity.newBuilder(topologyEntityDTO));
-                    // cache interested commodities for use later
-                    dataProvider.scrapeCommodities(topologyEntityDTO);
+                    // cache pertaining entity data for later use
+                    dataProvider.scrapeData(topologyEntityDTO);
                 }
             }
         }

@@ -552,6 +552,108 @@ public class SupplyChainCalculatorTest {
     }
 
     /**
+     * Test cloud native topology starting from Pods which consume volumes.
+     * Also test the traversal from volumes which provide for pods going up
+     * the supply chain.
+     */
+    @Test
+    public void testVolumeToPods() {
+        /*
+         *  *  Topology:
+         *      Pod3
+         *       |
+         *  Pod1 |  Pod2
+         *   | \ | /   \
+         *   |  \|/     \
+         *   |  VM1______Vol2
+         *   |  /|  \
+         *   | / |\  \
+         *   |/  | \  \
+         * Vol1  |  \  \
+         *       | Vol3 \
+         *       |    \  \
+         *       PM1   \  |
+         *              Zone1
+         *
+         * Vol1 is provider to both Pod1 and VM1 and not Pod2
+         * Vol2 is provider to both Pod3 and VM1 and not Pod1.
+         * Vol3 is provider to only VM1.
+         * Pod3 has no volume directly attached.
+         * Assumption: If a volume is attached to a pod, its also
+         * always attached to the pods provider VM.
+         */
+        final long pod1Id = 1;
+        final long pod2Id = 2;
+        final long pod3Id = 3;
+        final long vm1Id = 11;
+        final long vol1Id = 21;
+        final long vol2Id = 22;
+        final long vol3Id = 23;
+        final long pm1Id = 31;
+        final long zone1Id = 41;
+
+        final TopologyGraph<TestGraphEntity> graph =
+                TestGraphEntity.newGraph(
+                        TestGraphEntity.newBuilder(pod1Id, ApiEntityType.CONTAINER_POD)
+                                .addProviderId(vm1Id)
+                                .addProviderId(vol1Id),
+                        TestGraphEntity.newBuilder(pod2Id, ApiEntityType.CONTAINER_POD)
+                                .addProviderId(vm1Id)
+                                .addProviderId(vol2Id),
+                        TestGraphEntity.newBuilder(pod3Id, ApiEntityType.CONTAINER_POD)
+                                .addProviderId(vm1Id),
+                        TestGraphEntity.newBuilder(vm1Id, ApiEntityType.VIRTUAL_MACHINE)
+                                .addProviderId(pm1Id)
+                                .addProviderId(vol1Id)
+                                .addProviderId(vol2Id)
+                                .addProviderId(vol3Id)
+                                .addProviderId(zone1Id),
+                        TestGraphEntity.newBuilder(pm1Id, ApiEntityType.PHYSICAL_MACHINE),
+                        TestGraphEntity.newBuilder(vol1Id, ApiEntityType.VIRTUAL_VOLUME),
+                        TestGraphEntity.newBuilder(vol2Id, ApiEntityType.VIRTUAL_VOLUME),
+                        TestGraphEntity.newBuilder(vol3Id, ApiEntityType.VIRTUAL_VOLUME)
+                                .addProviderId(zone1Id),
+                        TestGraphEntity.newBuilder(zone1Id, ApiEntityType.AVAILABILITY_ZONE));
+
+        // 1.
+        Map<Integer, SupplyChainNode> supplychain = getSupplyChain(graph, pod1Id);
+        // 1a. Ensure nodes are reachable traversing down from pod as seed
+        assertEquals(Collections.singleton(vm1Id), getAllNodeIds(supplychain
+                .get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())));
+        assertEquals(Collections.singleton(pm1Id), getAllNodeIds(supplychain
+                .get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())));
+        assertEquals(Collections.singleton(zone1Id), getAllNodeIds(supplychain
+                .get(ApiEntityType.AVAILABILITY_ZONE.typeNumber())));
+        // Pod1 as seed
+        // 1b. selects vol1, its direct provider
+        // 1c. selects vol3 i.e. its vms direct provider
+        // 1d. and does not select vol2 (pod 2's provider)
+        assertThat(getAllNodeIds(supplychain.get(ApiEntityType.VIRTUAL_VOLUME
+                .typeNumber())), containsInAnyOrder(vol1Id, vol3Id));
+
+        // 2.
+        supplychain = getSupplyChain(graph, pod3Id);
+        // Pod3 as seed (which does not use any volumes directly)
+        // 2a. selects only vol3, i.e. the provider vms direct provider
+        assertThat(getAllNodeIds(supplychain.get(ApiEntityType.VIRTUAL_VOLUME
+                .typeNumber())), containsInAnyOrder(vol3Id));
+
+        // 3.
+        supplychain = getSupplyChain(graph, vol1Id);
+        // Vol1 as seed, which is connected to pod1 apart from vm1
+        // 3a. selects only the pods (pod1), which use this volume directly
+        assertThat(getAllNodeIds(supplychain.get(ApiEntityType.CONTAINER_POD
+                .typeNumber())), containsInAnyOrder(pod1Id));
+
+        // 4.
+        supplychain = getSupplyChain(graph, vol3Id);
+        // Vol3 as seed, which is connected only to vm1
+        // 4a. selects all pods
+        assertThat(getAllNodeIds(supplychain.get(ApiEntityType.CONTAINER_POD
+                .typeNumber())), containsInAnyOrder(pod1Id, pod2Id, pod3Id));
+    }
+
+    /**
      * Tests the behavior of arrows. If two entity types are joined
      * in the full topology, but not in the generated scoped supply
      * chain, then there should be no arrow between them in the

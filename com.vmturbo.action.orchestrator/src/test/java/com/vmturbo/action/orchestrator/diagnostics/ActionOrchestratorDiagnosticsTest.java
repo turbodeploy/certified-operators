@@ -307,6 +307,6 @@ public class ActionOrchestratorDiagnosticsTest {
         final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
         Mockito.verify(appender).appendString(diags.capture());
 
-        diagnostics.restoreDiags(diags.getAllValues());
+        diagnostics.restoreDiags(diags.getAllValues(), null);
     }
 }

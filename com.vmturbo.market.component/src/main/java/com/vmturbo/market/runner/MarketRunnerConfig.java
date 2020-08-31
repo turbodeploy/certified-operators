@@ -10,6 +10,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -185,7 +187,8 @@ public class MarketRunnerConfig {
                 tierExcluderFactory(),
                 analysisRICoverageListener(),
                 consistentResizerFactory(),
-                reversibilitySettingFetcherFactory());
+                reversibilitySettingFetcherFactory(),
+                migratedWorkloadCloudCommitmentAnalysisService());
     }
 
     /**
@@ -283,6 +286,11 @@ public class MarketRunnerConfig {
         costClientConfig.costComponent(CostSubscription.forTopic(Topic.COST_STATUS_NOTIFICATION))
                 .addCostNotificationListener(listener);
         return listener;
+    }
+
+    @Bean
+    public MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService() {
+        return new MigratedWorkloadCloudCommitmentAnalysisServiceImpl(costClientConfig.costChannel());
     }
 
     /**

@@ -5,7 +5,7 @@
     <parent>
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>7.22.7-SNAPSHOT</version>
+        <version>7.22.8-SNAPSHOT</version>
         <relativePath>../build/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -91,6 +91,15 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>common-protobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.auth0</groupId>
+            <artifactId>java-jwt</artifactId>
+            <version>3.10.3</version>
         </dependency>
         <!--- Junit -->
         <dependency>

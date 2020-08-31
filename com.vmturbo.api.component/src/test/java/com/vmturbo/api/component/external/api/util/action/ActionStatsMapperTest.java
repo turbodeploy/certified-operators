@@ -195,7 +195,7 @@ public class ActionStatsMapperTest {
         final long emptyTime = 100;
         final long statTime = 700;
         final ActionStats actionStats = ActionStats.newBuilder()
-            .setMgmtUnitId(7)
+            .addMgmtUnitIds(7L)
             .addStatSnapshots(ActionStatSnapshot.newBuilder()
                 .setTime(emptyTime)
                 .build())
@@ -268,7 +268,7 @@ public class ActionStatsMapperTest {
     public void testMapHistoricalActionStatSavings() {
         final long statTime = 700;
         final ActionStats actionStats = ActionStats.newBuilder()
-            .setMgmtUnitId(7)
+            .addMgmtUnitIds(7L)
             .addStatSnapshots(ActionStatSnapshot.newBuilder()
                 .setTime(statTime)
                 .addStats(ActionStat.newBuilder()
@@ -316,7 +316,7 @@ public class ActionStatsMapperTest {
     public void testMapHistoricalActionStatInvestment() {
         final long statTime = 700;
         final ActionStats actionStats = ActionStats.newBuilder()
-            .setMgmtUnitId(7)
+            .addMgmtUnitIds(7L)
             .addStatSnapshots(ActionStatSnapshot.newBuilder()
                 .setTime(statTime)
                 .addStats(ActionStat.newBuilder()

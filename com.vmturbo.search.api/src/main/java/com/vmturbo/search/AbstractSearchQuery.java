@@ -1,5 +1,8 @@
 package com.vmturbo.search;
 
+import static org.jooq.impl.DSL.coalesce;
+import static org.jooq.impl.DSL.inline;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -106,6 +109,8 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
     @Nonnull
     Set<SortedOnColumn> sortedOnColumns = new LinkedHashSet<>();
 
+    private static final String NULL = "null";
+
     private static final Set<PrimitiveFieldApiDTO> ENUMERATED_PRIMITIVE_FIELDS = new HashSet<PrimitiveFieldApiDTO>() {
         {
             add(PrimitiveFieldApiDTO.entityType());
@@ -188,7 +193,7 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
     /**
      * We need to add all sort on columns to the select clause.
      *
-     * <p>There values will be read separatly and used to create paginated cursors</p>
+     * <p>There values will be read separately and used to create paginated cursors</p>
      * @return list of {@link Field} created user configured {@link OrderByApiDTO}
      */
     @NotNull
@@ -337,14 +342,13 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
 
             if (getOrderBy().isEmpty()) {
                 sortFields.add(buildAndTrackOrderByFields(PrimitiveFieldApiDTO.name(), SortOrder.ASC));
-                sortFields.add(buildAndTrackOrderByFields(PrimitiveFieldApiDTO.oid(), SortOrder.ASC));
             } else {
                 getOrderBy().forEach(orderby -> {
                     SortField<?> sortField = buildAndTrackOrderByFields(orderby.getField(), orderby.isAscending() ? SortOrder.ASC : SortOrder.DESC);
                     sortFields.add(sortField);
                 });
-                sortFields.add(buildAndTrackOrderByFields(PrimitiveFieldApiDTO.oid(), SortOrder.ASC));
             }
+            sortFields.add(buildAndTrackOrderByFields(PrimitiveFieldApiDTO.oid(), SortOrder.ASC));
             this.orderBy = sortFields;
         }
         return this.orderBy;
@@ -368,30 +372,65 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
         for (int i = 0; i < sortedOnColumnArray.size(); i++) {
             SortedOnColumn sortedOnColumn = sortedOnColumnArray.get(i);
             String value  = cursorValues.get(i);
-
-            switch (sortedOnColumn.getSearchMetadataMapping().getApiDatatype()) {
-                case TEXT:
-                case ENUM:
-                case MULTI_TEXT:
-                    seekValues[i] = value;
-                    break;
-                case NUMBER:
-                    seekValues[i] = Double.valueOf(value);
-                    break;
-                case INTEGER:
-                    seekValues[i] = Long.valueOf(value);
-                    break;
-                case BOOLEAN:
-                    seekValues[i] = Boolean.valueOf(value);
-                    break;
-                default:
-                    throw new SearchQueryFailedException("Unsupported dataType: "
-                            + sortedOnColumn.getSearchMetadataMapping().getApiDatatype().name());
-            }
+            Type dataType = sortedOnColumn.getSearchMetadataMapping().getApiDatatype();
+            seekValues[i] = cursorValueIsNull(value)
+                    ? getDefaultFieldValueWhenNull(dataType) : getDataSpecificValue(value, dataType);
 
         }
-
         return seekValues;
+    }
+
+    /**
+     * Returns default value to use for sorting when value are null.
+     * @param dataType data type
+     * @return default value for dataType
+     */
+    private Object getDefaultFieldValueWhenNull(Type dataType) {
+        switch (dataType) {
+            case NUMBER:
+                return -Double.MAX_VALUE;
+            case INTEGER:
+                return Long.valueOf(Integer.MIN_VALUE);
+            case BOOLEAN:
+                return false;
+            default:
+                return "";
+        }
+    }
+
+    /**
+     * Returns data converted value based on dataType.
+     * @param value to be converted based on dataType
+     * @param dataType object type value is saved as in db
+     * @return converted value
+     * @throws SearchQueryFailedException if dataType is unsupported
+     */
+    private Object getDataSpecificValue(String value, Type dataType) throws SearchQueryFailedException {
+        switch (dataType) {
+            case TEXT:
+            case ENUM:
+            case MULTI_TEXT:
+                return value;
+            case NUMBER:
+                return Double.valueOf(value);
+            case INTEGER:
+                return Long.valueOf(value);
+            case BOOLEAN:
+                return Boolean.valueOf(value);
+            default:
+                throw new SearchQueryFailedException("Unsupported dataType: "
+                        + dataType.name());
+        }
+
+    }
+
+    /**
+     * Returns true if cursor value is 'null'.
+     * @param value to be evaluated
+     * @return true if 'null'
+     */
+    private boolean cursorValueIsNull(final String value) {
+        return value.equals(NULL);
     }
 
     /**
@@ -510,7 +549,7 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
             final String columnAlias =
                     getColumnAlias(columnMetadata.getColumnName(), columnMetadata.getJsonKeyName());
             final Object value = getValueFromRecord(record, columnAlias);
-            return value.toString();
+            return value == null ? null : value.toString();
         }).collect(Collectors.toList());
     }
 
@@ -576,10 +615,10 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
      * @return constructed {@link Condition}
      */
     private Condition parseCondition(@Nonnull InclusionConditionApiDTO entityCondition, @Nonnull Field field) {
-        final List<String> values = entityCondition.getValue(); //List of enumLiterals only
-        final List<String> jooqEnumValues = parseTextAndInclusionConditions(entityCondition.getField(), values);
-        //InclusionCondition can only be configured for IN operator
-        return field.in(jooqEnumValues);
+        final List<String> requestedValues = entityCondition.getValue(); //List of enumLiterals only
+        FieldApiDTO fieldApiDTO = entityCondition.getField();
+        final List<String> queryValues = parseTextAndInclusionConditions(fieldApiDTO, requestedValues);
+        return createInclusionDTOBasedConditions(queryValues, fieldApiDTO, field);
     }
 
     /**
@@ -621,9 +660,52 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
     }
 
     /**
+     * Construct conditions for inclusionDTO.
+     *
+     * @param queryValues the string values to use in query, if enum, already mapped
+     * @param fieldApiDTO corresponding {@link FieldApiDTO} of configured condition.
+     * @param field field the field to compare against the provided condition
+     * @return query conditions
+     */
+    private Condition createInclusionDTOBasedConditions(final List<String> queryValues, final FieldApiDTO fieldApiDTO, @Nonnull Field field) {
+        SearchMetadataMapping mapping = getMetadataMapping().get(fieldApiDTO);
+        if (!mapping.getApiDatatype().equals(Type.MULTI_TEXT)) {
+            return field.in(queryValues);
+        }
+        //For multiText columns we cannot apply in clause.
+        //JsonB multitext columns save values as strings
+        //Example: attrs_column = {colKey ["123", "456"]}
+        //         User request inclusion where colKey in "123"
+        //         PSQL translation -> where colkey in ("123")
+        //         Because they are strings this equates to:  "123" = '["123","456"]' with inclusion
+        //         so no match will be made.  We can use like conditions to get desired results
+
+
+        List<String> valuesWithSurroundingQuotes = queryValues.stream()
+                .map(AbstractSearchQuery::mapToStringLiteral).collect(
+                Collectors.toList());
+
+        String queryValue = String.join("|", valuesWithSurroundingQuotes);
+        return field.likeRegex(queryValue);
+
+    }
+
+    /**
+     * Maps query value to string literal to be used in regex matching.
+     * @param queryValue string value to be matched on
+     * @return string literal of queryValue
+     */
+    @VisibleForTesting
+    static String mapToStringLiteral(String queryValue) {
+        String sanitized = queryValue.replaceAll("[-.\\+*?\\[^\\]$(){}=!<>|:\\\\]", "\\\\$0");
+        //Surrounding in quotes, this is specific to values in multitext columns
+        return "\"" + sanitized + "\"";
+    }
+
+    /**
      * If {@link Type#ENUM} conditions this maps api enums to jooq equivalents.
      *
-     * @param fieldApiDto Corresponding {@link FieldApiDTO} of configered condition.
+     * @param fieldApiDto Corresponding {@link FieldApiDTO} of configured condition.
      * @param values request api values, enums will be converted to jooq enums
      * @return jooq enum references or original values returned
      */
@@ -689,6 +771,10 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
     SortField<?> buildAndTrackOrderByFields(final FieldApiDTO apiField, final SortOrder sortOrder) {
         SearchMetadataMapping columnMetadata = getMetadataMapping().get(apiField);
         Field<?> field = buildFieldForApiField(apiField, false);
+
+        //We use default values to get correct sorting when values null
+        field = coalesce(field, inline(getDefaultFieldValueWhenNull(columnMetadata.getApiDatatype())));
+
         SortOrder cursorConsideredSortOrder = getSortOrderBasedOnCursor(sortOrder);
         trackSortedOnFields(columnMetadata, field, cursorConsideredSortOrder);
         SortField<?> sortField = field.sort(cursorConsideredSortOrder);

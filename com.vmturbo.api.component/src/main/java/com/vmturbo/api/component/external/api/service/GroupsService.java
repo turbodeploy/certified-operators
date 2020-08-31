@@ -1139,6 +1139,14 @@ public class GroupsService implements IGroupsService {
         return group -> {
             if (group.hasStaticGroupMembers()) {
                 // static group
+                // ResourceGroup members contain multiple entity types, VMs, Volumes, etc.
+                // However, when search for groups for any of these entity types, ResourceGroups
+                // should not display. Otherwise it may break certain constraints, for example
+                // groups selected in policy can't contain multiple entity types.
+                // Return ResourceGroup only when search criteria contains ResourceGroup.
+                if (group.getType() == GroupType.RESOURCE) {
+                    return acceptableGroupTypes.contains(group.getType());
+                }
                 return group.getStaticGroupMembers()
                         .getMembersByTypeList()
                         .stream()

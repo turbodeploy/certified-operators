@@ -5,7 +5,7 @@
     <parent>
         <artifactId>xl-sdk-probe-parent</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>7.22.7-SNAPSHOT</version>
+        <version>7.22.8-SNAPSHOT</version>
         <relativePath>../com.vmturbo.mediation.probe.parent/pom.xml</relativePath>
     </parent>
 
@@ -149,23 +149,9 @@
             <version>4.3.26.RELEASE</version>
             <scope>test</scope>
         </dependency>
-
         <dependency>
-            <groupId>org.powermock</groupId>
-            <artifactId>powermock-module-junit4</artifactId>
-            <version>${powermock.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.powermock</groupId>
-            <artifactId>powermock-core</artifactId>
-            <version>${powermock.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.powermock</groupId>
-            <artifactId>powermock-api-mockito</artifactId>
-            <version>${powermock.version}</version>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>components-api-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

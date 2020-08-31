@@ -1,0 +1,34 @@
+[
+    {
+        "virtualMachineOid": "2000003",
+        "templateOid": "100004"
+    },
+    {
+        "virtualMachineOid": "2000020",
+        "templateOid": "100004"
+    },
+    {
+        "virtualMachineOid": "2000021",
+        "reservedInstanceOid": "1000001",
+        "templateOid": "100004",
+        "discountedCoupons": 1
+    },
+    {
+        "virtualMachineOid": "2000011",
+        "reservedInstanceOid": "1000001",
+        "templateOid": "100004",
+        "discountedCoupons": 1
+    },
+    {
+        "virtualMachineOid": "2000010",
+        "reservedInstanceOid": "1000001",
+        "templateOid": "100004",
+        "discountedCoupons": 1
+    },
+    {
+        "virtualMachineOid": "2000001",
+        "reservedInstanceOid": "1000001",
+        "templateOid": "100004",
+        "discountedCoupons": 1
+    }
+]

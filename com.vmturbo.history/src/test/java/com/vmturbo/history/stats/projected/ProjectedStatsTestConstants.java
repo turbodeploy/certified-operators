@@ -11,12 +11,11 @@ public class ProjectedStatsTestConstants {
             .setType(CommonDTO.CommodityDTO.CommodityType.MEM_VALUE)
             .build();
 
+    final static String COMMODITY = "Mem";
     final static CommodityType COMMODITY_TYPE_WITH_KEY = CommodityType.newBuilder()
             .setType(CommonDTO.CommodityDTO.CommodityType.MEM_VALUE)
-            .setKey("key")
+            .setKey(COMMODITY)
             .build();
-
-    final static String COMMODITY = "Mem";
 
     final static String COMMODITY_UNITS = "KB";
 }

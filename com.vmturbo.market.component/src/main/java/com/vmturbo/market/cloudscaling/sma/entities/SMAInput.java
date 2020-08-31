@@ -271,6 +271,7 @@ public class SMAInput {
                 logger.error(" no template for context={}", context);
                 continue;
             }
+            smaTemplates.stream().forEach(t -> t.setComputeTier(null));
             logger.debug("{} #VMs={} #RIs={} #templates={}", () -> context,
                 () -> smaVMs.size(), () -> smaRIs.size(), () -> smaTemplates.size());
             SMAInputContext inputContext = new SMAInputContext(context,
@@ -622,7 +623,7 @@ public class SMAInput {
                 /*
                  * For each osType create template with osType specific cost.
                  */
-                SMATemplate template = new SMATemplate(oid, name, family, coupons, context, computeTier);
+                SMATemplate template = new SMATemplate(oid, name, family, coupons, computeTier);
                 logger.trace("processComputeTier: new {} in {}", template, context);
                 Set<SMATemplate> templates = smaContextToTemplates.getOrDefault(context, new HashSet<>());
                 templates.add(template);
@@ -799,7 +800,6 @@ public class SMAInput {
         String name = riBoughtInfo.getProbeReservedInstanceId();  // getDisplayName();
         long zoneId = riBoughtInfo.getAvailabilityZoneId();
         zoneId = (zoneId == 0 ? SMAUtils.NO_ZONE : zoneId);
-        float count = riBoughtInfo.getNumBought();
         ReservedInstanceBoughtCost boughtCost = riBoughtInfo.getReservedInstanceBoughtCost();
         boolean shared = riBoughtInfo.getReservedInstanceScopeInfo().getShared();
 
@@ -856,6 +856,10 @@ public class SMAInput {
 
         Set<Long> scopedAccountsIds = shared ? Collections.emptySet() : ImmutableSet.copyOf(
                 riBoughtInfo.getReservedInstanceScopeInfo().getApplicableBusinessAccountIdList());
+
+        // adjust count of RI to reflect partial RI
+        final float count = (float)riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons()
+                / template.getCoupons();
 
         // Unfortunately, the probe returns ISF=true for metal templates.
         SMAReservedInstance ri = new SMAReservedInstance(riBoughtId,

@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -561,7 +562,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
     /**
      * Helper class for dumping Plan Projected Reserved Instance Utilization db records.
      */
-    private static final class PlanProjectedReservedInstanceUtilizationDiagsHelper implements DiagsRestorable {
+    private static final class PlanProjectedReservedInstanceUtilizationDiagsHelper implements DiagsRestorable<Void> {
         private static final String planProjectedReservedInstanceUtilizationDumpFile = "planProjectedReservedInstanceUtilization_dump";
 
         private final DSLContext dsl;
@@ -571,7 +572,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         }
 
@@ -601,7 +602,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
     /**
      * Helper class for dumping Plan Projected Reserved Instance Coverage db records.
      */
-    private static final class PlanProjectedReservedInstanceCoverageDiagsHelper implements DiagsRestorable {
+    private static final class PlanProjectedReservedInstanceCoverageDiagsHelper implements DiagsRestorable<Void> {
         private static final String planProjectedReservedInstanceCoverageDumpFile = "planProjectedReservedInstanceCoverage_dump";
 
         private final DSLContext dsl;
@@ -611,7 +612,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         }
 
@@ -641,7 +642,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
     /**
      * Helper class for dumping Plan Projected RI to Entity mapping db records.
      */
-    private static final class PlanProjectedRIToEntityMappingDiagsHelper implements DiagsRestorable {
+    private static final class PlanProjectedRIToEntityMappingDiagsHelper implements DiagsRestorable<Void> {
         private static final String planProjectedRIToEntityMappingDumpFile = "planProjectedRIToEntity_dump";
 
         private final DSLContext dsl;
@@ -651,7 +652,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
             // TODO to be implemented as part of OM-58627
         }
 

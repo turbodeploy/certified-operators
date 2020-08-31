@@ -6,8 +6,10 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -40,6 +42,7 @@ import com.google.gson.stream.JsonReader;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -184,6 +187,8 @@ public class ScopedTopologyTest {
         final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                 mock(BuyRIImpactAnalysisFactory.class);
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
+        final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
+        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
         testAnalysis = new Analysis(PLAN_TOPOLOGY_INFO,
             Collections.emptySet(),
             new GroupMemberRetriever(groupServiceClient),
@@ -198,7 +203,8 @@ public class ScopedTopologyTest {
             mock(AnalysisRICoverageListener.class),
             consistentScalingHelperFactory,
             initialPlacementFinder,
-            reversibilitySettingFetcherFactory);
+            reversibilitySettingFetcherFactory,
+            migratedWorkloadCloudCommitmentAnalysisService);
     }
 
     /**
@@ -377,13 +383,17 @@ public class ScopedTopologyTest {
                 final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
                 when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(MarketPriceTable.class));
                 when(topologyCostCalculatorFactory.newCalculator(any(), any())).thenReturn(topologyCostCalculator);
+                final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
+                doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
+
                 return new Analysis(topologyInfo, topologyDTOs,
                         new GroupMemberRetriever(groupServiceClient), Clock.systemUTC(),
                         configBuilder.build(), cloudTopologyFactory, topologyCostCalculatorFactory,
                         priceTableFactory, wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory,
                         tierExcluderFactory, mock(AnalysisRICoverageListener.class),
                         consistentScalingHelperFactory, initialPlacementFinder,
-                        reversibilitySettingFetcherFactory);
+                        reversibilitySettingFetcherFactory,
+                        migratedWorkloadCloudCommitmentAnalysisService);
             });
 
         Analysis analysis = runner.scheduleAnalysis(topologyInfo, topologyDTOs,

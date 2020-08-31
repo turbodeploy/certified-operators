@@ -204,7 +204,7 @@ public class PersistentTargetSpecIdentityStoreTest {
         assertEquals(2, diagsCaptor.getAllValues().size());
         // Clean up db before restore
         dsl.delete(TARGETSPEC_OID).execute();
-        testIdentityStore.restoreDiags(diagsCaptor.getAllValues());
+        testIdentityStore.restoreDiags(diagsCaptor.getAllValues(), dsl);
         final Result<Record> rs = dsl.select()
                 .from(TARGETSPEC_OID)
                 .fetch();

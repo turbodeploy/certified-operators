@@ -8,6 +8,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Charsets;
 
@@ -39,7 +40,7 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager;
 /**
  * Class to dump and restore topology in/to Arango DB.
  */
-public class TopologyDiagnostics implements BinaryDiagsRestorable {
+public class TopologyDiagnostics implements BinaryDiagsRestorable<Void> {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -79,7 +80,7 @@ public class TopologyDiagnostics implements BinaryDiagsRestorable {
     }
 
     @Override
-    public void restoreDiags(@Nonnull byte[] bytes) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull byte[] bytes, @Nullable Void context) throws DiagnosticsException {
         if (bytes.length == 0) {
             logger.info("Database dump for " + arangoDatabaseName + " is empty. Skipping it...");
             return;

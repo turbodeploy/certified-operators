@@ -94,11 +94,40 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
         entitySettingsCache = new EntitiesAndSettingsSnapshotFactory(grpcTestServer.getChannel(),
             grpcTestServer.getChannel(),
             REALTIME_TOPOLOGY_CONTEXT_ID,
-            topologyAvailabilityTracker, MIN_TO_WAIT, TimeUnit.MINUTES, acceptedActionsStore);
+            topologyAvailabilityTracker, MIN_TO_WAIT, TimeUnit.MINUTES, acceptedActionsStore,
+            false);
 
         Mockito.when(topologyAvailabilityTracker.queueTopologyRequest(Mockito.anyLong(),
                 Mockito.anyLong()))
             .thenReturn(topologyRequest);
+    }
+
+    /**
+     * Test that setting the "strict topology id match" flag for settings affects the call
+     * out to the group component for per-entity settings.
+     */
+    @Test
+    public void testSnapshotStrictMatchEnabled() {
+        EntitiesAndSettingsSnapshotFactory newFact = new EntitiesAndSettingsSnapshotFactory(grpcTestServer.getChannel(),
+                grpcTestServer.getChannel(),
+                REALTIME_TOPOLOGY_CONTEXT_ID,
+                topologyAvailabilityTracker, MIN_TO_WAIT, TimeUnit.MINUTES, acceptedActionsStore,
+                // The important change.
+                true);
+
+        newFact.newSnapshot(
+                Collections.singleton(ENTITY_ID), Collections.emptySet(), REALTIME_TOPOLOGY_CONTEXT_ID,
+                TOPOLOGY_ID);
+
+        Mockito.verify(spServiceSpy).getEntitySettings(GetEntitySettingsRequest.newBuilder()
+                .setTopologySelection(TopologySelection.newBuilder()
+                        .setTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID)
+                        // Topology ID explicitly set.
+                        .setTopologyId(TOPOLOGY_ID))
+                .setSettingFilter(EntitySettingFilter.newBuilder()
+                        .addEntities(ENTITY_ID))
+                .setIncludeSettingPolicies(true)
+                .build());
     }
 
     /**
@@ -121,8 +150,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
 
         Mockito.when(spServiceSpy.getEntitySettings(GetEntitySettingsRequest.newBuilder()
                 .setTopologySelection(TopologySelection.newBuilder()
-                        .setTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID)
-                        .setTopologyId(TOPOLOGY_ID))
+                        .setTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID))
                 .setSettingFilter(EntitySettingFilter.newBuilder()
                         .addEntities(ENTITY_ID))
                 .setIncludeSettingPolicies(true)

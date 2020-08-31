@@ -159,21 +159,27 @@ public class MgmtUnitSubgroupStore {
                                        @Nonnull final HistoricalActionStatsQuery.GroupBy groupBy) {
         final List<Condition> conditions = new ArrayList<>();
 
-        final long targetMgmtUnitId;
+        final List<Long> targetMgmtUnitId;
         if (mgmtUnitSubgroupFilter.getMarket()) {
-            targetMgmtUnitId = GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID;
+            targetMgmtUnitId =
+                Collections.singletonList(GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID);
             if (groupBy == GroupBy.BUSINESS_ACCOUNT_ID) {
                 // This is a pretty specific case - if we are going to want to group the resulting
                 // stats by business account ID, we shouldn't look for the "global" management unit.
                 // We should look for all the individual management unit subgroups associated with
                 // business accounts.
                 conditions.add(MGMT_UNIT_SUBGROUP.MGMT_UNIT_TYPE.eq((short)ManagementUnitType.BUSINESS_ACCOUNT.getNumber()));
+            } else if (groupBy == GroupBy.RESOURCE_GROUP_ID) {
+                conditions.add(MGMT_UNIT_SUBGROUP.MGMT_UNIT_TYPE.eq((short)ManagementUnitType.RESOURCE_GROUP.getNumber()));
             } else {
-                conditions.add(MGMT_UNIT_SUBGROUP.MGMT_UNIT_ID.eq(targetMgmtUnitId));
+                conditions.add(MGMT_UNIT_SUBGROUP.MGMT_UNIT_ID.eq(GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID));
             }
         } else if (mgmtUnitSubgroupFilter.hasMgmtUnitId()) {
-            targetMgmtUnitId = mgmtUnitSubgroupFilter.getMgmtUnitId();
-            conditions.add(MGMT_UNIT_SUBGROUP.MGMT_UNIT_ID.eq(targetMgmtUnitId));
+            targetMgmtUnitId = Collections.singletonList(mgmtUnitSubgroupFilter.getMgmtUnitId());
+            conditions.add(MGMT_UNIT_SUBGROUP.MGMT_UNIT_ID.eq(mgmtUnitSubgroupFilter.getMgmtUnitId()));
+        } else if (mgmtUnitSubgroupFilter.hasMgmtUnits()) {
+            targetMgmtUnitId = mgmtUnitSubgroupFilter.getMgmtUnits().getMgmtUnitIdsList();
+            conditions.add(MGMT_UNIT_SUBGROUP.MGMT_UNIT_ID.in(targetMgmtUnitId));
         } else {
             logger.error("Invalid filter does not target the market or a specific mgmt unit: {}",
                 mgmtUnitSubgroupFilter);
@@ -227,7 +233,7 @@ public class MgmtUnitSubgroupStore {
 
                 // We check explicitly for the global mgmt unit id because in the global case
                 // we are aggregating information across multiple management units.
-                if (targetMgmtUnitId != GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID) {
+                if (!Collections.singletonList(GlobalActionAggregator.GLOBAL_MGMT_UNIT_ID).equals(targetMgmtUnitId)) {
                     builder.mgmtUnit(targetMgmtUnitId);
                 }
 
@@ -248,9 +254,10 @@ public class MgmtUnitSubgroupStore {
     public interface QueryResult {
 
         /**
-         * The ID of the mgmt unit targeted by the query. Empty if describing the whole market.
+         * The IDs of the mgmt unit targeted by the query. Empty if describing the whole market.
+         * @return list of management units target by query.
          */
-        Optional<Long> mgmtUnit();
+        List<Long> mgmtUnit();
 
         /**
          * The mgmt unit subgroups targeted by the query, arranged by ID. Should be non-empty.

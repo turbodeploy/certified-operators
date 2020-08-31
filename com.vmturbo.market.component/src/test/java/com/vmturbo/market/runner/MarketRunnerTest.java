@@ -5,9 +5,11 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -27,6 +29,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -167,13 +170,15 @@ public class MarketRunnerTest {
             when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
             final GroupServiceBlockingStub groupServiceGrpc =
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
+            final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
+            doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
             return new Analysis(topologyInfo, entities, new GroupMemberRetriever(groupServiceGrpc),
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
                     wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
                     mock(AnalysisRICoverageListener.class),
                     consistentScalingHelperFactory, initialPlacementFinder,
-                    reversibilitySettingFetcherFactory);
+                    reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
         }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
     }
 

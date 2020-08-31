@@ -1,6 +1,7 @@
 package com.vmturbo.extractor.models;
 
 import java.sql.Timestamp;
+import java.time.OffsetDateTime;
 import java.util.Objects;
 
 import org.jooq.Field;
@@ -54,7 +55,7 @@ public class Column<T> {
     @Override
     public boolean equals(Object other) {
         if (other instanceof Column) {
-            Column otherCol = (Column)other;
+            Column<?> otherCol = (Column<?>)other;
             return otherCol.name.equals(name) && otherCol.colType.equals(colType);
         } else {
             return false;
@@ -255,6 +256,16 @@ public class Column<T> {
      */
     public static Column<Timestamp> timestampColumn(final Field<?> field) {
         return new Column<>(field, ColType.TIMESTAMP);
+    }
+
+    /**
+     * Create an {@link OffsetDateTime} column.
+     *
+     * @param name column name
+     * @return new column
+     */
+    public static Column<OffsetDateTime> offsetDateTimeColumn(final String name) {
+        return new Column<>(name, ColType.OFFSET_DATE_TIME);
     }
 
     /**

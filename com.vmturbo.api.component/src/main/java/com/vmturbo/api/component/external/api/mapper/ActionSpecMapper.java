@@ -1,13 +1,10 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.ALLOCATE;
 import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.BUY_RI;
-import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.RESIZE;
 import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.SCALE;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PATTERN;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PREFIX;
 
-import java.beans.PropertyDescriptor;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.MessageFormat;
@@ -40,7 +37,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
+import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -66,6 +65,7 @@ import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.action.RIBuyActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.entityaspect.VMEntityAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
@@ -104,6 +104,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
@@ -139,15 +140,19 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Map an ActionSpec returned from the ActionOrchestrator into an {@link ActionApiDTO} to be
@@ -220,6 +225,11 @@ public class ActionSpecMapper {
 
     private final BuyRiScopeHandler buyRiScopeHandler;
 
+    private final UuidMapper uuidMapper;
+
+    private final Map<Long, Map<EntityFilter, Map<Long, Cost.EntityReservedInstanceCoverage>>> topologyContextIdToEntityFilterToEntityRiCoverage =
+            Maps.newHashMap();
+
     private static final Predicate<ActionState> IN_PROGRESS_PREDICATE = (state) ->
             state == ActionState.IN_PROGRESS
                     || state == ActionState.PRE_IN_PROGRESS
@@ -244,7 +254,8 @@ public class ActionSpecMapper {
                             @Nonnull final CostServiceBlockingStub costServiceBlockingStub,
                             @Nonnull final ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub reservedInstanceUtilizationCoverageServiceBlockingStub,
                             @Nonnull final BuyRiScopeHandler buyRiScopeHandler,
-                            final long realtimeTopologyContextId) {
+                            final long realtimeTopologyContextId,
+                            @Nonnull final UuidMapper uuidMapper) {
         this.actionSpecMappingContextFactory = Objects.requireNonNull(actionSpecMappingContextFactory);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.policiesService  = Objects.requireNonNull(policiesService);
@@ -254,6 +265,7 @@ public class ActionSpecMapper {
         this.riStub = riStub;
         this.reservedInstanceUtilizationCoverageServiceBlockingStub = reservedInstanceUtilizationCoverageServiceBlockingStub;
         this.buyRiScopeHandler = buyRiScopeHandler;
+        this.uuidMapper = uuidMapper;
     }
 
     /**
@@ -314,12 +326,19 @@ public class ActionSpecMapper {
                 .map(ActionSpec::getRecommendation)
                 .collect(Collectors.toList());
         final ActionSpecMappingContext context =
-                actionSpecMappingContextFactory.createActionSpecMappingContext(recommendations, topologyContextId);
+                actionSpecMappingContextFactory.createActionSpecMappingContext(recommendations,
+                        topologyContextId, uuidMapper);
         final ImmutableList.Builder<ActionApiDTO> actionApiDTOS = ImmutableList.builder();
+        final List<Long> entityUuids = actionSpecs.stream()
+                .map(ActionSpecMapper::getEntityUuidFromActionSpec)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        final Map<Long, Cost.EntityReservedInstanceCoverage> coverageMap = getEntityRiCoverageMap(
+                topologyContextId,
+                EntityFilter.newBuilder().addAllEntityId(entityUuids).build());
         for (ActionSpec spec : actionSpecs) {
             final ActionApiDTO actionApiDTO =
-                    mapActionSpecToActionApiDTOInternal(spec, context, topologyContextId,
-                            detailLevel);
+                    mapActionSpecToActionApiDTOInternal(spec, context, topologyContextId, coverageMap, detailLevel);
             actionApiDTOS.add(actionApiDTO);
         }
 
@@ -387,8 +406,9 @@ public class ActionSpecMapper {
             InterruptedException, ConversionException {
         final ActionSpecMappingContext context =
                 actionSpecMappingContextFactory.createActionSpecMappingContext(
-                        Lists.newArrayList(actionSpec.getRecommendation()), topologyContextId);
-        return mapActionSpecToActionApiDTOInternal(actionSpec, context, topologyContextId, detailLevel);
+                        Lists.newArrayList(actionSpec.getRecommendation()), topologyContextId,
+                        uuidMapper);
+        return mapActionSpecToActionApiDTOInternal(actionSpec, context, topologyContextId, Maps.newHashMap(), detailLevel);
     }
 
     /**
@@ -481,13 +501,17 @@ public class ActionSpecMapper {
     private ActionApiDTO mapActionSpecToActionApiDTOInternal(
             @Nonnull final ActionSpec actionSpec,
             @Nonnull final ActionSpecMappingContext context,
-            final long topologyContextId, @Nullable final ActionDetailLevel detailLevel)
+            final long topologyContextId,
+            @Nonnull final Map<Long, Cost.EntityReservedInstanceCoverage> coverageMap,
+            @Nullable final ActionDetailLevel detailLevel)
             throws UnsupportedActionException {
         // Construct a response ActionApiDTO to return
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
         // actionID and uuid are the same
         actionApiDTO.setUuid(Long.toString(actionSpec.getRecommendation().getId()));
         actionApiDTO.setActionID(actionSpec.getRecommendation().getId());
+        // set ID of topology/market for which the action is generated
+        actionApiDTO.setMarketID(topologyContextId);
         // actionMode is direct translation
         final ActionDTO.ActionMode actionMode = actionSpec.getActionMode();
         actionApiDTO.setActionMode(ActionMode.valueOf(actionMode.name()));
@@ -549,7 +573,8 @@ public class ActionSpecMapper {
                 addReconfigureInfo(actionApiDTO, info.getReconfigure(), context);
                 break;
             case PROVISION:
-                addProvisionInfo(actionApiDTO, info.getProvision(), context);
+                addProvisionInfo(actionApiDTO, info.getProvision(),
+                                recommendation.getExplanation(), context);
                 break;
             case RESIZE:
                 if (info.hasAtomicResize()) {
@@ -606,7 +631,7 @@ public class ActionSpecMapper {
         }
 
         // update actionApiDTO with more info for realtime or plan actions
-        addMoreInfoToActionApiDTO(actionApiDTO, context, recommendation);
+        addMoreInfoToActionApiDTO(actionApiDTO, context, recommendation, coverageMap);
 
         // add the Execution status
         if (ActionDetailLevel.EXECUTION == detailLevel) {
@@ -677,19 +702,75 @@ public class ActionSpecMapper {
     }
 
     /**
+     * Associate a reserved instance with an action given RI coverage data, and a set of
+     * {@link ReservedInstanceApiDTO} in the given context.
+     *
+     * @param coverage data representing the RI coverage of an action target entity
+     * @param contextRis reserved instances in a given context
+     * @return the reserved instance to be associated with a given {@link ActionApiDTO}
+     */
+    private ReservedInstanceApiDTO getActionAsscociatedRi(
+            @Nonnull final Cost.EntityReservedInstanceCoverage coverage,
+            @Nonnull final Set<ReservedInstanceApiDTO> contextRis) {
+        final Map<String, ReservedInstanceApiDTO> riUuidToInstance = contextRis.stream()
+                .collect(Collectors.toMap(
+                        ReservedInstanceApiDTO::getUuid,
+                        Function.identity()));
+        final Map<Long, Double> buyRiToCouponsCovered = coverage.getCouponsCoveredByBuyRiMap();
+        final Map<Long, Double> riToCouponsCovered = coverage.getCouponsCoveredByRiMap();
+        ReservedInstanceApiDTO actionReservedInstanceApiDTO = null;
+        // Try to associate a buyRi first...
+        if (!buyRiToCouponsCovered.isEmpty()) {
+            actionReservedInstanceApiDTO = getRiFromCoverageMap(
+                    buyRiToCouponsCovered.entrySet().iterator(),
+                    riUuidToInstance);
+        }
+        // Try to match an existing RI if no buyRis matched...
+        if (Objects.isNull(actionReservedInstanceApiDTO) && !riToCouponsCovered.isEmpty()) {
+            actionReservedInstanceApiDTO = getRiFromCoverageMap(
+                    riToCouponsCovered.entrySet().iterator(),
+                    riUuidToInstance);
+        }
+        return actionReservedInstanceApiDTO;
+    }
+
+    /**
+     * Get the first relevant {@link ReservedInstanceApiDTO} represented in the entries of an RI
+     * coverage map given a map of UUID -> RI representing the current context.
+     *
+     * @param entries the entries of an RI coverage map - RI UUID to coupons covered
+     * @param riUuidToInstance a map of UUID -> {@link ReservedInstanceApiDTO}
+     * @return a {@link ReservedInstanceApiDTO} representing the first relevant RI in the coverage map
+     */
+    private ReservedInstanceApiDTO getRiFromCoverageMap(
+            @Nonnull final Iterator<Map.Entry<Long, Double>> entries,
+            @Nonnull final Map<String, ReservedInstanceApiDTO> riUuidToInstance) {
+        ReservedInstanceApiDTO reservedInstanceApiDTO = null;
+        do {
+            final String coveringRiUuid = entries.next().getKey().toString();
+            if (riUuidToInstance.containsKey(coveringRiUuid)) {
+                reservedInstanceApiDTO = riUuidToInstance.get(coveringRiUuid);
+            }
+        } while (entries.hasNext() && Objects.isNull(reservedInstanceApiDTO));
+        return reservedInstanceApiDTO;
+    }
+
+    /**
      * Update the given ActionApiDTO with more info for actions, such as aspects, template,
      * location, etc.
      *
      * @param actionApiDTO the ActionApiDTO to add more info to
      * @param context the ActionSpecMappingContext
      * @param action action info
+     * @param coverageMap a map of RI ID -> RI coverage
      * @throws UnsupportedActionException if the action type of the {@link ActionSpec}
      * is not supported.
      */
     private void addMoreInfoToActionApiDTO(@Nonnull ActionApiDTO actionApiDTO,
-                                           @Nonnull ActionSpecMappingContext context,
-                                           @Nonnull ActionDTO.Action action)
-            throws UnsupportedActionException {
+            @Nonnull ActionSpecMappingContext context,
+            @Nonnull ActionDTO.Action action,
+            @Nonnull final Map<Long, Cost.EntityReservedInstanceCoverage> coverageMap)
+                throws UnsupportedActionException {
         final ServiceEntityApiDTO targetEntity = actionApiDTO.getTarget();
         final ServiceEntityApiDTO newEntity = actionApiDTO.getNewEntity();
         final String targetEntityUuid = targetEntity.getUuid();
@@ -726,6 +807,36 @@ public class ActionSpecMapper {
             templateApiDTO.setDisplayName(newEntity.getDisplayName());
             templateApiDTO.setClassName(newEntity.getClassName());
             actionApiDTO.setTemplate(templateApiDTO);
+
+            // VM aspects need to be set for new entity (cloud tier for cloud migration case).
+            if (context.hasMigrationActions()) {
+                final Map<AspectName, EntityAspect> newAspects = new HashMap<>();
+                context.getVMProjectedAspect(targetEntityId)
+                        .map(vmAspect -> newAspects.put(AspectName.VIRTUAL_MACHINE, vmAspect));
+                // We show SLES in initial plan configuration in UI, so change SUSE to SLES
+                // in VM mapping output table to be consistent.
+                newAspects.values()
+                        .stream()
+                        .filter(VMEntityAspectApiDTO.class::isInstance)
+                        .map(VMEntityAspectApiDTO.class::cast)
+                        .forEach(vmAspect -> {
+                            if (OSType.SUSE.name().equals(vmAspect.getOs())) {
+                                vmAspect.setOs(OperatingSystem.SLES.name());
+                            }
+                        });
+                newEntity.setAspectsByName(newAspects);
+
+                // If RI for plan is available, set it.
+                final Cost.EntityReservedInstanceCoverage coverage = coverageMap.get(targetEntityId);
+                final Set<ReservedInstanceApiDTO> contextRis = context.getReservedInstances();
+                if (Objects.nonNull(coverage) && !contextRis.isEmpty()) {
+                    final ReservedInstanceApiDTO actionReservedInstanceApiDTO =
+                            getActionAsscociatedRi(coverage, contextRis);
+                    if (Objects.nonNull(actionReservedInstanceApiDTO)) {
+                        actionApiDTO.setReservedInstance(actionReservedInstanceApiDTO);
+                    }
+                }
+            }
         }
         // For cloud changing tier actions and virtual volume SCALE/MOVE/DELETE actions,
         // set region and virtualDisks.
@@ -975,8 +1086,7 @@ public class ActionSpecMapper {
                 final Optional<ServiceEntityApiDTO> entity = context.getEntity(oid);
                 if (entity.isPresent()) {
                     // invoke the getter via reflection
-                    Object fieldValue = new PropertyDescriptor(matcher.group(2),
-                            ServiceEntityApiDTO.class).getReadMethod().invoke(entity.get());
+                    final Object fieldValue = BeanUtils.getProperty(entity.get(), matcher.group(2));
                     sb.append(fieldValue);
                 } else {
                     // use the substitute/fallback value because there is no entity in topology
@@ -1335,6 +1445,7 @@ public class ActionSpecMapper {
 
     private void addProvisionInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                   @Nonnull final Provision provision,
+                                  @Nonnull final Explanation actionExplanation,
                                   @Nonnull final ActionSpecMappingContext context) {
         final ActionEntity currentEntity = provision.getEntityToClone();
         long currentEntityId = currentEntity.getId();
@@ -1368,6 +1479,10 @@ public class ActionSpecMapper {
             }
             actionApiDTO.setNewEntity(newEntity);
             actionApiDTO.setNewValue(newEntity.getUuid());
+        } else if (isVSANCause(actionExplanation)) {
+            // When providing a host because of vSAN storage needs we'd like to know how it
+            // will affect the said vSAN storage.
+            addVSANCausingProvisionInfo(actionApiDTO, context, currentEntityId);
         } else {
             // In realtime actions we don't provide a reference to the provisioned entities, because
             // they do not exist in the projected topology. This is because provisioning is not
@@ -1375,6 +1490,52 @@ public class ActionSpecMapper {
             // provisions when constructing the projected topology.
             actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
         }
+    }
+
+    /**
+     * Add info about vSAN storage whose needs have triggered host provision to actionApiDTO.
+     * @param actionApiDTO the resulting action description for API
+     * @param context is context
+     * @param currentEntityId current entity ID
+     */
+    private void addVSANCausingProvisionInfo(@Nonnull final ActionApiDTO actionApiDTO,
+                    @Nonnull final ActionSpecMappingContext context,
+                    final long currentEntityId)    {
+        Optional<ServiceEntityApiDTO> completeCurrentEntity = context.getEntity(currentEntityId);
+        if (completeCurrentEntity.isPresent())  {
+            for (BaseApiDTO consumer : completeCurrentEntity.get().getConsumers())  {
+                if (StringConstants.STORAGE.equals(consumer.getClassName()))    {
+                    final ServiceEntityApiDTO newEntity = new ServiceEntityApiDTO();
+                    newEntity.setUuid(consumer.getUuid());
+                    newEntity.setClassName(StringConstants.STORAGE);
+                    newEntity.setDisplayName(consumer.getDisplayName());
+                    actionApiDTO.setNewEntity(newEntity);
+                    actionApiDTO.setNewValue(newEntity.getUuid());
+                    return;
+                }
+            }
+        }
+        logger.error("Couldn't find Storage consumer that had become the cause of Provision. Cloned entity: {}",
+                        currentEntityId);
+        actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
+    }
+
+    /**
+     * Checks the action explanation to see whether vSAN storage needs are the cause.
+     * @param actionExplanation action explanation
+     * @return true if the host provision was caused by vSAN needs.
+     */
+    private boolean isVSANCause(@Nonnull final Explanation actionExplanation)    {
+        if (!(actionExplanation.hasProvision()
+                    && actionExplanation.getProvision().hasProvisionBySupplyExplanation()
+                    && actionExplanation.getProvision().getProvisionBySupplyExplanation()
+                        .hasMostExpensiveCommodityInfo()))  {
+            return false;
+        }
+        Explanation.ReasonCommodity reasonCommodity = actionExplanation.getProvision()
+                        .getProvisionBySupplyExplanation().getMostExpensiveCommodityInfo();
+        return reasonCommodity.hasCommodityType() && reasonCommodity.getCommodityType().hasType()
+                        && HCIUtils.isVSANRelatedCommodity(reasonCommodity.getCommodityType().getType());
     }
 
     // Top level merged resize action
@@ -1543,6 +1704,19 @@ public class ActionSpecMapper {
                 actionApiDTO.setNewLocation(regionDTO);
             });
         }
+
+        // If there is a new region in compound action, set newLocation based on that.
+        final List<ActionApiDTO> compoundActions = actionApiDTO.getCompoundActions();
+        if (CollectionUtils.isEmpty(compoundActions)) {
+            return;
+        }
+        Optional<ServiceEntityApiDTO> newLocation = compoundActions
+                .stream()
+                .map(ActionApiDTO::getNewEntity)
+                .filter(seApiDto -> seApiDto != null && StringConstants.REGION.equals(
+                        seApiDto.getClassName()))
+                .findFirst();
+        newLocation.ifPresent(actionApiDTO::setNewLocation);
     }
 
     /**
@@ -1564,7 +1738,8 @@ public class ActionSpecMapper {
 
         try {
             ReservedInstanceApiDTO riApiDTO = reservedInstanceMapper.mapToReservedInstanceApiDTO(ri,
-                    riSpec, context.getServiceEntityApiDTOs(), null, null);
+                    riSpec, context.getServiceEntityApiDTOs(),
+                    null, null, null);
             actionApiDTO.setReservedInstance(riApiDTO);
             actionApiDTO.setTarget(getServiceEntityDTO(context, buyRI.getRegion()));
             // For less brittle UI integration, we set the current entity to an empty object.
@@ -1927,49 +2102,49 @@ public class ActionSpecMapper {
             final ActionSpec actionSpec = action.getActionSpec();
             if (actionSpec == null || !actionSpec.hasRecommendation()) {
                 response.put(Long.toString(action.getActionId()), new NoDetailsApiDTO());
-            } else {
-                ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
-                // Buy RI action - set est. on-demand cost and coverage values + historical demand data
-                if (actionSpec.getRecommendation().hasExplanation() && actionType.equals(BUY_RI)) {
-                    RIBuyActionDetailsApiDTO detailsDto = new RIBuyActionDetailsApiDTO();
-                    // set est RI Coverage
-                    ActionDTO.Explanation.BuyRIExplanation buyRIExplanation = actionSpec.getRecommendation().getExplanation().getBuyRI();
-                    float covered = buyRIExplanation.getCoveredAverageDemand();
-                    float capacity = buyRIExplanation.getTotalAverageDemand();
-                    detailsDto.setEstimatedRICoverage((covered / capacity) * 100);
-                    // set est. on-demand cost
-                    detailsDto.setEstimatedOnDemandCost(buyRIExplanation.getEstimatedOnDemandCost());
-                    // set demand data
-                    Cost.riBuyDemandStats snapshots = riStub
-                            .getRIBuyContextData(Cost.GetRIBuyContextRequest.newBuilder()
-                                    .setActionId(Long.toString(actionSpec.getRecommendation().getId())).build());
-                    List<StatSnapshotApiDTO> demandList = createRiHistoricalContextStatSnapshotDTO(
-                            snapshots.getStatSnapshotsList());
-                    detailsDto.setHistoricalDemandData(demandList);
-                    response.put(Long.toString(action.getActionId()), detailsDto);
+                continue;
+            }
+            ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
+            // Buy RI action - set est. on-demand cost and coverage values + historical demand data
+            if (actionSpec.getRecommendation().hasExplanation() && actionType.equals(BUY_RI)) {
+                RIBuyActionDetailsApiDTO detailsDto = new RIBuyActionDetailsApiDTO();
+                // set est RI Coverage
+                ActionDTO.Explanation.BuyRIExplanation buyRIExplanation = actionSpec.getRecommendation().getExplanation().getBuyRI();
+                float covered = buyRIExplanation.getCoveredAverageDemand();
+                float capacity = buyRIExplanation.getTotalAverageDemand();
+                detailsDto.setEstimatedRICoverage((covered / capacity) * 100);
+                // set est. on-demand cost
+                detailsDto.setEstimatedOnDemandCost(buyRIExplanation.getEstimatedOnDemandCost());
+                // set demand data
+                Cost.riBuyDemandStats snapshots = riStub
+                        .getRIBuyContextData(Cost.GetRIBuyContextRequest.newBuilder()
+                                .setActionId(Long.toString(actionSpec.getRecommendation().getId())).build());
+                List<StatSnapshotApiDTO> demandList = createRiHistoricalContextStatSnapshotDTO(
+                        snapshots.getStatSnapshotsList());
+                detailsDto.setHistoricalDemandData(demandList);
+                response.put(Long.toString(action.getActionId()), detailsDto);
+                continue;
+            }
+
+            if (shouldGetDetailsForActionType(actionSpec.getRecommendation())) {
+                Long entityUuid = getEntityUuidFromActionSpec(actionSpec);
+                if (Objects.isNull(entityUuid)) {
+                    continue;
                 }
-                else if (actionType == RESIZE || actionType == SCALE || actionType == ALLOCATE) {
-                    long entityUuid;
-                    ActionEntity entity;
-                    try {
-                        entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
-                        entityUuid = entity.getId();
-                    } catch (UnsupportedActionException e) {
-                        logger.warn("Cannot create action details due to unsupported action type", e);
-                        continue;
-                    }
-                    if (entity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
-                        logger.warn("Cannot create action details for on-prem actions");
-                        continue;
-                    }
-                    final String actionIdString = Long.toString(action.getActionId());
-                    // Scaling cloud volume action
-                    if (entity.getType() == EntityType.VIRTUAL_VOLUME_VALUE) {
-                        scaleCloudVolumeActionToVolumeUuidMap.put(actionIdString, entityUuid);
-                    } else {
-                        // Scaling cloud VM/DB/DBS action
-                        actionToEntityUuidMap.put(actionIdString, entityUuid);
-                    }
+                ActionEntity entity;
+                try {
+                    entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
+                } catch (UnsupportedActionException e) {
+                    logger.warn("Cannot create action details due to unsupported action type", e);
+                    continue;
+                }
+                final String actionIdString = Long.toString(action.getActionId());
+                // Scaling cloud volume action
+                if (actionType == SCALE && entity.getType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+                    scaleCloudVolumeActionToVolumeUuidMap.put(actionIdString, entityUuid);
+                } else {
+                    // Scaling cloud VM/DB/DBS action
+                    actionToEntityUuidMap.put(actionIdString, entityUuid);
                 }
             }
         }
@@ -1987,6 +2162,52 @@ public class ActionSpecMapper {
         });
 
         return response;
+    }
+
+    /**
+     * Get the UUID of the primary entity involved in a given action.
+     *
+     * @param actionSpec the {@link ActionSpec} corresponding to a given action
+     * @return the UUID of the primary entity involved in a given action
+     */
+    private static Long getEntityUuidFromActionSpec(final ActionSpec actionSpec) {
+        long entityUuid;
+        ActionEntity entity;
+        try {
+            entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
+            entityUuid = entity.getId();
+        } catch (UnsupportedActionException e) {
+            logger.warn("Cannot create action details due to unsupported action type", e);
+            return null;
+        }
+        if (entity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+            logger.warn("Cannot create action details for on-prem actions");
+            return null;
+        }
+        return entityUuid;
+    }
+
+    /**
+     * Whether to show action details. Usual actions like SCALE, RESIZE we show details.
+     * For cloud migration moves across regions, we show details as well.
+     *
+     * @param action Action to check.
+     * @return True if action details need to be fetched.
+     */
+    private boolean shouldGetDetailsForActionType(@Nonnull final ActionDTO.Action action) {
+        ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(action);
+        switch (actionType) {
+            case RESIZE:
+            case SCALE:
+            case ALLOCATE:
+                return true;
+            case MOVE:
+                // If we are moving across regions, as in cloud migration for example, then
+                // we need to show details, so return true in that case.
+                return !TopologyDTOUtil.isMoveWithinSameRegion(action);
+            default:
+                return false;
+        }
     }
 
     /**
@@ -2064,22 +2285,26 @@ public class ActionSpecMapper {
             }
         }
 
-        // We expect to receive only current and future times
+        // We expect to receive only current and future times, unless it is an on-prem to cloud
+        // migration, in which case there are only projected costs.
         Set<Long> timeSet = recordsByTime.keySet();
-        if (timeSet.size() == 2) {
-            Long currentTime = Collections.min(timeSet); // current
+        if (timeSet.size() >= 1) {
+            boolean hasCurrentCosts = timeSet.size() >= 2;
+            Long currentTime = hasCurrentCosts ? Collections.min(timeSet) : null; // current
             Long projectedTime = Collections.max(timeSet); // projected
-            List<StatRecord> currentRecords = recordsByTime.get(currentTime);
+            List<StatRecord> currentRecords = hasCurrentCosts ? recordsByTime.get(currentTime) : null;
             List<StatRecord> projectedRecords = recordsByTime.get(projectedTime);
 
             dtoMap.forEach((id, dto) -> {
-                // get real-time
-                Double onDemandCostBefore = currentRecords
-                        .stream()
-                        .filter(rec -> rec.getAssociatedEntityId() == id)
-                        .map(StatRecord::getValues)
-                        .mapToDouble(StatRecord.StatValue::getTotal)
-                        .sum();
+                Double onDemandCostBefore = 0d;
+                if (hasCurrentCosts) {
+                    // get real-time
+                    onDemandCostBefore = currentRecords.stream()
+                            .filter(rec -> rec.getAssociatedEntityId() == id)
+                            .map(StatRecord::getValues)
+                            .mapToDouble(StatRecord.StatValue::getTotal)
+                            .sum();
+                }
                 // get projected
                 Double onDemandCostAfter = projectedRecords
                         .stream()
@@ -2091,7 +2316,7 @@ public class ActionSpecMapper {
                 dto.setOnDemandCostAfter(onDemandCostAfter.floatValue());
             });
         } else {
-            logger.debug("Unable to provide on-demand costs before and after action for entities {}",
+            logger.debug("Unable to provide on-demand costs before or after action for entities {}",
                     dtoMap);
         }
     }
@@ -2268,23 +2493,7 @@ public class ActionSpecMapper {
             }
         });
 
-
-        // get projected RI coverage for target entity
-        Cost.GetProjectedEntityReservedInstanceCoverageRequest.Builder builder =
-                Cost.GetProjectedEntityReservedInstanceCoverageRequest
-                        .newBuilder()
-                        .setEntityFilter(entityFilter);
-        if (!Objects.isNull(topologyContextId)) {
-            builder.setTopologyContextId(topologyContextId);
-        }
-
-        Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest = builder.build();
-        Cost.GetProjectedEntityReservedInstanceCoverageResponse projectedEntityReservedInstanceCoverageResponse =
-                reservedInstanceUtilizationCoverageServiceBlockingStub
-                        .getProjectedEntityReservedInstanceCoverageStats(projectedEntityReservedInstanceCoverageRequest);
-
-        Map<Long, Cost.EntityReservedInstanceCoverage> projectedCoverageMap = projectedEntityReservedInstanceCoverageResponse
-                .getCoverageByEntityIdMap();
+        Map<Long, Cost.EntityReservedInstanceCoverage> projectedCoverageMap = getEntityRiCoverageMap(topologyContextId, entityFilter);
 
         dtoMap.forEach((entityUuid, cloudResizeActionDetailsApiDTO) -> {
             if (projectedCoverageMap.containsKey(entityUuid)) {
@@ -2304,6 +2513,68 @@ public class ActionSpecMapper {
                 logger.debug("Failed to retrieve projected RI coverage for entity with ID: {}", entityUuid);
             }
         });
+    }
+
+    /**
+     * Given a {@param topologyContextId} and an {@link EntityFilter}, retrieve the corresponding
+     * map of RI coverage by entity ID.
+     *
+     * @param topologyContextId the context ID of a given topology
+     * @param entityFilter the {@link EntityFilter} representing a given group of entities
+     * @return a map of RI coverage by entity ID
+     */
+    private Map<Long, Cost.EntityReservedInstanceCoverage> fetchEntityRiCoverageMap(
+            Long topologyContextId,
+            EntityFilter entityFilter) {
+        // get projected RI coverage for target entity
+        Cost.GetProjectedEntityReservedInstanceCoverageRequest.Builder builder =
+                Cost.GetProjectedEntityReservedInstanceCoverageRequest
+                        .newBuilder()
+                        .setEntityFilter(entityFilter);
+        if (!Objects.isNull(topologyContextId)) {
+            builder.setTopologyContextId(topologyContextId);
+        }
+
+        Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest = builder.build();
+        Cost.GetProjectedEntityReservedInstanceCoverageResponse projectedEntityReservedInstanceCoverageResponse =
+                reservedInstanceUtilizationCoverageServiceBlockingStub
+                        .getProjectedEntityReservedInstanceCoverageStats(projectedEntityReservedInstanceCoverageRequest);
+
+        return projectedEntityReservedInstanceCoverageResponse
+                .getCoverageByEntityIdMap();
+    }
+
+    /**
+     * Retrieve the RI coverage map corresponding to a given {@param topologyContextId} and
+     * {@param entityFilter} from cache if present, otherwise fetch it via gRPC request.
+     *
+     * @param topologyContextId the context ID of a given topology
+     * @param entityFilter the {@link EntityFilter} representing a set of entities
+     * @return the corresponding RI coverage map
+     */
+    private Map<Long, Cost.EntityReservedInstanceCoverage> getEntityRiCoverageMap(
+            Long topologyContextId,
+            EntityFilter entityFilter) {
+        boolean containsTopologyContextEntry = topologyContextIdToEntityFilterToEntityRiCoverage.containsKey(topologyContextId);
+        if (containsTopologyContextEntry
+                && topologyContextIdToEntityFilterToEntityRiCoverage.get(topologyContextId).containsKey(entityFilter)) {
+            return topologyContextIdToEntityFilterToEntityRiCoverage.get(topologyContextId).get(entityFilter);
+        } else {
+            Map<Long, Cost.EntityReservedInstanceCoverage> coverageMap = fetchEntityRiCoverageMap(topologyContextId, entityFilter);
+            // Update the cache...
+            if (!containsTopologyContextEntry) {
+                // Bust the cache when it gets large
+                if (topologyContextIdToEntityFilterToEntityRiCoverage.size() >= 20) {
+                    topologyContextIdToEntityFilterToEntityRiCoverage.clear();
+                }
+                final Map<EntityFilter, Map<Long, Cost.EntityReservedInstanceCoverage>> entityFilterToRiCoverage = Maps.newHashMap();
+                entityFilterToRiCoverage.put(entityFilter, coverageMap);
+                topologyContextIdToEntityFilterToEntityRiCoverage.put(topologyContextId, entityFilterToRiCoverage);
+            } else {
+                topologyContextIdToEntityFilterToEntityRiCoverage.get(topologyContextId).put(entityFilter, coverageMap);
+            }
+            return coverageMap;
+        }
     }
 
     /**

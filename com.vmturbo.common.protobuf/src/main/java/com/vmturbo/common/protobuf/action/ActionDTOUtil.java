@@ -93,8 +93,8 @@ public class ActionDTOUtil {
     public static final Pattern TRANSLATION_PATTERN = Pattern.compile(TRANSLATION_REGEX);
 
     private static final Set<Integer> PRIMARY_TIER_VALUES = ImmutableSet.of(
-        EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
-        EntityType.DATABASE_TIER_VALUE);
+            EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
+            EntityType.STORAGE_TIER_VALUE, EntityType.DATABASE_TIER_VALUE);
 
     // String constant for displayName.
     private static final String DISPLAY_NAME = "displayName";
@@ -303,8 +303,9 @@ public class ActionDTOUtil {
     }
 
     /**
-     * If a move action has a volume as resource and is from one storage tier to another, the
-     * resource volume should be treated as the target of the action.
+     * If a move action has a volume as resource and it is moving from one storage tier to another
+     * or it is moving a storage from on-prem to cloud, the volume should be treated as the target
+     * of the action.
      *
      * @param actionInfo action info to be assessed
      * @return the entity that should be treated as its target
@@ -317,7 +318,8 @@ public class ActionDTOUtil {
                 if (primaryChangeProvider.hasSource()
                         && primaryChangeProvider.hasDestination()
                         && primaryChangeProvider.hasResource()
-                        && TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getSource().getType())
+                        && (TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getSource().getType())
+                        || EntityType.STORAGE_VALUE == primaryChangeProvider.getSource().getType())
                         && TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getDestination().getType())
                         && TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getSource().getType())
                         && TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getDestination().getType())) {
@@ -457,13 +459,12 @@ public class ActionDTOUtil {
                 final List<ActionEntity> atomicResizeEntities = new ArrayList<>();
                 atomicResizeEntities.add(getPrimaryEntity(action));
                 for (ResizeInfo resize : action.getInfo().getAtomicResize().getResizesList()) {
-                    atomicResizeEntities.addAll(resize.getSourceEntitiesList());
                     if (resize.hasTarget()) {
                         atomicResizeEntities.add(resize.getTarget());
                     }
                 }
                 return atomicResizeEntities;
-                case RESIZE:
+            case RESIZE:
             case ACTIVATE:
             case DEACTIVATE:
             case PROVISION:
@@ -798,7 +799,9 @@ public class ActionDTOUtil {
      * @return true if the entity type is a primary entity type. false otherwise.
      */
     public static boolean isPrimaryEntityType(int entityType) {
-        return entityType == EntityType.PHYSICAL_MACHINE_VALUE || PRIMARY_TIER_VALUES.contains(entityType);
+        return entityType == EntityType.PHYSICAL_MACHINE_VALUE
+                || entityType == EntityType.VIRTUAL_VOLUME_VALUE
+                || PRIMARY_TIER_VALUES.contains(entityType);
     }
 
     /**

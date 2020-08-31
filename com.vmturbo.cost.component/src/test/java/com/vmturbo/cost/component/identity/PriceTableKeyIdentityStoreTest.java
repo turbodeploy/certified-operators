@@ -281,7 +281,7 @@ public class PriceTableKeyIdentityStoreTest {
         dsl.delete(Tables.PRICE_TABLE_KEY_OID).execute();
         assertThat(testIdentityStore.fetchAllOidMappings().isEmpty(), is(true));
 
-        testIdentityStore.restoreDiags(captor.getAllValues());
+        testIdentityStore.restoreDiags(captor.getAllValues(), null);
         assertThat(controlMatchingAttributesLongMap,
                 equalTo(testIdentityStore.fetchAllOidMappings()));
     }
@@ -305,7 +305,7 @@ public class PriceTableKeyIdentityStoreTest {
 
         PriceTableKeyIdentityStore newPriceTableKeyIdentityStore = new PriceTableKeyIdentityStore(dsl,
                 new IdentityProvider(0));
-        newPriceTableKeyIdentityStore.restoreDiags(captor.getAllValues());
+        newPriceTableKeyIdentityStore.restoreDiags(captor.getAllValues(), null);
 
         Map<IdentityMatchingAttributes, Long> newMap = newPriceTableKeyIdentityStore.fetchAllOidMappings();
         assertThat(originalMap, equalTo(newMap));

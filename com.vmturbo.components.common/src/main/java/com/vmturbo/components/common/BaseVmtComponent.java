@@ -58,6 +58,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.ServerStartedNotifier;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
@@ -74,6 +75,7 @@ import com.vmturbo.components.common.metrics.MemoryMetricsManager;
 import com.vmturbo.components.common.metrics.MemoryMetricsManager.ManagedRoot;
 import com.vmturbo.components.common.metrics.ScheduledMetrics;
 import com.vmturbo.components.common.migration.Migration;
+import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 
@@ -161,6 +163,16 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     private static SetOnce<String> instanceIp = new SetOnce<>();
 
     /**
+     * Information about the component version and build.
+     */
+    private static final DataMetricGauge VERSION_GAUGE = DataMetricGauge.builder()
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "version_info")
+            .withHelp("Version and build of the component")
+            .withLabelNames("version", "build")
+            .build()
+            .register();
+
+    /**
      * Indicate whether this component should contact ClusterMgr for configuration information
      * on startup or shut-down.
      */
@@ -209,7 +221,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Value("${server.grpcMaxMessageBytes:12000000}")
     private int grpcMaxMessageBytes;
 
-    @Value("${enableMemoryMonitor:false}")
+    @Value("${enableMemoryMonitor:true}")
     private boolean enableMemoryMonitor;
 
     private static final SetOnce<org.eclipse.jetty.server.Server> JETTY_SERVER = new SetOnce<>();
@@ -403,6 +415,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 System.exit(1);
             }
         });
+        BuildProperties buildProperties = BuildProperties.get();
+        VERSION_GAUGE.labels(buildProperties.getVersion(), buildProperties.getBuildNumber()).setData(1.0);
         svc.shutdown();
     }
 

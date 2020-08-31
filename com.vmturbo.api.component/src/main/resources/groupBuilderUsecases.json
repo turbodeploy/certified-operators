@@ -201,7 +201,10 @@
             {"inputType": "*", "elements": "ApplicationComponent:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByApplicationComponent"},
             {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByBusinessApplication"},
             {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByBusinessTransaction"},
-            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByService"}
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseServerByService"},
+            {"inputType": "*", "elements": "dbEngine", "filterCategory": "property", "filterType": "databaseServerByEngine"},
+            {"inputType": "*", "elements": "dbEdition", "filterCategory": "property", "filterType": "databaseServerByEdition"},
+            {"inputType": "*", "elements": "dbVersion", "filterCategory": "property", "filterType": "databaseServerByVersion"}
         ]
     },
 
