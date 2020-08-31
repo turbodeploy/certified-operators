@@ -269,6 +269,22 @@ public final class MarketAnalysisUtils {
                     .of(CommodityDTO.CommodityType.CPU_VALUE, CommodityDTO.CommodityType.MEM_VALUE);
 
     /**
+     * Use STANDARD distribution for TRANSACTION commodity.
+     */
+    public static final Set<Integer> STANDARD_DISTRIBUTION_TYPES =
+                    ImmutableSet.of(CommodityDTO.CommodityType.TRANSACTION_VALUE,
+                                    CommodityDTO.CommodityType.RESPONSE_TIME_VALUE);
+
+    /**
+     * Create the instance of standard distribution {@link UpdatingFunctionTO}.
+     */
+    public static final UpdatingFunctionTO STANDARD_DISTRIBUTION_FUNCTION =
+            UpdatingFunctionTO.newBuilder()
+                    .setStandardDistribution(UpdatingFunctionTO.StandardDistribution.newBuilder()
+                            .build())
+                    .build();
+
+    /**
      *  Updating functions are used when taking actions in computing the new
      *  used and peak used values of commodities sold. Below are reusable DTOs
      *  used when constructing commodity sold settings.
@@ -418,9 +434,11 @@ public final class MarketAnalysisUtils {
      * @return a (reusable) instance of UpdatingFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
-    public static UpdatingFunctionTO updateFunction(CommodityType commSoldType) {
+    public static UpdatingFunctionTO updateFunction(final CommodityType commSoldType) {
         int commType = commSoldType.getType();
-        if (FINITE_SWP_PRICE_TYPES.contains(commType)
+        if (STANDARD_DISTRIBUTION_TYPES.contains(commType)) {
+            return STANDARD_DISTRIBUTION_FUNCTION;
+        } else if (FINITE_SWP_PRICE_TYPES.contains(commType)
                         || commType == CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE) {
             return AVERAGE_UPDATING_FUNCTION;
         } else if (FLOW_COMMODITY_SET.contains(commType)) {
