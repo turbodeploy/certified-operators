@@ -347,6 +347,7 @@ public class LiveActionStore implements ActionStore {
                         actionsToRemove.add(action);
                         break;
                     case SUCCEEDED:
+                        recommendations.add(action);
                     case FAILED:
                         completedSinceLastPopulate.add(action);
                         actionsToRemove.add(action);
@@ -388,7 +389,6 @@ public class LiveActionStore implements ActionStore {
                 final Action action;
                 if (existingActionOpt.isPresent()) {
                     action = existingActionOpt.get();
-
                     // If we are re-using an existing action, we should update the recommendation
                     // so other properties that may have changed (e.g. importance, executability)
                     // reflect the most recent recommendation from the market. However, we only
