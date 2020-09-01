@@ -64,7 +64,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Pair;
-import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
@@ -91,6 +90,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.util.Units;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxCollectors;
 import com.vmturbo.trax.TraxConfiguration.TraxContext;
@@ -1346,9 +1346,8 @@ public class ActionInterpreter {
             } else {
                 logger.error("Could not explain cloud scale action. MoveTO = {} .Action target oid = {}",
                     moveTO, id);
-                return Optional.of(ChangeProviderExplanation.newBuilder()
-                        .setEfficiency(Efficiency.getDefaultInstance()));
         }
+        return Optional.empty();
     }
 
     private Optional<ChangeProviderExplanation.Builder> getDefaultExplanationForCloud(long id, @Nonnull final MoveTO moveTO) {
