@@ -9,7 +9,6 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIR
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -25,6 +24,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Streams;
 
 import org.apache.logging.log4j.LogManager;
@@ -79,8 +79,13 @@ public class PlanTopologyScopeEditor {
             .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
+    /**
+     * We don't include potential providers of the following entities into scope.
+     * Current provider will still be included in the scope.
+     */
     private static final Set<Integer> ENTITY_TYPES_TO_SKIP =
-            new HashSet<>(Collections.singletonList(EntityType.BUSINESS_APPLICATION_VALUE));
+            ImmutableSet.of(EntityType.BUSINESS_APPLICATION_VALUE, EntityType.BUSINESS_TRANSACTION_VALUE,
+                EntityType.SERVICE_VALUE);
 
     private final GroupServiceBlockingStub groupServiceClient;
 
@@ -480,7 +485,7 @@ public class PlanTopologyScopeEditor {
                 final long sellerId = seller.getOid();
                 if (!providersExpanded.contains(sellerId)) {
                     // if thisTrader is "skipped", and is not a seed, bring in just the sellers that we have already scoped in.
-                    // This logic is for business applications.
+                    // This logic is for ENTITY_TYPES_TO_SKIP.
                     if (!skipEntityType || (seedOids.contains(traderOid) || scopedTopologyOIDs.contains(seller.getOid())) ) {
                         if (!allSeed.containsKey(EntityType.forNumber(topology.getEntity(sellerId).get().getEntityType()))
                                 || seedOids.contains(sellerId)) {

@@ -97,7 +97,7 @@ public class ActionDTOUtil {
             EntityType.STORAGE_TIER_VALUE, EntityType.DATABASE_TIER_VALUE);
 
     // String constant for displayName.
-    private static final String DISPLAY_NAME = "displayName";
+    public static final String DISPLAY_NAME = "displayName";
 
     private static final ImmutableMap<Integer, String> CLOUD_SCALE_ACTION_ENTITY_TYPE_DISPLAYNAME
             = ImmutableMap.of(EntityType.VIRTUAL_VOLUME_VALUE, "Volume");
@@ -458,11 +458,6 @@ public class ActionDTOUtil {
             case ATOMICRESIZE:
                 final List<ActionEntity> atomicResizeEntities = new ArrayList<>();
                 atomicResizeEntities.add(getPrimaryEntity(action));
-                for (ResizeInfo resize : action.getInfo().getAtomicResize().getResizesList()) {
-                    if (resize.hasTarget()) {
-                        atomicResizeEntities.add(resize.getTarget());
-                    }
-                }
                 return atomicResizeEntities;
             case RESIZE:
             case ACTIVATE:

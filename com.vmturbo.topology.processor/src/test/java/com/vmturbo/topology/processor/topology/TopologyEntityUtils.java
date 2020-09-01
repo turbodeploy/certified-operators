@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -183,6 +184,30 @@ public class TopologyEntityUtils {
                                                         String displayName,
                                                         EntityType entityType,
                                                         long... producers) {
+        return topologyEntity(oid, discoveringTargetId, lastUpdatedTime,
+            displayName, entityType, Collections.emptyList(), producers);
+    }
+
+    /**
+     * Create a minimal topology entity builder.
+     *
+     * @param oid The OID of the topology entity.
+     * @param discoveringTargetId The ID of the target that discovered the entity.
+     * @param lastUpdatedTime last updated time of the topology entity.
+     * @param displayName topology entity display name.
+     * @param entityType The entity type for the entity.
+     * @param soldComms is the list of {@link CommodityType} sold.
+     * @param producers The OIDs of the producers that the created entity should be consuming from.
+     *                  Does not actually associate any commodities with the producers.
+     * @return A {@link TopologyEntityDTO} with the given properties.
+     */
+    public static TopologyEntity.Builder topologyEntity(long oid,
+                                                        long discoveringTargetId,
+                                                        long lastUpdatedTime,
+                                                        String displayName,
+                                                        EntityType entityType,
+                                                        List<CommodityType> soldComms,
+                                                        long... producers) {
         final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()
                 .setOid(oid)
@@ -191,6 +216,9 @@ public class TopologyEntityUtils {
                 .setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId, null)
                         .lastUpdatedAt(lastUpdatedTime))));
+        for (CommodityType ct : soldComms) {
+            builder.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(ct).build());
+        }
 
         addCommodityBoughtMap(builder.getEntityBuilder(), producers);
         return builder;

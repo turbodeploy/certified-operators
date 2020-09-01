@@ -27,13 +27,11 @@ import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 @Configuration
@@ -93,8 +91,7 @@ public class ActionStatsConfig {
      */
     @Bean
     public BusinessAccountActionAggregatorFactory businessAccountActionAggregatorFactory() {
-        return new BusinessAccountActionAggregatorFactory(
-            RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()));
+        return new BusinessAccountActionAggregatorFactory();
     }
 
     /**
@@ -104,8 +101,7 @@ public class ActionStatsConfig {
      */
     @Bean
     public ResourceGroupActionAggregatorFactory resourceGroupActionAggregatorFactory() {
-        return new ResourceGroupActionAggregatorFactory(
-            new GroupMemberRetriever(GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel())));
+        return new ResourceGroupActionAggregatorFactory();
     }
 
     /**

@@ -90,6 +90,8 @@ public class PlanTopologyScopeEditorTest {
             .setKey("APP1").build();
     private static final TopologyDTO.CommodityType APP2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
             .setKey("APP2").build();
+    private static final TopologyDTO.CommodityType APP3 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
+            .setKey("APP3").build();
     private static final TopologyDTO.CommodityType BAPP1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
             .setKey("BAPP1").build();
     private static final TopologyDTO.CommodityType BAPP2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
@@ -115,6 +117,7 @@ public class PlanTopologyScopeEditorTest {
     private static final List<TopologyDTO.CommodityType> basketSoldByDS2 = Lists.newArrayList(ST_AMT, SC2, DSPM2);
     private static final List<TopologyDTO.CommodityType> basketSoldByAS1 = Lists.newArrayList(BAPP1);
     private static final List<TopologyDTO.CommodityType> basketSoldByAS2 = Lists.newArrayList(BAPP2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByVMInUSEast = Lists.newArrayList(APP3);
 
     private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByVMinDC1PM1DS1 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
         put(20001L, basketSoldByPMinDC1);
@@ -156,6 +159,19 @@ public class PlanTopologyScopeEditorTest {
         put(70002L, basketSoldByAS2);
     }};
 
+    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByBT = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
+        put(90002L, basketSoldByVMInUSEast);
+        put(90003L, Collections.singletonList(APP1));
+    }};
+
+    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByService1 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
+        put(4007L, basketSoldByVMInUSEast);
+    }};
+
+    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByService2 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
+        put(30001L, Collections.singletonList(APP1));
+    }};
+
     private static final int HYPERVISOR_TARGET = 0;
     private static final int CLOUD_TARGET_1 = 1;
     private static final int CLOUD_TARGET_2 = 2;
@@ -184,6 +200,7 @@ public class PlanTopologyScopeEditorTest {
     private static final long UNATTACHED_VV_IN_CENTRAL_US_ID = 6006L;
     private static final long UNATTACHED_VV_IN_LONDON_ID = 6007L;
     private static final long VIRTUAL_VOLUME_2_IN_CANADA_ID = 6008L;
+    private static final long VIRTUAL_VOLUME_IN_US_EAST_ID = 6009L;
 
     private final TopologyEntity.Builder computeTier = createCloudConnectedTopologyEntity(
             CLOUD_TARGET_1, 3001L, "Compute tier", EntityType.COMPUTE_TIER);
@@ -198,6 +215,8 @@ public class PlanTopologyScopeEditorTest {
             CLOUD_TARGET_1, 4003L, "VM in Ohio", VIRTUAL_VOLUME_IN_OHIO_ID);
     private final TopologyEntity.Builder vmInHongKong = createCloudVm(
             CLOUD_TARGET_1, 4004L, "VM in Hong Kong", VIRTUAL_VOLUME_IN_HONG_KONG_ID);
+    private final TopologyEntity.Builder vmInUSEast = createCloudVm(
+            CLOUD_TARGET_1, 4007L, "VM in US East", basketSoldByVMInUSEast, VIRTUAL_VOLUME_IN_US_EAST_ID);
 
     private final TopologyEntity.Builder appAws =
             TopologyEntityUtils.topologyEntity(900000L, CLOUD_TARGET_1, 0,
@@ -222,6 +241,9 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder unattachedVirtualVolumeInLondon = createCloudVolume(
             CLOUD_TARGET_1, UNATTACHED_VV_IN_LONDON_ID, "Unattached Virtual Volume in London",
             storageTier.getOid());
+    private final TopologyEntity.Builder vvInUSEast = createCloudVolume(
+            CLOUD_TARGET_1, VIRTUAL_VOLUME_IN_US_EAST_ID, "Virtual Volume in US East",
+            storageTier.getOid());
 
     private final TopologyEntity.Builder az1London = createCloudTopologyAvailabilityZone(
             CLOUD_TARGET_1, 1001L, "AZ1 London",
@@ -238,6 +260,9 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder az2HongKong = createCloudTopologyAvailabilityZone(
             CLOUD_TARGET_1, 1005L, "AZ2 Hong Kong",
             dbsHongKong);
+    private final TopologyEntity.Builder azUSEast = createCloudTopologyAvailabilityZone(
+            CLOUD_TARGET_1, 1006L, "AZ US East",
+            vmInUSEast, vvInUSEast);
 
     private final TopologyEntity.Builder regionLondon = createRegion(
             CLOUD_TARGET_1, 2001L, "London",
@@ -251,6 +276,10 @@ public class PlanTopologyScopeEditorTest {
             CLOUD_TARGET_1, 2003L, "Hong Kong",
             ImmutableList.of(az1HongKong, az2HongKong),
             Collections.singleton(storageTier));
+    private final TopologyEntity.Builder regionUSEast = createRegion(
+            CLOUD_TARGET_1, 2006L, "US East",
+            Collections.singleton(azUSEast),
+            ImmutableList.of(computeTier, storageTier));
 
     private final TopologyEntity.Builder computeTier2 = createCloudConnectedTopologyEntity(
             CLOUD_TARGET_2, 3002L, "Compute tier 2", EntityType.COMPUTE_TIER);
@@ -309,23 +338,27 @@ public class PlanTopologyScopeEditorTest {
             createOwner(CLOUD_TARGET_2, 10000L, "Cloud service 1",
                         EntityType.CLOUD_SERVICE, computeTier2);
 
+    private final TopologyEntity.Builder bt = createHypervisorTopologyEntity(90001L, "bt", EntityType.BUSINESS_TRANSACTION, commBoughtByBT, new ArrayList<>());
+    private final TopologyEntity.Builder s1 = createHypervisorTopologyEntity(90002L, "s1", EntityType.SERVICE, commBoughtByService1, basketSoldByVMInUSEast);
+    private final TopologyEntity.Builder s2 = createHypervisorTopologyEntity(90003L, "s2", EntityType.SERVICE, commBoughtByService2, Collections.singletonList(APP1));
+
     /* Creating an on prem topology.
 
-                       ba
-                    /     \
-                   /       \
-                  /         \
-        appc1   as1         as2
-           \  /              |
-           vm1               vm3
-           / \               / \
-        pm1  vv            pm3  st2
-        /     \            |
-     dc1     st1-da1      dc2
-      |       /
-     pm2    /
-       \   /
-        vm2
+                      bt                   ba
+                     /  \               /     \
+                    s1   s2            /       \
+                   /      \ appc1     /         \
+                  /        \  \    as1         as2
+              vmInUSEast    \  \  /              |
+              /      \         vm1               vm3
+       azUSEast   vvInUSEas   / \               / \
+                            pm1  vv            pm3  st2
+                            /     \            |
+                         dc1     st1-da1      dc2
+                          |       /
+                         pm2    /
+                           \   /
+                            vm2
 
      */
     private final TopologyGraph<TopologyEntity> emptyClusterGraph = TopologyEntityUtils
@@ -338,36 +371,7 @@ public class PlanTopologyScopeEditorTest {
             TopologyEntity.newBuilder(st2.getEntityBuilder()),
             TopologyEntity.newBuilder(da1.getEntityBuilder()));
 
-    private final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils
-        .topologyGraphOf(bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
-                pm2InDc1, pmInDc2, dc1, dc2, st1, st2, da1, as1,
-                as2, az1London, az2London, azOhio,
-                az1HongKong, az2HongKong, regionLondon, regionOhio,
-                regionHongKong, computeTier, vm1InLondon,
-                vm2InLondon, dbLondon, dbsLondon, dbsHongKong,
-                vmInOhio, vmInHongKong, businessAcc1, businessAcc2, businessAcc3,
-                virtualVolumeInOhio, virtualVolumeInLondon, virtualVolumeInHongKong,
-                storageTier, regionCentralUs, regionCanada, dbCentralUs, dbsCentralUs,
-                computeTier2, storageTier2, virtualVolumeInCentralUs,
-                vmInCentralUs, virtualVolumeInCanada, vmInCanada, businessAcc4, cloudService,
-                appAws, appAzure, unattachedVirtualVolumeInCentralUs,
-                unattachedVirtualVolumeInLondon, virtualVolume2InCanada);
-
-
-    private final TopologyGraph<TopologyEntity> cloudMigrationGraph = TopologyEntityUtils
-            .topologyGraphOf(bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
-                    pm2InDc1, pmInDc2, dc1, dc2, st1, st2, da1, as1,
-                    as2, az1London, az2London, azOhio,
-                    az1HongKong, az2HongKong, regionLondon, regionOhio,
-                    regionHongKong, computeTier, vm1InLondon,
-                    vm2InLondon, dbLondon, dbsLondon, dbsHongKong,
-                    vmInOhio, vmInHongKong, businessAcc1, businessAcc2, businessAcc3,
-                    virtualVolumeInOhio, virtualVolumeInLondon, virtualVolumeInHongKong,
-                    storageTier, regionCentralUs, regionCanada, dbCentralUs, dbsCentralUs,
-                    computeTier2, storageTier2, virtualVolumeInCentralUs,
-                    vmInCentralUs, virtualVolumeInCanada, vmInCanada, businessAcc4, cloudService,
-                    appAws, appAzure, unattachedVirtualVolumeInCentralUs,
-                    unattachedVirtualVolumeInLondon, virtualVolume2InCanada);
+    private TopologyGraph<TopologyEntity> graph;
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForAwsRegion = Stream
         .of(az1London, az2London, regionLondon, computeTier,
@@ -457,6 +461,22 @@ public class PlanTopologyScopeEditorTest {
     public void setup() {
         planTopologyScopeEditor = new PlanTopologyScopeEditor(GroupServiceGrpc
             .newBlockingStub(grpcServer.getChannel()));
+        graph = TopologyEntityUtils
+            .topologyGraphOf(bt, s1, s2, vmInUSEast, azUSEast, vvInUSEast, regionUSEast,
+                bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
+                pm2InDc1, pmInDc2, dc1, dc2, st1, st2, da1, as1,
+                as2, az1London, az2London, azOhio,
+                az1HongKong, az2HongKong, regionLondon, regionOhio,
+                regionHongKong, computeTier, vm1InLondon,
+                vm2InLondon, dbLondon, dbsLondon, dbsHongKong,
+                vmInOhio, vmInHongKong, businessAcc1, businessAcc2, businessAcc3,
+                virtualVolumeInOhio, virtualVolumeInLondon, virtualVolumeInHongKong,
+                storageTier, regionCentralUs, regionCanada, dbCentralUs, dbsCentralUs,
+                computeTier2, storageTier2, virtualVolumeInCentralUs,
+                vmInCentralUs, virtualVolumeInCanada, vmInCanada, businessAcc4, cloudService,
+                appAws, appAzure, unattachedVirtualVolumeInCentralUs,
+                unattachedVirtualVolumeInLondon, virtualVolume2InCanada);
+
     }
 
     /**
@@ -610,7 +630,7 @@ public class PlanTopologyScopeEditorTest {
 
     /**
      * Scenario: scope on pm1 and pm2 which consumes on dc1.
-     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, appc1, as1, ba
+     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, appc1, as1, ba, bt, s2
      *
      * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
@@ -647,12 +667,12 @@ public class PlanTopologyScopeEditorTest {
         // scope using inverted index
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
-        assertEquals(11, result.size());
+        assertEquals(13, result.size());
     }
 
     /**
      * Scenario: scope on pm1 and pm2 which consumes on dc1.
-     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, appc1, as1, ba
+     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, appc1, as1, ba, s2, bt
      * Because ds1 is shared across pm1, pm2, and (pm3 which is not in the cluster) via dspm, datastore
      * Accesses relationship, we still should not pull in pm3 and its related entities like st2 into
      * the scope.
@@ -706,7 +726,7 @@ public class PlanTopologyScopeEditorTest {
         // scope using inverted index
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
-        assertEquals(11, result.size());
+        assertEquals(13, result.size());
     }
 
     private static TopologyEntity.Builder createHypervisorHost(long oid,
@@ -726,7 +746,7 @@ public class PlanTopologyScopeEditorTest {
     /**
      * Scenario: scope on ba which consumes as1 and as2.
      * Expected: the entities in scope should be ba, as1, vm1, vm2, pm1, pm2, dc1, vv, st1,
-     * da1, as2, vm3, pm3, dc2, st2
+     * da1, as2, vm3, pm3, dc2, st2, s2
      *
      * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
@@ -745,7 +765,7 @@ public class PlanTopologyScopeEditorTest {
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
         // THE APP THAT IS NOT CONNECTED TO BAPP WILL NOT GET PULLED INTO THE SCOPE
-        assertEquals(15, result.size());
+        assertEquals(16, result.size());
     }
 
     /**
@@ -1038,6 +1058,21 @@ public class PlanTopologyScopeEditorTest {
      */
     @Test
     public void testScopeCloudMigrationPlanOnPremToAwsRegion() {
+        final TopologyGraph<TopologyEntity> cloudMigrationGraph = TopologyEntityUtils
+            .topologyGraphOf(bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
+                pm2InDc1, pmInDc2, dc1, dc2, st1, st2, da1, as1,
+                as2, az1London, az2London, azOhio,
+                az1HongKong, az2HongKong, regionLondon, regionOhio,
+                regionHongKong, computeTier, vm1InLondon,
+                vm2InLondon, dbLondon, dbsLondon, dbsHongKong,
+                vmInOhio, vmInHongKong, businessAcc1, businessAcc2, businessAcc3,
+                virtualVolumeInOhio, virtualVolumeInLondon, virtualVolumeInHongKong,
+                storageTier, regionCentralUs, regionCanada, dbCentralUs, dbsCentralUs,
+                computeTier2, storageTier2, virtualVolumeInCentralUs,
+                vmInCentralUs, virtualVolumeInCanada, vmInCanada, businessAcc4, cloudService,
+                appAws, appAzure, unattachedVirtualVolumeInCentralUs,
+                unattachedVirtualVolumeInLondon, virtualVolume2InCanada);
+
         final TopologyInfo cloudTopologyInfo = TopologyInfo.newBuilder()
                 .setTopologyContextId(1)
                 .setTopologyId(1)
@@ -1063,12 +1098,21 @@ public class PlanTopologyScopeEditorTest {
     }
 
     private static TopologyEntity.Builder createCloudVm(
+        final long targetId,
+        final long oid,
+        final String displayName,
+        final long... volumeOids) {
+        return createCloudVm(targetId, oid, displayName, Collections.emptyList(), volumeOids);
+    }
+
+    private static TopologyEntity.Builder createCloudVm(
             final long targetId,
             final long oid,
             final String displayName,
+            List<TopologyDTO.CommodityType> soldComms,
             final long... volumeOids) {
         return TopologyEntityUtils.topologyEntity(
-                oid, targetId, 0, displayName, EntityType.VIRTUAL_MACHINE, volumeOids);
+                oid, targetId, 0, displayName, EntityType.VIRTUAL_MACHINE, soldComms, volumeOids);
     }
 
     private static TopologyEntity.Builder createCloudVolume(
