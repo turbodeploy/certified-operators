@@ -956,7 +956,7 @@ public class TopologyConverterToMarketTest {
             CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
             CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
             used, peak, max, 100, 0.7,
-            histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null);
+            histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
         assertEquals(100, quantities[0], 0.01f);
     }
 
@@ -975,7 +975,7 @@ public class TopologyConverterToMarketTest {
             CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
             CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
             used, peak, max, 100, 0.7,
-            histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null);
+            histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
         assertEquals(0.2 * 100 / 0.7, quantities[0], 0.01f);
     }
 

@@ -290,8 +290,12 @@ public final class TopologyDTOUtil {
             // Not a move action
             return false;
         }
+        final Optional<ChangeProvider> primaryChangeProviderOptional = ActionDTOUtil.getPrimaryChangeProvider(action);
+        if (!primaryChangeProviderOptional.isPresent()) {
+            return false;
+        }
         // First check the primary (tier) change provider, verify same entity (e.g compute tier) type.
-        final ChangeProvider primaryChangeProvider = ActionDTOUtil.getPrimaryChangeProvider(action);
+        final ChangeProvider primaryChangeProvider = primaryChangeProviderOptional.get();
         if (!primaryChangeProvider.hasSource() || !primaryChangeProvider.hasDestination()) {
             // Not a move action
             return false;
