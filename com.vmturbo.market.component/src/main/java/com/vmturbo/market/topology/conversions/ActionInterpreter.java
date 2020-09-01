@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
+import static com.vmturbo.common.protobuf.CostProtoUtil.calculateFactorForStorageAmount;
 import static com.vmturbo.trax.Trax.trax;
 
 import java.util.ArrayList;
@@ -90,7 +91,6 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
-import com.vmturbo.platform.sdk.common.util.Units;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxCollectors;
 import com.vmturbo.trax.TraxConfiguration.TraxContext;
@@ -934,9 +934,7 @@ public class ActionInterpreter {
                             .orElseThrow(() -> new IllegalArgumentException(
                                     "Resize commodity can't be converted to topology commodity format! "
                                             + commodityContext.getSpecification()));
-            final long factor = (topologyCommodityType.getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE
-                    && actionTargetEntity.getType() == EntityType.VIRTUAL_VOLUME_VALUE) ? Units.KBYTE : 1;
-
+            final float factor = calculateFactorForStorageAmount(topologyCommodityType.getType(),actionTargetEntity.getType());
             resizeInfoList.add(ResizeInfo.newBuilder()
                     .setCommodityType(topologyCommodityType)
                     .setOldCapacity(commodityContext.getOldCapacity() * factor)

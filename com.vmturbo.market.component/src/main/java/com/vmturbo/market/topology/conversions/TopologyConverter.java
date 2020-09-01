@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
+import static com.vmturbo.common.protobuf.CostProtoUtil.calculateFactorForStorageAmount;
 import static com.vmturbo.commons.Units.KIBI;
 
 import java.util.ArrayList;
@@ -3105,13 +3106,11 @@ public class TopologyConverter {
                             .findFirst()
                             .orElse(null);
                     float oldCapacity = (volumeSold == null) ? 0f : (float)volumeSold.getCapacity();
-                    if (EntityType.VIRTUAL_VOLUME_VALUE == buyerEntityType &&
-                            commodityType == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE) {
-                        // Convert cloud volume StorageAmount quantity from MB to GB
-                        quantity /= Units.KIBI;
-                        peakQuantity /= Units.KIBI;
-                        oldCapacity /= Units.KIBI;
-                    }
+                    // Convert cloud volume StorageAmount quantity from MB to GB
+                    float factor = calculateFactorForStorageAmount(commodityType, buyerEntityType);
+                        quantity /= factor;
+                        peakQuantity /= factor;
+                        oldCapacity /= factor;
                     if (oldCapacity != 0) {
                         builder.setAssignedCapacityForBuyer(oldCapacity);
                     }

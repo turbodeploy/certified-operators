@@ -1,5 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
+import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -584,7 +586,7 @@ public class TopologyConverterToMarketTest {
             .filter(comm -> types.contains(comm.getSpecification().getDebugInfoNeverUseInCode()))
             .map(CommoditySoldTO::getSettings)
             .map(CommoditySoldSettingsTO::getPriceFunction)
-            .collect(Collectors.toList());
+            .collect(toList());
         assertEquals(types.size(), list.size());
         assertEquals(1, list.stream().distinct().count());
         assertTrue(f.apply(list.get(0)));
@@ -797,7 +799,35 @@ public class TopologyConverterToMarketTest {
 
         // (20 + (80/2.0))/100
         assertThat(TopologyConversionUtils.getMaxDesiredUtilization(entityDTO),
-            is(0.6f));
+                is(0.6f));
+    }
+
+    @Test
+    public void testDBUsedValues() {
+        TopologyEntityDTO entityDTO =
+                TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.DATABASE_VALUE)
+                        .setOid(1)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setMovable(true)
+                                .setProviderId(1005L))
+                        .build();
+        CommodityBoughtDTO boughtCommodityDTO = CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build())
+                .setUsed(102400) // 100 GB.
+                .setPeak(512000).build(); // 500 GB.
+
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory);
+
+        final List<CommodityBoughtTO> boughtTOs = converter.createAndValidateCommBoughtTO(entityDTO,
+                boughtCommodityDTO, 1005L, Optional.empty());
+        CommodityBoughtTO to = boughtTOs.iterator().next();
+        assertEquals(100, to.getQuantity(), DELTA);
+        assertEquals(500, to.getPeakQuantity(), DELTA);
     }
 
     @Test
@@ -1501,16 +1531,16 @@ public class TopologyConverterToMarketTest {
         List<CommoditySoldTO> externalPfComms = pmTrader.getCommoditiesSoldList().stream()
                         .filter(commSold -> commSold.getSettings().getPriceFunction()
                                         .getPriceFunctionTypeCase() == PriceFunctionTypeCase.EXTERNAL_PRICE_FUNCTION)
-                        .collect(Collectors.toList());
+                        .collect(toList());
         List<CommoditySoldTO> constantPfComms = pmTrader.getCommoditiesSoldList().stream()
                         .filter(commSold -> commSold.getSettings().getPriceFunction()
                                         .getPriceFunctionTypeCase() == PriceFunctionTypeCase.CONSTANT)
-                        .collect(Collectors.toList());
+                        .collect(toList());
         // Get all commodities with external update function
         List<CommoditySoldTO> externalUfComms = pmTrader.getCommoditiesSoldList().stream()
                         .filter(commSold -> commSold.getSettings().getUpdateFunction()
                                         .getUpdatingFunctionTypeCase() == UpdatingFunctionTypeCase.EXTERNAL_UPDATE)
-                        .collect(Collectors.toList());
+                        .collect(toList());
         // check the price and update function associated with flows
         assertTrue(externalPfComms.size() == 1);
         assertTrue(constantPfComms.size() == 2);
@@ -1691,7 +1721,8 @@ public class TopologyConverterToMarketTest {
         final Map<Long, TopologyEntityDTO> topologyDTOs = Stream.of(
                 messageFromJsonFile("protobuf/messages/cloud-volume.json"),
                 messageFromJsonFile("protobuf/messages/cloud-vm.json"),
-                messageFromJsonFile("protobuf/messages/cloud-storageTier.json"))
+                messageFromJsonFile("protobuf/messages/cloud-storageTier.json"),
+                messageFromJsonFile("protobuf/messages/cloud-db.json"))
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
                 MarketAnalysisUtils.QUOTE_FACTOR,
@@ -1699,18 +1730,29 @@ public class TopologyConverterToMarketTest {
                 marketPriceTable,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
         Set<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
-        assertEquals(2, traderTOs.size());
+        assertEquals(3, traderTOs.size());
         // One of the trader is for StorageTier.
         Optional<TraderTO> storageTierTraderTO = traderTOs.stream().filter(t -> t.getType() == EntityType.STORAGE_TIER_VALUE).findAny();
         assertTrue(storageTierTraderTO.isPresent());
         // The other trader is for VirtualMachine.
-        TraderTO entityTraderTO = traderTOs.stream().filter(t -> t.getType() != EntityType.STORAGE_TIER_VALUE).findAny().orElse(null);
-        assertNotNull(entityTraderTO);
-        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, entityTraderTO.getType());
+        List<TraderTO> entityTraderTOs = traderTOs.stream().filter(t -> t.getType() != EntityType.STORAGE_TIER_VALUE).collect(toList());
+        assertThat(entityTraderTOs .size(), greaterThan(0));
+        Optional<TraderTO> optinalEntityTraderTo = entityTraderTOs.stream().filter(entityTraderTO -> entityTraderTO.getType()
+                == EntityType.VIRTUAL_MACHINE_VALUE).findAny();
+        assertTrue(optinalEntityTraderTo.isPresent());
+        TraderTO entityTraderTo = optinalEntityTraderTo.get();
+        // One of the trader is for StorageTier.
+        Optional<TraderTO> optinalDbEntityTraderTo = entityTraderTOs.stream().filter(entityTraderTO -> entityTraderTO.getType()
+                == EntityType.DATABASE_VALUE).findAny();
+        assertTrue(optinalDbEntityTraderTo.isPresent());
+        TraderTO  dbEntityTraderTo = optinalDbEntityTraderTo.get();
+        assertEquals(2048.0d, dbEntityTraderTo.getCommoditiesSoldList().get(0).getCapacity(), 0.01f);
 
         // Test the shoppingList within the VM trader which represents cloud volume.
-        ShoppingListTO volumeSL = entityTraderTO.getShoppingListsCount() > 0 ? entityTraderTO.getShoppingLists(0) : null;
+        ShoppingListTO volumeSL = entityTraderTo.getShoppingListsCount() > 0 ? entityTraderTo.getShoppingLists(0) : null;
         assertNotNull(volumeSL);
+
+
         // shoppingList provider is storageTier
         assertEquals(storageTierTraderTO.get().getOid(), volumeSL.getSupplier());
         CommodityBoughtTO commodityBoughtTO = volumeSL.getCommoditiesBoughtCount() > 0 ? volumeSL.getCommoditiesBought(0) : null;
