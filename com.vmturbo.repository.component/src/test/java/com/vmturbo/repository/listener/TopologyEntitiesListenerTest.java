@@ -34,12 +34,15 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
+import com.vmturbo.topology.graph.search.SearchResolver;
+import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
 /**
@@ -94,8 +97,10 @@ public class TopologyEntitiesListenerTest {
 
     @Before
     public void setUp() throws Exception {
+        SearchResolver<RepoGraphEntity>
+                searchResolver = new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
         liveTopologyStore =
-            new LiveTopologyStore(new GlobalSupplyChainCalculator());
+            new LiveTopologyStore(new GlobalSupplyChainCalculator(), searchResolver);
 
         topologyEntitiesListener = new TopologyEntitiesListener(
                 topologyManager,

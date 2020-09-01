@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.SortedMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.zip.ZipOutputStream;
 
@@ -166,6 +167,12 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${showGuestLoad:false}")
     private boolean showGuestLoad;
 
+    @Value("${concurrentSearchLimit:30}")
+    private int concurrentSearchLimit;
+
+    @Value("${concurrentSearchWaitTimeoutMin:5}")
+    private int concurrentSearchWaitTimeoutMin;
+
     @PostConstruct
     private void setup() {
 
@@ -249,15 +256,13 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public SearchServiceImplBase searchRpcService() {
         return new TopologyGraphSearchRpcService(repositoryComponentConfig.liveTopologyStore(),
-            searchResolver(), liveTopologyPaginator(),
+            liveTopologyPaginator(),
             partialEntityConverter(),
             userSessionConfig.userSessionContext(),
-            maxEntitiesPerChunk);
-    }
-
-    @Bean
-    public SearchResolver<RepoGraphEntity> searchResolver() {
-        return new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
+            maxEntitiesPerChunk,
+            concurrentSearchLimit,
+            concurrentSearchWaitTimeoutMin,
+            TimeUnit.MINUTES);
     }
 
     @Bean

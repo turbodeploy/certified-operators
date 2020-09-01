@@ -58,13 +58,10 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
 
     private final ActionEntityTypeSpecificInfo actionEntityInfo;
 
-    private final DefaultTagIndex tags;
-
     private RepoGraphEntity(@Nonnull final TopologyEntityDTO src,
             @Nonnull final DefaultTagIndex tags,
             @Nonnull final SharedByteBuffer sharedCompressionBuffer) {
         super(src);
-        this.tags = tags;
 
         this.actionEntityInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(src.getTypeSpecificInfo())
                 .map(ActionEntityTypeSpecificInfo.Builder::build)

@@ -14,9 +14,22 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import com.google.protobuf.util.JsonFormat;
+
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+import it.unimi.dsi.fastutil.ints.IntSet;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
@@ -132,6 +145,10 @@ public class LiveTopologyStoreMeasurementIT {
         }
     }
 
+    @Test
+    public void testFoo() {
+        System.out.println("seProviderEdgeCol-214352295139584-S-73614806791056".getBytes().length);
+    }
     /**
      * Test the size of a topology.
      *
@@ -142,22 +159,60 @@ public class LiveTopologyStoreMeasurementIT {
     public void testSize() throws IOException {
         SearchQuery.Builder bldr = SearchQuery.newBuilder();
         JsonFormat.parser().merge(BIG_QUERY_JSON, bldr);
-        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(globalSupplyChainCalculator);
+        SearchResolver<RepoGraphEntity> searchResolver = new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
+        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(globalSupplyChainCalculator, searchResolver);
         SourceRealtimeTopologyBuilder sourceRealtimeTopologyBuilder = liveTopologyStore.newRealtimeSourceTopology(TopologyInfo.getDefaultInstance());
 
+        Long2ObjectMap<Int2ObjectMap<IntList>> tagsByEntity = new Long2ObjectOpenHashMap<>();
+        NameAllocator nameAllocator = new NameAllocator();
         doForEntity("/home/turbo/work/bugs/OM-62188/turbonomic-diags-2020-08-31-turbonomic.com-7.22.6-3865f64-_1598892466863/repository-786bf984b8-8t2cj-diags/live.realtime.source.entities.binary", entity -> {
             sourceRealtimeTopologyBuilder.addEntities(Collections.singletonList(entity));
+            entity.getTags().getTagsMap().forEach((key, vals) -> {
+                int nameKey = nameAllocator.getKey(key);
+                vals.getValuesList().forEach(val -> {
+                    int valKey = nameAllocator.getKey(val);
+                    tagsByEntity.computeIfAbsent(entity.getOid(), k -> new Int2ObjectOpenHashMap<>())
+                            .computeIfAbsent(nameKey, k -> new IntArrayList())
+                                .add(valKey);
+                });
+            });
         });
 
+        tagsByEntity.values().forEach(x -> {
+            ((Int2ObjectOpenHashMap)x).trim();
+            x.values().forEach(y -> ((IntArrayList)y).trim());
+        });
+        ((Long2ObjectOpenHashMap)tagsByEntity).trim();
+
         SourceRealtimeTopology topology = sourceRealtimeTopologyBuilder.finish();
-        SearchResolver<RepoGraphEntity> searchResolver = new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
         Stopwatch start = Stopwatch.createStarted();
-        List<RepoGraphEntity> results = searchResolver.search(bldr.build(), topology.entityGraph())
+        List<RepoGraphEntity> results = liveTopologyStore.queryRealtimeTopology(bldr.build())
                 .collect(Collectors.toList());
         logger.info("{} to get {} results", start.elapsed(TimeUnit.MILLISECONDS), results.size());
         logger.info("FOO");
+        logger.info("Tags by entity: {}", MemoryMetricsManager.sizesAndCounts(tagsByEntity));
+        logger.info("Name allocator: {}", MemoryMetricsManager.sizesAndCounts(nameAllocator));
+        logger.info("Tag index: {}", MemoryMetricsManager.sizesAndCounts(topology.globalTags()));
 
 //        logger.info(MemoryMetricsManager.sizesAndCounts(topology));
+    }
+
+    static class NameAllocator {
+        int nextKey = 1;
+        Int2ObjectMap<String> keyToName = new Int2ObjectOpenHashMap<>();
+        Object2IntMap<String> nameToKey = new Object2IntOpenHashMap<>();
+
+
+        public int getKey(String name) {
+            final int key = nameToKey.computeIntIfAbsent(name, k -> nextKey++);
+            nameToKey.putIfAbsent(name, key);
+            return key;
+        }
+
+        @Nullable
+        public String getName(int key) {
+            return keyToName.get(key);
+        }
     }
 
     @Test
@@ -165,10 +220,11 @@ public class LiveTopologyStoreMeasurementIT {
     public void testRealtimeSource() throws IOException {
         // Put the filename here.
         final String filePath = "/home/turbo/Work/topologies/bofa/may23/";
+        SearchResolver<RepoGraphEntity> searchResolver = new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
         Preconditions.checkArgument(!StringUtils.isEmpty(filePath));
         final BufferedReader reader =
             new BufferedReader(new FileReader(filePath));
-        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(globalSupplyChainCalculator);
+        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(globalSupplyChainCalculator, searchResolver);
         SourceRealtimeTopologyBuilder sourceRealtimeTopologyBuilder = liveTopologyStore.newRealtimeSourceTopology(TopologyInfo.getDefaultInstance());
         int lineCnt = 0;
         Map<EntityType, MutableLong> countsByType = new HashMap<>();
@@ -242,7 +298,8 @@ public class LiveTopologyStoreMeasurementIT {
         Preconditions.checkArgument(!StringUtils.isEmpty(filePath));
         final BufferedReader reader =
             new BufferedReader(new FileReader(filePath));
-        LiveTopologyStore liveTopologyStore = new LiveTopologyStore(globalSupplyChainCalculator);
+        SearchResolver<RepoGraphEntity> searchResolver = new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
+        LiveTopologyStore liveTopologyStore = new LiveTopologyStore(globalSupplyChainCalculator, searchResolver);
 
         ProjectedTopologyBuilder ptbldr = liveTopologyStore.newProjectedTopology(1, TopologyInfo.getDefaultInstance());
 
