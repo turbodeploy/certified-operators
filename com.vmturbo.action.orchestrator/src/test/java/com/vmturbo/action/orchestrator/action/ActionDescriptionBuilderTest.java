@@ -944,7 +944,7 @@ public class ActionDescriptionBuilderTest {
         // Cloud->Cloud storage move.
         actualDescription = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudToCloudStorageMove);
-        expectedDescription = String.format("Move Virtual Volume %s from %s to %s",
+        expectedDescription = String.format("Move Volume %s from %s to %s",
                 CLOUD_VOLUME_RESOURCE_NAME, AZURE_REGION_NAME, AWS_REGION_NAME);
         assertEquals(expectedDescription, actualDescription);
 
@@ -958,7 +958,7 @@ public class ActionDescriptionBuilderTest {
         // onPrem->Cloud storage move.
         actualDescription = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, onPremToCloudStorageMove);
-        expectedDescription = String.format("Move Virtual Volume %s from %s to %s",
+        expectedDescription = String.format("Move Volume %s from %s to %s",
                 ON_PREM_VOLUME_RESOURCE_NAME, ON_PREM_SOURCE_STORAGE_NAME, AWS_REGION_NAME);
         assertEquals(expectedDescription, actualDescription);
 

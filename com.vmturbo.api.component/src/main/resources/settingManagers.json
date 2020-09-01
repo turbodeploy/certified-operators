@@ -43,6 +43,8 @@
         "resizeVmemAboveMaxThreshold",
         "resizeVmemBelowMinThreshold",
         "enableScaleActions",
+        "enableDeleteActions",
+        "deleteVolume",
         "nonDisruptiveReversibleScaling",
         "nonDisruptiveIrreversibleScaling",
         "disruptiveReversibleScaling",

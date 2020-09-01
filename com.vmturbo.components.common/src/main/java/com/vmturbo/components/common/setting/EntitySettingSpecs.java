@@ -233,7 +233,7 @@ public enum EntitySettingSpecs {
     /**
      * Delete Volume action automation mode.
      */
-    DeleteVolume("deleteVolume", "DeleteVolume", Collections.emptyList(), SettingTiebreaker.SMALLER,
+    DeleteVolume("deleteVolume", "Delete Volume", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_VOLUME), actionModeWithoutDisabledOption(), true),
 
     /**
