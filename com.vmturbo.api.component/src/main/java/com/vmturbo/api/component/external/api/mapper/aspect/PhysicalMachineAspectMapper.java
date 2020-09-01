@@ -76,7 +76,7 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
             logger.error("Error converting disk groups for Physical Machine '"
                     + entity.getDisplayName() + "': " + typeInfo);
         }
-
+        aspect.setDedicatedFailoverHost(typeInfo.getPhysicalMachine().getDedicatedFailover());
         return aspect;
     }
 
