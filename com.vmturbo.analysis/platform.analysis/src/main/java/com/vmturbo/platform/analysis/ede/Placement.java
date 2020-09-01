@@ -87,6 +87,18 @@ public class Placement {
                     : new BalanceAccount(baId);
             buyerContexts.add(new Context(c.getRegionId(), c.getZoneId(), ba));
         }
+        // For all the original contexts for which we set parentId to null above, restore them back.
+        // When there are multiple VMs in the same plan, we will call this multiple times, and
+        // each time, we need to lookup the original context first (with the parentId) before doing
+        // the intersection.
+        Stream.of(s1, s2)
+                .flatMap(Collection::stream)
+                .forEach(ctx -> {
+                    Long parentId = accountIdToParentId.get(ctx.getBalanceAccount().getId());
+                    if (parentId != null) {
+                        ctx.getBalanceAccount().setParentId(parentId);
+                    }
+                });
         return buyerContexts;
     };
 
