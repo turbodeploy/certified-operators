@@ -341,10 +341,6 @@ public class InterpretActionTest {
      */
     @Test
     public void testInterpretMoveActionWithTimeSlots() throws Exception {
-        // TODO : we are temporarily ignoring this test till September 10th 2020.
-        if (Instant.now().isBefore(Instant.ofEpochMilli(1599755645000L))) {
-            return;
-        }
         final TopologyDTO.TopologyEntityDTO businessUser =
             TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/topology-with-timeslots.json");
 
