@@ -1,17 +1,21 @@
 package com.vmturbo.repository.service;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.Iterators;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
@@ -136,6 +140,7 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         }
     }
 
+    public static Map<Long, List<SearchQuery>> queriesByDuration = new TreeMap<>();
     /**
      * Get a full list of entity oids based on search parameters, this rpc call will not perform
      * pagination.
@@ -161,6 +166,7 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         final SearchQuery searchQuery = request.getSearch();
 
         try {
+            Stopwatch stopwatch = Stopwatch.createStarted();
             Tracing.log(() -> logParams("Starting entity oid search with params - ", searchQuery.getSearchParametersList()));
 
             final Stream<RepoGraphEntity> entities =
@@ -172,6 +178,7 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
             responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
+            queriesByDuration.computeIfAbsent(stopwatch.elapsed(TimeUnit.MILLISECONDS), k -> new ArrayList<>()).add(searchQuery);
         } catch (Throwable e) {
             logger.error("Search entity OIDs failed for request {} with exception", request, e);
             final Status status = Status.INVALID_ARGUMENT.withCause(e).withDescription(e.getMessage());
@@ -194,8 +201,8 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
         Tracing.log(() -> logParams("Starting entity stream search with params - ", searchQuery.getSearchParametersList()));
 
-        final Stream<PartialEntity> entities = internalSearch(request.getEntityOidList(), searchQuery)
-            .map(entity -> partialEntityConverter.createPartialEntity(entity, request.getReturnType()));
+        final Stream<RepoGraphEntity> searchResults = internalSearch(request.getEntityOidList(), searchQuery);
+        final Stream<PartialEntity> entities = partialEntityConverter.createPartialEntities(searchResults, request.getReturnType());
 
         // send the results in batches, if needed
         Iterators.partition(entities.iterator(), maxEntitiesPerChunk)
@@ -244,9 +251,9 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
             final SearchEntitiesResponse.Builder respBuilder = SearchEntitiesResponse.newBuilder()
                 .setPaginationResponse(paginatedResults.paginationResponse());
-            paginatedResults.nextPageEntities()
-                .forEach(entity -> respBuilder.addEntities(
-                    partialEntityConverter.createPartialEntity(entity, request.getReturnType())));
+            List<RepoGraphEntity> nextPageEntities = paginatedResults.nextPageEntities();
+            partialEntityConverter.createPartialEntities(nextPageEntities.stream(), request.getReturnType())
+                    .forEach(respBuilder::addEntities);
             responseObserver.onNext(respBuilder.build());
             responseObserver.onCompleted();
         } catch (Throwable e) {

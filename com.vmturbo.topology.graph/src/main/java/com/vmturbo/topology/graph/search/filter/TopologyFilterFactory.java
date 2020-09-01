@@ -12,9 +12,12 @@ import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
+
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -365,11 +368,16 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
 
         // currently only entity tags is a property of type map
         if (propertyName.equals(SearchableProperties.TAGS_TYPE_PROPERTY_NAME)) {
-            return new PropertyFilter<>(te ->
-                // Check tags for the match, and negate the result if we're not actually looking
-                // for a positive match.
-                mapCriteria.getPositiveMatch() == te.getSearchableProps(SearchableProps.class)
-                        .getTagIndex().isMatchingEntity(te.getOid(), mapCriteria));
+            return new BulkPropertyFilter<E>(entities -> {
+                if (entities.isEmpty()) {
+                    return Stream.empty();
+                } else {
+                    LongSet allMatchingEntities = entities.get(0).getSearchableProps(SearchableProps.class).getTagIndex()
+                            .getMatchingEntities(mapCriteria);
+                    return entities.stream()
+                            .filter(e -> mapCriteria.getPositiveMatch() == allMatchingEntities.contains(e.getOid()));
+                }
+            });
         } else {
             throw new IllegalArgumentException("Unknown map property named: " + propertyName);
         }

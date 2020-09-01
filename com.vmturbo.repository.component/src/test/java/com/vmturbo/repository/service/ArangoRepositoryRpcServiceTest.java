@@ -76,6 +76,7 @@ import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -106,7 +107,10 @@ public class ArangoRepositoryRpcServiceTest {
 
     private PlanStatsService planStatsService = mock(PlanStatsService.class);
 
-    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
+    private LiveTopologyStore liveTopologyStore = mock(LiveTopologyStore.class);
+
+    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter(
+            liveTopologyStore);
 
     private ArangoRepositoryRpcService repoRpcService = new ArangoRepositoryRpcService(
         topologyLifecycleManager, topologyProtobufsManager, graphDBService,

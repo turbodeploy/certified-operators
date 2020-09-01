@@ -73,7 +73,8 @@ public class TopologyGraphSearchRpcServiceTest {
     private SearchResolver<RepoGraphEntity> mockSearchResolver = mock(SearchResolver.class);
     private LiveTopologyPaginator liveTopologyPaginator = mock(LiveTopologyPaginator.class);
 
-    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
+    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter(
+            liveTopologyStore);
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
     private TopologyGraphSearchRpcService topologyGraphSearchRpcService1 = new TopologyGraphSearchRpcService(liveTopologyStore,

@@ -8,11 +8,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
@@ -125,6 +128,22 @@ public interface TagIndex {
                 }
                 return false;
             });
+        }
+
+        @Nonnull
+        public Long2ObjectMap<Map<String, Set<String>>> getTagsByEntity(@Nonnull final LongSet entities) {
+            Long2ObjectMap<Map<String, Set<String>>> ret = new Long2ObjectOpenHashMap<>();
+            tags.forEach((key, vals) -> {
+                vals.forEach((val, entitiesWithTag) -> {
+                    entitiesWithTag.forEach((LongConsumer)e -> {
+                        if (entities.contains(e)) {
+                            ret.computeIfAbsent(e, k -> new HashMap<>())
+                                .computeIfAbsent(key, k -> new HashSet<>()).add(val);
+                        }
+                    });
+                });
+            });
+            return ret;
         }
 
         /**

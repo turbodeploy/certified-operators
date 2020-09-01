@@ -191,21 +191,6 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
     }
 
     /**
-     * Get the tags on this entity.
-     *
-     * @return The {@link Tags}.
-     */
-    @Nonnull
-    public Tags getTags() {
-        Tags.Builder tagsBuilder = Tags.newBuilder();
-        tags.getTagsForEntity(getOid()).forEach((key, vals) ->
-                tagsBuilder.putTags(key, TagValuesDTO.newBuilder()
-                        .addAllValues(vals)
-                        .build()));
-        return tagsBuilder.build();
-    }
-
-    /**
      * Get a topology entity containing the important (i.e. searchable) fields. This is smaller
      * than the entity returned by {@link RepoGraphEntity#getTopologyEntity()}.
      *
@@ -219,7 +204,6 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
             .setEntityState(getEntityState())
             .setEnvironmentType(EnvironmentType.ON_PREM)
             .setEntityType(getEntityType());
-        builder.setTags(getTags());
 
         if (!getDiscoveredTargetIds().isEmpty()) {
             DiscoveryOrigin.Builder originBldr = builder.getOriginBuilder().getDiscoveryOriginBuilder();

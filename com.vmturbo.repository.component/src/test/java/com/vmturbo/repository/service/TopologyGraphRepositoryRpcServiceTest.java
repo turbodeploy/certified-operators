@@ -41,7 +41,8 @@ public class TopologyGraphRepositoryRpcServiceTest {
 
     private long REALTIME_CONTEXT_ID = 777777L;
 
-    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
+    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter(
+            liveTopologyStore);
 
     private TopologyGraphRepositoryRpcService repositoryRpcService = new TopologyGraphRepositoryRpcService(
         liveTopologyStore, arangoRepoRpcService, partialEntityConverter,
