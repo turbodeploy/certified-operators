@@ -215,24 +215,25 @@ public class CostFunctionTest {
     }
 
     /**
-     * Test to check whether low RI pricing may introduce equal quotes from 2 cbtps. When RI pricing
-     * is too low, we might run into floating point issues where 2 cbtps may return the same cost.
-     * This test covers cases where we test various scenarios which may result by varying RI prices and
-     * the budget. For example T2.large and T3.large have onDemandCost of 0.12 and 0.11 respectively,
-     * but the scaled down RiPricing we send makes sure that they will both get a quote of 1.0000000000000002
-     * which makes random assignment of these cbtps across multiple market cycles possible.
+     * Create 2 CBTPs - t3_cbtp and t3a_cbtp.
+     * t3_cbtp has 2 TPs underlying it - t3_nano and t3_2xlarge.
+     * t3a_cbtp has 2 TPs underlying it - t3a_nano and t3a_2xlarge.
+     *
+     * <p>t3_cbtp is cheaper than t3a_cbtp (because largest in t3 - t3_2xlarge is cheaper than
+     * largest in t3a - t3a_2xlarge). But the VM we create can fit in nano size.
+     * So, for this VM, t3a_cbtp gets a lower quote.</p>
      */
     @Test
-    public void testRI_Pricing() {
+    public void testRiPricing() {
 
         // Template Prices used to create CostDTOs
-        double riDeprecationFactor = 0.00001;
-        double m5Large = 0.19200;
-        double r4Large = 0.131600;
-        double m4Large = 0.019200;
-        double c4Large = 0.0131600;
-        double t2Large = 0.12;
-        double t3Large = 0.11;
+        final double riDeprecationFactor = 0.00001;
+        final double priceT3Nano = 0.0052;
+        final double priceT32xlarge = 0.3008;
+
+        final double priceT3aNano = 0.0047;
+        final double priceT3a2xlarge = 0.3328;
+
         BiMap<Trader, Long> traderOids = HashBiMap.create();
         // Create a new Economy
         Economy economy = new Economy();
@@ -244,80 +245,56 @@ public class CostFunctionTest {
         BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0, 0L);
         vm.getSettings().setContext(new Context(regionId, zoneId, ba));
 
-        // Create CBTPs
-        Trader cbtp1 = TestUtils.createTrader(economy, TestUtils.VM_TYPE, Arrays.asList(0l),
-                Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU),new double[] {25, 3000},
-                true, true, "cbtp");
-        traderOids.forcePut(cbtp1, 1L);
+        // Create t3 CBTP
+        Trader t3Cbtp = TestUtils.createTrader(economy, TestUtils.VM_TYPE, Arrays.asList(0L),
+                Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU), new double[] {25, 3000},
+                true, true, "t3Cbtp");
+        traderOids.forcePut(t3Cbtp, 1L);
+        t3Cbtp.getSettings().setContext(new Context(regionId, zoneId, ba));
+        t3Cbtp.getSettings().setQuoteFunction(QuoteFunctionFactory
+            .budgetDepletionRiskBasedQuoteFunction());
+        CbtpCostDTO.Builder cbtpBundleBuilder = TestUtils.createCbtpBundleBuilder(
+            TestUtils.COUPON_COMMODITY.getBaseType(), priceT32xlarge * riDeprecationFactor, 10, true, regionId);
+        t3Cbtp.getSettings().setCostFunction(CostFunctionFactory
+            .createResourceBundleCostFunctionForCbtp(cbtpBundleBuilder.build()));
 
-        Trader cbtp2 = TestUtils.createTrader(economy, TestUtils.VM_TYPE, Arrays.asList(0l),
-                Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU),new double[] {25, 3000},
-                true, true, "cbtp2");
-        traderOids.forcePut(cbtp2, 2L);
-
-        cbtp1.getSettings().setContext(new Context(regionId, zoneId, ba));
-        cbtp1.getSettings().setQuoteFunction(QuoteFunctionFactory
+        // Create t3a CBTP
+        Trader t3aCbtp = TestUtils.createTrader(economy, TestUtils.VM_TYPE, Arrays.asList(0L),
+                Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU), new double[] {25, 3000},
+                true, true, "t3aCbtp");
+        traderOids.forcePut(t3aCbtp, 2L);
+        t3aCbtp.getSettings().setContext(new Context(regionId, zoneId, ba));
+        t3aCbtp.getSettings().setQuoteFunction(QuoteFunctionFactory
                 .budgetDepletionRiskBasedQuoteFunction());
-
-        cbtp2.getSettings().setContext(new Context(regionId, zoneId, ba));
-        cbtp2.getSettings().setQuoteFunction(QuoteFunctionFactory
-                .budgetDepletionRiskBasedQuoteFunction());
-
-        CbtpCostDTO.Builder cbtpBundleBuilder = TestUtils.createCbtpBundleBuilder(0,
-                m5Large * riDeprecationFactor, 10, true, regionId);
-        cbtp1.getSettings().setCostFunction(CostFunctionFactory
-                .createResourceBundleCostFunctionForCbtp(cbtpBundleBuilder.build()));
-        CbtpCostDTO.Builder cbtpBundleBuilder2 = TestUtils.createCbtpBundleBuilder(0,
-                r4Large * riDeprecationFactor, 50, true, regionId);
-        cbtp2.getSettings().setCostFunction(CostFunctionFactory
+        CbtpCostDTO.Builder cbtpBundleBuilder2 = TestUtils.createCbtpBundleBuilder(
+            TestUtils.COUPON_COMMODITY.getBaseType(), priceT3a2xlarge * riDeprecationFactor, 50, true, regionId);
+        t3aCbtp.getSettings().setCostFunction(CostFunctionFactory
                 .createResourceBundleCostFunctionForCbtp(cbtpBundleBuilder2.build()));
 
         final InitialInfiniteQuote bestQuoteSoFar = new InitialInfiniteQuote();
 
-        boolean forTraderIncomeStatement = true;
+        final boolean forTraderIncomeStatement = true;
 
-        // Create a Trader TP which serves as seller for cbtps
-        Trader tp = TestUtils.createTrader(economy, TestUtils.VM_TYPE, Arrays.asList(0l),
-                Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU, TestUtils.SEGMENTATION_COMMODITY),
-                new double[] {1, 3000, 20}, true,
-                true, "tp");
-        traderOids.forcePut(tp, 3L);
-
-        // Set the cost dto on the TP
-        ComputeTierCostDTO.Builder costBundleBuilder =
-                ComputeTierCostDTO.newBuilder();
-        costBundleBuilder.addComputeResourceDepedency(ComputeResourceDependency.newBuilder()
-                .setBaseResourceType(CommoditySpecificationTO.newBuilder()
-                        .setBaseType(0)
-                        .setType(0))
-                .setDependentResourceType(CommoditySpecificationTO.newBuilder()
-                        .setBaseType(0)
-                        .setType(0)));
-        costBundleBuilder.setLicenseCommodityBaseType(3);
-        costBundleBuilder.setCouponBaseType(68);
-        CostDTO tpCostDto = CostDTO.newBuilder().setComputeTierCost(costBundleBuilder.addCostTupleList(CostTuple.newBuilder()
-                .setLicenseCommodityType(-1)
-                .setPrice(0.0341)
-                .setBusinessAccountId(24)
-                .setRegionId(10L)
-                .build()).build()).build();
-
-        tp.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
-        tp.getSettings().setCostFunction(CostFunctionFactory.createCostFunction(tpCostDto));
+        CommoditySpecification t3_templateAccess = TestUtils.createNewCommSpec();
+        CommoditySpecification t3a_templateAccess = TestUtils.createNewCommSpec();
+        Trader t3NanoTp = createTp(economy, traderOids, "t3NanoTp", priceT3Nano, 3L, t3_templateAccess);
+        Trader t32xlargeTp = createTp(economy, traderOids, "t32xlargeTp", priceT32xlarge, 3L, t3_templateAccess);
+        Trader t3aNanoTp = createTp(economy, traderOids, "t3aNanoTp", priceT3aNano, 3L, t3a_templateAccess);
+        Trader t3a2xlargeTp = createTp(economy, traderOids, "t3a2xlargeTp", priceT3a2xlarge, 3L, t3a_templateAccess);
 
         // Create VM shopping lists
         ShoppingList vmSL = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU),
-                vm, new double[] {1000}, tp);
+                vm, new double[] {1000}, t3NanoTp);
 
         // This is not really required but it helps to negate through various if conditions and go into the loop
         // where we use RI pricing as the differentiator between cbtps
         vmSL.setGroupFactor(1L);
 
-        // Create shopping lists for cbtps to shop from the top
-        ShoppingList cbtpSl = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY,
-                TestUtils.SEGMENTATION_COMMODITY), cbtp1, new double[] {25, 1}, tp);
-        ShoppingList cbtpSl2 = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY,
-                TestUtils.SEGMENTATION_COMMODITY), cbtp2, new double[] {25, 1}, tp);
+        // Create shopping lists for cbtps to shop from the tp
+        ShoppingList t3CbtpSl = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY,
+                TestUtils.SEGMENTATION_COMMODITY, t3_templateAccess), t3Cbtp, new double[] {25, 1, 1}, null);
+        ShoppingList t3aCbtpSl = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY,
+                TestUtils.SEGMENTATION_COMMODITY, t3a_templateAccess), t3aCbtp, new double[] {25, 1, 1}, null);
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         try {
@@ -333,85 +310,46 @@ public class CostFunctionTest {
         }
 
         // Test to check that cbtp2 gives a cheaper quote than cbtp1
-        Assert.assertTrue(EdeCommon.quote(economy, vmSL, cbtp1, bestQuoteSoFar.getQuoteValue(),
-                forTraderIncomeStatement).getQuoteValue() > EdeCommon.quote(economy, vmSL, cbtp2,
-                bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue());
+        double t3_quote = EdeCommon.quote(economy, vmSL, t3Cbtp, bestQuoteSoFar.getQuoteValue(),
+            forTraderIncomeStatement).getQuoteValue();
+        double t3a_quote = EdeCommon.quote(economy, vmSL, t3aCbtp, bestQuoteSoFar.getQuoteValue(),
+            forTraderIncomeStatement).getQuoteValue();
+        assertTrue(t3_quote > t3a_quote);
+        assertEquals(priceT3aNano * riDeprecationFactor, t3a_quote, 0.00000000001);
+        assertEquals(priceT3Nano * riDeprecationFactor, t3_quote, 0.00000000001);
+    }
 
-        // Test to check if we scale the previous costs down by a factor of 10, we get the same quote
-        CbtpCostDTO.Builder cbtpBundleBuilder3 = TestUtils.createCbtpBundleBuilder(0,m4Large*riDeprecationFactor,
-                10, true, regionId);
+    private Trader createTp(Economy economy, BiMap<Trader, Long> traderOids, String debugInfo,
+                            double price, long traderOid, CommoditySpecification templateAccess) {
+        // Create a Trader TP which serves as seller for cbtps
+        Trader tp = TestUtils.createTrader(economy, TestUtils.VM_TYPE, Arrays.asList(0L),
+            Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU, TestUtils.SEGMENTATION_COMMODITY, templateAccess),
+            new double[] {1, 3000, 20, 1}, true,
+            true, debugInfo);
+        traderOids.forcePut(tp, traderOid);
 
-        CostDTO costDTOcbtp3 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder3.build()).build();
-        CbtpCostDTO cdDTo3 = costDTOcbtp3.getCbtpResourceBundle();
-        cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo3));
+        // Set the cost dto on the TP
+        ComputeTierCostDTO.Builder costBundleBuilder =
+            ComputeTierCostDTO.newBuilder();
+        costBundleBuilder.addComputeResourceDepedency(ComputeResourceDependency.newBuilder()
+            .setBaseResourceType(CommoditySpecificationTO.newBuilder()
+                .setBaseType(0)
+                .setType(0))
+            .setDependentResourceType(CommoditySpecificationTO.newBuilder()
+                .setBaseType(0)
+                .setType(0)));
+        costBundleBuilder.setLicenseCommodityBaseType(3);
+        costBundleBuilder.setCouponBaseType(68);
+        CostDTO tpCostDto = CostDTO.newBuilder().setComputeTierCost(costBundleBuilder.addCostTupleList(CostTuple.newBuilder()
+            .setLicenseCommodityType(-1)
+            .setPrice(price)
+            .setBusinessAccountId(24)
+            .setRegionId(10L)
+            .build()).build()).build();
 
-        CbtpCostDTO.Builder cbtpBundleBuilder4 = TestUtils.createCbtpBundleBuilder(0, c4Large*riDeprecationFactor,
-                50, true, regionId);
-
-        CostDTO costDTOcbtp4 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder4.build()).build();
-        CbtpCostDTO cdDTo4 = costDTOcbtp4.getCbtpResourceBundle();
-        cbtp2.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo4));
-
-        double quoteCbtp1 = EdeCommon.quote(economy, vmSL, cbtp1, bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
-        // Test to check that we get a quote of 1.0 from cbtp1
-        assertEquals(quoteCbtp1, m4Large * riDeprecationFactor, TestUtils.FLOATING_POINT_DELTA);
-
-        double quoteCbtp2= EdeCommon.quote(economy, vmSL, cbtp2, bestQuoteSoFar.getQuoteValue(),
-                forTraderIncomeStatement).getQuoteValue();
-        // Test to check that quotes are equal ie both are 1.0
-        assertEquals(quoteCbtp1, quoteCbtp2, TestUtils.FLOATING_POINT_DELTA);
-
-        // Set the price for a t2.large cbtp
-        CbtpCostDTO.Builder cbtpBundleBuilder5 = TestUtils.createCbtpBundleBuilder(0,t2Large*riDeprecationFactor,
-                10, true, regionId);
-
-        CostDTO costDTOcbtp5 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder5.build()).build();
-        CbtpCostDTO cdDTo5 = costDTOcbtp5.getCbtpResourceBundle();
-        cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo5));
-
-        // Set the price for a t3.large cbtp
-        CbtpCostDTO.Builder cbtpBundleBuilder6 = TestUtils.createCbtpBundleBuilder(0, t3Large*riDeprecationFactor,
-                50, true, regionId);
-
-        CostDTO costDTOcbtp6 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder6.build()).build();
-        CbtpCostDTO cdDTo6 = costDTOcbtp6.getCbtpResourceBundle();
-        cbtp2.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo6));
-
-        double quoteCbtp3 = EdeCommon.quote(economy, vmSL, cbtp1, bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
-        double quoteCbtp4 = EdeCommon.quote(economy, vmSL, cbtp2, bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
-
-        // t2.large and t3.large give different quotes
-        assert(quoteCbtp3 > quoteCbtp4);
-
-        // Now a test by changing budget on business account and increasing the riDeprecationFactor
-        // to 10^-5 from 10^-7
-        // Update the budget on balance account
-        BalanceAccount ba2 = new BalanceAccount(0.0, 10000d, 24, 0, 0L);
-        cbtp1.getSettings().setContext(new Context(10L, zoneId, ba2));
-        cbtp2.getSettings().setContext(new Context(10L, zoneId, ba2));
-
-        double updatedriDprecationFactor = 0.00001;
-        // Set the price for a t2.large cbtp with updated riDeprecationFactor
-        CbtpCostDTO.Builder cbtpBundleBuilder7 = TestUtils.createCbtpBundleBuilder(0,t2Large*updatedriDprecationFactor,
-                10, true, regionId);
-
-        CostDTO costDTOcbtp7 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder7.build()).build();
-        CbtpCostDTO cdDTo7 = costDTOcbtp7.getCbtpResourceBundle();
-        cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo7));
-
-        // Set the price for a t3.large cbtp with updated riDeprecationFactor
-        CbtpCostDTO.Builder cbtpBundleBuilder8 = TestUtils.createCbtpBundleBuilder(0, t3Large*updatedriDprecationFactor,
-                50, true, regionId);
-
-        CostDTO costDTOcbtp8 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder8.build()).build();
-        CbtpCostDTO cdDTo8 = costDTOcbtp8.getCbtpResourceBundle();
-        cbtp2.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo8));
-
-        double quoteCbtp5 = EdeCommon.quote(economy, vmSL, cbtp1, bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
-        double quoteCbtp6 = EdeCommon.quote(economy, vmSL, cbtp2, bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
-
-        // t2.large gives higher quote than t3.large which should be the case
-        assert(quoteCbtp5 > quoteCbtp6);
+        tp.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
+        tp.getSettings().setCostFunction(CostFunctionFactory.createCostFunction(tpCostDto));
+        return tp;
     }
 
     @Test

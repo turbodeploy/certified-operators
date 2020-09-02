@@ -42,6 +42,7 @@ public class CloudActionsIntegrationTest {
     private static final CommoditySpecification CPU = new CommoditySpecification(0).setDebugInfoNeverUseInCode("CPU");
     private static final CommoditySpecification COUPON = new CommoditySpecification(1).setDebugInfoNeverUseInCode("COUPON");
     private static final CommoditySpecification FAMILY = new CommoditySpecification(2).setDebugInfoNeverUseInCode("FAMILY");
+    private static final CommoditySpecification FAMILY2 = new CommoditySpecification(3).setDebugInfoNeverUseInCode("FAMILY2");
     private static final CommoditySpecification LICENSE = new CommoditySpecification(0, 0).setDebugInfoNeverUseInCode("LICENSE");
     private static final CommoditySpecification TEMPLATE = new CommoditySpecification(6).setDebugInfoNeverUseInCode("TEMPLATE");
     private static final Basket SOLDbyTP = new Basket(CPU, COUPON, FAMILY, LICENSE);
@@ -97,14 +98,21 @@ public class CloudActionsIntegrationTest {
 
     // sets up 4 providers. 2 TPs followed by 2 CBTPs
     private Trader[] setupProviders(Economy economy, Topology topology, long startIndex, boolean isTemplateExclusion) {
+        return setupProviders(economy, topology, startIndex, isTemplateExclusion, false);
+    }
+
+    // sets up 4 providers. 2 TPs followed by 2 CBTPs
+    private Trader[] setupProviders(Economy economy, Topology topology, long startIndex, boolean isTemplateExclusion, boolean separateFamilies) {
         Trader[] traders = new Trader[4];
         Trader tp1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, isTemplateExclusion ? soldByTemplateFamilyTP : SOLDbyTP, new Basket());
         traders[0] = tp1;
-        Trader tp2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, SOLDbyTP, new Basket());
+        Trader tp2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE,
+            separateFamilies ? new Basket(CPU, COUPON, FAMILY2, LICENSE) : SOLDbyTP,
+            new Basket());
         traders[1] = tp2;
         Trader cbtp1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, SOLDbyCBTP, new Basket(FAMILY));
         traders[2] = cbtp1;
-        Trader cbtp2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, SOLDbyCBTP, new Basket(FAMILY));
+        Trader cbtp2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, SOLDbyCBTP, new Basket(separateFamilies ? FAMILY2 : FAMILY));
         traders[3] = cbtp2;
 
         tp1.setDebugInfoNeverUseInCode("OnDemandMarketTier|1");
@@ -652,7 +660,7 @@ public class CloudActionsIntegrationTest {
         e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);//new double[] {8, 16});
-        Trader[] sellers = setupProviders(e, t, 0, false);
+        Trader[] sellers = setupProviders(e, t, 0, false, true);
         sellers[2].getCommoditySold(COUPON).setCapacity(12);
         sellers[3].getCommoditySold(COUPON).setCapacity(12).setQuantity(12);
         ShoppingList slVM1 = getSl(e, vms[0]);
@@ -688,6 +696,66 @@ public class CloudActionsIntegrationTest {
         assertEquals(4, slVM2.getQuantity(1), 0);
         assertEquals(0, slVM3.getQuantity(1), 0);
         assertEquals(0, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
+    }
+
+    /**
+     * Setup 2 CBTPs. CBTP 1 has TP1 underlying it. CBTP 2 has TP2 underlying it.
+     * CBTP 1 has high price, CBTP 2 has low price.
+     * 3 VMs are placed on CBTP 1, and they are all fully covered. The VMs should NOT move to CBTP2
+     * even though it has a lower price. This is because, even though the CBTP2's price is low,
+     * the underlying TP (TP2) gives a high quote. So effectively, CBTP 2 gets higher quote than CBTP 1.
+     */
+    @Test
+    public void testTPPriceUsedInsteadOfNominalCbtpPrice() {
+        // VM1 on CBTP1 consuming 2 coupons
+        // VM2 on CBTP1 consuming 2 coupons
+        // VM3 on CBTP1 consuming 2 coupons
+
+        // desired result:
+        // VMs stay there
+        Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
+        Topology t = new Topology();
+        Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);
+        Trader[] sellers = setupProviders(e, t, 0, false, true);
+
+        CostDTOs.CostDTO costDtoCbtp1 = CostDTOs.CostDTO.newBuilder()
+            .setCbtpResourceBundle(CostDTOs.CostDTO.CbtpCostDTO.newBuilder()
+                .setCouponBaseType(COUPON.getBaseType())
+                .setDiscountPercentage(0.4)
+                .addScopeIds(BA)
+                .addCostTupleList(CostDTOs.CostDTO.CostTuple.newBuilder()
+                    .setBusinessAccountId(PRICE_ID)
+                    .setLicenseCommodityType(LICENSE.getType())
+                    .setRegionId(REGION)
+                    .setPrice(HIGH_PRICE * 0.0001))
+                .build())
+            .build();
+        sellers[2].getSettings().setCostFunction(
+            CostFunctionFactory.createResourceBundleCostFunctionForCbtp(costDtoCbtp1.getCbtpResourceBundle()));
+
+        sellers[0].getCommoditySold(COUPON).setCapacity(2);
+        sellers[1].getCommoditySold(COUPON).setCapacity(2);
+        sellers[2].getCommoditySold(COUPON).setCapacity(12).setQuantity(6);
+        sellers[3].getCommoditySold(COUPON).setCapacity(12);
+        final ShoppingList slVM1 = getSl(e, vms[0]);
+        final ShoppingList slVM2 = getSl(e, vms[1]);
+        final ShoppingList slVM3 = getSl(e, vms[2]);
+        // all 3 VMs on CBTP1 with full allocation
+        vms[0].getSettings().setContext(makeContext(sellers[2].getOid(), 2, 2));
+        vms[1].getSettings().setContext(makeContext(sellers[2].getOid(), 2, 2));
+        vms[2].getSettings().setContext(makeContext(sellers[2].getOid(), 2, 2));
+        slVM1.setQuantity(1, 2);
+        slVM2.setQuantity(1, 2);
+        slVM3.setQuantity(1, 2);
+        slVM1.move(sellers[2]);
+        slVM2.move(sellers[2]);
+        slVM3.move(sellers[2]);
+
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, slVM1);
+        assertEquals(0, results.getActions().size());
     }
 
     /*
