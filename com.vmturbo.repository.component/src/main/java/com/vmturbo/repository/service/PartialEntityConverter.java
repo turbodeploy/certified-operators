@@ -18,7 +18,6 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.common.protobuf.tag.Tag.Tags.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
@@ -48,50 +47,54 @@ public class PartialEntityConverter {
 
     private final LiveTopologyStore liveTopologyStore;
 
+    /**
+     * Constructor.
+     *
+     * @param liveTopologyStore The {@link LiveTopologyStore}.
+     */
     public PartialEntityConverter(LiveTopologyStore liveTopologyStore) {
         this.liveTopologyStore = liveTopologyStore;
     }
 
-    private Long2ObjectMap<Tags> getTagsByEntity(List<RepoGraphEntity> entities) {
+    private Long2ObjectMap<Map<String, Set<String>>> getTagsByEntity(List<RepoGraphEntity> entities) {
         return liveTopologyStore.getSourceTopology()
             .map(SourceRealtimeTopology::globalTags)
             .map(globalTags -> {
                 LongSet idSet = new LongOpenHashSet(entities.size());
                 entities.forEach(e -> idSet.add(e.getOid()));
-                Long2ObjectMap<Map<String, Set<String>>> tags = globalTags.getTagsByEntity(idSet);
-                Long2ObjectMap<Tags> retMap = new Long2ObjectOpenHashMap<>(tags.size());
-                for (Long2ObjectMap.Entry<Map<String, Set<String>>> e : tags.long2ObjectEntrySet()) {
-                    Builder tBldr = Tags.newBuilder();
-                    e.getValue().forEach((key, vals) -> {
-                        tBldr.putTags(key, TagValuesDTO.newBuilder()
-                            .addAllValues(vals)
-                            .build());
-                    });
-                    retMap.put(e.getLongKey(), tBldr.build());
-                }
-                return retMap;
+                return globalTags.getTagsByEntity(idSet);
             }).orElse(new Long2ObjectOpenHashMap<>());
     }
 
     /**
      * Create a {@link PartialEntity} from a {@link RepoGraphEntity}.
+     *
+     * @param inputStream Input stream of {@link RepoGraphEntity} to convert.
+     * @param type The type of partial entity to return.
+     * @return Stream of converted entities.
      */
     @Nonnull
     public Stream<PartialEntity> createPartialEntities(@Nonnull final Stream<RepoGraphEntity> inputStream,
-                                             @Nonnull final PartialEntity.Type type) {
-        if (type.equals(Type.API)) {
+                                                       @Nonnull final PartialEntity.Type type) {
+        if (Type.API.equals(type)) {
             List<RepoGraphEntity> entities = inputStream.collect(Collectors.toList());
-            Long2ObjectMap<Tags> tagsByEntity = getTagsByEntity(entities);
+            Long2ObjectMap<Map<String, Set<String>>> tagsByEntity = getTagsByEntity(entities);
             return entities.stream()
                 .map(repoGraphEntity -> {
-                    PartialEntity.Builder partialEntityBldr = PartialEntity.newBuilder();
+                    final PartialEntity.Builder partialEntityBldr = PartialEntity.newBuilder();
                     // Information required by the API.
                     final ApiPartialEntity.Builder apiBldr = ApiPartialEntity.newBuilder().setOid(
                             repoGraphEntity.getOid()).setDisplayName(repoGraphEntity.getDisplayName()).setEntityState(
                             repoGraphEntity.getEntityState()).setEntityType(repoGraphEntity.getEntityType()).setEnvironmentType(
                             repoGraphEntity.getEnvironmentType());
-                    Tags tags = tagsByEntity.get(repoGraphEntity.getOid());
-                    if (tags != null) {
+                    Map<String, Set<String>> tagsForEntity = tagsByEntity.get(repoGraphEntity.getOid());
+                    if (tagsForEntity != null) {
+                        final Tags.Builder tags = Tags.newBuilder();
+                        tagsForEntity.forEach((key, vals) -> {
+                            tags.putTags(key, TagValuesDTO.newBuilder()
+                                .addAllValues(vals)
+                                .build());
+                        });
                         apiBldr.setTags(tags);
                     }
                     repoGraphEntity.getDiscoveringTargetIds().forEach(id -> {
@@ -208,6 +211,10 @@ public class PartialEntityConverter {
 
     /**
      * Create a {@link PartialEntity} from a {@link TopologyEntityDTO}.
+     *
+     * @param topoEntity Input entity.
+     * @param type The type of partial entity to convert to.
+     * @return The converted {@link PartialEntity}.
      */
     @Nonnull
     public PartialEntity createPartialEntity(@Nonnull final TopologyEntityDTO topoEntity,

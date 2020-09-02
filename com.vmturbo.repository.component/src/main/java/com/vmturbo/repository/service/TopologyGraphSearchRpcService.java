@@ -1,13 +1,11 @@
 package com.vmturbo.repository.service;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -18,7 +16,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Stopwatch;
 import com.google.common.collect.Iterators;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
@@ -61,7 +58,6 @@ import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
 import com.vmturbo.topology.graph.TopologyGraph;
 
-
 /**
  * An implementation of {@link SearchServiceImplBase} (see Search.proto) that uses
  * the in-memory topology graph for resolving search queries.
@@ -82,12 +78,24 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
     private final GatedSearchResolver gatedSearchResolver;
 
+    /**
+     * Constructor.
+     *
+     * @param liveTopologyStore Provides access to live topologies.
+     * @param liveTopologyPaginator Helper class to paginate results.
+     * @param partialEntityConverter Converts entities to {@link PartialEntity} objects.
+     * @param userSessionContext To enforce user scope.
+     * @param maxEntitiesPerChunk Maximum entities in a single response message in a stream.
+     * @param maxConcurrentSearches Maximum concurrent searches, to throttle requests.
+     * @param concurrentSearchTimeout Timeout when waiting for access to search.
+     * @param concurrentSearchTimeUnit Time unit for the timeout.
+     */
     public TopologyGraphSearchRpcService(@Nonnull final LiveTopologyStore liveTopologyStore,
                          @Nonnull final LiveTopologyPaginator liveTopologyPaginator,
                          @Nonnull final PartialEntityConverter partialEntityConverter,
                          @Nonnull final UserSessionContext userSessionContext,
                          final int maxEntitiesPerChunk,
-                         final int maxConcurrentSearchLimit,
+                         final int maxConcurrentSearches,
                          final long concurrentSearchTimeout,
                          @Nonnull final TimeUnit concurrentSearchTimeUnit) {
         this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
@@ -95,7 +103,7 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         this.partialEntityConverter = Objects.requireNonNull(partialEntityConverter);
         this.maxEntitiesPerChunk = maxEntitiesPerChunk;
         this.gatedSearchResolver = new GatedSearchResolver(liveTopologyStore,
-                userSessionContext, maxConcurrentSearchLimit,
+                userSessionContext, maxConcurrentSearches,
                 concurrentSearchTimeUnit.toMillis(concurrentSearchTimeout));
         this.userSessionContext = userSessionContext;
     }
@@ -144,7 +152,6 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         }
     }
 
-    public static Map<Long, List<SearchQuery>> queriesByDuration = new TreeMap<>();
     /**
      * Get a full list of entity oids based on search parameters, this rpc call will not perform
      * pagination.
@@ -170,7 +177,6 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         final SearchQuery searchQuery = request.getSearch();
 
         try {
-            Stopwatch stopwatch = Stopwatch.createStarted();
             Tracing.log(() -> logParams("Starting entity oid search with params - ", searchQuery.getSearchParametersList()));
 
             final Stream<RepoGraphEntity> entities =
@@ -182,7 +188,6 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
 
             responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
-            queriesByDuration.computeIfAbsent(stopwatch.elapsed(TimeUnit.MILLISECONDS), k -> new ArrayList<>()).add(searchQuery);
         } catch (Throwable e) {
             logger.error("Search entity OIDs failed for request {} with exception", request, e);
             final Status status = Status.INVALID_ARGUMENT.withCause(e).withDescription(e.getMessage());
@@ -265,8 +270,8 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             final PaginatedResults<RepoGraphEntity> paginatedResults =
                 liveTopologyPaginator.paginate(entities, request.getPaginationParams());
 
-            Tracing.log(() -> "Completed search and pagination. Got page with " +
-                paginatedResults.nextPageEntities().size() + "entities.");
+            Tracing.log(() -> "Completed search and pagination. Got page with "
+                    + paginatedResults.nextPageEntities().size() + "entities.");
 
             final SearchEntitiesResponse.Builder respBuilder = SearchEntitiesResponse.newBuilder()
                 .setPaginationResponse(paginatedResults.paginationResponse());
