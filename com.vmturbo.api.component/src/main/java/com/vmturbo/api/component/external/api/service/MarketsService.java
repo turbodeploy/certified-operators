@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -1086,27 +1087,35 @@ public class MarketsService implements IMarketsService {
         Set<Long> placedOids = new HashSet<>();
         boolean isMigrationPlan = plan.getProjectType() == PlanProjectType.CLOUD_MIGRATION;
         if (isMigrationPlan) {
-            FilteredActionRequest filteredActionRequest = FilteredActionRequest.newBuilder()
-                    .setPaginationParams(PaginationParameters.newBuilder().setEnforceLimit(false))
-                    .setTopologyContextId(plan.getPlanId())
-                    .setFilter(ActionQueryFilter.newBuilder()
-                            .setVisible(true)
-                            .addTypes(ActionType.MOVE))
-                    .build();
-            actionOrchestratorRpcService.getAllActions(filteredActionRequest).forEachRemaining(rsp -> {
-                // These are the actions related to the queried entities.  Only include entities
-                // with an associated action.
-                if (rsp.hasActionChunk()) {
-                    for (ActionOrchestratorAction action : rsp.getActionChunk().getActionsList()) {
-                        placedOids.add(action.getActionSpec()
-                                .getRecommendation()
-                                .getInfo()
-                                .getMove()
-                                .getTarget()
-                                .getId());
-                    }
-                }
-            });
+            AtomicReference<String> cursor = new AtomicReference<>("0");
+            do {
+                FilteredActionRequest filteredActionRequest =
+                        FilteredActionRequest.newBuilder()
+                                .setTopologyContextId(plan.getPlanId())
+                                .setPaginationParams(PaginationParameters.newBuilder()
+                                        .setCursor(cursor.getAndSet("")))
+                                .setFilter(ActionQueryFilter.newBuilder()
+                                        .setVisible(true)
+                                        .addTypes(ActionType.MOVE))
+                                .build();
+                actionOrchestratorRpcService.getAllActions(filteredActionRequest)
+                        .forEachRemaining(rsp -> {
+                            // These are the actions related to the queried entities.  Only include entities
+                            // with an associated action.
+                            if (rsp.hasActionChunk()) {
+                                for (ActionOrchestratorAction action : rsp.getActionChunk().getActionsList()) {
+                                    placedOids.add(action.getActionSpec()
+                                            .getRecommendation()
+                                            .getInfo()
+                                            .getMove()
+                                            .getTarget()
+                                            .getId());
+                                }
+                            } else if (rsp.hasPaginationResponse()) {
+                                cursor.set(rsp.getPaginationResponse().getNextCursor());
+                            }
+                        });
+            } while (!StringUtils.isEmpty(cursor.get()));
         }
 
         final Iterable<RetrieveTopologyResponse> response = () ->
