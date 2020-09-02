@@ -43,6 +43,16 @@ public class BaseKafkaConfig  {
     @Nonnull
     @Bean
     public String kafkaNamespacePrefix() {
+        return createKafkaTopicPrefix(namespace);
+    }
+
+    /**
+     * Given a namespace value, create the kafka topic prefix for it. Will be blank if no namespace
+     * was specified.
+     * @param namespace the namespace to crate a topic prefix based on.
+     * @return the topic prefix to use (blank if no namespace).
+     */
+    public static String createKafkaTopicPrefix(String namespace) {
         return StringUtils.isEmpty(namespace) ? StringUtils.EMPTY : namespace + PREFIX_DELIM;
     }
 

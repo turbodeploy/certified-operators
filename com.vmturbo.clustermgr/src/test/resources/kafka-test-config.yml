@@ -15,3 +15,6 @@ topics:
   - topic: test-partitions
     partitions: 3
     replicationFactor: 2
+  - topic: test-unclean-leader-disabled
+    properties:
+      unclean.leader.election.enable: false
