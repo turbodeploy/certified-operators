@@ -42,6 +42,8 @@ public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
 
     private final RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
+    private static final String EXAMPLE_CPU_MODEL = "Quad-Core AMD Opteron(tm) Processor 8386 SE";
+
     @Test
     public void testMapEntityToAspect() {
         // arrange
@@ -107,5 +109,56 @@ public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
                 Assert.assertNotNull(disk.getDiskRole());
             }
         }
+    }
+
+    /**
+     * A physical machine without a cpu model should not cause any exceptions.
+     */
+    @Test
+    public void testWithoutCpuModel() {
+        // no type specific info
+        TopologyEntityDTO noCpuModelEntity = TopologyEntityDTO.newBuilder()
+            .buildPartial();
+        checkCpuModel(noCpuModelEntity, null);
+
+        // no physicalMachineInfo
+        noCpuModelEntity = TopologyEntityDTO.newBuilder()
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .buildPartial())
+            .buildPartial();
+        checkCpuModel(noCpuModelEntity, null);
+
+        // no cpuModel
+        noCpuModelEntity = TopologyEntityDTO.newBuilder()
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setPhysicalMachine(PhysicalMachineInfo.newBuilder()
+                    .buildPartial())
+                .buildPartial())
+            .buildPartial();
+        checkCpuModel(noCpuModelEntity, null);
+    }
+
+    /**
+     * A physical machine with a cpu model should be extracted and placed in the result.
+     */
+    @Test
+    public void testWithCpuModel() {
+        TopologyEntityDTO cpuModelEntity = TopologyEntityDTO.newBuilder()
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setPhysicalMachine(PhysicalMachineInfo.newBuilder()
+                    .setCpuModel(EXAMPLE_CPU_MODEL)
+                    .buildPartial())
+                .buildPartial())
+            .buildPartial();
+        checkCpuModel(cpuModelEntity, EXAMPLE_CPU_MODEL);
+    }
+
+    private void checkCpuModel(TopologyEntityDTO entityDto, String expectedCpuModel) {
+        PhysicalMachineAspectMapper mapper = new PhysicalMachineAspectMapper(repositoryApi);
+        EntityAspect entityAspect = mapper.mapEntityToAspect(entityDto);
+        Assert.assertNotNull(entityAspect);
+        Assert.assertTrue(entityAspect instanceof PMEntityAspectApiDTO);
+        PMEntityAspectApiDTO pmEntityAspect = (PMEntityAspectApiDTO)entityAspect;
+        Assert.assertEquals(expectedCpuModel, pmEntityAspect.getCpuModel());
     }
 }

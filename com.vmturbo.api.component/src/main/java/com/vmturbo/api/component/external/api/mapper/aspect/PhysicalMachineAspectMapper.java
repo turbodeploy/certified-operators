@@ -43,7 +43,7 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
     @Nullable
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
-        PMEntityAspectApiDTO aspect = null;
+        PMEntityAspectApiDTO aspect = new PMEntityAspectApiDTO();
         // the 'processorPools' aspect is set from the displayName of any ProcessorPool entities
         // that are "connected" to the given PM
         final Set<Long> processorPoolOids = entity.getConnectedEntityListList().stream()
@@ -52,7 +52,6 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
             .map(ConnectedEntity::getConnectedEntityId)
             .collect(Collectors.toSet());
         if (!processorPoolOids.isEmpty()) {
-            aspect = new PMEntityAspectApiDTO();
             final List<String> processorPoolDisplayNames = repositoryApi.entitiesRequest(processorPoolOids)
                 .getMinimalEntities()
                 .map(MinimalEntity::getDisplayName)
@@ -66,16 +65,20 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
         try {
             List<PMDiskGroupAspectApiDTO> diskGroups = mapDiskGroups(typeInfo);
             if (!diskGroups.isEmpty()) {
-                if (aspect == null) {
-                    aspect = new PMEntityAspectApiDTO();
-                }
-
                 aspect.setDiskGroups(diskGroups);
             }
         } catch (AspectMapperException e) {
             logger.error("Error converting disk groups for Physical Machine '"
                     + entity.getDisplayName() + "': " + typeInfo);
         }
+
+        if (typeInfo != null && typeInfo.hasPhysicalMachine()) {
+            PhysicalMachineInfo physicalMachineInfo = typeInfo.getPhysicalMachine();
+            if (physicalMachineInfo.hasCpuModel()) {
+                aspect.setCpuModel(physicalMachineInfo.getCpuModel());
+            }
+        }
+
         aspect.setDedicatedFailoverHost(typeInfo.getPhysicalMachine().getDedicatedFailover());
         return aspect;
     }
