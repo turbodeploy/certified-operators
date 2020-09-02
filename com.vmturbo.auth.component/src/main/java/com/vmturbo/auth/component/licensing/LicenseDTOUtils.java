@@ -13,10 +13,12 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import net.jpountz.xxhash.StreamingXXHash64;
 import net.jpountz.xxhash.XXHashFactory;
-
-import org.apache.commons.lang.StringUtils;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
@@ -36,6 +38,7 @@ import com.vmturbo.licensing.utils.LicenseUtil;
  * Utility functions for working with License DTO objects.
  */
 public class LicenseDTOUtils {
+    private static final Logger logger = LogManager.getLogger();
 
     private LicenseDTOUtils() {}
 
@@ -178,16 +181,28 @@ public class LicenseDTOUtils {
 
         final Collection<TurboLicense> nonExpiredTurboLicenses = new ArrayList<>();
         final Map<Type, List<ExternalLicense>> externalLicensesByType = new HashMap<>();
-        licenses.forEach(license -> {
+        // track if any of the non-expired licenses are not valid
+        boolean areAllNonExpiredLicensesValid = true; // until proven guilty
+        for (LicenseDTO license : licenses) {
             if (license.hasTurbo()) {
                 if (!LicenseUtil.isExpired(license)) {
                     nonExpiredTurboLicenses.add(license.getTurbo());
+                    // we'll check the validity here too
+                    boolean isThisLicenseValid = LicenseUtil.toModel(license)
+                            .map(License::isValid)
+                            .orElse(false);
+                    // if not valid, log for posterity. Debug, since this is a recurring operation.
+                    if (!isThisLicenseValid) {
+                        // maybe get the errors at some point too.
+                        logger.debug("License {} is detected as invalid.", license.getUuid());
+                    }
+                    areAllNonExpiredLicensesValid = areAllNonExpiredLicensesValid && isThisLicenseValid;
                 }
             } else if (license.hasExternal()) {
                 externalLicensesByType.computeIfAbsent(license.getExternal().getType(), k -> new ArrayList<>())
-                    .add(license.getExternal());
+                        .add(license.getExternal());
             }
-        });
+        }
 
         licensedEntitiesCount.ifPresent(licensedEntities -> {
             summaryBuilder.setCountedEntity(licensedEntities.getCountedEntity().name());
@@ -209,11 +224,7 @@ public class LicenseDTOUtils {
                 .flatMap(List::stream)
                 .forEach(summaryBuilder::addErrorReason);
 
-        summaryBuilder.setIsValid(licenses.stream()
-                .map(LicenseUtil::toModel)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .allMatch(License::isValid));
+        summaryBuilder.setIsValid(areAllNonExpiredLicensesValid);
 
         externalLicensesByType.forEach((type, externalLicenses) -> {
             final ExternalLicenseSummary.Builder externalTypeSummaryBldr = ExternalLicenseSummary.newBuilder();
@@ -235,7 +246,6 @@ public class LicenseDTOUtils {
 
         // set generation date to now.
         summaryBuilder.setGenerationDate(DateTimeUtil.getNow());
-
 
         return summaryBuilder.build();
     }

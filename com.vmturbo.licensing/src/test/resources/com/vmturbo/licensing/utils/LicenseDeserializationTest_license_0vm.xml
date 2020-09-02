@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+
+<!-- VMTurbo license file; license created: 2015-03-12 -->
+
+<license>
+    <first-name>Samwell</first-name>
+    <last-name>Rockwise</last-name>
+    <email>samwell.rockwise@turbonomic.com</email>
+    <vm-total>0</vm-total>
+    <expiration-date>2050-12-31</expiration-date>
+    <lock-code>c8a2f34d660caa921fa83b2836f0ce15</lock-code>
+    <feature FeatureName="easter-egg"/>
+</license>

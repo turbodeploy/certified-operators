@@ -306,8 +306,9 @@ public class LicenseDeserializer {
         private String firstName;
         private String lastName;
         private String email;
-        private int numSockets;
-        private int vmTotal;
+        private CountedEntity countedEntity;
+        private int numSockets = 0;
+        private int vmTotal = 0;
         private String expirationDate;
         private String lockCode;
         private String edition;
@@ -356,6 +357,7 @@ public class LicenseDeserializer {
 
         public LicenseXmlDTO setVmTotal(final int total) {
             this.vmTotal = total;
+            this.countedEntity = CountedEntity.VM;
             return this;
         }
 
@@ -375,6 +377,7 @@ public class LicenseDeserializer {
 
         public LicenseXmlDTO setNumSockets(final int numSockets) {
             this.numSockets = numSockets;
+            this.countedEntity = CountedEntity.SOCKET;
             return this;
         }
 
@@ -423,13 +426,7 @@ public class LicenseDeserializer {
         }
 
         public CountedEntity getCountedEntity() {
-            if (numSockets > 0) {
-                return ILicense.CountedEntity.SOCKET;
-            }
-            if (vmTotal > 0) {
-                return ILicense.CountedEntity.VM;
-            }
-            return null;
+            return countedEntity;
         }
 
         public static class FeatureNode {
