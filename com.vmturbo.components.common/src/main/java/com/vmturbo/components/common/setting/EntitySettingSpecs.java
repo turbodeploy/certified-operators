@@ -950,6 +950,168 @@ public enum EntitySettingSpecs {
         string(), true),
 
     /**
+     * Automation Policy for the DeleteVolume Workflow. The value is the name of an
+     * Orchestration workflow to invoke when a deleteVolume action is generated and executed.
+     */
+    DeleteVolumeActionWorkflow("deleteVolumeActionWorkflow", "Delete Volume Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the DeleteVolume workflow. The value is the name of an
+     * Orchestration workflow to invoke before a deleteVolume action is executed.
+     */
+    PreDeleteVolumeActionWorkflow("preDeleteVolumeActionWorkflow", "Delete Volume Pre Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the DeleteVolume post workflow. The value is the name of an
+     * Orchestration workflow to invoke after a deleteVolume action is executed (whether successful or not).
+     */
+    PostDeleteVolumeActionWorkflow("postDeleteVolumeActionWorkflow", "Delete Volume Post Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the NonDisruptiveReversibleScaling Workflow. The value is the name of an
+     * Orchestration workflow to invoke when a nonDisruptiveReversibleScaling action is generated and executed.
+     */
+    NonDisruptiveReversibleScalingActionWorkflow("nonDisruptiveReversibleScalingActionWorkflow",
+            "NonDisruptiveReversibleScaling Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the NonDisruptiveReversibleScaling pre workflow. The value is the name of an
+     * Orchestration workflow to invoke before a nonDisruptiveReversibleScaling action is executed.
+     */
+    PreNonDisruptiveReversibleScalingActionWorkflow("preNonDisruptiveReversibleScalingActionWorkflow",
+            "NonDisruptiveReversibleScaling Pre Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the NonDisruptiveReversibleScaling post workflow. The value is the name of an
+     * Orchestration workflow to invoke after a nonDisruptiveReversibleScaling action is executed (whether successful or not).
+     */
+    PostNonDisruptiveReversibleScalingActionWorkflow("postNonDisruptiveReversibleScalingActionWorkflow",
+            "NonDisruptiveReversibleScaling Post Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the NonDisruptiveIrreversibleScaling Workflow. The value is the name of an
+     * Orchestration workflow to invoke when a nonDisruptiveIrreversibleScaling action is generated and executed.
+     */
+    NonDisruptiveIrreversibleScalingActionWorkflow("nonDisruptiveIrreversibleScalingActionWorkflow",
+            "NonDisruptiveIrreversibleScaling Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the NonDisruptiveIrreversibleScaling pre workflow. The value is the name of an
+     * Orchestration workflow to invoke before a nonDisruptiveIrreversibleScaling action is executed.
+     */
+    PreNonDisruptiveIrreversibleScalingActionWorkflow("preNonDisruptiveIrreversibleScalingActionWorkflow",
+            "NonDisruptiveIrreversibleScaling Pre Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the NonDisruptiveIrreversibleScaling post workflow. The value is the name of an
+     * Orchestration workflow to invoke after a nonDisruptiveIrreversibleScaling action is executed (whether successful or not).
+     */
+    PostNonDisruptiveIrreversibleScalingActionWorkflow("postNonDisruptiveIrreversibleScalingActionWorkflow",
+            "NonDisruptiveIrreversibleScaling Post Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the DisruptiveReversibleScaling Workflow. The value is the name of an
+     * Orchestration workflow to invoke when a disruptiveReversibleScaling action is generated and executed.
+     */
+    DisruptiveReversibleScalingActionWorkflow("disruptiveReversibleScalingActionWorkflow",
+            "DisruptiveReversibleScaling Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the DisruptiveReversibleScaling pre workflow. The value is the name of an
+     * Orchestration workflow to invoke before a disruptiveReversibleScaling action is executed.
+     */
+    PreDisruptiveReversibleScalingActionWorkflow("preDisruptiveReversibleScalingActionWorkflow",
+            "DisruptiveReversibleScaling Pre Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the DisruptiveReversibleScaling post workflow. The value is the name of an
+     * Orchestration workflow to invoke after a disruptiveReversibleScaling action is executed (whether successful or not).
+     */
+    PostDisruptiveReversibleScalingActionWorkflow("postDisruptiveReversibleScalingActionWorkflow",
+            "DisruptiveReversibleScaling Post Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the DisruptiveIrreversibleScaling Workflow. The value is the name of an
+     * Orchestration workflow to invoke when a disruptiveIrreversibleScaling action is generated and executed.
+     */
+    DisruptiveIrreversibleScalingActionWorkflow("disruptiveIrreversibleScalingActionWorkflow",
+            "DisruptiveIrreversibleScaling Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the DisruptiveIrreversibleScaling pre workflow. The value is the name of an
+     * Orchestration workflow to invoke before a disruptiveIrreversibleScaling action is executed.
+     */
+    PreDisruptiveIrreversibleScalingActionWorkflow("preDisruptiveIrreversibleScalingActionWorkflow",
+            "DisruptiveIrreversibleScaling Pre Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
+     * Automation Policy for the DisruptiveIrreversibleScaling post workflow. The value is the name of an
+     * Orchestration workflow to invoke after a disruptiveIrreversibleScaling action is executed (whether successful or not).
+     */
+    PostDisruptiveIrreversibleScalingActionWorkflow("postDisruptiveIrreversibleScalingActionWorkflow",
+            "DisruptiveIrreversibleScaling Post Workflow",
+            Collections.singletonList(CategoryPathConstants.AUTOMATION),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            string(), true),
+
+    /**
      * Response Time SLO used by Application and Database.
      * @deprecated since ResponseTimeSLO was added.
      * This setting shouldn't be removed in case an old topology is loaded.
