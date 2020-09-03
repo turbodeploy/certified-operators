@@ -56,7 +56,7 @@ public interface TagIndex {
     LongSet getMatchingEntities(@Nonnull MapFilter mapFilter, @Nonnull LongPredicate predicate);
 
     /**
-     * See {@link TagIndex#getMatchingEntities(MapFilter, LongPredicate)}
+     * See {@link TagIndex#getMatchingEntities(MapFilter, LongPredicate)}.
      *
      * @param mapFilter The tag filter.
      * @return The set of all OIDs that match the filter.
@@ -164,8 +164,17 @@ public interface TagIndex {
             Long2ObjectMap<Map<String, Set<String>>> ret = new Long2ObjectOpenHashMap<>();
             tags.forEach((key, vals) -> {
                 vals.forEach((val, entitiesWithTag) -> {
-                    entitiesWithTag.forEach((LongConsumer)e -> {
-                        if (entities.contains(e)) {
+                    final LongSet smallerSet;
+                    final LongSet largerSet;
+                    if (entitiesWithTag.size() > entities.size()) {
+                        smallerSet = entities;
+                        largerSet = entitiesWithTag;
+                    } else {
+                        smallerSet = entitiesWithTag;
+                        largerSet = entities;
+                    }
+                    smallerSet.forEach((LongConsumer)e -> {
+                        if (largerSet.contains(e)) {
                             ret.computeIfAbsent(e, k -> new HashMap<>())
                                 .computeIfAbsent(key, k -> new HashSet<>()).add(val);
                         }

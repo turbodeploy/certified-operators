@@ -5,9 +5,18 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -43,6 +52,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
+import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
 import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
 
 public class PartialEntityConverterTest {
@@ -247,6 +257,14 @@ public class PartialEntityConverterTest {
 
     @Test
     public void testGraphEntityToApi() {
+        final DefaultTagIndex tagIndex = mock(DefaultTagIndex.class);
+        final Long2ObjectMap<Map<String, Set<String>>> map = new Long2ObjectOpenHashMap<>();
+        map.put(graphEntity.getOid(), Collections.singletonMap("tag", Collections.singleton("val")));
+        when(tagIndex.getTagsByEntity(any())).thenReturn(map);
+        final SourceRealtimeTopology mockTopology = mock(SourceRealtimeTopology.class);
+        when(mockTopology.globalTags()).thenReturn(tagIndex);
+        when(liveTopologyStore.getSourceTopology()).thenReturn(Optional.of(mockTopology));
+
         final ApiPartialEntity apiEntity = converter.createPartialEntities(Stream.of(graphEntity), Type.API).findFirst().get().getApi();
         assertThat(apiEntity.getOid(), is(ENTITY.getOid()));
         assertThat(apiEntity.getEnvironmentType(), is(ENTITY.getEnvironmentType()));

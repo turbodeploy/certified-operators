@@ -55,7 +55,7 @@ public class TagPropertyFilter<E extends TopologyGraphSearchableEntity<E>> exten
             final TagIndex tagIndex = searchableProps.getTagIndex();
             final LongSet matchedEntities = tagIndex.getMatchingEntities(mapFilter, entitiesById::containsKey);
             return entitiesById.values().stream()
-                    .filter(e -> matchedEntities.contains(e.getOid()));
+                    .filter(e -> mapFilter.getPositiveMatch() == matchedEntities.contains(e.getOid()));
         }
     }
 }

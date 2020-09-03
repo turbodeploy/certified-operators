@@ -7,6 +7,7 @@ import java.util.List;
 
 import javax.servlet.ServletContext;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableList.Builder;
 
@@ -72,7 +73,8 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
      *
      * @return base URLs for the external REST API.
      */
-    private static ImmutableList<String> getBaseURLMappings() {
+    @VisibleForTesting
+    static ImmutableList<String> getBaseURLMappings() {
         final Builder<String> urlListBuilder = ImmutableList.builder();
         final ImmutableList<String> urlList = ImmutableList.of(
                 // This is the base currently used in the new UX.
