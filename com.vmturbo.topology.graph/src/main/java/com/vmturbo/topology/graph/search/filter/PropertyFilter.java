@@ -75,6 +75,7 @@ public class PropertyFilter<E extends TopologyGraphSearchableEntity<E>> implemen
      * Test if a particular {@link TopologyGraphSearchableEntity} passes the filter.
      *
      * @param entity The {@link TopologyGraphSearchableEntity} to test against the filter.
+     * @param graph The {@link TopologyGraph}.
      * @return True if the {@link TopologyGraphSearchableEntity} passes the filter, false otherwise.
      */
     @VisibleForTesting
