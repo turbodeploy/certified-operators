@@ -90,7 +90,8 @@ while True:
                     re.sub(r'^[^@]*@', '', license_dto['email'].strip())  # also trim whitespace.
                     for license_dto in response.json()['response']['licenseDTO']
                     # If the licence hasn't expired and has an e-mail
-                    if datetime.strptime(license_dto['expirationDate'], '%Y-%m-%d') < datetime.today()
+                    if datetime.today() <= datetime.strptime(license_dto['expirationDate'],
+                                                             '%Y-%m-%d')
                     and 'email' in license_dto
                 }))
         except (requests.RequestException, OSError, ValueError) as error:
