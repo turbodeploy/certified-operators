@@ -56,6 +56,17 @@ public interface TagIndex {
     LongSet getMatchingEntities(@Nonnull MapFilter mapFilter, @Nonnull LongPredicate predicate);
 
     /**
+     * See {@link TagIndex#getMatchingEntities(MapFilter, LongPredicate)}
+     *
+     * @param mapFilter The tag filter.
+     * @return The set of all OIDs that match the filter.
+     */
+    @Nonnull
+    default LongSet getMatchingEntities(@Nonnull MapFilter mapFilter) {
+        return getMatchingEntities(mapFilter, e -> true);
+    }
+
+    /**
      * The default (and, at the time of this writing, the only) tag index implementation.
      * This class is thread-safe once all tags have been added and "finish" has been called.
      */
@@ -121,10 +132,20 @@ public interface TagIndex {
         @Nonnull
         public Map<String, Set<String>> getTagsForEntities(@Nonnull final LongSet entities) {
             return getTags(entitiesWithTag -> {
-                LongIterator longIt = entities.iterator();
+                // Iterate over the smaller set, look up in the bigger set.
+                final LongSet smallerSet;
+                final LongSet largerSet;
+                if (entitiesWithTag.size() > entities.size()) {
+                    smallerSet = entities;
+                    largerSet = entitiesWithTag;
+                } else {
+                    smallerSet = entitiesWithTag;
+                    largerSet = entities;
+                }
+                LongIterator longIt = smallerSet.iterator();
                 while (longIt.hasNext()) {
                     long nextId = longIt.nextLong();
-                    if (entitiesWithTag.contains(nextId)) {
+                    if (largerSet.contains(nextId)) {
                         return true;
                     }
                 }
