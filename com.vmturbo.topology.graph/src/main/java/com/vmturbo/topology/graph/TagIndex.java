@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -48,10 +49,11 @@ public interface TagIndex {
      * than going over each entity and calling {@link DefaultTagIndex#isMatchingEntity(long, MapFilter)}.
      *
      * @param mapFilter The tag filter.
+     * @param predicate Additional predicate for potentially matching entities.
      * @return The set of all OIDs that match the filters.
      */
     @Nonnull
-    LongSet getMatchingEntities(MapFilter mapFilter);
+    LongSet getMatchingEntities(@Nonnull MapFilter mapFilter, @Nonnull LongPredicate predicate);
 
     /**
      * The default (and, at the time of this writing, the only) tag index implementation.
@@ -130,6 +132,12 @@ public interface TagIndex {
             });
         }
 
+        /**
+         * Get the tags on a set of entities, arranged by entity ID.
+         *
+         * @param entities The OIDs of the entities.
+         * @return The tags (expressed as key -> set(value)).
+         */
         @Nonnull
         public Long2ObjectMap<Map<String, Set<String>>> getTagsByEntity(@Nonnull final LongSet entities) {
             Long2ObjectMap<Map<String, Set<String>>> ret = new Long2ObjectOpenHashMap<>();
@@ -172,7 +180,7 @@ public interface TagIndex {
 
         @Override
         @Nonnull
-        public LongSet getMatchingEntities(MapFilter mapFilter) {
+        public LongSet getMatchingEntities(@Nonnull MapFilter mapFilter, @Nonnull LongPredicate entityPredicate) {
             LongSet retSet = new LongOpenHashSet();
             if (StringUtils.isEmpty(mapFilter.getKey())) {
                 // Loop over all key-value pairs, create the joined "key=value" string, and
@@ -185,7 +193,11 @@ public interface TagIndex {
                         valsToEntities.forEach((val, entities) -> {
                             String keyVal = key + "=" + val;
                             if (pattern.matcher(keyVal).matches()) {
-                                retSet.addAll(entities);
+                                entities.forEach((LongConsumer)eId -> {
+                                    if (entityPredicate.test(eId)) {
+                                        retSet.add(eId);
+                                    }
+                                });
                             }
                         });
                     });
