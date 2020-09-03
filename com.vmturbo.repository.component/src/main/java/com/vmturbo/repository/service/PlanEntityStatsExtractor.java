@@ -326,10 +326,8 @@ interface PlanEntityStatsExtractor {
                                            @Nonnull final String providerOidString,
                                            @Nonnull final String relation,
                                            @Nullable final HistUtilizationValue histUtilizationValue) {
-            final String units = CommodityTypeUnits.fromString(commodityName).getUnits();
             StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
                 .setName(commodityName)
-                .setUnits(units)
                 .setCurrentValue(used.getAvg())
                 .setUsed(used)
                 .setPeak(used)
@@ -339,6 +337,10 @@ interface PlanEntityStatsExtractor {
                 .setRelation(relation);
             if (histUtilizationValue != null) {
                 statRecordBuilder.addHistUtilizationValue(histUtilizationValue);
+            }
+            final CommodityTypeUnits typeUnits = CommodityTypeUnits.fromString(commodityName);
+            if (typeUnits != null) {
+                statRecordBuilder.setUnits(typeUnits.getUnits());
             }
             return statRecordBuilder.build();
         }
