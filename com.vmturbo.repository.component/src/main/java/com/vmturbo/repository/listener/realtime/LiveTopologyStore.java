@@ -28,6 +28,7 @@ public class LiveTopologyStore extends BaseTopologyStore<SourceRealtimeTopology,
      * Create a {@link LiveTopologyStore}.
      *
      * @param globalSupplyChainCalculator a global supply chain calculator
+     * @param searchResolver Search resolver to use to resolve queries against the source topology.
      */
     public LiveTopologyStore(@Nonnull GlobalSupplyChainCalculator globalSupplyChainCalculator,
                              @Nonnull SearchResolver<RepoGraphEntity> searchResolver) {

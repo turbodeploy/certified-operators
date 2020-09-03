@@ -178,6 +178,11 @@ public class RepositoryComponentConfig {
         return new LiveTopologyStore(globalSupplyChainCalculator(), searchResolver());
     }
 
+    /**
+     * Resolves searches against a topology graph.
+     *
+     * @return The {@link SearchResolver}.
+     */
     @Bean
     public SearchResolver<RepoGraphEntity> searchResolver() {
         return new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
