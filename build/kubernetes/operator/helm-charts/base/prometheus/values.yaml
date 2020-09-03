@@ -604,6 +604,19 @@ server:
         - name: datacloud-service-account # must match the name of the secret volume below.
           mountPath: "/var/run/secrets/datacloud/serviceaccount"
           readOnly: true
+      # Prometheus configuration manager sidecar to read configuration from configMap, update it
+      # with information from XL and write it where server will read it. Replaces configmap-reload.
+    - name: configuration-manager
+      image: turbonomic/prometheus-config-manager # need to set the version using a template
+      imagePullPolicy: IfNotPresent
+      args:
+        - "60" # seconds between attempts to update he configuration
+      volumeMounts:
+        - name: config-volume # Needs to match the name in Prometheus server deployment template.
+          mountPath: /etc/config
+          readOnly: true
+        - name: prometheus-merged-config
+          mountPath: /etc/merged-config
 
   ## Prometheus server container image
   ##
@@ -723,8 +736,8 @@ server:
       secret:
         secretName: prometheus-datacloud-gateway # must match the name of the secret in xl/templates
     - name: prometheus-merged-config
-      persistentVolumeClaim:
-        claimName: prometheus-merged-config
+      emptyDir: {} # Will hold file(s) that are recreated periodically from information readily
+                   # available outside the volume.
 
   ## Additional Prometheus server hostPath mounts
   ##
