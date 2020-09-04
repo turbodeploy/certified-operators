@@ -717,6 +717,7 @@ public class ServiceConfig {
     public UsersService usersService() {
         return new UsersService(authConfig.getAuthHost(),
             authConfig.getAuthPort(),
+            authConfig.getAuthRoute(),
             communicationConfig.serviceRestTemplate(),
             samlRegistrationId,
             samlEnabled,

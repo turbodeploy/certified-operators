@@ -8,7 +8,7 @@ import java.util.PrimitiveIterator.OfLong;
 import java.util.Set;
 import java.util.stream.LongStream;
 
-import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+import org.apache.commons.lang.NotImplementedException;
 
 /**
  * OidSet extends OidFilter by adding the ability to iterate over the members, perform union
@@ -121,7 +121,8 @@ public interface OidSet extends OidFilter, Iterable<Long> {
 
         @Override
         public OidSet union(final OidSet other) {
-            return OidSet.EMPTY_OID_SET;
+            if (other == null) return this;
+            return other;
         }
 
         @Override
