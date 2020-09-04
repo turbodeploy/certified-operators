@@ -80,7 +80,7 @@ public class UserServiceTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     @InjectMocks
-    private UsersService usersService = new UsersService("", 0, "", restTemplate, "", false,
+    private UsersService usersService = new UsersService("", 0, restTemplate, "", false,
         groupsService, widgetSetsService, reportingUserCalculator);
     private static final String AUTH_REQUEST = UriComponentsBuilder.newInstance()
             .scheme("http")

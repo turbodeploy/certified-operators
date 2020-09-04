@@ -9,8 +9,6 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.springframework.util.CollectionUtils;
-
 import com.vmturbo.components.common.identity.OidFilter;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.components.common.identity.OidSet.AllOidsSet;
@@ -145,14 +143,10 @@ public class EntityAccessScope implements OidFilter {
         if (accessFilter.containsAll()) {
             return AllOidsSet.ALL_OIDS_SET;
         }
-        if (CollectionUtils.isEmpty(entityTypes)) {
-            return OidSet.EMPTY_OID_SET;
-        }
-        OidSet oids = OidSet.EMPTY_OID_SET;
-        for (String entityType : entityTypes) {
-            oids = oids.union(accessibleOidsByEntityType.get(entityType));
-        }
-        return oids;
+        Set<Long> oids = new HashSet<>();
+        entityTypes.stream().filter(accessibleOidsByEntityType::containsKey).forEach(entityType ->
+                oids.addAll(accessibleOidsByEntityType.get(entityType).toSet()));
+        return new RoaringBitmapOidSet(oids);
     }
 
     public String toString() {
