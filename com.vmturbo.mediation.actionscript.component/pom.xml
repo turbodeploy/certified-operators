@@ -37,9 +37,6 @@
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars/probe</outputDirectory>
-                                    <!-- avoid duplicate jars in both /lib/ and /probe-jars/probe/,
-                                    so we don't get classpath issue like IncompatibleClassChangeError -->
-                                    <excludes>protobuf-java-*.jar</excludes>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>
