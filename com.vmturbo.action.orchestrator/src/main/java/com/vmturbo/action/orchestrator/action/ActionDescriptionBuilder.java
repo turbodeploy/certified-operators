@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyAtomicActionsCommodityType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityTypes;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyEntityTypeAndName;
@@ -7,7 +8,6 @@ import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyEntityTyp
 import java.text.CharacterIterator;
 import java.text.MessageFormat;
 import java.text.StringCharacterIterator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -41,7 +41,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -55,7 +54,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -179,6 +177,10 @@ public class ActionDescriptionBuilder {
     /**
      * Builds the description for a Atomic Resize action.
      *
+     * <p>e.g. description for merged actions on workload controller:
+     * "Resize VCPU Request,VMem Limit,VMem Request,VCPU Limit
+     *  for Workload Controller controller1_test"
+     *
      * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
      *                                                      information.
      * @param recommendation the Action DTO
@@ -198,42 +200,19 @@ public class ActionDescriptionBuilder {
 
         ActionPartialEntity targetEntity = optEntity.get();
 
-        List<ResizeInfo> resizeInfos = atomicResize.getResizesList();
+        Set<TopologyDTO.CommodityType> commodityTypes
+                = atomicResize.getResizesList().stream()
+                    .map(resize -> resize.getCommodityType())
+                    .collect(Collectors.toSet());
 
-        StringBuilder formattedSourceEntities = new StringBuilder();
-        StringBuilder formattedCommodityTypes = new StringBuilder();
-
-        Set<TopologyDTO.CommodityType> commodityTypes = new HashSet<>();
-        for (ResizeInfo resize : resizeInfos) {
-            commodityTypes.add(resize.getCommodityType());
-
-            // target entity in the resize
-            Optional<ActionPartialEntity> sourceEntity =
-                        entitiesSnapshot.getEntityFromOid(resize.getTarget().getId());
-            if (sourceEntity.isPresent()) {
-                if (formattedSourceEntities.length() > 0) {
-                        formattedSourceEntities.append(',');
-                }
-                formattedSourceEntities.append(beautifyEntityTypeAndName(sourceEntity.get()));
-            }
-        }
-
-        for (TopologyDTO.CommodityType commType : commodityTypes) {
-            if (formattedCommodityTypes.length() > 0) {
-                formattedCommodityTypes.append(',');
-            }
-
-            if (commType.getType() == CommodityType.VCPU_VALUE
-                    || commType.getType() == CommodityType.VMEM_VALUE)    {
-                formattedCommodityTypes.append(beautifyCommodityType(commType)).append(" Limit");
-            } else {
-                formattedCommodityTypes.append(beautifyCommodityType(commType));
-            }
-        }
+        List<String> formattedCommodityTypes
+                = commodityTypes.stream()
+                    .map(commType -> beautifyAtomicActionsCommodityType(commType))
+                    .collect(Collectors.toList());
 
         ActionMessageFormat messageFormat = ActionMessageFormat.ACTION_DESCRIPTION_ATOMIC_RESIZE;
         return messageFormat.format(
-                formattedCommodityTypes.toString(),
+                String.join(",", formattedCommodityTypes),
                 beautifyEntityTypeAndName(targetEntity)
         );
     }
