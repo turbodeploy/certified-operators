@@ -4,9 +4,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -94,17 +96,23 @@ public class AtomicActionFactoryTest {
 
         AtomicActionFactory atomicActionFactory = new AtomicActionFactory(atomicActionSpecsCache);
 
-        List<AtomicActionResult> atomicActions = atomicActionFactory.merge(actionList);
+        Map<Long, AggregatedAction> aggregatedActions = atomicActionFactory.aggregate(actionList);
+        List<AtomicActionResult> atomicActions = atomicActionFactory.atomicActions(aggregatedActions);
+
         assertNotNull(atomicActions);
         assertEquals(1, atomicActions.size());
         AtomicActionResult atomicAction = atomicActions.get(0);
-        assertEquals(2, atomicAction.marketActions().size());
+        assertEquals(2, atomicAction.mergedActions().size());
 
+        List<Action> marketActions = atomicAction.deDuplicatedActions().values()
+                                        .stream()
+                                        .flatMap(Collection::stream)
+                                        .collect(Collectors.toList());
         List<Long> entitiesWithoutSpecs = Arrays.asList(21L, 22L);
         List<Long> entitiesWithSpecs = Arrays.asList(11L, 12L);
-        atomicAction.marketActions().stream()
+        marketActions.stream()
                 .noneMatch(action -> !entitiesWithoutSpecs.contains(action.getInfo().getResize().getTarget().getId()));
-        atomicAction.marketActions().stream()
+        marketActions.stream()
                 .allMatch(action -> !entitiesWithSpecs.contains(action.getInfo().getResize().getTarget().getId()));
     }
 
@@ -134,12 +142,18 @@ public class AtomicActionFactoryTest {
 
         AtomicActionFactory atomicActionFactory = new AtomicActionFactory(atomicActionSpecsCache);
 
-        List<AtomicActionResult> atomicActions = atomicActionFactory.merge(actionList);
+        Map<Long, AggregatedAction> aggregatedActions = atomicActionFactory.aggregate(actionList);
+        List<AtomicActionResult> atomicActions = atomicActionFactory.atomicActions(aggregatedActions);
+
         assertEquals(1, atomicActions.size());
         AtomicActionResult atomicAction = atomicActions.get(0);
-        assertEquals(2, atomicAction.marketActions().size());
+        assertEquals(2, atomicAction.mergedActions().size());
 
-        atomicAction.marketActions().stream()
+        List<Action> marketActions = atomicAction.deDuplicatedActions().values()
+                .stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
+        marketActions.stream()
                 .allMatch(action -> action.getInfo().hasResize());
     }
 

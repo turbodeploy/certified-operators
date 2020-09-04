@@ -265,26 +265,53 @@ public class LiveActionStore implements ActionStore {
 
             // Check if the atomic action factory contains specs to create atomic actions
             // for the actions received, create atomic actions if the specs are received
-            // from the toplogy processor
+            // from the topology processor
+            // List of all the Action DTOs for the atomic actions that were created
             List<ActionDTO.Action> atomicActions = Collections.emptyList();
+            // The market Action DTOs that were merged to created atomic actions, map of action Id and action
             Map<Long, ActionDTO.Action> mergedActions = new HashMap<>();
+
+            // The aggregated and de-duplicated action target entities required to create the entity snapshot
             Collection<Long> atomicActionEntities = Collections.emptyList();
 
             if (atomicActionFactory.canMerge()) {
-                List<AtomicActionResult> atomicActionResults = atomicActionFactory.merge(actionPlan.getActionList());
-                logger.info("Created {} atomic actions", atomicActionResults.size());
+                // First aggregate the market actions that should be de-duplicated and merged
+                Map<Long, AggregatedAction> aggregatedActions = atomicActionFactory.aggregate(actionPlan.getActionList());
+                logger.info("Created {} aggregated actions", aggregatedActions.size());
 
-                atomicActions =
-                        atomicActionResults.stream()
-                                .map(atomicActionResult -> atomicActionResult.atomicAction())
-                                .collect(Collectors.toList());
+                atomicActionEntities = aggregatedActions.values().stream()
+                                        .flatMap(action -> action.getActionEntities().stream())
+                                        .collect(Collectors.toList());
 
-                for (AtomicActionResult result : atomicActionResults) {
-                    result.marketActions().stream().forEach(action -> {
-                        mergedActions.put(action.getId(), action);
-                    });
+                if (!aggregatedActions.isEmpty()) {
+                    // Create the action DTOs for the atomic actions
+                    List<AtomicActionResult> atomicActionResults = atomicActionFactory.atomicActions(aggregatedActions);
+                    logger.info("Created {} atomic actions", atomicActionResults.size());
+
+                    // The aggregated atomic actions that will be executed by the aggregation target
+                    atomicActions = atomicActionResults.stream()
+                                    .map(atomicActionResult -> atomicActionResult.atomicAction())
+                                    .collect(Collectors.toList());
+
+                    // The de-duplicated atomic actions that were merged inside the aggregated atomic actions above
+                    // These actions are marked non-executable
+                    List<ActionDTO.Action> deDupedAtomicActions = atomicActionResults.stream()
+                                    .flatMap(atomicActionResult -> atomicActionResult.deDuplicatedActions().keySet().stream())
+                                    .collect(Collectors.toList());
+
+                    atomicActions.addAll(deDupedAtomicActions);
+
+                    // The original market actions that were merged
+                    for (AtomicActionResult result : atomicActionResults) {
+                        result.deDuplicatedActions().values()
+                                .stream()
+                                .flatMap(Collection::stream)
+                                .forEach(action -> mergedActions.put(action.getId(), action));
+
+                        result.mergedActions().stream()
+                                .forEach(action -> mergedActions.put(action.getId(), action));
+                    }
                 }
-                atomicActionEntities = ActionDTOUtil.getInvolvedEntityIds(atomicActions);
             }
 
             Collection<Long> actionEntities = ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList());
@@ -309,18 +336,6 @@ public class LiveActionStore implements ActionStore {
             } catch (IdentityServiceException e) {
                 logger.error("Error retrieving OIDs for actions", e);
                 return false;
-            }
-
-            if (logger.isDebugEnabled()) {
-                allActionsWithAdditionalInfo.stream().forEach(
-                        entry -> {
-                            if (entry.getInfo().hasResize()) {
-                                logger.debug("entity {} action {} has support level {}",
-                                        entry.getInfo().getResize().getTarget().getId(),
-                                        entry.getId(), entry.getSupportingLevel());
-                            }
-                        }
-                );
             }
 
             // RecommendationTracker to accelerate lookups of recommendations.

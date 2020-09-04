@@ -1253,6 +1253,10 @@ public class LiveActionStoreTest {
 
     /**
      * Test creation of atomic actions.
+     * Two resize actions are first de-duplicated and then merged to a single atomic action.
+     * This creates two additional action DTOs for the LiveActionStore
+     * - one non-executable action dto for the de-duplication entity for UI visibility
+     * - one executable action dto for the aggregation entity that will execute the action
      *
      * @throws Exception
      */
@@ -1287,7 +1291,7 @@ public class LiveActionStoreTest {
 
         actionStore.populateRecommendedActions(firstPlan);
 
-        assertEquals(4, actionStore.size());
+        assertEquals(5, actionStore.size());
     }
 
 }
