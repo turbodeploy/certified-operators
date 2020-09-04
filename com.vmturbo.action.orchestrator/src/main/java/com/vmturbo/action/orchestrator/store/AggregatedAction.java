@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -72,6 +73,18 @@ public class AggregatedAction {
     // atomically by the aggregation target
     private final List<Action> aggregateOnlyActions;
 
+    final Map<Long, ActionView> actionViews;
+
+    /**
+     * Add the {@link ActionView} for the given market action.
+     *
+     * @param actionId action id
+     * @param actionView action view
+     */
+    public void updateActionView(long actionId, ActionView actionView) {
+        actionViews.put(actionId, actionView);
+    }
+
     /**
      * Constructor to create an object representing all the actions that will be grouped
      * together for atomic execution by a single target entity that controls the target entities
@@ -88,6 +101,7 @@ public class AggregatedAction {
         this.targetName = targetName;
         deDupedActionsMap = new HashMap<>();
         aggregateOnlyActions = new ArrayList<>();
+        actionViews = new HashMap<>();
     }
 
     /**

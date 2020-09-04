@@ -1,5 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.util.Optional;
+
 import com.vmturbo.action.orchestrator.store.AtomicActionFactory.AtomicActionResult;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 
@@ -63,6 +65,5 @@ public interface AtomicActionBuilder {
      *          for the de-duplicated actions that were merged in the primary atomic action.
      *
      */
-    AtomicActionResult build();
-
+    Optional<AtomicActionResult> build();
 }

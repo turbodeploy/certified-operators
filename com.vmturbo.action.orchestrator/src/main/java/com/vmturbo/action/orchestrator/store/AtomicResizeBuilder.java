@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -16,12 +17,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
+import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.AggregatedAction.DeDupedActions;
 import com.vmturbo.action.orchestrator.store.AtomicActionFactory.AtomicActionResult;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation;
@@ -58,7 +61,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
      *          aggregated action and the {@link ActionDTO.Action} for the de-duplicated actions.
      */
     @Override
-    public AtomicActionResult build() {
+    public Optional<AtomicActionResult> build() {
         Map<Action, List<Action>> deDupedAtomicActionsMap = new HashMap<>();
 
         List<ActionDTO.ResizeInfo> allResizeInfos = new ArrayList<>();
@@ -72,6 +75,10 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
         for (Action resizeAction : aggregatedAction.aggregateOnlyActions()) {
             Resize resizeInfo = resizeAction.getInfo().getResize();
             ActionEntity entity = resizeInfo.getTarget();
+            ActionView actionView = aggregatedAction.actionViews.get(resizeAction.getId());
+            if (actionView == null) {
+                continue;
+            }
 
             ResizeInfoAndExplanation resizeInfoAndExplanation
                         = resizeInfoAndExplanation(entity.toString(), entity,
@@ -90,6 +97,11 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
             //DeDupedActions deDupedActions = aggregatedAction.deDupedActionsMap().get(deDupTargetOid);
             List<ResizeInfoAndExplanation> resizeInfoAndExplanations
                     = deDuplicatedResizeInfoAndExplanation(deDupedActions);
+
+            if (resizeInfoAndExplanations.isEmpty()) {
+                logger.debug("cannot create atomic action for de-duplication target {}", deDupedActions.targetName());
+                return;
+            }
 
             List<ActionDTO.ResizeInfo> resizeInfos = resizeInfoAndExplanations.stream()
                     .map(r -> r.resizeInfo())
@@ -123,6 +135,11 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
 
             deDupedAtomicActionsMap.put(deDupedAction.build(), mergedActions);
         });
+
+        if (allResizeInfos.isEmpty()) {
+            logger.debug("cannot create atomic action for  {}", aggregatedAction.targetName());
+            return Optional.empty();
+        }
 
         // ---- Primary atomic action
         // One atomic resize per aggregate target
@@ -158,7 +175,7 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
                 allTargets.size(),  //total number of de-duplication and non-de-duplication targets
                 atomicActionResult.deDuplicatedActions().size()); // total number of the de-duplication targets
 
-        return atomicActionResult;
+        return Optional.of(atomicActionResult);
     }
 
     /**
@@ -269,8 +286,14 @@ class AtomicResizeBuilder implements AtomicActionBuilder {
 
     // Create one merged resize info and explanation for the given set of actions
     private List<ResizeInfoAndExplanation> deDuplicatedResizeInfoAndExplanation(DeDupedActions deDupedActions) {
+        // Market actions in recommend mode are not merged
+        List<Action> actionsToDeDuplicate = deDupedActions.actions().stream()
+                .filter(action -> aggregatedAction.actionViews.containsKey(action.getId()))
+                .filter(action -> aggregatedAction.actionViews.get(action.getId()).getMode() != ActionMode.RECOMMEND)
+                .collect(Collectors.toList());
+
         List<ResizeInfoAndExplanation>  result = new ArrayList<>();
-        Map<CommodityType, List<Action>> actionsByCommMap = deDupedActions.actions().stream()
+        Map<CommodityType, List<Action>> actionsByCommMap = actionsToDeDuplicate.stream()
                 .collect(Collectors.groupingBy(action -> action.getInfo().getResize().getCommodityType()));
 
         // Create one resize info all the de-duplicated actions per commodity

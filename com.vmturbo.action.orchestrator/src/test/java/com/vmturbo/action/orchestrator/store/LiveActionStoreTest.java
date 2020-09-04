@@ -1257,6 +1257,7 @@ public class LiveActionStoreTest {
      * This creates two additional action DTOs for the LiveActionStore
      * - one non-executable action dto for the de-duplication entity for UI visibility
      * - one executable action dto for the aggregation entity that will execute the action
+     * The market actions are deleted after creation of merged actions.
      *
      * @throws Exception
      */
@@ -1291,7 +1292,6 @@ public class LiveActionStoreTest {
 
         actionStore.populateRecommendedActions(firstPlan);
 
-        assertEquals(5, actionStore.size());
+        assertEquals(3, actionStore.size());
     }
-
 }

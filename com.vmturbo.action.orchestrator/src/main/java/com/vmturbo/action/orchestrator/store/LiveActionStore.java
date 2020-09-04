@@ -245,6 +245,12 @@ public class LiveActionStore implements ActionStore {
      * </ul>
      * The market did not re-recommend a READY action in the store.
      *
+     * When the action plan is received, the market actions are passed through
+     * the {@link AtomicActionFactory} to be de-duplicated and aggregated into {@link AggregatedAction}.
+     * After the market actions are processed, AggregatedActions are
+     * converted to atomic action DTOs and then then to {@link Action}'s
+     * and saved in the LiveActionsStore.
+     *
      * @throws InterruptedException if current thread has been interrupted
      */
     @Override
@@ -263,82 +269,75 @@ public class LiveActionStore implements ActionStore {
 
             final Long topologyId = sourceTopologyInfo.getTopologyId();
 
+            // First the market actions are processed to create AggregatedAction.
             // Check if the atomic action factory contains specs to create atomic actions
             // for the actions received, create atomic actions if the specs are received
             // from the topology processor
-            // List of all the Action DTOs for the atomic actions that were created
-            List<ActionDTO.Action> atomicActions = Collections.emptyList();
-            // The market Action DTOs that were merged to created atomic actions, map of action Id and action
-            Map<Long, ActionDTO.Action> mergedActions = new HashMap<>();
-
-            // The aggregated and de-duplicated action target entities required to create the entity snapshot
             Collection<Long> atomicActionEntities = Collections.emptyList();
+            Map<Long, AggregatedAction> aggregatedActions = new HashMap<>();
+
+            // Map of the id of the market action DTO that was merged and the corresponding AggregateAction
+            Map<Long, AggregatedAction> actionsToAggregateActions = new HashMap<>();
 
             if (atomicActionFactory.canMerge()) {
                 // First aggregate the market actions that should be de-duplicated and merged
-                Map<Long, AggregatedAction> aggregatedActions = atomicActionFactory.aggregate(actionPlan.getActionList());
-                logger.info("Created {} aggregated actions", aggregatedActions.size());
+                aggregatedActions = atomicActionFactory.aggregate(actionPlan.getActionList());
+
+                // The original market actions that were merged
+                for (AggregatedAction result : aggregatedActions.values()) {
+                    result.getAllActions().stream()
+                            .forEach(action -> {
+                                //mergedActions.put(action.getId(), action);
+                                actionsToAggregateActions.put(action.getId(), result);
+                            });
+                }
+
+                logger.info("Created {} aggregated actions by merging {} actions",
+                                aggregatedActions.size(), actionsToAggregateActions.size());
 
                 atomicActionEntities = aggregatedActions.values().stream()
                                         .flatMap(action -> action.getActionEntities().stream())
                                         .collect(Collectors.toList());
-
-                if (!aggregatedActions.isEmpty()) {
-                    // Create the action DTOs for the atomic actions
-                    List<AtomicActionResult> atomicActionResults = atomicActionFactory.atomicActions(aggregatedActions);
-                    logger.info("Created {} atomic actions", atomicActionResults.size());
-
-                    // The aggregated atomic actions that will be executed by the aggregation target
-                    atomicActions = atomicActionResults.stream()
-                                    .map(atomicActionResult -> atomicActionResult.atomicAction())
-                                    .collect(Collectors.toList());
-
-                    // The de-duplicated atomic actions that were merged inside the aggregated atomic actions above
-                    // These actions are marked non-executable
-                    List<ActionDTO.Action> deDupedAtomicActions = atomicActionResults.stream()
-                                    .flatMap(atomicActionResult -> atomicActionResult.deDuplicatedActions().keySet().stream())
-                                    .collect(Collectors.toList());
-
-                    atomicActions.addAll(deDupedAtomicActions);
-
-                    // The original market actions that were merged
-                    for (AtomicActionResult result : atomicActionResults) {
-                        result.deDuplicatedActions().values()
-                                .stream()
-                                .flatMap(Collection::stream)
-                                .forEach(action -> mergedActions.put(action.getId(), action));
-
-                        result.mergedActions().stream()
-                                .forEach(action -> mergedActions.put(action.getId(), action));
-                    }
-                }
             }
 
             Collection<Long> actionEntities = ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList());
-            // adding the target entities from atomic actions to the snapshot
+            // adding the target entities from atomic actions to create the snapshot once
             Set<Long> involvedEntities = Stream.of(atomicActionEntities, actionEntities)
                     .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
 
+            // EntitiesAndSettingsSnapshot includes entities involved in market and atomic actions
+            // required to get settings for action mode
             final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(involvedEntities,
                             Collections.emptySet(), topologyContextId, topologyId);
 
-            List<ActionDTO.Action> allActions = Stream.of(actionPlan.getActionList(), atomicActions)
-                                                        .flatMap(Collection::stream)
-                                                        .collect(Collectors.toList());
+            List<ActionDTO.Action> marketActions = actionPlan.getActionList();
 
+            // --- this step sets the support level for actions by querying the probe capability cache
             // This call requires some computation and an RPC call, so do it outside of the
             // action lock.
+            // --- used by both market and atomic actions
+            // Attempt to fully refresh the cache - this gets the most up-to-date target and
+            // probe information from the topology processor.
+            //
+            // Note - we don't REALLY need to do this, because the cache tries to stay up to date by
+            // listening for probe registrations and target additions/removals. But fully refreshing
+            // it is cheap, so we do it to be safe.
+            probeCapabilityCache.fullRefresh();
+            RecommendationTracker lastExecutedRecommendationsTracker = createLastExecutedRecommendationsTracker();
             final List<ActionDTO.Action> allActionsWithAdditionalInfo;
             try {
                 allActionsWithAdditionalInfo =
-                        new ArrayList<>(actionsWithAdditionalInfo(allActions, mergedActions, snapshot));
+                        new ArrayList<>(actionsWithAdditionalInfo(lastExecutedRecommendationsTracker,
+                                                                    marketActions, snapshot));
             } catch (IdentityServiceException e) {
                 logger.error("Error retrieving OIDs for actions", e);
                 return false;
             }
 
             // RecommendationTracker to accelerate lookups of recommendations.
+            // This is done to iterate over the actions in the incoming action plan
+            // and match them up to the actions in the action store
             RecommendationTracker recommendations = new RecommendationTracker();
 
             // Apply addition and removal to the internal store atomically.
@@ -373,7 +372,6 @@ public class LiveActionStore implements ActionStore {
                 }
             });
 
-
             // We are still holding the population lock, so
             // the actions map shouldn't get modified in the meantime.
             //
@@ -396,14 +394,20 @@ public class LiveActionStore implements ActionStore {
                 logger.error("Error retrieving OIDs for actions", e);
                 return false;
             }
-            final List<Action> actionsToTranslate =
-                    new ArrayList<>(allActionsWithAdditionalInfo.size());
+
+            // TODO (marco, July 16 2019): We can do the translation before we do the support
+            // level resolution. In this way we wouldn't need to go to the repository for entities
+            // that fail translation.
+            final List<Action> actionsToTranslate = new ArrayList<>(allActionsWithAdditionalInfo.size());
+            // mapping of market action Id to the associated action view
+            final Map<Long, Action> mergedActionViews = new HashMap<>();
             for (ActionDTO.Action recommendedAction : allActionsWithAdditionalInfo) {
                 final long recommendationOid = recommendationOids.next();
                 final Optional<Action> existingActionOpt = recommendations.take(recommendationOid);
                 final Action action;
                 if (existingActionOpt.isPresent()) {
                     action = existingActionOpt.get();
+
                     // If we are re-using an existing action, we should update the recommendation
                     // so other properties that may have changed (e.g. importance, executability)
                     // reflect the most recent recommendation from the market. However, we only
@@ -421,17 +425,28 @@ public class LiveActionStore implements ActionStore {
                     action = actionFactory.newAction(recommendedAction, planId, recommendationOid);
                     newActionIds.add(action.getId());
                 }
+
+                // while iterating over action views for action dTOs, save the action views
+                // for the market actions that will be merged in the atomic actions
+                if (actionsToAggregateActions.containsKey(recommendedAction.getId())) {
+                    mergedActionViews.put(recommendedAction.getId(), action); //old id and view
+                    AggregatedAction aa = actionsToAggregateActions.get(recommendedAction.getId());
+                    aa.updateActionView(recommendedAction.getId(), action);
+                }
+
                 existingActionIds.add(action.getId());
                 final ActionState actionState = action.getState();
                 if (actionState == ActionState.READY || actionState == ActionState.ACCEPTED || actionState == ActionState.REJECTED) {
                     actionsToTranslate.add(action);
                 }
             }
+
             final Stream<Action> translatedReadyActions =
                     actionTranslator.translate(actionsToTranslate.stream(), snapshot);
 
             final MutableInt removedCount = new MutableInt(0);
             final List<Action> translatedActionsToAdd = new ArrayList<>();
+
 
             // This actually drains the stream defined above, updating the recommendation, creating
             // new actions, and so on.
@@ -449,12 +464,10 @@ public class LiveActionStore implements ActionStore {
                 }
             });
 
-
             // We don't explicitly clear actions that were not successfully translated.
             if (removedCount.intValue() > 0) {
                 logger.warn("Dropped {} actions due to failed translations.", removedCount);
             }
-
 
             // Some of these may be noops - if we're re-adding an action that was already in
             // the map from a previous action plan.
@@ -462,8 +475,7 @@ public class LiveActionStore implements ActionStore {
             actions.updateMarketActions(actionsToRemove, translatedActionsToAdd, snapshot, actionTargetSelector);
 
             logger.info("Number of Re-Recommended actions={}, Newly created actions={}",
-                (actionPlan.getActionCount() - newActionCounts.intValue()),
-                newActionCounts);
+                            (marketActions.size() - newActionCounts.intValue()), newActionCounts);
 
             // Clear READY or QUEUED actions that were not re-recommended. If they were
             // re-recommended, they would have been removed from the RecommendationTracker
@@ -472,6 +484,14 @@ public class LiveActionStore implements ActionStore {
                 .filter(action -> (action.getState() == ActionState.READY
                     || action.getState() == ActionState.QUEUED))
                 .forEach(action -> action.receive(new NotRecommendedEvent(planId)));
+
+            // Creating the atomic action DTOs and action views, the process above is repeated
+            if (!aggregatedActions.isEmpty()) {
+                logger.info("{} market actions will be merged from total {}",
+                                            mergedActionViews.size(), marketActions.size());
+                populateAtomicActions(planId, aggregatedActions, mergedActionViews,
+                                        lastExecutedRecommendationsTracker, snapshot);
+            }
 
             // Record the action stats.
             // TODO (roman, Nov 15 2018): For actions completed since the last snapshot, it may make
@@ -484,8 +504,11 @@ public class LiveActionStore implements ActionStore {
                     // Need to make a copy because it's not safe to iterate otherwise.
                     actions.copy().values().stream())
                     .filter(VISIBILITY_PREDICATE));
+
             final int deletedActions =
                 entitiesWithNewStateCache.clearActionsAndUpdateCache(sourceTopologyInfo.getTopologyId());
+
+            // this seems related to workflow actions
             final List<ActionView> existingActions = existingActionIds.stream().map(actions::get)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
@@ -512,55 +535,60 @@ public class LiveActionStore implements ActionStore {
     }
 
     /**
+     * RecommendationTracker created to remove actions which have been already executed recently
+     * but re-recommended by the market.
+     * This is used while computing the support level for the actions using the probe capability cache.
+     *
+     * @return {@link RecommendationTracker}
+     */
+    private RecommendationTracker createLastExecutedRecommendationsTracker() {
+        // Remove actions which have been already executed recently. Executed actions could be re-recommended by market,
+        // if the discovery has not happened and TP broadcasts the old topology.
+        // NOTE: A corner case which is not handled: If the discovery is delayed for a long time, then just looking at the last n minutes
+        // in the action_history DB may not be enough. We need to know the "freshness" of the discovered results. But this facility is
+        // not currently available. So we don't handle this case.
+        final LocalDateTime startDate = LocalDateTime.now(clock).minusMinutes(queryTimeWindowForLastExecutedActionsMins);
+        final LocalDateTime endDate = LocalDateTime.now(clock);
+        List<ActionView> lastSuccessfullyExecutedActions = new ArrayList<>();
+        try {
+            lastSuccessfullyExecutedActions = actionHistoryDao.getActionHistoryByDate(startDate, endDate);
+        } catch (DataAccessException dae) {
+            // We continue on DB exception as we don't want to block actions.
+            logger.warn("Error while fetching last executed actions from action history", dae);
+        }
+
+        RecommendationTracker lastExecutedRecommendationsTracker  = new RecommendationTracker();
+        lastSuccessfullyExecutedActions.stream()
+                .filter(actionView -> actionView.getState().equals(ActionState.SUCCEEDED))
+                .forEach(actionView ->
+                        lastExecutedRecommendationsTracker.add(actionFactory.newAction(
+                                actionView.getRecommendation(), actionView.getActionPlanId(),
+                                actionView.getRecommendationOid())));
+        return lastExecutedRecommendationsTracker;
+    }
+
+    /**
      * Add additional info to the actions, such as support level and pre-requisites of an action.
      *
      * @param allActions action plan and atomic actions
-     * @param mergedActions actions that were merged to create atomic actions
+     * @param lastExecutedRecommendationsTracker RecommendationTracker that contains the actions
+     *                                            that were executed recently
      * @param snapshot the snapshot of entities
      * @return a collection of actions with additional information added to them
      * @throws IdentityServiceException if exceptions occurred while
      */
     @Nonnull
     private Collection<ActionDTO.Action> actionsWithAdditionalInfo(
+            RecommendationTracker lastExecutedRecommendationsTracker,
             @Nonnull final List<ActionDTO.Action> allActions,
-            Map<Long, ActionDTO.Action> mergedActions,
             @Nonnull final EntitiesAndSettingsSnapshot snapshot) throws IdentityServiceException {
         try (DataMetricTimer timer = Metrics.SUPPORT_LEVEL_CALCULATION.startTimer()) {
-            // Attempt to fully refresh the cache - this gets the most up-to-date target and
-            // probe information from the topology processor.
-            //
-            // Note - we don't REALLY need to do this, because the cache tries to stay up to date by
-            // listening for probe registrations and target additions/removals. But fully refreshing
-            // it is cheap, so we do it to be safe.
-            probeCapabilityCache.fullRefresh();
-
-            // Remove actions which have been already executed recently. Executed actions could be re-recommended by market,
-            // if the discovery has not happened and TP broadcasts the old topology.
-            // NOTE: A corner case which is not handled: If the discovery is delayed for a long time, then just looking at the last n minutes
-            // in the action_history DB may not be enough. We need to know the "freshness" of the discovered results. But this facility is
-            // not currently available. So we don't handle this case.
-            final LocalDateTime startDate = LocalDateTime.now(clock).minusMinutes(queryTimeWindowForLastExecutedActionsMins);
-            final LocalDateTime endDate = LocalDateTime.now(clock);
-            List<ActionView> lastSuccessfullyExecutedActions = new ArrayList<>();
-            try {
-                lastSuccessfullyExecutedActions = actionHistoryDao.getActionHistoryByDate(startDate, endDate);
-            } catch (DataAccessException dae) {
-                // We continue on DB exception as we don't want to block actions.
-                logger.warn("Error while fetching last executed actions from action history", dae);
-            }
-
-            RecommendationTracker lastExecutedRecommendationsTracker  = new RecommendationTracker();
-            lastSuccessfullyExecutedActions.stream()
-                    .filter(actionView -> actionView.getState().equals(ActionState.SUCCEEDED))
-                    .forEach(actionView ->
-                        lastExecutedRecommendationsTracker.add(actionFactory.newAction(
-                                actionView.getRecommendation(), actionView.getActionPlanId(),
-                                actionView.getRecommendationOid())));
             final Iterator<Long> oidIterator = actionIdentityService.getOidsForObjects(
                             allActions
                             .stream()
                             .map(ActionDTO.Action::getInfo)
                             .collect(Collectors.toList())).iterator();
+
             final List<ActionDTO.Action> newActions = new ArrayList<>(allActions.size());
             for (ActionDTO.Action action: allActions) {
                 final Long recommendationOid = oidIterator.next();
@@ -599,13 +627,7 @@ public class LiveActionStore implements ActionStore {
                     .orElse(Collections.emptySet());
 
                 // If there are any updates to the action, update and rebuild it.
-                ActionDTO.Action marketAction = mergedActions.get(action.getId());
-                if (marketAction != null) {
-                    // mark merged actions as recommend only
-                    return marketAction.toBuilder()
-                            .setSupportingLevel(SupportLevel.SHOW_ONLY)
-                            .build();
-                } else if (action.getSupportingLevel() != supportLevel || !prerequisites.isEmpty()) {
+                    if (action.getSupportingLevel() != supportLevel || !prerequisites.isEmpty()) {
                     return action.toBuilder()
                         .setSupportingLevel(supportLevel)
                         .addAllPrerequisite(prerequisites)
@@ -647,6 +669,155 @@ public class LiveActionStore implements ActionStore {
         actions.replaceRiActions(actionTranslator.translate(actionsFromPlan.stream(), snapshot));
         actions.updateBuyRIActions(snapshot);
         logger.info("Number of buy RI actions={}", actionPlan.getActionCount());
+        return true;
+    }
+
+    /**
+     * Populate the {@link LiveActions} with atomic actions.
+     * This involves the process of creating action DTOs and then converting them to {@link Action}
+     * to be saved in the actions store.
+     * The workflow for updating an Action DTO -> ActionView is as follows
+     * - query the probe action capability cache to determine the support level for the actions
+     * - create a recommendation tracker to iterate over the newly created atomic actions
+     *   and match them up to the actions in the action store.
+     * - create or update the ActionView objects associated with each actionDTO
+     * - action translation
+     * - refresh action views to set the Action Execution mode
+     * - finally update the LiveActionStore maps with the actions that are to be added and removed.
+     *
+     * @param planId        the market action plan id
+     * @param aggregatedActions map of the OID of the atomic action execution entity
+     *                          and the {@link AggregatedAction} that will be converted to action DTOs
+     * @param mergedActionViews map containing the Action Id of the market action that was merged
+     *                          and the {@link ActionView} associated with it
+     * @param lastExecutedRecommendationsTracker    RecommendationTracker used containing
+     *                                              recently executed actions used in the call
+     *                                              to set support levels for the atomic actions
+     * @param snapshot  {@link EntitiesAndSettingsSnapshot}
+     *
+     * @return true if the atomic actions are updated without any errors
+     */
+    private boolean populateAtomicActions(long planId,
+                                          Map<Long, AggregatedAction> aggregatedActions,
+                                          Map<Long, Action> mergedActionViews,
+                                          RecommendationTracker lastExecutedRecommendationsTracker,
+                                          EntitiesAndSettingsSnapshot snapshot) {
+        // First create the action DTOs for the atomic actions
+        List<AtomicActionResult> atomicActionResults = atomicActionFactory.atomicActions(aggregatedActions);
+
+        // List of all the Action DTOs for the atomic actions that will be created
+        List<ActionDTO.Action> atomicActions;
+
+        // The aggregated atomic actions that will be executed by the aggregation target
+        atomicActions = atomicActionResults.stream()
+                    .map(atomicActionResult -> atomicActionResult.atomicAction())
+                    .collect(Collectors.toList());
+
+        // The de-duplicated atomic actions that were merged inside the aggregated atomic actions above
+        // These actions are  non-executable
+        List<ActionDTO.Action> deDupedAtomicActions = atomicActionResults.stream()
+                    .flatMap(atomicActionResult -> atomicActionResult.deDuplicatedActions().keySet().stream())
+                    .collect(Collectors.toList());
+
+        atomicActions.addAll(deDupedAtomicActions);
+        logger.info("Created {} atomic actions, contains {} deDuplicated actions",
+                                atomicActions.size(), deDupedAtomicActions.size());
+
+        // Set the support level for the atomic actions by querying the probe action capability cache
+        final List<ActionDTO.Action> atomicActionsWithAdditionalInfo;
+        try {
+            atomicActionsWithAdditionalInfo =
+                    new ArrayList<>(actionsWithAdditionalInfo(lastExecutedRecommendationsTracker,
+                                                                atomicActions, snapshot));
+        } catch (IdentityServiceException e) {
+            logger.error("Error retrieving OIDs for actions", e);
+            return false;
+        }
+
+        // RecommendationTracker to accelerate iteration over the newly created atomic actions
+        // and match them up to the actions in the action store
+        RecommendationTracker atomicRecommendations = new RecommendationTracker();
+
+        // Apply addition and removal to the internal store atomically.
+        final List<Action> atomicActionsToRemove = new ArrayList<>();
+
+        actions.doForEachAtomicAction(action -> {
+            // Only retain IN-PROGRESS, QUEUED, ACCEPTED, REJECTED and READY actions which are
+            // re-created.
+            switch (action.getState()) {
+                case IN_PROGRESS:
+                case QUEUED:
+                    atomicRecommendations.add(action);
+                    break;
+                case READY:
+                case ACCEPTED:
+                case REJECTED:
+                    atomicRecommendations.add(action);
+                    atomicActionsToRemove.add(action);
+                    break;
+                case SUCCEEDED:
+                case FAILED:
+                    atomicActionsToRemove.add(action);
+                    break;
+                default:
+                    atomicActionsToRemove.add(action);
+            }
+        });
+
+        final Iterator<Long> recommendationOids;
+        try {
+            recommendationOids = actionIdentityService.getOidsForObjects(
+                    Lists.transform(atomicActionsWithAdditionalInfo, ActionDTO.Action::getInfo))
+                    .iterator();
+        } catch (IdentityServiceException e) {
+            logger.error("Error retrieving OIDs for actions", e);
+            return false;
+        }
+
+        int newActionCounts = 0;
+        final List<Action> actionsToTranslate = new ArrayList<>(atomicActionsWithAdditionalInfo.size());
+        for (ActionDTO.Action recommendedAction : atomicActionsWithAdditionalInfo) {
+            final long recommendationOid = recommendationOids.next();
+            final Optional<Action> existingActionOpt = atomicRecommendations.take(recommendationOid);
+            final Action action;
+            if (existingActionOpt.isPresent()) {
+                action = existingActionOpt.get();
+                if (action.getState() == ActionState.READY || action.getState() == ActionState.ACCEPTED
+                        || action.getState() == ActionState.REJECTED) {
+                    action.updateRecommendation(recommendedAction);
+                }
+            } else {
+                newActionCounts++;
+                action = actionFactory.newAction(recommendedAction, planId, recommendationOid);
+            }
+            actionsToTranslate.add(action);
+        }
+        logger.info("Number of Re-Recommended atomic actions={}, Newly created atomic actions={}",
+                (atomicActions.size() - newActionCounts), newActionCounts);
+
+        // All atomic translations should be pass through, here for consistency
+        // with the "normal" action case.
+        final Stream<Action> translatedReadyActions =
+                actionTranslator.translate(actionsToTranslate.stream(), snapshot);
+        final List<Action> translatedActionsToAdd = new ArrayList<>();
+        translatedReadyActions.forEach(action -> translatedActionsToAdd.add(action));
+
+        actions.updateAtomicActions(atomicActionsToRemove, translatedActionsToAdd,
+                                    mergedActionViews.values(), snapshot);
+
+
+        // Clear READY or QUEUED actions that were not re-recommended. If they were
+        // re-recommended, they would have been removed from the RecommendationTracker
+        // above.
+        StreamSupport.stream(atomicRecommendations.spliterator(), false)
+                .filter(action -> (action.getState() == ActionState.READY
+                        || action.getState() == ActionState.QUEUED))
+                .forEach(action -> {
+                    logger.info("{} remaining action {}", action.getId(), action.getRecommendationOid());
+                    action.receive(new NotRecommendedEvent(planId));
+
+                });
+
         return true;
     }
 

@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.store;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -12,13 +13,16 @@ import java.util.stream.Collectors;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.store.AtomicActionFactory.AtomicActionResult;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
@@ -34,12 +38,15 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
+//import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+
 /**
  * Unit tests for {@link AtomicActionFactory}.
  */
 public class AtomicActionFactoryTest {
 
     private AtomicActionSpecsCache atomicActionSpecsCache;
+    private  ActionEntity aggregateEntity1;
 
     /**
      * Set up before the test.
@@ -50,7 +57,7 @@ public class AtomicActionFactoryTest {
 
         atomicActionSpecsCache = new AtomicActionSpecsCache();
 
-        ActionEntity aggregateEntity1 = ActionEntity.newBuilder()
+        aggregateEntity1 = ActionEntity.newBuilder()
                 .setType(EntityType.WORKLOAD_CONTROLLER_VALUE).setId(31)
                 .build();
 
@@ -92,11 +99,27 @@ public class AtomicActionFactoryTest {
         ActionDTO.Action resize4 = createResizeAction(4, 22,
                 40, CommodityType.VCPU);
 
+        Action view1 = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize1, 1));
+        Action view2 = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize2, 1));
+        Action view3 = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize3, 1));
+        Action view4 = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize4, 1));
+        when(view1.getMode()).thenReturn(ActionMode.MANUAL);
+        when(view2.getMode()).thenReturn(ActionMode.MANUAL);
+        when(view3.getMode()).thenReturn(ActionMode.MANUAL);
+        when(view4.getMode()).thenReturn(ActionMode.MANUAL);
+
         List<ActionDTO.Action> actionList =  Arrays.asList(resize1, resize2, resize3, resize4);
 
         AtomicActionFactory atomicActionFactory = new AtomicActionFactory(atomicActionSpecsCache);
 
         Map<Long, AggregatedAction> aggregatedActions = atomicActionFactory.aggregate(actionList);
+        assertEquals(1, aggregatedActions.size());
+        AggregatedAction aggregateAction  = aggregatedActions.get(aggregateEntity1.getId());
+        aggregateAction.updateActionView(1, view1);
+        aggregateAction.updateActionView(2, view2);
+        aggregateAction.updateActionView(3, view3);
+        aggregateAction.updateActionView(4, view4);
+
         List<AtomicActionResult> atomicActions = atomicActionFactory.atomicActions(aggregatedActions);
 
         assertNotNull(atomicActions);
@@ -104,7 +127,7 @@ public class AtomicActionFactoryTest {
         AtomicActionResult atomicAction = atomicActions.get(0);
         assertEquals(2, atomicAction.mergedActions().size());
 
-        List<Action> marketActions = atomicAction.deDuplicatedActions().values()
+        List<ActionDTO.Action> marketActions = atomicAction.deDuplicatedActions().values()
                                         .stream()
                                         .flatMap(Collection::stream)
                                         .collect(Collectors.toList());
@@ -128,7 +151,7 @@ public class AtomicActionFactoryTest {
         ActionDTO.Action resize2 = createResizeAction(2, 12,
                 40, CommodityType.VCPU);
 
-        ActionDTO.Action reconfigureActionDto = Action.newBuilder()
+        ActionDTO.Action reconfigureActionDto = ActionDTO.Action.newBuilder()
                 .setId(1)
                 .setDeprecatedImportance(0)
                 .setInfo(ActionInfo.newBuilder()
@@ -138,18 +161,29 @@ public class AtomicActionFactoryTest {
                         .setReconfigure(ReconfigureExplanation.newBuilder()))
                 .build();
 
+        Action view1 = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize1, 1));
+        Action view2 = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize2, 1));
+        Action view3 = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(reconfigureActionDto, 1));
+        when(view1.getMode()).thenReturn(ActionMode.MANUAL);
+        when(view2.getMode()).thenReturn(ActionMode.MANUAL);
+
         List<ActionDTO.Action> actionList =  Arrays.asList(resize1, resize2, reconfigureActionDto);
 
         AtomicActionFactory atomicActionFactory = new AtomicActionFactory(atomicActionSpecsCache);
 
         Map<Long, AggregatedAction> aggregatedActions = atomicActionFactory.aggregate(actionList);
+        assertEquals(1, aggregatedActions.size());
+        AggregatedAction aggregateAction  = aggregatedActions.get(aggregateEntity1.getId());
+        aggregateAction.updateActionView(1, view1);
+        aggregateAction.updateActionView(2, view2);
+
         List<AtomicActionResult> atomicActions = atomicActionFactory.atomicActions(aggregatedActions);
 
         assertEquals(1, atomicActions.size());
         AtomicActionResult atomicAction = atomicActions.get(0);
         assertEquals(2, atomicAction.mergedActions().size());
 
-        List<Action> marketActions = atomicAction.deDuplicatedActions().values()
+        List<ActionDTO.Action> marketActions = atomicAction.deDuplicatedActions().values()
                 .stream()
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
@@ -165,7 +199,7 @@ public class AtomicActionFactoryTest {
                 .setDeprecatedEndUtilization(90)
                 .build();
 
-        ActionDTO.Action resize = Action.newBuilder()
+        ActionDTO.Action resize = ActionDTO.Action.newBuilder()
                 .setId(actionId)
                 .setDeprecatedImportance(0)
                 .setInfo(ActionInfo.newBuilder()
