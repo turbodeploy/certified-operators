@@ -380,6 +380,21 @@ message SearchTagsResponse {
     optional common.PaginationResponse pagination_response = 2;
 }
 
+// Request to the repository to get all tag values for defined tagKey.
+// Returns a map where: KEY: tag values; VALUE: OIDs of tagged entities.
+message SearchTagValuesRequest {
+    optional string tag_key = 1;
+    optional int32 entity_type = 2;
+}
+
+message SearchTagValuesResponse {
+    map<string, TaggedEntities> entities_by_tag_value = 1;
+}
+
+message TaggedEntities {
+    repeated int64 oid = 1;
+}
+
 // A service responsible for search operations.
 service SearchService {
     // Search for entities based on the search parameters and return entity OID
@@ -395,6 +410,8 @@ service SearchService {
     rpc CountEntities(CountEntitiesRequest) returns (EntityCountResponse);
 
     rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse);
+
+    rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse);
 }
 
 message SearchTargetsResponse {
