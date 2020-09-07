@@ -790,8 +790,8 @@ server:
     #       - prometheus.domain.com
 
   ## Server Deployment Strategy type
-  # strategy:
-  #   type: Recreate
+  strategy:
+    type: Recreate
 
   ## hostAliases allows adding entries to /etc/hosts inside the containers
   hostAliases: []
