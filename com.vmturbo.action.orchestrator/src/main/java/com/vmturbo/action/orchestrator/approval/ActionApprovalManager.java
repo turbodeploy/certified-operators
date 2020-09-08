@@ -16,7 +16,6 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
@@ -29,6 +28,7 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -198,10 +198,7 @@ public class ActionApprovalManager {
     private AcceptActionResponse attemptActionExecution(@Nonnull final Action action,
             final long targetId) throws ExecutionInitiationException {
         try {
-            // A prepare event prepares the action for execution, and initiates a PRE
-            // workflow if one is associated with this action.
-            action.receive(new PrepareExecutionEvent());
-            // Allows the action to begin execution, if a PRE workflow is not running
+            // Start action execution
             action.receive(new BeginExecutionEvent());
             final Optional<ActionDTO.Action> translatedRecommendation =
                     action.getActionTranslation()
@@ -223,7 +220,7 @@ public class ActionApprovalManager {
                 action.receive(new FailureEvent(errorMsg));
                 throw new ExecutionInitiationException(errorMsg, Status.Code.INTERNAL);
             }
-        } catch (ExecutionStartException e) {
+        } catch (ExecutionStartException | WorkflowStoreException e) {
             logger.error("Failed to start action {} due to error {}.", action.getId(), e);
             action.receive(new FailureEvent(e.getMessage()));
             throw new ExecutionInitiationException(e.toString(), e, Status.Code.INTERNAL);

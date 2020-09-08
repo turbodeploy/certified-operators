@@ -31,7 +31,6 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
@@ -136,7 +135,6 @@ public class ActionStateUpdaterTest {
         when(actionStore.getAction(eq(actionId))).thenReturn(Optional.of(testAction));
         testAction.receive(new ManualAcceptanceEvent("99", 102));
         testAction.receive(new QueuedEvent());
-        testAction.receive(new PrepareExecutionEvent());
         testAction.receive(new BeginExecutionEvent());
         return testAction;
     }

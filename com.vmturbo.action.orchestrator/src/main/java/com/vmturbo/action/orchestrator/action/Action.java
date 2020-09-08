@@ -31,7 +31,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.AuthorizedActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ClearingEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
@@ -397,6 +396,10 @@ public class Action implements ActionView {
         return stateMachine.getState();
     }
 
+    public boolean isFinished() {
+        return stateMachine.isInFinalState();
+    }
+
     /**
      * Check if the action is in the READY state.
      *
@@ -574,8 +577,8 @@ public class Action implements ActionView {
      */
     @Override
     @Nonnull
-    public Optional<WorkflowDTO.Workflow> getWorkflow(WorkflowStore workflowStore) {
-        Optional<WorkflowDTO.Workflow> workflowOpt = Optional.empty();
+    public Optional<WorkflowDTO.Workflow> getWorkflow(WorkflowStore workflowStore)
+            throws WorkflowStoreException {
         // Fetch the setting, if any, that defines whether a Workflow should be applied in the *next*
         // step of this action's execution. This may be a PRE, REPLACE or POST workflow, depending
         // on the policies defined and the current state of the action.
@@ -587,18 +590,15 @@ public class Action implements ActionView {
             try {
                 // the value of the Workflow Setting denotes the ID of the Workflow to apply
                 final long workflowId = Long.valueOf(workflowIdString);
-                workflowOpt = Optional.of(workflowStore.fetchWorkflow(workflowId)
-                    .orElseThrow(() -> new IllegalStateException("Workflow not found, id: " +
-                        workflowIdString)));
+                return Optional.of(workflowStore.fetchWorkflow(workflowId)
+                        .orElseThrow(() -> new WorkflowStoreException(
+                                "Workflow not found, id: " + workflowIdString)));
             } catch (NumberFormatException e) {
-                logger.error("Invalid workflow ID: " + workflowIdString, e);
-                return Optional.empty();
-            } catch (WorkflowStoreException e) {
-                logger.error("Error accessing Workflow, id: " + workflowIdString, e);
-                return Optional.empty();
+                throw new WorkflowStoreException(
+                        "Invalid workflow ID: " + workflowIdString + " for action " + getId(), e);
             }
         }
-        return workflowOpt;
+        return Optional.empty();
     }
 
     private boolean hasWorkflowForCurrentState() {
@@ -825,32 +825,13 @@ public class Action implements ActionView {
     }
 
     /**
-     * Guard against attempts to complete action execution before POST workflow execution,
-     * when a POST workflow is defined.
+     * Selects a targeting state after POST_EXECUTION is finished successfully.
+     * Global action state will still be FAILED if previous failures detected.
      *
-     * If it returns true, the action may complete (succeeded or failed).
-     * If it returns false, the action may NOT complete (a post workflow must be run first).
-     *
-     * @param event The event that signaled the end of regular execution.
-     * @return true if the action may complete execution, false if not.
+     * @return next state to transition to after POST_EXECUTION is succeeded
      */
-    boolean completionGuard(@Nonnull final ActionEvent event) {
-        boolean runningPostWorkflow = ActionState.POST_IN_PROGRESS == getState() && hasWorkflowForCurrentState();
-        return !runningPostWorkflow;
-    }
-
-    /**
-     * Guard against attempts to complete action execution successfully, when any action
-     * execution phase has failed.
-     *
-     * If it returns true, the action may complete (succeeded or failed).
-     * If it returns false, the action may NOT complete (a post workflow must be run first).
-     *
-     * @param event The event that signaled the end of regular execution.
-     * @return true if the action may complete execution, false if not.
-     */
-    boolean successGuard(@Nonnull final SuccessEvent event) {
-        return !hasFailures();
+    ActionState getPostExecutionSuccessState() {
+        return hasFailures() ? ActionState.FAILED : ActionState.SUCCEEDED;
     }
 
     /**
@@ -936,20 +917,52 @@ public class Action implements ActionView {
     }
 
     /**
+     * Returns a state which will be a start of action execution. It may be {@link
+     * ActionState#PRE_IN_PROGRESS} if there is a PRE workflow for this action. Alternatively it
+     * will be {@link ActionState#IN_PROGRESS}.
+     *
+     * @return destination action state
+     */
+    ActionState getExecutionState() {
+        final Optional<Setting> preExecSetting = getWorkflowSetting(ActionState.PRE_IN_PROGRESS);
+        if (preExecSetting.isPresent()) {
+            return ActionState.PRE_IN_PROGRESS;
+        } else {
+            return ActionState.IN_PROGRESS;
+        }
+    }
+
+    /**
+     * Returns a state which will be after action execution. It may be {@link
+     * ActionState#POST_IN_PROGRESS} if there is a POST workflow for this action. Alternatively it
+     * will be {@link ActionState#SUCCEEDED} or {@link ActionState#FAILED}.
+     *
+     * @param resultState result state that this action will go to. If there is a post-execution
+     *          workflow, it will be executed. Otherwise the result state will be applied.
+     *          Should be either {@link ActionState#SUCCEEDED} or {@link ActionState#FAILED}
+     * @return destination action state
+     */
+    ActionState getPostExecutionStep(@Nonnull ActionState resultState) {
+        final Optional<Setting> preExecSetting = getWorkflowSetting(ActionState.POST_IN_PROGRESS);
+        if (preExecSetting.isPresent()) {
+            return ActionState.POST_IN_PROGRESS;
+        } else {
+            return resultState;
+        }
+    }
+
+    /**
      * Called when an action enters the PRE state, preparing to execute an action.
      *
      * @param event The event that caused the execution preparation.
      */
-    void onActionPrepare(@Nonnull final PrepareExecutionEvent event) {
+    void onActionPrepare(@Nonnull final BeginExecutionEvent event) {
         // Store the fact that this action was accepted and why (manual/automated)
         decide(builder -> builder.setExecutionDecision(
             ExecutionDecision.newBuilder()
                 .setUserUuid(executionAuthorizerId)
                 .setReason(acceptanceReason)
                 .build()));
-        // If a PRE workflow is associated with this action, it will be invoked automatically
-        // during execution
-        if (hasWorkflowForCurrentState()) {
             // Add the current executable step to the map of all steps with the PRE_IN_PROGRESS key
             executableSteps.put(getState(), currentExecutableStep.get());
             // Mark this action as in-progress
@@ -961,7 +974,6 @@ public class Action implements ActionView {
                         .increment();
                 }, event.getEventName()
             );
-        }
     }
 
     /**

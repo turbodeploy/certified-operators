@@ -31,7 +31,6 @@ import org.mockito.Mockito;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ActionSpecifications;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
@@ -189,7 +188,6 @@ public class ActionTest {
 
         moveAction.receive(new ManualAcceptanceEvent("0", targetId));
         moveAction.receive(new QueuedEvent());
-        moveAction.receive(new PrepareExecutionEvent());
         moveAction.receive(new BeginExecutionEvent());
     }
 
@@ -205,7 +203,6 @@ public class ActionTest {
 
         moveAction.receive(new ManualAcceptanceEvent("0", 24L));
         moveAction.receive(new QueuedEvent());
-        moveAction.receive(new PrepareExecutionEvent());
         moveAction.receive(new BeginExecutionEvent());
 
         assertFalse(moveAction.determineExecutability());

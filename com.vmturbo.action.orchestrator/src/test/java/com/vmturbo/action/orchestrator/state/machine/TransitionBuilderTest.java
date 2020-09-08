@@ -44,7 +44,7 @@ public class TransitionBuilderTest {
     public void testTransitionFromTo() {
         RequiringEventBuilder<States, StateMachineEvent> builder = Transition.from(States.THIRD).to(States.FIRST);
         assertEquals(States.THIRD, builder.getSource());
-        assertEquals(States.FIRST, builder.getDestination());
+        assertEquals(States.FIRST, builder.getDestination().get());
     }
 
     @Test
@@ -54,7 +54,7 @@ public class TransitionBuilderTest {
             .onEvent(FooEvent.class);
 
         assertEquals(States.THIRD, builder.getSource());
-        assertEquals(States.FIRST, builder.getDestination());
+        assertEquals(States.FIRST, builder.getDestination().get());
         assertEquals(FooEvent.class, builder.getEventClass());
         assertNull(builder.getGuard());
     }
@@ -68,7 +68,7 @@ public class TransitionBuilderTest {
             .guardedBy(guard);
 
         assertEquals(States.THIRD, builder.getSource());
-        assertEquals(States.FIRST, builder.getDestination());
+        assertEquals(States.FIRST, builder.getDestination().get());
         assertEquals(FooEvent.class, builder.getEventClass());
         assertEquals(guard, builder.getGuard());
     }
@@ -85,7 +85,7 @@ public class TransitionBuilderTest {
             .guardedBy(falseGuard);
 
         assertEquals(States.THIRD, builder.getSource());
-        assertEquals(States.FIRST, builder.getDestination());
+        assertEquals(States.FIRST, builder.getDestination().get());
         assertEquals(FooEvent.class, builder.getEventClass());
         assertEquals(falseGuard, builder.getGuard());
     }
@@ -102,7 +102,7 @@ public class TransitionBuilderTest {
             .build(nodes);
 
         assertEquals(States.THIRD, transition.getSource().getState());
-        assertEquals(States.FIRST, transition.getDestination().getState());
+        assertEquals(States.FIRST, transition.getDestination().get().getState());
         assertEquals(
             transition.getDestination(),
             transition.getSource().getTransition(new FooEvent()).get().getDestination()
@@ -138,7 +138,7 @@ public class TransitionBuilderTest {
             .onEvent(BarEvent.class)
             .build(nodes);
 
-        assertEquals(expectedDestination, transition.getDestination());
+        assertEquals(expectedDestination, transition.getDestination().get());
     }
 
     @Test
@@ -153,6 +153,6 @@ public class TransitionBuilderTest {
             .build(nodes);
 
         assertEquals(expected, transition.getSource());
-        assertEquals(expected, transition.getDestination());
+        assertEquals(expected, transition.getDestination().get());
     }
 }
