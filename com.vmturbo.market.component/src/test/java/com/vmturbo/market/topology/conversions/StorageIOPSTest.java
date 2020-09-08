@@ -31,6 +31,7 @@ public class StorageIOPSTest {
 
     private static TopologyEntityDTO gp2;
     private static TopologyEntityDTO io1;
+    private static TopologyEntityDTO io2;
     private static TopologyEntityDTO st1;
     private static TopologyEntityDTO sc1;
     private static TopologyEntityDTO standard;
@@ -46,6 +47,7 @@ public class StorageIOPSTest {
     public static void setup() {
         gp2 = loadTopologyBuilderDTO("gp2.json").build();
         io1 = loadTopologyBuilderDTO("io1.json").build();
+        io2 = loadTopologyBuilderDTO("io2.json").build();
         st1 = loadTopologyBuilderDTO("st1.json").build();
         sc1 = loadTopologyBuilderDTO("sc1.json").build();
         standard = loadTopologyBuilderDTO("standard.json").build();
@@ -57,13 +59,14 @@ public class StorageIOPSTest {
         Map<Long, TopologyEntityDTO> topology = new HashMap<>();
         topology.put(1L, gp2);
         topology.put(2L, io1);
-        topology.put(3L, st1);
-        topology.put(4L, sc1);
-        topology.put(5L, standard);
-        topology.put(6L, managedPremium);
-        topology.put(7L, managedStandard);
-        topology.put(8L, managedStandardSSD);
-        topology.put(9L, managedUltraSSD);
+        topology.put(3L, io2);
+        topology.put(4L, st1);
+        topology.put(5L, sc1);
+        topology.put(6L, standard);
+        topology.put(7L, managedPremium);
+        topology.put(8L, managedStandard);
+        topology.put(9L, managedStandardSSD);
+        topology.put(10L, managedUltraSSD);
 
         iopsCalculator = new CloudStorageTierIOPSCalculator(topology);
     }
@@ -92,6 +95,18 @@ public class StorageIOPSTest {
         testIOPS(io1, 4d, 80d, 100d);
         testIOPS(io1, 4d, 300d, 200d);
         testIOPS(io1, 25.1d, 815d, 815d);
+    }
+
+    /**
+     * Test projected IOPS calculation for IO2.
+     */
+    @Test
+    public void testIO2() {
+        testIOPS(io2, 100d, 30000d, 30000d);
+        testIOPS(io2, 50d, 30000d, 25000d);
+        testIOPS(io2, 4d, 80d, 100d);
+        testIOPS(io2, 4d, 3000d, 2000d);
+        testIOPS(io2, 25.1d, 815d, 815d);
     }
 
     /**

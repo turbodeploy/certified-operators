@@ -1,0 +1,264 @@
+{
+  "entityType": 57,
+  "typeSpecificInfo": {},
+  "oid": "73618552118917",
+  "displayName": "IO2",
+  "environmentType": "CLOUD",
+  "commoditySoldList": [
+    {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 7.0E8,
+      "peak": 0.0,
+      "capacity": 1.0E9,
+      "isResizeable": false,
+      "isThin": true,
+      "active": true,
+      "minAmountForConsumer": 4.0,
+      "maxAmountForConsumer": 16384.0,
+      "displayName": "",
+      "aggregates": [],
+      "checkMinAmountForConsumer": true
+    },
+    {
+      "commodityType": {
+        "type": 6
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "capacity": 1.0E10,
+      "isResizeable": false,
+      "isThin": true,
+      "active": true,
+      "displayName": "",
+      "aggregates": []
+    },
+    {
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "capacity": 1.0E9,
+      "isResizeable": false,
+      "isThin": true,
+      "active": true,
+      "minAmountForConsumer": 100.0,
+      "maxAmountForConsumer": 64000.0,
+      "ratioDependency": {
+        "baseCommodity": {
+          "type": 8
+        },
+        "maxRatio": 500.0
+      },
+      "historicalUsed": {
+        "histUtilization": 0.0,
+        "timeSlot": []
+      },
+      "historicalPeak": {
+        "histUtilization": 0.0,
+        "timeSlot": []
+      },
+      "displayName": "",
+      "aggregates": []
+    },
+    {
+      "commodityType": {
+        "type": 39
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "capacity": 1.0E9,
+      "isResizeable": false,
+      "isThin": true,
+      "active": true,
+      "minAmountForConsumer": 1600.0,
+      "maxAmountForConsumer": 1024000.0,
+      "ratioDependency": {
+        "baseCommodity": {
+          "type": 64
+        },
+        "maxRatio": 256.0
+      },
+      "historicalUsed": {
+        "histUtilization": 0.0,
+        "timeSlot": []
+      },
+      "historicalPeak": {
+        "histUtilization": 0.0,
+        "timeSlot": []
+      },
+      "displayName": "",
+      "aggregates": []
+    },
+    {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "capacity": 1.0E9,
+      "isResizeable": false,
+      "isThin": true,
+      "active": true,
+      "historicalUsed": {
+        "histUtilization": 0.0,
+        "timeSlot": []
+      },
+      "historicalPeak": {
+        "histUtilization": 0.0,
+        "timeSlot": []
+      },
+      "displayName": "",
+      "aggregates": []
+    },
+    {
+      "commodityType": {
+        "type": 59,
+        "key": "Group::elasticStorageCluster"
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "capacity": 1.0E9,
+      "isResizeable": false,
+      "isThin": true,
+      "active": true,
+      "displayName": "",
+      "aggregates": []
+    },
+    {
+      "commodityType": {
+        "type": 59,
+        "key": "Group::elasticStorageClusterBootDisk"
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "capacity": 1.0E9,
+      "isResizeable": false,
+      "isThin": true,
+      "active": true,
+      "displayName": "",
+      "aggregates": []
+    }
+  ],
+  "commoditiesBoughtFromProviders": [],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {},
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "discoveringTargetIds": [],
+      "lastUpdatedTime": "1599134463418",
+      "discoveredTargetData": {
+        "73618542623840": {},
+        "73618542790512": {
+          "vendorId": "aws::ST::IO2"
+        },
+        "73618543102848": {},
+        "73618542920784": {}
+      }
+    }
+  },
+  "connectedEntityList": [
+    {
+      "connectedEntityId": "73618552118807",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118866",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118889",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118803",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118785",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118896",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118848",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118901",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118858",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118838",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118852",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118819",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618557758987",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118885",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118789",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118874",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118870",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    },
+    {
+      "connectedEntityId": "73618552118834",
+      "connectedEntityType": 54,
+      "connectionType": "AGGREGATED_BY_CONNECTION"
+    }
+  ],
+  "tags": {
+    "tags": {}
+  }
+}
