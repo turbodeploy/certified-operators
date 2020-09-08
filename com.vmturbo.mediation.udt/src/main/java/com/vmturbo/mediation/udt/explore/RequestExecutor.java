@@ -77,8 +77,13 @@ public class RequestExecutor {
 
     @Nonnull
     Map<String, TaggedEntities> getTagValues(@Nonnull SearchTagValuesRequest request) {
+        final StopWatch stopWatch = new StopWatch("UDT request: search tag values");
+        stopWatch.start();
         final SearchTagValuesResponse resp = searchService.searchTagValues(request);
-        return resp.getEntitiesByTagValueMap();
+        final Map<String, TaggedEntities> map = resp.getEntitiesByTagValueMap();
+        stopWatch.stop();
+        logger.debug(stopWatch.prettyPrint());
+        return map;
     }
 
     @Nonnull
@@ -124,6 +129,7 @@ public class RequestExecutor {
     Iterator<GetTopologyDataDefinitionResponse> getAllTopologyDataDefinitions(
             @Nonnull GetTopologyDataDefinitionsRequest request) {
         final StopWatch stopWatch = new StopWatch("UDT request: get all TDD");
+        stopWatch.start();
         final Iterator<GetTopologyDataDefinitionResponse> response =
                 topologyDataDefService.getAllTopologyDataDefinitions(request);
         stopWatch.stop();
@@ -134,6 +140,7 @@ public class RequestExecutor {
     @Nonnull
     Iterator<GetMembersResponse> getGroupMembers(@Nonnull GetMembersRequest request) {
         final StopWatch stopWatch = new StopWatch("UDT request: get group members");
+        stopWatch.start();
         final Iterator<GetMembersResponse> response = groupService.getMembers(request);
         stopWatch.stop();
         logger.debug(stopWatch.prettyPrint());
@@ -143,6 +150,7 @@ public class RequestExecutor {
     @Nonnull
     Set<Long> getGroupIds(@Nonnull GetGroupsRequest request) {
         final StopWatch stopWatch = new StopWatch("UDT request: get group IDs");
+        stopWatch.start();
         final Spliterator<Grouping> spliterator = Spliterators
                 .spliteratorUnknownSize(groupService.getGroups(request), 0);
         stopWatch.stop();
@@ -154,6 +162,7 @@ public class RequestExecutor {
     @Nonnull
     Set<Long> getOwnersOfGroups(@Nonnull GetOwnersRequest request) {
         final StopWatch stopWatch = new StopWatch("UDT request: get owner of group");
+        stopWatch.start();
         final Set<Long> result = Sets.newHashSet(groupService.getOwnersOfGroups(request).getOwnerIdList());
         stopWatch.stop();
         logger.debug(stopWatch.prettyPrint());
@@ -163,6 +172,7 @@ public class RequestExecutor {
     @Nullable
     ProbeInfo findProbe(SDKProbeType probeType) throws CommunicationException {
         final StopWatch stopWatch = new StopWatch("UDT request: find probe");
+        stopWatch.start();
         final ProbeInfo probeInfo = topologyProcessor.getAllProbes()
                 .stream().filter(probe -> probe.getType().equals(probeType.getProbeType()))
                 .findFirst().orElse(null);
@@ -175,6 +185,7 @@ public class RequestExecutor {
     @Nonnull
     List<TargetInfo> findTarget(long probeId) throws CommunicationException {
         final StopWatch stopWatch = new StopWatch("UDT request: find target");
+        stopWatch.start();
         final List<TargetInfo> targetInfo = topologyProcessor.getAllTargets().stream()
                 .filter(t -> t.getProbeId() == probeId).collect(Collectors.toList());
         stopWatch.stop();
