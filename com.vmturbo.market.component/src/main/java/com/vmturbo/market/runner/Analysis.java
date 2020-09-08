@@ -752,9 +752,10 @@ public class Analysis {
         ProjectedTopologyEntity projectedContainer = projectedEntities.get(containerOID);
         projectedContainer.getEntity().getConnectedEntityListList().stream()
             .map(ConnectedEntity::getConnectedEntityId)
-            // Filter out the ContainerSpecs if given commodity type has been updated.
-            .filter(containerSpecOID -> !isContainerSpecCommodityUpdated(commodityType,
-                containerSpecOID, containerSpecCommodityTypeMap))
+            // Include the ContainerSpecs if containerSpecOID is in projectedEntities map and given
+            // commodity type hasn't been updated.
+            .filter(projectedEntities::containsKey)
+            .filter(containerSpecOID -> !isContainerSpecCommodityUpdated(commodityType, containerSpecOID, containerSpecCommodityTypeMap))
             .forEach(containerSpecOID -> {
                 // Find the commoditySoldDTO of current action commodity type from projected
                 // Container entity.
