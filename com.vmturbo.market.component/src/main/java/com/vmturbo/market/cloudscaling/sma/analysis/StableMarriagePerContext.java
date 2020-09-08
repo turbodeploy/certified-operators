@@ -634,16 +634,6 @@ public class StableMarriagePerContext {
             SMATemplate newTemplate = newEngagement.getTemplate();
             SMATemplate oldTemplate = oldEngagement.getTemplate();
 
-            int newAccountMoves = accountMoves(vm, newRI.getBusinessAccountId(),
-                    virtualMachineGroupMap);
-            int oldAccountMoves = accountMoves(vm, oldRI.getBusinessAccountId(),
-                    virtualMachineGroupMap);
-            if (newAccountMoves < oldAccountMoves) {
-                return true;
-            } else if (newAccountMoves > oldAccountMoves) {
-                return false;
-            }
-
             // Minimize moves based on VM's current allocated template and the new and old RI
             // template.  Beyond this point, VM's allocated template does not match either
             // the new or current RI
@@ -1013,16 +1003,6 @@ public class StableMarriagePerContext {
                 return 1;
             }
 
-            int vm1AccountMoves = accountMoves(vm1, reservedInstance.getBusinessAccountId(),
-                    virtualMachineGroupMap);
-            int vm2AccountMoves = accountMoves(vm2, reservedInstance.getBusinessAccountId(),
-                    virtualMachineGroupMap);
-            if (vm1AccountMoves < vm2AccountMoves) {
-                return -1;
-            } else if (vm1AccountMoves > vm2AccountMoves) {
-                return 1;
-            }
-
             // pick vm with lesser moves
             if (!reservedInstance.isIsf()) {
                 int vm1TemplateMoves = templateMoves(vm1, reservedInstance.getNormalizedTemplate(),
@@ -1086,29 +1066,6 @@ public class StableMarriagePerContext {
             return moves;
         } else {
             return vm.getCurrentTemplate().getOid() == template.getOid() ? 0 : 1;
-        }
-    }
-
-    /**
-     * the number of VMs that have different business account than the RI.
-     *
-     * @param vm                  the VM of interest
-     * @param businessAccount     business account of the RI
-     * @param virtualMachineGroupMap map from group name to virtualMachine Group
-     * @return move count
-     */
-    private static int accountMoves(final SMAVirtualMachine vm,
-                                     final long businessAccount,
-                                     Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
-        int moves = 0;
-        if (vm.getGroupSize() > 1) {
-            for (SMAVirtualMachine member : virtualMachineGroupMap
-                    .get(vm.getGroupName()).getVirtualMachines()) {
-                moves += (member.getBusinessAccountId() == businessAccount) ? 0 : 1;
-            }
-            return moves;
-        } else {
-            return (vm.getBusinessAccountId() == businessAccount) ? 0 : 1;
         }
     }
 
