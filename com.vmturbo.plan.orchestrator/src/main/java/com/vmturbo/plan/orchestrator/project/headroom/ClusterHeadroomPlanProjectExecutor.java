@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.turbonomic.cpucapacity.CPUCapacityEstimator;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
@@ -93,6 +94,8 @@ public class ClusterHeadroomPlanProjectExecutor {
 
     private final TopologyProcessor topologyProcessor;
 
+    private final CPUCapacityEstimator cpuCapacityEstimator;
+
     // If true, calculate headroom for all clusters in one plan instance.
     // If false, calculate headroom for restricted number of clusters in multiple plan instances.
     private final boolean headroomCalculationForAllClusters;
@@ -112,6 +115,7 @@ public class ClusterHeadroomPlanProjectExecutor {
      * @param historyChannel history channel
      * @param headroomCalculationForAllClusters specifies how to run cluster headroom plan
      * @param topologyProcessor a REST call to get target info
+     * @param cpuCapacityEstimator estimates the scaling factor of a cpu model.
      */
     public ClusterHeadroomPlanProjectExecutor(@Nonnull final PlanDao planDao,
                                               @Nonnull final Channel groupChannel,
@@ -121,7 +125,8 @@ public class ClusterHeadroomPlanProjectExecutor {
                                               @Nonnull final TemplatesDao templatesDao,
                                               @Nonnull final Channel historyChannel,
                                               final boolean headroomCalculationForAllClusters,
-                                              @Nonnull final TopologyProcessor topologyProcessor) {
+                                              @Nonnull final TopologyProcessor topologyProcessor,
+                                              @Nonnull final CPUCapacityEstimator cpuCapacityEstimator) {
         this.groupChannel = Objects.requireNonNull(groupChannel);
         this.planService = Objects.requireNonNull(planRpcService);
         this.projectPlanPostProcessorRegistry = Objects.requireNonNull(processorRegistry);
@@ -136,6 +141,7 @@ public class ClusterHeadroomPlanProjectExecutor {
         this.statsHistoryService =
             StatsHistoryServiceGrpc.newBlockingStub(Objects.requireNonNull(historyChannel));
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
+        this.cpuCapacityEstimator = Objects.requireNonNull(cpuCapacityEstimator);
     }
 
     /**
@@ -232,7 +238,8 @@ public class ClusterHeadroomPlanProjectExecutor {
             if (planProject.getPlanProjectInfo().getType().equals(PlanProjectType.CLUSTER_HEADROOM)) {
                 planProjectPostProcessor = new ClusterHeadroomPlanPostProcessor(planInstance.getPlanId(),
                     clusters.stream().map(Grouping::getId).collect(Collectors.toSet()),
-                    repositoryChannel, historyChannel, planDao, groupChannel, templatesDao);
+                    repositoryChannel, historyChannel, planDao, groupChannel, templatesDao,
+                    cpuCapacityEstimator);
             }
             if (planProjectPostProcessor != null) {
                 projectPlanPostProcessorRegistry.registerPlanPostProcessor(planProjectPostProcessor);

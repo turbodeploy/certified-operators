@@ -23,6 +23,7 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.turbonomic.cpucapacity.CPUCapacityEstimator;
 
 import io.grpc.Channel;
 
@@ -108,6 +109,8 @@ public class PlanProjectExecutorTest {
 
     private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
 
+    private final CPUCapacityEstimator cpuCapacityEstimator = mock(CPUCapacityEstimator.class);
+
     /**
      * Set up the mocks.
      *
@@ -119,9 +122,12 @@ public class PlanProjectExecutorTest {
         ProjectPlanPostProcessorRegistry registry = mock(ProjectPlanPostProcessorRegistry.class);
         PlanRpcService planRpcService = mock(PlanRpcService.class);
         Channel repositoryChannel = mock(Channel.class);
+        when(cpuCapacityEstimator.estimateMHzCoreMultiplier(any()))
+            .thenReturn(1.0);
         planProjectExecutor = new PlanProjectExecutor(planDao, planProjectDao, grpcServer.getChannel(),
                 planRpcService, registry, repositoryChannel, templatesDao, grpcServer.getChannel(),
-                projectNotificationSender, true, topologyProcessor);
+                projectNotificationSender, true, topologyProcessor,
+                cpuCapacityEstimator);
         headroomExecutor = planProjectExecutor.getHeadroomExecutor();
         when(templatesDao.getFilteredTemplates(any()))
             .thenReturn(Collections.singleton(Template.newBuilder()

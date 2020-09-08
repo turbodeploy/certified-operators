@@ -16,6 +16,7 @@ import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
+import com.vmturbo.plan.orchestrator.cpucapacity.CpuCapacityConfig;
 import com.vmturbo.plan.orchestrator.market.PlanOrchestratorMarketConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
@@ -71,6 +72,9 @@ public class PlanProjectConfig {
 
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
+
+    @Autowired
+    private CpuCapacityConfig cpuCapacityConfig;
 
     /**
      * Returns the external service for creating, updating, and running plans.
@@ -142,7 +146,8 @@ public class PlanProjectConfig {
                 historyClientConfig.historyChannel(),
                 planProjectNotificationSender(),
                 headroomCalculationForAllClusters,
-                globalConfig.tpNotificationClient());
+                globalConfig.tpNotificationClient(),
+                cpuCapacityConfig.cpuCapacityEstimator());
     }
 
     /**
