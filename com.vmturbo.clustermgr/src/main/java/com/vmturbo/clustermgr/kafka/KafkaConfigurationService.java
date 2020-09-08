@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
@@ -19,6 +20,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.Config;
@@ -67,6 +69,8 @@ public class KafkaConfigurationService {
 
     private final String namespacePrefix;
 
+    private final String kafkaConfigFile;
+
     private final IConfigSource configSource;
 
     /**
@@ -101,7 +105,43 @@ public class KafkaConfigurationService {
             throw new IllegalArgumentException("kafka.config.default.replication.factor cannot be less than 1.");
         }
 
+        // topic config file path
+        this.kafkaConfigFile = configSource.getProperty("kafkaConfigFile", String.class, "/config/kafka-config.yml");
+
         this.configSource = configSource;
+
+        configureKafka();
+    }
+
+    /**
+     * Apply any kafka topic configurations that we have.
+     */
+    public void configureKafka() {
+        // configure kafka, if we have a config file to read
+        if (Strings.isNullOrEmpty(kafkaConfigFile)) {
+            log.info("No kafka config file to read -- skipping kafka config.");
+            return;
+        }
+        try {
+            loadConfiguration(kafkaConfigFile);
+            log.info("<<<<<<<<<<<< kafka configured.");
+        } catch (TimeoutException te) {
+            log.error("Kafka configuration timed out. Will continue retrying in background.");
+            startBackgroundTask(new KafkaBackgroundConfigurationTask());
+        } catch (InterruptedException ie) {
+            log.warn("Kafka configuration interrupted. Configuration was not completed.");
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(ie);
+        }
+    }
+
+    private synchronized void startBackgroundTask(Runnable task) {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("kafka-configuration-service-%d")
+                .setDaemon(true)
+                .build();
+
+        threadFactory.newThread(task).start();
     }
 
     /**
@@ -277,6 +317,31 @@ public class KafkaConfigurationService {
                         )
                 );
         return kafkaConfigs;
+    }
+
+    /**
+     * A Runnable that will keep trying kafka configuration in the background.
+     */
+    private class KafkaBackgroundConfigurationTask implements Runnable {
+        @Override
+        public void run() {
+            log.info("Starting background thread for retrying Kafka configuration.");
+            while (true) {
+                try {
+                    loadConfiguration(kafkaConfigFile);
+                    log.info("Kafka configuration successful -- exiting background thread.");
+                    break;
+                } catch (TimeoutException te) {
+                    // try again.
+                    log.error("Kafka background configuration timed out. Trying again.");
+                } catch (InterruptedException ie) {
+                    log.warn("Kafka background configuration interrupted. Configuration was not completed.");
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(ie);
+                }
+            }
+
+        }
     }
 
     /**
