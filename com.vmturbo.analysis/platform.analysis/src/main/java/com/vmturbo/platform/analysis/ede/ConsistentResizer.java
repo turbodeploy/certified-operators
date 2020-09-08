@@ -217,8 +217,8 @@ public class ConsistentResizer {
                 }
                 return;
             }
-
-            final double finalNewCapacity = newCapacity;
+            double integralIncrementCount = Math.floor(newCapacity / capacityIncrement);
+            final double finalNewCapacity = integralIncrementCount * capacityIncrement;
             resizes.stream()
                 .map(PartialResize::getResize)
                 // Drop Resize if the capacity difference is less than the configured
