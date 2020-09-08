@@ -297,6 +297,15 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         logger.debug("fetching {} groups for user scope took {} ms", scopeGroupOids.size(),
                 Duration.between(startTime, groupFetchTime).toMillis());
 
+        // if the scope group is empty, we'll short-circuit the rest of the check and return an empty
+        // scope entry
+        if (scopeGroupEntityOids.isEmpty()) {
+            logger.debug("User has empty scope groups -- will return an empty scope.");
+            // we'll take the hash from the scopeGroupEntityOids, which we know is empty.
+            contentsBuilder.setHash(scopeGroupEntityOids.hashCode());
+            return new AccessScopeDataCacheEntry(contentsBuilder.build());
+        }
+
         // now, use the set of entities to make a supply chain request.
         final GetSupplyChainRequest.Builder supplyChainRequestBuilder = GetSupplyChainRequest.newBuilder()
             .setScope(SupplyChainScope.newBuilder()
