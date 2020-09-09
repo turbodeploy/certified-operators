@@ -9,17 +9,17 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
  * A wrapping class of a cloud commitment spec, containing the spec and additional data.
- * @param <SPEC_TYPE> The cloud commitment spec type.
+ * @param <SpecTypeT> The cloud commitment spec type.
  */
 @Immutable
-public interface CloudCommitmentSpecData<SPEC_TYPE> {
+public interface CloudCommitmentSpecData<SpecTypeT> {
 
     /**
      * The wrapped cloud commitment spec.
      * @return The wrapped cloud commitment spec.
      */
     @Nonnull
-    SPEC_TYPE spec();
+    SpecTypeT spec();
 
     /**
      * The spec ID.

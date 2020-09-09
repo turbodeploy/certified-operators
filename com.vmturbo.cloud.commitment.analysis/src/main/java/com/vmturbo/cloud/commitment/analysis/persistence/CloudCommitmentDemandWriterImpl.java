@@ -10,9 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
+import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint.Builder;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -128,7 +128,7 @@ public class CloudCommitmentDemandWriterImpl implements CloudCommitmentDemandWri
             Optional<TopologyEntityDTO> businessAccount = cloudTopology.getOwner(entityOid);
             businessAccount.map(ba -> datapointBuilder.accountOid(ba.getOid()));
 
-            ImmutableComputeTierDemand.Builder computeTierAllocationDemandBuilder = ImmutableComputeTierDemand.builder();
+            ComputeTierDemand.Builder computeTierAllocationDemandBuilder = ComputeTierDemand.builder();
 
             // Set the cloud tier on the compute tier allocation demand builder
             Optional<TopologyEntityDTO> cloudTier = cloudTopology.getComputeTier(entityDTO.getOid());

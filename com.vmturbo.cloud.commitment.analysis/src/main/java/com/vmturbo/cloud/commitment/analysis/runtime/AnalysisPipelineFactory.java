@@ -9,7 +9,8 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysis.IdentityProvider;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.selection.DemandSelectionStage.DemandSelectionFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationStage.DemandTransformationFactory;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 
 /**
@@ -21,29 +22,35 @@ public class AnalysisPipelineFactory {
 
     private final InitializationStageFactory initializationStageFactory;
 
-    private final DemandSelectionFactory demandSelectionFactory;
+    private final DemandRetrievalFactory demandRetrievalFactory;
 
     private final DemandClassificationFactory demandClassificationFactory;
+
+    private final DemandTransformationFactory demandTransformationFactory;
 
     /**
      * Constructs an analysis pipeline factory.
      * @param identityProvider The identity provider, used to assign IDs to individual stages.
      * @param initializationStageFactory The {@link InitializationStageFactory} to create the first
      *                                   stage of analysis.
-     * @param demandSelectionFactory The {@link DemandSelectionFactory} to create the second stage
+     * @param demandRetrievalFactory The {@link DemandRetrievalFactory} to create the second stage
      *                               of analysis.
      * @param demandClassificationFactory The {@link DemandClassificationFactory} to create the followup
      *                                    stage to demand selection.
+     * @param demandTransformationFactory The {@link DemandTransformationFactory} to create the demand
+     *                                    transformation stage.
      */
     public AnalysisPipelineFactory(@Nonnull IdentityProvider identityProvider,
                                    @Nonnull InitializationStageFactory initializationStageFactory,
-                                   @Nonnull DemandSelectionFactory demandSelectionFactory,
-                                   @Nonnull DemandClassificationFactory demandClassificationFactory) {
+                                   @Nonnull DemandRetrievalFactory demandRetrievalFactory,
+                                   @Nonnull DemandClassificationFactory demandClassificationFactory,
+                                   @Nonnull DemandTransformationFactory demandTransformationFactory) {
 
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.initializationStageFactory = Objects.requireNonNull(initializationStageFactory);
-        this.demandSelectionFactory = Objects.requireNonNull(demandSelectionFactory);
+        this.demandRetrievalFactory = Objects.requireNonNull(demandRetrievalFactory);
         this.demandClassificationFactory = Objects.requireNonNull(demandClassificationFactory);
+        this.demandTransformationFactory = Objects.requireNonNull(demandTransformationFactory);
     }
 
     /**
@@ -65,12 +72,17 @@ public class AnalysisPipelineFactory {
                         analysisConfig,
                         analysisContext))
                 .addStage(
-                        demandSelectionFactory.createStage(
+                        demandRetrievalFactory.createStage(
                                 identityProvider.next(),
                                 analysisConfig,
                                 analysisContext))
                 .addStage(
                         demandClassificationFactory.createStage(
+                                identityProvider.next(),
+                                analysisConfig,
+                                analysisContext))
+                .addStage(
+                        demandTransformationFactory.createStage(
                                 identityProvider.next(),
                                 analysisConfig,
                                 analysisContext))

@@ -1,6 +1,7 @@
 package com.vmturbo.cloud.commitment.analysis.topology;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -10,6 +11,8 @@ import org.hamcrest.collection.IsIterableContainingInOrder;
 import org.junit.Test;
 
 import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
+import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.ComputeTierNotFoundException;
+import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.IncompatibleTiersException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -126,5 +129,38 @@ public class ComputeTierFamilyResolverTest {
                 computeTierFamilyResolverFactory.createResolver(cloudTopology);
 
         assertTrue(computeTierFamilyResolver.getSiblingsInFamily(3890832L).isEmpty());
+    }
+
+    @Test(expected = ComputeTierNotFoundException.class)
+    public void testCompareTierNotFound() throws IncompatibleTiersException, ComputeTierNotFoundException {
+
+        final ComputeTierFamilyResolver computeTierFamilyResolver =
+                computeTierFamilyResolverFactory.createResolver(cloudTopology);
+
+        computeTierFamilyResolver.compareTiers(12321312L, 5);
+    }
+
+    @Test(expected = IncompatibleTiersException.class)
+    public void testCompareIncompatibleTiers() throws IncompatibleTiersException, ComputeTierNotFoundException {
+        final ComputeTierFamilyResolver computeTierFamilyResolver =
+                computeTierFamilyResolverFactory.createResolver(cloudTopology);
+
+        computeTierFamilyResolver.compareTiers(
+                computeTierSmallFamilyA.getOid(),
+                computeTierSmallFamilyB.getOid());
+    }
+
+    @Test
+    public void testCompare() throws IncompatibleTiersException, ComputeTierNotFoundException {
+
+        final ComputeTierFamilyResolver computeTierFamilyResolver =
+                computeTierFamilyResolverFactory.createResolver(cloudTopology);
+
+        final long actualComparison = computeTierFamilyResolver.compareTiers(
+                computeTierSmallFamilyA.getOid(),
+                computeTierLargeBFamilyA.getOid());
+
+        assertThat(actualComparison, lessThan(0L));
+
     }
 }

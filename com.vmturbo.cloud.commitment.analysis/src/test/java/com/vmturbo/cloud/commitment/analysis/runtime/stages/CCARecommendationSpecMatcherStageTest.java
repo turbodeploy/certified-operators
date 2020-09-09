@@ -3,26 +3,24 @@ package com.vmturbo.cloud.commitment.analysis.runtime.stages;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.cloud.commitment.analysis.TestUtils;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
-import com.vmturbo.cloud.commitment.analysis.runtime.data.AggregateCloudTierDemand;
-import com.vmturbo.cloud.commitment.analysis.runtime.data.AggregateDemandSegment;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.CloudTierCoverageDemand;
-import com.vmturbo.cloud.commitment.analysis.runtime.data.ImmutableAggregateCloudTierDemand;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateDemandSegment;
 import com.vmturbo.cloud.commitment.analysis.spec.CCARecommendationSpecMatcherStage.CCARecommendationSpecMatcherStageFactory;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher;
 import com.vmturbo.cloud.commitment.analysis.spec.CommitmentSpecDemand;
@@ -32,17 +30,9 @@ import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecMatcher;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.ReservedInstancePurchaseProfile;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification.ClassifiedDemandSelection;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.DemandSegment;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -81,13 +71,17 @@ public class CCARecommendationSpecMatcherStageTest {
 
     private static final AggregateDemandSegment classifiedDemandSegment = mock(AggregateDemandSegment.class);
 
-    private static final ComputeTierDemand computeTierDemand = ImmutableComputeTierDemand.builder()
+    private static final ComputeTierDemand computeTierDemand = ComputeTierDemand.builder()
             .cloudTierOid(computeTierOid).osType(OSType.LINUX).tenancy(Tenancy.DEFAULT).build();
 
-    private static final ImmutableAggregateCloudTierDemand cloudTierDemand = ImmutableAggregateCloudTierDemand.builder()
-            .addAllEntityOids(Sets.newHashSet(12L, 13L, 14L, 15L)).demandAmount(0.5)
+    private static final AggregateCloudTierDemand cloudTierDemand = AggregateCloudTierDemand.builder()
+            .putDemandByEntity(EntityInfo.builder().entityOid(12L).build(), .5)
+            .putDemandByEntity(EntityInfo.builder().entityOid(13L).build(), .5)
+            .putDemandByEntity(EntityInfo.builder().entityOid(14L).build(), .5)
+            .putDemandByEntity(EntityInfo.builder().entityOid(15L).build(), .5)
             .accountOid(Account_Aws).regionOid(REGION_AWS).serviceProviderOid(awsServiceProviderId)
-            .cloudTierDemand(computeTierDemand).classification(AllocatedDemandClassification.ALLOCATED).build();
+            .cloudTierDemand(computeTierDemand)
+            .classification(DemandClassification.of(AllocatedDemandClassification.ALLOCATED)).build();
 
     private static final CloudCommitmentSpecMatcher reservedInstanceSpecMatcher = mock(ReservedInstanceSpecMatcher.class);
 
@@ -127,35 +121,9 @@ public class CCARecommendationSpecMatcherStageTest {
      * Test the execution of the CCARecommendationSpecMatcherStage.
      */
     @Test
-    public void testExecution() {
+    public void testExecution() throws Exception {
 
-        final Instant lookbackStartTime = Instant.now().minus(10, ChronoUnit.DAYS);
-        final DemandSegment demandSegmentA = DemandSegment.newBuilder()
-                .setDemandType(HistoricalDemandType.ALLOCATION)
-                .setScope(DemandScope.newBuilder()
-                        .addAccountOid(1L)
-                        .build())
-                .build();
-        final DemandSegment demandSegmentB = DemandSegment.newBuilder()
-                .setDemandType(HistoricalDemandType.ALLOCATION)
-                .setScope(DemandScope.newBuilder()
-                        .addRegionOid(2L)
-                        .build())
-                .build();
-        final HistoricalDemandSelection demandSelection = HistoricalDemandSelection.newBuilder()
-                .setCloudTierType(CloudTierType.COMPUTE_TIER)
-                .addDemandSegment(demandSegmentA)
-                .addDemandSegment(demandSegmentB)
-                .setLogDetailedSummary(true)
-                // make sure demand selection isn't using this value. It should be using the normalized
-                // value from the config
-                .setLookBackStartTime(lookbackStartTime.plusSeconds(32312).toEpochMilli())
-                .build();
-        final CloudCommitmentAnalysisConfig analysisConfig = CloudCommitmentAnalysisConfig.newBuilder()
-                .setDemandClassification(DemandClassification.newBuilder()
-                        .setDemandSelection(ClassifiedDemandSelection.newBuilder()))
-                .setCloudCommitmentInventory(CloudCommitmentInventory.newBuilder())
-                .setDemandSelection(demandSelection)
+        final CloudCommitmentAnalysisConfig analysisConfig = TestUtils.createBaseConfig().toBuilder()
                 .setPurchaseProfile(CommitmentPurchaseProfile.newBuilder()
                         .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder().putAllRiTypeByRegionOid(purchaseConstraints).build())
                         .setRecommendationSettings(RecommendationSettings.newBuilder()))

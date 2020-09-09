@@ -4,7 +4,6 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -49,13 +48,16 @@ public class AllocatedDemandClassifier {
      * {@link AllocatedDemandClassification#FLEXIBLY_ALLOCATED}).
      */
     @Nonnull
-    public Map<AllocatedDemandClassification, Set<DemandTimeSeries>> classifyEntityDemand(
+    public ClassifiedCloudTierDemand classifyEntityDemand(
             @Nonnull TimeSeries<EntityCloudTierMapping> entityDemandSeries) {
+
+        if (entityDemandSeries.isEmpty()) {
+            return ClassifiedCloudTierDemand.EMPTY_CLASSIFICATION;
+        }
 
         final Map<AllocatedDemandClassification, Map<CloudTierDemand, List<TimeInterval>>> classifiedDemand =
                 new EnumMap<>(AllocatedDemandClassification.class);
         final EntityCloudTierMapping allocatedMapping = entityDemandSeries.last();
-
 
         // Iterate backwards over the mappings, classifying each mapping based on the previous mapping.
         // Once a mapping is classified as stale, any prior mapping will either be classified as either
@@ -79,17 +81,26 @@ public class AllocatedDemandClassifier {
                     : priorClassification;
         }
 
-        return classifiedDemand.entrySet()
-                .stream()
-                .collect(ImmutableMap.toImmutableMap(
-                        Map.Entry::getKey,
-                        (e) -> e.getValue().entrySet()
-                                .stream()
-                                .map(demandSet -> ImmutableDemandTimeSeries.builder()
-                                        .cloudTierDemand(demandSet.getKey())
-                                        .demandIntervals(TimeSeries.newTimeline(demandSet.getValue()))
-                                        .build())
-                                .collect(ImmutableSet.toImmutableSet())));
+
+        return ClassifiedCloudTierDemand.builder()
+                .classifiedDemand(classifiedDemand.entrySet()
+                        .stream()
+                        .collect(ImmutableMap.toImmutableMap(
+                                (e) -> DemandClassification.builder()
+                                        .allocatedClassification(e.getKey())
+                                        .build(),
+                                (e) -> e.getValue().entrySet()
+                                        .stream()
+                                        .map(demandSet -> DemandTimeSeries.builder()
+                                                .cloudTierDemand(demandSet.getKey())
+                                                .demandIntervals(TimeSeries.newTimeline(demandSet.getValue()))
+                                                .build())
+                                        .collect(ImmutableSet.toImmutableSet()))))
+                .allocatedDemand(DemandTimeSeries.builder()
+                        .cloudTierDemand(allocatedMapping.cloudTierDemand())
+                        .demandIntervals(TimeSeries.singletonTimeline(allocatedMapping.timeInterval()))
+                        .build())
+                .build();
     }
 
     private AllocatedDemandClassification classifyEntityMapping(

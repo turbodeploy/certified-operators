@@ -40,6 +40,16 @@ public interface MinimalCloudTopology<ENTITY_CLASS> {
      */
     boolean entityExists(long entityOid);
 
+    /**
+     * Determines whether the target entity is powered on.
+     * @param entityOid The target entity OID.
+     * @return An optional containing true, if the entity exists and is powered on. THe optional will
+     * contain false, if the entity exists and is not powered on. The optional will be empty, if the
+     * entity does not exist in the topology.
+     */
+    @Nonnull
+    Optional<Boolean> isEntityPoweredOn(long entityOid);
+
 
     /**
      * A factory class for creating {@link MinimalCloudTopology}.

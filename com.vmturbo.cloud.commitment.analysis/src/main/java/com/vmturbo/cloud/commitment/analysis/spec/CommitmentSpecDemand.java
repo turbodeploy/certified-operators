@@ -6,7 +6,7 @@ import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
-import com.vmturbo.cloud.commitment.analysis.runtime.data.AggregateCloudTierDemand;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 
 /**
  * Interface representing aggregated cloud tier demand being matched with cloud commitment spec data.
