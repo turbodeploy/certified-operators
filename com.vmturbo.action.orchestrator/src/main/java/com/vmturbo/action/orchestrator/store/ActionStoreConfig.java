@@ -142,6 +142,9 @@ public class ActionStoreConfig {
     @Value("${actionIdentityCachePurgeIntervalSec:1800}")
     private int identityCachePurgeIntervalSec;
 
+    @Value("${queryTimeWindowForLastExecutedActionsMins:60}")
+    private int queryTimeWindowForLastExecutedActionsMins;
+
     /**
      * If true, we will expect that the topology ID of the incoming live action plan strictly
      * matches the topology ID of the per-entity setting breakdown that the topology processor
@@ -294,6 +297,7 @@ public class ActionStoreConfig {
             .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
             .withActionAuditSender(auditCommunicationConfig.actionAuditSender())
             .withRiskPropagationEnabledFlag(riskPropagationEnabled)
+            .withQueryTimeWindowForLastExecutedActionsMins(queryTimeWindowForLastExecutedActionsMins)
             .build();
     }
 
