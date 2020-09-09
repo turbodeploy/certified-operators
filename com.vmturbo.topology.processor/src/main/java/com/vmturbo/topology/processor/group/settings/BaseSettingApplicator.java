@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.group.settings;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -12,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -75,5 +78,34 @@ public abstract class BaseSettingApplicator implements SettingApplicator {
         }
 
         return setting.getNumericSettingValue().getValue();
+    }
+
+    /**
+     * Apply the movable flag to the commodities of the entity which satisfies the provided
+     * override condition.
+     *
+     * @param entity to apply the setting
+     * @param movable is movable or not
+     * @param predicate condition function which the commodity should apply the movable or not.
+     */
+    protected void applyMovableToCommodities(@Nonnull TopologyEntityDTO.Builder entity,
+                                             boolean movable,
+                                             @Nonnull Predicate<Builder> predicate) {
+        entity.getCommoditiesBoughtFromProvidersBuilderList()
+                .stream()
+                .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
+                .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
+                .filter(predicate)
+                .forEach(c -> {
+                    // Apply setting value only if move is not disabled by the entity
+                    if (!c.hasMovable() || c.getMovable()) {
+                        c.setMovable(movable);
+                    } else {
+                        // Do not override with the setting if move has been disabled at entity level
+                        logger.trace("{}:{} Not overriding move setting, move is disabled at entity level {}",
+                                entity::getEntityType, entity::getDisplayName,
+                                c::getMovable);
+                    }
+                });
     }
 }

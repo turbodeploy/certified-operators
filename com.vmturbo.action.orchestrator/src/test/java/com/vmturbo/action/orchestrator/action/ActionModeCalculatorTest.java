@@ -27,6 +27,7 @@ import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ActionSpecifications;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ModeAndSchedule;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -61,6 +62,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -106,9 +108,9 @@ public class ActionModeCalculatorTest {
         final ActionDTO.Action action = createMoveAction(1, EntityType.PHYSICAL_MACHINE_VALUE);
         Action aoAction = new Action(action, 1L, actionModeCalculator, 223L);
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
-                ImmutableMap.of(EntitySettingSpecs.Move.getSettingName(),
+                ImmutableMap.of(ConfigurableActionSettings.Move.getSettingName(),
                         Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
+                                .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
@@ -129,7 +131,9 @@ public class ActionModeCalculatorTest {
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(ActionMode.valueOf(
-                    EntitySettingSpecs.Move.getSettingSpec().getEnumSettingValueType().getDefault()))));
+                    ActionSettingSpecs.getSettingSpec(
+                        ConfigurableActionSettings.Move.getSettingName())
+                    .getEnumSettingValueType().getDefault()))));
     }
 
     /**
@@ -140,9 +144,9 @@ public class ActionModeCalculatorTest {
     public void testSettingStorageMove() {
         final ActionDTO.Action action = createMoveAction(1, EntityType.STORAGE_VALUE);
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
-                ImmutableMap.of(EntitySettingSpecs.StorageMove.getSettingName(),
+                ImmutableMap.of(ConfigurableActionSettings.StorageMove.getSettingName(),
                         Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
+                                .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
@@ -163,7 +167,9 @@ public class ActionModeCalculatorTest {
         Action aoAction = new Action(action, 1L, actionModeCalculator, 2343L);
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(ActionMode.valueOf(
-                    EntitySettingSpecs.StorageMove.getSettingSpec().getEnumSettingValueType().getDefault()))));
+                    ActionSettingSpecs.getSettingSpec(
+                        ConfigurableActionSettings.StorageMove.getSettingName())
+                    .getEnumSettingValueType().getDefault()))));
     }
 
     /**
@@ -192,15 +198,15 @@ public class ActionModeCalculatorTest {
         // Different values for Move and StorageMove setting for this entity.
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(
-                        EntitySettingSpecs.Move.getSettingName(),
+                        ConfigurableActionSettings.Move.getSettingName(),
                         Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
+                                .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build(),
-                        EntitySettingSpecs.StorageMove.getSettingName(),
+                    ConfigurableActionSettings.StorageMove.getSettingName(),
                         Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
+                                .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.MANUAL.name()))
                                 .build()));
@@ -234,9 +240,15 @@ public class ActionModeCalculatorTest {
                                         .setType(EntityType.STORAGE_VALUE)))))
                 .build();
         final ActionMode storageMoveDefaultMode =
-                ActionMode.valueOf(EntitySettingSpecs.StorageMove.getSettingSpec().getEnumSettingValueType().getDefault());
+            ActionMode.valueOf(
+                ActionSettingSpecs.getSettingSpec(
+                    ConfigurableActionSettings.StorageMove.getSettingName())
+                    .getEnumSettingValueType().getDefault());
         final ActionMode hostMoveDefaultMode =
-                ActionMode.valueOf(EntitySettingSpecs.Move.getSettingSpec().getEnumSettingValueType().getDefault());
+                ActionMode.valueOf(
+                    ActionSettingSpecs.getSettingSpec(
+                        ConfigurableActionSettings.Move.getSettingName())
+                        .getEnumSettingValueType().getDefault());
         final ActionMode expectedDefaultMode = storageMoveDefaultMode.compareTo(hostMoveDefaultMode) < 0 ? storageMoveDefaultMode : hostMoveDefaultMode;
         Action aoAction = new Action(action, 1L, actionModeCalculator, 234234L);
 
@@ -256,7 +268,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        final String settingName = EntitySettingSpecs.CloudComputeScale.getSettingName();
+        final String settingName = ConfigurableActionSettings.CloudComputeScale.getSettingName();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(settingName,
                         Setting.newBuilder()
@@ -300,9 +312,9 @@ public class ActionModeCalculatorTest {
                                 .setType(1))))
                 .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
-                ImmutableMap.of(EntitySettingSpecs.Resize.getSettingName(),
+                ImmutableMap.of(ConfigurableActionSettings.Resize.getSettingName(),
                         Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
+                                .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
@@ -328,7 +340,9 @@ public class ActionModeCalculatorTest {
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
             is(ModeAndSchedule.of(ActionMode.valueOf(
-                EntitySettingSpecs.Resize.getSettingSpec().getEnumSettingValueType().getDefault()))));
+                ActionSettingSpecs.getSettingSpec(
+                    ConfigurableActionSettings.Resize.getSettingName())
+                    .getEnumSettingValueType().getDefault()))));
     }
 
     /**
@@ -344,9 +358,9 @@ public class ActionModeCalculatorTest {
                                 .setType(1))))
                 .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
-                ImmutableMap.of(EntitySettingSpecs.Reconfigure.getSettingName(),
+                ImmutableMap.of(ConfigurableActionSettings.Reconfigure.getSettingName(),
                         Setting.newBuilder()
-                            .setSettingSpecName(EntitySettingSpecs.Reconfigure.getSettingName())
+                            .setSettingSpecName(ConfigurableActionSettings.Reconfigure.getSettingName())
                             .setEnumSettingValue(EnumSettingValue.newBuilder()
                                             .setValue(ActionMode.AUTOMATIC.name()))
                             .build()));
@@ -371,7 +385,9 @@ public class ActionModeCalculatorTest {
         Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(ActionMode.valueOf(
-                    EntitySettingSpecs.Reconfigure.getSettingSpec().getEnumSettingValueType().getDefault()))));
+                    ActionSettingSpecs.getSettingSpec(
+                        ConfigurableActionSettings.Reconfigure.getSettingName())
+                        .getEnumSettingValueType().getDefault()))));
     }
 
     /**
@@ -387,9 +403,9 @@ public class ActionModeCalculatorTest {
                                 .setType(1))))
                 .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
-                ImmutableMap.of(EntitySettingSpecs.Provision.getSettingName(),
+                ImmutableMap.of(ConfigurableActionSettings.Provision.getSettingName(),
                         Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.Provision.getSettingName())
+                                .setSettingSpecName(ConfigurableActionSettings.Provision.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
@@ -415,7 +431,9 @@ public class ActionModeCalculatorTest {
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(ActionMode.valueOf(
-                    EntitySettingSpecs.Provision.getSettingSpec().getEnumSettingValueType().getDefault()))));
+                    ActionSettingSpecs.getSettingSpec(
+                        ConfigurableActionSettings.Provision.getSettingName())
+                        .getEnumSettingValueType().getDefault()))));
     }
 
     /**
@@ -431,9 +449,9 @@ public class ActionModeCalculatorTest {
                                 .setType(1))))
                 .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
-                ImmutableMap.of(EntitySettingSpecs.Activate.getSettingName(),
+                ImmutableMap.of(ConfigurableActionSettings.Activate.getSettingName(),
                         Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.Activate.getSettingName())
+                                .setSettingSpecName(ConfigurableActionSettings.Activate.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
@@ -459,7 +477,9 @@ public class ActionModeCalculatorTest {
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(ActionMode.valueOf(
-                    EntitySettingSpecs.Activate.getSettingSpec().getEnumSettingValueType().getDefault()))));
+                    ActionSettingSpecs.getSettingSpec(
+                        ConfigurableActionSettings.Activate.getSettingName())
+                        .getEnumSettingValueType().getDefault()))));
     }
 
     /**
@@ -475,9 +495,9 @@ public class ActionModeCalculatorTest {
                                 .setType(1))))
                 .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
-                ImmutableMap.of(EntitySettingSpecs.Suspend.getSettingName(),
+                ImmutableMap.of(ConfigurableActionSettings.Suspend.getSettingName(),
                         Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs.Suspend.getSettingName())
+                                .setSettingSpecName(ConfigurableActionSettings.Suspend.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
@@ -504,7 +524,9 @@ public class ActionModeCalculatorTest {
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
             is(ModeAndSchedule.of(ActionMode.valueOf(
-                EntitySettingSpecs.Suspend.getSettingSpec().getEnumSettingValueType().getDefault()))));
+                ActionSettingSpecs.getSettingSpec(
+                    ConfigurableActionSettings.Suspend.getSettingName())
+                    .getEnumSettingValueType().getDefault()))));
     }
 
     /**
@@ -520,9 +542,9 @@ public class ActionModeCalculatorTest {
                     .setType(1))))
             .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
-            ImmutableMap.of(EntitySettingSpecs.Delete.getSettingName(),
+            ImmutableMap.of(ConfigurableActionSettings.Delete.getSettingName(),
                 Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.Delete.getSettingName())
+                    .setSettingSpecName(ConfigurableActionSettings.Delete.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder()
                         .setValue(ActionMode.AUTOMATIC.name()))
                     .build()));
@@ -861,11 +883,12 @@ public class ActionModeCalculatorTest {
         // action mode
         assertThat(actionModeCalculator.specsApplicableToAction(vStorageAction, settingsForEntity).toArray().length,
             is(0));
-        // We have two action modes because in addition to the one originated from the
-        // settings there is also a EnforceNonDisruptive.
-        assertThat(actionModeCalculator.specsApplicableToAction(memReservationAction, settingsForEntity).toArray().length,
-            is(2));
-
+        // We have two action modes because and there is also an EnforceNonDisruptive.
+        List<ActionSpecifications> actionSpecifications =
+            actionModeCalculator.specsApplicableToAction(
+                memReservationAction, settingsForEntity).collect(Collectors.toList());
+        Assert.assertEquals(1, actionSpecifications.size());
+        Assert.assertTrue(actionSpecifications.get(0).isNonDisruptiveEnforced());
     }
 
     /**
@@ -876,7 +899,7 @@ public class ActionModeCalculatorTest {
     @Test
     public void checkSpecsApplicableToActionForBuMoves() {
         checkSpecsApplicableToActionForMoves(EntityType.BUSINESS_USER_VALUE,
-                        EntityType.DESKTOP_POOL_VALUE, EntitySettingSpecs.BusinessUserMove);
+                        EntityType.DESKTOP_POOL_VALUE, ConfigurableActionSettings.Move);
     }
 
     /**
@@ -887,7 +910,7 @@ public class ActionModeCalculatorTest {
     @Test
     public void checkSpecsApplicableToActionForVmMoves() {
         checkSpecsApplicableToActionForMoves(EntityType.VIRTUAL_MACHINE_VALUE,
-                        EntityType.PHYSICAL_MACHINE_VALUE, EntitySettingSpecs.Move);
+                        EntityType.PHYSICAL_MACHINE_VALUE, ConfigurableActionSettings.Move);
     }
 
     /**
@@ -898,11 +921,11 @@ public class ActionModeCalculatorTest {
     @Test
     public void checkSpecsApplicableToActionForVmStorageMoves() {
         checkSpecsApplicableToActionForMoves(EntityType.VIRTUAL_MACHINE_VALUE,
-                        EntityType.STORAGE_VALUE, EntitySettingSpecs.StorageMove);
+                        EntityType.STORAGE_VALUE, ConfigurableActionSettings.StorageMove);
     }
 
     private void checkSpecsApplicableToActionForMoves(int targetType, int providerType,
-                    EntitySettingSpecs modeSettingSpecs) {
+                                                  ConfigurableActionSettings modeSettingSpecs) {
         final ActionDTO.Action moveAction = createMoveAction(targetType, providerType);
         final Setting moveActionModeSetting = createActionModeSetting(ActionMode.RECOMMEND,
                         modeSettingSpecs.getSettingName());
@@ -912,7 +935,7 @@ public class ActionModeCalculatorTest {
                         enforceNonDisruptiveSettingName)
                         .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
                         .build();
-        final String moveSettingSpecName = EntitySettingSpecs.Move.getSettingName();
+        final String moveSettingSpecName = ConfigurableActionSettings.Move.getSettingName();
         final Map<String, Setting> settingsForTargetEntity = new HashMap<>();
         settingsForTargetEntity.put(modeSettingSpecs.getSettingName(), moveActionModeSetting);
         settingsForTargetEntity.put(moveSettingSpecName,
@@ -920,7 +943,7 @@ public class ActionModeCalculatorTest {
         settingsForTargetEntity.put(enforceNonDisruptiveSettingName, enableNonDisruptiveSetting);
         Assert.assertThat(actionModeCalculator
                         .specsApplicableToAction(moveAction, settingsForTargetEntity).findAny()
-                        .get(), CoreMatchers.is(modeSettingSpecs));
+                        .get().getConfigurableActionSetting(), CoreMatchers.is(modeSettingSpecs));
     }
 
     @Nonnull
@@ -965,9 +988,9 @@ public class ActionModeCalculatorTest {
                                 .build())
                         .build()
         ).build();
-        List<EntitySettingSpecs> entitySpecs = actionModeCalculator.specsApplicableToAction(heapUpAction, settingsForEntity).collect(Collectors.toList());
+        List<ActionSpecifications> entitySpecs = actionModeCalculator.specsApplicableToAction(heapUpAction, settingsForEntity).collect(Collectors.toList());
         Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(EntitySettingSpecs.ResizeUpHeap, entitySpecs.get(0));
+        Assert.assertEquals(ConfigurableActionSettings.ResizeUpHeap, entitySpecs.get(0).getConfigurableActionSetting());
 
         // Heap Up for Application Components
         final ActionDTO.Action heapDownAction = actionBuilder.setInfo(
@@ -988,7 +1011,7 @@ public class ActionModeCalculatorTest {
         ).build();
         entitySpecs = actionModeCalculator.specsApplicableToAction(heapDownAction, settingsForEntity).collect(Collectors.toList());
         Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(EntitySettingSpecs.ResizeDownHeap, entitySpecs.get(0));
+        Assert.assertEquals(ConfigurableActionSettings.ResizeDownHeap, entitySpecs.get(0).getConfigurableActionSetting());
     }
 
     /**
@@ -1033,13 +1056,13 @@ public class ActionModeCalculatorTest {
         ).build();
 
         // Resize DBMem Up/Down for Database Server
-        List<EntitySettingSpecs> entitySpecs = actionModeCalculator.specsApplicableToAction(resizeUpDbMemAction, settingsForEntity).collect(Collectors.toList());
+        List<ActionSpecifications> entitySpecs = actionModeCalculator.specsApplicableToAction(resizeUpDbMemAction, settingsForEntity).collect(Collectors.toList());
         Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(EntitySettingSpecs.ResizeUpDBMem, entitySpecs.get(0));
+        Assert.assertEquals(ConfigurableActionSettings.ResizeUpDBMem, entitySpecs.get(0).getConfigurableActionSetting());
 
         entitySpecs = actionModeCalculator.specsApplicableToAction(resizeDownDbMemAction, settingsForEntity).collect(Collectors.toList());
         Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(EntitySettingSpecs.ResizeDownDBMem, entitySpecs.get(0));
+        Assert.assertEquals(ConfigurableActionSettings.ResizeDownDBMem, entitySpecs.get(0).getConfigurableActionSetting());
     }
 
     /**
@@ -1063,13 +1086,14 @@ public class ActionModeCalculatorTest {
                 .build();
 
         // ACT
-        final List<EntitySettingSpecs> entitySpecs = actionModeCalculator
+        final List<ActionSpecifications> entitySpecs = actionModeCalculator
                 .specsApplicableToAction(action, Collections.emptyMap())
                 .collect(Collectors.toList());
 
         // ASSERT
         Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(EntitySettingSpecs.DisruptiveReversibleScaling, entitySpecs.get(0));
+        Assert.assertEquals(ConfigurableActionSettings.DisruptiveReversibleScaling,
+                entitySpecs.get(0).getConfigurableActionSetting());
     }
 
     /**
@@ -1093,13 +1117,14 @@ public class ActionModeCalculatorTest {
                 .build();
 
         // ACT
-        final List<EntitySettingSpecs> entitySpecs = actionModeCalculator
+        final List<ActionSpecifications> entitySpecs = actionModeCalculator
                 .specsApplicableToAction(action, Collections.emptyMap())
                 .collect(Collectors.toList());
 
         // ASSERT
         Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(EntitySettingSpecs.DisruptiveIrreversibleScaling, entitySpecs.get(0));
+        Assert.assertEquals(ConfigurableActionSettings.DisruptiveIrreversibleScaling,
+                entitySpecs.get(0).getConfigurableActionSetting());
     }
 
     /**
@@ -1123,13 +1148,14 @@ public class ActionModeCalculatorTest {
                 .build();
 
         // ACT
-        final List<EntitySettingSpecs> entitySpecs = actionModeCalculator
+        final List<ActionSpecifications> entitySpecs = actionModeCalculator
                 .specsApplicableToAction(action, Collections.emptyMap())
                 .collect(Collectors.toList());
 
         // ASSERT
         Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(EntitySettingSpecs.NonDisruptiveReversibleScaling, entitySpecs.get(0));
+        Assert.assertEquals(ConfigurableActionSettings.NonDisruptiveReversibleScaling,
+                entitySpecs.get(0).getConfigurableActionSetting());
     }
 
     /**
@@ -1153,13 +1179,14 @@ public class ActionModeCalculatorTest {
                 .build();
 
         // ACT
-        final List<EntitySettingSpecs> entitySpecs = actionModeCalculator
+        final List<ActionSpecifications> entitySpecs = actionModeCalculator
                 .specsApplicableToAction(action, Collections.emptyMap())
                 .collect(Collectors.toList());
 
         // ASSERT
         Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(EntitySettingSpecs.NonDisruptiveIrreversibleScaling, entitySpecs.get(0));
+        Assert.assertEquals(ConfigurableActionSettings.NonDisruptiveIrreversibleScaling,
+                entitySpecs.get(0).getConfigurableActionSetting());
     }
 
     /**
@@ -1181,13 +1208,14 @@ public class ActionModeCalculatorTest {
                 .build();
 
         // ACT
-        final List<EntitySettingSpecs> entitySpecs = actionModeCalculator
+        final List<ActionSpecifications> entitySpecs = actionModeCalculator
                 .specsApplicableToAction(action, Collections.emptyMap())
                 .collect(Collectors.toList());
 
         // ASSERT
         Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(EntitySettingSpecs.CloudComputeScale, entitySpecs.get(0));
+        Assert.assertEquals(ConfigurableActionSettings.CloudComputeScale,
+                entitySpecs.get(0).getConfigurableActionSetting());
     }
 
     private Action getResizeDownAction(long vmId) {
@@ -1254,17 +1282,17 @@ public class ActionModeCalculatorTest {
                 .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingName())
                 .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(2).build()).build();
         Setting vCpuAboveMaxThreshold = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuAboveMaxThreshold.getSettingName())
                 .setEnumSettingValue(DISABLED).build();
         Setting vCpuBelowMinThreshold = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuBelowMinThreshold.getSettingName())
                 .setEnumSettingValue(AUTOMATIC).build();
         Setting vCpuUpInBetweenThresholds = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds.getSettingName())
                 .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(inRangeActionMode.name()).build())
                 .build();
         Setting vCpuDownInBetweenThresholds = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds.getSettingName())
                 .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(inRangeActionMode.name()).build())
                 .build();
         Setting enableNonDisruptiveSetting = Setting.newBuilder()
@@ -1272,10 +1300,10 @@ public class ActionModeCalculatorTest {
                         .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(nonDisruptiveValue)).build();
         settings.put(EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingName(), vCpuMaxThreshold);
         settings.put(EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingName(), vCpuMinThreshold);
-        settings.put(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName(), vCpuAboveMaxThreshold);
-        settings.put(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName(), vCpuBelowMinThreshold);
-        settings.put(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName(), vCpuUpInBetweenThresholds);
-        settings.put(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName(), vCpuDownInBetweenThresholds);
+        settings.put(ConfigurableActionSettings.ResizeVcpuAboveMaxThreshold.getSettingName(), vCpuAboveMaxThreshold);
+        settings.put(ConfigurableActionSettings.ResizeVcpuBelowMinThreshold.getSettingName(), vCpuBelowMinThreshold);
+        settings.put(ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds.getSettingName(), vCpuUpInBetweenThresholds);
+        settings.put(ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds.getSettingName(), vCpuDownInBetweenThresholds);
         settings.put(EntitySettingSpecs.EnforceNonDisruptive.getSettingName(), enableNonDisruptiveSetting);
         return settings;
     }
@@ -1889,13 +1917,13 @@ public class ActionModeCalculatorTest {
     private Map<String, Setting> createScheduleSettings(List<Long> scheduleIds) {
         final Setting vCpuUpInBetweenThresholds = Setting.newBuilder()
             .setSettingSpecName(ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds, ActionSettingType.SCHEDULE))
+                ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds, ActionSettingType.SCHEDULE))
             .setSortedSetOfOidSettingValue(SettingProto.SortedSetOfOidSettingValue.newBuilder()
                 .addAllOids(scheduleIds).build())
             .build();
         return ImmutableMap.of(
             ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds, ActionSettingType.SCHEDULE),
+                ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds, ActionSettingType.SCHEDULE),
                 vCpuUpInBetweenThresholds);
     }
 

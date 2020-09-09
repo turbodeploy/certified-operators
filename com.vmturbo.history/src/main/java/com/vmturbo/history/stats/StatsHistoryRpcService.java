@@ -298,7 +298,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         try {
             final List<Long> entitiesList = request.getEntitiesList();
             final StatsFilter filter = request.getFilter();
-
             // determine if this request is for stats for a plan topology; for efficiency, check
             // first for the special case ID of the entire live topology, "Market" (i.e. not a plan)
             boolean isPlan = entitiesList.size() == 1
@@ -324,12 +323,11 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
             timer.observeDuration();
         } catch (Exception e) {
-            logger.error("Error getting stats snapshots for {}", request);
-            logger.error("    ", e);
+            final String requestSummary = ProtobufSummarizers.summarize(request);
+            logger.error("Error getting stats snapshots for {}", requestSummary, e);
             responseObserver.onError(Status.INTERNAL
-                    .withDescription("Internal Error fetching stats for: "
-                            + ProtobufSummarizers.summarize(request)
-                            + ", cause: " + e.getMessage())
+                    .withDescription(String.format("Internal Error fetching stats for: %s, cause: %s",
+                            requestSummary, e.getMessage()))
                     .asException());
         }
     }

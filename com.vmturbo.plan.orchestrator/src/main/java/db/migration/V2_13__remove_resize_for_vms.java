@@ -29,7 +29,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Settin
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
@@ -42,16 +42,16 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
  */
 public class V2_13__remove_resize_for_vms implements JdbcMigration, MigrationChecksumProvider {
 
-    private static final ImmutableSet<EntitySettingSpecs> vmResizeSettings =
+    private static final ImmutableSet<ConfigurableActionSettings> vmResizeSettings =
         ImmutableSet.of(
-            EntitySettingSpecs.ResizeVcpuAboveMaxThreshold,
-            EntitySettingSpecs.ResizeVcpuBelowMinThreshold,
-            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
-            EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds,
-            EntitySettingSpecs.ResizeVmemAboveMaxThreshold,
-            EntitySettingSpecs.ResizeVmemBelowMinThreshold,
-            EntitySettingSpecs.ResizeVmemUpInBetweenThresholds,
-            EntitySettingSpecs.ResizeVmemDownInBetweenThresholds);
+            ConfigurableActionSettings.ResizeVcpuAboveMaxThreshold,
+            ConfigurableActionSettings.ResizeVcpuBelowMinThreshold,
+            ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds,
+            ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds,
+            ConfigurableActionSettings.ResizeVmemAboveMaxThreshold,
+            ConfigurableActionSettings.ResizeVmemBelowMinThreshold,
+            ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds,
+            ConfigurableActionSettings.ResizeVmemDownInBetweenThresholds);
 
     private final Logger logger = LogManager.getLogger(getClass());
 
@@ -76,7 +76,7 @@ public class V2_13__remove_resize_for_vms implements JdbcMigration, MigrationChe
                         if (change.hasSettingOverride() &&
                             change.getSettingOverride().getEntityType() == EntityType.VIRTUAL_MACHINE.getValue()) {
                             if (change.getSettingOverride().hasSetting()
-                                && change.getSettingOverride().getSetting().getSettingSpecName().equals(EntitySettingSpecs.Resize.getSettingName())) {
+                                && change.getSettingOverride().getSetting().getSettingSpecName().equals(ConfigurableActionSettings.Resize.getSettingName())) {
                                 vmResizeValue =
                                     change.getSettingOverride().getSetting().getEnumSettingValue();
                                 continue;
@@ -170,7 +170,7 @@ public class V2_13__remove_resize_for_vms implements JdbcMigration, MigrationChe
 
     private void addResizeSettings(List<ScenarioChange> newScenarioChanges,
                                    EnumSettingValue vmResizeValue) {
-        for (EntitySettingSpecs resizeSetting : vmResizeSettings) {
+        for (ConfigurableActionSettings resizeSetting : vmResizeSettings) {
             newScenarioChanges.add(ScenarioChange.newBuilder().setSettingOverride(SettingOverride.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE.getValue())
                 .setSetting(Setting.newBuilder().setSettingSpecName(resizeSetting.getSettingName())

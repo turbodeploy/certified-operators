@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.rpc;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,6 +38,7 @@ import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -44,6 +46,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.operation.IOperationManager;
+import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
@@ -88,6 +91,10 @@ public class TargetSearchRpcServiceTest {
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenAnswer(answerById(probes));
         Mockito.when(probeStore.getProbes()).thenReturn(probes);
         operationManager = Mockito.mock(IOperationManager.class);
+        Mockito.when(operationManager.getLastDiscoveryForTarget(Mockito.anyLong(), Mockito.any()))
+                .thenReturn(Optional.empty());
+        Mockito.when(operationManager.getLastValidationForTarget(Mockito.anyLong()))
+                .thenReturn(Optional.empty());
         service = new TargetSearchRpcService(targetStore, probeStore, operationManager);
     }
 
@@ -170,7 +177,8 @@ public class TargetSearchRpcServiceTest {
     }
 
     /**
-     * Tests retrieving targets by status.
+     * Tests retrieving targets by status. Status is populated using both discoveries and
+     * validations.
      *
      * @throws Exception on exceptions occurred
      */
@@ -180,9 +188,9 @@ public class TargetSearchRpcServiceTest {
         final long target1 = createTarget(probeId);
         final long target2 = createTarget(probeId);
         final long target3 = createTarget(probeId);
-        setTargetStatus(target1, Status.SUCCESS);
-        setTargetStatus(target2, Status.FAILED);
-        setTargetStatus(target3, Status.IN_PROGRESS);
+        setTargetValidationStatus(target1, Status.SUCCESS);
+        setTargetValidationStatus(target2, Status.FAILED);
+        setTargetValidationStatus(target3, Status.IN_PROGRESS);
         final PropertyFilter targetFilter = PropertyFilter.newBuilder()
                 .setPropertyName(SearchableProperties.TARGET_VALIDATION_STATUS)
                 .setStringFilter(
@@ -202,15 +210,84 @@ public class TargetSearchRpcServiceTest {
         final long target1 = createTarget(probeId);
         final long target2 = createTarget(probeId);
         final long target3 = createTarget(probeId);
-        setTargetStatus(target1, Status.SUCCESS);
-        setTargetStatus(target2, Status.FAILED);
-        setTargetStatus(target3, Status.IN_PROGRESS);
+        setTargetValidationStatus(target1, Status.SUCCESS);
+        setTargetValidationStatus(target2, Status.FAILED);
+        setTargetValidationStatus(target3, Status.IN_PROGRESS);
         final PropertyFilter targetFilter = PropertyFilter.newBuilder()
                 .setPropertyName(SearchableProperties.TARGET_VALIDATION_STATUS)
                 .setStringFilter(
                         StringFilter.newBuilder().addOptions("SUCCESS").setPositiveMatch(false))
                 .build();
         Assert.assertEquals(Sets.newHashSet(target2, target3), expectResult(targetFilter));
+    }
+
+    /**
+     * Tests retrieving targets by status. Test ensures that discovery operations are took into
+     * account if they are present.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testGetTargetByStatusValidationAndDiscovery() throws Exception {
+        final long probeId = createProbe("probe");
+        final long target1 = createTarget(probeId);
+        final long target2 = createTarget(probeId);
+        final long target3 = createTarget(probeId);
+        final long target4 = createTarget(probeId);
+        final long target5 = createTarget(probeId);
+        setTargetValidationStatus(target1, Status.SUCCESS);
+        setTargetDiscoveryStatus(target2, DiscoveryType.FULL, Status.SUCCESS);
+        setTargetDiscoveryStatus(target3, DiscoveryType.INCREMENTAL, Status.SUCCESS);
+        setTargetDiscoveryStatus(target4, DiscoveryType.PERFORMANCE, Status.SUCCESS);
+        setTargetDiscoveryStatus(target5, DiscoveryType.FULL, Status.IN_PROGRESS);
+        final PropertyFilter targetFilter = PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.TARGET_VALIDATION_STATUS)
+                .setStringFilter(
+                        StringFilter.newBuilder().addOptions("SUCCESS").setPositiveMatch(true))
+                .build();
+        Assert.assertEquals(Sets.newHashSet(target1, target2, target3, target4),
+                expectResult(targetFilter));
+    }
+
+    /**
+     * Tests retrieving targets by status. Status selected from multiple operations finished.
+     * Test ensures that the latest operation is used to detect target's status
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testGetTargetByStatusSeveralOperations() throws Exception {
+        final long probeId = createProbe("probe");
+        final long targetId = createTarget(probeId);
+
+        final Discovery fullDiscovery = Mockito.mock(Discovery.class);
+        Mockito.when(fullDiscovery.getStatus()).thenReturn(Status.FAILED);
+        Mockito.when(fullDiscovery.getCompletionTime())
+                .thenReturn(LocalDateTime.of(2020, 1, 1, 10, 30));
+
+        Mockito.when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
+                .thenReturn(Optional.of(fullDiscovery));
+        final Discovery performanceDiscovery = Mockito.mock(Discovery.class);
+        Mockito.when(performanceDiscovery.getStatus()).thenReturn(Status.FAILED);
+        Mockito.when(performanceDiscovery.getCompletionTime())
+                .thenReturn(LocalDateTime.of(2020, 1, 1, 10, 35));
+        Mockito.when(
+                operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.PERFORMANCE))
+                .thenReturn(Optional.of(performanceDiscovery));
+
+        final Validation validation = Mockito.mock(Validation.class);
+        Mockito.when(validation.getCompletionTime())
+                .thenReturn(LocalDateTime.of(2020, 1, 1, 10, 40));
+        Mockito.when(validation.getStatus()).thenReturn(Status.SUCCESS);
+        Mockito.when(operationManager.getLastValidationForTarget(targetId))
+                .thenReturn(Optional.of(validation));
+
+        final PropertyFilter targetFilter = PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.TARGET_VALIDATION_STATUS)
+                .setStringFilter(
+                        StringFilter.newBuilder().addOptions("SUCCESS").setPositiveMatch(true))
+                .build();
+        Assert.assertEquals(Collections.singleton(targetId), expectResult(targetFilter));
     }
 
     /**
@@ -423,11 +500,19 @@ public class TargetSearchRpcServiceTest {
         Assert.assertEquals(Code.INVALID_ARGUMENT, exception.getStatus().getCode());
     }
 
-    private void setTargetStatus(long targetId, Status status) {
+    private void setTargetValidationStatus(long targetId, Status status) {
         final Validation validation = Mockito.mock(Validation.class);
         Mockito.when(validation.getStatus()).thenReturn(status);
         Mockito.when(operationManager.getLastValidationForTarget(targetId))
                 .thenReturn(Optional.of(validation));
+    }
+
+    private void setTargetDiscoveryStatus(long targetId, @Nonnull DiscoveryType discoveryType,
+            @Nonnull Status status) {
+        final Discovery discovery = Mockito.mock(Discovery.class);
+        Mockito.when(discovery.getStatus()).thenReturn(status);
+        Mockito.when(operationManager.getLastDiscoveryForTarget(targetId, discoveryType))
+                .thenReturn(Optional.of(discovery));
     }
 
     private long createTarget(long probe) throws InvalidTargetException {

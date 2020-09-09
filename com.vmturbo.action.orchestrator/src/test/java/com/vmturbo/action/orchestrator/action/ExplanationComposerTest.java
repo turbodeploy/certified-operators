@@ -611,14 +611,14 @@ public class ExplanationComposerTest {
      * Tests for explanation generation for atomic resize.
      */
     @Test
-    public void testAtomicResizeExplanation() {
+    public void testAtomicResizeExplanationForContainerSpecs() {
         final ActionDTO.Action.Builder action = ActionDTO.Action.newBuilder()
             .setId(0).setDeprecatedImportance(0)
             .setInfo(ActionInfo.newBuilder()
                 .setAtomicResize(AtomicResize.newBuilder()
                     .setExecutionTarget(ActionEntity.newBuilder()
-                        .setId(0)
-                        .setType(EntityType.WORKLOAD_CONTROLLER_VALUE))
+                        .setId(1)
+                        .setType(EntityType.CONTAINER_SPEC_VALUE))
                     .addResizes(ResizeInfo.newBuilder()
                         .setTarget(ActionEntity.newBuilder()
                             .setId(1)
@@ -628,31 +628,105 @@ public class ExplanationComposerTest {
                         .setOldCapacity(123)
                         .setNewCapacity(456))
                     .addResizes(ResizeInfo.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                            .setId(2)
-                            .setType(EntityType.CONTAINER_SPEC_VALUE))
-                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
-                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
-                        .setOldCapacity(890)
-                        .setNewCapacity(567))))
+                         .setTarget(ActionEntity.newBuilder()
+                               .setId(1)
+                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                         .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_REQUEST_VALUE))
+                         .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                         .setOldCapacity(890)
+                          .setNewCapacity(567))))
             .setExplanation(Explanation.newBuilder()
                 .setAtomicResize(AtomicResizeExplanation.newBuilder()
                     .setMergeGroupId("bar")));
+
+        setupTopologyGraph(entity(1, "Irene", EntityType.CONTAINER_SPEC_VALUE));
+
+
+        assertEquals("Container Resize - "
+                + "Resize UP VCPU Limit from 123 MHz to 456 MHz, "
+                + "Resize DOWN VMem Request from 890.0 KB to 567.0 KB"
+                + " in Container Spec {entity:1:displayName:}",
+            ExplanationComposer.composeExplanation(action.build()));
+
+        assertEquals("Container Resize - "
+                        + "Resize UP VCPU Limit from 123 MHz to 456 MHz, "
+                        + "Resize DOWN VMem Request from 890.0 KB to 567.0 KB"
+                        + " in Container Spec Irene",
+            ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
+                Optional.of(graphCreator.build()), null));
+    }
+
+    /**
+     * Tests for explanation generation for atomic resize.
+     */
+    @Test
+    public void testAtomicResizeExplanation() {
+        final ActionDTO.Action.Builder action = ActionDTO.Action.newBuilder()
+                .setId(0).setDeprecatedImportance(0)
+                .setInfo(ActionInfo.newBuilder()
+                        .setAtomicResize(AtomicResize.newBuilder()
+                                .setExecutionTarget(ActionEntity.newBuilder()
+                                        .setId(0)
+                                        .setType(EntityType.WORKLOAD_CONTROLLER_VALUE))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(1)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(123)
+                                        .setNewCapacity(456))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(1)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(890)
+                                        .setNewCapacity(567))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(2)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(890)
+                                        .setNewCapacity(567))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(2)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(123)
+                                        .setNewCapacity(456))))
+                .setExplanation(Explanation.newBuilder()
+                        .setAtomicResize(AtomicResizeExplanation.newBuilder()
+                                .setMergeGroupId("bar")));
         setupTopologyGraph(entity(0, "Harry", EntityType.WORKLOAD_CONTROLLER_VALUE));
         setupTopologyGraph(entity(1, "Irene", EntityType.CONTAINER_SPEC_VALUE));
         setupTopologyGraph(entity(2, "John", EntityType.CONTAINER_SPEC_VALUE));
 
-        assertEquals("(^_^)~ Merged on Workload Controller {entity:0:displayName:} - "
-                + "VCPU Limit Congestion in Container Spec {entity:1:displayName:} "
-                + "[Resize UP VCPU from 123 MHz to 456 MHz], Underutilized VMem Limit in "
-                + "Container Spec {entity:2:displayName:} [Resize DOWN VMem from 890.0 KB to 567.0 KB]",
-            ExplanationComposer.composeExplanation(action.build()));
-        assertEquals("(^_^)~ Merged on Workload Controller Harry - "
-                + "VCPU Limit Congestion in Container Spec Irene "
-                + "[Resize UP VCPU from 123 MHz to 456 MHz], Underutilized VMem Limit in "
-                + "Container Spec John [Resize DOWN VMem from 890.0 KB to 567.0 KB]",
-            ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
-                Optional.of(graphCreator.build()), null));
+        String explanation = ExplanationComposer.composeExplanation(action.build());
+        String coreExplanation =  ExplanationComposer.buildAtomicResizeCoreExplanation(action.build());
+        assertEquals("Controller Resize", coreExplanation);
+        assertTrue(explanation.startsWith(coreExplanation));
+        assertTrue(explanation.contains("Resize DOWN VMem Limit from 890.0 KB to 567.0 KB, "
+                                         + "Resize UP VCPU Limit from 123 MHz to 456 MHz"
+                                         + " in Container Spec {entity:2:displayName:}"));
+        assertTrue(explanation.contains("Resize UP VCPU Limit from 123 MHz to 456 MHz, "
+                + "Resize DOWN VMem Limit from 890.0 KB to 567.0 KB"
+                + " in Container Spec {entity:1:displayName:}"));
+
+        String translatedExplanation = ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
+                Optional.of(graphCreator.build()), null);
+        assertTrue(translatedExplanation.startsWith(coreExplanation));
+        assertTrue(translatedExplanation.contains("Resize DOWN VMem Limit from 890.0 KB to 567.0 KB, "
+                + "Resize UP VCPU Limit from 123 MHz to 456 MHz"
+                + " in Container Spec John"));
+        assertTrue(translatedExplanation.contains("Resize UP VCPU Limit from 123 MHz to 456 MHz, "
+                + "Resize DOWN VMem Limit from 890.0 KB to 567.0 KB"
+                + " in Container Spec Irene"));
     }
 
     @Test

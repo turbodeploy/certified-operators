@@ -48,6 +48,9 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ActionSettingType;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -542,7 +545,8 @@ public class ActionStateMachineTest {
     }
 
     private static Map<String, Setting> makePostMoveWorkflowSetting(ActionMode mode, String workflowName) {
-        final String settingName = EntitySettingSpecs.PostMoveActionWorkflow.getSettingName();
+        final String settingName = ActionSettingSpecs.getSubSettingFromActionModeSetting(
+            ConfigurableActionSettings.Move, ActionSettingType.POST);
         return ImmutableMap.of(settingName, Setting.newBuilder()
             .setSettingSpecName(settingName)
             .setStringSettingValue(StringSettingValue.newBuilder()

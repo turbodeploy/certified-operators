@@ -138,7 +138,8 @@ public class CloudStorageTierIOPSCalculator {
         Double iops = null;
         switch (tierName) {
             case "IO1":
-                iops = getIO1OrUltraIops(commList, tier);
+            case "IO2":
+                iops = getIo1OrIo2OrUltraIops(commList, tier);
                 break;
             case "GP2":
                 iops = getGP2Iops(commList, tier);
@@ -159,15 +160,15 @@ public class CloudStorageTierIOPSCalculator {
                 iops = getAzureIops(commList, tier);
                 break;
             case "MANAGED_ULTRA_SSD":
-                iops = getIO1OrUltraIops(commList, tier);
+                iops = getIo1OrIo2OrUltraIops(commList, tier);
                 break;
             default:
         }
         return iops == null ? Optional.empty() : Optional.of(iops);
     }
 
-    private Double getIO1OrUltraIops(@Nonnull final List<TopologyDTO.CommodityBoughtDTO> commList,
-                                     @Nonnull final TopologyEntityDTO tier) {
+    private Double getIo1OrIo2OrUltraIops(@Nonnull final List<TopologyDTO.CommodityBoughtDTO> commList,
+                                          @Nonnull final TopologyEntityDTO tier) {
         Double iops = null;
         final CommodityBoughtDTO storageAmountComm = commList.stream()
                 .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE)

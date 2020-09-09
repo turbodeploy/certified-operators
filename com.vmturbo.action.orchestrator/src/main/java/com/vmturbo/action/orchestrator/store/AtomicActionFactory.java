@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -25,13 +26,40 @@ import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 /**
  * Builds new ActionDTOs by merging ActionDTOs for different entities
  * based on the {@link AtomicActionSpec}.
+ * When a new action plan is received by the Action Orchestrator, {@link LiveActionStore} will
+ * invoke the AtomicActionFactory to create atomic action DTOs by merging a group of actions
+ * for entities controlled by the same execution target.
+ *
+ * <p>The atomic action process looks as follows:
+ *
+ * Resize Container       Resize Container             Resize Container
+ *  Instance Foo1          Instance Foo2                  Instance Bar1
+ *              \         /                              /
+ *               \       /        Deduplication         /
+ *                \     /             Step             /
+ *                 \   /                              /
+ *         Deduplicated resize              Deduplicated resize
+ *         on ContainerSpc Foo              on ContainerSpec Bar
+ *                      \                     /
+ *                       \    Aggregation    /
+ *                        \      Step       /
+ *                         \               /
+ *                           Atomic Resize
+ *                        on WorkloadController
+ *
+ * </p>
  */
 public class AtomicActionFactory {
 
     private static final Logger logger = LogManager.getLogger();
 
     private final AtomicActionSpecsCache atomicActionSpecsCache;
+
+    // First step - to create aggregated actions
     private final ActionMergeExecutor actionMergeExecutor;
+
+    // Second step - to create Atomic action DTOs
+    private final AtomicActionBuilderFactory atomicActionBuilderFactory;
 
     /**
      * Constructor.
@@ -40,6 +68,7 @@ public class AtomicActionFactory {
     public AtomicActionFactory(@Nonnull final AtomicActionSpecsCache atomicActionSpecsCache) {
         this.atomicActionSpecsCache = atomicActionSpecsCache;
         actionMergeExecutor = new AtomicActionMergeExecutor(atomicActionSpecsCache);
+        atomicActionBuilderFactory = new AtomicActionBuilderFactory();
     }
 
     /**
@@ -47,12 +76,39 @@ public class AtomicActionFactory {
      */
     public interface ActionMergeExecutor {
         /**
-         * Create a list of atomic actions using the actions recommended from the market.
+         * Create {@link AggregatedAction} from a group of market actions.
          *
-         * @param actionsToMerge    List of action DTOs from the market
-         * @return List of Atomic actions created
+         * @param actionsToMerge  actions that will be merged to create a new Atomic action
+         * @return Map of OID of the aggregation target and the AggregatedAction.
+         *          AggregatedAction which will be used to create the atomic action that
+         *          will be executed by the aggregation target.
          */
-        List<AtomicActionResult> executeMerge(@Nonnull List<ActionDTO.Action> actionsToMerge);
+        Map<Long, AggregatedAction> executeAggregation(@Nonnull List<ActionDTO.Action> actionsToMerge);
+    }
+
+    /**
+     * Factory to create {@link AtomicActionBuilder}.
+     */
+    private static class AtomicActionBuilderFactory {
+
+        AtomicActionBuilderFactory() { }
+
+        /**
+         * AtomicActionBuilder that will create the {@link Action} for the given AggregatedAction.
+         *
+         * @param aggregatedAction the {@link AggregatedAction}
+         * @return AtomicActionBuilder to build {@link Action} for the aggregated action
+         */
+        @Nullable
+        AtomicActionBuilder getActionBuilder(@Nonnull final AggregatedAction aggregatedAction) {
+            ActionTypeCase actionTypeCase = aggregatedAction.getActionTypeCase();
+            switch (actionTypeCase) {
+                case ATOMICRESIZE:
+                    return new AtomicResizeBuilder(aggregatedAction);
+                default:
+                    return null;
+            }
+        }
     }
 
     /**
@@ -60,11 +116,16 @@ public class AtomicActionFactory {
      */
     @Value.Immutable
     interface AtomicActionResult {
-        // The new ActionDTO
+        // The new primary ActionDTO for the action that will execute the aggregated or
+        // de-duplicated market actions
         ActionDTO.Action atomicAction();
 
-        // The list of market actions that were merged
-        List<ActionDTO.Action> marketActions();
+        // Map of the non-executable atomic action that de-duplicated actions for entities
+        // in the scaling/deployment group to the list of original actions
+        Map<ActionDTO.Action, List<ActionDTO.Action>> deDuplicatedActions();
+
+        // List of actions that were merged without de-duplication
+        List<ActionDTO.Action> mergedActions();
     }
 
     /**
@@ -72,19 +133,48 @@ public class AtomicActionFactory {
      *
      * @return true if the cache containing the atomic action specs is not empty, else false
      */
-    boolean canMerge() {
+    public boolean canMerge() {
         return !atomicActionSpecsCache.isEmpty();
     }
 
     /**
-     * Merge the actions.
+     * Iterate and aggregate the market actions.
      *
-     * @param actionList    list of actions
+     * @param actionsToMerge  actions that will be merged to create a new Atomic action
+     * @return Map of OID of the aggregation target and the AggregatedAction.
+     *          AggregatedAction which will be used to create the atomic action that
+     *          will be executed by the aggregation target.
+     */
+    public Map<Long, AggregatedAction> aggregate(@Nonnull List<ActionDTO.Action> actionsToMerge) {
+        return actionMergeExecutor.executeAggregation(actionsToMerge);
+    }
+
+    /**
+     * Create the {@link AtomicActionResult}s consisting the new {@link Action} for each of the
+     * {@link AggregatedAction}. The new action will atomically
+     * execute the de-duplicated and merged actions that are part of the aggregated action.
+     *
+     * @param aggregatedActionMap Map of OID of the aggregation target and the AggregatedAction.
      * @return  list of new atomic actions
      */
-    List<AtomicActionResult> merge(@Nonnull List<ActionDTO.Action> actionList) {
+    public List<AtomicActionResult> atomicActions(@Nonnull final Map<Long, AggregatedAction> aggregatedActionMap) {
+        List<AtomicActionResult> mergeResult = new ArrayList<>();
 
-        return actionMergeExecutor.executeMerge(actionList);
+        // Create atomic action per AggregationAction
+        for (Long aggregateTargetOid : aggregatedActionMap.keySet()) {
+            AggregatedAction aggregatedAction = aggregatedActionMap.get(aggregateTargetOid);
+
+            AtomicActionBuilder atomicActionBuilder = atomicActionBuilderFactory.getActionBuilder(aggregatedAction);
+
+            if (atomicActionBuilder == null) {
+                continue;
+            }
+
+            Optional<AtomicActionResult> atomicActionResult = atomicActionBuilder.build();
+            atomicActionResult.ifPresent(mergeResult::add);
+        }
+
+        return mergeResult;
     }
 
     /**
@@ -100,10 +190,11 @@ public class AtomicActionFactory {
         }
 
         @Override
-        public List<AtomicActionResult> executeMerge(@Nonnull final List<Action> actionsToMerge) {
-            // group the  merge action translators with actions that need to be merged
+        public Map<Long, AggregatedAction> executeAggregation(@Nonnull final List<Action> actionsToMerge) {
+            // group the actions that need to be merged with the appropriate  AtomicActionMerger
             Map<AtomicActionMerger, List<Action>> actionsByMergeType = new HashMap<>();
             for (Action action : actionsToMerge) {
+                // Get the action merger for this action type
                 AtomicActionMerger actionMerger = getActionMerger(action);
                 if (actionMerger != null && actionMerger.appliesTo(action)) {
                     actionsByMergeType.computeIfAbsent(actionMerger, v -> new ArrayList<>())
@@ -112,48 +203,25 @@ public class AtomicActionFactory {
             }
 
             // execute the merge for all the action mergers and combine result to create the AtomicActionResult
-            List<AtomicActionResult> atomicActions =
+            Map<Long, AggregatedAction> aggregatedActions =
                     actionsByMergeType.entrySet().stream()
-                    .map(entry -> {
-                        List<AtomicActionResult> result = merge(entry.getKey(), entry.getValue());
-                        return result;
-                     })
-                    .flatMap(List::stream)
-                    .collect(Collectors.toList());
+                            .map(entry -> {
+                                AtomicActionMerger actionMerger = entry.getKey();
+                                Map<Long, AggregatedAction> result;
+                                try {
+                                   result = actionMerger.mergeActions(entry.getValue());
+                                }  catch (RuntimeException e) {
+                                    logger.error("Error applying " + actionMerger.getClass().getSimpleName(), e);
+                                    result = Collections.emptyMap();
+                                }
+                                return result;
+                            })
+                            .flatMap(map -> map.entrySet().stream())
+                            .collect(Collectors.toMap(
+                                    Map.Entry::getKey,
+                                    Map.Entry::getValue));
 
-            return atomicActions;
-        }
-
-        /**
-         * Execute the translation of the actions to atomic actions.
-         *
-         * @param actionMerger   AtomicActionMerger that will merge the actions
-         * @param actionsToMerge    list of actions
-         * @return      List of AtomicActionResult containing the atomic action
-         *                              and the list of actions that were merged
-         */
-        private  List<AtomicActionResult> merge( @Nonnull final AtomicActionMerger actionMerger,
-                        @Nonnull final List<Action> actionsToMerge) {
-            try {
-                Map<Action.Builder, List<Action>> mergeResult = actionMerger.merge(actionsToMerge);
-                List<AtomicActionResult> atomicActions = mergeResult.entrySet().stream().map(resultEntry -> {
-                    AtomicActionResult atomicAction =
-                            ImmutableAtomicActionResult.builder()
-                                    .atomicAction(resultEntry.getKey().build())
-                                    .marketActions(resultEntry.getValue())
-                                    .build();
-
-                    logger.debug("{}: merged {} actions to {} resize items",
-                            atomicAction.atomicAction().getId(), atomicAction.marketActions().size(),
-                            atomicAction.atomicAction().getInfo().getAtomicResize().getResizesCount());
-                    return atomicAction;
-                }).collect(Collectors.toList());
-
-                return atomicActions;
-            } catch (RuntimeException e) {
-                logger.error("Error applying " + actionMerger.getClass().getSimpleName(), e);
-                return Collections.emptyList();
-            }
+            return aggregatedActions;
         }
 
         /**

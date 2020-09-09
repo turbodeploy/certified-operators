@@ -73,7 +73,8 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
     public void testInit() throws HistoryCalculationException {
         float cap = 100f;
         int used = 70;
-        TopologyEntity entity = mockEntity(1, 1, commType, cap, used, null, null, null, null, true);
+        TopologyEntity entity = mockEntity(1, 1, commType, cap, (double)used, null, null, null,
+            null, true);
         ICommodityFieldAccessor accessor = Mockito.spy(new CommodityFieldAccessor(
                         mockGraph(Collections.singleton(entity))));
         Mockito.doReturn((double)cap).when(accessor).getCapacity(field);

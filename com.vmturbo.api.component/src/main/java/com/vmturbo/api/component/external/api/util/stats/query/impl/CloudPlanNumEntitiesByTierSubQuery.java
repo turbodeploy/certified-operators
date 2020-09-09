@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -20,6 +21,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -42,6 +44,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -331,42 +334,51 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
                 .addTypes(ActionType.MOVE)
                 .addEntityType(requiredDestinationType)
                 .build();
-        FilteredActionRequest filteredActionRequest = FilteredActionRequest.newBuilder()
-                .setTopologyContextId(contextId)
-                .setFilter(actionQueryFilter)
-                .build();
-        actionsServiceBlockingStub.getAllActions(filteredActionRequest).forEachRemaining(rsp -> {
-            // These are the actions related to the queried entities.  Only include entities with
-            // an associated action.
-            if (rsp.hasActionChunk()) {
-                for (ActionOrchestratorAction action : rsp.getActionChunk().getActionsList()) {
-                    // Make sure the action's destination is a region
-                    boolean hasDestinationRegion = false;
-                    Long destinationTier = null;
-                    // If the destination type is region and the entity is of the
-                    // requested type then add the entity to the tier counts map.
-                    for (ChangeProvider change : action.getActionSpec()
-                            .getRecommendation()
-                            .getInfo()
-                            .getMove()
-                            .getChangesList()) {
-                        ActionEntity destination = change.getDestination();
-                        int type = destination.getType();
-                        if (type == requiredDestinationType) {
-                            destinationTier = destination.getId();
-                        } else if (type == EntityType.REGION_VALUE) {
-                            hasDestinationRegion = true;
-                        }
-                        if (hasDestinationRegion && destinationTier != null) {
-                            Optional<Long> key = Optional.of(destinationTier);
-                            Long currentCount = tierIdToNumEntities.getOrDefault(key, 0L);
-                            tierIdToNumEntities.put(key, currentCount + 1);
-                            break;
+        AtomicReference<String> cursor = new AtomicReference<>("0");
+        do {
+            FilteredActionRequest filteredActionRequest =
+                    FilteredActionRequest.newBuilder()
+                            .setTopologyContextId(contextId)
+                            .setPaginationParams(PaginationParameters.newBuilder()
+                                    .setCursor(cursor.getAndSet("")))
+                            .setFilter(actionQueryFilter)
+                            .build();
+            actionsServiceBlockingStub.getAllActions(filteredActionRequest)
+                    .forEachRemaining(rsp -> {
+                // These are the actions related to the queried entities.  Only include entities with
+                // an associated action.
+                if (rsp.hasActionChunk()) {
+                    for (ActionOrchestratorAction action : rsp.getActionChunk().getActionsList()) {
+                        // Make sure the action's destination is a region
+                        boolean hasDestinationRegion = false;
+                        Long destinationTier = null;
+                        // If the destination type is region and the entity is of the
+                        // requested type then add the entity to the tier counts map.
+                        for (ChangeProvider change : action.getActionSpec()
+                                .getRecommendation()
+                                .getInfo()
+                                .getMove()
+                                .getChangesList()) {
+                            ActionEntity destination = change.getDestination();
+                            int type = destination.getType();
+                            if (type == requiredDestinationType) {
+                                destinationTier = destination.getId();
+                            } else if (type == EntityType.REGION_VALUE) {
+                                hasDestinationRegion = true;
+                            }
+                            if (hasDestinationRegion && destinationTier != null) {
+                                Optional<Long> key = Optional.of(destinationTier);
+                                Long currentCount = tierIdToNumEntities.getOrDefault(key, 0L);
+                                tierIdToNumEntities.put(key, currentCount + 1);
+                                break;
+                            }
                         }
                     }
+                } else if (rsp.hasPaginationResponse()) {
+                    cursor.set(rsp.getPaginationResponse().getNextCursor());
                 }
-            }
-        });
+            });
+        } while (!StringUtils.isEmpty(cursor.get()));
         return tierIdToNumEntities;
     }
 

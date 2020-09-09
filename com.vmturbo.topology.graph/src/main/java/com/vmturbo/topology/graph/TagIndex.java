@@ -127,6 +127,11 @@ public interface TagIndex {
             });
         }
 
+        @Nonnull
+        public Map<String, LongSet> getEntitiesByValueMap(@Nonnull String tagKey) {
+            return Collections.unmodifiableMap(tags.get(tagKey));
+        }
+
         /**
          * Get the tags on a single entity.
          *

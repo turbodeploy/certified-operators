@@ -14,8 +14,8 @@ public enum CommodityField {
     /**
      * A "used" field description for identity purposes.
      */
-    USED(TopologyDTO.CommoditySoldDTO.Builder::getUsed,
-         TopologyDTO.CommodityBoughtDTO.Builder::getUsed,
+    USED((sold) -> sold.hasUsed() ? sold.getUsed() : null,
+         (bought) -> bought.hasUsed() ? bought.getUsed() : null,
          TopologyDTO.CommoditySoldDTO.Builder::getHistoricalUsedBuilder,
          TopologyDTO.CommodityBoughtDTO.Builder::getHistoricalUsedBuilder),
     /**

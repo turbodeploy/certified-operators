@@ -81,7 +81,6 @@ import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.diagnostics.ActionLogger;
-import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisDiagnosticsCollectorFactory.DefaultAnalysisDiagnosticsCollectorFactory;
 import com.vmturbo.market.diagnostics.AnalysisDiagnosticsCollector.AnalysisMode;
@@ -107,6 +106,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
@@ -576,37 +576,42 @@ public class Analysis {
                                 }
                             });
 
-                        // TODO: Remove in MCP phase 2. Once we provide the explanation for
-                        // the VM not being placed to the repository component, it can
-                        // use it to know that a VM is unplaced.
-                        if (isMigrateToCloud) {
-                            // Ensure entities that fail to migrate are considered unplaced,
-                            // and don't return any actions for them.
-                            Pair<List<TraderTO>, Set<Long>> unplacedResult =
-                                unplaceFailedCloudMigrations(projectedTraderDTO);
-                            projectedTraderDTO = unplacedResult.first;
-                            suppressActionsForOids.addAll(unplacedResult.second);
-                        }
+                            // TODO: Remove in MCP phase 2. Once we provide the explanation for
+                            // the VM not being placed to the repository component, it can
+                            // use it to know that a VM is unplaced.
+                            if (isMigrateToCloud) {
+                                // Ensure entities that fail to migrate are considered unplaced,
+                                // and don't return any actions for them.
+                                Pair<List<TraderTO>, Set<Long>> unplacedResult =
+                                    unplaceFailedCloudMigrations(projectedTraderDTO);
+                                projectedTraderDTO = unplacedResult.first;
+                                suppressActionsForOids.addAll(unplacedResult.second);
+                            }
 
-                        // results can be null if M2Analysis is not run
-                        final PriceIndexMessage priceIndexMessage = results != null ?
-                                results.getPriceIndexMsg() : PriceIndexMessage.getDefaultInstance();
-                            projectedEntities = converter.convertFromMarket(
-                                projectedTraderDTO,
-                                topologyDTOs,
-                                priceIndexMessage,
-                                reservedCapacityAnalysis,
-                                wastedFilesAnalysis);
+                            // results can be null if M2Analysis is not run
+                            final PriceIndexMessage priceIndexMessage = results != null ?
+                                    results.getPriceIndexMsg() : PriceIndexMessage.getDefaultInstance();
+                                projectedEntities = converter.convertFromMarket(
+                                    projectedTraderDTO,
+                                    topologyDTOs,
+                                    priceIndexMessage,
+                                    reservedCapacityAnalysis,
+                                    wastedFilesAnalysis);
                             final Set<Long> wastedStorageActionsVolumeIds = wastedFileActions.stream()
                                 .map(Action::getInfo).map(ActionInfo::getDelete).map(Delete::getTarget)
                                 .map(ActionEntity::getId).collect(Collectors.toSet());
 
-                        copySkippedEntitiesToProjectedTopology(
-                                wastedStorageActionsVolumeIds,
-                                oidsToRemove,
-                                projectedTraderDTO,
-                                topologyDTOs,
-                                isMigrateToCloud);
+                            // Post process projected ContainerSpec entities by updating commodity
+                            // capacity and percentile utilization to reflect after-action changes
+                            // from corresponding Container resizing.
+                            projectedContainerSpecsPostProcessing(projectedEntities, actionsList);
+
+                            copySkippedEntitiesToProjectedTopology(
+                                    wastedStorageActionsVolumeIds,
+                                    oidsToRemove,
+                                    projectedTraderDTO,
+                                    topologyDTOs,
+                                    isMigrateToCloud);
 
                             // Calculate the projected entity costs.
                             projectedCloudTopology =
@@ -709,6 +714,91 @@ public class Analysis {
                 + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
         completed = true;
         return true;
+    }
+
+    /**
+     * Post process projected ContainerSpec entities by updating commodity capacity and percentile
+     * utilization to reflect after-action changes from corresponding Container resizing.
+     *
+     * <p>A ContainerSpec entity represents shared portion of connected Containers. ContainerSpecs
+     * are not directly analyzed by Market so that projected entities have the same commodity data
+     * as original ones. To reflect after-action aggregated Container data on ContainerSpec, we need
+     * to update commodity capacity and percentile utilization of ContainerSpec from corresponding
+     * Containers with resize actions.
+     *
+     * @param projectedEntities Map from entity OID to all projected topology entities.
+     * @param actionsList       List of all actions from analysis results.
+     */
+    @VisibleForTesting
+    void projectedContainerSpecsPostProcessing(@Nonnull Map<Long, ProjectedTopologyEntity> projectedEntities,
+                                               @Nonnull List<ActionTO> actionsList) {
+        // Map from ContainerSpec OID to set of commodity types to be updated.
+        // A containerSpec could have multiple Containers connected. This map is used to avoid duplicate
+        // update on the same commodity of the same ContainerSpec entity.
+        final Map<Long, Set<Integer>> containerSpecCommodityTypeMap = new HashMap<>();
+        // Map from ContainerSpec OID to ProjectedTopologyEntity builder to be updated.
+        // This map is to avoid creating extra entity builder for the same ContainerSpec.
+        final Map<Long, ProjectedTopologyEntity.Builder> projectedContainerSpecEntityBuilderMap = new HashMap<>();
+        actionsList.stream()
+            // Get all Container resize actions
+            .filter(ActionTO::hasResize)
+            .map(ActionTO::getResize)
+            .filter(resizeTO -> projectedEntities.get(resizeTO.getSellingTrader()) != null
+                && projectedEntities.get(resizeTO.getSellingTrader()).getEntity().getEntityType() == EntityType.CONTAINER_VALUE)
+            .forEach(resizeTO ->
+                updateProjectedContainerSpec(resizeTO, projectedEntities, containerSpecCommodityTypeMap, projectedContainerSpecEntityBuilderMap));
+        // Set the updated projected ContainerSpec entities to projectedEntities map.
+        projectedContainerSpecEntityBuilderMap.forEach((containerSpecOID, entityBuilder) ->
+            projectedEntities.put(containerSpecOID, entityBuilder.build()));
+    }
+
+    private void updateProjectedContainerSpec(@Nonnull ResizeTO resizeTO, @Nonnull Map<Long, ProjectedTopologyEntity> projectedEntities,
+                                              @Nonnull Map<Long, Set<Integer>> containerSpecCommodityTypeMap,
+                                              @Nonnull Map<Long, ProjectedTopologyEntity.Builder> projectedContainerSpecEntityBuilderMap) {
+        final long containerOID = resizeTO.getSellingTrader();
+        final int commodityType = resizeTO.getSpecification().getBaseType();
+        // ProjectedContainer is guaranteed to exist in projectedEntities map here after previous filter.
+        ProjectedTopologyEntity projectedContainer = projectedEntities.get(containerOID);
+        projectedContainer.getEntity().getConnectedEntityListList().stream()
+            .map(ConnectedEntity::getConnectedEntityId)
+            // Filter out the ContainerSpecs if given commodity type has been updated.
+            .filter(containerSpecOID -> !isContainerSpecCommodityUpdated(commodityType,
+                containerSpecOID, containerSpecCommodityTypeMap))
+            .forEach(containerSpecOID -> {
+                // Find the commoditySoldDTO of current action commodity type from projected
+                // Container entity.
+                projectedContainer.getEntity().getCommoditySoldListList().stream()
+                    .filter(comm -> comm.getCommodityType().getType() == commodityType)
+                    .findFirst()
+                    .ifPresent(projectedCommSoldDTO -> {
+                        double newCapacity = projectedCommSoldDTO.getCapacity();
+                        ProjectedTopologyEntity.Builder projectedEntityBuilder =
+                            projectedContainerSpecEntityBuilderMap.computeIfAbsent(containerSpecOID,
+                                v -> projectedEntities.get(containerSpecOID).toBuilder());
+                        // Update commodity capacity and percentile utilization of projected ContainerSpec
+                        // entity with the new capacity from the connected projected Container entity.
+                        projectedEntityBuilder.getEntityBuilder().getCommoditySoldListBuilderList().stream()
+                            .filter(comm -> comm.getCommodityType().getType() == commodityType)
+                            .findAny()
+                            .ifPresent(comm -> {
+                                // Update commodity capacity and percentile utilization on the projected
+                                // ContainerSpec entity.
+                                double oldCapacity = comm.getCapacity();
+                                comm.setCapacity(newCapacity);
+                                double newPercentile = comm.getHistoricalUsed().getPercentile() * oldCapacity / newCapacity;
+                                comm.getHistoricalUsedBuilder().setPercentile(newPercentile);
+                            });
+                        containerSpecCommodityTypeMap.get(containerSpecOID).add(commodityType);
+                    });
+            });
+    }
+
+    private boolean isContainerSpecCommodityUpdated(int commodityType, long containerSpecOID,
+                                                    @Nonnull Map<Long, Set<Integer>> containerSpecCommodityTypeMap) {
+        Set<Integer> updatedCommodityTypes =
+            containerSpecCommodityTypeMap.computeIfAbsent(containerSpecOID, v -> new HashSet<>());
+        // If current commodity of this ContainerSpec entity has been updated, no need to update again.
+        return updatedCommodityTypes.contains(commodityType);
     }
 
     private void saveAnalysisDiags(final Collection<TraderTO> traderTOs,

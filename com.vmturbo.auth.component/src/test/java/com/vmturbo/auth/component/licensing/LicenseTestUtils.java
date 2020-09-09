@@ -24,7 +24,7 @@ public class LicenseTestUtils {
      * Utility function for creating a license.
      * @return
      */
-    static protected ILicense createLicense(Date expirationDate, String email, Collection<String> features, int workloadCount) {
+    protected static ILicense createLicense(Date expirationDate, String email, Collection<String> features, int workloadCount) {
         License newLicense = new License();
         newLicense.setEdition("Test");
         newLicense.setEmail(email);
@@ -35,4 +35,17 @@ public class LicenseTestUtils {
         newLicense.setLicenseKey(LicenseUtil.generateLicenseKey(newLicense));
         return newLicense;
     }
+
+    protected static ILicense createInvalidLicense(Date expirationDate, String email, Collection<String> features, int workloadCount) {
+        License newLicense = new License();
+        newLicense.setEdition("Test");
+        newLicense.setEmail(email);
+        newLicense.setExpirationDate(DateTimeUtil.formatDate(expirationDate));
+        newLicense.addFeatures(features);
+        newLicense.setCountedEntity(CountedEntity.VM);
+        newLicense.setNumLicensedEntities(workloadCount);
+        newLicense.setLicenseKey("BWAHAHAHAHA");
+        return newLicense;
+    }
+
 }

@@ -211,7 +211,8 @@ public class SupplyChainTestUtils {
                     createCommodityTemplate(CommodityType.STORAGE_ACCESS, null),
                     createCommodityTemplate(CommodityType.STORAGE_AMOUNT, null),
                     createCommodityTemplate(CommodityType.STORAGE_CLUSTER, KEY),
-                    createCommodityTemplate(CommodityType.DSPM_ACCESS, KEY)
+                    createCommodityTemplate(CommodityType.DSPM_ACCESS, KEY),
+                    createCommodityTemplate(CommodityType.STORAGE_ALLOCATION, null, true)
                     );
         }
 

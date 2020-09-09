@@ -147,7 +147,7 @@ message ReservedInstanceBought {
             // The total couponse of the reserved instance. And it is equal to
             // number of instances bought * number of coupons per instance. For each instance type,
             // its coupons is equal to its NFU * 4.
-            optional int32 number_of_coupons = 1;
+            optional double number_of_coupons = 1;
 
             // The number of coupons has been used by service entity. This number should be calculated
             // from the entity's RI coverage, and it should be equal to the sum of its consumers

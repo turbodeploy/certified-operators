@@ -35,7 +35,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Settin
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -302,7 +302,7 @@ public class MarketMapperTest {
                 .setSettingOverride(SettingOverride.newBuilder()
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .setSetting(Setting.newBuilder()
-                                .setSettingSpecName(EntitySettingSpecs
+                                .setSettingSpecName(ConfigurableActionSettings
                                         .ResizeVcpuUpInBetweenThresholds.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue
                                         .newBuilder()

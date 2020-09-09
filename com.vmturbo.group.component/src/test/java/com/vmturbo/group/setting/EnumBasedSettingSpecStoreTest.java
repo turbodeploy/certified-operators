@@ -12,7 +12,7 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.utils.ProbeFeature;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
@@ -88,7 +88,7 @@ public class EnumBasedSettingSpecStoreTest {
         EnumBasedSettingSpecStore enumBasedSettingSpecStore = new EnumBasedSettingSpecStore(
                 false, true, thinTargetCache);
         Assert.assertFalse(enumBasedSettingSpecStore.getSettingSpec(
-                EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+            ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds.getSettingName())
                 .get()
                 .getEnumSettingValueType()
                 .getEnumValuesList()

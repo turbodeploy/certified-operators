@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -47,9 +46,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -888,9 +885,8 @@ public class UuidMapper implements RepositoryListener {
 
                     // Get all the entities in the Plan Scope
                     Set<MinimalEntity> minimalEntities = Sets.newHashSet();
-                    List<ScenarioOuterClass.PlanScopeEntry> scopeEntries =
-                            expandPlanScopeEntries(planInstance, planScope.getScopeEntriesList());
-                    scopeEntries.stream().forEach(se -> {
+                    planScope.getScopeEntriesList().stream().forEach(se -> {
+
                         if (StringConstants.GROUP_TYPES.contains(se.getClassName())) {
                             final GetGroupResponse resp = groupServiceBlockingStub.getGroup(GroupID
                                     .newBuilder()
@@ -1105,55 +1101,6 @@ public class UuidMapper implements RepositoryListener {
 
             return envType;
         }
-    }
-
-    /**
-     * Migration plans need to include the source entities to the plan scope in order to work
-     * around limitations with the stats framework, which does not provide supply chain stats for a
-     * specified topology context.
-     * @param planInstance current plan
-     * @param originalScopeEntries the current list of scope entries
-     * @return an updated list of scope entries, including any migration sources, if this is a
-     * migration plan.  If the specified plan is not a migration plan, the original scope entries
-     * list is returned.
-     */
-    @Nonnull
-    private static List<ScenarioOuterClass.PlanScopeEntry> expandPlanScopeEntries(
-            @Nonnull final PlanInstance planInstance,
-            @Nonnull final List<ScenarioOuterClass.PlanScopeEntry> originalScopeEntries) {
-        if (planInstance.hasProjectType() && planInstance.getProjectType()
-                != PlanProjectOuterClass.PlanProjectType.CLOUD_MIGRATION) {
-            return originalScopeEntries;
-        }
-        ScenarioInfo scenarioInfo = planInstance.getScenario().getScenarioInfo();
-        if (!scenarioInfo.hasScope()) {
-            return originalScopeEntries;
-        }
-        List<ScenarioOuterClass.PlanScopeEntry> scopeEntries = new ArrayList<>(originalScopeEntries);
-
-        for (ScenarioOuterClass.ScenarioChange change : scenarioInfo.getChangesList()) {
-            if (change.hasTopologyMigration()) {
-                ScenarioOuterClass.ScenarioChange.TopologyMigration migration =
-                        change.getTopologyMigration();
-                for (ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference ref
-                        : migration.getSourceList()) {
-                    if (ref.hasOid()) {
-                        ScenarioOuterClass.PlanScopeEntry.Builder builder =
-                                ScenarioOuterClass.PlanScopeEntry.newBuilder()
-                                        .setScopeObjectOid(ref.getOid());
-                        // The class name in the PlanScopeEntry is only used to determine whether
-                        // the entry should be expanded via the group manager.  For entity types,
-                        // the class name doesn't need to be set.  For group types, any class name
-                        // that will trigger the group expansion will suffice.
-                        if (ref.hasGroupType()) {
-                            builder.setClassName(StringConstants.GROUP);
-                        }
-                        scopeEntries.add(builder.build());
-                    }
-                }
-            }
-        }
-        return scopeEntries;
     }
 
     private static class Metrics {

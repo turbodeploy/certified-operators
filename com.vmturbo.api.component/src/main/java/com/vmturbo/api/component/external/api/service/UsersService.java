@@ -23,6 +23,7 @@ import com.google.gson.GsonBuilder;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.jooq.tools.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -105,6 +106,11 @@ public class UsersService implements IUsersService {
     private final int authPort_;
 
     /**
+     * The auth service route root.
+     */
+    private final String authRoute_;
+
+    /**
      * The GSON parser/builder.
      */
     private static final Gson GSON_ = new GsonBuilder().create();
@@ -125,6 +131,7 @@ public class UsersService implements IUsersService {
      * Constructs the users service.
      * @param authHost     The authentication host.
      * @param authPort     The authentication port.
+     * @param authRoute    The url prefix to use when accessing auth REST URI's
      * @param restTemplate The synchronous client-side HTTP access.
      * @param samlRegistrationID       The SAML registration ID.
      * @param samlEnabled  is SAML enabled
@@ -134,6 +141,7 @@ public class UsersService implements IUsersService {
      */
     public UsersService(final @Nonnull String authHost,
                         final int authPort,
+                        final @Nullable String authRoute,
                         final @Nonnull RestTemplate restTemplate,
                         final @Nonnull String samlRegistrationID,
                         final boolean samlEnabled,
@@ -145,6 +153,7 @@ public class UsersService implements IUsersService {
         if (authPort_ < 0 || authPort_ > 65535) {
             throw new IllegalArgumentException("Invalid AUTH port.");
         }
+        authRoute_ = authRoute;
         restTemplate_ = Objects.requireNonNull(restTemplate);
         this.groupsService = groupsService;
         this.widgetsetsService = widgetsetsService;
@@ -887,7 +896,11 @@ public class UsersService implements IUsersService {
      * @return The base AUTH REST request.
      */
     private @Nonnull UriComponentsBuilder baseRequest() {
-        return UriComponentsBuilder.newInstance().scheme("http").host(authHost_).port(authPort_);
+        UriComponentsBuilder uriBuilder =  UriComponentsBuilder.newInstance().scheme("http").host(authHost_).port(authPort_);
+        if (Strings.isNotBlank(authRoute_)) {
+            uriBuilder.path(authRoute_);
+        }
+        return uriBuilder;
     }
 
     /**

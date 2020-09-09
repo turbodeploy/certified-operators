@@ -38,7 +38,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -122,7 +122,7 @@ public class PlanRpcServiceUtilTest {
     private ScenarioChange getResizeScenarioChanges(String actionSetting) {
         final EnumSettingValue settingValue = EnumSettingValue.newBuilder()
             .setValue(actionSetting).build();
-        final String resizeSettingName = EntitySettingSpecs.Resize.getSettingName();
+        final String resizeSettingName = ConfigurableActionSettings.Resize.getSettingName();
         final Setting resizeSetting = Setting.newBuilder().setSettingSpecName(resizeSettingName)
             .setEnumSettingValue(settingValue).build();
         return ScenarioChange.newBuilder()

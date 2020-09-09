@@ -40,6 +40,7 @@ public class CloudStorageMigrationHelper {
     private enum StorageTier {
         GP2,
         IO1,
+        IO2,
         SC1,
         ST1,
         STANDARD,
@@ -48,9 +49,13 @@ public class CloudStorageMigrationHelper {
 
     private static final int IO1_IOPS_TO_STORAGE_AMOUNT_RATIO = 50;
 
+    private static final int IO2_IOPS_TO_STORAGE_AMOUNT_RATIO = 500;
+
     private static final int GP2_IOPS_TO_STORAGE_AMOUNT_RATIO = 3;
 
     private static final int IO1_IOPS_AMOUNT_MAX_CAPACITY = 64000;
+
+    private static final int IO2_IOPS_AMOUNT_MAX_CAPACITY = 64000;
 
     private static final int GP2_IOPS_AMOUNT_MAX_CAPACITY = 16000;
 
@@ -133,6 +138,9 @@ public class CloudStorageMigrationHelper {
                 } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.IO1.name())) {
                     maxRatio = Math.max(maxRatio, IO1_IOPS_TO_STORAGE_AMOUNT_RATIO);
                     maxCapacity = Math.max(maxCapacity, IO1_IOPS_AMOUNT_MAX_CAPACITY);
+                } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.IO2.name())) {
+                    maxRatio = Math.max(maxRatio, IO2_IOPS_TO_STORAGE_AMOUNT_RATIO);
+                    maxCapacity = Math.max(maxCapacity, IO2_IOPS_AMOUNT_MAX_CAPACITY);
                 } else if (st.getDisplayName().equalsIgnoreCase(StorageTier.SC1.name())) {
                     maxRatio = Math.max(maxRatio, 1);
                     maxCapacity = Math.max(maxCapacity, SC1_IOPS_AMOUNT_MAX_CAPACITY);
@@ -285,9 +293,9 @@ public class CloudStorageMigrationHelper {
         private int maxRatio = 1;
         private int maxCapacity = 0;
 
-        // maxRatioOnNonExpensiveTier and maxCapacityOnNonExpensiveTier is populated for storages that
-        // are not IO1 or Ultra SSD. This is based on empirical experience that those two are the most
-        // expensive tiers.
+        // maxRatioOnNonExpensiveTier and maxCapacityOnNonExpensiveTier is populated for storages
+        // that are not IO1/IO2 or Ultra SSD. This is based on empirical experience that those two
+        // are the most expensive tiers.
         private int maxRatioOnNonExpensiveTier = 1;
         private int maxCapacityOnNonExpensiveTier = 0;
 

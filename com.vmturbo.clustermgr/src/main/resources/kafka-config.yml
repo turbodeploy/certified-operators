@@ -81,13 +81,11 @@ topics:
   - topic: license-summary
     properties:
       cleanup.policy: compact # use compacted log to preserve the latest license summary
-      min.cleanable.dirty.ratio: 0.01
-      segment.ms: 360000 # more frequent segment rolls to allow compaction of this tiny topic
       segment.bytes: 75000 # smaller segment sizes since the messages are small and single-keyed
       delete.retention.ms: 360000 # don't need to keep deletes for long on this topic
   - topic: settings-updates
     properties:
-          retention.ms: 360000
+      retention.ms: 360000
   - topic: external-action-approval-requests
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
@@ -103,15 +101,3 @@ topics:
   - topic: tp-external-action-approval-responses
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
-
-# the following topics are not in use yet.
-#  - topic: action-status
-#    properties:
-#      max.message.bytes: 32767 # 32k -- these are small messages, so the batch size can be small
-#      retention.ms: 604800000 # 604800000 ms = 7 days
-#  - topic: probe-events
-#    properties:
-#      retention.ms: 604800000 # 604800000 ms = 7 days
-#  - topic: live-projected-topologies
-#  - topic: user-plan-projected-topologies
-#  - topic: scheduled-plan-projected-topologies

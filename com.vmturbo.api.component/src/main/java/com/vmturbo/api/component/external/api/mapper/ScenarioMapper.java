@@ -131,6 +131,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
@@ -343,10 +344,10 @@ public class ScenarioMapper {
                 // 2) Apply constraints on hot cluster.
                 changes.add(getIgnoreConstraintsForHotCluster(relievePressureList));
                 // 3) Disable provision, suspend, resize and reconfigure.
-                changes.add(getChangeWithGlobalSettingsDisabled(EntitySettingSpecs.Provision));
-                changes.add(getChangeWithGlobalSettingsDisabled(EntitySettingSpecs.Suspend));
-                changes.add(getChangeWithGlobalSettingsDisabled(EntitySettingSpecs.Resize));
-                changes.add(getChangeWithGlobalSettingsDisabled(EntitySettingSpecs.Reconfigure));
+                changes.add(getChangeWithGlobalSettingsDisabled(ConfigurableActionSettings.Provision));
+                changes.add(getChangeWithGlobalSettingsDisabled(ConfigurableActionSettings.Suspend));
+                changes.add(getChangeWithGlobalSettingsDisabled(ConfigurableActionSettings.Resize));
+                changes.add(getChangeWithGlobalSettingsDisabled(ConfigurableActionSettings.Reconfigure));
                 break;
             default:
                 break;
@@ -380,7 +381,7 @@ public class ScenarioMapper {
     /*
      * Provides globally disabled setting for given entity specification.
      */
-    private ScenarioChange getChangeWithGlobalSettingsDisabled(EntitySettingSpecs spec) {
+    private ScenarioChange getChangeWithGlobalSettingsDisabled(ConfigurableActionSettings spec) {
         return ScenarioChange.newBuilder()
             .setSettingOverride(SettingOverride.newBuilder()
                 .setSetting(Setting.newBuilder()
@@ -1159,7 +1160,7 @@ public class ScenarioMapper {
             for(SettingApiDTO setting : automationSettingList) {
                 if (setting.getEntityType() != null && setting.getUuid() != null
                                 && ApiEntityType.fromString(setting.getEntityType()).typeNumber() == EntityType.PHYSICAL_MACHINE_VALUE
-                                && setting.getUuid().equalsIgnoreCase(EntitySettingSpecs.Provision.getSettingName())) {
+                                && setting.getUuid().equalsIgnoreCase(ConfigurableActionSettings.Provision.getSettingName())) {
                     hasPMProvisionSetting = true;
                 }
             }
@@ -1168,7 +1169,7 @@ public class ScenarioMapper {
         if (!hasPMProvisionSetting && dto.getType() != null && dto.getType().equalsIgnoreCase(DECOMMISSION_HOST_SCENARIO_TYPE)) {
             final SettingOverride.Builder settingOverride = SettingOverride.newBuilder()
                     .setSetting(Setting.newBuilder()
-                            .setSettingSpecName(EntitySettingSpecs.Provision.getSettingName())
+                            .setSettingSpecName(ConfigurableActionSettings.Provision.getSettingName())
                             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED)))
                     .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
             changes.add(ScenarioChange.newBuilder().setSettingOverride(settingOverride).build());

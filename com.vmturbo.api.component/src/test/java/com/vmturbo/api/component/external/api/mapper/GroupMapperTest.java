@@ -225,7 +225,7 @@ public class GroupMapperTest {
      * Expected exception rule.
      */
     @Rule
-    public ExpectedException thrown = ExpectedException.none();
+    public ExpectedException expectedException = ExpectedException.none();
 
     private final String groupUseCaseFileName = "groupBuilderUsecases.json";
 
@@ -453,6 +453,59 @@ public class GroupMapperTest {
         assertEquals(ApiEntityType.VIRTUAL_MACHINE.typeNumber(), secondSearchParameters
                         .getSearchFilter(2).getPropertyFilter().getNumericFilter().getValue());
     }
+
+    /**
+     * Test Validation for invalid group type for static groups.
+     *
+     * @throws Exception on exceptions occured.
+     */
+    @Test
+    public void testValidationForInvalidGroupTypeForStaticGroup() throws Exception {
+        final String displayName = "group-foo";
+        final String groupType = "Invalid Group Type";
+        final Boolean isStatic = true;
+        final GroupApiDTO groupDto = new GroupApiDTO();
+
+        groupDto.setDisplayName(displayName);
+        groupDto.setGroupType(groupType);
+        groupDto.setIsStatic(isStatic);
+        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expectMessage("Invalid Group Type");
+
+        final GroupDefinition groupDefinition = groupMapper.toGroupDefinition(groupDto);
+    }
+
+    /**
+     *  Test Validation for invalid group for dynamic group.
+     *
+     *   @throws Exception on exceptions occured.
+     */
+    @Test
+    public void testValidationForInvalidGroupTypeForDynamicGroup() throws Exception {
+        final String displayName = "group-foo";
+        final String groupType = "Invalid Group Type";
+        final Boolean isStatic = false;
+        final GroupApiDTO groupDto = new GroupApiDTO();
+        final FilterApiDTO filterApiDTOFirst = new FilterApiDTO();
+        filterApiDTOFirst.setExpType(EntityFilterMapper.REGEX_MATCH);
+        filterApiDTOFirst.setExpVal("VM#1");
+        filterApiDTOFirst.setFilterType("vmsByName");
+
+        final List<FilterApiDTO> criteriaList =
+                Lists.newArrayList(filterApiDTOFirst);
+        groupDto.setDisplayName(displayName);
+        groupDto.setGroupType(groupType);
+        groupDto.setIsStatic(isStatic);
+        groupDto.setCriteriaList(criteriaList);
+
+        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expectMessage("Invalid Group Type");
+
+        final GroupDefinition groupDefinition = groupMapper.toGroupDefinition(groupDto);
+
+    }
+
+
 
     /**
      * Test converting dynamic group info which only has starting filter to groupApiDTO.

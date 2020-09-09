@@ -39,7 +39,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioRequest
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 
 /**
  * Helper to create a plan project, called from MarketsService. Used to creation a migration
@@ -55,8 +55,8 @@ class PlanProjectBuilder {
     /**
      * All resize settings.
      */
-    private final Set<EntitySettingSpecs> resizeSettings = ImmutableSet.of(
-            EntitySettingSpecs.Resize);
+    private final Set<ConfigurableActionSettings> resizeSettings = ImmutableSet.of(
+        ConfigurableActionSettings.Resize);
 
     PlanProjectBuilder(@Nonnull final PlanProjectServiceBlockingStub planProjectRpcService,
                       @Nonnull final ScenarioServiceBlockingStub scenariosService,

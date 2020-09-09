@@ -37,7 +37,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
@@ -209,7 +209,7 @@ public class PlanRpcServiceUtil {
                 .filter(SettingOverride::hasSetting)
                 .map(SettingOverride::getSetting)
                 .anyMatch(setting -> setting.getSettingSpecName()
-                        .contains(EntitySettingSpecs.Resize.getSettingName().toLowerCase())
+                        .contains(ConfigurableActionSettings.Resize.getSettingName().toLowerCase())
                         && !setting.getEnumSettingValue().getValue().equals(
                                 StringConstants.DISABLED));
     }

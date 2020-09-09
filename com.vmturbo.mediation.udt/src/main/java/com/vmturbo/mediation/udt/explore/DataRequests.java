@@ -1,17 +1,10 @@
 package com.vmturbo.mediation.udt.explore;
 
-import static com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import static com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
-import static com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import static com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import static com.vmturbo.common.protobuf.search.Search.SearchParameters.newBuilder;
-import static com.vmturbo.common.protobuf.search.Search.SearchQuery;
-import static com.vmturbo.common.protobuf.search.SearchProtoUtil.entityTypeFilter;
-import static com.vmturbo.common.protobuf.search.SearchableProperties.TAGS_TYPE_PROPERTY_NAME;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -22,9 +15,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.GetTopologyDataDefinitionsRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchTagValuesRequest;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
@@ -33,35 +25,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
  */
 public class DataRequests {
 
-    /**
-     * Request: get entities with specified tag and entity type.
-     *
-     * @param tag        - entity tag key.
-     * @param entityType - type of requested entities.
-     * @return an instance of {@link SearchEntitiesRequest}.
-     */
-    @Nonnull
-    @ParametersAreNonnullByDefault
-    SearchEntitiesRequest entitiesByTagRequest(String tag, EntityType entityType) {
-        SearchFilter searchFilter = SearchFilter.newBuilder()
-                .setPropertyFilter(PropertyFilter.newBuilder()
-                        .setPropertyName(TAGS_TYPE_PROPERTY_NAME)
-                        .setMapFilter(MapFilter
-                                .newBuilder()
-                                .setKey(tag)
-                                .setRegex(".+")
-                                .build())
-                        .build())
-                .build();
-        return SearchEntitiesRequest.newBuilder()
-                .setSearch(SearchQuery.newBuilder()
-                        .addSearchParameters(newBuilder()
-                                .setStartingFilter(entityTypeFilter(entityType.getNumber()))
-                                .addSearchFilter(searchFilter)
-                                .build())
-                        .build())
-                .build();
-    }
+
 
     /**
      * Request: get all topology data definitions.
@@ -87,20 +51,6 @@ public class DataRequests {
                         .newBuilder()
                         .addAllSearchParameters(searchParameters)
                         .build())
-                .build();
-    }
-
-    /**
-     * Request: get entities by specified OIDs.
-     *
-     * @param oids - set of OIDs.
-     * @return an instance of {@link RetrieveTopologyEntitiesRequest}.
-     */
-    @Nonnull
-    RetrieveTopologyEntitiesRequest getEntitiesByOidsRequest(@Nonnull Set<Long> oids) {
-        return RetrieveTopologyEntitiesRequest
-                .newBuilder()
-                .addAllEntityOids(oids)
                 .build();
     }
 
@@ -133,6 +83,7 @@ public class DataRequests {
      * @param type     - type of groups.
      * @return an instance of {@link GetOwnersRequest}.
      */
+    @Nonnull
     GetOwnersRequest getGroupOwnerRequest(@Nonnull Collection<Long> groupIds, @Nullable GroupType type) {
         final GetOwnersRequest.Builder builder = GetOwnersRequest.newBuilder().addAllGroupId(groupIds);
         if (type != null) {
@@ -140,4 +91,13 @@ public class DataRequests {
         }
         return builder.build();
     }
+
+    @Nonnull
+    SearchTagValuesRequest getSearchTagValuesRequest(@Nonnull String tag, @Nonnull EntityType entityType) {
+        return SearchTagValuesRequest.newBuilder()
+                .setEntityType(entityType.getNumber())
+                .setTagKey(tag)
+                .build();
+    }
+
 }

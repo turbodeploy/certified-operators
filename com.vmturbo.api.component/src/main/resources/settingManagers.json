@@ -287,7 +287,8 @@
         "preferredCurrentWeight",
         "preferredCoverage",
         "riCoverageOverride",
-        "ri.demandType"
+        "ri.demandType",
+        "cca.allocation.retentionDays"
       ]
     },
     "osmigrationmanager": {

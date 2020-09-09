@@ -1,7 +1,7 @@
 package com.vmturbo.auth.api.authorization.scoping;
 
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
-import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.READ_ONLY;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OPERATIONAL_OBSERVER;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SHARED_ADVISOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SHARED_OBSERVER;
 
@@ -44,7 +44,7 @@ public class UserScopeUtils {
     /**
      * observer roles.
      */
-    public static final Set<String> OBSERVER_ROLES = ImmutableSet.of(OBSERVER, SHARED_OBSERVER, READ_ONLY);
+    public static final Set<String> OBSERVER_ROLES = ImmutableSet.of(OBSERVER, SHARED_OBSERVER, OPERATIONAL_OBSERVER);
 
     // entity types available to "shared" roles. Modeled after SHARED_USER_ENTITIES_LIST in classic's
     // ScopedUserUtil.java.

@@ -45,7 +45,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
-import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -921,6 +920,24 @@ public class ActionDTOUtil {
     }
 
     /**
+     * Gets the display name of the commodity found in atomic resize action.
+     * The VCPU and VMem commodities are tagged with 'Limit' to distinguish them from the
+     * VCPU and VMeme request commodities.
+     *
+     * @param commType {@link CommodityType}
+     * @return commodity display name
+     */
+    public static String getAtomicResizeCommodityDisplayName(@Nonnull TopologyDTO.CommodityType commType) {
+        String commodityDisplayName = getCommodityDisplayName(commType);
+
+        if (commType.getType() == CommodityDTO.CommodityType.VCPU_VALUE
+                || commType.getType() == CommodityDTO.CommodityType.VMEM_VALUE) {
+            commodityDisplayName += " " + "Limit";
+        }
+        return commodityDisplayName;
+    }
+
+    /**
      * Convert a string from UPPER_UNDERSCORE format to Mixed Spaces format. e.g.:
      *
      *      I_AM_A_CONSTANT ==> I Am A Constant
@@ -1018,13 +1035,23 @@ public class ActionDTOUtil {
      * "beautify" methods. We seem to create a lot of singleton lists just for the purpose of calling
      * the list-based version of this method when really it's not needed at all.
      *
-     * @param commodityType
+     * @param commodityType {@link TopologyDTO.CommodityType}
      * @return
      */
     public static String beautifyCommodityType(@Nonnull final TopologyDTO.CommodityType commodityType) {
         return getCommodityDisplayName(commodityType);
     }
 
+    /**
+     * Convert the commodity type to a readable commodity name that are used to construct
+     * explanation and descriptions for atomic actions.
+     *
+     * @param commodityType {@link TopologyDTO.CommodityType}
+     * @return commodity string
+     */
+    public static String beautifyAtomicActionsCommodityType(@Nonnull final TopologyDTO.CommodityType commodityType) {
+        return getAtomicResizeCommodityDisplayName(commodityType);
+    }
 
     /**
      * Returns the entity type and entity name in a nicely formatted way separated by a space.

@@ -27,6 +27,7 @@ import com.google.common.collect.Table;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 
@@ -68,10 +69,18 @@ public class SMAInput {
 
     private static final Logger logger = LogManager.getLogger();
 
+    //price table to compute on-demand cost
+    private final MarketPriceTable marketPriceTable;
+
     /**
      * List of input contexts.
      */
     public final List<SMAInputContext> inputContexts;
+
+    //keep retrieved compute price bundles
+    private final Map<PriceTableKey, ComputePriceBundle> computePriceBundleMap = new HashMap<>();
+    //keep retrieved reserved license price bundles
+    private final Map<PriceTableKey, ComputePriceBundle> reservedLicenseBundleMap = new HashMap<>();
 
     /**
      * Constructor for SMAInput.
@@ -80,6 +89,7 @@ public class SMAInput {
      */
     public SMAInput(@Nonnull final List<SMAInputContext> contexts) {
         this.inputContexts = Objects.requireNonNull(contexts, "contexts is null!");
+        this.marketPriceTable = null;
     }
 
     /**
@@ -111,7 +121,7 @@ public class SMAInput {
         Objects.requireNonNull(providers, "providers are null");
         Objects.requireNonNull(cloudCostData, "cloudCostData is null");
         Objects.requireNonNull(marketPriceTable, "marketPriceTable is null");
-
+        this.marketPriceTable = marketPriceTable;
 
         final Stopwatch stopWatch = Stopwatch.createStarted();
         /*
@@ -180,7 +190,8 @@ public class SMAInput {
         logger.info("process {} computeTiers", () -> computeTiers.size());
         int numberTemplatesCreated = processComputeTiers(computeTiers, cloudTopology, cloudCostData,
             regionIdToOsTypeToContexts, contextToBusinessAccountIds, contextToOSTypes, cspFromRegion,
-            computeTierOidToContextToTemplate, smaContextToTemplates, marketPriceTable);
+            computeTierOidToContextToTemplate, smaContextToTemplates);
+
         logger.info("{}ms to create {} templates from {} compute tiers in {} contexts",
             () -> stopWatchDetails.elapsed(TimeUnit.MILLISECONDS), () -> numberTemplatesCreated,
             () -> computeTiers.size(), () -> smaContextToTemplates.keySet().size());
@@ -478,7 +489,6 @@ public class SMAInput {
      * @param cspFromRegion               keep track of CSP by region
      * @param computeTierIdToContextToTemplateMap compute tier ID to context to Template map, to be updated
      * @param smaContextToTemplates       map from context to template, to be updated
-     * @param marketPriceTable            price table to compute on-demand cost.
      * @return true if a template is created, else false
      */
     private int processComputeTiers(final List<TopologyEntityDTO> computeTiers,
@@ -489,8 +499,7 @@ public class SMAInput {
                                     final Map<SMAContext, Set<OSType>> contextToOSTypes,
                                     final CspFromRegion cspFromRegion,
                                     Table<Long, SMAContext, SMATemplate> computeTierIdToContextToTemplateMap,
-                                    Map<SMAContext, Set<SMATemplate>> smaContextToTemplates,
-                                    MarketPriceTable marketPriceTable) {
+                                    Map<SMAContext, Set<SMATemplate>> smaContextToTemplates) {
         int numberTemplatesCreated = 0;
         // collection of valid region IDs
         Set<Long> validRegionIds = regionIdToOsTypeToContexts.rowKeySet();
@@ -504,7 +513,7 @@ public class SMAInput {
             for (TopologyEntityDTO computeTier : regionIdToTier.get(regionId)) {
                 boolean created = processComputeTier(computeTier, cloudTopology, cloudCostData,
                     regionIdToOsTypeToContexts, contextToBusinessAccountIds, contextToOSTypes, regionId,
-                    csp, marketPriceTable, computeTierIdToContextToTemplateMap, smaContextToTemplates);
+                    csp, computeTierIdToContextToTemplateMap, smaContextToTemplates);
                 if (created) {
                     numberTemplatesCreated++;
                 }
@@ -560,7 +569,6 @@ public class SMAInput {
      * @param contextToOSTypes              map from context to set of OSTypes in this context
      * @param regionId                      the ID of the region we are in.
      * @param csp                           cloud service provider; e.g. Azure.
-     * @param marketPriceTable              price table to compute on-demand cost.
      * @param computeTierOidToContextToTemplate computeTier ID to context to template map, to be updated
      * @param smaContextToTemplates         map from context to template, to be updated
      * @return true if a template is created, else false
@@ -573,7 +581,6 @@ public class SMAInput {
                                        Map<SMAContext, Set<OSType>> contextToOSTypes,
                                        long regionId,
                                        SMACSP csp,
-                                       MarketPriceTable marketPriceTable,
                                        Table<Long, SMAContext, SMATemplate> computeTierOidToContextToTemplate,
                                        Map<SMAContext, Set<SMATemplate>> smaContextToTemplates
     ) {
@@ -637,7 +644,7 @@ public class SMAInput {
                         for (OSType osTypeInner : osTypes) {
                             if (osTypesInContext.contains(osTypeInner)) {
                                 updateTemplateRate(template, osTypeInner, context, businessAccountId,
-                                    regionId, cloudCostData, cloudTopology, marketPriceTable);
+                                    regionId, cloudCostData, cloudTopology);
                             } else {
                                 logger.trace("processComputeTier: ID={} name={} no VMs with OSType={} in {}",
                                     oid, name, osTypeInner, context);
@@ -646,7 +653,7 @@ public class SMAInput {
                     } else {
                         if (osTypesForContext.contains(osType)) {
                             updateTemplateRate(template, osType, context, businessAccountId,
-                                regionId, cloudCostData, cloudTopology, marketPriceTable);
+                                regionId, cloudCostData, cloudTopology);
                         } else {
                             logger.trace("processComputeTier: ID={} name={} no VMs with OSType={} in {}",
                                 oid, name, osType, context);
@@ -673,6 +680,38 @@ public class SMAInput {
     }
 
     /**
+     * Get compute price bundle.
+     * @param accountPricingData account pricing data
+     * @param regionOid region oid
+     * @param computeTier compute tier
+     * @return compute price bundle.
+     */
+    private ComputePriceBundle getComputeBundle(@NotNull AccountPricingData accountPricingData,
+            long regionOid, @NotNull TopologyEntityDTO computeTier) {
+        final PriceTableKey key = new PriceTableKey(accountPricingData.getAccountPricingDataOid(),
+                regionOid, computeTier.getOid());
+        return computePriceBundleMap.computeIfAbsent(key,
+                k -> marketPriceTable.getComputePriceBundle(computeTier, regionOid,
+                        accountPricingData));
+    }
+
+    /**
+     * Get reserved license price bundle.
+     * @param accountPricingData account pricing data
+     * @param region region
+     * @param computeTier compute tier
+     * @return reserved license price bundle.
+     */
+    private ComputePriceBundle getReservedLicenseBundle(@NotNull AccountPricingData accountPricingData,
+            @NotNull TopologyEntityDTO region, @NotNull TopologyEntityDTO computeTier) {
+        final PriceTableKey key = new PriceTableKey(accountPricingData.getAccountPricingDataOid(),
+                region.getOid(), computeTier.getOid());
+        return reservedLicenseBundleMap.computeIfAbsent(key,
+                k -> marketPriceTable.getReservedLicensePriceBundle(accountPricingData, region,
+                        computeTier));
+    }
+
+    /**
      * Derived a template's on-demand cost from cloud cost data.
      *
      * @param template the template, whose cost will be updated.
@@ -682,12 +721,10 @@ public class SMAInput {
      * @param regionId regionId of the template.
      * @param cloudCostData cost dictionary.
      * @param cloudTopology entity dictionary.
-     * @param marketPriceTable price table to compute on-demand cost.
      */
     private void updateTemplateRate(SMATemplate template, OSType osType, SMAContext context,
                                     long businessAccountId, long regionId, CloudCostData cloudCostData,
-                                    CloudTopology<TopologyEntityDTO> cloudTopology,
-                                    MarketPriceTable marketPriceTable) {
+                                    CloudTopology<TopologyEntityDTO> cloudTopology) {
         long oid = template.getOid();
         String name = template.getName();
         /*
@@ -701,8 +738,8 @@ public class SMAInput {
             return;
         } else {
             AccountPricingData accountPricingData = pricingDataOptional.get();
-            ComputePriceBundle bundle = marketPriceTable.getComputePriceBundle(template.getComputeTier(),
-                context.getRegionId(), accountPricingData);
+            ComputePriceBundle bundle = getComputeBundle(accountPricingData,
+                    context.getRegionId(), template.getComputeTier());
             List<ComputePrice> computePrices = bundle.getPrices();
             int computePriceSize = computePrices.size();
             if (computePriceSize == 0) {
@@ -740,7 +777,7 @@ public class SMAInput {
                 return;
             } else {
                 TopologyEntityDTO region = regionOptional.get();
-                bundle = marketPriceTable.getReservedLicensePriceBundle(accountPricingData, region, computeTier);
+                bundle = getReservedLicenseBundle(accountPricingData, region, computeTier);
                 computePrices = bundle.getPrices();
                 hourlyRate = 0.0d;
                 computePriceSize = computePrices.size();
@@ -1298,6 +1335,39 @@ public class SMAInput {
                 csp = SMACSP.UNKNOWN;
             }
             return csp;
+        }
+    }
+
+    /**
+     * Key to cache prices.
+     */
+    private static class PriceTableKey {
+        private final long accountPricingKey;
+        private final long regionKey;
+        private final long computeTierKey;
+
+        public PriceTableKey(long accountPricingKey, long regionKey, long computeTierKey) {
+            this.accountPricingKey = accountPricingKey;
+            this.regionKey = regionKey;
+            this.computeTierKey = computeTierKey;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            PriceTableKey that = (PriceTableKey)o;
+            return accountPricingKey == that.accountPricingKey && regionKey == that.regionKey
+                    && computeTierKey == that.computeTierKey;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(accountPricingKey, regionKey, computeTierKey);
         }
     }
 }

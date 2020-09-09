@@ -1,7 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance.coverage.analysis;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
@@ -16,12 +15,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableTable;
-
 import org.jooq.DSLContext;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentMatcher;
@@ -327,7 +327,30 @@ public class SupplementalRICoverageAnalysisTest {
         Assertions
          */
         assertThat(aggregateRICoverages, iterableWithSize(3));
-        assertThat(aggregateRICoverages, containsInAnyOrder(expectedAggregateRICoverages.toArray()));
+
+        for (EntityRICoverageUpload expectedCoverageUpload: expectedAggregateRICoverages) {
+            Optional<EntityRICoverageUpload> actualCoverageUpload =
+                    aggregateRICoverages.stream().filter(c -> expectedCoverageUpload.getEntityId()
+                            == c.getEntityId()).findFirst();
+            Assert.assertTrue(actualCoverageUpload.isPresent());
+            Assert.assertTrue(actualCoverageUpload.get().getCoverageList().size()
+                    == expectedCoverageUpload.getCoverageList().size());
+            for (Coverage expectedCoverage: expectedCoverageUpload.getCoverageList()) {
+                Optional<Coverage> actualCoverageOpt = actualCoverageUpload.get().getCoverageList()
+                        .stream().filter(
+                                c -> c.getReservedInstanceId() == expectedCoverage.getReservedInstanceId()
+                                && c.getRiCoverageSource() == expectedCoverage.getRiCoverageSource())
+                        .findFirst();
+                Assert.assertTrue(actualCoverageOpt.isPresent());
+                Coverage actualCoverage = actualCoverageOpt.get();
+                if (expectedCoverage.getRiCoverageSource() == RICoverageSource.SUPPLEMENTAL_COVERAGE_ALLOCATION) {
+                    Assert.assertTrue(actualCoverage.hasUsageStartTimestamp());
+                    Assert.assertTrue(actualCoverage.hasUsageEndTimestamp());
+                }
+                actualCoverage = actualCoverage.toBuilder().clearUsageStartTimestamp().clearUsageEndTimestamp().build();
+                Assert.assertEquals(expectedCoverage, actualCoverage);
+            }
+        }
 
     }
 }

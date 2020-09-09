@@ -5,3 +5,4 @@ defaultProperties:
     repositoryHost: repository
     topologyProcessorHost: topology-processor
     grpcPingIntervalSeconds: 300
+    serverHttpPort: 1

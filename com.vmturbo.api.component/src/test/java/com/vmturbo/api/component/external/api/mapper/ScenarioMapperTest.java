@@ -126,6 +126,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.stats.StatsMoles;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
@@ -858,7 +859,7 @@ public class ScenarioMapperTest {
             .filter(s -> s.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
             .collect(Collectors.toList());
         Assert.assertTrue(pmp.get(0).getSetting().getSettingSpecName()
-            .equalsIgnoreCase(EntitySettingSpecs.Provision.getSettingName()));
+            .equalsIgnoreCase(ConfigurableActionSettings.Provision.getSettingName()));
         Assert.assertTrue(pmp.get(0).getSetting().getEnumSettingValue().getValue().equals(DISABLED));
     }
 
@@ -1527,14 +1528,14 @@ public class ScenarioMapperTest {
         ScenarioChange provisionDisabledChange = scenarioChanges.stream()
                         .filter(change -> change.hasSettingOverride() && change.getSettingOverride()
                                         .getSetting().getSettingSpecName()
-                                        .equals(EntitySettingSpecs.Provision.getSettingName()))
+                                        .equals(ConfigurableActionSettings.Provision.getSettingName()))
                         .findFirst().orElse(null);
         assertNotNull(provisionDisabledChange);
 
-        Arrays.asList(EntitySettingSpecs.Suspend.getSettingName(),
-                        EntitySettingSpecs.Resize.getSettingName(),
-                        EntitySettingSpecs.Provision.getSettingName(),
-                        EntitySettingSpecs.Reconfigure.getSettingName())
+        Arrays.asList(ConfigurableActionSettings.Suspend.getSettingName(),
+            ConfigurableActionSettings.Resize.getSettingName(),
+            ConfigurableActionSettings.Provision.getSettingName(),
+            ConfigurableActionSettings.Reconfigure.getSettingName())
                             .equals(scenarioChanges.stream()
                                 .filter(change -> change.hasSettingOverride())
                                 .map(change -> change.getSettingOverride().getSetting())

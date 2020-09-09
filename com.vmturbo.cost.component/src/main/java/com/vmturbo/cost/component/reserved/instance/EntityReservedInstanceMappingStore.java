@@ -149,6 +149,15 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable<Void>
             final Table<Long, Long, Long> riStartTime = HashBasedTable.create();
             final Table<Long, Long, Long> riEndTime = HashBasedTable.create();
             for (EntityRICoverageUpload.Coverage riCov : riCoverageList) {
+                // Do not consider those coverage upload records which do not have a time stamp set.
+                // Example use case - When entity coverage uploads are not yet uploaded during start
+                // up and the cache is initialized by the records from the entity RI mapping table.
+                if (!riCov.hasUsageStartTimestamp() || !riCov.hasUsageEndTimestamp()) {
+                    logger.warn("Usage timestamps not set in the coverage upload record for entity {}"
+                                    + ", RI {}, Source {}. Ignoring record for the historical table upload.",
+                                    entityOid, riCov.getReservedInstanceId(), riCov.getRiCoverageSource());
+                    continue;
+                }
                 Long riId = riCov.getReservedInstanceId();
                 Double coveredCoupons = riCombinedCoupons.get(entityOid, riId);
                 if (coveredCoupons != null) {

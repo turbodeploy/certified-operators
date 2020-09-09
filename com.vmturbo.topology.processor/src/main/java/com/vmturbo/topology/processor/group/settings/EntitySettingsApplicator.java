@@ -12,7 +12,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -38,10 +37,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresho
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -83,21 +82,27 @@ public class EntitySettingsApplicator {
             .forEach(entity -> {
                 final Map<EntitySettingSpecs, Setting> settingsForEntity =
                         new EnumMap<>(EntitySettingSpecs.class);
+                final Map<ConfigurableActionSettings, Setting> actionModeSettings =
+                    new EnumMap<>(ConfigurableActionSettings.class);
                 for (final Setting setting : graphWithSettings.getSettingsForEntity(
                         entity.getOid())) {
                     final Optional<EntitySettingSpecs> policySetting =
                             EntitySettingSpecs.getSettingByName(setting.getSettingSpecName());
                     if (policySetting.isPresent()) {
                         settingsForEntity.put(policySetting.get(), setting);
+                    } else if (ActionSettingSpecs.isActionModeSetting(setting.getSettingSpecName())) {
+                        actionModeSettings.put(ConfigurableActionSettings.fromSettingName(
+                            setting.getSettingSpecName()), setting);
                     } else if (!ActionSettingSpecs.isActionModeSubSetting(setting.getSettingSpecName())) {
-                        // action mode settings do not affect topology setting applicators
+                        // Action workflow and execution schedule settings do not affect topology
+                        // setting applicators.
                         logger.warn("Unknown setting {} for entity {}",
                                 setting.getSettingSpecName(), entity.getOid());
                     }
                 }
 
                 for (SettingApplicator applicator: buildApplicators(topologyInfo, graphWithSettings)) {
-                    applicator.apply(entity, settingsForEntity);
+                    applicator.apply(entity, settingsForEntity, actionModeSettings);
                 }
 
             });
@@ -114,14 +119,12 @@ public class EntitySettingsApplicator {
                                                             @Nonnull final GraphWithSettings graphWithSettings) {
         return ImmutableList.of(new MoveApplicator(),
                 new VMShopTogetherApplicator(topologyInfo),
-                new SuspendApplicator(true), new SuspendApplicator(false),
-                new ProvisionApplicator(true), new ProvisionApplicator(false),
+                new SuspendApplicator(),
+                new ProvisionApplicator(),
                 new ResizeApplicator(),
                 new ScalingApplicator(),
-                new MoveCommoditiesFromProviderTypesApplicator(EntitySettingSpecs.StorageMove,
+                new MoveCommoditiesFromProviderTypesApplicator(ConfigurableActionSettings.StorageMove,
                         TopologyDTOUtil.STORAGE_TYPES),
-                new MoveCommoditiesFromProviderTypesApplicator(EntitySettingSpecs.BusinessUserMove,
-                        Collections.singleton(EntityType.DESKTOP_POOL)),
                 new VirtualMachineResizeVcpuApplicator(),
                 new VirtualMachineResizeVmemApplicator(),
                 new DeleteApplicator(),
@@ -174,22 +177,26 @@ public class EntitySettingsApplicator {
                         CommodityType.VSTORAGE),
                 new ResizeIncrementApplicator(EntitySettingSpecs.StorageIncrement,
                         CommodityType.STORAGE_AMOUNT),
-                new VMThresholdApplicator(ImmutableMap.of(
+                new VMThresholdApplicator(
+                    ImmutableMap.of(
                         CommodityType.VMEM.getNumber(), Sets.newHashSet(
                                 EntitySettingSpecs.ResizeVmemMinThreshold,
-                                EntitySettingSpecs.ResizeVmemMaxThreshold,
-                                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds,
-                                EntitySettingSpecs.ResizeVmemDownInBetweenThresholds,
-                                EntitySettingSpecs.ResizeVmemAboveMaxThreshold,
-                                EntitySettingSpecs.ResizeVmemBelowMinThreshold),
+                                EntitySettingSpecs.ResizeVmemMaxThreshold),
                         CommodityType.VCPU.getNumber(), Sets.newHashSet(
                                 EntitySettingSpecs.ResizeVcpuMinThreshold,
-                                EntitySettingSpecs.ResizeVcpuMaxThreshold,
-                                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
-                                EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds,
-                                EntitySettingSpecs.ResizeVcpuAboveMaxThreshold,
-                                EntitySettingSpecs.ResizeVcpuBelowMinThreshold)),
-                        graphWithSettings),
+                                EntitySettingSpecs.ResizeVcpuMaxThreshold)),
+                    ImmutableMap.of(
+                        CommodityType.VMEM.getNumber(), Sets.newHashSet(
+                            ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds,
+                            ConfigurableActionSettings.ResizeVmemDownInBetweenThresholds,
+                            ConfigurableActionSettings.ResizeVmemAboveMaxThreshold,
+                            ConfigurableActionSettings.ResizeVmemBelowMinThreshold),
+                        CommodityType.VCPU.getNumber(), Sets.newHashSet(
+                            ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds,
+                            ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds,
+                            ConfigurableActionSettings.ResizeVcpuAboveMaxThreshold,
+                            ConfigurableActionSettings.ResizeVcpuBelowMinThreshold)),
+                    graphWithSettings),
                 new ResizeTargetUtilizationCommodityBoughtApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationImageCPU,
                         CommodityType.IMAGE_CPU),
@@ -237,6 +244,32 @@ public class EntitySettingsApplicator {
     /**
      * The applicator of a single {@link Setting} to a single {@link TopologyEntityDTO.Builder}.
      */
+    public abstract static class ActionModeSettingApplicator extends BaseSettingApplicator {
+
+        private final ConfigurableActionSettings setting;
+
+        protected ActionModeSettingApplicator(@Nonnull ConfigurableActionSettings setting) {
+            this.setting = Objects.requireNonNull(setting);
+        }
+
+        protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                                      @Nonnull ActionMode actionMode);
+
+        @Override
+        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                          @Nonnull Map<EntitySettingSpecs, Setting> settings,
+                          @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
+            final Setting settingObject = actionModeSettings.get(setting);
+            if (settingObject != null) {
+                ActionMode actionMode = ActionMode.valueOf(settingObject.getEnumSettingValue().getValue());
+                apply(entity, actionMode);
+            }
+        }
+    }
+
+    /**
+     * The applicator of a single {@link EntitySettingSpecs} to a single {@link TopologyEntityDTO.Builder}.
+     */
     public abstract static class SingleSettingApplicator extends BaseSettingApplicator {
 
         private final EntitySettingSpecs setting;
@@ -254,7 +287,8 @@ public class EntitySettingsApplicator {
 
         @Override
         public void apply(@Nonnull TopologyEntityDTO.Builder entity,
-                @Nonnull Map<EntitySettingSpecs, Setting> settings) {
+                          @Nonnull Map<EntitySettingSpecs, Setting> settings,
+                          @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             final Setting settingObject = settings.get(setting);
             if (settingObject != null) {
                 apply(entity, settingObject);
@@ -268,13 +302,25 @@ public class EntitySettingsApplicator {
     private abstract static class MultipleSettingsApplicator extends BaseSettingApplicator {
 
         private final List<EntitySettingSpecs> settings;
+        private final List<ConfigurableActionSettings> actionModeSettings;
+
+        private MultipleSettingsApplicator(
+                @Nonnull List<EntitySettingSpecs> settings,
+                @Nonnull List<ConfigurableActionSettings> actionModeSettings) {
+            this.settings = Objects.requireNonNull(settings);
+            this.actionModeSettings = Objects.requireNonNull(actionModeSettings);
+        }
 
         private MultipleSettingsApplicator(@Nonnull List<EntitySettingSpecs> settings) {
-            this.settings = Objects.requireNonNull(settings);
+            this(settings, Collections.emptyList());
         }
 
         protected List<EntitySettingSpecs> getEntitySettingSpecs() {
             return settings;
+        }
+
+        protected List<ConfigurableActionSettings> getConfigurableActionSettings() {
+            return actionModeSettings;
         }
 
         protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
@@ -282,10 +328,21 @@ public class EntitySettingsApplicator {
 
         @Override
         public void apply(@Nonnull TopologyEntityDTO.Builder entity,
-                          @Nonnull Map<EntitySettingSpecs, Setting> settings) {
+                          @Nonnull Map<EntitySettingSpecs, Setting> settings,
+                          @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             List<Setting> settingObjects = new ArrayList();
             for (EntitySettingSpecs setting : this.settings) {
                 final Setting settingObject = settings.get(setting);
+                //The settings passed to the method should contain ALL the settings of the
+                // applicator
+                if (settingObject == null) {
+                    return;
+                } else {
+                    settingObjects.add(settingObject);
+                }
+            }
+            for (ConfigurableActionSettings setting : this.actionModeSettings) {
+                final Setting settingObject = actionModeSettings.get(setting);
                 //The settings passed to the method should contain ALL the settings of the
                 // applicator
                 if (settingObject == null) {
@@ -312,26 +369,16 @@ public class EntitySettingsApplicator {
     /**
      * Abstract applicator for {@link CommoditiesBoughtFromProvider#hasMovable()}.
      */
-    private abstract static class AbstractMoveApplicator extends SingleSettingApplicator {
+    private abstract static class AbstractMoveApplicator extends ActionModeSettingApplicator {
 
-        protected AbstractMoveApplicator(@Nonnull EntitySettingSpecs setting) {
+        protected AbstractMoveApplicator(@Nonnull ConfigurableActionSettings setting) {
             super(setting);
         }
 
         @Override
-        protected void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
-            apply(entity, isMoveEnabled(setting));
-        }
-
-        /**
-         * Checks if Move is allowed using setting value.
-         *
-         * @param setting Setting value.
-         * @return True is Move is allowed.
-         */
-        protected boolean isMoveEnabled(@Nonnull Setting setting) {
-            return getEntitySettingSpecs().getValue(setting, ActionMode.class)
-                    != ActionMode.DISABLED;
+        protected void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull ActionMode actionMode) {
+            final boolean isMoveEnabled = actionMode != ActionMode.DISABLED;
+            apply(entity, isMoveEnabled);
         }
 
         /**
@@ -343,35 +390,6 @@ public class EntitySettingsApplicator {
          */
         protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
                 boolean isMoveEnabled);
-
-        /**
-         * Apply the movable flag to the commodities of the entity which satisfies the provided
-         * override condition.
-         *
-         * @param entity to apply the setting
-         * @param movable is movable or not
-         * @param predicate condition function which the commodity should apply the movable or not.
-         */
-        protected static void applyMovableToCommodities(@Nonnull TopologyEntityDTO.Builder entity,
-                boolean movable,
-                @Nonnull Predicate<CommoditiesBoughtFromProvider.Builder> predicate) {
-            entity.getCommoditiesBoughtFromProvidersBuilderList()
-                    .stream()
-                    .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
-                    .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
-                    .filter(predicate)
-                    .forEach(c -> {
-                        // Apply setting value only if move is not disabled by the entity
-                        if (!c.hasMovable() || c.getMovable()) {
-                            c.setMovable(movable);
-                        } else {
-                            // Do not override with the setting if move has been disabled at entity level
-                            logger.trace("{}:{} Not overriding move setting, move is disabled at entity level {}",
-                                    entity::getEntityType, entity::getDisplayName,
-                                    c::getMovable);
-                        }
-                    });
-        }
     }
 
     /**
@@ -383,7 +401,7 @@ public class EntitySettingsApplicator {
 
         private Set<EntityType> providerTypes;
 
-        private MoveCommoditiesFromProviderTypesApplicator(@Nonnull EntitySettingSpecs setting,
+        private MoveCommoditiesFromProviderTypesApplicator(@Nonnull ConfigurableActionSettings setting,
                 @Nonnull Set<EntityType> providerTypes) {
             super(setting);
             this.providerTypes = providerTypes;
@@ -407,11 +425,15 @@ public class EntitySettingsApplicator {
         private final Map<EntityType, BiConsumer<TopologyEntityDTO.Builder, Boolean>> specialCases;
 
         private MoveApplicator() {
-            super(EntitySettingSpecs.Move);
+            super(ConfigurableActionSettings.Move);
             this.specialCases = new HashMap<>();
             this.specialCases.put(EntityType.VIRTUAL_MACHINE, (virtualMachine, isMoveEnabled) -> {
                 applyMovableToCommodities(virtualMachine, isMoveEnabled,
                         c -> c.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE);
+            });
+            this.specialCases.put(EntityType.BUSINESS_USER, (businessUser, isMoveEnabled) -> {
+                applyMovableToCommodities(businessUser, isMoveEnabled,
+                    c -> c.getProviderEntityType() == EntityType.DESKTOP_POOL_VALUE);
             });
         }
 
@@ -441,7 +463,8 @@ public class EntitySettingsApplicator {
 
         @Override
         public void apply(@Nonnull TopologyEntityDTO.Builder entity,
-                @Nonnull Map<EntitySettingSpecs, Setting> settings) {
+                @Nonnull Map<EntitySettingSpecs, Setting> settings,
+                @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
                     && settings.containsKey(EntitySettingSpecs.ShopTogether)) {
                 // TODO: For migration plans from on prem to cloud or from cloud to cloud,
@@ -487,20 +510,19 @@ public class EntitySettingsApplicator {
     /**
      * Applies the "suspend" setting to a {@link TopologyEntityDTO.Builder}.
      */
-    private static class SuspendApplicator extends SingleSettingApplicator {
+    private static class SuspendApplicator extends ActionModeSettingApplicator {
 
-        private SuspendApplicator(boolean isEnabledByDefault) {
-            super(isEnabledByDefault ? EntitySettingSpecs.Suspend :
-                EntitySettingSpecs.DisabledSuspend);
+        private SuspendApplicator() {
+            super(ConfigurableActionSettings.Suspend);
         }
 
         @Override
         protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                          @Nonnull final Setting setting) {
+                          @Nonnull final ActionMode actionMode) {
             // when setting value is DISABLED, set suspendable to false,
             // otherwise keep the original value which could have been set
             // when converting from SDK entityDTO.
-            if (ActionMode.DISABLED.name().equals(setting.getEnumSettingValue().getValue())) {
+            if (ActionMode.DISABLED == actionMode) {
                 entity.getAnalysisSettingsBuilder().setSuspendable(false);
                 logger.trace("Disabled suspendable for {}::{}",
                                 entity::getEntityType, entity::getDisplayName);
@@ -511,16 +533,15 @@ public class EntitySettingsApplicator {
     /**
      * Applies the "delete" setting to a {@link TopologyEntityDTO.Builder}.
      */
-    private static class DeleteApplicator extends SingleSettingApplicator {
+    private static class DeleteApplicator extends ActionModeSettingApplicator {
         private DeleteApplicator() {
-            super(EntitySettingSpecs.Delete);
+            super(ConfigurableActionSettings.Delete);
         }
 
         @Override
         protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                @Nonnull final Setting setting) {
-            if (getEntitySettingSpecs().getValue(setting, ActionMode.class) ==
-                    ActionMode.DISABLED) {
+                @Nonnull final ActionMode actionMode) {
+            if (ActionMode.DISABLED == actionMode) {
                 entity.getAnalysisSettingsBuilder().setDeletable(false);
             }
         }
@@ -529,20 +550,19 @@ public class EntitySettingsApplicator {
     /**
      * Applies the "provision" setting to a {@link TopologyEntityDTO.Builder}.
      */
-    private static class ProvisionApplicator extends SingleSettingApplicator {
+    private static class ProvisionApplicator extends ActionModeSettingApplicator {
 
-        private ProvisionApplicator(boolean isEnabledByDefault) {
-            super(isEnabledByDefault ? EntitySettingSpecs.Provision
-                    : EntitySettingSpecs.DisabledProvision);
+        private ProvisionApplicator() {
+            super(ConfigurableActionSettings.Provision);
         }
 
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                          @Nonnull final Setting setting) {
+                          @Nonnull final ActionMode actionMode) {
             // when setting value is DISABLED, set cloneable to false,
             // otherwise keep the original value which could have been set
             // when converting from SDK entityDTO.
-            if (ActionMode.DISABLED.name().equals(setting.getEnumSettingValue().getValue())) {
+            if (ActionMode.DISABLED == actionMode) {
                 entity.getAnalysisSettingsBuilder().setCloneable(false);
                 logger.trace("Disabled provision for {}::{}",
                             entity::getEntityType, entity::getDisplayName);
@@ -553,40 +573,39 @@ public class EntitySettingsApplicator {
     /**
      * Adds the "scaling" setting to a {@link TopologyEntityDTO.Builder}.
      */
-    private static class ScalingApplicator extends SingleSettingApplicator {
+    private static class ScalingApplicator extends ActionModeSettingApplicator {
 
         private ScalingApplicator() {
-            super(EntitySettingSpecs.CloudComputeScale);
+            super(ConfigurableActionSettings.CloudComputeScale);
         }
         @Override
-        protected void apply(@Nonnull final Builder entity, @Nonnull final Setting setting) {
+        protected void apply(@Nonnull final Builder entity, @Nonnull final ActionMode actionMode) {
             List<CommoditiesBoughtFromProvider.Builder> commBoughtGroupingList = entity
                     .getCommoditiesBoughtFromProvidersBuilderList().stream()
                     .filter(s -> s.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE ||
                             s.getProviderEntityType() == EntityType.DATABASE_SERVER_TIER_VALUE
                     || s.getProviderEntityType() == EntityType.DATABASE_TIER_VALUE).collect(Collectors.toList());
             for (CommoditiesBoughtFromProvider.Builder commBought : commBoughtGroupingList) {
-                if (setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name())) {
+                if (ActionMode.DISABLED == actionMode) {
                     commBought.setScalable(false);
                 }
             }
         }
     }
+
     /**
      * Applies the "resize" setting to a {@link TopologyEntityDTO.Builder}.
      */
-    private static class ResizeApplicator extends SingleSettingApplicator {
+    private static class ResizeApplicator extends ActionModeSettingApplicator {
 
         private ResizeApplicator() {
-            super(EntitySettingSpecs.Resize);
+            super(ConfigurableActionSettings.Resize);
         }
 
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                          @Nonnull final Setting setting) {
-            final boolean resizeable =
-                    ActionMode.DISABLED !=
-                            getEntitySettingSpecs().getValue(setting, ActionMode.class);
+                          @Nonnull final ActionMode actionMode) {
+            final boolean resizeable = ActionMode.DISABLED != actionMode;
             entity.getCommoditySoldListBuilderList()
                     .forEach(commSoldBuilder -> {
                         /* We shouldn't change isResizable if it comes as false from a probe side.
@@ -646,10 +665,11 @@ public class EntitySettingsApplicator {
     private static class VirtualMachineResizeVcpuApplicator extends MultipleSettingsApplicator {
 
         private VirtualMachineResizeVcpuApplicator() {
-            super(Arrays.asList(EntitySettingSpecs.ResizeVcpuBelowMinThreshold,
-                    EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds,
-                    EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
-                    EntitySettingSpecs.ResizeVcpuAboveMaxThreshold));
+            super(Collections.emptyList(),
+                Arrays.asList(ConfigurableActionSettings.ResizeVcpuBelowMinThreshold,
+                    ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds,
+                    ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds,
+                    ConfigurableActionSettings.ResizeVcpuAboveMaxThreshold));
         }
 
         @Override
@@ -657,7 +677,7 @@ public class EntitySettingsApplicator {
                              @Nonnull final Collection<Setting> settings) {
             boolean allSettingsDisabled = settings.stream()
                     .filter(setting -> setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name()))
-                    .collect(Collectors.toList()).size() == this.getEntitySettingSpecs().size();
+                    .collect(Collectors.toList()).size() == this.getConfigurableActionSettings().size();
             if (allSettingsDisabled) {
                 updateCommodities(entity, CommodityType.VCPU);
             }
@@ -671,17 +691,19 @@ public class EntitySettingsApplicator {
     private static class VirtualMachineResizeVmemApplicator extends MultipleSettingsApplicator {
 
         private VirtualMachineResizeVmemApplicator() {
-            super(Arrays.asList(EntitySettingSpecs.ResizeVmemBelowMinThreshold,
-                    EntitySettingSpecs.ResizeVmemDownInBetweenThresholds,
-                    EntitySettingSpecs.ResizeVmemUpInBetweenThresholds,
-                    EntitySettingSpecs.ResizeVmemAboveMaxThreshold));
+            super(Collections.emptyList(),
+                Arrays.asList(ConfigurableActionSettings.ResizeVmemBelowMinThreshold,
+                ConfigurableActionSettings.ResizeVmemDownInBetweenThresholds,
+                ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds,
+                ConfigurableActionSettings.ResizeVmemAboveMaxThreshold));
         }
 
         @Override
         protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                              @Nonnull final Collection<Setting> settings) {
             boolean allSettingsDisabled = settings.stream()
-                    .filter(setting -> setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name())).count() == this.getEntitySettingSpecs().size();
+                    .filter(setting -> setting.getEnumSettingValue().getValue()
+                        .equals(ActionMode.DISABLED.name())).count() == this.getConfigurableActionSettings().size();
             if (allSettingsDisabled) {
                 updateCommodities(entity, CommodityType.VMEM);
             }
@@ -730,7 +752,8 @@ public class EntitySettingsApplicator {
 
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                @Nonnull final Map<EntitySettingSpecs, Setting> settings) {
+                @Nonnull final Map<EntitySettingSpecs, Setting> settings,
+                @Nonnull final Map<ConfigurableActionSettings, Setting> actionModeSettings) {
             if (topologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.CLUSTER_HEADROOM) {
                 // For cluster headroom calculation, we ignore the normal settings that affect
                 // effective capacity.
@@ -841,16 +864,22 @@ public class EntitySettingsApplicator {
         //VMem setting value is in MBs. Market expects it in KBs.
         private final float conversionFactor = 1024.0f;
         private final Map<Integer, Set<EntitySettingSpecs>> entitySettingMapping;
+        private final Map<Integer, Set<ConfigurableActionSettings>> actionModeSettingsMapping;
         // We need the graph to fin the core CPU speed of the hosting PM for the unit conversion.
         private final TopologyGraph<TopologyEntity> graph;
 
         private VMThresholdApplicator(@Nonnull final Map<Integer, Set<EntitySettingSpecs>> settingMapping,
-                                          @Nonnull final GraphWithSettings settingsGraph) {
+                                      @Nonnull final Map<Integer, Set<ConfigurableActionSettings>> actionModeSettingsMapping,
+                                      @Nonnull final GraphWithSettings settingsGraph) {
             super(settingMapping.values().stream()
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toList()),
+                actionModeSettingsMapping.values().stream()
                     .flatMap(Collection::stream)
                     .collect(Collectors.toList()));
             this.graph = settingsGraph.getTopologyGraph();
             this.entitySettingMapping = Objects.requireNonNull(settingMapping);
+            this.actionModeSettingsMapping = Objects.requireNonNull(actionModeSettingsMapping);
         }
 
         @Override
@@ -863,6 +892,8 @@ public class EntitySettingsApplicator {
                     .forEach(commodityBuilder -> {
                         Set<EntitySettingSpecs> validSpecs = entitySettingMapping.get(commodityBuilder
                                 .getCommodityType().getType());
+                        Set<ConfigurableActionSettings> validActionModeSettings = actionModeSettingsMapping.get(commodityBuilder
+                            .getCommodityType().getType());
                         if (commodityBuilder.getCommodityType().getType() == CommodityType.VCPU.getNumber()) {
                             // Gets the CPU speed of the PM.
                             final Optional<Integer> cpuSpeed = graph.getProviders(entity.getOid())
@@ -871,17 +902,17 @@ public class EntitySettingsApplicator {
                                     .map(pm -> pm.getTypeSpecificInfo().getPhysicalMachine().getCpuCoreMhz())
                                     .findFirst();
                             if (cpuSpeed.isPresent()) {
-                                setThresholds(entity, validSpecs, settings, commodityBuilder, cpuSpeed.get());
+                                setThresholds(entity, validSpecs, validActionModeSettings, settings, commodityBuilder, cpuSpeed.get());
                             } else if (entity.getTypeSpecificInfo().getVirtualMachine().hasNumCpus()) {
                                 double multiplier = commodityBuilder.getCapacity()
                                         / entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus();
-                                setThresholds(entity, validSpecs, settings, commodityBuilder, multiplier);
+                                setThresholds(entity, validSpecs, validActionModeSettings, settings, commodityBuilder, multiplier);
                             } else {
                                 logger.error("VCPU threshold applicator couldn't find the CPU speed " +
                                         "of the host (VM: {})", entity.getDisplayName());
                             }
                         } else if (commodityBuilder.getCommodityType().getType() == CommodityType.VMEM.getNumber()) {
-                            setThresholds(entity, validSpecs, settings, commodityBuilder, conversionFactor);
+                            setThresholds(entity, validSpecs, validActionModeSettings, settings, commodityBuilder, conversionFactor);
                         }
                 });
             }
@@ -893,12 +924,14 @@ public class EntitySettingsApplicator {
          *
          * @param entity being processed.
          * @param validSpecs to consider.
+         * @param validActionModeSettings to consider.
          * @param settings associated with the entity.
          * @param commodityBuilder is the commodity being processed.
          * @param multiplier multiplicand used along with the thresholds.
          */
         protected void setThresholds(@Nonnull final TopologyEntityDTO.Builder entity,
                                      Set<EntitySettingSpecs> validSpecs,
+                                     Set<ConfigurableActionSettings> validActionModeSettings,
                                      Collection<Setting> settings,
                                      CommoditySoldDTO.Builder commodityBuilder,
                                      double multiplier) {
@@ -910,35 +943,43 @@ public class EntitySettingsApplicator {
             ActionMode modeDownInBetweenThresholds = null;
             ActionMode modeUpInBetweenThresholds = null;
             for (Setting setting : settings) {
-                final EntitySettingSpecs policySetting =
-                        EntitySettingSpecs.getSettingByName(setting.getSettingSpecName()).get();
-                if (validSpecs.contains(policySetting)) {
+                final Optional<EntitySettingSpecs> policySetting =
+                        EntitySettingSpecs.getSettingByName(setting.getSettingSpecName());
+                if (policySetting.isPresent() && validSpecs.contains(policySetting.get())) {
                     final float settingValue = setting.getNumericSettingValue().getValue();
-                    switch (policySetting) {
+                    switch (policySetting.get()) {
                         case ResizeVcpuMinThreshold:
                         case ResizeVmemMinThreshold:
                             minThreshold = settingValue * multiplier;
-                            break;
-                        case ResizeVcpuBelowMinThreshold:
-                        case ResizeVmemBelowMinThreshold:
-                            modeForMin = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
                             break;
                         case ResizeVcpuMaxThreshold:
                         case ResizeVmemMaxThreshold:
                             maxThreshold = settingValue * multiplier;
                             break;
-                        case ResizeVcpuAboveMaxThreshold:
-                        case ResizeVmemAboveMaxThreshold:
-                            modeForMax = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
-                            break;
-                        case ResizeVcpuUpInBetweenThresholds:
-                        case ResizeVmemUpInBetweenThresholds:
-                            modeUpInBetweenThresholds = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
-                            break;
-                        case ResizeVcpuDownInBetweenThresholds:
-                        case ResizeVmemDownInBetweenThresholds:
-                            modeDownInBetweenThresholds = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
-                            break;
+                    }
+                }
+                if (ActionSettingSpecs.isActionModeSetting(setting.getSettingSpecName())) {
+                    final ConfigurableActionSettings configurableActionSettings =
+                        ConfigurableActionSettings.fromSettingName(setting.getSettingSpecName());
+                    if (configurableActionSettings != null && validActionModeSettings.contains(configurableActionSettings)) {
+                        switch (configurableActionSettings) {
+                            case ResizeVcpuBelowMinThreshold:
+                            case ResizeVmemBelowMinThreshold:
+                                modeForMin = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
+                                break;
+                            case ResizeVcpuAboveMaxThreshold:
+                            case ResizeVmemAboveMaxThreshold:
+                                modeForMax = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
+                                break;
+                            case ResizeVcpuUpInBetweenThresholds:
+                            case ResizeVmemUpInBetweenThresholds:
+                                modeUpInBetweenThresholds = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
+                                break;
+                            case ResizeVcpuDownInBetweenThresholds:
+                            case ResizeVmemDownInBetweenThresholds:
+                                modeDownInBetweenThresholds = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
+                                break;
+                        }
                     }
                 }
             }
@@ -1234,24 +1275,21 @@ public class EntitySettingsApplicator {
     /**
      * Applicator for "Enable Scale Actions" setting.
      */
-    private static class EnableScaleApplicator extends AbstractMoveApplicator {
+    private static class EnableScaleApplicator extends BaseSettingApplicator {
 
-        private EnableScaleApplicator() {
-            super(EntitySettingSpecs.EnableScaleActions);
-        }
+        private static final EntitySettingSpecs settingSpec = EntitySettingSpecs.EnableScaleActions;
 
         @Override
-        protected boolean isMoveEnabled(@Nonnull Setting setting) {
-            return setting.getBooleanSettingValue().getValue();
-        }
-
-        @Override
-        protected void apply(
-                @Nonnull final TopologyEntityDTO.Builder entity,
-                final boolean isMoveEnabled) {
-            final EntityType entityType = EntityType.forNumber(entity.getEntityType());
-            if (getEntitySettingSpecs().getEntityTypeScope().contains(entityType)) {
-                applyMovableToCommodities(entity, isMoveEnabled, builder -> true);
+        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                          @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
+                          @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
+            final Setting setting = entitySettings.get(settingSpec);
+            if (setting != null) {
+                final EntityType entityType = EntityType.forNumber(entity.getEntityType());
+                if (settingSpec.getEntityTypeScope().contains(entityType)) {
+                    final boolean isMoveEnabled = setting.getBooleanSettingValue().getValue();
+                    applyMovableToCommodities(entity, isMoveEnabled, builder -> true);
+                }
             }
         }
     }

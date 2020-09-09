@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.action;
 
 import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.createReasonCommodity;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -24,11 +25,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
@@ -144,6 +147,13 @@ public class ActionDescriptionBuilderTest {
     private static final Long VSAN_PM_ID = 444L;
     private static final String VSAN_PM_DISPLAY_NAME = "vsan_host";
     private static final String SWITCH1_DISPLAY_NAME = "switch1_test";
+    private static final Long CONTROLLER1_ID = 500L;
+    private static final String CONTROLLER1_DISPLAY_NAME = "controller1_test";
+    private static final Long CONTAINER_SPEC1_ID = 501L;
+    private static final String SPEC1_DISPLAY_NAME = "spec1_test";
+    private static final Long CONTAINER_SPEC2_ID = 502L;
+    private static final String SPEC2_DISPLAY_NAME = "spec2_test";
+
 
     /**
      * ID of Azure VM being used for cloud->cloud migration.
@@ -1574,6 +1584,72 @@ public class ActionDescriptionBuilderTest {
                 entitySettingsCache, allocateRecommendation);
         assertEquals(description,
                 "Increase RI coverage for Virtual Machine vm1_test in ");
+    }
+
+    /**
+     * Test atomic resize description.
+     *
+     * @throws UnsupportedActionException  In case of unsupported action type.
+     */
+    @Test
+    public void testAtomicResizeDescription() throws UnsupportedActionException {
+        final ActionDTO.Action.Builder atomicAction = ActionDTO.Action.newBuilder()
+                .setId(0).setDeprecatedImportance(0)
+                .setInfo(ActionInfo.newBuilder()
+                        .setAtomicResize(AtomicResize.newBuilder()
+                                .setExecutionTarget(ActionEntity.newBuilder()
+                                        .setId(CONTROLLER1_ID)
+                                        .setType(EntityType.WORKLOAD_CONTROLLER_VALUE))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(CONTAINER_SPEC1_ID)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(123).setNewCapacity(456))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(CONTAINER_SPEC1_ID)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(890).setNewCapacity(567))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(CONTAINER_SPEC2_ID)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_REQUEST_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(890).setNewCapacity(567))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(CONTAINER_SPEC2_ID)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_REQUEST_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(123).setNewCapacity(456))))
+                .setExplanation(Explanation.newBuilder()
+                        .setAtomicResize(AtomicResizeExplanation.newBuilder()
+                                .setMergeGroupId("bar")));
+
+        when(entitySettingsCache.getEntityFromOid(eq(CONTROLLER1_ID)))
+                .thenReturn((createEntity(CONTROLLER1_ID,
+                        EntityType.WORKLOAD_CONTROLLER_VALUE, CONTROLLER1_DISPLAY_NAME)));
+        when(entitySettingsCache.getEntityFromOid(eq(CONTAINER_SPEC1_ID)))
+                .thenReturn((createEntity(CONTAINER_SPEC1_ID,
+                        EntityType.CONTAINER_SPEC_VALUE, SPEC1_DISPLAY_NAME)));
+        when(entitySettingsCache.getEntityFromOid(eq(CONTAINER_SPEC2_ID)))
+                .thenReturn((createEntity(CONTAINER_SPEC2_ID,
+                        EntityType.CONTAINER_SPEC_VALUE, SPEC2_DISPLAY_NAME)));
+
+        final String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, atomicAction.build());
+        assertTrue(description.startsWith("Resize"));
+        assertTrue(description.contains("VCPU Request")
+                        && description.contains("VMem Request")
+                        && description.contains("VCPU Limit")
+                        && description.contains("VMem Limit"));
+        assertTrue(description.endsWith("Workload Controller controller1_test"));
     }
 
     /**

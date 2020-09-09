@@ -51,6 +51,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.group.IGroupStore;
@@ -197,8 +198,8 @@ public class SettingPolicyValidatorTest {
     private SettingPolicyInfo setupScheduledMovePolicy() {
         final String moveExecutionScheduleSettingName =
             ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                EntitySettingSpecs.Move, ActionSettingType.SCHEDULE);
-        final String moveActionModeSettingName = EntitySettingSpecs.Move.getSettingName();
+                ConfigurableActionSettings.Move, ActionSettingType.SCHEDULE);
+        final String moveActionModeSettingName = ConfigurableActionSettings.Move.getSettingName();
         final String settingPolicyName = "testSettingPolicy";
         when(specStore.getSettingSpec(eq(moveExecutionScheduleSettingName))).thenReturn(Optional.of(
             SettingSpec.newBuilder()
@@ -268,7 +269,7 @@ public class SettingPolicyValidatorTest {
     public void testInvalidSettingCombination() throws InvalidItemException {
         final String settingSpecName =
             ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                EntitySettingSpecs.Move, ActionSettingType.SCHEDULE);
+                ConfigurableActionSettings.Move, ActionSettingType.SCHEDULE);
         final String settingPolicyName = "testSettingPolicy";
 
         expectedException.expect(InvalidItemException.class);

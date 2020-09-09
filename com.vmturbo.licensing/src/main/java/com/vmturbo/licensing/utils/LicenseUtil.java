@@ -76,6 +76,7 @@ public class LicenseUtil {
         if (StringUtils.isBlank(email)) {
             errors.add(ErrorReason.INVALID_EMAIL);
         }
+
         if (license.isExpired()) {
             errors.add(ErrorReason.EXPIRED);
         }
