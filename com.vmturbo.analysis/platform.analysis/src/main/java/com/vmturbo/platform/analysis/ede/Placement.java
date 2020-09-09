@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +72,20 @@ public class Placement {
                     }
                 });
         // Find common context b/w the 2 sets.
-        Set<Context> commonContexts = Sets.intersection(s1, s2);
+        // BCTODO this is a temporary workaround to address OM-62413.  We are having issues with
+        // bad hashing or something else related to not being able to get an accurate intersection
+        // of two sets.  For now, let's do a direct comparison to find the intersection.  This does
+        // not perform well at scale.  The intent is for this workaround to exist for less than
+        // 24 hours.
+        Set<Context> commonContexts = new HashSet<>();
+        for (Context c1 : s1) {
+            for (Context c2 : s2) {
+                if (c1.equals(c2)) {
+                    commonContexts.add(c1);
+                    break;
+                }
+            }
+        }
 
         // make clones of commonContext which derived from active sellers and later pass
         // them to buying trader. The buying trader can not use the same context as the
