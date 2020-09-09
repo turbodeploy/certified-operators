@@ -32,24 +32,24 @@ public class EntityActionDaoImp implements EntityActionDao {
     // time threshold, they will be deleted from entity action tables. This try to handle the case that
     // if Probe is down and can not send back action progress notification, they will be considered
     // as time out actions and be cleaned up.
-    private final int moveSucceedRecordExpiredSeconds;
+    final int moveSucceedRecordExpiredSeconds;
 
     // For "succeed" move action records, if their last update time is older than this time threshold,
     // they will be deleted from entity action table. This makes succeed entities will not participate
     // Market analysis immediately, it will have some default cool down time.
-    private final int inProgressActionExpiredSeconds;
+    final int inProgressActionExpiredSeconds;
 
     // For "succeed" activate action records, if their last update time is older than this time threshold,
     // they will be deleted from entity action table. This immediately allow succeed entities suspendable.
-    private final int activateSucceedExpiredSeconds;
+    final int activateSucceedExpiredSeconds;
 
     // For "succeed" scale (on cloud) action records, if their last update time is older than this time threshold,
     // they will be deleted from entity action table.
-    private final int scaleSucceedRecordExpiredSeconds;
+    final int scaleSucceedRecordExpiredSeconds;
 
     // For "succeed" resize (on prem) action records, if their last update time is older than this time threshold,
     // they will be deleted from entity action table.
-    private final int resizeSucceedRecordExpiredSeconds;
+    final int resizeSucceedRecordExpiredSeconds;
 
     public EntityActionDaoImp(@Nonnull final DSLContext dsl,
                               final int moveSucceedRecordExpiredSeconds,
