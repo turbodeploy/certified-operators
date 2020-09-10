@@ -271,8 +271,8 @@ public class StatsQueryScopeExpander {
                 expandedOidsInScope = supplyChainFetcherFactory.expandAggregatedEntities(
                         supplyChainFetcherFactory.expandScope(fetchedScope, relatedTypes.stream()
                                 .map(ApiEntityType::apiStr)
-                                .collect(Collectors.toList())));
-            } catch (OperationFailedException ex) {
+                                .collect(Collectors.toList()), scope.getTopologyContextId()));
+            } catch (Exception ex) {
                 logger.error("The operation to get the expanded entities associated with list of " +
                         "OIDs {}, with types {} failed. Going with unexpanded entities.",
                     immediateOidsInScope.stream().map(String::valueOf).collect(Collectors.joining(", ")),

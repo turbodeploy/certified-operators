@@ -10,6 +10,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,7 @@ import com.vmturbo.repository.graph.parameter.CollectionParameter;
 import com.vmturbo.repository.graph.parameter.EdgeParameter;
 import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 import com.vmturbo.repository.graph.parameter.VertexParameter;
+import com.vmturbo.repository.topology.TopologyID;
 
 /**
  * Constructs a subgraph in an associated graph database from input SE DTOs.
@@ -138,10 +140,11 @@ public class ServiceEntitySubGraphCreator {
      * Creates the subgraph for the topology
      *
      * @param ses The service entities of the topology
+     * @param tid The {@link TopologyID} that should be referenced in edge _from and _to fields
      * @throws VertexOperationException
      * @throws EdgeOperationException
      */
-    void create(Collection<ServiceEntityRepoDTO> ses)
+    void create(Collection<ServiceEntityRepoDTO> ses, @Nullable TopologyID tid)
             throws VertexOperationException, EdgeOperationException {
         logger.debug("Creating vertices for SEs");
         createVertices(ses);
@@ -150,7 +153,7 @@ public class ServiceEntitySubGraphCreator {
         for (Map.Entry<EdgeType, Function<ServiceEntityRepoDTO, List<String>>> entry :
                 EDGE_TYPE_TO_GET_ENTITIES_FUNCTION.entrySet()) {
             logger.debug("Creating edges for SE {} relationship", entry.getKey());
-            createEdges(ses, entry.getKey(), entry.getValue());
+            createEdges(ses, entry.getKey(), entry.getValue(), tid);
         }
     }
 
@@ -161,14 +164,18 @@ public class ServiceEntitySubGraphCreator {
      * @param ses the collection of entities to create edges for
      * @param edgeType the type of the edge to create
      * @param getRelatedEntities function which tells how to find related entities for an entity
-     * @throws EdgeOperationException
+     * @param tid The {@link TopologyID} that should be referenced in edge _from and _to fields
+     * @throws EdgeOperationException when an exception occurs on an edge operation
      */
     private void createEdges(@Nonnull Collection<ServiceEntityRepoDTO> ses,
                              @Nonnull EdgeType edgeType,
-                             @Nonnull Function<ServiceEntityRepoDTO, List<String>> getRelatedEntities)
+                             @Nonnull Function<ServiceEntityRepoDTO, List<String>> getRelatedEntities,
+                             @Nullable TopologyID tid)
             throws EdgeOperationException {
         // TODO: move the Arango-specific logic to ArangoGraphDatabaseDriver
-        final String handlePrefix = graphDefinition.getServiceEntityVertex() + "/";
+        final String handlePrefix = (Objects.isNull(tid)
+                ? graphDefinition.getServiceEntityVertex()
+                : graphDefinition.getSEVertexCollection(tid)) + "/";
         EdgeParameter p = new EdgeParameter.Builder(
                 graphDefinition.getProviderRelationship(), "from", "to", edgeType).build();
 

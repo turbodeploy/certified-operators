@@ -169,7 +169,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
      */
     private static String entityTypesListToAQL(@Nonnull Set<Integer> entityTypes) {
         return "[" + entityTypes.stream()
-            .map(ApiEntityType::fromType)
+            .map(ApiEntityType::fromSdkTypeToEntityTypeString)
             .map(entityType -> "\"" + entityType + "\"")
             .collect(Collectors.joining(",")) + "]";
     }

@@ -127,7 +127,7 @@ public class TopologyEntitiesListenerTest {
 
         verify(topologyManager).newSourceTopologyCreator(tid, info);
         verify(topologyCreator).complete();
-        verify(topologyCreator, times(2)).addEntities(any());
+        verify(topologyCreator, times(2)).addEntities(any(), any());
         verify(notificationSender).onSourceTopologyAvailable(eq(topologyId), eq(topologyContextId));
     }
 

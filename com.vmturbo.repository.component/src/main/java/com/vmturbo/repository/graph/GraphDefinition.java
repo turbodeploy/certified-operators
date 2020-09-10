@@ -4,6 +4,8 @@ import com.google.common.base.MoreObjects;
 
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
+
 import com.vmturbo.repository.topology.TopologyID;
 
 /**
@@ -34,10 +36,6 @@ public class GraphDefinition {
         return serviceEntityVertex;
     }
 
-    public String getProviderRelationship() {
-        return providerRelationship;
-    }
-
     /**
      * Get full serviceEntityVertex collection name by appending collection name suffix from the
      * given TopologyID.
@@ -46,8 +44,29 @@ public class GraphDefinition {
      * @return Constructed full serviceEntityVertex collection name by appending collection name
      * suffix from given TopologyID.
      */
-    public String getSEVertexCollection(TopologyID topologyID) {
+    public String getSEVertexCollection(@Nonnull final TopologyID topologyID) {
         return serviceEntityVertex + topologyID.toCollectionNameSuffix();
+    }
+
+    /**
+     * Get the providerRelationship.
+     *
+     * @return the provider relationship
+     */
+    public String getProviderRelationship() {
+        return providerRelationship;
+    }
+
+    /**
+     * Get the full providerRelationship name by appending collection name suffix from the
+     * given TopologyID.
+     *
+     * @param topologyID Given TopologyID from which collection name suffix is converted.
+     * @return Constructed full providerRelationship name by appending collection name
+     * suffix from given TopologyID.
+     */
+    public String getProviderRelationship(@Nonnull final TopologyID topologyID) {
+        return "`" + providerRelationship + topologyID.toCollectionNameSuffix() + "`";
     }
 
     @Override

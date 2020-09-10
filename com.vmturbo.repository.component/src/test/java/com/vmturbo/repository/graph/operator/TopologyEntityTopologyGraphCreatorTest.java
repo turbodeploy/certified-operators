@@ -40,7 +40,7 @@ public class TopologyEntityTopologyGraphCreatorTest {
     public void testUpdateTopologyToDb() throws Exception {
         List<ServiceEntityRepoDTO> ses = Arrays.asList(
                 new ServiceEntityRepoDTO(), new ServiceEntityRepoDTO());
-        topologyGraphCreatorTest.updateTopologyToDb(ses);
+        topologyGraphCreatorTest.updateTopologyToDb(ses, null);
 
         // TODO: re-write the test.
     }

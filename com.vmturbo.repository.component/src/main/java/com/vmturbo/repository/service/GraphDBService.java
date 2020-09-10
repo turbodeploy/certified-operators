@@ -36,6 +36,9 @@ import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.ResultsConverter;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
+import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
 import com.vmturbo.repository.topology.ServiceEntityRepoDTOConverter;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
@@ -43,6 +46,7 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager;
 
 public class GraphDBService {
     private final Logger logger = LoggerFactory.getLogger(GraphDBService.class);
+    private final LiveTopologyStore liveTopologyStore;
     private final GraphDBExecutor executor;
     private final GraphDefinition graphDefinition;
     private final TopologyLifecycleManager topologyManager;
@@ -60,9 +64,19 @@ public class GraphDBService {
         .build()
         .register();
 
-    public GraphDBService(final GraphDBExecutor executor,
+    /**
+     * Construct a new GraphDBService instance.
+     *
+     * @param liveTopologyStore The injected {@link LiveTopologyStore} to support real-time queries
+     * @param executor Implements data retrieval queries in AQL
+     * @param graphDefinition Metadata about the service entity graph stored in a graph database
+     * @param topologyManager Manages the life cycle of topologies
+     */
+    public GraphDBService(@Nonnull final LiveTopologyStore liveTopologyStore,
+                          final GraphDBExecutor executor,
                           final GraphDefinition graphDefinition,
                           final TopologyLifecycleManager topologyManager) {
+        this.liveTopologyStore = checkNotNull(liveTopologyStore);
         this.executor = checkNotNull(executor);
         this.graphDefinition = checkNotNull(graphDefinition);
         this.topologyManager = checkNotNull(topologyManager);
@@ -90,7 +104,7 @@ public class GraphDBService {
             final Set<Integer> exclusionEntityTypes) {
 
         final Optional<TopologyID> targetTopologyId = contextID
-                .map(id -> topologyManager.getTopologyId(id, TopologyType.SOURCE))
+                .map(id -> topologyManager.getTopologyId(id, TopologyType.PROJECTED))
                 .orElse(topologyManager.getRealtimeTopologyId());
         if (!targetTopologyId.isPresent()) {
             logger.warn("No topology database available to use. Returning an empty supply chain");
@@ -100,7 +114,7 @@ public class GraphDBService {
         final GraphCmd.GetSupplyChain cmd = new GraphCmd.GetSupplyChain(
             startId,
             envType,
-            graphDefinition.getProviderRelationship(),
+            graphDefinition.getProviderRelationship(topologyID),
             graphDefinition.getSEVertexCollection(topologyID),
             entityAccessScope,
             inclusionEntityTypes,
@@ -124,9 +138,20 @@ public class GraphDBService {
         return supplyChainResult.getOrElse(Either.right(java.util.stream.Stream.empty()));
     }
 
-
-    public Either<String, Collection<ServiceEntityApiDTO>> searchServiceEntityById(final String id) {
-        return searchServiceEntity(Optional.empty(), "uuid", id, GraphCmd.SearchType.STRING);
+    /**
+     * Given an OID, retrieve its {@link RepoGraphEntity} form.
+     *
+     * @param id The OID of an entity to retrieve
+     * @return The {@link RepoGraphEntity} representation
+     */
+    public Optional<RepoGraphEntity> searchServiceEntityById(Long id) {
+        // Return empty result if current topology doesn't exist.
+        Optional<SourceRealtimeTopology> topologyGraphOpt = liveTopologyStore.getSourceTopology();
+        return topologyGraphOpt.isPresent()
+                ? topologyGraphOpt.get()
+                    .entityGraph()
+                    .getEntity(id)
+                : Optional.empty();
     }
 
     public Either<String, Collection<ServiceEntityApiDTO>> searchServiceEntity(
