@@ -850,19 +850,27 @@ public class Analysis {
                                    CloudTopology<TopologyEntityDTO> originalCloudTopology,
                                    CloudTopology<TopologyEntityDTO> projectedCloudTopology,
                                    TopologyConverter converter, CloudCostData cloudCostData) {
-        // Write actions to log file in CSV format
-        ActionLogger externalize = new ActionLogger();
-        externalize.logActions(actions, config.isSMAOnly(), config.getMarketMode(),
-            originalCloudTopology, projectedCloudTopology, cloudCostData,
-            converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
-            converter.getConsistentScalingHelper());
-        if (config.isM2withSMAActions()) {
-            externalize.logSMAOutput(smaConverter.getSmaOutput(),
-                originalCloudTopology, projectedCloudTopology,
-                cloudCostData,
-                converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
-                converter.getConsistentScalingHelper());
-        }
+
+        AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
+        factory.newDiagsCollector(topologyInfo, AnalysisMode.ACTIONS).ifPresent(diagsCollector -> {
+            // Write actions to log file in CSV format
+            ActionLogger externalize = new ActionLogger();
+            List<String> actionLogs = new ArrayList<>();
+            if (!config.isSMAOnly()) {
+                actionLogs.addAll(externalize.logM2Actions(actions,
+                        originalCloudTopology, projectedCloudTopology, cloudCostData,
+                        converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
+                        converter.getConsistentScalingHelper()));
+            }
+            if (config.isEnableSMA()) {
+                actionLogs.addAll(externalize.logSMAOutput(smaConverter.getSmaOutput(),
+                        originalCloudTopology, projectedCloudTopology,
+                        cloudCostData,
+                        converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
+                        converter.getConsistentScalingHelper()));
+            }
+            diagsCollector.saveActions(actionLogs, topologyInfo);
+        });
     }
 
     /**
