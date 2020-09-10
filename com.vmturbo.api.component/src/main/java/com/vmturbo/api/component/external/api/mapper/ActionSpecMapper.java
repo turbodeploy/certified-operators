@@ -996,9 +996,9 @@ public class ActionSpecMapper {
                 final Optional<String> commNames =
                         nonSegmentationCommoditiesToString(actionSpec.getRecommendation());
                 final Optional<ServiceEntityApiDTO> serviceEntity = context.getEntity(entity.getId());
-                return String.format("%s doesn't comply to %s%s",
+                return String.format("\"%s\" doesn't comply with \"%s\"%s",
                         serviceEntity.isPresent() ? serviceEntity.get().getDisplayName() :
-                                String.format("%s(%d)", EntityType.forNumber(entity.getType()),
+                                String.format("\"%s(%d)\"", EntityType.forNumber(entity.getType()),
                                         entity.getId()),
                         policy.get().getPolicyInfo().getName(),
                         commNames.isPresent() ? ", " + commNames.get() : "");
