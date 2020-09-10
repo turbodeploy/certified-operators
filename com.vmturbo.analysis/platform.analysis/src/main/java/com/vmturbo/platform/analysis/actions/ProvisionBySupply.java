@@ -216,25 +216,7 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
             // Copy commodity sold attributes
             provCommSold.setCapacity(modelCommSold.getCapacity());
             provCommSold.setQuantity(modelCommSold.getQuantity());
-            provCommSold.setThin(modelCommSold.isThin());
-
-            // Copy commodity sold settings
-            provCommSold.getSettings().setCapacityIncrement(
-                modelCommSold.getSettings().getCapacityIncrement());
-            provCommSold.getSettings().setCapacityLowerBound(
-                modelCommSold.getSettings().getCapacityLowerBound());
-            provCommSold.getSettings().setCapacityUpperBound(
-                modelCommSold.getSettings().getCapacityUpperBound());
-            provCommSold.getSettings().setUtilizationUpperBound(
-                modelCommSold.getSettings().getUtilizationUpperBound());
-            provCommSold.getSettings().setOrigUtilizationUpperBound(
-                modelCommSold.getSettings().getOrigUtilizationUpperBound());
-            provCommSold.getSettings().setResizable(
-                modelCommSold.getSettings().isResizable());
-            provCommSold.getSettings().setPriceFunction(
-                modelCommSold.getSettings().getPriceFunction());
-            provCommSold.getSettings().setUpdatingFunction(
-               modelCommSold.getSettings().getUpdatingFunction());
+            copyCommoditySoldSettingsForClone(provCommSold, modelCommSold);
         }
 
         // adjust the quantity of provisionedSeller, if it sells economy.getCommsToAdjustOverhead()
