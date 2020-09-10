@@ -1,7 +1,5 @@
 package com.vmturbo.cloud.commitment.analysis.runtime;
 
-import java.time.Instant;
-import java.time.temporal.TemporalUnit;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
@@ -13,13 +11,20 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang3.NotImplementedException;
+
+import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
+import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.CloudCommitmentSpecMatcherFactory;
+import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver;
+import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.cloud.commitment.analysis.topology.MinimalCloudTopology;
 import com.vmturbo.cloud.commitment.analysis.topology.MinimalCloudTopology.MinimalCloudTopologyFactory;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisInfo;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentType;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.TopologyReference;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
@@ -50,17 +55,19 @@ public class CloudCommitmentAnalysisContext {
 
     private final CloudCommitmentSpecMatcherFactory cloudCommitmentSpecMatcherFactory;
 
-    private final StaticAnalysisConfig staticAnalysisConfig;
+    private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
 
-    private final String logMarker;
+    private final StaticAnalysisConfig staticAnalysisConfig;
 
     private final SetOnce<MinimalCloudTopology<MinimalEntity>> sourceCloudTopology = new SetOnce<>();
 
     private final SetOnce<CloudTopology<TopologyEntityDTO>> cloudTierTopology = new SetOnce<>();
 
-    private final SetOnce<Instant> analysisStartTime = new SetOnce<>();
+    private final SetOnce<TimeInterval> analysisWindow = new SetOnce<>();
 
     private final SetOnce<CloudCommitmentSpecMatcher<?>> cloudCommitmentSpecMatcher = new SetOnce<>();
+
+    private final SetOnce<ComputeTierFamilyResolver> computeTierFamilyResolver = new SetOnce<>();
 
     /**
      * Constructs a new {@link CloudCommitmentAnalysisContext} instance.
@@ -74,6 +81,7 @@ public class CloudCommitmentAnalysisContext {
      * @param cloudCommitmentSpecMatcherFactory A {@link CloudCommitmentSpecMatcherFactory}, used to create
      *                                          a {@link CloudCommitmentSpecMatcher} based on the type
      *                                          of recommendations request in the analysis config.
+     * @param computeTierFamilyResolverFactory A factory for creating {@link ComputeTierFamilyResolver} instances.
      * @param staticAnalysisConfig Configuration attributes that are static across all instances
      *                             of {@link CloudCommitmentAnalysis}.
      */
@@ -83,6 +91,7 @@ public class CloudCommitmentAnalysisContext {
                                           @Nonnull MinimalCloudTopologyFactory<MinimalEntity> minimalCloudTopologyFactory,
                                           @Nonnull TopologyEntityCloudTopologyFactory fullCloudTopologyFactory,
                                           @Nonnull CloudCommitmentSpecMatcherFactory cloudCommitmentSpecMatcherFactory,
+                                          @Nonnull ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory,
                                           @Nonnull StaticAnalysisConfig staticAnalysisConfig) {
 
         this.analysisInfo = Objects.requireNonNull(analysisInfo);
@@ -91,18 +100,8 @@ public class CloudCommitmentAnalysisContext {
         this.minimalCloudTopologyFactory = Objects.requireNonNull(minimalCloudTopologyFactory);
         this.fullCloudTopologyFactory = Objects.requireNonNull(fullCloudTopologyFactory);
         this.cloudCommitmentSpecMatcherFactory = Objects.requireNonNull(cloudCommitmentSpecMatcherFactory);
+        this.computeTierFamilyResolverFactory = Objects.requireNonNull(computeTierFamilyResolverFactory);
         this.staticAnalysisConfig = Objects.requireNonNull(staticAnalysisConfig);
-
-        this.logMarker = String.format("[%s|%s]", analysisInfo.getOid(), analysisInfo.getAnalysisTag());
-    }
-
-    /**
-     * The log marker to use in {@link AnalysisStage} instances.
-     * @return The log marker for the analysis.
-     */
-    @Nonnull
-    public String getLogMarker() {
-        return logMarker;
     }
 
     /**
@@ -115,26 +114,15 @@ public class CloudCommitmentAnalysisContext {
     }
 
     /**
-     * Gets the unit (e.g. hour, day, minute, etc) associated with an analysis segment. The analysis
-     * segment represents the blocks of analyzable data for both uncovered demand calculations and
-     * recommendation analysis (.e.g the demand should be analyzed in 1 hour increments).
-     *
-     * @return The {@link TemporalUnit} to use for the analysis segments.
+     * Returns the configured analysis bucket interval. The analysis bucket is the duration that segments
+     * of analyzable demand should be grouped by for both coverage analysis and as demand data points
+     * for recommendation analysis. Typically, demand will be analyzed on hourly segments, given cloud
+     * commitments are generally billed at this interval.
+     * @return The analysis bucket duration.
      */
     @Nonnull
-    public TemporalUnit getAnalysisSegmentUnit() {
-        return staticAnalysisConfig.analysisSegmentUnit();
-    }
-
-    /**
-     * Gets the interval/amount associated with the analysis segment. Used in conjunction with the
-     * {@link #getAnalysisSegmentUnit()}, allows specifying that demand should be analyzed in blocks
-     * like 3 hour segments, where 3 would represent the interval and hour would represent the unit.
-     *
-     * @return The interval/amount for the analysis segments.
-     */
-    public long getAnalysisSegmentInterval() {
-        return staticAnalysisConfig.analysisSegmentInterval();
+    public BoundedDuration getAnalysisBucket() {
+        return staticAnalysisConfig.analysisBucket();
     }
 
     /**
@@ -164,28 +152,26 @@ public class CloudCommitmentAnalysisContext {
     }
 
     /**
-     * Sets the analysis start time, which is a normalized version of the historical look back time
-     * specified in the analysis config.
-     *
-     * @param analysisStartTime The analysis start time to store.
-     * @return True, if the specified analysis start time was saved. False, if the analysis start time
+     * Sets the analysis window, which is the start and end time of all demand that will be analyzed
+     * by this analysis.
+     * @param analysisInterval The analysis window.
+     * @return True, if the provided analysis window was recorded. False, if the analysis window
      * has already been set.
      */
-    public boolean setAnalysisStartTime(@Nonnull Instant analysisStartTime) {
+    public boolean setAnalysisWindow(@Nonnull TimeInterval analysisInterval) {
 
-        Preconditions.checkNotNull(analysisStartTime, "Analysis start time cannot be null");
+        Preconditions.checkNotNull(analysisInterval, "Analysis interval cannot be null");
 
-        return this.analysisStartTime.trySetValue(analysisStartTime);
+        return this.analysisWindow.trySetValue(analysisInterval);
     }
 
     /**
-     * Returns the normalized analysis start time. The analysis start time is the requested start time
-     * from the analysis config, truncated based on the analysis interval.
-     * @return The normalized analysis start time.
+     * Gets the analysis window.
+     * @return An optional containing the analysis window.
      */
     @Nonnull
-    public Optional<Instant> getAnalysisStartTime() {
-        return analysisStartTime.getValue();
+    public Optional<TimeInterval> getAnalysisWindow() {
+        return analysisWindow.getValue();
     }
 
     /**
@@ -201,6 +187,32 @@ public class CloudCommitmentAnalysisContext {
                 cloudCommitmentSpecMatcherFactory.createSpecMatcher(
                         getCloudTierTopology(),
                         analysisConfig.getPurchaseProfile()));
+    }
+
+    /**
+     * Gets the {@link ComputeTierFamilyResolver}, used to compare compute tier demand within a family
+     * and in order to determine whether two compute tiers are within the same family.
+     * @return The {@link ComputeTierFamilyResolver}, based on {@link #getCloudTierTopology()}.
+     */
+    @Nonnull
+    public ComputeTierFamilyResolver getComputeTierFamilyResolver() {
+        return computeTierFamilyResolver.ensureSet(() ->
+                computeTierFamilyResolverFactory.createResolver(
+                        getCloudTierTopology()));
+    }
+
+    /**
+     * Gets the cloud commitment recommendation type.
+     * @return The cloud commitment recommendation type, based on the purchase profile in the
+     * analysis request.
+     */
+    @Nonnull
+    public CloudCommitmentType getRecommendationType() {
+        if (analysisConfig.getPurchaseProfile().hasRiPurchaseProfile()) {
+            return CloudCommitmentType.RESERVED_INSTANCE;
+        } else {
+            throw new NotImplementedException("Only RI recommendations are supported");
+        }
     }
 
     @Nonnull
@@ -293,6 +305,8 @@ public class CloudCommitmentAnalysisContext {
 
         private final CloudCommitmentSpecMatcherFactory cloudCommitmentSpecMatcherFactory;
 
+        private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
+
         private final StaticAnalysisConfig staticAnalysisConfig;
 
         /**
@@ -302,18 +316,21 @@ public class CloudCommitmentAnalysisContext {
          * @param minimalCloudTopologyFactory The minimal cloud topology factory.
          * @param fullCloudTopologyFactory The full cloud topology factory.
          * @param cloudCommitmentSpecMatcherFactory the cloud commitment spec matcher factory.
+         * @param computeTierFamilyResolverFactory A factory for creating {@link ComputeTierFamilyResolver} instances.
          * @param staticAnalysisConfig The analysis config, containing static attributes.
          */
         public DefaultAnalysisContextFactory(@Nonnull RepositoryServiceBlockingStub repositoryClient,
                                              @Nonnull MinimalCloudTopologyFactory<MinimalEntity> minimalCloudTopologyFactory,
                                              @Nonnull TopologyEntityCloudTopologyFactory fullCloudTopologyFactory,
                                              @Nonnull CloudCommitmentSpecMatcherFactory cloudCommitmentSpecMatcherFactory,
+                                             @Nonnull ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory,
                                              @Nonnull StaticAnalysisConfig staticAnalysisConfig) {
 
             this.repositoryClient = Objects.requireNonNull(repositoryClient);
             this.minimalCloudTopologyFactory = Objects.requireNonNull(minimalCloudTopologyFactory);
             this.fullCloudTopologyFactory = Objects.requireNonNull(fullCloudTopologyFactory);
             this.cloudCommitmentSpecMatcherFactory = Objects.requireNonNull(cloudCommitmentSpecMatcherFactory);
+            this.computeTierFamilyResolverFactory = Objects.requireNonNull(computeTierFamilyResolverFactory);
             this.staticAnalysisConfig = Objects.requireNonNull(staticAnalysisConfig);
         }
 
@@ -331,6 +348,7 @@ public class CloudCommitmentAnalysisContext {
                     minimalCloudTopologyFactory,
                     fullCloudTopologyFactory,
                     cloudCommitmentSpecMatcherFactory,
+                    computeTierFamilyResolverFactory,
                     staticAnalysisConfig);
         }
     }

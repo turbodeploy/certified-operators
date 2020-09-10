@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.runtime.stages.selection;
+package com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -26,18 +26,18 @@ import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReader;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
-import com.vmturbo.cloud.commitment.analysis.runtime.ImmutableStageResult;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.AbstractStage;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
 
 /**
- * The demand selection stage is responsible for querying the demand stores for appropriate demand,
+ * The demand retrieval stage is responsible for querying the demand stores for appropriate demand,
  * based on selection filters in the CCA config. It wraps the {@link CloudCommitmentDemandReader}.
  */
-public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDemandSet> {
+public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDemandSet> {
 
-    private static final String STAGE_NAME = "Demand Selection";
+    private static final String STAGE_NAME = "Demand Retrieval";
 
     private final CloudCommitmentDemandReader demandReader;
 
@@ -52,7 +52,7 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
      * @param context The analysis context.
      * @param demandReader The demand reader
      */
-    public DemandSelectionStage(long id,
+    public DemandRetrievalStage(long id,
                           @Nonnull final CloudCommitmentAnalysisConfig config,
                           @Nonnull final CloudCommitmentAnalysisContext context,
                           @Nonnull final CloudCommitmentDemandReader demandReader) {
@@ -73,12 +73,16 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
     @Override
     public AnalysisStage.StageResult<EntityCloudTierDemandSet> execute(final Void aVoid) {
 
-        final Instant lookBackStartTime = analysisContext.getAnalysisStartTime()
-                .orElseThrow(() -> new IllegalStateException("Analysis start time must be set"));
+        final Instant lookBackStartTime = analysisContext.getAnalysisWindow()
+                .map(TimeInterval::startTime)
+                .orElseThrow(() -> new IllegalStateException("Analysis window must be set"));
 
-        final Stream<EntityCloudTierMapping> persistedDemandStream = demandReader.getDemand(
+        final DemandScope allocatedDemandScope = demandSelection.getAllocatedSelection()
+                .getDemandSelection()
+                .getScope();
+        final Stream<EntityCloudTierMapping> persistedDemandStream = demandReader.getAllocationDemand(
                 demandSelection.getCloudTierType(),
-                demandSelection.getDemandSegmentList(),
+                allocatedDemandScope,
                 lookBackStartTime);
 
         final DemandSummary demandSummary = DemandSummary.newSummary(logDetailedSummary);
@@ -89,7 +93,7 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
                 .peek(demandSummary.toSummaryCollector())
                 .collect(ImmutableSet.toImmutableSet());
 
-        return ImmutableStageResult.<EntityCloudTierDemandSet>builder()
+        return StageResult.<EntityCloudTierDemandSet>builder()
                 .output(ImmutableEntityCloudTierDemandSet.builder()
                         .addAllAllocatedDemand(selectedDemand)
                         .build())
@@ -213,9 +217,9 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
     }
 
     /**
-     * A factory class for creating instances of {@link DemandSelectionStage}.
+     * A factory class for creating instances of {@link DemandRetrievalStage}.
      */
-    public static class DemandSelectionFactory implements AnalysisStage.StageFactory<Void, EntityCloudTierDemandSet> {
+    public static class DemandRetrievalFactory implements AnalysisStage.StageFactory<Void, EntityCloudTierDemandSet> {
 
         private final CloudCommitmentDemandReader demandReader;
 
@@ -223,7 +227,7 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
          * Construct a demand selection factory.
          * @param demandReader The demand reader
          */
-        public DemandSelectionFactory(@Nonnull CloudCommitmentDemandReader demandReader) {
+        public DemandRetrievalFactory(@Nonnull CloudCommitmentDemandReader demandReader) {
             this.demandReader = Objects.requireNonNull(demandReader);
         }
 
@@ -237,7 +241,7 @@ public class DemandSelectionStage extends AbstractStage<Void, EntityCloudTierDem
                 @Nonnull final CloudCommitmentAnalysisConfig config,
                 @Nonnull final CloudCommitmentAnalysisContext context) {
 
-            return new DemandSelectionStage(id, config, context, demandReader);
+            return new DemandRetrievalStage(id, config, context, demandReader);
         }
     }
 }

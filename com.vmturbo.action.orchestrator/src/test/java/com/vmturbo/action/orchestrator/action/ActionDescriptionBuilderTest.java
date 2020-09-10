@@ -984,9 +984,8 @@ public class ActionDescriptionBuilderTest {
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, reconfigureReasonCommoditiesRecommendation);
-        assertEquals(description, "Reconfigure Virtual Machine vm1_test which requires " +
-            "Ballooning, CPU Allocation but is hosted by Physical Machine pm_source_test which " +
-            "does not provide Ballooning, CPU Allocation");
+        assertEquals(description, "Reconfigure Virtual Machine vm1_test to provide "
+            + "Ballooning, CPU Allocation");
     }
 
     /**

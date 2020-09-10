@@ -6,6 +6,8 @@ import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Immutable;
+import org.immutables.value.Value.Style;
+import org.immutables.value.Value.Style.ImplementationVisibility;
 
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 
@@ -21,9 +23,10 @@ public interface AnalysisStage<StageInputT, StageOutputT> {
      * Executes the underlying stage logic.
      * @param input The input to the stage, from the preceding stage.
      * @return The output of the stage, passed to the succeeding stage.
+     * @throws Exception The underlying stage exception.
      */
     @Nonnull
-    StageResult<StageOutputT> execute(StageInputT input);
+    StageResult<StageOutputT> execute(StageInputT input) throws Exception;
 
     /**
      * The ID of the stage, used to uniquely identify a stage implementation across all analyses.
@@ -42,6 +45,7 @@ public interface AnalysisStage<StageInputT, StageOutputT> {
      * The stage result, containing the stage output and a human-readable summary of the result.
      * @param <StageOutputT> The stage output type.
      */
+    @Style(visibility = ImplementationVisibility.PACKAGE, overshadowImplementation = true)
     @Immutable
     interface StageResult<StageOutputT> {
 
@@ -61,6 +65,21 @@ public interface AnalysisStage<StageInputT, StageOutputT> {
         default String resultSummary() {
             return StringUtils.EMPTY;
         }
+
+        /**
+         * Constructs and returns a new builder instance.
+         * @return The newly constructed builder instance.
+         */
+        @Nonnull
+        static Builder builder() {
+            return new Builder();
+        }
+
+        /**
+         * A builder class for {@link StageResult} instances.
+         * @param <StageOutputT> The stage output
+         */
+        class Builder<StageOutputT> extends ImmutableStageResult.Builder<StageOutputT> {}
     }
 
     /**

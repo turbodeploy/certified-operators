@@ -266,7 +266,7 @@ public class RepositoryComponentConfig {
 
     /**
      * Create an {@link ArangoDatabase}.
-     * 
+     *
      * @param driver the Arango driver.
      */
     private void createDatabase(ArangoDB driver) {
@@ -401,7 +401,7 @@ public class RepositoryComponentConfig {
      */
     @Bean
     public GraphDBService graphDBService() {
-        return new GraphDBService(arangoDBExecutor(), graphDefinition(), topologyManager());
+        return new GraphDBService(liveTopologyStore(), arangoDBExecutor(), graphDefinition(), topologyManager());
     }
 
     /**

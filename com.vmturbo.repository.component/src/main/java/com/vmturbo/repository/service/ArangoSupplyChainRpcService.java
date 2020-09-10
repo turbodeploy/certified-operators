@@ -6,7 +6,6 @@ import static javaslang.API.Match;
 import static javaslang.Patterns.Left;
 import static javaslang.Patterns.Right;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +31,6 @@ import org.apache.logging.log4j.Logger;
 
 import javaslang.control.Either;
 
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -50,6 +48,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.service.SupplyChainMerger.MergedSupplyChain;
 import com.vmturbo.repository.service.SupplyChainMerger.MergedSupplyChainException;
 import com.vmturbo.repository.service.SupplyChainMerger.SingleSourceSupplyChain;
@@ -145,7 +144,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
     public void getSupplyChain(GetSupplyChainRequest request,
                                StreamObserver<GetSupplyChainResponse> responseObserver) {
         final Optional<Long> contextId = request.hasContextId() ?
-            Optional.of(request.getContextId()) : Optional.empty();
+                Optional.of(request.getContextId()) : Optional.empty();
         final SupplyChainScope scope = request.getScope();
 
         final Optional<EnvironmentType> envType = scope.hasEnvironmentType() ?
@@ -382,14 +381,10 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
      * @return entity type in the string value of {@link ApiEntityType}
      */
     public Optional<ApiEntityType> getUIEntityType(@Nonnull Long oid) {
-        Either<String, Collection<ServiceEntityApiDTO>> result =
-            graphDBService.searchServiceEntityById(Long.toString(oid));
-        return Match(result).of(
-            Case(Right($()), entity -> entity.size() == 1
-                ? Optional.of(ApiEntityType.fromString(entity.iterator().next().getClassName()))
-                : Optional.empty()),
-            Case(Left($()), err -> Optional.empty())
-        );
+        final Optional<RepoGraphEntity> result = graphDBService.searchServiceEntityById(oid);
+        return result.isPresent()
+                ? Optional.of(ApiEntityType.fromType(result.get().getTopologyEntity().getEntityType()))
+                : Optional.empty();
     }
 
     /**

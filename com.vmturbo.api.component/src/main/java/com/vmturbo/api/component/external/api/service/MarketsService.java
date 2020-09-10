@@ -303,6 +303,25 @@ public class MarketsService implements IMarketsService {
     }
 
     /**
+     * Retrieves the main {@link PlanInstance} from a given {@link PlanProject}.
+     *
+     * @param planProject from which to extract the main plan instance
+     * @return the main {@link PlanInstance} from the {@link PlanProject} specified
+     * @throws UnknownObjectException when the corresponding {@link PlanProjectInfo}
+     * has no main plan ID
+     */
+    private PlanInstance getMainPlanInstance(PlanProject planProject)
+            throws UnknownObjectException {
+        final PlanProjectInfo projectInfo = planProject.getPlanProjectInfo();
+        // All projects being returned via API have a main plan.
+        if (!projectInfo.hasMainPlanId()) {
+            throw new UnknownObjectException("Missing main plan id for plan project "
+                    + planProject.getPlanProjectId());
+        }
+        return getPlanInstance(projectInfo.getMainPlanId());
+    }
+
+    /**
      * Get all markets/plans from the plan orchestrator. Any cloud migration plans created
      * by user are also returned.
      *
@@ -310,11 +329,12 @@ public class MarketsService implements IMarketsService {
      * @return list of all markets
      * @throws ConversionException if error faced converting objects to API DTOs
      * @throws InterruptedException if current thread has been interrupted
+     * @throws UnknownObjectException if a {@link PlanProject} has an unknown main plan id
      */
     @Override
     @Nonnull
     public List<MarketApiDTO> getMarkets(@Nullable List<String> scopeUuids)
-            throws ConversionException, InterruptedException {
+            throws ConversionException, InterruptedException, UnknownObjectException {
         licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         logger.debug("Get all markets in scopes: {}", scopeUuids);
         final Iterator<PlanInstance> plans =
@@ -343,7 +363,12 @@ public class MarketsService implements IMarketsService {
                 .collect(Collectors.toList());
         for (PlanProject planProject : planProjects) {
             try {
-                result.add(getMarketApiDto(planProject, null));
+                final PlanInstance mainPlanInstance = getMainPlanInstance(planProject);
+                // If user cannot access the plan instance, skip it instead of failing completely
+                if (!PlanUtils.canCurrentUserAccessPlan(mainPlanInstance)) {
+                    continue;
+                }
+                result.add(getMarketApiDto(planProject, mainPlanInstance, null));
             } catch (ConversionException ce) {
                 // When listing all projects, if there is a conversion issue for a few projects
                 // (e.g because of missing plans), then try and return rest of the good projects,
@@ -373,7 +398,7 @@ public class MarketsService implements IMarketsService {
         if (planInstance.hasPlanProjectId()) {
             // This could be the main plan (like Consumption plan), that is part of a MCP project.
             final PlanProject planProject = getPlanProject(planInstance.getPlanProjectId());
-            marketApiDTO = getMarketApiDto(planProject, null);
+            marketApiDTO = getMarketApiDto(planProject, getMainPlanInstance(planProject), null);
         } else {
             // A regular plan (like OCP) without an associated project.
             marketApiDTO = marketMapper.dtoFromPlanInstance(planInstance);
@@ -844,7 +869,7 @@ public class MarketsService implements IMarketsService {
             planProjectRpcService.runPlanProject(RunPlanProjectRequest.newBuilder()
                     .setId(planProject.getPlanProjectId()).build());
 
-            return getMarketApiDto(planProject, existingScenario);
+            return getMarketApiDto(planProject, getMainPlanInstance(planProject), existingScenario);
         }
         // For regular plans (like OCP) that are not part of a project.
         final PlanInstance planInstance;
@@ -1603,6 +1628,7 @@ public class MarketsService implements IMarketsService {
      * Returns the MarketApiDTO for the plan project and the given project scenario.
      *
      * @param planProject Plan project like migration plan project.
+     * @param mainPlanInstance The main {@link PlanInstance} corresponding to the {@link PlanProject}
      * @param projectScenario Project scenario. If null, then the plan's scenario is used.
      * @return MarketApiDTO with values filled.
      * @throws ConversionException Thrown when issue converting.
@@ -1610,23 +1636,16 @@ public class MarketsService implements IMarketsService {
      */
     @Nonnull
     private MarketApiDTO getMarketApiDto(@Nonnull final PlanProject planProject,
+                                         @Nonnull final PlanInstance mainPlanInstance,
                                          @Nullable final Scenario projectScenario)
             throws ConversionException, InterruptedException {
         long projectId = planProject.getPlanProjectId();
         try {
-            PlanProjectInfo projectInfo = planProject.getPlanProjectInfo();
-
-            // All projects being returned via API have a main plan.
-            if (!projectInfo.hasMainPlanId()) {
-                throw new UnknownObjectException("Missing main plan id for plan project "
-                        + projectId);
-            }
-            final PlanInstance mainPlanInstance = getPlanInstance(projectInfo.getMainPlanId());
             // Get scenario for this project's main plan, if not already specified in input.
             final Scenario existingScenario = projectScenario != null ? projectScenario
                     : mainPlanInstance.getScenario();
             List<PlanInstance> relatedPlans = new ArrayList<>();
-            for (Long planId : projectInfo.getRelatedPlanIdsList()) {
+            for (Long planId : planProject.getPlanProjectInfo().getRelatedPlanIdsList()) {
                 relatedPlans.add(getPlanInstance(planId));
             }
             return marketMapper.dtoFromPlanProject(planProject, mainPlanInstance, relatedPlans,

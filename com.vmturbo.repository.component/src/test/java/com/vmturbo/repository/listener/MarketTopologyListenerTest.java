@@ -108,7 +108,7 @@ public class MarketTopologyListenerTest {
         verify(topologyCreator).complete();
         verify(topologyCreator, never()).rollback();
         // 2 invocations, one for each chunk
-        verify(topologyCreator, times(2)).addEntities(any());
+        verify(topologyCreator, times(2)).addEntities(any(), any());
     }
 
     @Test

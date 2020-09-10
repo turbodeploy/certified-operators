@@ -5,10 +5,15 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
+
+import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
+import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
-import com.vmturbo.cloud.commitment.analysis.runtime.ImmutableStageResult;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
 
 /**
  * The initialization stage of a {@link com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysis},
@@ -42,16 +47,22 @@ public class InitializationStage extends AbstractStage {
      * @return The stage result with a null output.
      */
     @Override
-    public StageResult execute(final Object o) {
+    public StageResult execute(final Object o) throws AnalysisConfigValidationException {
 
+        validateAnalysisConfig();
 
         // First we need to truncate the requested look back start time based on the analysis interval.
         // For example, if we are analyzing demand per hour, we will truncate the look back start time
         // to the closest (earlier) hour.
-        final Instant analysisStartTime = lookBackStartTime.truncatedTo(analysisContext.getAnalysisSegmentUnit());
-        analysisContext.setAnalysisStartTime(analysisStartTime);
+        final Instant analysisStartTime = lookBackStartTime.truncatedTo(
+                analysisContext.getAnalysisBucket().unit());
+        final TimeInterval analysisWindow = ImmutableTimeInterval.builder()
+                .startTime(analysisStartTime)
+                .endTime(Instant.now())
+                .build();
+        analysisContext.setAnalysisWindow(analysisWindow);
 
-        return ImmutableStageResult.builder()
+        return StageResult.builder()
                 .output(null)
                 .build();
     }
@@ -63,6 +74,28 @@ public class InitializationStage extends AbstractStage {
     @Override
     public String stageName() {
         return STAGE_NAME;
+    }
+
+    private void validateAnalysisConfig() throws AnalysisConfigValidationException {
+
+        try {
+
+            // Once recommendations on projected demand are supported, these checks will be updated
+            // to require either allocated or projected demand selections.
+
+            // validate the demand selection config
+            final HistoricalDemandSelection demandSelection = analysisConfig.getDemandSelection();
+            Preconditions.checkArgument(demandSelection.hasAllocatedSelection(),
+                    "Demand selection must include allocated demand selection");
+
+            //validate the purchase profile
+            final CommitmentPurchaseProfile purchaseProfile = analysisConfig.getPurchaseProfile();
+            Preconditions.checkArgument(purchaseProfile.hasAllocatedSelection(),
+                    "Purchase profile must include allocated demand selection");
+
+        } catch (IllegalArgumentException e) {
+            throw new AnalysisConfigValidationException(e.getMessage());
+        }
     }
 
     /**
@@ -80,6 +113,20 @@ public class InitializationStage extends AbstractStage {
                                                      @Nonnull final CloudCommitmentAnalysisContext context) {
 
             return new InitializationStage(id, config, context);
+        }
+    }
+
+    /**
+     * An exception indicating validation of the {@link CloudCommitmentAnalysisConfig} failed.
+     */
+    public static class AnalysisConfigValidationException extends Exception {
+
+        /**
+         * Constructs a new {@link AnalysisConfigValidationException} instance.
+         * @param message The message of the exception.
+         */
+        public AnalysisConfigValidationException(String message) {
+            super(message);
         }
     }
 }

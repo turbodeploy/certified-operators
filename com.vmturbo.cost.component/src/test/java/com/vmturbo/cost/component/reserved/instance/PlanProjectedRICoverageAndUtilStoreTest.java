@@ -51,6 +51,7 @@ import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
+import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
@@ -97,8 +98,16 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
             PlanReservedInstanceStore.class);
     private final BuyReservedInstanceStore buyReservedInstanceStore = mock(
             BuyReservedInstanceStore.class);
+
+    private PlanProjectedEntityCostStore planProjectedEntityCostStore =
+            mock(PlanProjectedEntityCostStore.class);
+
+    private PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore =
+            mock(PlanProjectedRICoverageAndUtilStore.class);
+
     private final PlanReservedInstanceRpcService planRiService = new PlanReservedInstanceRpcService(
-            planReservedInstanceStore, buyReservedInstanceStore, reservedInstanceSpecStore);
+            planReservedInstanceStore, buyReservedInstanceStore, reservedInstanceSpecStore,
+            planProjectedEntityCostStore, planProjectedRICoverageAndUtilStore);
 
     /**
      * Test gRPC server for mocking gRPC dependencies.

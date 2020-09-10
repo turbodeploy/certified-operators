@@ -13,10 +13,11 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
+import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
+import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage.StageResult;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
-import com.vmturbo.cloud.commitment.analysis.runtime.ImmutableStageResult;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 
@@ -35,7 +36,7 @@ public class InitializationStageTest {
      * Testing stage execution.
      */
     @Test
-    public void testStageExecution() {
+    public void testStageExecution() throws Exception {
 
         final Instant historicalLoobackStartTime = Instant.ofEpochSecond(90 * 60);
 
@@ -49,20 +50,23 @@ public class InitializationStageTest {
                 analysisConfig,
                 analysisContext);
 
-        when(analysisContext.getAnalysisSegmentUnit()).thenReturn(ChronoUnit.HOURS);
+        when(analysisContext.getAnalysisBucket()).thenReturn(BoundedDuration.builder()
+                .amount(1)
+                .unit(ChronoUnit.HOURS)
+                .build());
 
         final StageResult stageResult = initializationStage.execute(null);
 
-        final ArgumentCaptor<Instant> instantArgumentCaptor = ArgumentCaptor.forClass(Instant.class);
-        verify(analysisContext).setAnalysisStartTime(instantArgumentCaptor.capture());
+        final ArgumentCaptor<TimeInterval> timeIntervalCaptor = ArgumentCaptor.forClass(TimeInterval.class);
+        verify(analysisContext).setAnalysisWindow(timeIntervalCaptor.capture());
 
         // check assertions
-        final StageResult expectedStageResult = ImmutableStageResult.builder()
+        final StageResult expectedStageResult = StageResult.builder()
                 .output(null)
                 .build();
         final Instant expectedAnalysisStartTime = Instant.ofEpochSecond(60 * 60);
 
         assertThat(stageResult, equalTo(expectedStageResult));
-        assertThat(instantArgumentCaptor.getValue(), equalTo(expectedAnalysisStartTime));
+        assertThat(timeIntervalCaptor.getValue().startTime(), equalTo(expectedAnalysisStartTime));
     }
 }

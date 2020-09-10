@@ -1584,7 +1584,7 @@ public class ActionSpecMapperTest {
         // Verify that we set the context ID on the request.
         verify(req).contextId(REAL_TIME_TOPOLOGY_CONTEXT_ID);
 
-        Assert.assertEquals("target doesn't comply to " + POLICY_NAME,
+        Assert.assertEquals("\"target\" doesn't comply with \"" + POLICY_NAME + "\"",
                         dtos.get(0).getRisk().getDescription());
     }
 
@@ -1626,8 +1626,8 @@ public class ActionSpecMapperTest {
         final List<ActionApiDTO> dtos1 = mapper.mapActionSpecsToActionApiDTOs(
             Arrays.asList(buildActionSpec(compoundMoveInfo, Explanation.newBuilder()
                 .setMove(moveExplanation1).build())), CONTEXT_ID);
-        Assert.assertEquals("target doesn't comply to " + POLICY_NAME,
-            dtos1.get(0).getRisk().getDescription());
+        Assert.assertEquals("\"target\" doesn't comply with \"" + POLICY_NAME + "\"",
+                dtos1.get(0).getRisk().getDescription());
 
         // Test that we do not modify the explanation if the primary explanation is not compliance.
         // We always go with the primary explanation if available
