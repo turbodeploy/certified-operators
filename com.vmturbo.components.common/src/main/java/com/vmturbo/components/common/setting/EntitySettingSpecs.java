@@ -478,8 +478,8 @@ public enum EntitySettingSpecs {
     SLACapacity("slaCapacity", "SLA Capacity",
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION, EntityType.VIRTUAL_APPLICATION,
-                    EntityType.APPLICATION_SERVER, EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.APPLICATION_COMPONENT,
+                    EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
             true),
 
