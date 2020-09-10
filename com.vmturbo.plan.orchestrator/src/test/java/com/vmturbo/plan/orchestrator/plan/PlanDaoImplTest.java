@@ -399,8 +399,9 @@ public class PlanDaoImplTest {
     @Test
     public void testListeners() throws Exception {
         PlanInstanceQueue planInstanceQueue = mock(PlanInstanceQueue.class);
+        PlanRpcService planRpcService = mock(PlanRpcService.class);
         PlanInstanceCompletionListener listener = spy(
-                new PlanInstanceCompletionListener(planInstanceQueue));
+                new PlanInstanceCompletionListener(planInstanceQueue, planRpcService));
         planDao.addStatusListener(listener);
         PlanDTO.PlanInstance inst = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
                 .setTopologyId(1L)

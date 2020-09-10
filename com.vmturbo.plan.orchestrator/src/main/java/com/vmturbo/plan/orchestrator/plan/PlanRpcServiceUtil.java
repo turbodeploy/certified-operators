@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
@@ -249,5 +250,18 @@ public class PlanRpcServiceUtil {
             planSubType = StringConstants.OPTIMIZE_CLOUD_PLAN__OPTIMIZE_SERVICES;
         }
         return planSubType;
+    }
+
+    /**
+     * Check whether BuyRI costs need to be updated in DB after a plan successfully completes.
+     * This needs to be done for MPC plans, as main market and BuyRI processing happen at different
+     * unpredictable times, and we need to wait for both to finish, before updating some final costs
+     * in DB tables.
+     *
+     * @param planInstance Instance of plan to check.
+     * @return Whether BuyRI costs should be updated for this plan, only true for MPC plans for now.
+     */
+    public static boolean updateBuyRICostsOnPlanCompletion(@Nonnull final PlanInstance planInstance) {
+        return planInstance.getProjectType() == PlanProjectType.CLOUD_MIGRATION;
     }
 }

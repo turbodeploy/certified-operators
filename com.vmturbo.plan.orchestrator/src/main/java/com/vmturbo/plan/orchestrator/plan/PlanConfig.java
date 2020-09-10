@@ -259,7 +259,7 @@ public class PlanConfig {
     @Bean
     public PlanInstanceCompletionListener planInstanceCompletionListener() {
         final PlanInstanceCompletionListener listener =
-                new PlanInstanceCompletionListener(planInstanceQueue());
+                new PlanInstanceCompletionListener(planInstanceQueue(), planService());
         planDao().addStatusListener(listener);
         return listener;
     }

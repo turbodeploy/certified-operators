@@ -30,6 +30,7 @@ import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
+import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
@@ -55,7 +56,8 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
     CostComponentGlobalConfig.class,
     TopologyProcessorListenerConfig.class,
     SupplyChainServiceConfig.class,
-    CostClientConfig.class})
+    CostClientConfig.class,
+    EntityCostConfig.class})
 public class ReservedInstanceConfig {
 
     @Value("${retention.numRetainedMinutes}")
@@ -123,6 +125,9 @@ public class ReservedInstanceConfig {
 
     @Autowired
     private CostConfig costConfig;
+
+    @Autowired
+    private EntityCostConfig entityCostConfig;
 
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
@@ -203,7 +208,8 @@ public class ReservedInstanceConfig {
     @Bean
     public PlanReservedInstanceRpcService planReservedInstanceRpcService() {
         return new PlanReservedInstanceRpcService(planReservedInstanceStore(),
-                buyReservedInstanceStore(), reservedInstanceSpecConfig.reservedInstanceSpecStore());
+                buyReservedInstanceStore(), reservedInstanceSpecConfig.reservedInstanceSpecStore(),
+                entityCostConfig.planProjectedEntityCostStore(), planProjectedRICoverageAndUtilStore());
     }
 
     @Bean

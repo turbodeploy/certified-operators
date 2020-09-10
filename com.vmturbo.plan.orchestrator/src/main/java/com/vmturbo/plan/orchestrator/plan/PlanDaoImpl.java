@@ -30,6 +30,7 @@ import com.google.gson.JsonParseException;
 
 import io.grpc.Channel;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -362,10 +363,16 @@ public class PlanDaoImpl implements PlanDao {
                             PlanDTO.PlanInstance.newBuilder(src);
                     updater.accept(newBuilder);
                     final PlanDTO.PlanInstance planInstance = newBuilder.build();
-                    logger.info("Updating planInstance : {} from {} to {}. {}",
+                    // Don't info print annoying 'from WAITING_FOR_RESULT to WAITING_FOR_RESULT'.
+                    // Log info only if status code is different or if status messages are different.
+                    boolean newStatusMessage = !src.getStatusMessage().equals(
+                            planInstance.getStatusMessage());
+                    final Level logLevel = ((src.getStatus() != planInstance.getStatus())
+                            || newStatusMessage) ? Level.INFO : Level.DEBUG;
+                    logger.log(logLevel, "Updating planInstance : {} from {} to {}. {}",
                         planId, src.getStatus().name(), planInstance.getStatus().name(),
-                        src.getStatusMessage().equals(planInstance.getStatusMessage()) ? "" :
-                            "New status message: " + planInstance.getStatusMessage());
+                        newStatusMessage ? "New status message: " + planInstance.getStatusMessage()
+                            : "");
                     checkPlanConsistency(planInstance);
                     final int numRows = context.update(PLAN_INSTANCE)
                             .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now(clock))

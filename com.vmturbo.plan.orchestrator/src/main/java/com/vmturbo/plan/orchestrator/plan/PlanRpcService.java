@@ -28,6 +28,8 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UpdatePlanBuyReservedInstanceCostsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UpdatePlanBuyReservedInstanceCostsResponse;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -509,5 +511,23 @@ public class PlanRpcService extends PlanServiceImplBase {
                     .withDescription("Plan ID (" + request.getPlanId() + ") not found.")
                     .asException());
         }
+    }
+
+    /**
+     * Called when plan has been successfully completed. For MPC plan, some BuyRI costs need to be
+     * updated then, no-op for other plans.
+     *
+     * @param planInstance Instance of plan that was completed.
+     */
+    public void onPlanCompletionSuccess(@Nonnull final PlanInstance planInstance) {
+        if (!PlanRpcServiceUtil.updateBuyRICostsOnPlanCompletion(planInstance)) {
+            return;
+        }
+        final UpdatePlanBuyReservedInstanceCostsResponse response =
+                planRIService.updatePlanBuyReservedInstanceCosts(
+                UpdatePlanBuyReservedInstanceCostsRequest.newBuilder().setPlanId(
+                        planInstance.getPlanId()).build());
+        logger.info("Updated {} BuyRI costs for plan {}", response.getUpdateCount(),
+                planInstance.getPlanId());
     }
 }

@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.entity.cost;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -18,6 +19,7 @@ import com.google.common.collect.Iterators;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Batch;
 import org.jooq.DSLContext;
 import org.jooq.InsertValuesStep3;
 import org.jooq.Record1;
@@ -60,12 +62,12 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
     }
 
     /**
-     * Update PlanProjectedEntityCostsTable with new plan records send from market.
+     * Insert new plan records sent from market into the PlanProjectedEntityCostsTable.
      *
      * @param topoInfo the topology information
      * @param entityCosts a list of projected entity cost
      */
-    public void updatePlanProjectedEntityCostsTableForPlan(@Nonnull final TopologyInfo topoInfo,
+    public void insertPlanProjectedEntityCostsTableForPlan(@Nonnull final TopologyInfo topoInfo,
                                                        @Nonnull final List<EntityCost> entityCosts) {
         dslContext.transaction(configuration -> {
             DSLContext transactionDsl = DSL.using(configuration);
@@ -88,7 +90,26 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
     }
 
     /**
-     * Delete records from following plan cost related tables when a plan is deleted:
+     * Updates plan projected entity costs, used primarily for MPC BuyRI on plan completion,
+     * where BuyRI discounts need to be updated in the projected entity costs table for the plan.
+     *
+     * @param planId ID of the plan for which costs need to be updated.
+     * @param costsPerEntity Set of costs for all plan entities that need to be updated.
+     * @return Total number of updated records.
+     */
+    public int updatePlanProjectedEntityCosts(long planId,
+            @Nonnull final Map<Long, EntityCost> costsPerEntity) {
+        final List<PlanProjectedEntityCostRecord> entityCostRecords = new ArrayList<>();
+        costsPerEntity.forEach((entityId, entityCost) -> {
+            entityCostRecords.add(new PlanProjectedEntityCostRecord(planId, entityId, entityCost));
+                });
+        final Batch batch = dslContext.batchUpdate(entityCostRecords);
+        batch.execute();
+        return batch.size();
+    }
+
+    /**
+     * Delete records from following plan cost related tables when a plan is deleted.
      *      plan_projected_entity_cost
      *      plan_projected_entity_to_reserved_instance_mapping
      *      plan_projected_reserved_instance_coverage

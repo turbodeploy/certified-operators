@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -22,6 +23,11 @@ import org.jooq.exception.DataAccessException;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
@@ -33,10 +39,15 @@ import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountR
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.UpdatePlanBuyReservedInstanceCostsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UpdatePlanBuyReservedInstanceCostsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceImplBase;
+import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
 import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceCostFilter;
+import com.vmturbo.cost.component.reserved.instance.filter.PlanProjectedEntityReservedInstanceMappingFilter;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 /**
  * Plan reserved instance service.
@@ -49,6 +60,8 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
     private final PlanReservedInstanceStore planReservedInstanceStore;
     private final BuyReservedInstanceStore buyReservedInstanceStore;
     private final ReservedInstanceSpecStore reservedInstanceSpecStore;
+    private final PlanProjectedEntityCostStore planProjectedEntityCostStore;
+    private final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore;
 
     /**
      * Creates {@link PlanReservedInstanceRpcService} instance.
@@ -56,14 +69,20 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
      * @param planReservedInstanceStore plan RI store.
      * @param buyReservedInstanceStore buy RI Store.
      * @param reservedInstanceSpecStore Store for RI specification (meta-data) info.
+     * @param planProjectedEntityCostStore Store for projected entity costs.
+     * @param planProjectedRICoverageAndUtilStore Store for RI coverage.
      */
     public PlanReservedInstanceRpcService(
             @Nonnull final PlanReservedInstanceStore planReservedInstanceStore,
             @Nonnull final BuyReservedInstanceStore buyReservedInstanceStore,
-            @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore) {
+            @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
+            @Nonnull final PlanProjectedEntityCostStore planProjectedEntityCostStore,
+            @Nonnull final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore) {
         this.planReservedInstanceStore = Objects.requireNonNull(planReservedInstanceStore);
         this.buyReservedInstanceStore = Objects.requireNonNull(buyReservedInstanceStore);
         this.reservedInstanceSpecStore = Objects.requireNonNull(reservedInstanceSpecStore);
+        this.planProjectedEntityCostStore = Objects.requireNonNull(planProjectedEntityCostStore);
+        this.planProjectedRICoverageAndUtilStore = Objects.requireNonNull(planProjectedRICoverageAndUtilStore);
     }
 
     @Override
@@ -233,4 +252,131 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
         return riCostStats;
     }
 
+    /**
+     * Updates some BuyRI costs in DB tables. Called for MPC plan from PlanRpcService after the
+     * plan completes. Plan projected entity costs and used coupon coverage is updated with BuyRI
+     * discount info available.
+     *
+     * @param request Request containing plan id for which updates are needed.
+     * @param responseObserver Response containing plan id and number of cost records updated.
+     */
+    @Override
+    public void updatePlanBuyReservedInstanceCosts(
+            @Nonnull final UpdatePlanBuyReservedInstanceCostsRequest request,
+            @Nonnull final StreamObserver<UpdatePlanBuyReservedInstanceCostsResponse> responseObserver) {
+        long planId = request.getPlanId();
+
+        final UpdatePlanBuyReservedInstanceCostsResponse.Builder responseBuilder =
+                UpdatePlanBuyReservedInstanceCostsResponse.newBuilder()
+                .setPlanId(planId)
+                .setUpdateCount(0);
+
+        // Get all entity ids, used coupons and total coupons for this plan.
+        final Map<Long, EntityReservedInstanceCoverage> coverageMap =
+                planProjectedRICoverageAndUtilStore.getPlanProjectedRiCoverage(planId,
+                        PlanProjectedEntityReservedInstanceMappingFilter.newBuilder()
+                                .topologyContextId(planId).build());
+        logger.trace("Coverage map for plan {} is: {}", planId, coverageMap);
+        if (coverageMap.isEmpty()) {
+            responseObserver.onNext(responseBuilder.build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        // Get existing projected entity costs for those VMs.
+        final Map<Long, EntityCost> originalEntityCosts = planProjectedEntityCostStore
+                .getPlanProjectedEntityCosts(coverageMap.keySet(), planId);
+        if (originalEntityCosts.isEmpty()) {
+            responseObserver.onNext(responseBuilder.build());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        // Find out for which entities the used coupons and RI discounts need to be updated.
+        final Map<Long, Double> usedCouponsToUpdate = new HashMap<>();
+        final Map<Long, EntityCost> entityCostsToUpdate = new HashMap<>();
+        fillUsedCouponsAndEntityCosts(originalEntityCosts, coverageMap, usedCouponsToUpdate,
+                entityCostsToUpdate);
+
+        // Update used_coupons in plan_projected_reserved_instance_coverage, doesn't seem to
+        // break anything not doing it for BuyRI, but do it for completeness.
+        logger.trace("Updating BuyRI used coupons for plan {}: {}", planId, usedCouponsToUpdate);
+        int updateCount = planProjectedRICoverageAndUtilStore.updatePlanProjectedRiCoverage(planId,
+                usedCouponsToUpdate);
+
+        // Update missing BuyRI discount in plan projected entity costs table.
+        logger.debug("Updating BuyRI (coverage updated: {}) costs for {} entities in plan {}.",
+                updateCount, entityCostsToUpdate.size(), planId);
+        updateCount = planProjectedEntityCostStore.updatePlanProjectedEntityCosts(
+                planId, entityCostsToUpdate);
+        if (updateCount < entityCostsToUpdate.size()) {
+            logger.warn("Could only update {} BuyRI costs out of {}, for plan {}.",
+                    updateCount, entityCostsToUpdate.size(), planId);
+        } else {
+            logger.debug("Successfully updated {} BuyRI costs for plan {}.",
+                    updateCount, planId);
+        }
+        responseObserver.onNext(responseBuilder.setUpdateCount(updateCount).build());
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * Fills up the usedCouponsToUpdate and entityCostsToUpdate maps with values, related to
+     * used coupon value and BuyRI discounts in plan projected entity costs table.
+     *
+     * @param originalEntityCosts Original projected entity costs fetched for the plan.
+     * @param coverageMap Info about RI coverage for entities for this plan.
+     * @param usedCouponsToUpdate Map of entityId to usedCoupons covered, for update in
+     *      plan_projected ri coverage table. Input map updated in place.
+     * @param entityCostsToUpdate Map of entityId to costs with RI discount, updated in
+     *      plan projected entity cost table. Input map updated in place.
+     */
+    private void fillUsedCouponsAndEntityCosts(
+            @Nonnull final Map<Long, EntityCost> originalEntityCosts,
+            @Nonnull final Map<Long, EntityReservedInstanceCoverage> coverageMap,
+            @Nonnull final Map<Long, Double> usedCouponsToUpdate,
+            @Nonnull final Map<Long, EntityCost> entityCostsToUpdate) {
+        // Find those entities for which we have BuyRIs with missing ri_inventory_discounts.
+        for (Map.Entry<Long, EntityCost> entry : originalEntityCosts.entrySet()) {
+            final long entityId = entry.getKey();
+            final EntityCost entityCost = entry.getValue();
+            Double onDemandRate = null;
+            boolean hasRiDiscount = false;
+            for (ComponentCost cc : entityCost.getComponentCostList()) {
+                if (!cc.hasCostSource() || !cc.hasCategory()
+                        || cc.getCategory() != CostCategory.ON_DEMAND_COMPUTE) {
+                    continue;
+                }
+                if (cc.getCostSource() == CostSource.RI_INVENTORY_DISCOUNT) {
+                    hasRiDiscount = true;
+                }
+                if (cc.getCostSource() == CostSource.ON_DEMAND_RATE) {
+                    onDemandRate = cc.getAmount().getAmount();
+                }
+            }
+            if (hasRiDiscount || onDemandRate == null) {
+                continue;
+            }
+            final EntityReservedInstanceCoverage riCoverage = coverageMap.get(entityId);
+            int totalCoupons = riCoverage.getEntityCouponCapacity();
+            double usedCoupons = planProjectedRICoverageAndUtilStore.getAggregatedEntityRICoverage(
+                    Collections.singletonList(riCoverage)).values().iterator().next();
+            usedCouponsToUpdate.put(entityId, usedCoupons);
+            double riDiscount = -1 * onDemandRate * (usedCoupons / totalCoupons);
+            final EntityCost newEntityCost = EntityCost.newBuilder(entityCost)
+                    .addComponentCost(ComponentCost.newBuilder()
+                            .setAmount(CurrencyAmount.newBuilder()
+                                    .setCurrency(entityCost.getTotalAmount().getCurrency())
+                                    .setAmount(riDiscount).build())
+                            .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+                            .setCostSource(CostSource.RI_INVENTORY_DISCOUNT)
+                            .build())
+                    .setTotalAmount(CurrencyAmount.newBuilder()
+                            .setCurrency(entityCost.getTotalAmount().getCurrency())
+                            .setAmount(entityCost.getTotalAmount().getAmount() + riDiscount)
+                            .build())
+                    .build();
+            entityCostsToUpdate.put(entityId, newEntityCost);
+        }
+    }
 }

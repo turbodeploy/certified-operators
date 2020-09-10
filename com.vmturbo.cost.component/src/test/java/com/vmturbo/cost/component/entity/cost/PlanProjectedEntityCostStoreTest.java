@@ -129,7 +129,7 @@ public class PlanProjectedEntityCostStoreTest {
                 .setTopologyType(TopologyType.PLAN)
                 .build();
         List<EntityCost> cost = Arrays.asList(VM_COST, VOLUME_COST);
-        store.updatePlanProjectedEntityCostsTableForPlan(topoInfo, cost);
+        store.insertPlanProjectedEntityCostsTableForPlan(topoInfo, cost);
 
         // Insert 1 row into plan_projected_entity_to_reserved_instance_mapping.
         List<PlanProjectedEntityToReservedInstanceMappingRecord> entityToRiMappingRecords =
