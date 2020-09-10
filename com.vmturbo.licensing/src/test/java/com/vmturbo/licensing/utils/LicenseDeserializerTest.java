@@ -22,6 +22,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.api.dto.license.ILicense;
+import com.vmturbo.api.dto.license.ILicense.CountedEntity;
 import com.vmturbo.api.dto.license.ILicense.ErrorReason;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
@@ -175,6 +176,18 @@ public class LicenseDeserializerTest {
     public void deserialize_should_return_a_license_with_inavlid_context_type_when_bogus_content() throws Exception {
         LicenseDTO licenseApiDTO = LicenseDeserializer.deserialize("foo-bar", "license1.lic");
         assertEquals(ErrorReason.INVALID_CONTENT_TYPE.name(), Iterables.get(licenseApiDTO.getTurbo().getErrorReasonList(), 0));
+    }
+
+    /**
+     * Verify that the counted entity type is set to "VM" even if vm-total is set to zero.
+     * @throws IOException
+     */
+    @Test
+    public void testDeserializeXmlLicenseWith0VM() throws IOException {
+        String licenseXMLWith0VMTotal = IOUtils.toString(getClass().getResourceAsStream("LicenseDeserializationTest_license_0vm.xml"), "UTF-8");
+        LicenseDTO license = LicenseDeserializer.deserialize(licenseXMLWith0VMTotal, "license.xml");
+        assertTrue(license.hasTurbo());
+        assertEquals(CountedEntity.VM.name(), license.getTurbo().getCountedEntity());
     }
 
     @Test

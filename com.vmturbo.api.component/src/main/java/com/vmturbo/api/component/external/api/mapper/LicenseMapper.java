@@ -99,42 +99,61 @@ public class LicenseMapper {
      * @return The {@link LicenseApiDTO} created from the License Summary.
      */
     static public LicenseApiDTO licenseSummaryToLicenseApiDTO(LicenseSummary licenseSummary) {
-        LicenseApiDTO retVal = new LicenseApiDTO();
+        return new LicenseSummaryApiDTO(licenseSummary);
+    }
 
-        if (licenseSummary.hasExpirationDate()) {
-            retVal.setExpirationDate(licenseSummary.getExpirationDate());
-        }
-        // --- NOTE: not handling isExpired or isValid ---
-        // there is no explicit setter for "isExpired" in LicenseApiDTO -- this is a calculated
-        // field in Ops Manager based on the expiration date field. If expiration date is blank,
-        // the license is expired. If expiration date is "Permanent License" the license will not
-        // be expired. Otherwise, it will perform a date comparison vs now and return the value
-        // based on that.
-        //
-        // ditto for isValid. This is calculated based on the presence of validation errors.
+    /**
+     * {@link LicenseApiDTO}-compatible class that holds License Summary information, and does NOT
+     * derive the isValid and isExpired attributes from other properties in the license. The
+     * LicenseSummary
+     */
+    private static class LicenseSummaryApiDTO extends LicenseApiDTO {
+        final boolean isValid;
+        final boolean isExpired;
 
-        if (licenseSummary.hasCountedEntity()) {
-            retVal.setCountedEntity(CountedEntity.valueOf(licenseSummary.getCountedEntity()));
-        }
-        if (licenseSummary.hasNumLicensedEntities()) {
-            retVal.setNumLicensedEntities(licenseSummary.getNumLicensedEntities());
-        }
-        if (licenseSummary.hasNumInUseEntities()) {
-            retVal.setNumInUseEntities(licenseSummary.getNumInUseEntities());
-        }
-        // isOverEntityLimit has no equivalent, so this won't be added to the return LicenseApiDTO
+        LicenseSummaryApiDTO(LicenseSummary licenseSummary) {
+            if (licenseSummary.hasExpirationDate()) {
+                setExpirationDate(licenseSummary.getExpirationDate());
+            }
 
-        if (licenseSummary.getFeatureCount() > 0) {
-            retVal.addFeatures(licenseSummary.getFeatureList());
+            if (licenseSummary.hasCountedEntity()) {
+                setCountedEntity(CountedEntity.valueOf(licenseSummary.getCountedEntity()));
+            }
+            if (licenseSummary.hasNumLicensedEntities()) {
+                setNumLicensedEntities(licenseSummary.getNumLicensedEntities());
+            }
+            if (licenseSummary.hasNumInUseEntities()) {
+                setNumInUseEntities(licenseSummary.getNumInUseEntities());
+            }
+            // isOverEntityLimit has no equivalent, so this won't be added to the return LicenseApiDTO
+
+            if (licenseSummary.getFeatureCount() > 0) {
+                addFeatures(licenseSummary.getFeatureList());
+            }
+
+            if (licenseSummary.getErrorReasonCount() > 0) {
+                Set<ErrorReason> reasons = licenseSummary.getErrorReasonList().stream()
+                        .map(ErrorReason::valueOf)
+                        .collect(Collectors.toSet());
+                setErrorReasons(reasons);
+            }
+
+            // isExpired() and isValid() are calculating dynamically in the ILicense interface. We
+            // will set them explicitly in this class and override those methods to return the simple
+            // stored values. We'll use the interface logic only if there is no explicit value
+            // provided.
+            isExpired = licenseSummary.hasIsExpired() ? licenseSummary.getIsExpired() : super.isExpired();
+            isValid = licenseSummary.hasIsValid() ? licenseSummary.getIsValid() : super.isValid();
         }
 
-        if (licenseSummary.getErrorReasonCount() > 0) {
-            Set<ErrorReason> reasons = licenseSummary.getErrorReasonList().stream()
-                    .map(ErrorReason::valueOf)
-                    .collect(Collectors.toSet());
-            retVal.setErrorReasons(reasons);
+        @Override
+        public boolean isValid() {
+            return isValid;
         }
 
-        return retVal;
+        @Override
+        public boolean isExpired() {
+            return isExpired;
+        }
     }
 }

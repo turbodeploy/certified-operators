@@ -22,6 +22,7 @@ import com.google.common.collect.Table;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
+import com.vmturbo.commons.Units;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.reserved.instance.coverage.allocator.ImmutableRICoverageAllocatorConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
@@ -373,6 +374,9 @@ public class SupplementalRICoverageAnalysis {
                                                 Coverage.newBuilder()
                                                         .setReservedInstanceId(riEntry.getKey())
                                                         .setCoveredCoupons(riEntry.getValue())
+                                                        .setUsageStartTimestamp(System.currentTimeMillis())
+                                                        .setUsageEndTimestamp(System.currentTimeMillis()
+                                                                                    + (long)Units.HOUR_MS * 24)
                                                         .setRiCoverageSource(
                                                                 RICoverageSource.SUPPLEMENTAL_COVERAGE_ALLOCATION)));
 

@@ -74,9 +74,9 @@ public class SecurityConstant {
     public static final String OBSERVER = PredefinedRole.OBSERVER.name();
 
     /**
-     * The role for read_only.
+     * The role for operational observer.
      */
-    public static final String READ_ONLY = PredefinedRole.READ_ONLY.name();
+    public static final String OPERATIONAL_OBSERVER = PredefinedRole.OPERATIONAL_OBSERVER.name();
 
     /**
      * The role for automator user.
@@ -142,7 +142,7 @@ public class SecurityConstant {
                     new SecurityGroupDTO(DEPLOYER.toLowerCase(), DEDICATED_CUSTOMER, DEPLOYER),
                     new SecurityGroupDTO(ADVISOR.toLowerCase(), DEDICATED_CUSTOMER, ADVISOR),
                     new SecurityGroupDTO(OBSERVER.toLowerCase(), DEDICATED_CUSTOMER, OBSERVER),
-                    new SecurityGroupDTO(READ_ONLY.toLowerCase(), DEDICATED_CUSTOMER, READ_ONLY),
+                    new SecurityGroupDTO(OPERATIONAL_OBSERVER.toLowerCase(), DEDICATED_CUSTOMER, OPERATIONAL_OBSERVER),
                     new SecurityGroupDTO(SITE_ADMIN.toLowerCase(), DEDICATED_CUSTOMER, SITE_ADMIN));
 
     /**
@@ -181,9 +181,9 @@ public class SecurityConstant {
          */
         OBSERVER,
         /**
-         * READ_ONLY role.
+         * OPERATIONAL_OBSERVER role.
          */
-        READ_ONLY,
+        OPERATIONAL_OBSERVER,
         /**
          * SHARED_ADVISOR role.
          */

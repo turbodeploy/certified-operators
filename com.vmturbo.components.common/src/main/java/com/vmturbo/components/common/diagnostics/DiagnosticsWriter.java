@@ -149,6 +149,16 @@ public class DiagnosticsWriter {
     }
 
     /**
+     * Write entries based on the logic in
+     * the {@link CustomDiagHandler#dumpToStream(ZipOutputStream)}.
+     *
+     * @param diagHandler CustomDiagHandler with logic to copy the zip entries
+     */
+    public void writeCustomEntries(CustomDiagHandler diagHandler) {
+        diagHandler.dumpToStream(this.zipStream);
+    }
+
+    /**
      * Returns a list of errors faced during all the lifecycle of this writer.
      *
      * @return list of errors faced

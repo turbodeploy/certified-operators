@@ -157,17 +157,17 @@ public abstract class AbstractReservedInstanceStore {
                 .map(ReservedInstanceBought::toBuilder)
                 .peek(riBuilder -> {
                     if (undiscoveredRiIds.contains(riBuilder.getId())) {
-                        long coupons = Math.round(riToDiscoveredUsageMap.getOrDefault(riBuilder.getId(),
-                                0d));
+                        double coupons = riToDiscoveredUsageMap.getOrDefault(riBuilder.getId(),
+                                0d);
                         riBuilder.getReservedInstanceBoughtInfoBuilder()
                                 .getReservedInstanceBoughtCouponsBuilder()
                                 .setNumberOfCouponsUsed(coupons)
                                 .setNumberOfCoupons((int)coupons);
                     } else {
-                        int coupons = (int)Math.round(riToUndiscoveredAccountUsage.getOrDefault(riBuilder.getId(),
-                                0d));
+                        double coupons = riToUndiscoveredAccountUsage.getOrDefault(riBuilder.getId(),
+                                0d);
                         if (coupons > 0) {
-                            int capacity = riBuilder.getReservedInstanceBoughtInfoBuilder()
+                            double capacity = riBuilder.getReservedInstanceBoughtInfoBuilder()
                                     .getReservedInstanceBoughtCouponsBuilder()
                                     .getNumberOfCoupons();
                             riBuilder.getReservedInstanceBoughtInfoBuilder()

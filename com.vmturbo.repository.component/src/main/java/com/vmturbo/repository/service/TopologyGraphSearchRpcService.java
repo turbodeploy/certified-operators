@@ -34,6 +34,7 @@ import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil.PaginatedResults;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -43,6 +44,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchQuery;
+import com.vmturbo.common.protobuf.search.Search.SearchTagValuesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchTagValuesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -57,6 +60,7 @@ import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.util.BaseGraphEntity;
 
 /**
  * An implementation of {@link SearchServiceImplBase} (see Search.proto) that uses
@@ -285,6 +289,38 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             final Status status = Status.ABORTED.withCause(e).withDescription(e.getMessage());
             responseObserver.onError(status.asRuntimeException());
         }
+    }
+
+    @Override
+    public void searchTagValues(SearchTagValuesRequest request, StreamObserver<SearchTagValuesResponse> responseObserver) {
+
+        // Return empty result if current topology doesn't exist.
+        if (!liveTopologyStore.getSourceTopology().isPresent()) {
+            logger.warn("No real-time topology exists for searching request");
+            responseObserver.onNext(SearchTagValuesResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        final int entityType = request.getEntityType();
+        final String tagKey = request.getTagKey();
+        final SourceRealtimeTopology topology = liveTopologyStore.getSourceTopology().get();
+        final TopologyGraph<RepoGraphEntity> graph = topology.entityGraph();
+        final Map<String, LongSet> entitiesByValuesMap = topology.globalTags().getEntitiesByValueMap(tagKey);
+        final Predicate<RepoGraphEntity> entityTypeFilter = entity -> entityType == entity.getEntityType();
+        final SearchTagValuesResponse.Builder response = SearchTagValuesResponse.newBuilder();
+        final Set<Long> oids = graph.entities().filter(entityTypeFilter).map(BaseGraphEntity::getOid).collect(Collectors.toSet());
+
+        for (Map.Entry<String, LongSet> entry : entitiesByValuesMap.entrySet()) {
+            final String tagValue = entry.getKey();
+            final Set<Long> oidsFiltered = entry.getValue().stream().filter(oids::contains).collect(Collectors.toSet());
+            if (!oidsFiltered.isEmpty()) {
+                response.putEntitiesByTagValue(tagValue, Search.TaggedEntities.newBuilder().addAllOid(oidsFiltered).build());
+            }
+        }
+
+        responseObserver.onNext(response.build());
+        responseObserver.onCompleted();
     }
 
     /**

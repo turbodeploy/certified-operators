@@ -246,6 +246,30 @@
         ]
     },
 
+    "Chassis" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "chasByName"}
+        ]
+    },
+
+    "Internet" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "internetByName"}
+        ]
+    },
+
+    "IOModule" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "ioModuleByName"}
+        ]
+    },
+
+    "LogicalPool" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "logicalPoolByName"}
+        ]
+    },
+
     "DiskArray" : {
         "criteria" : [
           {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "diskarrayByName"}

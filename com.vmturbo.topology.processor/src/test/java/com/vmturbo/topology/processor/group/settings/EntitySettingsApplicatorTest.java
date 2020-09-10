@@ -60,6 +60,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -91,103 +92,103 @@ public class EntitySettingsApplicatorTest {
     private static final Setting INSTANCE_STORE_AWARE_SCALING_SETTING =
                     createInstanceStoreAwareScalingSetting(true);
     private static final Setting MOVE_DISABLED_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.Move.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
             .build();
 
     private static final Setting MOVE_RECOMMEND_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+        .setSettingSpecName(ConfigurableActionSettings.Move.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
         .build();
 
     private static final Setting DELETE_MANUAL_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.Delete.getSettingName())
+        .setSettingSpecName(ConfigurableActionSettings.Delete.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
         .build();
 
     private static final Setting DELETE_DISABLED_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.Delete.getSettingName())
+        .setSettingSpecName(ConfigurableActionSettings.Delete.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
         .build();
 
     private static final Setting RESIZE_DISABLED_SETTING = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
+                    .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
                     .build();
 
     private static final Setting RESIZE_VCPU_DOWN_ENABLED_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
         .build();
 
     private static final Setting RESIZE_VMEM_DOWN_ENABLED_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
         .build();
 
     private static final Setting RESIZE_VCPU_DOWN_DISABLED_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
             .build();
 
     private static final Setting RESIZE_VCPU_UP_DISABLED_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName())
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
         .build();
 
     private static final Setting RESIZE_VCPU_BELOW_MIN_DISABLED_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName())
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuBelowMinThreshold.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
         .build();
 
     private static final Setting RESIZE_VCPU_ABOVE_MAX_DISABLED_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName())
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuAboveMaxThreshold.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
         .build();
 
     private static final Setting RESIZE_VMEM_DOWN_DISABLED_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.ResizeVmemDownInBetweenThresholds.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
             .build();
 
     private static final Setting RESIZE_VMEM_UP_DISABLED_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName())
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
         .build();
 
     private static final Setting RESIZE_VMEM_BELOW_MIN_DISABLED_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.ResizeVmemBelowMinThreshold.getSettingName())
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVmemBelowMinThreshold.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
         .build();
 
     private static final Setting RESIZE_VMEM_ABOVE_MAX_DISABLED_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.getSettingName())
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVmemAboveMaxThreshold.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
         .build();
 
     private static final Setting SUSPEND_DISABLED_SETTING = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.Suspend.getSettingName())
+                    .setSettingSpecName(ConfigurableActionSettings.Suspend.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
                     .build();
 
     private static final Setting PROVISION_DISABLED_SETTING = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.Provision.getSettingName())
+                    .setSettingSpecName(ConfigurableActionSettings.Provision.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
                     .build();
 
     private static final Setting SUSPEND_RECOMMEND_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.Suspend.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.Suspend.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
             .build();
 
     private static final Setting PROVISION_RECOMMEND_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.Provision.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.Provision.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
             .build();
 
 
     private static final Setting MOVE_MANUAL_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.Move.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
             .build();
 
@@ -202,18 +203,18 @@ public class EntitySettingsApplicatorTest {
             .build();
 
     private static final Setting BUSINESS_USER_MOVE_RECOMMEND_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.BusinessUserMove.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.Move.getSettingName())
             .setEnumSettingValue(
                     EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
             .build();
 
     private static final Setting MOVE_AUTOMATIC_SETTING = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+                    .setSettingSpecName(ConfigurableActionSettings.Move.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
                     .build();
 
     private static final Setting STORAGE_MOVE_DISABLED_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.StorageMove.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("DISABLED"))
             .build();
 
@@ -280,7 +281,7 @@ public class EntitySettingsApplicatorTest {
      * VMem min mode setting.
      */
     private static final Setting VMEM_MIN_MODE_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ResizeVmemBelowMinThreshold.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.ResizeVmemBelowMinThreshold.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
             .build();
 
@@ -297,7 +298,7 @@ public class EntitySettingsApplicatorTest {
      * VMem Max mode setting.
      */
     private static final Setting VMEM_MAX_MODE_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.ResizeVmemAboveMaxThreshold.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
             .build();
 
@@ -313,21 +314,21 @@ public class EntitySettingsApplicatorTest {
      * VMem inbetween down settings.
      */
     private static final Setting VMEM_INBETWEEN_DOWN_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.ResizeVmemDownInBetweenThresholds.getSettingName())
             .setEnumSettingValue(AUTOMATIC).build();
 
     /**
      * VMem inbetween up settings.
      */
     private static final Setting VMEM_INBETWEEN_UP_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds.getSettingName())
             .setEnumSettingValue(AUTOMATIC).build();
 
     /**
      * VCPU min mode setting.
      */
     private static final Setting VCPU_MIN_MODE_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuBelowMinThreshold.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
             .build();
 
@@ -343,7 +344,7 @@ public class EntitySettingsApplicatorTest {
      * VCPU Max mode setting.
      */
     private static final Setting VCPU_MAX_MODE_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuAboveMaxThreshold.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
             .build();
 
@@ -359,18 +360,18 @@ public class EntitySettingsApplicatorTest {
      * VMem inbetween down settings.
      */
     private static final Setting VCPU_INBETWEEN_DOWN_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds.getSettingName())
             .setEnumSettingValue(AUTOMATIC).build();
 
     /**
      * VMem inbetween up settings.
      */
     private static final Setting VCPU_INBETWEEN_UP_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds.getSettingName())
             .setEnumSettingValue(AUTOMATIC).build();
 
     private static final Setting.Builder RESIZE_SETTING_BUILDER = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+            .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
 
     private static final Setting.Builder SCALING_POLICY_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.ScalingPolicy.getSettingName());
@@ -990,7 +991,7 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Test application of {@link EntitySettingSpecs#BusinessUserMove}.
+     * Test application of {@link ConfigurableActionSettings#Move}.
      */
     @Test
     public void testMoveBusinessUserSettingApplication() {

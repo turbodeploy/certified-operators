@@ -116,9 +116,15 @@ public class EntityCommoditiesMaxValuesQuery extends QueryBase {
             groupBy(uuidField, propertyTypeField, commodityKeyField);
         }
         addTable(table);
-        table.getIndexes().stream()
+
+        // If we're not querying only for specific UUIDs, force an index that is better
+        // suited to an "all entities" query. This is needed to avoid poor performance
+        // on topology processor startup. Otherwise let the database choose.
+        if (CollectionUtils.isEmpty(uuids)) {
+            table.getIndexes().stream()
                 .filter(idx -> idx.getName().toLowerCase().equals(FORCE_INDEX))
                 .findFirst().ifPresent(idx -> this.forceIndex(table, FORCE_INDEX));
+        }
 
         addConditions(
                 snapshotTime.greaterOrEqual(Timestamp.from(Instant.now().minus(lookbackDays, ChronoUnit.DAYS))),

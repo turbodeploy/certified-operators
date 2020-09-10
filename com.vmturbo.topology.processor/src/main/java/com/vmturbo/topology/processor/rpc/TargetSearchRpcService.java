@@ -1,6 +1,10 @@
 package com.vmturbo.topology.processor.rpc;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -27,9 +31,11 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchTargetsResponse;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceImplBase;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.operation.IOperationManager;
+import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
@@ -141,12 +147,29 @@ public class TargetSearchRpcService extends TargetSearchServiceImplBase {
         return result;
     }
 
+    /**
+     * Calculates the latest validation status. Discovery is also treated as a validation (as
+     * validation is a part of discovery). We get the latest validation/discovery operation and
+     * get the status from it.
+     *
+     * @param targetId target to get status of
+     * @return status, if any. Returns {@code null} if no validation/discovery operations
+     *         finished on the target
+     */
     @Nullable
     private String getValidationStatus(long targetId) {
-        return operationManager.getLastValidationForTarget(targetId)
-                .map(Validation::getStatus)
-                .map(Object::toString)
-                .orElse(null);
+        final List<Operation> operations = new ArrayList<>(DiscoveryType.values().length + 1);
+        operationManager.getLastValidationForTarget(targetId).ifPresent(operations::add);
+        for (DiscoveryType discoveryType : DiscoveryType.values()) {
+            operationManager.getLastDiscoveryForTarget(targetId, discoveryType)
+                    .ifPresent(operations::add);
+        }
+        if (operations.isEmpty()) {
+            return null;
+        }
+        final Operation latest =
+                Collections.max(operations, Comparator.comparing(Operation::getCompletionTime));
+        return latest.getStatus().toString();
     }
 
     @Nonnull

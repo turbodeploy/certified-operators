@@ -4,7 +4,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
 
@@ -26,36 +25,31 @@ public class ActionSettingSpecsTest {
      */
     @Test
     public void testSettingsGenerated() {
-        for (EntitySettingSpecs entitySettingSpecs : EntitySettingSpecs.values()) {
-            if (entitySettingSpecs.getDataStructure() instanceof EnumSettingDataType
-                && ActionMode.class.equals(
-                    ((EnumSettingDataType)entitySettingSpecs.getDataStructure()).getEnumClass())) {
-
-                String executionScheduleName = entitySettingSpecs.getSettingName()
+        for (ConfigurableActionSettings actionModeSettingSpecs : ConfigurableActionSettings.values()) {
+                String executionScheduleName = actionModeSettingSpecs.getSettingName()
                     + EXECUTION_SCHEDULE_SETTING_NAME_SUFFIX;
                 String externalApprovalName = APPROVAL_SETTING_NAME_PREFIX
-                    + StringUtils.capitalize(entitySettingSpecs.getSettingName())
+                    + StringUtils.capitalize(actionModeSettingSpecs.getSettingName())
                     + ACTION_WORKFLOW_SUFFIX;
                 String onGenAuditName = ON_GENERATION_SETTING_NAME_PREFIX
-                    + StringUtils.capitalize(entitySettingSpecs.getSettingName())
+                    + StringUtils.capitalize(actionModeSettingSpecs.getSettingName())
                     + ACTION_WORKFLOW_SUFFIX;
                 String afterExecAuditName = AFTER_EXECUTION_SETTING_NAME_PREFIX
-                    + StringUtils.capitalize(entitySettingSpecs.getSettingName())
+                    + StringUtils.capitalize(actionModeSettingSpecs.getSettingName())
                     + ACTION_WORKFLOW_SUFFIX;
 
-                Assert.assertTrue(ActionSettingSpecs.isActionModeSetting(entitySettingSpecs));
                 Assert.assertTrue(ActionSettingSpecs.isActionModeSetting(
-                    entitySettingSpecs.getSettingName()));
+                    actionModeSettingSpecs.getSettingName()));
                 Assert.assertEquals(
                     executionScheduleName,
                     ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                        entitySettingSpecs.getSettingName(), ActionSettingType.SCHEDULE));
+                        actionModeSettingSpecs.getSettingName(), ActionSettingType.SCHEDULE));
                 Assert.assertEquals(
                     executionScheduleName,
                     ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                        entitySettingSpecs, ActionSettingType.SCHEDULE));
+                        actionModeSettingSpecs, ActionSettingType.SCHEDULE));
                 Assert.assertEquals(
-                    entitySettingSpecs.getSettingName(),
+                    actionModeSettingSpecs.getSettingName(),
                     ActionSettingSpecs.getActionModeSettingFromExecutionScheduleSetting(
                         executionScheduleName));
                 Assert.assertTrue(ActionSettingSpecs.isExecutionScheduleSetting(
@@ -76,7 +70,6 @@ public class ActionSettingSpecsTest {
                     SettingValueTypeCase.STRING_SETTING_VALUE_TYPE);
                 checkSettingSpec(onGenAuditName, SettingValueTypeCase.STRING_SETTING_VALUE_TYPE);
                 checkSettingSpec(afterExecAuditName, SettingValueTypeCase.STRING_SETTING_VALUE_TYPE);
-            }
         }
     }
 
@@ -87,28 +80,16 @@ public class ActionSettingSpecsTest {
     @Test
     public void testNotFound() {
         String expectedNotFoundSetting = EntitySettingSpecs.CpuUtilization.getSettingName();
-        Assert.assertFalse(ActionSettingSpecs.isActionModeSetting(
-            EntitySettingSpecs.CpuUtilization));
         Assert.assertFalse(ActionSettingSpecs.isActionModeSetting(expectedNotFoundSetting));
         Assert.assertNull(
             ActionSettingSpecs.getSubSettingFromActionModeSetting(
                 expectedNotFoundSetting, ActionSettingType.SCHEDULE));
-        Assert.assertNull(
-            ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                EntitySettingSpecs.CpuUtilization, ActionSettingType.SCHEDULE));
         Assert.assertNull(
             ActionSettingSpecs.getActionModeSettingFromExecutionScheduleSetting(
                 expectedNotFoundSetting));
         Assert.assertFalse(ActionSettingSpecs.isExecutionScheduleSetting(expectedNotFoundSetting));
         Assert.assertFalse(
             ActionSettingSpecs.isExternalApprovalOrAuditSetting(expectedNotFoundSetting));
-        Assert.assertFalse(
-            ActionSettingSpecs.isExternalApprovalOrAuditSetting(expectedNotFoundSetting));
-        Assert.assertFalse(
-            ActionSettingSpecs.isExternalApprovalOrAuditSetting(expectedNotFoundSetting));
-        Assert.assertFalse(ActionSettingSpecs.isActionModeSubSetting(expectedNotFoundSetting));
-        Assert.assertFalse(ActionSettingSpecs.isActionModeSubSetting(expectedNotFoundSetting));
-        Assert.assertFalse(ActionSettingSpecs.isActionModeSubSetting(expectedNotFoundSetting));
         Assert.assertFalse(ActionSettingSpecs.isActionModeSubSetting(expectedNotFoundSetting));
     }
 

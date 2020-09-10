@@ -248,7 +248,7 @@ public class SshUtils {
                 sftp = SftpClientFactory.instance().createSftpClient(session);
                 return sftp.lstat(path);
             } catch (IOException e) {
-                throw new RemoteExecutionException("Failed to obtain file attributes", e);
+                throw new RemoteExecutionException("Failed to obtain attributes for file " + path, e);
             } finally {
                 closeClient(sftp, "SFTP");
             }

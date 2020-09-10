@@ -10,6 +10,9 @@ import java.util.zip.ZipOutputStream;
 
 import com.google.common.base.Charsets;
 
+/**
+ * Util class to create a zipstream.
+ */
 public class ZipStreamBuilder {
 
     private final ZipOutputStream zipStream;
@@ -20,14 +23,35 @@ public class ZipStreamBuilder {
         this.zipStream = new ZipOutputStream(byteStream);
     }
 
+    /**
+     * Class builder.
+     *
+     * @return ZipStreamBuilder the builder
+     */
     public static ZipStreamBuilder builder() {
         return new ZipStreamBuilder();
     }
 
-    ZipStreamBuilder withTextFile(String name, String... lines) throws IOException {
+    /**
+     * Add a text file to the builder.
+     *
+     * @param name the name of the file
+     * @param lines the content of the file
+     * @return ZipStreamBuilder the builder
+     * @throws IOException if an error occurs
+     */
+    public ZipStreamBuilder withTextFile(String name, String... lines) throws IOException {
         return withFile(name, linesToBytes(lines));
     }
 
+    /**
+     * Add a binary file to the builder.
+     *
+     * @param name the name of the file
+     * @param values the content of the file
+     * @return ZipStreamBuilder the builder
+     * @throws IOException if an error occurs
+     */
     ZipStreamBuilder withBinaryFile(String name, int... values) throws IOException {
         return withFile(name, intsToBytes(values));
     }
@@ -40,7 +64,7 @@ public class ZipStreamBuilder {
     }
 
     ZipStreamBuilder withDirectory(String name) throws IOException {
-        zipStream.putNextEntry(new ZipEntry(name+"/"));
+        zipStream.putNextEntry(new ZipEntry(name + "/"));
         return this;
     }
 
@@ -50,12 +74,18 @@ public class ZipStreamBuilder {
         return this;
     }
 
-    public byte[] getBytes() throws IOException {
+    private byte[] getBytes() throws IOException {
         zipStream.close();
         return byteStream.toByteArray();
     }
 
-    InputStream toInputStream() throws IOException {
+    /**
+     * Transform the zip stream into an InputStream.
+     *
+     * @return InputStream the InputStream
+     * @throws IOException if an error occurs
+     */
+    public InputStream toInputStream() throws IOException {
         return new ByteArrayInputStream(getBytes());
     }
 
@@ -66,7 +96,7 @@ public class ZipStreamBuilder {
     static byte[] intsToBytes(int... values) {
         byte[] bytes = new byte[values.length];
         for (int i = 0; i < bytes.length; i++) {
-            bytes[i] = (byte) values[i];
+            bytes[i] = (byte)values[i];
         }
         return bytes;
     }

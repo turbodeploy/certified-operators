@@ -234,6 +234,11 @@
       },
       {
         "allValue": "'0'",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
         "hide": 0,
         "includeAll": true,
         "label": null,
@@ -263,6 +268,11 @@
       },
       {
         "allValue": "'0'",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
         "hide": 0,
         "includeAll": true,
         "label": null,

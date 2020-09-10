@@ -133,9 +133,9 @@ echo
 echo "---------------"
 echo "secrets updates"
 echo "---------------"
-kubectl get secrets -n turbonomic $(kubectl get secrets -n turbonomic | grep ${helmRelease} | awk '{print $1}' | head -1) -o yaml > /tmp/helm-release.yml
+kubectl get secrets -n turbonomic $(kubectl get secrets -n turbonomic | grep ${helmRelease} | awk '{print $1}' | tail -1) -o yaml > /tmp/helm-release.yml
 sed -i "s/${helmRelease}-[0-9A-Za-z]*/${helmRelease}/g" /tmp/helm-release.yml
-kubectl get secrets -n turbonomic $(kubectl get secrets -n turbonomic | grep ${helmRelease} | awk '{print $1}' | head -1) -o jsonpath={.data.release} | base64 -d | base64 -d |gunzip > /tmp/xl-release
+kubectl get secrets -n turbonomic $(kubectl get secrets -n turbonomic | grep ${helmRelease} | awk '{print $1}' | tail -1) -o jsonpath={.data.release} | base64 -d | base64 -d |gunzip > /tmp/xl-release
 sed -i "s/${helmRelease}-[0-9A-Za-z]*/${helmRelease}/g" /tmp/xl-release
 gzip -c /tmp/xl-release | base64 -w 0 | base64 -w 0 > /tmp/xl-updated-release
 cat << EOF > /tmp/script.sed

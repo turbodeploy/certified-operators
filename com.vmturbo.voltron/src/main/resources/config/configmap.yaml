@@ -97,6 +97,8 @@ defaultProperties:
     dbSchemaName: auth
     identityGeneratorPrefix: 7
     numBeforeLicenseExpirationDays: 2
+  clustermgr:
+    kafkaConfigFile: null
   cost:
     identityGeneratorPrefix: 10
     turbonomic.ratecards.persistent.path: /home/turbonomic/data/

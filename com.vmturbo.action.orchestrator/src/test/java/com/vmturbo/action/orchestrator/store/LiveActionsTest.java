@@ -857,7 +857,6 @@ public class LiveActionsTest {
 
         assertThat(liveActions.getAction(move12Action.getId()).get(), is(move12Action));
         // scoped user can access move 13, even though only one involved entity is in scope
-        expectedException.expect(UserAccessScopeException.class);
         assertThat(liveActions.getAction(move13Action.getId()).get(), is(move13Action));
     }
 

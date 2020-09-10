@@ -21,7 +21,8 @@ public class PropertyReaderTest {
         System.setProperty("propertiesYamlPath", "properties.yaml");
         AnnotationConfigWebApplicationContext context = new AnnotationConfigWebApplicationContext();
         PropertyReader reader = new PropertyReader(context);
-        ConnectionProperties connectionProperties = reader.getConnectionProperties();
+        ConnectionConfiguration configuration = reader.getConnectionConfiguration();
+        ConnectionProperties connectionProperties = configuration.getProperties();
         Assert.assertEquals("group", connectionProperties.getGroupHost());
         Assert.assertEquals("repository", connectionProperties.getRepositoryHost());
         Assert.assertEquals(9001, connectionProperties.getgRpcPort());
@@ -37,7 +38,7 @@ public class PropertyReaderTest {
     public void testReadingPropertiesIncorrectPath() throws ContextConfigurationException {
         System.setProperty("propertiesYamlPath", "properties2.yaml");
         new PropertyReader(new AnnotationConfigWebApplicationContext())
-                .getConnectionProperties();
+                .getConnectionConfiguration();
     }
 
 }

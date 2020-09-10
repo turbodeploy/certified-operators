@@ -38,6 +38,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionRemovalEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ActionSpecifications;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
@@ -66,7 +67,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWith
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
@@ -493,7 +494,8 @@ public class Action implements ActionView {
         final List<String> specApplicableToAction =
                 actionModeCalculator.specsApplicableToAction(translatedRecommendation.get(),
                         entitiesSnapshot.getSettingsForEntity(primaryEntity))
-                        .map(EntitySettingSpecs::getSettingName)
+                        .map(ActionSpecifications::getConfigurableActionSetting)
+                        .map(ConfigurableActionSettings::getSettingName)
                         .collect(Collectors.toList());
         for (String settingName : specApplicableToAction) {
             final Collection<Long> policies = settingPoliciesForEntity.get(settingName);

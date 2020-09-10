@@ -102,7 +102,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 
 /**
  * Tests for action execution RPCs.
@@ -278,9 +278,9 @@ public class ActionExecutionRpcTest {
                 ImmutableMap.of(executionScheduleId, executionSchedule));
         when(snapshot.getSettingPoliciesForEntity(actionTargetId)).thenReturn(
                 new ImmutableMap.Builder<String, Collection<Long>>().put(
-                        EntitySettingSpecs.Move.getSettingName(), Collections.singletonList(22L))
+                        ConfigurableActionSettings.Move.getSettingName(), Collections.singletonList(22L))
                         .put(ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                                EntitySettingSpecs.Move, ActionSettingType.SCHEDULE),
+                            ConfigurableActionSettings.Move, ActionSettingType.SCHEDULE),
                             Collections.singleton(23L))
                         .build());
 

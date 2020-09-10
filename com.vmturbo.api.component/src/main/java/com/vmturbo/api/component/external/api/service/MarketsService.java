@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -94,8 +97,11 @@ import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -132,6 +138,7 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetPlanProjectRequ
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetPlanProjectResponse;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.RunPlanProjectRequest;
 import com.vmturbo.common.protobuf.plan.PlanProjectServiceGrpc.PlanProjectServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
@@ -542,8 +549,9 @@ public class MarketsService implements IMarketsService {
                     // Avoid negative skips.
                     skipCount = Math.max(0, Integer.parseInt(paginationRequest.getCursor().get()));
                 } catch (NumberFormatException e) {
-                    throw new InvalidOperationException("Cursor " +
-                        paginationRequest.getCursor().get() + " is invalid. Must be positive integer.");
+                    throw new InvalidOperationException("Cursor "
+                            + paginationRequest.getCursor().get()
+                            + " is invalid. Must be positive integer.");
                 }
             } else {
                 skipCount = 0;
@@ -809,8 +817,8 @@ public class MarketsService implements IMarketsService {
                                             @Nonnull Long scenarioId,
                                             @Nullable Boolean ignoreConstraints,
                                             @Nullable String planMarketName) throws Exception {
-        logger.info("Running scenario. Market UUID: {}, Scenario ID: {}, " +
-                        "Ignore Constraints: {}, Plan Market Name: {}",
+        logger.info("Running scenario. Market UUID: {}, Scenario ID: {}, "
+                        + "Ignore Constraints: {}, Plan Market Name: {}",
                 marketUuid, scenarioId, ignoreConstraints, planMarketName);
         // this feature requires access to the "planner" feature in the license.
         licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
@@ -1003,13 +1011,13 @@ public class MarketsService implements IMarketsService {
             .getPlanEntityStats(planInstance, statScopesApiInputDTO, paginationRequest);
     }
 
-    @Override
     /**
      * {@inheritDoc}
      * This api has both a group id as input and also a StatScopesApiInputDTO.  The StatScopesApiInputDTO may
      * include a scope.  If the scope is specified, the logic will use the intersection of the group members and scope ids.
      * It is typically expected that the users specify only a group id.
      */
+    @Override
     public EntityStatsPaginationResponse getStatsByEntitiesInGroupInMarketQuery(final String marketUuid,
                                                                                 final String groupUuid,
                                                                                 final StatScopesApiInputDTO statScopesApiInputDTO,
@@ -1074,26 +1082,66 @@ public class MarketsService implements IMarketsService {
         if (projectedTopologyId == 0) {
             return Collections.emptyList();
         }
+        // If this is a migration plan, get the list of unplaced entities from the action
+        // list instead.
+        Set<Long> placedOids = new HashSet<>();
+        boolean isMigrationPlan = plan.getProjectType() == PlanProjectType.CLOUD_MIGRATION;
+        if (isMigrationPlan) {
+            AtomicReference<String> cursor = new AtomicReference<>("0");
+            do {
+                FilteredActionRequest filteredActionRequest =
+                        FilteredActionRequest.newBuilder()
+                                .setTopologyContextId(plan.getPlanId())
+                                .setPaginationParams(PaginationParameters.newBuilder()
+                                        .setCursor(cursor.getAndSet("")))
+                                .setFilter(ActionQueryFilter.newBuilder()
+                                        .setVisible(true)
+                                        .addTypes(ActionType.MOVE))
+                                .build();
+                actionOrchestratorRpcService.getAllActions(filteredActionRequest)
+                        .forEachRemaining(rsp -> {
+                            // These are the actions related to the queried entities.  Only include entities
+                            // with an associated action.
+                            if (rsp.hasActionChunk()) {
+                                for (ActionOrchestratorAction action : rsp.getActionChunk().getActionsList()) {
+                                    placedOids.add(action.getActionSpec()
+                                            .getRecommendation()
+                                            .getInfo()
+                                            .getMove()
+                                            .getTarget()
+                                            .getId());
+                                }
+                            } else if (rsp.hasPaginationResponse()) {
+                                cursor.set(rsp.getPaginationResponse().getNextCursor());
+                            }
+                        });
+            } while (!StringUtils.isEmpty(cursor.get()));
+        }
+
         final Iterable<RetrieveTopologyResponse> response = () ->
                 repositoryRpcService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
                         .setTopologyId(projectedTopologyId)
                         .setEntityFilter(TopologyEntityFilter.newBuilder()
-                                .setUnplacedOnly(true))
+                                // For migration plans, we want all entities, else just the unplaced.
+                                // We filter out the placed entities below.
+                                .setUnplacedOnly(!isMigrationPlan))
                         .build());
-        List<TopologyEntityDTO> unplacedDTOs = StreamSupport.stream(response.spliterator(), false)
+        Map<Long, TopologyEntityDTO> entities = StreamSupport.stream(response.spliterator(), false)
                 .flatMap(rtResponse -> rtResponse.getEntitiesList().stream())
                 .map(PartialEntity::getFullEntity)
                 // right now, legacy and UI only expect unplaced virtual machine.
                 .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                .collect(Collectors.toList());
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
-        // if no unplaced entities, return an empty collection
-        if (unplacedDTOs.size() == 0) {
-            return Collections.emptyList();
+        // We have a map of all requested entities in the plan. If this is a migration plan,
+        // remove the entities that we've seen in its action list.  The remaining entities are
+        // unplaced.
+        for (Long oid : placedOids) {
+            entities.remove(oid);
         }
-
         // convert to ServiceEntityApiDTOs, filling in the blanks of the placed on / not placed on fields
-        List<ServiceEntityApiDTO> unplacedApiDTOs = populatePlacedOnUnplacedOnForEntitiesForPlan(plan, unplacedDTOs);
+        List<ServiceEntityApiDTO> unplacedApiDTOs =
+                populatePlacedOnUnplacedOnForEntitiesForPlan(plan, entities.values());
 
         logger.debug("Found {} unplaced entities in plan {} results.", unplacedApiDTOs.size(), uuid);
         return unplacedApiDTOs;
@@ -1136,7 +1184,8 @@ public class MarketsService implements IMarketsService {
      * @param entityDTOs The collection of TopologyEntityDTOs to be converted into ServiceEntityApiDTO
      * @return A list of ServiceEntityApiDTO objects representing with information on where it is placed/unplaced.
      */
-    List<ServiceEntityApiDTO> populatePlacedOnUnplacedOnForEntitiesForPlan(PlanInstance plan, List<TopologyEntityDTO> entityDTOs) {
+    List<ServiceEntityApiDTO> populatePlacedOnUnplacedOnForEntitiesForPlan(PlanInstance plan,
+            Collection<TopologyEntityDTO> entityDTOs) {
         // if no unplaced entities, return an empty collection
         if (entityDTOs.size() == 0) {
             return Collections.emptyList();
@@ -1243,7 +1292,7 @@ public class MarketsService implements IMarketsService {
     }
 
     /**
-     * Create a dto for the realtime market
+     * Create a dto for the realtime market.
      * @return a dto with data including the oid and name of the realtime market
      */
     private MarketApiDTO createRealtimeMarketApiDTO() {
@@ -1304,9 +1353,9 @@ public class MarketsService implements IMarketsService {
          * @return {@code true} if the policy needs a hidden group
          */
         public boolean isPolicyNeedsHiddenGroup(final PolicyApiInputDTO policyApiInputDTO) {
-            return policyApiInputDTO.getType() == PolicyType.MERGE &&
-                    MERGE_TYPE_NEEDS_HIDDEN_GROUP.contains(PolicyMapper.MERGE_TYPE_API_TO_PROTO.get(
-                            policyApiInputDTO.getMergeType()));
+            return policyApiInputDTO.getType() == PolicyType.MERGE
+                    && MERGE_TYPE_NEEDS_HIDDEN_GROUP.contains(PolicyMapper.MERGE_TYPE_API_TO_PROTO
+                            .get(policyApiInputDTO.getMergeType()));
         }
 
         /**
@@ -1318,8 +1367,8 @@ public class MarketsService implements IMarketsService {
          * @return {@code true} if the policy needs a hidden group
          */
         public boolean isPolicyNeedsHiddenGroup(final PolicyInfo policyInfo) {
-            return policyInfo.hasMerge() && policyInfo.getMerge().hasMergeType() &&
-                    MERGE_TYPE_NEEDS_HIDDEN_GROUP.contains(policyInfo.getMerge().getMergeType());
+            return policyInfo.hasMerge() && policyInfo.getMerge().hasMergeType()
+                    && MERGE_TYPE_NEEDS_HIDDEN_GROUP.contains(policyInfo.getMerge().getMergeType());
         }
 
         /**

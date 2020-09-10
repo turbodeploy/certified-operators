@@ -7,15 +7,16 @@ import static org.apache.commons.lang.StringUtils.isNotEmpty;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import com.google.common.collect.Maps;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.mediation.udt.inventory.UdtChildEntity;
 import com.vmturbo.mediation.udt.inventory.UdtEntity;
 
 /**
@@ -29,6 +30,8 @@ import com.vmturbo.mediation.udt.inventory.UdtEntity;
  */
 class OidToUdtMappingTask {
 
+    private static final Logger LOGGER = LogManager.getLogger();
+
     /**
      * Utility classes should not have a public or default constructor.
      */
@@ -39,23 +42,22 @@ class OidToUdtMappingTask {
     @Nonnull
     @ParametersAreNonnullByDefault
     static Set<UdtEntity> execute(Set<UdtEntity> definedEntities, DataProvider dataProvider) {
-        final Set<Long> oids = getChildrenOids(definedEntities);
-        final Set<TopologyEntityDTO> topologyEntities = dataProvider.getEntitiesByOids(oids);
-        final Map<String, Long> udtToOidMap = createOidMap(topologyEntities);
-        definedEntities.forEach(udt -> {
-            if (udtToOidMap.containsKey(udt.getId())) {
-                udt.setOid(udtToOidMap.get(udt.getId()));
+        final Long targetId = dataProvider.getUdtTargetId();
+        if (targetId != null) {
+            final Set<TopologyEntityDTO> entitiesDiscoveredByUdt = dataProvider.searchEntitiesByTargetId(targetId);
+            LOGGER.info("OID/UDT Mapping: Retrieved {} UDT entities.", entitiesDiscoveredByUdt.size());
+            if (!entitiesDiscoveredByUdt.isEmpty()) {
+                final Map<String, Long> definitionIdToOidMap = createOidMap(entitiesDiscoveredByUdt);
+                definedEntities.forEach(udt -> {
+                    if (definitionIdToOidMap .containsKey(udt.getId())) {
+                        long oid = definitionIdToOidMap .get(udt.getId());
+                        LOGGER.trace("OID/UDT Mapping: UDT entity {} has OID {}.", udt.getId(), oid);
+                        udt.setOid(oid);
+                    }
+                });
             }
-        });
+        }
         return definedEntities;
-    }
-
-    @Nonnull
-    private static Set<Long> getChildrenOids(@Nonnull Set<UdtEntity> definedEntities) {
-        return definedEntities.stream()
-                .flatMap(entity -> entity.getChildren().stream())
-                .map(UdtChildEntity::getOid)
-                .collect(Collectors.toSet());
     }
 
     @Nonnull

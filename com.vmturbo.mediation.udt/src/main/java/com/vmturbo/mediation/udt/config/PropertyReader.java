@@ -9,6 +9,7 @@ import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
 import com.vmturbo.components.common.config.PropertiesLoader;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 /**
  * Class responsible for reading component`s properties required for gRPC connections.
@@ -27,22 +28,25 @@ public class PropertyReader {
     }
 
     /**
-     * Reads connection properties.
+     * Reads connection configuration.
      *
      * @return {@link ConnectionProperties} instance.
      * @throws ContextConfigurationException - in case of any exception regarding to the file 'properties.yam'
      */
     @Nonnull
-    public ConnectionProperties getConnectionProperties() throws ContextConfigurationException {
+    public ConnectionConfiguration getConnectionConfiguration() throws ContextConfigurationException {
         registerConfiguration(context, PropertyConfiguration.class);
+        registerConfiguration(context, TopologyProcessorClientConfig.class);
         PropertiesLoader.addConfigurationPropertySources(context);
+        final TopologyProcessorClientConfig tpConfig = context.getBean(TopologyProcessorClientConfig.class);
         final ConfigurableEnvironment env = context.getEnvironment();
-        return new ConnectionProperties(
+        final ConnectionProperties properties = new ConnectionProperties(
                 env.getProperty("groupHost"),
                 env.getProperty("repositoryHost"),
                 env.getProperty("topologyProcessorHost"),
                 env.getProperty("serverGrpcPort", Integer.class),
                 env.getProperty("grpcPingIntervalSeconds", Integer.class));
+        return new ConnectionConfiguration(properties, tpConfig);
     }
 
     @ParametersAreNonnullByDefault

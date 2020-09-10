@@ -58,7 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastFailure
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable.UpdateFailure;
@@ -227,7 +227,7 @@ public class PlanProgressListenerTest {
                                 ScenarioChange.newBuilder()
                                     .setSettingOverride(SettingOverride.newBuilder().setSetting(
                                             Setting.newBuilder()
-                                                    .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName().toLowerCase())
+                                                    .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName().toLowerCase())
                                                     .setEnumSettingValue(EnumSettingValue.getDefaultInstance()).build()
                                     ).build()).build(),
                                 ScenarioChange.newBuilder()
@@ -267,7 +267,7 @@ public class PlanProgressListenerTest {
     @Test
     public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusNoProjectedCostNotification() {
         final Setting.Builder setting =
-                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
         final SettingOverride.Builder scaleSetting =
                 SettingOverride.newBuilder().setSetting(setting);
         final ScenarioChange.Builder scenarioChangeScale =
@@ -426,7 +426,7 @@ public class PlanProgressListenerTest {
         final ScenarioChange.Builder scenarioChangeRI =
                 ScenarioChange.newBuilder().setRiSetting(riSetting);
         final Setting.Builder setting =
-                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
         final SettingOverride.Builder scaleSetting =
                 SettingOverride.newBuilder().setSetting(setting);
         final ScenarioChange.Builder scenarioChangeScale =
@@ -472,7 +472,7 @@ public class PlanProgressListenerTest {
         final ScenarioChange.Builder scenarioChangeRI =
                 ScenarioChange.newBuilder().setRiSetting(riSetting);
         final Setting.Builder setting =
-                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
         final SettingOverride.Builder scaleSetting =
                 SettingOverride.newBuilder().setSetting(setting);
         final ScenarioChange.Builder scenarioChangeScale =
@@ -498,7 +498,7 @@ public class PlanProgressListenerTest {
         final ScenarioChange.Builder scenarioChangeRI =
                 ScenarioChange.newBuilder().setRiSetting(riSetting);
         final Setting.Builder setting =
-                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
         final SettingOverride.Builder scaleSetting =
                 SettingOverride.newBuilder().setSetting(setting);
         final ScenarioChange.Builder scenarioChangeScale =
@@ -551,7 +551,7 @@ public class PlanProgressListenerTest {
         final ScenarioChange.Builder scenarioChangeRI =
                 ScenarioChange.newBuilder().setRiSetting(riSetting);
         final Setting.Builder setting =
-                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
         final SettingOverride.Builder scaleSetting =
                 SettingOverride.newBuilder().setSetting(setting);
         final ScenarioChange.Builder scenarioChangeScale =
@@ -576,7 +576,7 @@ public class PlanProgressListenerTest {
     @Test
     public void isBuyRIAndOptimizeServicesNegative() {
         final Setting.Builder setting =
-                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
         final SettingOverride.Builder scaleSetting =
                 SettingOverride.newBuilder().setSetting(setting);
         final ScenarioChange.Builder scenarioChangeScale =

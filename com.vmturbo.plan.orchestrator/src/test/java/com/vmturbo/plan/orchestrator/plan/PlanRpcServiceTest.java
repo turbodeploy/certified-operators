@@ -38,7 +38,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.AnalysisDTOMoles.AnalysisServiceMole;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 
 public class PlanRpcServiceTest {
@@ -137,7 +137,7 @@ public class PlanRpcServiceTest {
     private ScenarioChange getResizeScenarioChanges(String actionSetting) {
         final EnumSettingValue settingValue = EnumSettingValue.newBuilder()
                 .setValue(actionSetting).build();
-        final String resizeSettingName = EntitySettingSpecs.Resize.getSettingName();
+        final String resizeSettingName = ConfigurableActionSettings.Resize.getSettingName();
         final Setting resizeSetting = Setting.newBuilder().setSettingSpecName(resizeSettingName)
                 .setEnumSettingValue(settingValue).build();
         return ScenarioChange.newBuilder()

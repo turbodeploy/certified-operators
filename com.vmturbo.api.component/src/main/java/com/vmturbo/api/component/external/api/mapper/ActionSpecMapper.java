@@ -1600,6 +1600,13 @@ public class ActionSpecMapper {
             actionApiDTO.getTarget().setAspectsByName(aspects);
         }
 
+        // Set reason commodity
+        // map the recommendation info
+        LogEntryApiDTO risk = new LogEntryApiDTO();
+        risk.setImportance((float)0.0);
+        risk.setReasonCommodity(UICommodityType.fromType(resizeInfo.getCommodityType()).apiStr());
+        actionApiDTO.setRisk(risk);
+
         // Set action details
         actionApiDTO.setDetails(resizeDetails(actionApiDTO, resizeInfo,  context));
         return actionApiDTO;

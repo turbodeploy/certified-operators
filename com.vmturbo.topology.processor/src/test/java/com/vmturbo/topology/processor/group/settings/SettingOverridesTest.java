@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -41,7 +42,6 @@ import com.vmturbo.topology.processor.topology.TopologyEntityUtils;
 
 public class SettingOverridesTest {
 
-    private final GroupResolver groupResolver = mock(GroupResolver.class);
     private TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
     private static final long stGroupId = 123L;
     private static final long pmGroupId = 321L;
@@ -129,14 +129,14 @@ public class SettingOverridesTest {
         String disabled = "DISABLED";
         groupsById.putAll(ImmutableMap.of(pmGroupId, hostGroup, stGroupId, storageGroup));
         List<ScenarioChange> changes = Lists.newArrayList(ScenarioChange.newBuilder()
-            .setSettingOverride(buildSettingOverrideStringValue(EntitySettingSpecs.Provision
+            .setSettingOverride(buildSettingOverrideStringValue(ConfigurableActionSettings.Provision
                 .getSettingName(), disabled)
                 .setEntityType(EntityType.PHYSICAL_MACHINE.getValue())
                 .setGroupOid(pmGroupId)
                 .build())
             .build(),
             ScenarioChange.newBuilder()
-            .setSettingOverride(buildSettingOverrideStringValue(EntitySettingSpecs.Provision
+            .setSettingOverride(buildSettingOverrideStringValue(ConfigurableActionSettings.Provision
                 .getSettingName(), disabled)
                 .setEntityType(EntityType.STORAGE.getValue())
                 .setGroupOid(stGroupId)
@@ -158,7 +158,7 @@ public class SettingOverridesTest {
         Assert.assertTrue(settingOverrides.overridesForEntity.size() == 4);
 
         Assert.assertTrue(settingOverrides.overridesForEntity.entrySet().stream()
-            .allMatch(entry -> entry.getValue().get(EntitySettingSpecs.Provision.getSettingName())
+            .allMatch(entry -> entry.getValue().get(ConfigurableActionSettings.Provision.getSettingName())
             .getStringSettingValue().getValue().equals(disabled)));
     }
 
@@ -202,7 +202,7 @@ public class SettingOverridesTest {
         String disabled = "DISABLED";
         groupsById.put(pmGroupId, hostGroup);
         List<ScenarioChange> changes = Lists.newArrayList(ScenarioChange.newBuilder()
-            .setSettingOverride(buildSettingOverrideStringValue(EntitySettingSpecs.Provision.getSettingName(), disabled)
+            .setSettingOverride(buildSettingOverrideStringValue(ConfigurableActionSettings.Provision.getSettingName(), disabled)
                 .setEntityType(EntityType.PHYSICAL_MACHINE.getValue())
                 .setGroupOid(pmGroupId)
                 .build())
@@ -222,7 +222,7 @@ public class SettingOverridesTest {
 
         // Only host with id 111L has setting disabled.
         Assert.assertTrue(settingOverrides.overridesForEntity.get(111L)
-                .get(EntitySettingSpecs.Provision.getSettingName())
+                .get(ConfigurableActionSettings.Provision.getSettingName())
                 .getStringSettingValue().getValue().equals(disabled));
 
         // Host with id 222L has no setting.

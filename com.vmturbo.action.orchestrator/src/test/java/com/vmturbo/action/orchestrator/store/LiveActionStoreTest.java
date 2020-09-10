@@ -625,6 +625,46 @@ public class LiveActionStoreTest {
         assertEquals(0, actionStore.size());
     }
 
+    /**
+     * Tests that if the action store receives an action, and it finds out that the action was
+     * already successfully executed, it will drop it.
+     */
+    @Test
+    public void testClearReadyActionThatArleadySucceded() throws Exception {
+        ActionDTO.Action.Builder successMove =
+            move(vm3, hostA, vmType, hostB, vmType);
+
+        ActionPlan firstPlan = ActionPlan.newBuilder()
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                        .setTopologyId(topologyId))))
+            .setId(firstPlanId)
+            .addAction(successMove)
+            .build();
+        final EntitiesAndSettingsSnapshot snapshot =
+            entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
+                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+
+        actionStore.populateRecommendedActions(firstPlan);
+        when(actionStore.getAction(successMove.getId()).get().getState()).thenReturn(ActionState.SUCCEEDED);
+
+        ActionPlan secondPlan = ActionPlan.newBuilder()
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                        .setTopologyId(topologyId))))
+            .addAction(successMove)
+            .setId(secondPlanId)
+            .build();
+        actionStore.populateRecommendedActions(secondPlan);
+
+        assertEquals(0, actionStore.size());
+    }
+
     @Test
     public void testPopulateOneDuplicateReRecommended() throws Exception {
         ActionPlan firstPlan = ActionPlan.newBuilder()
@@ -1213,6 +1253,11 @@ public class LiveActionStoreTest {
 
     /**
      * Test creation of atomic actions.
+     * Two resize actions are first de-duplicated and then merged to a single atomic action.
+     * This creates two additional action DTOs for the LiveActionStore
+     * - one non-executable action dto for the de-duplication entity for UI visibility
+     * - one executable action dto for the aggregation entity that will execute the action
+     * The market actions are deleted after creation of merged actions.
      *
      * @throws Exception
      */
@@ -1247,7 +1292,6 @@ public class LiveActionStoreTest {
 
         actionStore.populateRecommendedActions(firstPlan);
 
-        assertEquals(4, actionStore.size());
+        assertEquals(3, actionStore.size());
     }
-
 }

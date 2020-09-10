@@ -16,12 +16,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
+import com.vmturbo.action.orchestrator.store.AggregatedAction.DeDupedActions;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
@@ -41,7 +41,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class AtomicResizeMergerTest {
 
-    private AtomicResizeMerger translator;
+    private AtomicResizeMerger merger;
 
     private AtomicActionSpecsCache atomicActionSpecsCache;
 
@@ -139,7 +139,7 @@ public class AtomicResizeMergerTest {
         Map<ActionType, List<AtomicActionSpec>> mergeSpecsInfoMap = new HashMap<>();
         mergeSpecsInfoMap.put(ActionType.RESIZE, resizeSpecs);
         atomicActionSpecsCache.updateAtomicActionSpecsInfo(mergeSpecsInfoMap);
-        translator = new AtomicResizeMerger(atomicActionSpecsCache);
+        merger = new AtomicResizeMerger(atomicActionSpecsCache);
     }
 
     /**
@@ -163,7 +163,7 @@ public class AtomicResizeMergerTest {
                         .build())
                 .build();
 
-        assertTrue(translator.appliesTo(resizeActionDto));
+        assertTrue(merger.appliesTo(resizeActionDto));
     }
 
     /**
@@ -184,7 +184,7 @@ public class AtomicResizeMergerTest {
                         .build())
                 .build();
 
-        assertFalse(translator.appliesTo(reconfigureActionDto));
+        assertFalse(merger.appliesTo(reconfigureActionDto));
     }
 
     private static ActionDTO.Action createResizeAction(long actionId,
@@ -224,17 +224,18 @@ public class AtomicResizeMergerTest {
                                                     40, CommodityType.VCPU);
 
         List<ActionDTO.Action> actionList =  Arrays.asList(resize1, resize2);
-        Map<ActionDTO.Action.Builder, List<Action>> atomicActions = translator.merge(actionList);
-        assertEquals(1, atomicActions.size());
 
-        Action.Builder atomicAction = atomicActions.entrySet().stream().findFirst().get().getKey();
-        assertTrue(atomicAction.getInfo().hasAtomicResize());
+        Map<Long, AggregatedAction> aggregatedActions = merger.mergeActions(actionList);
+        assertEquals(1, aggregatedActions.size());
 
-        AtomicResize resize = atomicAction.getInfo().getAtomicResize();
-        assertEquals(aggregateEntity1, resize.getExecutionTarget());
-        assertEquals(1, resize.getResizesCount());
+        AggregatedAction aggregatedAction = aggregatedActions.values().stream().findFirst().get();
+        assertEquals(aggregateEntity1, aggregatedAction.targetEntity());
 
-        assertEquals(deDupEntity1, resize.getResizesList().get(0).getTarget());
+        Map<Long, DeDupedActions> deDupedActions = aggregatedAction.deDupedActionsMap();
+        assertEquals(1, deDupedActions.size());
+
+        DeDupedActions deDupedActions1 = deDupedActions.values().stream().findFirst().get();
+        assertEquals(deDupEntity1, deDupedActions1.targetEntity());
     }
 
     /**
@@ -255,19 +256,20 @@ public class AtomicResizeMergerTest {
 
         List<ActionDTO.Action> actionList =  Arrays.asList(resize1, resize2, resize3, resize4);
 
-        Map<ActionDTO.Action.Builder, List<Action>> atomicActions = translator.merge(actionList);
-        assertEquals(1, atomicActions.size());
+        Map<Long, AggregatedAction> aggregatedActions = merger.mergeActions(actionList);
+        assertEquals(1, aggregatedActions.size());
 
-        Action.Builder atomicAction = atomicActions.entrySet().stream().findFirst().get().getKey();
-        assertTrue(atomicAction.getInfo().hasAtomicResize());
+        AggregatedAction aggregatedAction = aggregatedActions.values().stream().findFirst().get();
+        assertEquals(aggregateEntity1, aggregatedAction.targetEntity());
 
-        AtomicResize resize = atomicAction.getInfo().getAtomicResize();
-        assertEquals(aggregateEntity1, resize.getExecutionTarget());
-        assertEquals(2, resize.getResizesCount());
+        Map<Long, DeDupedActions> deDupedActions = aggregatedAction.deDupedActionsMap();
+        assertEquals(2, deDupedActions.size());
 
-        List<ActionEntity> resizeTargets = resize.getResizesList().stream()
-                                        .map(r -> r.getTarget()).collect(Collectors.toList());
-        assertThat(resizeTargets, CoreMatchers.hasItems(deDupEntity1, deDupEntity2));
+        List<ActionEntity> deDupTargets = deDupedActions.values().stream()
+                                                .map(action -> action.targetEntity())
+                                                .collect(Collectors.toList());
+
+        assertThat(deDupTargets, CoreMatchers.hasItems(deDupEntity1, deDupEntity2));
     }
 
     /**
@@ -285,13 +287,12 @@ public class AtomicResizeMergerTest {
 
         List<ActionDTO.Action> actionList =  Arrays.asList(resize1, resize2, resize3);
 
-        Map<ActionDTO.Action.Builder, List<Action>> atomicActions = translator.merge(actionList);
-        assertEquals(2, atomicActions.size());
+        Map<Long, AggregatedAction> aggregatedActions = merger.mergeActions(actionList);
+        assertEquals(2, aggregatedActions.size());
 
-        atomicActions.entrySet().stream().forEach(e -> assertTrue(e.getKey().getInfo().hasAtomicResize()));
-        List<ActionEntity> resizeTargets = atomicActions.entrySet().stream()
-                .map(e -> e.getKey().getInfo().getAtomicResize().getExecutionTarget()).collect(Collectors.toList());
-
+        List<ActionEntity> resizeTargets = aggregatedActions.values().stream()
+                                        .map(action -> action.targetEntity())
+                .collect(Collectors.toList());
         assertThat(resizeTargets, CoreMatchers.hasItems(aggregateEntity1, aggregateEntity3));
     }
 
@@ -307,18 +308,19 @@ public class AtomicResizeMergerTest {
 
         List<ActionDTO.Action> actionList =   Arrays.asList(resize1, resize2);
 
-        Map<ActionDTO.Action.Builder, List<Action>> atomicActions = translator.merge(actionList);
-        assertEquals(1, atomicActions.size());
+        Map<Long, AggregatedAction> aggregatedActions = merger.mergeActions(actionList);
+        assertEquals(1, aggregatedActions.size());
 
-        Action.Builder atomicAction = atomicActions.entrySet().stream().findFirst().get().getKey();
-        assertTrue(atomicAction.getInfo().hasAtomicResize());
+        AggregatedAction aggregatedAction = aggregatedActions.values().stream().findFirst().get();
+        assertEquals(aggregateEntity3, aggregatedAction.targetEntity());
 
-        AtomicResize resize = atomicAction.getInfo().getAtomicResize();
-        assertEquals(aggregateEntity3, resize.getExecutionTarget());
-        assertEquals(2, resize.getResizesCount());
+        Map<Long, DeDupedActions> deDupedActions = aggregatedAction.deDupedActionsMap();
+        assertEquals(0, deDupedActions.size());
+        assertEquals(2, aggregatedAction.aggregateOnlyActions().size());
 
-        List<ActionEntity> resizeTargets = resize.getResizesList().stream()
-                                    .map(r -> r.getTarget()).collect(Collectors.toList());
+        List<ActionEntity> resizeTargets = aggregatedAction.aggregateOnlyActions().stream()
+                .map(action -> action.getInfo().getResize().getTarget())
+                .collect(Collectors.toList());
 
         assertThat(resizeTargets,
                 CoreMatchers.hasItems(

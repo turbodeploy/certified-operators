@@ -10,9 +10,10 @@ import javax.annotation.Nonnull;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.commons.io.FilenameUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.util.FileUtils;
 import org.apache.sshd.client.subsystem.sftp.SftpClient.Attributes;
 
 import com.vmturbo.mediation.actionscript.ActionScriptsManifest.ActionScriptDeclaration;
@@ -73,7 +74,7 @@ public class ActionScriptDiscovery {
     ValidationResponse validateManifestFile(SshRunner runner) {
         ErrorDTO errorDTO = null;
         final File manifestFile = new File(accountValues.getManifestPath());
-        String extension = FileUtils.getFileExtension(manifestFile);
+        String extension = FilenameUtils.getExtension(accountValues.getManifestPath());
         if (extension == null) {
             extension = ""; // avoid NPE below
         }
@@ -138,7 +139,10 @@ public class ActionScriptDiscovery {
                 try {
                     response.addWorkflow(validateScriptDeclaration(script, runner));
                 } catch (InvalidActionScriptException e) {
-                    response.addErrorDTO(createAndLogErrorDTO(generateWorkflowID(script), "Failed to validate action script " + script.getName() + ": " + e.getLocalizedMessage(), e));
+                    response.addErrorDTO(createAndLogErrorDTO(generateWorkflowID(script),
+                            "Failed to validate action script " + script.getName() + "("
+                                    + script.getScriptPath() + ")" + ": " + e.getLocalizedMessage(),
+                            e));
                 }
             }
         } else {

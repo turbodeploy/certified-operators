@@ -322,6 +322,12 @@
             <artifactId>components-api-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-testing</artifactId>
+            <version>${grpc.version}</version>
+            <scope>test</scope>
+        </dependency>
         <!-- END test dependencies -->
 
         <dependency>
@@ -343,6 +349,10 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.plan.orchestrator.api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-testing</artifactId>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>

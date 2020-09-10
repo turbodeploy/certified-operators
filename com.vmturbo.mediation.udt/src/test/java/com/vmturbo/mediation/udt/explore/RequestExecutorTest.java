@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Test class for {@link RequestExecutor}.
@@ -58,7 +59,7 @@ public class RequestExecutorTest {
 
         connection = Mockito.spy(
                 new Connection(groupServer.getChannel(), repositoryServer.getChannel(),
-                        tpServer.getChannel()));
+                        tpServer.getChannel(), Mockito.mock(TopologyProcessor.class)));
     }
 
     /**

@@ -43,7 +43,7 @@ public class OidToUdtMappingTaskTest {
                 .putEntityPropertyMap(VENDOR, UDT_PROBE_TAG)
                 .putEntityPropertyMap(VENDOR_ID, definitionId)
                 .build();
-        Mockito.when(dataProvider.getEntitiesByOids(Mockito.anySet()))
+        Mockito.when(dataProvider.searchEntitiesByTargetId(Mockito.anyLong()))
                 .thenReturn(Collections.singleton(entityDTO));
         OidToUdtMappingTask.execute(Sets.newHashSet(udtTransaction, udtService), dataProvider);
         Assert.assertEquals(String.valueOf(topologyDtoId), udtService.getDtoId());

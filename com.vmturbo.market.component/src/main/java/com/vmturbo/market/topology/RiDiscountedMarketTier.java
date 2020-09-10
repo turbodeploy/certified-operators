@@ -92,7 +92,7 @@ public class RiDiscountedMarketTier implements SingleRegionMarketTier {
      *
      * @return Total number of coupons bought by the RIs in this RIAggregate
      */
-    public int getTotalNumberOfCouponsBought() {
+    public double getTotalNumberOfCouponsBought() {
         return riAggregate.getTotalNumberOfCouponsBought();
     }
 

@@ -1,6 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
-import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityType;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyAtomicActionsCommodityType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.getCommodityDisplayName;
 
 import java.text.MessageFormat;
@@ -608,20 +608,21 @@ public class ExplanationComposer {
 
     /**
      * Build atomic resize action explanation.
-     * e.g. full explanation:
-     *   "Merged on Workload Controller twitter-cass-tweet -
-     *     VCPU Congestion in Container Spec istio-proxy
-     *     [Resize DOWN VCPU from 5,328 to 328],
-     *     VMem Congestion in Container Spec twitter-cass-tweet
-     *     [Resize DOWN VMem from 512.0 MB to 128.0 MB],
-     *     VCPU Congestion in Container Spec twitter-cass-tweet
-     *     [Resize UP VCPU from 666 to 966],
-     *     VMem Congestion in Container Spec istio-proxy
-     *     [Resize DOWN VMem from 1.0 GB to 128.0 MB]"
      *
-
-     * e.g. short explanation:
-     *      "Merged on Workload Controller twitter-cass-tweet"
+     * <p>e.g. full explanation for merged actions on workload controller:
+     *   "Controller Resize -
+     *     Resize DOWN VCPU Limit from 5,328 to 328,
+     *     Resize DOWN VMem Limit from 1.0 GB to 128.0 MB
+     *     in Container Spec istio-proxy;
+     *     Resize DOWN VMem Request from 512.0 MB to 128.0 MB,
+     *     Resize UP VCPU Request from 666 to 966
+     *     in Container Spec twitter-cass-tweet"
+     *
+     * <p>e.g. short explanation for merged actions on workload controller:
+     *      "Controller Resize"
+     *
+     * <p>e.g. short explanation for merged actions on container spec:
+     *     "Container Resize"
      *
      * @param action the action to explain
      * @param topology A minimal topology graph containing the relevant topology.
@@ -641,77 +642,81 @@ public class ExplanationComposer {
 
         AtomicResize atomicResize = action.getInfo().getAtomicResize();
 
-        final String coreExplanation = buildAtomicResizeCoreExplanation(action, topology);
+        final String coreExplanation = buildAtomicResizeCoreExplanation(action);
+        // This generic explanation string is used as a filter criterion for grouping actions.
         if (keepItShort) {
             return Collections.singleton(coreExplanation);
         }
 
         final List<String> resizeInfoExplanations = new ArrayList<>();
-        for (ResizeInfo resize : atomicResize.getResizesList()) {
 
-            String resizeExplanation;
+        // group the resize infos by target entity
+        final Map<ActionEntity, List<ResizeInfo>> resizeInfoByTarget
+                            = atomicResize.getResizesList().stream()
+                              .collect(Collectors.groupingBy(resize -> resize.getTarget()));
 
-            CommodityType commType = resize.getCommodityType();
-            final String commodityType = convertStorageAccessToIops.apply(commodityDisplayName(commType, keepItShort))
-                    + (resize.getCommodityAttribute() == CommodityAttribute.RESERVED ? " reservation" : "");
+        resizeInfoByTarget.forEach((target, resizeInfoList) -> {
+            List<String> explanations = new ArrayList<>();
 
-            String commString = commodityType;
-            if (commType.getType() == CommodityDTO.CommodityType.VCPU_VALUE
-                    || commType.getType() == CommodityDTO.CommodityType.VMEM_VALUE)    {
-                commString = commodityType + " Limit";
+            // explanation string for all the commodity resizes per target
+            for (ResizeInfo resize : resizeInfoByTarget.get(target)) {
+                CommodityDTO.CommodityType commodity = CommodityDTO.CommodityType
+                        .forNumber(resize.getCommodityType().getType());
+
+                String format_capacity =  "Resize {0} {1} from {2} to {3}";
+
+                String explanation = MessageFormat.format(
+                        format_capacity,
+                        resize.getNewCapacity() > resize.getOldCapacity() ? "UP" : "DOWN",
+                        beautifyAtomicActionsCommodityType(resize.getCommodityType()),
+                        ActionDescriptionBuilder.formatResizeActionCommodityValue(
+                                commodity, resize.getTarget().getType(), resize.getOldCapacity()),
+                        ActionDescriptionBuilder.formatResizeActionCommodityValue(
+                                commodity, resize.getTarget().getType(), resize.getNewCapacity())
+                );
+
+                explanations.add(explanation);
             }
 
-            final boolean isResizeDown = resize.getOldCapacity() > resize.getNewCapacity();
+            String targetClause = " in " + buildEntityTypeAndName(target, topology);
 
-            if (isResizeDown) {
-                resizeExplanation = UNDERUTILIZED_EXPLANATION + commString;
-            } else {
-                resizeExplanation = commString + CONGESTION_EXPLANATION;
-            }
+            resizeInfoExplanations.add(String.join(", ", explanations) + targetClause);
+        });
 
-            StringBuilder sb = new StringBuilder();
-            String targetClause = resize.hasTarget()
-                    ? " in " + buildEntityTypeAndName(resize.getTarget(), topology)
-                    : "";
-            sb.append(resizeExplanation).append(targetClause);
-
-            CommodityDTO.CommodityType commodity = CommodityDTO.CommodityType
-                    .forNumber(resize.getCommodityType().getType());
-
-            String format_capacity =  "{0} [Resize {1} {2} from {3} to {4}]";
-            String format_reservation = "{0} [Resize {1} {2} reservation from {3} to {4}]";
-
-            String explanation = MessageFormat.format(
-                    resize.getCommodityAttribute() == CommodityAttribute.CAPACITY ? format_capacity : format_reservation,
-                    sb.toString(),
-                    resize.getNewCapacity() > resize.getOldCapacity() ? "UP" : "DOWN",
-                    beautifyCommodityType(resize.getCommodityType()),
-                    ActionDescriptionBuilder.formatResizeActionCommodityValue(
-                            commodity, resize.getTarget().getType(), resize.getOldCapacity()),
-                    ActionDescriptionBuilder.formatResizeActionCommodityValue(
-                            commodity, resize.getTarget().getType(), resize.getNewCapacity())
-            );
-
-            resizeInfoExplanations.add(explanation);
-        }
-
+        // Combined explanation for all the targets
         StringBuilder allExplanations = new StringBuilder();
         allExplanations.append(coreExplanation).append(" - ");
-        allExplanations.append(String.join(", ", resizeInfoExplanations));
+        allExplanations.append(String.join("; ", resizeInfoExplanations));
 
         return Collections.singleton(allExplanations.toString());
     }
 
-    private static String buildAtomicResizeCoreExplanation(ActionDTO.Action action,
-                                                           @Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topology) {
-        StringBuilder sb = new StringBuilder(ActionDTOUtil.TRANSLATION_PREFIX);
-        AtomicResize atomicResize = action.getInfo().getAtomicResize();
-        String targetClause = atomicResize.hasExecutionTarget()
-                ? " Merged on " + buildEntityTypeAndName(atomicResize.getExecutionTarget(), topology)
-                : "";
+    /**
+     * Build the core generic explanation that is returned
+     * as short explanation or 'risk' for the for the atomic resize action
+     * This generic explanation string is used as a filter criterion for grouping actions.
+     *
+     * @param action the action to explain
+     *
+     * @return core explanation for the atomic resize
+     */
+    @VisibleForTesting
+    static String buildAtomicResizeCoreExplanation( @Nonnull final ActionDTO.Action action) {
+        StringBuilder explanation = new StringBuilder();
 
-        sb.append(targetClause);
-        return sb.toString();
+        ActionEntity executionEntity = action.getInfo().getAtomicResize().getExecutionTarget();
+        switch (executionEntity.getType()) {
+            case EntityType.WORKLOAD_CONTROLLER_VALUE:
+                explanation.append("Controller");
+                break;
+            case EntityType.CONTAINER_SPEC_VALUE:
+                explanation.append("Container");
+                break;
+            default:
+                logger.error("Unsupported entity type for atomic resize {}", executionEntity.getType());
+        }
+        explanation.append(" Resize");
+        return explanation.toString();
     }
 
     /**
