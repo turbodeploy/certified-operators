@@ -813,7 +813,6 @@ public class LiveActionStore implements ActionStore {
                 .filter(action -> (action.getState() == ActionState.READY
                         || action.getState() == ActionState.QUEUED))
                 .forEach(action -> {
-                    logger.info("{} remaining action {}", action.getId(), action.getRecommendationOid());
                     action.receive(new NotRecommendedEvent(planId));
 
                 });
