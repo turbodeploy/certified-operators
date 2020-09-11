@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.spy;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -30,6 +31,7 @@ import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
@@ -37,6 +39,9 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityMoles.CpuCapacityServiceMole;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc.CpuCapacityServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -60,6 +65,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
@@ -392,12 +398,27 @@ public class EntitySettingsApplicatorTest {
             .setTopologyType(TopologyType.PLAN)
             .build();
 
-    @java.lang.SuppressWarnings("unchecked")
-    private final StitchingJournal<TopologyEntity> stitchingJournal = Mockito.mock(StitchingJournal.class);
+    private final CpuCapacityServiceMole cpuCapacityServiceMole =  spy(new CpuCapacityServiceMole());
 
+    /**
+     * Must be public, otherwise when unit test starts up, JUnit throws ValidationError.
+     */
+    @Rule
+    public final GrpcTestServer grpcServer = GrpcTestServer.newServer(cpuCapacityServiceMole);
+
+    /**
+     * Cannot be initialized in the field, otherwise a IllegalStateException: GrpcTestServer has not
+     * been started yet. Please call start() before is thrown.
+     */
+    private CpuCapacityServiceBlockingStub cpuCapacityService;
+
+    /**
+     * Setup the mocked services that cannot be initialized as fields.
+     */
     @Before
     public void init() {
         applicator = new EntitySettingsApplicator();
+        cpuCapacityService = CpuCapacityServiceGrpc.newBlockingStub(grpcServer.getChannel());
     }
 
     /**
@@ -624,7 +645,8 @@ public class EntitySettingsApplicatorTest {
         IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(888L);
 
-        final TopologyEntityDTO.Builder entity = new VirtualMachineEntityConstructor()
+        final TopologyEntityDTO.Builder entity = new VirtualMachineEntityConstructor(
+            cpuCapacityService)
                 .createTopologyEntityFromTemplate(VM_TEMPLATE, Collections.emptyMap(), null,
                         TemplateActionType.CLONE, identityProvider, null);
         entity.setEnvironmentType(EnvironmentType.ON_PREM);

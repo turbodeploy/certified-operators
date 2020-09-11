@@ -31,6 +31,9 @@ public class TemplateConverterTestUtil {
 
     private TemplateConverterTestUtil() {}
 
+    /**
+     * A sample template for a VM.
+     */
     public static final TemplateInfo VM_TEMPLATE_INFO = TemplateInfo.newBuilder()
             .setName("test-VM-template")
             .setTemplateSpecId(123)
@@ -73,6 +76,9 @@ public class TemplateConverterTestUtil {
                             .setValue("0.1")))
             .build();
 
+    /**
+     * A sample sold commodity list from a VM.
+     */
     public static final Set<CommoditySoldDTO> VM_COMMODITY_SOLD = Sets.newHashSet(
             CommoditySoldDTO.newBuilder()
                     .setCommodityType(TopologyDTO.CommodityType.newBuilder()
@@ -144,9 +150,20 @@ public class TemplateConverterTestUtil {
                     .setProviderEntityType(EntityType.STORAGE_VALUE)
                     .build();
 
+    /**
+     * A sample bought commodity list for a VM.
+     */
     public static final List<CommoditiesBoughtFromProvider> VM_COMMODITY_BOUGHT_FROM_PROVIDER =
             Stream.of(commodityBoughtFromProviderHost, commodityBoughtFromProviderStorage).collect(Collectors.toList());
 
+    /**
+     * Gets the first commodity sold that matches the provided type.
+     *
+     * @param commoditySoldDTOList the list of commodities to search for the commodity
+     *                                       with the provided commodityType.
+     * @param commodityType the commodityType of the commodity to search for.
+     * @return the first commodity sold that matches the provided type.
+     */
     public static Optional<CommoditySoldDTO> getCommoditySold(@Nonnull final List<CommoditySoldDTO> commoditySoldDTOList,
                                                               final int commodityType) {
         return commoditySoldDTOList.stream()
@@ -154,6 +171,14 @@ public class TemplateConverterTestUtil {
             .findFirst();
     }
 
+    /**
+     * Gets the value from the first commodity sold that matches the provided type.
+     *
+     * @param commoditySoldDTOList the list of commodities to search for the commodity
+     *                                       with the provided commodityType.
+     * @param commodityType the commodityType of the commodity to search for.
+     * @return the value from the first commodity sold that matches the provided type.
+     */
     public static double getCommoditySoldValue(@Nonnull final List<CommoditySoldDTO> commoditySoldDTOList,
                                                final int commodityType) {
         return getCommoditySold(commoditySoldDTOList, commodityType)
@@ -161,24 +186,50 @@ public class TemplateConverterTestUtil {
             .get();
     }
 
-    public static double getCommodityBoughtValue(List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders,
-                                                 int commodityType) {
+    /**
+     * Gets the first commodity bought that matches the provided type.
+     *
+     * @param commoditiesBoughtFromProviders the list of commodities to search for the commodity
+     *                                       with the provided commodityType.
+     * @param commodityType the commodityType of the commodity to search for.
+     * @return the first commodity bought that matches the provided type.
+     */
+    public static Optional<CommodityBoughtDTO> getCommodityBought(
+            @Nonnull final List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders,
+            final int commodityType) {
         return commoditiesBoughtFromProviders.stream()
             .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
             .flatMap(List::stream)
             .filter(commodity -> commodity.getCommodityType().getType() == commodityType)
-            .findFirst()
+            .findFirst();
+    }
+
+    /**
+     * Gets the value from the first commodity bought that matches the provided type.
+     *
+     * @param commoditiesBoughtFromProviders the list of commodities to search for the commodity
+     *                                       with the provided commodityType.
+     * @param commodityType the commodityType of the commodity to search for.
+     * @return the value from the first commodity bought that matches the provided type.
+     */
+    public static double getCommodityBoughtValue(List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders,
+                                                 int commodityType) {
+        return getCommodityBought(commoditiesBoughtFromProviders, commodityType)
             .map(CommodityBoughtDTO::getUsed)
             .get();
     }
 
+    /**
+     * Gets the key from the first commodity bought that matches the provided type.
+     *
+     * @param commoditiesBoughtFromProviders the list of commodities to search for the commodity
+     *                                       with the provided commodityType.
+     * @param commodityType the commodityType of the commodity to search for.
+     * @return the key from the first commodity bought that matches the provided type.
+     */
     public static String getCommodityBoughtKey(List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders,
                                                int commodityType) {
-        return commoditiesBoughtFromProviders.stream()
-            .flatMap(commoditiesBoughtFromProvider ->
-                commoditiesBoughtFromProvider.getCommodityBoughtList().stream())
-            .filter(commodity -> commodity.getCommodityType().getType() == commodityType)
-            .findFirst()
+        return getCommodityBought(commoditiesBoughtFromProviders, commodityType)
             .map(CommodityBoughtDTO::getCommodityType)
             .map(CommodityType::getKey)
             .get();
