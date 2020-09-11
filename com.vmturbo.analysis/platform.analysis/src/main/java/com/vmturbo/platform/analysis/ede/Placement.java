@@ -3,14 +3,12 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.BinaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -30,6 +28,7 @@ import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
+import com.vmturbo.platform.analysis.economy.Context.ContextComparator;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -60,58 +59,35 @@ public class Placement {
      */
     @VisibleForTesting
     static final BinaryOperator<Set<Context>> mergeContextSets = (s1, s2) -> {
-        // Make up a map of account id to their parent (BillingFamily) ids.
-        final Map<Long, Long> accountIdToParentId = new HashMap<>();
-        Stream.of(s1, s2)
-                .flatMap(Collection::stream)
-                .forEach(ctx -> {
-                    if (ctx.getBalanceAccount().getParentId() != null) {
-                        accountIdToParentId.put(ctx.getBalanceAccount().getId(),
-                                ctx.getBalanceAccount().getParentId());
-                        ctx.getBalanceAccount().setParentId(null);
-                    }
-                });
-        // Find common context b/w the 2 sets.
-        // BCTODO this is a temporary workaround to address OM-62413.  We are having issues with
-        // bad hashing or something else related to not being able to get an accurate intersection
-        // of two sets.  For now, let's do a direct comparison to find the intersection.  This does
-        // not perform well at scale.  The intent is for this workaround to exist for less than
-        // 24 hours.
-        Set<Context> commonContexts = new HashSet<>();
-        for (Context c1 : s1) {
-            for (Context c2 : s2) {
-                if (c1.equals(c2)) {
-                    commonContexts.add(c1);
-                    break;
-                }
+        java.util.TreeMap<Context, Optional<Long>> existing =
+                new TreeMap<>(new ContextComparator());
+        Set<Context> buyerContexts = Sets.newHashSet();
+
+        // Part 1: Populate existing set and note the parentIds.  Overwrite entries that are
+        // duplicates and have a null parentId.
+        for (Context context : s1) {
+            Optional<Long> existingParentId = existing.get(context);
+            if (existingParentId == null || !existingParentId.isPresent()) {
+                existing.put(context, Optional.ofNullable(context.getBalanceAccount().getParentId()));
             }
         }
-
-        // make clones of commonContext which derived from active sellers and later pass
-        // them to buying trader. The buying trader can not use the same context as the
-        // seller mainly because parentId exists only on cbtp seller but not tp seller.
-        // The above intersection on context will exclude the cbtp seller context, but it
-        // is needed for later cost calculation.
-        Set<Context> buyerContexts = Sets.newHashSet();
-        for (Context c : commonContexts) {
-            long baId = c.getBalanceAccount().getId();
-            BalanceAccount ba = accountIdToParentId.containsKey(baId)
-                    ? new BalanceAccount(baId, accountIdToParentId.get(baId))
-                    : new BalanceAccount(baId);
-            buyerContexts.add(new Context(c.getRegionId(), c.getZoneId(), ba));
+        // Part 2: Check for intersecting Contexts while noting parent IDs
+        for (Context context : s2) {
+            Optional<Long> existingParentId = existing.get(context);
+            if (existingParentId != null) {
+                // We have a Context in both sets
+                // make clones of commonContext which derived from active sellers and later pass
+                // them to buying trader. The buying trader can not use the same context as the
+                // seller mainly because parentId exists only on cbtp seller but not tp seller.
+                // The above intersection on context will exclude the cbtp seller context, but it
+                // is needed for later cost calculation.
+                // In the event that we have two different parentIds, prefer a non-null one.
+                Long parentId = existingParentId.orElseGet(() -> null);
+                BalanceAccount ba = new BalanceAccount(context.getBalanceAccount().getId());
+                ba.setParentId(parentId == null ? context.getBalanceAccount().getParentId() : parentId);
+                buyerContexts.add(new Context(context.getRegionId(), context.getZoneId(), ba));
+            }
         }
-        // For all the original contexts for which we set parentId to null above, restore them back.
-        // When there are multiple VMs in the same plan, we will call this multiple times, and
-        // each time, we need to lookup the original context first (with the parentId) before doing
-        // the intersection.
-        Stream.of(s1, s2)
-                .flatMap(Collection::stream)
-                .forEach(ctx -> {
-                    Long parentId = accountIdToParentId.get(ctx.getBalanceAccount().getId());
-                    if (parentId != null) {
-                        ctx.getBalanceAccount().setParentId(parentId);
-                    }
-                });
         return buyerContexts;
     };
 
