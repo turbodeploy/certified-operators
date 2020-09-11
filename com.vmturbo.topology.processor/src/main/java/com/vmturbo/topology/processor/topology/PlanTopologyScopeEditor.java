@@ -85,7 +85,7 @@ public class PlanTopologyScopeEditor {
      */
     private static final Set<Integer> ENTITY_TYPES_TO_SKIP =
             ImmutableSet.of(EntityType.BUSINESS_APPLICATION_VALUE, EntityType.BUSINESS_TRANSACTION_VALUE,
-                EntityType.SERVICE_VALUE);
+                EntityType.SERVICE_VALUE, EntityType.APPLICATION_COMPONENT_VALUE);
 
     private final GroupServiceBlockingStub groupServiceClient;
 
