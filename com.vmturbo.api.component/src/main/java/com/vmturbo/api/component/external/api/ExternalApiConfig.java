@@ -155,6 +155,8 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
         registry.addRedirectViewController("/", "/app/index.html");
+        registry.addRedirectViewController("/app", "/app/index.html");
+        registry.addRedirectViewController("/app/", "/app/index.html");
         registry.addRedirectViewController("/vmturbo/apidoc", "/vmturbo/apidoc/index.html");
         registry.addRedirectViewController("/swagger", "/swagger/index.html");
     }

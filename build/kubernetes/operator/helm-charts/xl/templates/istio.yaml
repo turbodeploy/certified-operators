@@ -74,16 +74,22 @@ spec:
         port:
           number: 8080
   - match:
-    - uri:
-        exact: /
+      - uri:
+          exact: /
+      - uri:
+          prefix: /app
+      - uri:
+          prefix: /assets
+      - uri:
+          prefix: /doc
+    route:
+      - destination:
+          host: ui.{{ .Release.Namespace }}.svc.cluster.local
+          port:
+            number: 8080
+  - match:
     - uri:
         prefix: /api
-    - uri:
-        prefix: /app
-    - uri:
-        prefix: /assets
-    - uri:
-        prefix: /doc
     - uri:
         prefix: /vmturbo/rest
     - uri:
