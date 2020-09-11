@@ -2,6 +2,9 @@ package com.vmturbo.topology.processor.topology;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.COMPUTE_TIER;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATACENTER;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DISK_ARRAY;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.LOGICAL_POOL;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.STORAGE_TIER;
@@ -167,11 +170,33 @@ public class CloudMigrationPlanHelper {
      * Certain providers (mostly on-prem) we need to do some special processing - making sure
      * they are controllable, non-suspendable etc.
      */
-    private static final Set<EntityType> PROVIDER_TYPES = ImmutableSet.of(
+    private static final Set<EntityType> PROCESS_PROVIDER_TYPES = ImmutableSet.of(
             PHYSICAL_MACHINE,
             STORAGE,
             STORAGE_TIER,
             VIRTUAL_VOLUME);
+
+    /**
+     * All provider types for which we want to do something to. We don't want to see Suspend
+     * actions for any of these.
+     */
+    private static final Set<EntityType> ALL_PROVIDER_TYPES = ImmutableSet.of(
+            PHYSICAL_MACHINE,
+            STORAGE,
+            STORAGE_TIER,
+            VIRTUAL_VOLUME,
+            DATACENTER,
+            LOGICAL_POOL,
+            DISK_ARRAY);
+
+    /**
+     * Provider types for which controllable = false is to be set. For providers of hosts and
+     * storage entities, we don't want market placement attempts.
+     */
+    private static final Set<EntityType> NON_CONTROLLABLE_PROVIDER_TYPES = ImmutableSet.of(
+            DATACENTER,
+            LOGICAL_POOL,
+            DISK_ARRAY);
 
     /**
      * Providers from which LICENSE_ACCESS can be bought. Physical Machine only would
@@ -667,22 +692,55 @@ public class CloudMigrationPlanHelper {
                                   final boolean isDestinationAws) {
         // if cloud-to-cloud migration
         Map<Long, Double> providerToMaxStorageAccessMap = new HashMap<>();
-        sourceToProducerToMaxStorageAccess.values().forEach(m -> providerToMaxStorageAccessMap.putAll(m));
+        sourceToProducerToMaxStorageAccess.values().forEach(providerToMaxStorageAccessMap::putAll);
 
-        PROVIDER_TYPES
+        ALL_PROVIDER_TYPES
                 .stream()
                 .flatMap(graph::entitiesOfType)
                 .map(TopologyEntity::getTopologyEntityDtoBuilder)
                 .forEach(providerDtoBuilder -> {
+                    final EntityType providerType = EntityType.forNumber(
+                            providerDtoBuilder.getEntityType());
 
                     // Set suspendable false, so we don't see suspend actions for these providers.
                     providerDtoBuilder.getAnalysisSettingsBuilder().setSuspendable(false);
 
-                    // Need to set movable/scalable true for provider commBought.
-                    prepareBoughtCommodities(providerDtoBuilder, topologyInfo,
-                            sourceToProducerToMaxStorageAccess, isDestinationAws, false);
-                    prepareSoldCommodities(providerDtoBuilder, providerToMaxStorageAccessMap);
+                    providerDtoBuilder.getAnalysisSettingsBuilder()
+                            .setControllable(!NON_CONTROLLABLE_PROVIDER_TYPES.contains(providerType));
+
+                    if (PROCESS_PROVIDER_TYPES.contains(providerType)) {
+                        // Need to set movable/scalable true for provider commBought.
+                        prepareBoughtCommodities(providerDtoBuilder, topologyInfo,
+                                sourceToProducerToMaxStorageAccess, isDestinationAws, false);
+                        prepareSoldCommodities(providerDtoBuilder, providerToMaxStorageAccessMap);
+                    }
                 });
+    }
+
+    /**
+     * This is a workaround to get around the issue where some provider's commSold doesn't have
+     * proper capacities set, including some access commodities. This results in EntityValidator
+     * (later stage in pipeline) making the entity non-controllable, causing market to not have
+     * any actions for that entity.
+     * Sets the capacity to infinite if it is found to be 0.
+     *
+     * @param providerDtoBuilder Builder for provider whose commSold capacity is updated.
+     */
+    private void fixZeroCapacity(@Nonnull final TopologyEntityDTO.Builder providerDtoBuilder) {
+        switch (providerDtoBuilder.getEntityType()) {
+            case VIRTUAL_VOLUME_VALUE:
+            case STORAGE_VALUE:
+                providerDtoBuilder.getCommoditySoldListBuilderList()
+                        .forEach(commSoldBuilder -> {
+                            if (commSoldBuilder.getCapacity() == 0d) {
+                                logger.trace("Fixing capacity for provider {} (id: {}) sold: {}",
+                                        providerDtoBuilder.getDisplayName(),
+                                        providerDtoBuilder.getOid(),
+                                        commSoldBuilder);
+                                commSoldBuilder.setCapacity(1E9);
+                            }
+                        });
+        }
     }
 
     /**
@@ -695,17 +753,8 @@ public class CloudMigrationPlanHelper {
      */
     void prepareSoldCommodities(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
                                 @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap) {
+        fixZeroCapacity(dtoBuilder);
         if (dtoBuilder.getEntityType() == VIRTUAL_VOLUME_VALUE) {
-            // For vol providers, storage_access commodity doesn't have capacity, so set it.
-            // Not doing this makes volumes non-controllable later in EntityValidator.
-            // Hopefully this block can be removed when the probe issue is fixed.
-            // TODO: Temporary, not needed once these issues are fixed in probe, with real-time VV support.
-            dtoBuilder.getCommoditySoldListBuilderList()
-                    .forEach(commSoldBuilder -> {
-                        if (commSoldBuilder.getCapacity() == 0d) {
-                            commSoldBuilder.setCapacity(1E9);
-                        }
-                    });
             dtoBuilder.getCommoditySoldListBuilderList().stream()
                     .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
                     .forEach(c -> {
