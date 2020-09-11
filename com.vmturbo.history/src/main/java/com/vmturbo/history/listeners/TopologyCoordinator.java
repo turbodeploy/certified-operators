@@ -55,6 +55,7 @@ import com.vmturbo.history.ingesters.live.ProjectedRealtimeTopologyIngester;
 import com.vmturbo.history.ingesters.live.SourceRealtimeTopologyIngester;
 import com.vmturbo.history.ingesters.plan.ProjectedPlanTopologyIngester;
 import com.vmturbo.history.ingesters.plan.SourcePlanTopologyIngester;
+import com.vmturbo.history.listeners.IngestionStatus.IngestionState;
 import com.vmturbo.market.component.api.AnalysisSummaryListener;
 import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
@@ -314,7 +315,7 @@ public class TopologyCoordinator extends TopologyListenerBase
             logger.info("Received {}", topologyLabel);
             processingStatus.receive(flavor, info, topologyLabel);
             // do the kick exchange with processing loop
-            if (waitForGreenLight(flavor, info, topologyLabel)) {
+            if (waitForGreenLight(flavor, info, topologyLabel, IngestionState.Received)) {
                 // now ingest the topology if processing loop put us in processing state
                 if (processingStatus.isProcessing(flavor, info)) {
                     // lock out rollup operations
@@ -491,15 +492,15 @@ public class TopologyCoordinator extends TopologyListenerBase
      * @param flavor        topology flavor
      * @param topologyInfo  topology info
      * @param topologyLabel label, for logging
+     * @param waitState     ingestion state to move from to signify green light
      * @return true if we were awoken by a signal, else we timed out
      */
-    private boolean waitForGreenLight(final TopologyFlavor flavor,
-                                      final TopologyInfo topologyInfo,
-                                      String topologyLabel) {
+    private boolean waitForGreenLight(final TopologyFlavor flavor, final TopologyInfo topologyInfo,
+            final String topologyLabel, final IngestionState waitState) {
         triggerProcessingLoop();
         try {
-            return processingStatus.getIngestion(flavor, topologyInfo)
-                .await(ingestionTimeoutSecs, ChronoUnit.SECONDS);
+            final IngestionStatus ingestion = processingStatus.getIngestion(flavor, topologyInfo);
+            return ingestion.await(ingestionTimeoutSecs, ChronoUnit.SECONDS, waitState);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             processingStatus.failIngestion(flavor, topologyInfo, topologyLabel, Optional.empty(), e);
