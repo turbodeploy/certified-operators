@@ -30,6 +30,6 @@ public class ExternalApiConfigTest {
     public void testGetBaseURLMappingsAddingVendorContextUrl() {
         environmentVariables.set(ENABLED, "true");
         environmentVariables.set(VENDOR_URL_CONTEXT_TAG, "wo");
-        assertThat(ExternalApiConfig.BASE_URL_MAPPINGS, hasItem("/api/wo/v3/*"));
+        assertThat(ExternalApiConfig.getBaseURLMappings(), hasItem("/api/wo/v3/*"));
     }
 }

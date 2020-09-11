@@ -18,14 +18,16 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology.ProjectedTopologyBuilder;
+import com.vmturbo.topology.graph.search.SearchResolver;
+import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
 public class ProjectedRealtimeTopologyTest {
@@ -64,7 +66,9 @@ public class ProjectedRealtimeTopologyTest {
             .setTopologyId(9)
             .setTopologyType(TopologyType.REALTIME)
             .build();
-        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator());
+        SearchResolver<RepoGraphEntity>
+                searchResolver = new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
+        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator(), searchResolver);
         final ProjectedTopologyBuilder projectedTopologyBuilder =
             liveTopologyStore.newProjectedTopology(topologyId, originalTopologyInfo);
         projectedTopologyBuilder.addEntities(Collections.singletonList(projectedVm));
@@ -98,7 +102,9 @@ public class ProjectedRealtimeTopologyTest {
             .setTopologyId(9)
             .setTopologyType(TopologyType.REALTIME)
             .build();
-        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator());
+        SearchResolver<RepoGraphEntity>
+                searchResolver = new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
+        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator(), searchResolver);
         final ProjectedTopologyBuilder projectedTopologyBuilder =
             liveTopologyStore.newProjectedTopology(topologyId, originalTopologyInfo);
         projectedTopologyBuilder.addEntities(Collections.singletonList(projectedVm));

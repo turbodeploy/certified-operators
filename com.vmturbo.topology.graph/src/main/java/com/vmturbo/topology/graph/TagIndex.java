@@ -8,11 +8,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
@@ -45,10 +49,22 @@ public interface TagIndex {
      * than going over each entity and calling {@link DefaultTagIndex#isMatchingEntity(long, MapFilter)}.
      *
      * @param mapFilter The tag filter.
+     * @param predicate Additional predicate for potentially matching entities.
      * @return The set of all OIDs that match the filters.
      */
     @Nonnull
-    LongSet getMatchingEntities(MapFilter mapFilter);
+    LongSet getMatchingEntities(@Nonnull MapFilter mapFilter, @Nonnull LongPredicate predicate);
+
+    /**
+     * See {@link TagIndex#getMatchingEntities(MapFilter, LongPredicate)}.
+     *
+     * @param mapFilter The tag filter.
+     * @return The set of all OIDs that match the filter.
+     */
+    @Nonnull
+    default LongSet getMatchingEntities(@Nonnull MapFilter mapFilter) {
+        return getMatchingEntities(mapFilter, e -> true);
+    }
 
     /**
      * The default (and, at the time of this writing, the only) tag index implementation.
@@ -116,10 +132,20 @@ public interface TagIndex {
         @Nonnull
         public Map<String, Set<String>> getTagsForEntities(@Nonnull final LongSet entities) {
             return getTags(entitiesWithTag -> {
-                LongIterator longIt = entities.iterator();
+                // Iterate over the smaller set, look up in the bigger set.
+                final LongSet smallerSet;
+                final LongSet largerSet;
+                if (entitiesWithTag.size() > entities.size()) {
+                    smallerSet = entities;
+                    largerSet = entitiesWithTag;
+                } else {
+                    smallerSet = entitiesWithTag;
+                    largerSet = entities;
+                }
+                LongIterator longIt = smallerSet.iterator();
                 while (longIt.hasNext()) {
                     long nextId = longIt.nextLong();
-                    if (entitiesWithTag.contains(nextId)) {
+                    if (largerSet.contains(nextId)) {
                         return true;
                     }
                 }
@@ -130,6 +156,37 @@ public interface TagIndex {
         @Nonnull
         public Map<String, LongSet> getEntitiesByValueMap(@Nonnull String tagKey) {
             return Collections.unmodifiableMap(tags.get(tagKey));
+        }
+
+        /**
+         * Get the tags on a set of entities, arranged by entity ID.
+         *
+         * @param entities The OIDs of the entities.
+         * @return The tags (expressed as key -> set(value)).
+         */
+        @Nonnull
+        public Long2ObjectMap<Map<String, Set<String>>> getTagsByEntity(@Nonnull final LongSet entities) {
+            Long2ObjectMap<Map<String, Set<String>>> ret = new Long2ObjectOpenHashMap<>();
+            tags.forEach((key, vals) -> {
+                vals.forEach((val, entitiesWithTag) -> {
+                    final LongSet smallerSet;
+                    final LongSet largerSet;
+                    if (entitiesWithTag.size() > entities.size()) {
+                        smallerSet = entities;
+                        largerSet = entitiesWithTag;
+                    } else {
+                        smallerSet = entitiesWithTag;
+                        largerSet = entities;
+                    }
+                    smallerSet.forEach((LongConsumer)e -> {
+                        if (largerSet.contains(e)) {
+                            ret.computeIfAbsent(e, k -> new HashMap<>())
+                                .computeIfAbsent(key, k -> new HashSet<>()).add(val);
+                        }
+                    });
+                });
+            });
+            return ret;
         }
 
         /**
@@ -158,7 +215,7 @@ public interface TagIndex {
 
         @Override
         @Nonnull
-        public LongSet getMatchingEntities(MapFilter mapFilter) {
+        public LongSet getMatchingEntities(@Nonnull MapFilter mapFilter, @Nonnull LongPredicate entityPredicate) {
             LongSet retSet = new LongOpenHashSet();
             if (StringUtils.isEmpty(mapFilter.getKey())) {
                 // Loop over all key-value pairs, create the joined "key=value" string, and
@@ -171,7 +228,11 @@ public interface TagIndex {
                         valsToEntities.forEach((val, entities) -> {
                             String keyVal = key + "=" + val;
                             if (pattern.matcher(keyVal).matches()) {
-                                retSet.addAll(entities);
+                                entities.forEach((LongConsumer)eId -> {
+                                    if (entityPredicate.test(eId)) {
+                                        retSet.add(eId);
+                                    }
+                                });
                             }
                         });
                     });

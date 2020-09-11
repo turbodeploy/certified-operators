@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.SortedMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.zip.ZipOutputStream;
 
@@ -43,6 +44,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChain
 import com.vmturbo.common.protobuf.search.SearchREST.SearchServiceController;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.components.common.BaseVmtComponent;
@@ -74,7 +76,6 @@ import com.vmturbo.repository.service.SupplyChainStatistician;
 import com.vmturbo.repository.service.TopologyGraphRepositoryRpcService;
 import com.vmturbo.repository.service.TopologyGraphSearchRpcService;
 import com.vmturbo.repository.service.TopologyGraphSupplyChainRpcService;
-import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
@@ -166,6 +167,12 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${showGuestLoad:false}")
     private boolean showGuestLoad;
 
+    @Value("${concurrentSearchLimit:30}")
+    private int concurrentSearchLimit;
+
+    @Value("${concurrentSearchWaitTimeoutMin:5}")
+    private int concurrentSearchWaitTimeoutMin;
+
     @PostConstruct
     private void setup() {
 
@@ -198,7 +205,7 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Bean
     public PartialEntityConverter partialEntityConverter() {
-        return new PartialEntityConverter();
+        return new PartialEntityConverter(repositoryComponentConfig.liveTopologyStore());
     }
 
     /**
@@ -249,15 +256,13 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public SearchServiceImplBase searchRpcService() {
         return new TopologyGraphSearchRpcService(repositoryComponentConfig.liveTopologyStore(),
-            searchResolver(), liveTopologyPaginator(),
+            liveTopologyPaginator(),
             partialEntityConverter(),
             userSessionConfig.userSessionContext(),
-            maxEntitiesPerChunk);
-    }
-
-    @Bean
-    public SearchResolver<RepoGraphEntity> searchResolver() {
-        return new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
+            maxEntitiesPerChunk,
+            concurrentSearchLimit,
+            concurrentSearchWaitTimeoutMin,
+            TimeUnit.MINUTES);
     }
 
     @Bean

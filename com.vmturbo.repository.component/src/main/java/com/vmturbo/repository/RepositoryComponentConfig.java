@@ -46,11 +46,14 @@ import com.vmturbo.repository.graph.executor.ReactiveArangoDBExecutor;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
 import com.vmturbo.repository.listener.RepositoryPlanGarbageCollector;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.service.GraphDBService;
 import com.vmturbo.repository.service.SupplyChainService;
 import com.vmturbo.repository.topology.GlobalSupplyChainManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
+import com.vmturbo.topology.graph.search.SearchResolver;
+import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
 /**
@@ -172,7 +175,17 @@ public class RepositoryComponentConfig {
      */
     @Bean
     public LiveTopologyStore liveTopologyStore() {
-        return new LiveTopologyStore(globalSupplyChainCalculator());
+        return new LiveTopologyStore(globalSupplyChainCalculator(), searchResolver());
+    }
+
+    /**
+     * Resolves searches against a topology graph.
+     *
+     * @return The {@link SearchResolver}.
+     */
+    @Bean
+    public SearchResolver<RepoGraphEntity> searchResolver() {
+        return new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
     }
 
     /**

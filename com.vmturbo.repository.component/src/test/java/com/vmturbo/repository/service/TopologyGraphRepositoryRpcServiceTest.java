@@ -25,15 +25,20 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
+import com.vmturbo.topology.graph.search.SearchResolver;
+import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
 /**
  * Tests class {@link TopologyGraphRepositoryRpcService}.
  */
 public class TopologyGraphRepositoryRpcServiceTest {
+    private SearchResolver<RepoGraphEntity>
+            searchResolver = new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
 
-    private LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator());
+    private LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator(), searchResolver);
 
     private final ArangoRepositoryRpcService arangoRepoRpcService = Mockito.mock(ArangoRepositoryRpcService.class);
 
@@ -41,7 +46,8 @@ public class TopologyGraphRepositoryRpcServiceTest {
 
     private long REALTIME_CONTEXT_ID = 777777L;
 
-    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
+    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter(
+            liveTopologyStore);
 
     private TopologyGraphRepositoryRpcService repositoryRpcService = new TopologyGraphRepositoryRpcService(
         liveTopologyStore, arangoRepoRpcService, partialEntityConverter,

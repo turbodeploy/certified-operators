@@ -60,6 +60,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.service.PlanStatsService.EntityAndStats;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufReader;
@@ -81,10 +82,11 @@ public class PlanStatsServiceTest {
      */
     private EntityStatsPaginator entityStatsPaginator = mock(EntityStatsPaginator.class);
 
+    private LiveTopologyStore liveTopologyStore = mock(LiveTopologyStore.class);
     /**
      * Converts entities to partial entities with the appropriate detail levels.
      */
-    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
+    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter(liveTopologyStore);
 
     /**
      * The class under test.

@@ -58,7 +58,10 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
+import com.vmturbo.topology.graph.search.SearchResolver;
+import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
 /**
@@ -75,7 +78,9 @@ public class EntityConstraintsRpcServiceTest {
     private static final Pair<Long, Integer> ST1 = Pair.of(20L, EntityType.STORAGE_VALUE);
     private static final Pair<Long, Integer> ST2 = Pair.of(21L, EntityType.STORAGE_VALUE);
     private static final Pair<Long, Integer> ST3 = Pair.of(22L, EntityType.STORAGE_VALUE);
-    private final LiveTopologyStore liveTopologyStore = spy(new LiveTopologyStore(new GlobalSupplyChainCalculator()));
+    private SearchResolver<RepoGraphEntity>
+            searchResolver = new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
+    private final LiveTopologyStore liveTopologyStore = spy(new LiveTopologyStore(new GlobalSupplyChainCalculator(), searchResolver));
     private EntitySeverityServiceMole entitySeverityMole = spy(EntitySeverityServiceMole.class);
 
     /**
