@@ -11,6 +11,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -40,7 +41,7 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
      */
     @Override
     public boolean appliesTo(@Nonnull final ActionView actionView) {
-        return translateCloudMoveAction(actionView.getRecommendation());
+        return isTranslateCloudMoveToScaleAction(actionView.getRecommendation());
     }
 
     /**
@@ -49,10 +50,11 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
      * @param action Action to check.
      * @return True if action is a Cloud Move that needs to be translated.
      */
-    public static boolean translateCloudMoveAction(@Nonnull final ActionDTO.Action action) {
+    public static boolean isTranslateCloudMoveToScaleAction(@Nonnull final ActionDTO.Action action) {
         // In case of cloud-to-cloud migration, move will be across regions, so we should
         // return false from here, as we don't want to translate such moves to scale.
-        return TopologyDTOUtil.isMoveWithinSameRegion(action);
+        return action.getInfo().getActionTypeCase() == ActionTypeCase.MOVE
+                && TopologyDTOUtil.isMoveWithinSameRegion(action);
     }
 
     /**

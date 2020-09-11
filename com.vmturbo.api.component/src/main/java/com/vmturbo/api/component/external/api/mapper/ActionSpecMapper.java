@@ -2170,7 +2170,7 @@ public class ActionSpecMapper {
             case MOVE:
                 // If we are moving across regions, as in cloud migration for example, then
                 // we need to show details, so return true in that case.
-                return !TopologyDTOUtil.isMoveWithinSameRegion(action);
+                return TopologyDTOUtil.isMigrationAction(action);
             default:
                 return false;
         }

@@ -391,7 +391,7 @@ public class ActionDescriptionBuilder {
             // We show scale if move is within same region. In cloud-to-cloud migration, there
             // is a region change, so we keep the action as MOVE, and don't change it to a SCALE.
             String verb = SCALE;
-            if (!TopologyDTOUtil.isMoveWithinSameRegion(recommendation)) {
+            if (TopologyDTOUtil.isMigrationAction(recommendation)) {
                 verb = MOVE;
                 Pair<String, String> regions = getRegions(recommendation, entitiesSnapshot);
                 String sourceRegion = regions.getFirst();

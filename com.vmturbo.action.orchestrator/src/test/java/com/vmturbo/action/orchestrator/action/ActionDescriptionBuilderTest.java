@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -62,6 +63,7 @@ public class ActionDescriptionBuilderTest {
 
     private ActionDTO.Action moveRecommendation;
     private ActionDTO.Action scaleRecommendation;
+    private ActionDTO.Action scaleTypeRecommendation;
     private ActionDTO.Action cloudStorageMoveRecommendation;
     private ActionDTO.Action resizeRecommendation;
     private ActionDTO.Action resizeMemRecommendation;
@@ -314,6 +316,10 @@ public class ActionDescriptionBuilderTest {
                 makeRec(makeMoveInfo(VM1_ID, COMPUTE_TIER_SOURCE_ID, EntityType.COMPUTE_TIER.getNumber(),
                     COMPUTE_TIER_DESTINATION_ID, EntityType.COMPUTE_TIER.getNumber()),
                         SupportLevel.SUPPORTED).build();
+        scaleTypeRecommendation =
+                makeRec(makeScaleInfo(VM1_ID, 0, 0, COMPUTE_TIER_SOURCE_ID,
+                        EntityType.COMPUTE_TIER.getNumber(), COMPUTE_TIER_DESTINATION_ID,
+                        EntityType.COMPUTE_TIER.getNumber()), SupportLevel.SUPPORTED).build();
         resizeRecommendation = makeRec(makeResizeInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizeMemRecommendation = makeRec(makeResizeMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizePortChannelRecommendation = makeRec(makeResizeInfo(SWITCH1_ID,
@@ -757,6 +763,36 @@ public class ActionDescriptionBuilderTest {
             .build());
     }
 
+    private ActionInfo.Builder makeScaleInfo(
+            long targetId,
+            long resourceId,
+            int resourceType,
+            long sourceId,
+            int sourceType,
+            long destinationId,
+            int destinationType) {
+
+        final ChangeProvider.Builder changeBuilder = ChangeProvider.newBuilder()
+                .setSource(ActionEntity.newBuilder()
+                        .setId(sourceId)
+                        .setType(sourceType)
+                        .build())
+                .setDestination(ActionEntity.newBuilder()
+                        .setId(destinationId)
+                        .setType(destinationType)
+                        .build());
+        if (resourceId != 0 && resourceType != 0) {
+            changeBuilder.setResource(ActionEntity.newBuilder()
+                    .setType(resourceType)
+                    .setId(resourceId)
+                    .build());
+        }
+        return ActionInfo.newBuilder().setScale(Scale.newBuilder()
+                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
+                .addChanges(changeBuilder.build())
+                .build());
+    }
+
     /**
      * Create a {@link ProvisionBySupplyExplanation}.
      *
@@ -923,6 +959,18 @@ public class ActionDescriptionBuilderTest {
                 entitySettingsCache, zoneToRegionComputeMove);
         expectedDescription = String.format("Move Virtual Machine %s from %s to %s",
                 AWS_VM_NAME, AWS_ZONE_NAME, AZURE_REGION_NAME);
+        assertEquals(expectedDescription, actualDescription);
+
+        // same region scale.
+        makeMockEntityCondition(VM1_ID, EntityType.VIRTUAL_MACHINE_VALUE, AWS_VM_NAME);
+        makeMockEntityCondition(COMPUTE_TIER_SOURCE_ID, EntityType.COMPUTE_TIER.getNumber(),
+                COMPUTE_TIER_SOURCE_DISPLAY_NAME);
+        makeMockEntityCondition(COMPUTE_TIER_DESTINATION_ID, EntityType.COMPUTE_TIER.getNumber(),
+                COMPUTE_TIER_DESTINATION_DISPLAY_NAME);
+        actualDescription = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, scaleTypeRecommendation);
+        expectedDescription = String.format("Scale Virtual Machine %s from %s to %s",
+                AWS_VM_NAME, COMPUTE_TIER_SOURCE_DISPLAY_NAME, COMPUTE_TIER_DESTINATION_DISPLAY_NAME);
         assertEquals(expectedDescription, actualDescription);
     }
 
