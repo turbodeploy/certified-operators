@@ -1769,7 +1769,7 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Tests application of EnableScaleActions setting.
+     * Tests application of {@link EntitySettingSpecs#EnableScaleActions} setting.
      */
     @Test
     public void testEnableScaleActionsApplicator() {
@@ -1785,6 +1785,22 @@ public class EntitySettingsApplicatorTest {
                         .setMovable(true));
         applySettings(TOPOLOGY_INFO, entity, setting);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+    }
+
+    /**
+     * Tests application of {@link EntitySettingSpecs#EnableDeleteActions} setting.
+     */
+    @Test
+    public void testEnableDeleteActionsApplicator() {
+        final Setting setting = Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.EnableDeleteActions.getSettingName())
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false))
+                .build();
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setAnalysisSettings(AnalysisSettings.newBuilder().setDeletable(true));
+        applySettings(TOPOLOGY_INFO, entity, setting);
+        assertThat(entity.getAnalysisSettings().getDeletable(), is(false));
     }
 
     /**

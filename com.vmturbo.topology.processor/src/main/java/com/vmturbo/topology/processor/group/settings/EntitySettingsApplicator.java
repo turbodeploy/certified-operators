@@ -238,7 +238,8 @@ public class EntitySettingsApplicator {
                 new ScalingPolicyApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.DBMemScalingIncrement,
                         CommodityType.DB_MEM),
-                new EnableScaleApplicator());
+                new EnableScaleApplicator(),
+                new EnableDeleteApplicator());
     }
 
     /**
@@ -1289,6 +1290,30 @@ public class EntitySettingsApplicator {
                 if (settingSpec.getEntityTypeScope().contains(entityType)) {
                     final boolean isMoveEnabled = setting.getBooleanSettingValue().getValue();
                     applyMovableToCommodities(entity, isMoveEnabled, builder -> true);
+                }
+            }
+        }
+    }
+
+    /**
+     * Applicator for "Enable Delete Actions" setting.
+     */
+    private static class EnableDeleteApplicator extends BaseSettingApplicator {
+
+        private static final EntitySettingSpecs settingSpec = EntitySettingSpecs.EnableDeleteActions;
+
+        @Override
+        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                          @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
+                          @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
+            final Setting setting = entitySettings.get(settingSpec);
+            if (setting != null) {
+                final EntityType entityType = EntityType.forNumber(entity.getEntityType());
+                if (settingSpec.getEntityTypeScope().contains(entityType)) {
+                    final boolean isDeleteEnabled = setting.getBooleanSettingValue().getValue();
+                    if (!isDeleteEnabled) {
+                        entity.getAnalysisSettingsBuilder().setDeletable(false);
+                    }
                 }
             }
         }

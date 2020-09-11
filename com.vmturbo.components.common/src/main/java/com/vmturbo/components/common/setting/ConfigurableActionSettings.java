@@ -143,12 +143,12 @@ public enum ConfigurableActionSettings {
      * Delete action automation mode.
      */
     Delete("delete", "Delete",
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME)),
+        EnumSet.of(EntityType.STORAGE)),
 
     /**
      * Delete Volume action automation mode.
      */
-    DeleteVolume("deleteVolume", "DeleteVolume",
+    DeleteVolume("deleteVolume", "Delete Volume",
         EnumSet.of(EntityType.VIRTUAL_VOLUME)),
 
     /**

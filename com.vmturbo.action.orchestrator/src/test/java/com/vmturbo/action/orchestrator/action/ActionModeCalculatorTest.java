@@ -535,23 +535,39 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testSettingDelete() {
+        testSettingDeleteForEntityType(ConfigurableActionSettings.Delete, EntityType.STORAGE);
+    }
+
+    /**
+     * Should return AUTOMATIC for a Delete Volume action, with the target having an AUTOMATIC
+     * delete action mode.
+     */
+    @Test
+    public void testSettingDeleteVolume() {
+        testSettingDeleteForEntityType(ConfigurableActionSettings.DeleteVolume,
+                EntityType.VIRTUAL_VOLUME);
+    }
+
+    private void testSettingDeleteForEntityType(
+            @Nonnull final ConfigurableActionSettings setting,
+            @Nonnull final EntityType entityType) {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
-            .setDelete(Delete.newBuilder()
-                .setTarget(ActionEntity.newBuilder()
-                    .setId(7L)
-                    .setType(1))))
-            .build();
+                .setDelete(Delete.newBuilder()
+                        .setTarget(ActionEntity.newBuilder()
+                                .setId(7L)
+                                .setType(entityType.getNumber()))))
+                .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
-            ImmutableMap.of(ConfigurableActionSettings.Delete.getSettingName(),
-                Setting.newBuilder()
-                    .setSettingSpecName(ConfigurableActionSettings.Delete.getSettingName())
-                    .setEnumSettingValue(EnumSettingValue.newBuilder()
-                        .setValue(ActionMode.AUTOMATIC.name()))
-                    .build()));
+                ImmutableMap.of(setting.getSettingName(),
+                        Setting.newBuilder()
+                                .setSettingSpecName(setting.getSettingName())
+                                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                                        .setValue(ActionMode.AUTOMATIC.name()))
+                                .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
-            is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
     /**
