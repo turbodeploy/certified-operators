@@ -1,6 +1,7 @@
 package com.vmturbo.plan.orchestrator.project;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -25,11 +26,10 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.turbonomic.cpucapacity.CPUCapacityEstimator;
 
-import io.grpc.Channel;
-
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -39,6 +39,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Discovered;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
@@ -53,6 +55,8 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -62,6 +66,11 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -82,6 +91,21 @@ import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
  */
 public class PlanProjectExecutorTest {
 
+    private static final long DEFAULT_HEADROOM_TEMPLATE_ID = 100;
+    private static final Template DEFAULT_HEADROOM_TEMPLATE =
+        Template.newBuilder().setId(DEFAULT_HEADROOM_TEMPLATE_ID)
+            .setTemplateInfo(TemplateInfo.newBuilder()
+                .setName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)).build();
+
+    private static final long AVG_HEADROOM_TEMPLATE_ID = 101;
+    private static final Template AVG_HEADROOM_TEMPLATE = Template.newBuilder().setId(AVG_HEADROOM_TEMPLATE_ID)
+        .setTemplateInfo(TemplateInfo.newBuilder()
+            .setName("target::AVG:test_cluster for last 10 days")).build();
+
+    private static final String SLOW_CPU_MODEL = "Quad-Core AMD Opteron(tm) Processor 8356";
+    private static final String FASTER_CPU_MODEL = "Intel(R) Xeon(R) CPU E5-2670 0 @ 2.60GHz";
+    private static final String FASTEST_CPU_MODEL = "Intel Xeon Gold 5115";
+
     private PlanDao planDao = mock(PlanDao.class);
 
     private PlanProjectDao planProjectDao = mock(PlanProjectDao.class);
@@ -96,6 +120,8 @@ public class PlanProjectExecutorTest {
 
     private StatsHistoryServiceMole statsHistoryServiceMole = spy(new StatsHistoryServiceMole());
 
+    private RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
+
     private PlanProjectNotificationSender projectNotificationSender =
             mock(PlanProjectNotificationSender.class);
 
@@ -103,7 +129,8 @@ public class PlanProjectExecutorTest {
      * The grpcServer mock.
      */
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceMole, settingServiceMole, statsHistoryServiceMole);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(
+        groupServiceMole, settingServiceMole, statsHistoryServiceMole, repositoryServiceMole);
 
     private TemplatesDao templatesDao = mock(TemplatesDao.class);
 
@@ -121,11 +148,10 @@ public class PlanProjectExecutorTest {
         IdentityGenerator.initPrefix(0);
         ProjectPlanPostProcessorRegistry registry = mock(ProjectPlanPostProcessorRegistry.class);
         PlanRpcService planRpcService = mock(PlanRpcService.class);
-        Channel repositoryChannel = mock(Channel.class);
         when(cpuCapacityEstimator.estimateMHzCoreMultiplier(any()))
             .thenReturn(1.0);
         planProjectExecutor = new PlanProjectExecutor(planDao, planProjectDao, grpcServer.getChannel(),
-                planRpcService, registry, repositoryChannel, templatesDao, grpcServer.getChannel(),
+                planRpcService, registry, grpcServer.getChannel(), templatesDao, grpcServer.getChannel(),
                 projectNotificationSender, true, topologyProcessor,
                 cpuCapacityEstimator);
         headroomExecutor = planProjectExecutor.getHeadroomExecutor();
@@ -500,17 +526,6 @@ public class PlanProjectExecutorTest {
                     .setRelationType(0))
                 .build()));
 
-        final long defaultHeadroomTemplateId = 100;
-        final Optional<Template> defaultHeadroomTemplate = Optional.of(
-            Template.newBuilder().setId(defaultHeadroomTemplateId)
-                .setTemplateInfo(TemplateInfo.newBuilder()
-                    .setName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)).build());
-
-        final long avgHeadroomTemplateId = 101;
-        final Template avgHeadroomTemplate = Template.newBuilder().setId(avgHeadroomTemplateId)
-            .setTemplateInfo(TemplateInfo.newBuilder()
-                    .setName("target::AVG:test_cluster for last 10 days")).build();
-
         final Grouping cluster = Grouping.newBuilder().setId(123)
             .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
@@ -522,11 +537,12 @@ public class PlanProjectExecutorTest {
         // 1. cluster template exists in the db
         // 1.1. associated template is avg template
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
-            .thenReturn(Optional.of(avgHeadroomTemplate));
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
+            .thenReturn(Optional.of(AVG_HEADROOM_TEMPLATE));
+        headroomExecutor.updateClusterHeadroomTemplate(
+            cluster, Optional.of(DEFAULT_HEADROOM_TEMPLATE), ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
-        verify(templatesDao).editTemplate(eq(avgHeadroomTemplateId), any(), any());
+        verify(templatesDao).editTemplate(eq(AVG_HEADROOM_TEMPLATE_ID), any(), any());
         verify(templatesDao, never()).createOrEditTemplate(any(), any());
         verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
 
@@ -534,15 +550,16 @@ public class PlanProjectExecutorTest {
         reset(templatesDao);
         reset(groupServiceMole);
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
-            .thenReturn(defaultHeadroomTemplate);
-        when(templatesDao.createOrEditTemplate(any(), any())).thenReturn(avgHeadroomTemplate);
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
+            .thenReturn(Optional.of(DEFAULT_HEADROOM_TEMPLATE));
+        when(templatesDao.createOrEditTemplate(any(), any())).thenReturn(AVG_HEADROOM_TEMPLATE);
+        headroomExecutor.updateClusterHeadroomTemplate(
+            cluster, Optional.of(DEFAULT_HEADROOM_TEMPLATE), ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
         verify(templatesDao, never()).editTemplate(anyLong(), any(), any());
         verify(templatesDao).createOrEditTemplate(any(), any());
-        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), avgHeadroomTemplateId);
+        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), AVG_HEADROOM_TEMPLATE_ID);
 
         // 1.3. associated template is not avg template or default headroom template
         reset(templatesDao);
@@ -551,7 +568,8 @@ public class PlanProjectExecutorTest {
             .thenReturn(Optional.of(Template.newBuilder().setId(1)
                 .setTemplateInfo(TemplateInfo.newBuilder()
                     .setName("associated template is not avg template")).build()));
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
+        headroomExecutor.updateClusterHeadroomTemplate(
+            cluster, Optional.of(DEFAULT_HEADROOM_TEMPLATE), ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
@@ -564,27 +582,29 @@ public class PlanProjectExecutorTest {
         reset(groupServiceMole);
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
             .thenReturn(Optional.empty());
-        when(templatesDao.createOrEditTemplate(any(), any())).thenReturn(avgHeadroomTemplate);
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
+        when(templatesDao.createOrEditTemplate(any(), any())).thenReturn(AVG_HEADROOM_TEMPLATE);
+        headroomExecutor.updateClusterHeadroomTemplate(
+            cluster, Optional.of(DEFAULT_HEADROOM_TEMPLATE), ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
         verify(templatesDao, never()).editTemplate(anyLong(), any(), any());
         verify(templatesDao).createOrEditTemplate(any(), any());
-        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), avgHeadroomTemplateId);
+        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), AVG_HEADROOM_TEMPLATE_ID);
 
         // 3. cluster doesn't have clusterHeadroomTemplateId (by default it will be 0)
         reset(templatesDao);
         reset(groupServiceMole);
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId())).thenReturn(Optional.empty());
-        when(templatesDao.createOrEditTemplate(any(), any())).thenReturn(avgHeadroomTemplate);
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
+        when(templatesDao.createOrEditTemplate(any(), any())).thenReturn(AVG_HEADROOM_TEMPLATE);
+        headroomExecutor.updateClusterHeadroomTemplate(
+            cluster, Optional.of(DEFAULT_HEADROOM_TEMPLATE), ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
         verify(templatesDao, never()).editTemplate(anyLong(), any(), any());
         verify(templatesDao).createOrEditTemplate(any(), any());
-        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), avgHeadroomTemplateId);
+        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), AVG_HEADROOM_TEMPLATE_ID);
     }
 
     /**
@@ -601,12 +621,6 @@ public class PlanProjectExecutorTest {
 
         when(statsHistoryServiceMole.getSystemLoadInfo(any())).thenReturn(Collections.emptyList());
 
-        final long defaultHeadroomTemplateId = 100;
-        final Optional<Template> defaultHeadroomTemplate = Optional.of(
-            Template.newBuilder().setId(defaultHeadroomTemplateId)
-                .setTemplateInfo(TemplateInfo.newBuilder()
-                    .setName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)).build());
-
         final Grouping cluster = Grouping.newBuilder().setId(123)
             .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
@@ -616,7 +630,8 @@ public class PlanProjectExecutorTest {
         // cluster template exists in the db, updateClusterHeadroomTemplate will not be invoked
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
             .thenReturn(Optional.of(Template.getDefaultInstance()));
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, Collections.emptyMap());
+        headroomExecutor.updateClusterHeadroomTemplate(
+            cluster, Optional.of(DEFAULT_HEADROOM_TEMPLATE), Collections.emptyMap());
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
@@ -628,24 +643,128 @@ public class PlanProjectExecutorTest {
         reset(groupServiceMole);
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
             .thenReturn(Optional.empty());
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, Collections.emptyMap());
+        headroomExecutor.updateClusterHeadroomTemplate(
+            cluster, Optional.of(DEFAULT_HEADROOM_TEMPLATE), Collections.emptyMap());
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
         verify(templatesDao, never()).createOrEditTemplate(any(), any());
-        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), defaultHeadroomTemplateId);
+        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(
+            cluster.getId(), DEFAULT_HEADROOM_TEMPLATE_ID);
 
         // cluster doesn't have clusterHeadroomTemplateId (by default it will be 0)
         reset(templatesDao);
         reset(groupServiceMole);
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
             .thenReturn(Optional.empty());
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, Collections.emptyMap());
+        headroomExecutor.updateClusterHeadroomTemplate(
+            cluster, Optional.of(DEFAULT_HEADROOM_TEMPLATE), Collections.emptyMap());
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
         verify(templatesDao, never()).createOrEditTemplate(any(), any());
-        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), defaultHeadroomTemplateId);
+        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(
+            cluster.getId(), DEFAULT_HEADROOM_TEMPLATE_ID);
+    }
+
+    /**
+     * If there is no cpu models in the cluster, then the TemplateInfo should not have a CPU Model.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testUpdateClusterHeadroomTemplateNoCpuModel() throws Exception {
+        when(statsHistoryServiceMole.getSystemLoadInfo(any()))
+            .thenReturn(Collections.singletonList(SystemLoadInfoResponse.newBuilder()
+                .addRecord(SystemLoadRecord.newBuilder()
+                    .setPropertyType("VCPU")
+                    .setAvgValue(10)
+                    .setRelationType(0))
+                .build()));
+
+        final Grouping cluster = Grouping.newBuilder().setId(123)
+            .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .setDefinition(GroupDefinition.newBuilder()
+                .setDisplayName("test_cluster")
+                .setType(GroupType.COMPUTE_HOST_CLUSTER))
+            .setOrigin(Origin.newBuilder().setDiscovered(Discovered.newBuilder().addDiscoveringTargetId(500L)))
+            .build();
+
+        when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
+            .thenReturn(Optional.empty());
+        final ArgumentCaptor<TemplateInfo> templateInfoCaptor = ArgumentCaptor.forClass(TemplateInfo.class);
+        when(templatesDao.createOrEditTemplate(templateInfoCaptor.capture(), any())).thenReturn(AVG_HEADROOM_TEMPLATE);
+        headroomExecutor.updateClusterHeadroomTemplate(
+            cluster, Optional.of(DEFAULT_HEADROOM_TEMPLATE), ImmutableMap.of(500L, "target"));
+
+        assertFalse(templateInfoCaptor.getValue().hasCpuModel());
+    }
+
+    /**
+     * When a cluster has cpu models, it should return the most frequent. If there's a tie, it
+     * should return the cpu model with the larger string.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testUpdateClusterHeadroomTemplateMostFrequent() throws Exception {
+        when(statsHistoryServiceMole.getSystemLoadInfo(any()))
+            .thenReturn(Collections.singletonList(SystemLoadInfoResponse.newBuilder()
+                .addRecord(SystemLoadRecord.newBuilder()
+                    .setPropertyType("VCPU")
+                    .setAvgValue(10)
+                    .setRelationType(0))
+                .build()));
+
+        final Grouping cluster = Grouping.newBuilder().setId(123)
+            .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .setDefinition(GroupDefinition.newBuilder()
+                .setDisplayName("test_cluster")
+                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                    .addMembersByType(StaticMembersByType.newBuilder()
+                        .addAllMembers(Arrays.asList(5L, 5L, 12L, 19L))
+                        .build())
+                    .buildPartial()))
+            .setOrigin(Origin.newBuilder().setDiscovered(Discovered.newBuilder().addDiscoveringTargetId(500L)))
+            .build();
+
+        when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
+            .thenReturn(Optional.empty());
+        final ArgumentCaptor<TemplateInfo> templateInfoCaptor = ArgumentCaptor.forClass(TemplateInfo.class);
+        when(templatesDao.createOrEditTemplate(templateInfoCaptor.capture(), any())).thenReturn(AVG_HEADROOM_TEMPLATE);
+        final ArgumentCaptor<RetrieveTopologyEntitiesRequest> retrieveTopologyEntitiesCaptor =
+            ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
+        when(repositoryServiceMole.retrieveTopologyEntities(retrieveTopologyEntitiesCaptor.capture()))
+            .thenReturn(Arrays.asList(
+                // SLOW_CPU_MODEL: 3
+                // FASTER_CPU_MODEL: 2
+                // FASTEST_CPU_MODEL: 3
+                PartialEntityBatch.newBuilder()
+                    .addEntities(makePhysicalMachine(SLOW_CPU_MODEL))
+                    .addEntities(makePhysicalMachine(FASTER_CPU_MODEL))
+                    .buildPartial(),
+                PartialEntityBatch.newBuilder()
+                    .addEntities(makePhysicalMachine(SLOW_CPU_MODEL))
+                    .addEntities(makePhysicalMachine(SLOW_CPU_MODEL))
+                    .addEntities(makePhysicalMachine(FASTER_CPU_MODEL))
+                    .addEntities(makePhysicalMachine(FASTEST_CPU_MODEL))
+                    .buildPartial(),
+                PartialEntityBatch.newBuilder()
+                    .addEntities(makePhysicalMachine(FASTEST_CPU_MODEL))
+                    .addEntities(makePhysicalMachine(FASTEST_CPU_MODEL))
+                    .buildPartial()));
+        headroomExecutor.updateClusterHeadroomTemplate(
+            cluster, Optional.of(DEFAULT_HEADROOM_TEMPLATE), ImmutableMap.of(500L, "target"));
+
+        TemplateInfo actualTemplate = templateInfoCaptor.getValue();
+        assertTrue(actualTemplate.hasCpuModel());
+        // Even though FASTEST_CPU_MODEL and SLOW_CPU_MODEL have the same count, SLOW_CPU_MODEL
+        // comes alphabetically after FASTEST_CPU_MODEL.
+        assertEquals(SLOW_CPU_MODEL, actualTemplate.getCpuModel());
+        // Should ask for all members of the group
+        assertEquals(ImmutableSet.of(5L, 12L, 19L),
+            new HashSet<>(retrieveTopologyEntitiesCaptor.getValue().getEntityOidsList()));
     }
 
     /**
@@ -675,5 +794,17 @@ public class PlanProjectExecutorTest {
         verify(templatesDao, never()).editTemplate(anyLong(), any());
         verify(templatesDao, never()).createOrEditTemplate(any(), any());
         verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
+    }
+
+    private static PartialEntity makePhysicalMachine(String cpuModel) {
+        return PartialEntity.newBuilder()
+            .setFullEntity(TopologyEntityDTO.newBuilder()
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setPhysicalMachine(PhysicalMachineInfo.newBuilder()
+                        .setCpuModel(cpuModel)
+                        .buildPartial())
+                    .buildPartial())
+                .buildPartial())
+            .buildPartial();
     }
 }
