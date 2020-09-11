@@ -61,6 +61,8 @@ public class UtilizationCountStoreTest {
      */
     @Test
     public void testAddPoints() throws HistoryCalculationException {
+        store.addPoints(ImmutableList.of(Double.NaN, Double.NaN), 1000d, 100);
+        Assert.assertTrue(store.isEmpty());
         store.addPoints(ImmutableList.of(10d, 10d, 10d, 10d, 10d), 100d, 100);
         Assert.assertEquals(10, store.getPercentile(90));
         // adding for the same time should have no effect

@@ -136,6 +136,11 @@ public class UtilizationCountArray {
             return;
         }
 
+        if (Double.isNaN(usage)) {
+            logger.warn("Skipping NaN percentile usage point {} for {}", usage, key);
+            return;
+        }
+
         if (usage > newCapacity) {
             logger.warn("Percentile usage point {} exceeds capacity {} for {}", usage, newCapacity, key);
             usage = newCapacity;
