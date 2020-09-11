@@ -17,6 +17,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -24,8 +26,6 @@ import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
@@ -52,9 +52,6 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
 
     //TODO: set this chunk config through consul.
     private final static int chunkSize = 1000;
-
-    private final static ReservedInstanceCoverageFilter reservedInstanceCoverageFilter = ReservedInstanceCoverageFilter
-            .newBuilder().build();
 
     private final DSLContext dsl;
 

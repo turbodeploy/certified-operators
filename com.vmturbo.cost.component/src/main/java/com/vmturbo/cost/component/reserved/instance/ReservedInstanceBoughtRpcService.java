@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -13,9 +14,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
@@ -31,7 +29,6 @@ import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReserv
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterResponse;
-import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByIdRequest;
@@ -44,22 +41,20 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForAnalysi
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
-import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -79,8 +74,6 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
     private final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub;
 
-    private final PlanReservedInstanceServiceBlockingStub planReservedInstanceService;
-
     private final Long realtimeTopologyContextId;
 
     private final PriceTableStore priceTableStore;
@@ -89,34 +82,28 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
     private final BuyReservedInstanceServiceBlockingStub buyRIServiceClient;
 
-    private final AccountRIMappingStore accountRIMappingStore;
-    private PlanReservedInstanceStore planReservedInstanceStore;
+    private final PlanReservedInstanceStore planReservedInstanceStore;
 
     public ReservedInstanceBoughtRpcService(
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
             @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
             @Nonnull final RepositoryClient repositoryClient,
             @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
-            @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
             final long realTimeTopologyContextId,
             @Nonnull final PriceTableStore priceTableStore,
             @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
             @Nonnull final BuyReservedInstanceServiceBlockingStub buyRIServiceClient,
-            @Nonnull final AccountRIMappingStore accountRIMappingStore,
-            @Nonnull final PlanReservedInstanceStore planReservedInstanceStore,
-            @Nonnull final BusinessAccountHelper businessAccountHelper) {
+            @Nonnull final PlanReservedInstanceStore planReservedInstanceStore) {
         this.reservedInstanceBoughtStore =
                 Objects.requireNonNull(reservedInstanceBoughtStore);
         this.entityReservedInstanceMappingStore =
                 Objects.requireNonNull(entityReservedInstanceMappingStore);
         this.repositoryClient = repositoryClient;
         this.supplyChainServiceBlockingStub = supplyChainServiceBlockingStub;
-        this.planReservedInstanceService = planReservedInstanceService;
         this.realtimeTopologyContextId = realTimeTopologyContextId;
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.reservedInstanceSpecStore = Objects.requireNonNull(reservedInstanceSpecStore);
         this.buyRIServiceClient = Objects.requireNonNull(buyRIServiceClient);
-        this.accountRIMappingStore = Objects.requireNonNull(accountRIMappingStore);
         this.planReservedInstanceStore = Objects.requireNonNull(planReservedInstanceStore);
     }
 
@@ -130,9 +117,9 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
         List<ReservedInstanceBought> unstitchedReservedInstances;
         if (topoInfo.hasTopologyContextId() && topoInfo.getTopologyContextId() != realtimeTopologyContextId) {
-
             unstitchedReservedInstances =
-                    planReservedInstanceStore.getReservedInstanceBoughtByPlanId(topoInfo.getTopologyContextId());
+                    planReservedInstanceStore.getReservedInstanceBoughtForAnalysis(
+                            topoInfo.getTopologyContextId());
         } else {
             unstitchedReservedInstances = reservedInstanceBoughtStore.getReservedInstanceBoughtForAnalysis(
                     ReservedInstanceBoughtFilter.SELECT_ALL_FILTER);
@@ -150,8 +137,19 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                     Stream.concat(buyRIs.stream(), unstitchedReservedInstances.stream())
                             .collect(Collectors.toList()));
         }
-        final Set<ReservedInstanceBought> stitchedRIs =
-                createStitchedRIBoughtInstances(unstitchedReservedInstances);
+
+        final EntityReservedInstanceMappingFilter filter =
+                EntityReservedInstanceMappingFilter.newBuilder().riBoughtFilter(
+                        Cost.ReservedInstanceBoughtFilter.newBuilder()
+                                .addAllRiBoughtId(unstitchedReservedInstances.stream()
+                                        .map(ReservedInstanceBought::getId)
+                                        .collect(Collectors.toSet()))
+                                .build()).build();
+
+        final Collection<ReservedInstanceBought> stitchedRIs = stitchOnDemandComputeTierCost(
+                stitchNumberOfUsedCoupons(unstitchedReservedInstances,
+                        entityReservedInstanceMappingStore.getReservedInstanceUsedCouponsMapByFilter(
+                                filter)));
 
         final GetReservedInstanceBoughtForAnalysisResponse response =
                 GetReservedInstanceBoughtForAnalysisResponse.newBuilder()
@@ -160,9 +158,6 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
         responseObserver.onNext(response);
         responseObserver.onCompleted();
     }
-
-
-
 
     @Override
     public void getReservedInstanceBoughtForScope(GetReservedInstanceBoughtForScopeRequest request,
@@ -335,38 +330,34 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
         }
     }
 
-    private Stream<ReservedInstanceBought> stitchRICouponsUsed(
-            List<ReservedInstanceBought> reservedInstancesBought, List<Long> riBoughtIds) {
-        final EntityReservedInstanceMappingFilter filter = EntityReservedInstanceMappingFilter
-                .newBuilder()
-                .riBoughtFilter(Cost.ReservedInstanceBoughtFilter.newBuilder()
-                        .addAllRiBoughtId(riBoughtIds)
-                        .build())
-                .build();
-        final Map<Long, Double> reservedInstanceUsedCouponsMap = entityReservedInstanceMappingStore
-                .getReservedInstanceUsedCouponsMapByFilter(filter);
-        return reservedInstancesBought.stream()
-                .map(ReservedInstanceBought::toBuilder)
-                .peek(riBuilder -> riBuilder
-                        .getReservedInstanceBoughtInfoBuilder()
-                        .getReservedInstanceBoughtCouponsBuilder()
-                        .setNumberOfCouponsUsed(
-                                reservedInstanceUsedCouponsMap
-                                        .getOrDefault(riBuilder.getId(), 0D)))
-                .map(ReservedInstanceBought.Builder::build);
+    private Collection<ReservedInstanceBought> stitchNumberOfUsedCoupons(
+            @Nonnull final Collection<ReservedInstanceBought> reservedInstancesBought,
+            @Nonnull final Map<Long, Double> reservedInstanceUsedCouponsMap) {
+        return reservedInstancesBought.stream().map(ReservedInstanceBought::toBuilder).peek(
+                riBuilder -> {
+                    riBuilder.getReservedInstanceBoughtInfoBuilder()
+                            .getReservedInstanceBoughtCouponsBuilder()
+                            .setNumberOfCouponsUsed(
+                                    reservedInstanceUsedCouponsMap.getOrDefault(riBuilder.getId(),
+                                            0D));
+                    logger.trace(
+                            "ReservedInstanceBought after stitching number of used coupons: {}",
+                            riBuilder);
+                }).map(Builder::build).collect(Collectors.toSet());
     }
 
-    private Stream<ReservedInstanceBought> stitchOnDemandComputeTierCost(
-            final Stream<ReservedInstanceBought> reservedInstancesBought,
-            final Set<Long> riSpecIds) {
+    private Collection<ReservedInstanceBought> stitchOnDemandComputeTierCost(
+            final Collection<ReservedInstanceBought> reservedInstancesBought) {
         final Map<Long, ReservedInstanceSpec> riSpecIdToRiSpec =
-                reservedInstanceSpecStore.getReservedInstanceSpecByIds(riSpecIds).stream()
+                reservedInstanceSpecStore.getReservedInstanceSpecByIds(reservedInstancesBought.stream()
+                        .map(riBought -> riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec())
+                        .collect(Collectors.toSet())).stream()
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
 
         final Map<Long, Pricing.OnDemandPriceTable> priceTableByRegion =
                 priceTableStore.getMergedPriceTable().getOnDemandPriceByRegionIdMap();
 
-        return reservedInstancesBought.map(ReservedInstanceBought::toBuilder)
+        return reservedInstancesBought.stream().map(ReservedInstanceBought::toBuilder)
                 .peek(riBoughtBuilder -> {
                     Optional.ofNullable(riSpecIdToRiSpec.get(riBoughtBuilder
                             .getReservedInstanceBoughtInfo().getReservedInstanceSpec()))
@@ -376,11 +367,9 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                             .getReservedInstanceBoughtInfoBuilder()
                             .getReservedInstanceDerivedCostBuilder()
                             .setOnDemandRatePerHour(amount));
-
                     logger.trace("ReservedInstanceBought after stitching currency amount: {}",
-                            () -> riBoughtBuilder);
-                })
-                .map(ReservedInstanceBought.Builder::build);
+                            riBoughtBuilder);
+                }).map(ReservedInstanceBought.Builder::build).collect(Collectors.toSet());
     }
 
     private Optional<CurrencyAmount> getOnDemandCurrencyAmountForRISpec(
@@ -485,20 +474,14 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
         }
     }
 
-    private Set<ReservedInstanceBought> createStitchedRIBoughtInstances(
-            @Nonnull List<ReservedInstanceBought> reservedInstances) {
-
-        final List<Long> riOids = reservedInstances.stream()
-                .map(ReservedInstanceBought::getId)
-                .collect(ImmutableList.toImmutableList());
-
-        final Set<Long> riSpecIds = reservedInstances.stream()
-                .map(riBought -> riBought.getReservedInstanceBoughtInfo()
-                        .getReservedInstanceSpec())
-                .collect(ImmutableSet.toImmutableSet());
-
-        return stitchOnDemandComputeTierCost(stitchRICouponsUsed(reservedInstances,
-                        riOids), riSpecIds)
-                .collect(ImmutableSet.toImmutableSet());
+    private Collection<ReservedInstanceBought> createStitchedRIBoughtInstances(
+            @Nonnull final List<ReservedInstanceBought> reservedInstances) {
+        final Map<Long, Double> reservedInstanceUsedCouponsMap =
+                reservedInstanceBoughtStore.getNumberOfUsedCouponsForReservedInstances(
+                        reservedInstances.stream()
+                                .map(ReservedInstanceBought::getId)
+                                .collect(Collectors.toSet()));
+        return stitchOnDemandComputeTierCost(
+                stitchNumberOfUsedCoupons(reservedInstances, reservedInstanceUsedCouponsMap));
     }
 }

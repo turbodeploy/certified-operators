@@ -181,11 +181,21 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
      * @param planId plan ID.
      * @return list of {@link ReservedInstanceBought}.
      */
-    public List<ReservedInstanceBought> getReservedInstanceBoughtByPlanId(long planId) {
+    public List<ReservedInstanceBought> getReservedInstanceBoughtByPlanId(final long planId) {
         final List<PlanReservedInstanceBoughtRecord> records = getDsl().selectFrom(Tables.PLAN_RESERVED_INSTANCE_BOUGHT)
                         .where(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.PLAN_ID.eq(planId))
                         .fetch();
         return records.stream().map(this::toReservedInstanceBoughtProto).collect(Collectors.toList());
+    }
+
+    /**
+     * Returns reserved instance bought list for the specified plan.
+     *
+     * @param planId plan ID.
+     * @return list of {@link ReservedInstanceBought}.
+     */
+    public List<ReservedInstanceBought> getReservedInstanceBoughtForAnalysis(final long planId) {
+        return adjustAvailableCouponsForPartialCloudEnv(getReservedInstanceBoughtByPlanId(planId));
     }
 
     private ReservedInstanceBought toReservedInstanceBoughtProto(PlanReservedInstanceBoughtRecord record) {

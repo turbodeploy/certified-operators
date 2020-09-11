@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -103,4 +104,25 @@ public interface ReservedInstanceBoughtStore extends ReservedInstanceCostStore,
      */
     List<ReservedInstanceBought>  getReservedInstanceBoughtForAnalysis(
             @Nonnull ReservedInstanceBoughtFilter filter);
+
+    /**
+     * Gets the number of used coupons for the reserved instances.
+     *
+     * @param context {@link DSLContext} transactional context
+     * @param filterByReservedInstanceIds filter by the reserved instances
+     * @return the number of used coupons for the reserved instances
+     */
+    @Nonnull
+    Map<Long, Double> getNumberOfUsedCouponsForReservedInstances(@Nonnull DSLContext context,
+            @Nonnull Collection<Long> filterByReservedInstanceIds);
+
+    /**
+     * Gets the number of used coupons for the reserved instances.
+     *
+     * @param filterByReservedInstanceIds filter by the reserved instances
+     * @return the number of used coupons for the reserved instances
+     */
+    @Nonnull
+    Map<Long, Double> getNumberOfUsedCouponsForReservedInstances(
+            @Nonnull Collection<Long> filterByReservedInstanceIds);
 }

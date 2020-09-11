@@ -175,8 +175,7 @@ public class ReservedInstanceConfig {
     public ReservedInstanceUtilizationStore reservedInstanceUtilizationStore() {
         return new ReservedInstanceUtilizationStore(databaseConfig.dsl(),
                 reservedInstanceBoughtStore(),
-                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
-                entityReservedInstanceMappingStore());
+                reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
 
     @Bean
@@ -185,19 +184,19 @@ public class ReservedInstanceConfig {
     }
 
     /**
-     *  ReservedInstanceBoughtRpcService bean.
+     * ReservedInstanceBoughtRpcService bean.
+     *
      * @return The {@link ReservedInstanceBoughtRpcService}
      */
     @Bean
     public ReservedInstanceBoughtRpcService reservedInstanceBoughtRpcService() {
         return new ReservedInstanceBoughtRpcService(reservedInstanceBoughtStore(),
                 entityReservedInstanceMappingStore(), repositoryClientConfig.repositoryClient(),
-                supplyChainRpcServiceConfig.supplyChainRpcService(),
-                PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
-                realtimeTopologyContextId, pricingConfig.priceTableStore(),
+                supplyChainRpcServiceConfig.supplyChainRpcService(), realtimeTopologyContextId,
+                pricingConfig.priceTableStore(),
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
-                accountRIMappingStore(), planReservedInstanceStore(), costConfig.businessAccountHelper());
+                planReservedInstanceStore());
     }
 
     /**
@@ -256,12 +255,11 @@ public class ReservedInstanceConfig {
 
     @Bean
     public ReservedInstanceCoverageUpdate reservedInstanceCoverageUpload() {
-        return new ReservedInstanceCoverageUpdate(databaseConfig.dsl(), entityReservedInstanceMappingStore(),
+        return new ReservedInstanceCoverageUpdate(databaseConfig.dsl(),
+                entityReservedInstanceMappingStore(), accountRIMappingStore(),
                 reservedInstanceUtilizationStore(), reservedInstanceCoverageStore(),
-                reservedInstanceCoverageValidatorFactory(),
-                supplementalRICoverageAnalysisFactory(),
-                costNotificationConfig.costNotificationSender(),
-                riCoverageCacheExpireMinutes);
+                reservedInstanceCoverageValidatorFactory(), supplementalRICoverageAnalysisFactory(),
+                costNotificationConfig.costNotificationSender(), riCoverageCacheExpireMinutes);
     }
 
     /**

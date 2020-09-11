@@ -21,7 +21,6 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
-import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
@@ -46,7 +45,6 @@ public class LiveTopologyEntitiesListenerTest {
                     mock(TopologyCostCalculatorFactory.class),
                     mock(EntityCostStore.class),
                     reservedInstanceCoverageUpdate,
-                    mock(AccountRIMappingStore.class),
                     mock(BusinessAccountHelper.class),
                     mock(CostJournalRecorder.class),
                     mock(ReservedInstanceAnalysisInvoker.class),
