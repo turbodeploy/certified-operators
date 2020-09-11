@@ -915,7 +915,7 @@ public class CloudMigrationPlanHelper {
                             sourceToProducerToMaxStorageAccess);
                     commoditiesToInclude.add(CloudStorageMigrationHelper
                             .adjustStorageAmountForCloudMigration(dtoBought, commBoughtGrouping,
-                                    iopsToStorageRatios, entityOid, historicalMaxIOP));
+                                    iopsToStorageRatios, entityOid, historicalMaxIOP, isDestinationAws));
                 } else {
                     // Assign storage provisioned used value for storage amount
                     commoditiesToInclude.add(CloudStorageMigrationHelper
