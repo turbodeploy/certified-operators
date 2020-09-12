@@ -347,7 +347,7 @@ public class Context {
 
     @Override
     public int hashCode() {
-        return Objects.hash(regionId_, balanceAccount_.hashCode());
+        return Objects.hash(regionId_, balanceAccount_);
     }
 
     @Override
