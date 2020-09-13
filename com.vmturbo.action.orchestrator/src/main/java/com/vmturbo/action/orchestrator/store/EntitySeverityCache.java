@@ -85,10 +85,9 @@ public class EntitySeverityCache {
                 // It's in the connected to list. All other entity types have the needed producers
                 // in the api producers list.
                 ImmutableSet.of(EntityType.VIRTUAL_VOLUME)))
+            .add(new TraversalConfig(EntityType.WORKLOAD_CONTROLLER, true, false, false))
             // database/app could be hosted on container
             .add(new TraversalConfig(EntityType.CONTAINER_POD, true, false, true))
-            // container's producer is container pod
-            .add(new TraversalConfig(EntityType.CONTAINER, true, false, true))
             .add(new TraversalConfig(EntityType.DATABASE_SERVER, true, false, true))
             // A database can be an instance running on a database server
             .add(new TraversalConfig(EntityType.DATABASE, true, false, true))
