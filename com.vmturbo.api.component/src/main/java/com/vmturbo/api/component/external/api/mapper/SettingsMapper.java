@@ -359,18 +359,13 @@ public class SettingsMapper {
 
         final List<SettingSpec> unhandledSpecs = specsByMgr.get(NO_MANAGER);
         if (unhandledSpecs != null && !unhandledSpecs.isEmpty()) {
-            final List<String> unhandledVisibleSpecs = unhandledSpecs.stream()
+            final List<String> unhandledNames = unhandledSpecs.stream()
                     .map(SettingSpec::getName)
-                    .filter(EntitySettingSpecs::isVisibleSetting)
                     .collect(Collectors.toList());
-            if (!unhandledVisibleSpecs.isEmpty()) {
-                logger.warn("The following settings don't have a mapping in the API component." +
-                        " Not returning them to the user. Settings: {}", unhandledVisibleSpecs);
-            } else if (logger.isDebugEnabled()) {
-                logger.debug("Visible and hidden settings that don't have mapping in the API "
-                        + "component. Settings: {}", unhandledSpecs);
-            }
+            logger.warn("The following settings don't have a mapping in the API component." +
+                    " Not returning them to the user. Settings: {}", unhandledNames);
         }
+
         return specsByMgr.entrySet().stream()
                 // Don't return the specs that don't have a Manager mapping
                 .filter(entry -> !entry.getKey().equals(NO_MANAGER))
@@ -379,7 +374,7 @@ public class SettingsMapper {
                             .orElseThrow(() -> new IllegalStateException("Manager ID " +
                                     entry.getKey() + " not found despite being in the mappings earlier."));
                     return createMgrDto(entry.getKey(), entityType, info,
-                            info.sortSettingSpecs(entry.getValue(), SettingSpec::getName), isPlan);
+                        info.sortSettingSpecs(entry.getValue(), SettingSpec::getName), isPlan);
                 })
                 .collect(Collectors.toList());
     }
@@ -824,17 +819,10 @@ public class SettingsMapper {
 
             final List<Setting> unhandledSettings = settingsByMgr.get(NO_MANAGER);
             if (unhandledSettings != null && !unhandledSettings.isEmpty()) {
-                final List<String> unhandledVisibleSettings = unhandledSettings.stream()
+                logger.warn("The following settings don't have a mapping in the API component." +
+                        " Not returning them to the user. Settings: {}", unhandledSettings.stream()
                         .map(Setting::getSettingSpecName)
-                        .filter(EntitySettingSpecs::isVisibleSetting)
-                        .collect(Collectors.toList());
-                if (!unhandledVisibleSettings.isEmpty()) {
-                    logger.warn("The following settings don't have a mapping in the API component."
-                            + " Not returning them to the user. Settings: {}", unhandledVisibleSettings);
-                } else if (logger.isDebugEnabled()) {
-                    logger.debug("Visible and hidden settings that don't have mapping in the API "
-                            + "component. Settings: {}", unhandledSettings);
-                }
+                        .collect(Collectors.toSet()));
             }
 
             apiDto.setSettingsManagers(settingsByMgr.entrySet().stream()
@@ -1509,5 +1497,4 @@ public class SettingsMapper {
         return resizeSetting;
     }
 }
-
 
