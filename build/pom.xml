@@ -484,6 +484,7 @@
         <profile>
             <id>grafana</id>
             <modules>
+                <module>../com.vmturbo.common.protobuf</module>
                 <module>../xl-python</module>
                 <module>../grafana</module>
             </modules>
@@ -2260,6 +2261,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.licensing</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>xl-python</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

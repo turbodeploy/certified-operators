@@ -10,13 +10,12 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 
-import com.google.protobuf.Empty;
-
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.clustermgr.DiagEnvironmentSummary.ChannelFactory;
+import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
@@ -87,7 +86,7 @@ public class DiagEnvironmentSummaryTest {
             .addLicenseDTO(LicenseDTO.newBuilder()
                 .setTurbo(TurboLicense.newBuilder()
                     .setEdition("foo")))
-            .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
+            .build()).when(licenseBackend).getLicenses(GetLicensesRequest.getDefaultInstance());
 
         final String diagFileName = diagEnvironmentSummary.getDiagFileName();
         assertThat(diagFileName, containsString(VERSION));
@@ -107,7 +106,7 @@ public class DiagEnvironmentSummaryTest {
                 .setTurbo(TurboLicense.newBuilder()
                     .setEmail("myemail")
                     .setEdition("foo")))
-            .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
+            .build()).when(licenseBackend).getLicenses(GetLicensesRequest.getDefaultInstance());
 
         final String diagFileName = diagEnvironmentSummary.getDiagFileName();
         assertThat(diagFileName, containsString(VERSION));
@@ -126,7 +125,7 @@ public class DiagEnvironmentSummaryTest {
                 .setTurbo(TurboLicense.newBuilder()
                     .setEmail("myemail@turbonomic.com")
                     .setEdition("foo")))
-            .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
+            .build()).when(licenseBackend).getLicenses(GetLicensesRequest.getDefaultInstance());
 
         final String diagFileName = diagEnvironmentSummary.getDiagFileName();
         assertThat(diagFileName, containsString(VERSION));
@@ -147,7 +146,7 @@ public class DiagEnvironmentSummaryTest {
                 .setTurbo(TurboLicense.newBuilder()
                     .setEmail("myemail@turbonomic.io ")
                     .setEdition("foo")))
-            .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
+            .build()).when(licenseBackend).getLicenses(GetLicensesRequest.getDefaultInstance());
 
         final String diagFileName = diagEnvironmentSummary.getDiagFileName();
         // check that the filename should not containg any whitespaces, otherwise the upload to the
@@ -167,7 +166,7 @@ public class DiagEnvironmentSummaryTest {
             .addLicenseDTO(LicenseDTO.newBuilder()
                 .setTurbo(TurboLicense.newBuilder()
                     .setEmail("myemail@vmturbo.com")))
-            .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
+            .build()).when(licenseBackend).getLicenses(GetLicensesRequest.getDefaultInstance());
 
         final String diagFileName = diagEnvironmentSummary.getDiagFileName();
         assertThat(diagFileName, containsString(VERSION));

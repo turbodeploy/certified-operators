@@ -55,7 +55,7 @@
                                     <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.platform.sdk.common</artifactId>
                                     <type>jar</type>
-                                    <overWrite>false</overWrite>
+                                    <overWrite>true</overWrite>
                                     <outputDirectory>${rawProtoLocation}</outputDirectory>
                                     <includes>**/*.proto</includes>
                                 </artifactItem>
@@ -63,7 +63,7 @@
                                     <groupId>com.vmturbo</groupId>
                                     <artifactId>common-protobuf</artifactId>
                                     <type>jar</type>
-                                    <overWrite>false</overWrite>
+                                    <overWrite>true</overWrite>
                                     <outputDirectory>${rawProtoLocation}</outputDirectory>
                                     <includes>**/*.proto</includes>
                                 </artifactItem>
@@ -164,4 +164,11 @@
             </plugin>
         </plugins>
     </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>common-protobuf</artifactId>
+        </dependency>
+    </dependencies>
 </project>

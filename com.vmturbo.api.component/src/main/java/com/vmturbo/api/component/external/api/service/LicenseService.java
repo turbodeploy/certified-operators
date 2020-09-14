@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseSummaryResponse;
+import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.RemoveLicenseRequest;
@@ -208,7 +209,7 @@ public class LicenseService implements ILicenseService {
 
     @Override
     public List<LicenseApiDTO> findAllLicenses() {
-        GetLicensesResponse response = licenseManagerService.getLicenses(Empty.getDefaultInstance());
+        GetLicensesResponse response = licenseManagerService.getLicenses(GetLicensesRequest.getDefaultInstance());
         List<LicenseApiDTO> allLicenses = response.getLicenseDTOList().stream()
                                             .map(LicenseMapper::licenseDTOtoLicenseApiDTO)
                                             .collect(Collectors.toList());

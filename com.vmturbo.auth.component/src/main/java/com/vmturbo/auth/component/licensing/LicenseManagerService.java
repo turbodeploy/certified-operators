@@ -13,8 +13,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.protobuf.Empty;
-
 import io.grpc.stub.StreamObserver;
 
 import org.apache.commons.lang.StringUtils;
@@ -33,8 +31,12 @@ import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseResponse;
+import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.ExternalLicense.Type;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TypeCase;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseFilter;
 import com.vmturbo.common.protobuf.licensing.Licensing.RemoveLicenseRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.RemoveLicenseResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.ValidateLicensesRequest;
@@ -154,15 +156,52 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
             }
         }
     }
+
+    private boolean licenseMatchesFilter(LicenseDTO license, LicenseFilter filter) {
+        if (ILicense.isExpired(LicenseUtil.getExpirationDate(license)) && !filter.getIncludeExpired()) {
+            return false;
+        }
+
+        boolean typeMatches = true;
+        switch (filter.getType()) {
+            case TURBO:
+                typeMatches = license.getTypeCase() == TypeCase.TURBO;
+                break;
+            case EXTERNAL:
+                typeMatches = license.getTypeCase() == TypeCase.EXTERNAL;
+                break;
+        }
+        if (!typeMatches) {
+            return false;
+        }
+
+        boolean externalTypeMatches = true;
+        if (filter.hasExternalLicenseType() && license.getTypeCase() == TypeCase.EXTERNAL) {
+            switch (filter.getExternalLicenseType()) {
+                case GRAFANA:
+                    externalTypeMatches = license.getExternal().getType() == Type.GRAFANA;
+                    break;
+            }
+        }
+
+        if (!externalTypeMatches) {
+            return false;
+        }
+
+        return true;
+    }
+
     @Override
-    public void getLicenses(final Empty request, final StreamObserver<GetLicensesResponse> responseObserver) {
+    public void getLicenses(final GetLicensesRequest request, final StreamObserver<GetLicensesResponse> responseObserver) {
         RPC_RECEIVED_COUNT.labels("getLicenses").increment();
         DataMetricTimer timer = RPC_PROCESSING_MS.labels("getLicenses").startTimer();
         try {
-            // get stored licenses in xml form for transfer
-            responseObserver.onNext(GetLicensesResponse.newBuilder()
-                    .addAllLicenseDTO(licenseStore.getLicenses())
-                    .build());
+            GetLicensesResponse.Builder respBldr = GetLicensesResponse.newBuilder();
+            licenseStore.getLicenses().stream()
+                .filter(license -> licenseMatchesFilter(license, request.getFilter()))
+                .forEach(respBldr::addLicenseDTO);
+
+            responseObserver.onNext(respBldr.build());
             responseObserver.onCompleted();
         } catch (Exception e) {
             responseObserver.onError(e);
