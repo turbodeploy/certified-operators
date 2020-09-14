@@ -151,8 +151,7 @@ public class KVBackedILocalAuthStoreTest {
 
     @NotNull
     private AuthProvider getStore(KeyValueStore keyValueStore) {
-        return new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.ALL),
-                new SsoUtil(), false);
+        return new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.ALL));
     }
 
     /**
@@ -183,8 +182,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAdd() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null,
-                new SsoUtil(), false);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null);
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
@@ -207,8 +205,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAddSharedUserValidGroups() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null,
-                new SsoUtil(), false);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null);
 
         // group 1 will be valid, but group 2 will not
         Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
@@ -261,8 +258,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test(expected = IllegalArgumentException.class)
     public void testAddSharedUserInvalidGroups() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null,
-                new SsoUtil(), false);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null);
 
         // group of PM's should not be allowed for shared user scope
         Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
@@ -429,8 +425,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testModifyRoles() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, new UserPolicy(LoginPolicy.ALL),
-                new SsoUtil(), false);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, new UserPolicy(LoginPolicy.ALL));
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0", ROLE_NAMES, ImmutableList.of(1L));
         Assert.assertFalse(result.isEmpty());
@@ -454,8 +449,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testModifyRolesInvalidScopeGroup() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null,
-                new SsoUtil(), false);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null);
 
         // group 1 will be valid, but group 2 will not
         Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
@@ -665,8 +659,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testDeleteSecurityGroupAndTransferWidgetsets() throws AuthorizationException {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, widgetsetDbStore, null,
-                new SsoUtil(), false);
+        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, widgetsetDbStore, null);
         SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
                 "DedicatedCustomer",
                 "administrator");
@@ -706,8 +699,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test(expected = SecurityException.class)
     public void testAuthenticateWithADOnlyUserPolicyNegative() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.AD_ONLY),
-                new SsoUtil(), false);
+        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.AD_ONLY));
         verifyAuthentication(keyValueStore, store, PROVIDER.LOCAL);
     }
 
@@ -718,8 +710,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAuthenticateWithADOnlyUserPolicyPositive() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.AD_ONLY),
-                new SsoUtil(), false);
+        AuthProvider store = new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.AD_ONLY));
         try {
             verifyAuthentication(keyValueStore, store, PROVIDER.LDAP);
             fail();

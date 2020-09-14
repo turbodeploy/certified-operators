@@ -1,6 +1,5 @@
 package com.vmturbo.auth.component.store;
 
-import static com.vmturbo.auth.api.auditing.AuditAction.SET_AD_MULTI_GROUP_AUTH;
 import static com.vmturbo.auth.api.authorization.IAuthorizationVerifier.PROVIDER_CLAIM;
 import static com.vmturbo.auth.api.authorization.IAuthorizationVerifier.SCOPE_CLAIM;
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP_ADDRESS_CLAIM;
@@ -45,7 +44,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 
-import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
@@ -104,40 +102,28 @@ public class AuthProvider extends AuthProviderBase {
      * Store for managing widgetsets belonging to a user.
      */
     private final WidgetsetDbStore widgetsetDbStore;
-    private boolean enableMultiADGroupSupport;
 
     /**
      * Constructs the KV store.
-     *  @param keyValueStore The underlying store backend.
+     *
+     * @param keyValueStore The underlying store backend.
      * @param groupServiceClient gRPC client to access the group service.
      * @param keyValueDir Function to provide the directory to store private key value data.
      * @param widgetsetDbStore The store for managing widgetsets.
      * @param userPolicy The system-wide user policy.
-     * @param ssoUtil sso utility
-     * @param enableMultiADGroupSupport enable multipe AD group support
      */
-    public AuthProvider(@Nonnull final KeyValueStore keyValueStore, @Nullable final GroupServiceBlockingStub groupServiceClient,
-            @Nonnull final Supplier<String> keyValueDir, @Nullable final WidgetsetDbStore widgetsetDbStore,
-            @Nonnull UserPolicy userPolicy, @Nonnull final SsoUtil ssoUtil,
-            final boolean enableMultiADGroupSupport) {
+    public AuthProvider(@Nonnull final KeyValueStore keyValueStore,
+                        @Nullable final GroupServiceBlockingStub groupServiceClient,
+                        @Nonnull final Supplier<String> keyValueDir,
+                        @Nullable final WidgetsetDbStore widgetsetDbStore,
+                        @Nonnull UserPolicy userPolicy) {
         super(keyValueStore);
         authInitProvider = new AuthInitProvider(keyValueStore, keyValueDir);
-        this.ssoUtil = ssoUtil;
+        ssoUtil = new SsoUtil();
         IdentityGenerator.initPrefix(identityGeneratorPrefix_);
         this.groupServiceClient = Optional.ofNullable(groupServiceClient);
         this.widgetsetDbStore = widgetsetDbStore;
         this.userPolicy = userPolicy;
-        this.enableMultiADGroupSupport = enableMultiADGroupSupport;
-        if (enableMultiADGroupSupport) {
-            final String msg = "Enabled supporting multiple AD groups. Scopes from matched group" +
-                    " will be combined and least privilege role will be chosen";
-            AuditLog.newEntry(SET_AD_MULTI_GROUP_AUTH,
-                    msg, true)
-                    .targetName("Login Policy")
-                    .audit();
-
-            logger_.info(msg);
-        }
     }
 
     /**
@@ -325,16 +311,13 @@ public class AuthProvider extends AuthProviderBase {
             @Nonnull Collection<String> ldapServers = ssoUtil.findLDAPServersInWindowsDomain();
             // only perform LDAP authentication where ldap server(s) are avaliable
             if (!ldapServers.isEmpty()) {
-                List<SecurityGroupDTO> userGroups = ssoUtil.authenticateUserInGroup(userName, password, ldapServers,
-                        enableMultiADGroupSupport);
-                // In mocked test userGroups can be null. A bug?
-                if (userGroups != null && !userGroups.isEmpty()) {
+                SecurityGroupDTO userGroup = ssoUtil.authenticateUserInGroup(userName, password, ldapServers);
+                if (userGroup != null) {
                     logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
                     // persist user in external group if it's not added before
-                    final SecurityGroupDTO securityGroupDTO = userGroups.get(0);
-                    final String uuid = addExternalGroupUser(securityGroupDTO.getDisplayName(), userName);
-                    return generateToken(userName, uuid, ImmutableList.of(securityGroupDTO.getRoleName()),
-                            combineScopes(userGroups), ipAddress, AuthUserDTO.PROVIDER.LDAP);
+                    final String uuid = addExternalGroupUser(userGroup.getDisplayName(), userName);
+                    return generateToken(userName, uuid, ImmutableList.of(userGroup.getRoleName()),
+                            userGroup.getScopeGroups(), ipAddress, AuthUserDTO.PROVIDER.LDAP);
                 }
             }
             throw new AuthenticationException("Unable to authenticate the user " + userName);
@@ -342,28 +325,6 @@ public class AuthProvider extends AuthProviderBase {
             // removed the exception stack to limit system information leakage
             throw new AuthenticationException("Unable to authenticate the user " + userName);
         }
-    }
-
-    /**
-     * Combine scope groups.
-     * If one group is not scoped, the user will be no scoped (empty scope)
-     * Otherwise, we combines all the scopes.
-     * @param userGroups user groups to be combined scopes
-     * @return combined scopes.
-     */
-    @Nonnull
-    @VisibleForTesting
-    List<Long> combineScopes(List<SecurityGroupDTO> userGroups) {
-        if (userGroups.stream()
-                .anyMatch(group -> group.getScopeGroups() == null
-                        || group.getScopeGroups().isEmpty())) {
-            return Collections.emptyList();
-        }
-        return userGroups.stream()
-                .flatMap(group -> group.getScopeGroups().stream())
-                .collect(Collectors.toSet())
-                .stream()
-                .collect(Collectors.toList());
     }
 
     /**

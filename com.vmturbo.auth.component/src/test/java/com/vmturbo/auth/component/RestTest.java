@@ -84,7 +84,6 @@ import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.store.AuthProvider;
-import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.kvstore.IPublicKeyStore;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
@@ -133,8 +132,7 @@ public class RestTest {
      * The K/V local auth store.
      */
     private static AuthProvider authStore = new AuthProvider(kvStore, null,
-            () -> System.getProperty("com.vmturbo.kvdir"), null, new UserPolicy(LoginPolicy.ALL),
-            new SsoUtil(), false);
+            () -> System.getProperty("com.vmturbo.kvdir"), null, new UserPolicy(LoginPolicy.ALL));
 
     /**
      * The verifier.

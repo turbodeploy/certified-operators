@@ -1,20 +1,16 @@
 package com.vmturbo.auth.component.store;
 
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
-import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OPERATIONAL_OBSERVER;
 import static com.vmturbo.auth.component.store.AuthProviderBase.PREFIX;
 import static com.vmturbo.auth.component.store.AuthProviderHelper.changePasswordAllowed;
 import static com.vmturbo.auth.component.store.AuthProviderHelper.mayAlterUserWithRoles;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,6 +27,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -43,11 +42,7 @@ import org.springframework.test.context.web.WebAppConfiguration;
 
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
-import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
-import com.vmturbo.auth.component.policy.UserPolicy;
-import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.store.AuthProvider.UserInfo;
-import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.kvstore.KeyValueStore;
 
@@ -66,22 +61,20 @@ public class AuthProviderRoleTest {
     private static final String ADMIN = "admin";
     private static final String SITE_ADMIN = "siteadmin";
 
-    private KeyValueStore mockKeystore;
-
+    @Mock
     Supplier<String> keyValueDir;
-
+    @InjectMocks
     AuthProvider authProviderUnderTest;
-
+    @Mock
+    private KeyValueStore mockKeystore;
 
     /**
      * Set up the Spring context with a security context.
      */
     @Before
     public void setup() {
-        mockKeystore = mock(KeyValueStore.class);
-        keyValueDir = mock(Supplier.class);
-        authProviderUnderTest = new AuthProvider(mockKeystore, null, keyValueDir, null, new UserPolicy(LoginPolicy.ALL),
-                new SsoUtil(), false);
+
+        MockitoAnnotations.initMocks(this);
     }
 
     /**
@@ -243,29 +236,6 @@ public class AuthProviderRoleTest {
     public void testChangePasswordAllowedNotLogin() {
         assertFalse(changePasswordAllowed(buildUser(ADMINISTRATOR, Optional.empty())));
         assertFalse(changePasswordAllowed(buildUser(OBSERVER, Optional.of(OBSERVER))));
-    }
-
-    /**
-     * Combine scopes.
-     * 1. if one group is NOT scoped, the user will NOT be scoped.
-     * 2. if all groups are scoped, the user will have all the scopes.
-     */
-    @Test
-    public void testCombinedScopes() {
-        SecurityGroupDTO securityGroup =
-                new SecurityGroupDTO("ADMIN_GROUP", "", OBSERVER, Lists.newArrayList(1L, 3L));
-        SecurityGroupDTO securityGroup1 =
-                new SecurityGroupDTO("ADMIN_GROUP", "", OBSERVER, Lists.newArrayList(2L));
-        SecurityGroupDTO securityGroup2 =
-                new SecurityGroupDTO("ADMIN_GROUP", "", OBSERVER, Collections.emptyList());
-        SecurityGroupDTO securityGroup3 =
-                new SecurityGroupDTO("ADMIN_GROUP", "", OBSERVER, Lists.newArrayList(4L));
-        SecurityGroupDTO securityGroup4 =
-                new SecurityGroupDTO("ADMIN_GROUP", "", OPERATIONAL_OBSERVER, Lists.newArrayList(4L));
-        // #1
-        assertEquals(0, authProviderUnderTest.combineScopes(ImmutableList.of(securityGroup, securityGroup1, securityGroup2)).size());
-        // #2
-        assertThat(authProviderUnderTest.combineScopes(ImmutableList.of(securityGroup, securityGroup1, securityGroup3)), hasItems(1L, 2L, 3L, 4L));
     }
 
     // Helper to build UserInfo.

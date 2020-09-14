@@ -50,8 +50,7 @@ public enum AuditAction {
     SET_DEFAULT_AUTH("Configure local and AD authentication and authorization"),
     SET_AD_ONLY_AUTH("Configure AD only authentication and authorization"),
     SET_LOCAL_ONLY_AUTH("Configure Local only authentication and authorization"),
-    SET_HEADER_AUTH("Configure header authentication and authorization"),
-    SET_AD_MULTI_GROUP_AUTH("Configure AD to support multiple external groups");
+    SET_HEADER_AUTH("Configure header authentication and authorization");
 
 
     private String displayName;
