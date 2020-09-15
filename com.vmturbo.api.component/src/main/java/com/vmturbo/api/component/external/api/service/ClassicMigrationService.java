@@ -159,10 +159,10 @@ public class ClassicMigrationService implements IClassicMigrationService {
             return new String(plaintext, CHARSET_CRYPTO);
         } catch (BadPaddingException e) {
             // In case we are using the new format, rethrow.
-            if (!keyPair.hasEncryptionKeyForVMTurboInstanceJava7()) {
+            if (!keyPair.hasBase64DecodedKey()) {
                 throw new SecurityException(e);
             }
-            SecretKey key = generateSecretKey(keyPair.getEncryptionKeyForVMTurboInstanceJava7(), salt);
+            SecretKey key = generateSecretKey(keyPair.getBase64DecodedKey(), salt);
             IvParameterSpec iv = new IvParameterSpec(nonce);
             cipher.init(Cipher.DECRYPT_MODE, key, iv);
             byte[] plaintext = cipher.doFinal(cipherBytes);
@@ -174,29 +174,21 @@ public class ClassicMigrationService implements IClassicMigrationService {
         byte[] keyBytes = encryptionKey.getBytes();
         String keyStr = new String(keyBytes, CHARSET_CRYPTO);
         String encryptionKeyForVMTurboInstance = "";
-        String encryptionKeyForVMTurboInstanceJava7 = null;
+        String base64DecodedPassword = null;
         // Check whether we have a sane key format.
         if (keyStr.startsWith(MAGIC_COOKIE_V1)) {
             encryptionKeyForVMTurboInstance = keyStr.substring(MAGIC_COOKIE_V1.length(),
                 keyStr.length());
         } else {
-            // Old style
+            // Handle the case in which the key is encoded with Base64. This happens for older
+            // classic instances that have the encryption key file written in binary. The turbo
+            // migrate tool will encode them in base64.
             encryptionKeyForVMTurboInstance =
                 new String(keyBytes, 0, CLASSIC_INSTANCE_KEY_LENGTH, CHARSET_CRYPTO);
-            // Construct Java 7 version if needed.
-            // Check for the Unicode substitution character: '\uFFFD'
-            if (encryptionKeyForVMTurboInstance.endsWith("\uFFFD")) {
-                int length = encryptionKeyForVMTurboInstance.length();
-                for (; length > 0; length--) {
-                    if (encryptionKeyForVMTurboInstance.charAt(length - 1) != '\uFFFD') {
-                        break;
-                    }
-                }
-                encryptionKeyForVMTurboInstanceJava7 =
-                    encryptionKeyForVMTurboInstance.substring(0, length + 1);
-            }
+            base64DecodedPassword = new String(Base64.decode(encryptionKey), 0,
+                CLASSIC_INSTANCE_KEY_LENGTH, CHARSET_CRYPTO);
         }
-        return new KeyPair(encryptionKeyForVMTurboInstance, encryptionKeyForVMTurboInstanceJava7);
+        return new KeyPair(encryptionKeyForVMTurboInstance, base64DecodedPassword);
     }
 
     private static SecretKey generateSecretKey(String password, byte[] salt) throws InvalidKeySpecException, NoSuchAlgorithmException {
@@ -214,23 +206,23 @@ public class ClassicMigrationService implements IClassicMigrationService {
     private static class KeyPair {
 
          private final String encryptionKey;
-         private final String encryptionKeyForVMTurboInstanceJava7;
+         private final String base64DecodedKey;
 
          private KeyPair(String encryptionKey, String encryptionKeyForVMTurboInstanceJava7) {
              this.encryptionKey = encryptionKey;
-             this.encryptionKeyForVMTurboInstanceJava7 = encryptionKeyForVMTurboInstanceJava7;
+             this.base64DecodedKey = encryptionKeyForVMTurboInstanceJava7;
          }
 
         public String getEncryptionKey() {
             return encryptionKey;
         }
 
-        public boolean hasEncryptionKeyForVMTurboInstanceJava7() {
-            return encryptionKeyForVMTurboInstanceJava7 != null;
+        public boolean hasBase64DecodedKey() {
+            return base64DecodedKey != null;
         }
 
-        public String getEncryptionKeyForVMTurboInstanceJava7() {
-            return encryptionKeyForVMTurboInstanceJava7;
+        public String getBase64DecodedKey() {
+            return base64DecodedKey;
         }
     }
 }
