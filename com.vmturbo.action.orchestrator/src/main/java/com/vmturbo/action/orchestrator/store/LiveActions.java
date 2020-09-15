@@ -691,7 +691,7 @@ class LiveActions implements QueryableActionViews {
         //    large set!!)
         // 3) otherwise, the request is for the whole market and the user is NOT scoped -- fetch
         //    all entities without restriction.
-        InvolvedEntityCalculation involvedEntityCalculation = InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES;
+        InvolvedEntityCalculation involvedEntityCalculation = InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES;
         final Set<Long> entitiesRestriction;
         if (actionQueryFilter.hasInvolvedEntities()) {
             final List<Long> oidsList = actionQueryFilter.getInvolvedEntities().getOidsList();

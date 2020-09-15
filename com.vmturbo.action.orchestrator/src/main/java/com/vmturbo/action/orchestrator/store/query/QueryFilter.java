@@ -58,7 +58,7 @@ public class QueryFilter {
             actionQueryFilter.hasInvolvedEntities() ?
                 new HashSet<>(actionQueryFilter.getInvolvedEntities().getOidsList())
                     : Collections.emptySet(),
-            InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+            InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
     }
 
     /**

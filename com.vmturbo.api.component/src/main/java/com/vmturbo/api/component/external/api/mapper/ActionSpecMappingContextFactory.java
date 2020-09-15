@@ -53,6 +53,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -532,7 +533,8 @@ public class ActionSpecMappingContextFactory {
     @Nonnull
     @VisibleForTesting
     Map<Long, ApiPartialEntity> getEntities(@Nonnull final List<Action> actions, final long contextId) {
-        final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(actions);
+        final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(actions,
+            InvolvedEntityCalculation.INCLUDE_ALL_MERGED_INVOLVED_ENTITIES);
         boolean isPlan = contextId != realtimeTopologyContextId;
         // In plans, we also want to retrieve the provisioned sellers, because we will show and
         // interpret actions that interact with them (e.g. provision host X, move vm Y onto host X).

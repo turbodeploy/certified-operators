@@ -121,7 +121,7 @@ public class LiveActionsTest {
                 Set<Long> oids = new HashSet<>(
                     (Collection<Long>)(invocationOnMock.getArguments()[0]));
                 return new InvolvedEntitiesFilter(
-                    oids, InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+                    oids, InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
             }
         );
     }

@@ -134,7 +134,7 @@ public class InvolvedEntitiesExpander {
         }
         return new InvolvedEntitiesFilter(
             new HashSet<>(involvedEntities),
-            InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+            InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
     }
 
     /**

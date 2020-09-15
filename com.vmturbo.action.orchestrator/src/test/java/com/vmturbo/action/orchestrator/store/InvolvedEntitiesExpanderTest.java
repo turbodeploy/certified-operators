@@ -103,7 +103,7 @@ public class InvolvedEntitiesExpanderTest {
             Collections.emptySet(),
             actualFilter.getEntities());
         Assert.assertEquals("empty list should not be expanded",
-            InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES,
+            InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES,
             actualFilter.getCalculationType());
 
         when(repositoryServiceMole.retrieveTopologyEntities(any()))
@@ -120,14 +120,14 @@ public class InvolvedEntitiesExpanderTest {
             ImmutableSet.of(BUSINESS_APP_OID, BUSINESS_TRANS_OID, SERVICE_OID, VM_OID),
             actualFilter.getEntities());
         Assert.assertEquals("set with a vm should not be expanded",
-            InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES,
+            InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES,
             actualFilter.getCalculationType());
 
         Assert.assertEquals("set with a vm should not be expanded",
             ImmutableSet.of(BUSINESS_APP_OID, BUSINESS_TRANS_OID, SERVICE_OID, VM_OID),
             actualFilter.getEntities());
         Assert.assertEquals("set with a vm should not be expanded",
-            InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES,
+            InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES,
             actualFilter.getCalculationType());
     }
 

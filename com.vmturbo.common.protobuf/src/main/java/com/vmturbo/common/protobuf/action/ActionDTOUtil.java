@@ -345,6 +345,21 @@ public class ActionDTOUtil {
      */
     @Nonnull
     public static Set<Long> getInvolvedEntityIds(@Nonnull final Collection<Action> actions) {
+        return getInvolvedEntityIds(actions, InvolvedEntityCalculation.INCLUDE_ALL_MERGED_INVOLVED_ENTITIES);
+    }
+
+    /**
+     * The equivalent of {@link ActionDTOUtil#getInvolvedEntities(Action)} for
+     * a collection of actions. Returns the union of involved entities for every
+     * action in the collection.
+     *
+     * @param actions The actions to consider.
+     * @param involvedEntityCalculation How the involved entities must participate.
+     * @return A set of IDs of involved entities.
+     */
+    @Nonnull
+    public static Set<Long> getInvolvedEntityIds(@Nonnull final Collection<Action> actions,
+                                                 @Nonnull final InvolvedEntityCalculation involvedEntityCalculation) {
         final Set<Long> involvedEntitiesSet = new HashSet<>();
 
         // Avoid allocation of actual map until we actually have an error.
@@ -352,7 +367,7 @@ public class ActionDTOUtil {
 
         for (final Action action : actions) {
             try {
-                involvedEntitiesSet.addAll(getInvolvedEntityIds(action));
+                involvedEntitiesSet.addAll(getInvolvedEntityIds(action, involvedEntityCalculation));
             } catch (UnsupportedActionException e) {
                 if (unsupportedActionTypes.isEmpty()) {
                     unsupportedActionTypes = new HashMap<>();
@@ -382,7 +397,7 @@ public class ActionDTOUtil {
     @Nonnull
     public static Set<Long> getInvolvedEntityIds(@Nonnull final ActionDTO.Action action)
         throws UnsupportedActionException {
-        return getInvolvedEntityIds(action, InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        return getInvolvedEntityIds(action, InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
     }
 
     /**
@@ -419,7 +434,7 @@ public class ActionDTOUtil {
     @Nonnull
     public static List<ActionEntity> getInvolvedEntities(@Nonnull final ActionDTO.Action action)
         throws UnsupportedActionException {
-        return getInvolvedEntities(action, InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        return getInvolvedEntities(action, InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
     }
 
     /**
@@ -449,6 +464,14 @@ public class ActionDTOUtil {
             case ATOMICRESIZE:
                 final List<ActionEntity> atomicResizeEntities = new ArrayList<>();
                 atomicResizeEntities.add(getPrimaryEntity(action));
+                if (involvedEntityCalculation == InvolvedEntityCalculation.INCLUDE_ALL_MERGED_INVOLVED_ENTITIES) {
+                    action.getInfo().getAtomicResize().getResizesList().forEach(resize -> {
+                        atomicResizeEntities.addAll(resize.getSourceEntitiesList());
+                        if (resize.hasTarget()) {
+                            atomicResizeEntities.add(resize.getTarget());
+                        }
+                    });
+                }
                 return atomicResizeEntities;
             case RESIZE:
             case ACTIVATE:
