@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -89,7 +90,16 @@ public class TestProbeStore implements ProbeStore {
 
     @Override
     public void removeTransport(ITransport<MediationServerMessage, MediationClientMessage> transport) {
-        throw new UnsupportedOperationException();
+        final Iterator<Entry<Long, ITransport<MediationServerMessage, MediationClientMessage>>>
+                iterator =
+                probes.entries().iterator();
+        while (iterator.hasNext()) {
+            final Entry<Long, ITransport<MediationServerMessage, MediationClientMessage>> entry =
+                    iterator.next();
+            if (entry.getValue().equals(transport)) {
+                iterator.remove();
+           }
+        }
     }
 
     @Override
