@@ -1489,6 +1489,8 @@ public class ActionSpecMapper {
                     newEntity.setUuid(consumer.getUuid());
                     newEntity.setClassName(StringConstants.STORAGE);
                     newEntity.setDisplayName(consumer.getDisplayName());
+                    newEntity.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(
+                                    EnvironmentTypeEnum.EnvironmentType.ON_PREM));
                     actionApiDTO.setNewEntity(newEntity);
                     actionApiDTO.setNewValue(newEntity.getUuid());
                     return;
