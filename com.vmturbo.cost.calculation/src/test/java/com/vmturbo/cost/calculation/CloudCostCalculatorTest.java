@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForGuestOsType;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.commons.Units;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
@@ -113,7 +114,9 @@ public class CloudCostCalculatorTest {
         IP_RANGE * IP_PRICE_RANGE_1 + (DEFAULT_ELASTIC_IPS_BOUGHT - IP_RANGE) * IP_PRICE;
     private static final double MYSQL_ADJUSTMENT = 5;
     private static final int GB_RANGE = 11;
+    private static final int GB_RANGE_SLOT_2 = 21;
     private static final int INCREMENT_INTERVAL_GB = 1;
+    private static final int INCREMENT_INTERVAL_GB_SLOT_2 = 5;
     private static final int STORAGE_RANGE = 11264; // 11 GB in MBytes.
     private static final double STORAGE_PRICE = 1.0;
     private static final double GB_PRICE_RANGE_1 = 13.0; // price per GB within GB_RANGE
@@ -549,6 +552,55 @@ public class CloudCostCalculatorTest {
     }
 
     /**
+     * Test a on-demand calculation (no discount) for a Database.
+     */
+    @Test
+    public void testCalculateOnDemandCostForDatabaseWithTwoStorageSlabs() {
+        // arrange
+        final long dbId = 9;
+        final long extraStorageInGB = 10;
+        final TestEntityClass db = TestEntityClass.newBuilder(dbId)
+                .setType(EntityType.DATABASE_VALUE)
+                .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
+                        DatabaseEdition.ENTERPRISE,
+                        DatabaseEngine.MYSQL, LicenseModel.LICENSE_INCLUDED, DeploymentType.SINGLE_AZ))
+                .build(infoExtractor);
+
+        when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
+        when(topology.getConnectedAvailabilityZone(dbId)).thenReturn(Optional.of(availabilityZone));
+        when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
+        when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
+        // 21 GB.
+        when(infoExtractor.getDBStorageCapacity(any()))
+                .thenReturn(Optional.of((float)STORAGE_RANGE + (extraStorageInGB * Units.KBYTE)));
+        final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
+                ACCOUNT_PRICING_DATA_OID);
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+        CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+
+        // act
+        final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(db);
+
+        // assert
+        assertThat(journal.getTotalHourlyCost().getValue(),
+                is(BASE_PRICE + MYSQL_ADJUSTMENT +
+                        CostProtoUtil.getHourlyPriceAmount(price(Unit.GB_MONTH,
+                                (GB_RANGE + extraStorageInGB ) * STORAGE_PRICE))));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
+                is(BASE_PRICE));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(),
+                is(CostProtoUtil.getHourlyPriceAmount(price(Unit.GB_MONTH,
+                        (GB_RANGE + extraStorageInGB ) * STORAGE_PRICE))));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(),
+                is(MYSQL_ADJUSTMENT));
+
+        // Once for the compute, once for the license, because both costs are "paid to" the
+        // database tier.
+        verify(discountApplicator, times(3)).getDiscountPercentage(databaseTier);
+    }
+
+    /**
      * Test a on-demand calculation (no discount) for a Database Server.
      */
     @Test
@@ -792,6 +844,10 @@ public class CloudCostCalculatorTest {
                                     .addPrices(price(Unit.HOURS, MYSQL_ADJUSTMENT)))
                                 .addDependentPrices(price(Unit.GB_MONTH, GB_RANGE,
                                         INCREMENT_INTERVAL_GB, STORAGE_PRICE))
+                                // second increment.
+                                .addDependentPrices(price(Unit.GB_MONTH, GB_RANGE_SLOT_2,
+                                        INCREMENT_INTERVAL_GB_SLOT_2,
+                                        STORAGE_PRICE))
                                 .build())
                         .build())
                 .putDbPricesByInstanceId(DB_SERVER_TIER_ID, DbTierOnDemandPriceTable.newBuilder()

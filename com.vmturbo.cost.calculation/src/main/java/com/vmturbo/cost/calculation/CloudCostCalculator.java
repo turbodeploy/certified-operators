@@ -754,19 +754,22 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         entityInfoExtractor.getName(entity));
                 return defaultPrice;
             }
-            for (; currentSize < storagePrice.getEndRangeInUnits(); currentSize += storagePrice.getIncrementInterval()) {
+            while (currentSize < storagePrice.getEndRangeInUnits()) {
+                currentSize += storagePrice.getIncrementInterval();
                 String traxDescription = String.format("Storage price for incrementInterval %s is %s",
-                        storagePrice.getIncrementInterval(), storagePrice.getPriceAmount().getAmount() );
+                        storagePrice.getIncrementInterval(), storagePrice.getPriceAmount().getAmount());
                 TraxNumber addedStoragePrice = trax(storagePrice.getIncrementInterval() * storagePrice.getPriceAmount().getAmount(),
                         traxDescription);
                 totalCost = totalCost.plus(addedStoragePrice).compute();
                 if (currentSize >= storageAmount) {
                     // We have reached storage requirements.
+                    logger.trace("Reached expected storage amount with {}. Required storage amount was {}.", currentSize, storageAmount);
                     break;
                 }
             }
             if (currentSize >= storageAmount) {
                 // We have reached storage requirements.
+                logger.trace("Reached expected storage amount with {}. Required storage amount was {}.", currentSize, storageAmount);
                 break;
             }
         }
